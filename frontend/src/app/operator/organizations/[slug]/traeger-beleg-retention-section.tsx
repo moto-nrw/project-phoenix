@@ -641,7 +641,7 @@ function InstructionModal({
           }
           hint={
             withoutStatutes
-              ? "Ohne AO, HGB oder UStG: diese Vorschriften gelten hier nicht."
+              ? "Nennen Sie weder AO, HGB, UStG noch §§ 147, 257, 14b, auch nicht abgekürzt."
               : undefined
           }
           maxLength={500}

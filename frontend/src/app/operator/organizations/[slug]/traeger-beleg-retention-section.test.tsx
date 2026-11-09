@@ -190,6 +190,108 @@ describe("TraegerBelegRetentionSection", () => {
       next_review_on: "2026-10-09",
     });
   });
+
+  it("requires the escalation for an overdue entry", async () => {
+    const user = userEvent.setup();
+    mockGetOverview.mockResolvedValue(overview);
+    mockRecordReview.mockResolvedValue(undefined);
+
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Betreuungsverträge",
+      }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: /Prüfung erfassen/ }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const escalation = within(dialog).getByRole("checkbox");
+    expect(escalation).toBeChecked();
+    expect(escalation).toBeDisabled();
+    expect(
+      within(dialog).getByText(
+        "Das Prüfdatum ist erreicht. Die offene Zuordnung geht an Florian.",
+      ),
+    ).toBeInTheDocument();
+    await user.type(
+      within(dialog).getByLabelText(/Ergebnis der Prüfung/),
+      "Träger hat noch nicht geantwortet",
+    );
+    fireEvent.change(within(dialog).getByLabelText(/Nächste Prüfung/), {
+      target: { value: "2026-10-09" },
+    });
+    const submit = within(dialog).getByRole("button", {
+      name: "Prüfung erfassen",
+    });
+    expect(submit).toBeDisabled();
+    await user.type(
+      within(dialog).getByLabelText(/Grund der Eskalation/),
+      "Keine Antwort seit 40 Tagen",
+    );
+    await user.click(submit);
+
+    expect(mockRecordReview).toHaveBeenCalledWith(
+      "1",
+      expect.objectContaining({
+        escalated: true,
+        escalation_reason: "Keine Antwort seit 40 Tagen",
+      }),
+    );
+  });
+
+  it("requires the escalation once a review moves the review date later", async () => {
+    const user = userEvent.setup();
+    mockGetOverview.mockResolvedValue(overview);
+    mockRecordReview.mockResolvedValue(undefined);
+
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für SEPA-Mandate",
+      }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: /Prüfung erfassen/ }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const escalation = within(dialog).getByRole("checkbox");
+    expect(escalation).not.toBeChecked();
+    expect(escalation).toBeEnabled();
+    await user.type(
+      within(dialog).getByLabelText(/Ergebnis der Prüfung/),
+      "Bank meldet sich",
+    );
+    const next = within(dialog).getByLabelText(/Nächste Prüfung/);
+    fireEvent.change(next, { target: { value: "2026-10-20" } });
+    expect(escalation).toBeChecked();
+    expect(escalation).toBeDisabled();
+    expect(
+      within(dialog).getByText(
+        "Ein Prüfdatum nach dem 08.10.2026 geht nur mit Eskalation.",
+      ),
+    ).toBeInTheDocument();
+    const submit = within(dialog).getByRole("button", {
+      name: "Prüfung erfassen",
+    });
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(next, { target: { value: "2026-10-01" } });
+    expect(escalation).not.toBeChecked();
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    expect(mockRecordReview).toHaveBeenCalledWith("1", {
+      beleg_type: "sepa_mandate",
+      reason: "no_collection",
+      note: "Bank meldet sich",
+      escalated: false,
+      escalation_reason: "",
+      next_review_on: "2026-10-01",
+    });
+  });
 });
 
 describe("mapBelegRetentionOverview", () => {

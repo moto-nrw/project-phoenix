@@ -7,7 +7,12 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   CLARIFICATION_REASON_LABELS,
@@ -28,9 +33,23 @@ function shiftDays(day: string, days: number): string {
 }
 
 /**
+ * Eskalation ist Pflicht, sobald das Prüfdatum des Eintrags erreicht ist
+ * oder die Prüfung es nach hinten schiebt (Löschkonzept Abschnitt 3); das
+ * Backend lehnt die Prüfung sonst mit 400 ab.
+ */
+export function escalationRequired(
+  reviewOn: string,
+  nextReviewOn: string,
+  today: string,
+): boolean {
+  return reviewOn <= today || (nextReviewOn !== "" && nextReviewOn > reviewOn);
+}
+
+/**
  * Prüfung eines Eintrags der Klärungsliste (Löschkonzept Abschnitt 3): was
  * mit dem Träger geklärt ist, gegebenenfalls die Eskalation an Florian mit
- * Grund und das nächste Prüfdatum. Löscht nichts.
+ * Grund und das nächste Prüfdatum. Ist der Eintrag an seinem Prüfdatum noch
+ * offen, geht er an Florian. Löscht nichts.
  */
 export function ClarificationReviewModal({
   entry,
@@ -52,10 +71,13 @@ export function ClarificationReviewModal({
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
   const today = berlinTodayISO();
+  const required =
+    entry !== null && escalationRequired(entry.reviewOn, nextReviewOn, today);
+  const escalating = escalated || required;
   const complete =
     note.trim() !== "" &&
     nextReviewOn !== "" &&
-    (!escalated || escalationReason.trim() !== "");
+    (!escalating || escalationReason.trim() !== "");
 
   const close = () => {
     setNote("");
@@ -76,8 +98,8 @@ export function ClarificationReviewModal({
         beleg_type: entry.belegType,
         reason: entry.reason,
         note: note.trim(),
-        escalated,
-        escalation_reason: escalated ? escalationReason.trim() : "",
+        escalated: escalating,
+        escalation_reason: escalating ? escalationReason.trim() : "",
         next_review_on: nextReviewOn,
       });
       success("Die Prüfung ist erfasst.");
@@ -138,12 +160,13 @@ export function ClarificationReviewModal({
           required
         />
         <CheckboxCard
-          checked={escalated}
+          checked={escalating}
           onChange={setEscalated}
+          disabled={required}
           label="An Florian eskalieren"
-          hint="Wenn die Zuordnung nach der Prüfung noch offen ist."
+          hint={escalationHint(entry, today, required)}
         />
-        {escalated && (
+        {escalating && (
           <Textarea
             id="beleg-clarification-review-escalation"
             label="Grund der Eskalation"
@@ -165,4 +188,18 @@ export function ClarificationReviewModal({
       </form>
     </FormModal>
   );
+}
+
+function escalationHint(
+  entry: BelegClarification | null,
+  today: string,
+  required: boolean,
+): string {
+  if (!entry || !required) {
+    return "Wenn die Zuordnung nach der Prüfung noch offen ist.";
+  }
+  if (entry.reviewOn <= today) {
+    return "Das Prüfdatum ist erreicht. Die offene Zuordnung geht an Florian.";
+  }
+  return `Ein Prüfdatum nach dem ${formatDate(entry.reviewOn)} geht nur mit Eskalation.`;
 }
