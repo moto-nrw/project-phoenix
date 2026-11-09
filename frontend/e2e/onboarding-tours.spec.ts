@@ -124,10 +124,21 @@ async function warmTourPages(
   // der Entwicklungsserver beim ersten Aufruf. Der Live-Kanal (SSE) bleibt
   // offen und zählt nicht, ebenso Anfragen an andere Hosts und der Versand
   // der Browser-Logs (`/api/logs`), dessen Ende Playwright nicht meldet.
+  // Nur Anfragen der aufgerufenen Seite: Der Seitenwechsel bricht die der
+  // vorigen ab, oft ohne Ereignis.
   const origin = new URL(tenantBase).origin;
+  let current = "";
+  const fromCurrentPage = (request: Request) => {
+    try {
+      return new URL(request.frame().url()).pathname === current;
+    } catch {
+      return false;
+    }
+  };
   const counts = (request: Request) => {
     const url = new URL(request.url());
     return (
+      fromCurrentPage(request) &&
       url.origin === origin &&
       url.pathname.startsWith("/api/") &&
       url.pathname !== "/api/logs" &&
@@ -150,13 +161,15 @@ async function warmTourPages(
   page.on("requestfailed", onDone);
   try {
     for (const path of cold) {
-      // Was die vorige Seite offen ließ, bricht der Seitenwechsel ab, oft
-      // ohne Ereignis.
+      current = "";
       pending.clear();
       await page.goto(`${tenantBase}${path}`, {
         waitUntil: "domcontentloaded",
         timeout: NAVIGATION_TIMEOUT,
       });
+      // Die Seite darf weiterleiten (/ogs-groups → /ogs-groups/overview).
+      // Ihre Daten lädt sie erst nach dem Hydrieren, also nach diesem Punkt.
+      current = new URL(page.url()).pathname;
       // Die Checkliste (offen oder als Knopf) erscheint erst, wenn die Seite
       // geladen und ihr Stand gelesen ist.
       await expect(
