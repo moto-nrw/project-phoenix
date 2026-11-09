@@ -128,7 +128,7 @@ func TestCareReviewReplaysExclusionsInWriteOrder(t *testing.T) {
 
 // An exclusion names one invoice of its contract (#6346): the Mensa invoice
 // of its own stays out while the care invoice is taken back, and an entry of
-// before (migration 1.15.853: both services) covers both invoices until each
+// before (migration 1.15.854: both services) covers both invoices until each
 // is returned on its own. An entry without a known service names none.
 func TestCareRunExclusionsAreKeptPerInvoice(t *testing.T) {
 	t.Parallel()

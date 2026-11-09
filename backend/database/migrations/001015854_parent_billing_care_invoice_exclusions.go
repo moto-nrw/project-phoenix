@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCareInvoiceExclusionsVersion = "1.15.853"
+const parentBillingCareInvoiceExclusionsVersion = "1.15.854"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
