@@ -597,8 +597,9 @@ export default function TraegerZeitvergleichPage() {
           defaultSortKey="extra"
           defaultSortDirection="desc"
           // The longest overruns first, 25 at a time: the list grows with
-          // the Träger, „Mehr anzeigen“ brings the next ones.
+          // the Träger, „Weitere Kinder laden“ brings the next ones.
           pageSize={25}
+          pageNoun="Kinder"
           isLoading={!evaluation && !pageLoad.error}
           loadingRowCount={3}
           stackedOnMobile

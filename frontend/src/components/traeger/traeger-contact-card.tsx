@@ -60,13 +60,13 @@ export function TraegerContactCard({
       setDraft((current) =>
         sameContact(current, submitted) ? saved : current,
       );
-      success("Der Ansprechpartner ist gespeichert.");
+      success("Die Ansprechperson ist gespeichert.");
       await onSaved();
     } catch (err) {
       logger.error("traeger_contact_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "der Ansprechpartner" });
+      void formErrors.show(err, { object: "die Ansprechperson" });
     } finally {
       setSaving(false);
     }
@@ -74,7 +74,7 @@ export function TraegerContactCard({
 
   return (
     <SectionCard
-      title="Ansprechpartner"
+      title="Ansprechperson"
       description="An diese Person wenden sich Eltern und Schulen bei Fragen zu einem Brief. Leere Felder stehen nicht auf dem Brief."
     >
       <form

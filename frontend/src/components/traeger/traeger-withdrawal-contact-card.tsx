@@ -36,7 +36,7 @@ const SOURCE_BADGES: Record<
   { readonly label: string; readonly tone: StatusBadgeTone }
 > = {
   own: { label: "Eigene Angabe", tone: "green" },
-  contact: { label: "Vom Ansprechpartner", tone: "gray" },
+  contact: { label: "Von der Ansprechperson", tone: "gray" },
   missing: { label: "Fehlt", tone: "orange" },
 };
 
@@ -49,8 +49,8 @@ function sameReach(
 
 function fallbackHint(contactValue: string, what: string): string {
   return contactValue === ""
-    ? `Beim Ansprechpartner steht keine ${what}.`
-    : `Leer lassen: Dann steht hier ${contactValue} vom Ansprechpartner.`;
+    ? `Bei der Ansprechperson steht keine ${what}.`
+    : `Leer lassen: Dann steht hier ${contactValue} von der Ansprechperson.`;
 }
 
 function ReachField({
@@ -185,7 +185,7 @@ export function TraegerWithdrawalContactCard({
         {missing.length > 0 ? (
           <Alert
             type="warning"
-            message={`Die Widerrufsbelehrung braucht Telefon und E-Mail. Es fehlt: ${missing.join(" und ")}. Bitte tragen Sie sie hier oder beim Ansprechpartner ein.`}
+            message={`Die Widerrufsbelehrung braucht Telefon und E-Mail. Es fehlt: ${missing.join(" und ")}. Bitte tragen Sie sie hier oder bei der Ansprechperson ein.`}
           />
         ) : null}
 

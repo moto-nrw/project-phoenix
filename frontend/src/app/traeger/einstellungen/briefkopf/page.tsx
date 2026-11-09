@@ -121,10 +121,10 @@ export default function TraegerBriefkopfPage() {
                 So sehen Kopf und Fuß eines Briefs aus. Die Vorschau ändert sich
                 mit Ihren Angaben. Die Ansprechperson ändern Sie unter{" "}
                 <NavigationLink
-                  href={traegerPath("/traeger/einstellungen")}
+                  href={traegerPath("/traeger/einstellungen?bereich=kontakt")}
                   className="font-medium text-gray-900 underline underline-offset-2"
                 >
-                  Allgemein
+                  Allgemein › Kontakt
                 </NavigationLink>
                 , die Bankverbindung unter{" "}
                 <NavigationLink

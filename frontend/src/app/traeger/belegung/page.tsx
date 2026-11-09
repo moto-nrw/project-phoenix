@@ -153,8 +153,8 @@ function FreePlacesCell({
           label={`${places.full} voll`}
           title={
             places.full === 1
-              ? "Bei einem Angebot sind alle Plätze vergeben."
-              : `Bei ${places.full} Angeboten sind alle Plätze vergeben.`
+              ? "Bei einer Betreuungsform sind alle Plätze vergeben."
+              : `Bei ${places.full} Betreuungsformen sind alle Plätze vergeben.`
           }
         />
       ) : null}
@@ -358,17 +358,20 @@ const SUM_COLUMNS: DataTableColumn<OccupancyCareFormSum>[] = [
   },
 ];
 
-/** „In 4 Angeboten mit Platzgrenze. Ein Angebot ist voll.“ */
+/**
+ * „In 4 Betreuungsformen mit Platzgrenze. Eine ist voll.“ One word with the
+ * tile and the tab: the page calls an offer „Betreuungsform“.
+ */
 function freePlacesHint(places: OccupancyPlaces): string {
-  if (places.limited === 0) return "Kein Angebot hat eine Platzgrenze.";
+  if (places.limited === 0) return "Keine Betreuungsform hat eine Platzgrenze.";
   const offers =
     places.limited === 1
-      ? "In einem Angebot mit Platzgrenze."
-      : `In ${places.limited} Angeboten mit Platzgrenze.`;
+      ? "In einer Betreuungsform mit Platzgrenze."
+      : `In ${places.limited} Betreuungsformen mit Platzgrenze.`;
   if (places.full === 0) return offers;
   return places.full === 1
-    ? `${offers} Ein Angebot ist voll.`
-    : `${offers} ${places.full} Angebote sind voll.`;
+    ? `${offers} Eine ist voll.`
+    : `${offers} ${places.full} sind voll.`;
 }
 
 function TotalFigures({
@@ -419,7 +422,7 @@ function TotalFigures({
         hint={
           loading
             ? undefined
-            : `${formatShare(totals.withCareForm, totals.children)} der Kinder haben heute ein Betreuungsangebot gebucht.`
+            : `${formatShare(totals.withCareForm, totals.children)} der Kinder haben heute eine Betreuungsform gebucht.`
         }
         progressPct={
           loading || totals.children === 0
@@ -533,8 +536,8 @@ function ViewContent({
           stackedOnMobile
           emptyState={emptyRows(
             search,
-            "Heute läuft kein Betreuungsangebot",
-            "Hier steht jedes Betreuungsangebot, das heute läuft. Auch eins ohne Buchung.",
+            "Heute läuft keine Betreuungsform",
+            "Hier steht jede Betreuungsform, die heute läuft. Auch eine ohne Buchung.",
           )}
         />
       </>
@@ -646,7 +649,7 @@ export default function TraegerOccupancyPage() {
           ? {
               value: search,
               onChange: setSearch,
-              placeholder: "Schule oder Ort suchen…",
+              placeholder: "Schule oder Ort",
             }
           : undefined
       }

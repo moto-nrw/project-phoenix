@@ -182,7 +182,7 @@ describe("TraegerOccupancyPage", () => {
 
     expect(screen.getByText("4 von 18")).toBeInTheDocument();
     expect(
-      screen.getByText("In 2 Angeboten mit Platzgrenze. Ein Angebot ist voll."),
+      screen.getByText("In 2 Betreuungsformen mit Platzgrenze. Eine ist voll."),
     ).toBeInTheDocument();
 
     const table = screen.getByRole("table");
@@ -270,12 +270,12 @@ describe("TraegerOccupancyPage", () => {
     renderPage();
     await screen.findAllByText("0 von 0");
     expect(
-      screen.getByText("Kein Angebot hat eine Platzgrenze."),
+      screen.getByText("Keine Betreuungsform hat eine Platzgrenze."),
     ).toBeInTheDocument();
 
     openTab("Betreuungsformen");
     expect(
-      (await screen.findAllByText("Heute läuft kein Betreuungsangebot")).length,
+      (await screen.findAllByText("Heute läuft keine Betreuungsform")).length,
     ).toBeGreaterThan(0);
   });
 
@@ -387,9 +387,7 @@ describe("TraegerOccupancyPage", () => {
     await screen.findByText("14 von 16");
 
     fireEvent.change(
-      screen.getAllByPlaceholderText(
-        "Schule oder Ort suchen…",
-      )[0] as HTMLElement,
+      screen.getAllByPlaceholderText("Schule oder Ort")[0] as HTMLElement,
       {
         target: { value: "melle" },
       },
@@ -495,7 +493,7 @@ describe("TraegerOccupancyPage", () => {
       expect(screen.queryByText("Füchse")).not.toBeInTheDocument();
       // No export of the old answer, and no search over its schools.
       expect(
-        screen.queryByPlaceholderText("Schule oder Ort suchen…"),
+        screen.queryByPlaceholderText("Schule oder Ort"),
       ).not.toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", { name: "Belegung herunterladen" }),
