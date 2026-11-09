@@ -5883,7 +5883,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption",
       "target_owner": "identity-access"
@@ -5893,7 +5893,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.Owner.ListOpenGuardianInvitations. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.Owner.ListOpenGuardianInvitations. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",
       "target_owner": "identity-access"
