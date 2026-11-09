@@ -884,13 +884,15 @@ function TenantPageTabs({
   }, [measure, updateScrollHint, items]);
 
   // Auf dem Telefon rueckt der aktive Reiter ins Sichtfenster des Bandes,
-  // sonst steht die Seite auf einem Bereich, den man nicht sieht.
+  // sonst steht die Seite auf einem Bereich, den man nicht sieht. Mittig,
+  // nicht an den Rand: am rechten Rand laege er unter dem Verlauf, der
+  // weitere Reiter ankuendigt.
   useEffect(() => {
     const active = tablistRef.current?.querySelector<HTMLElement>(
       '[role="tab"][aria-selected="true"]',
     );
     if (typeof active?.scrollIntoView !== "function") return;
-    active.scrollIntoView({ inline: "nearest", block: "nearest" });
+    active.scrollIntoView({ inline: "center", block: "nearest" });
   }, [value]);
 
   const visible = items.slice(0, visibleCount);
