@@ -18,8 +18,9 @@ import { moreConcept } from "~/lib/concepts/more";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 const PADDING = "px-4";
-const LABEL =
-  "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline";
+// Das aktive Ziel trägt seinen Namen auf jeder Breite, wie in der Leiste des
+// Personal-Portals: es darf schrumpfen, der Name wird notfalls gekürzt.
+const LABEL = "truncate text-sm font-semibold whitespace-nowrap";
 
 /**
  * So viele Felder hat die Leiste höchstens. Fünf Icons passen auch auf ein
@@ -89,6 +90,7 @@ export function PortalOverflowBottomNav({
             {...linkProps(item)}
             paddingClassName={PADDING}
             labelClassName={LABEL}
+            shrinkActive
           />
         ))}
         {crowded ? (
@@ -102,6 +104,7 @@ export function PortalOverflowBottomNav({
             aria-expanded={moreOpen}
             paddingClassName={PADDING}
             labelClassName={LABEL}
+            shrinkActive
           />
         ) : null}
       </PortalBottomNav>

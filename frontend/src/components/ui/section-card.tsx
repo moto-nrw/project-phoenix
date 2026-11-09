@@ -420,9 +420,13 @@ export function SectionCard({
               auseinander und der Titel wirkt zu hoch. Mit Beschreibung bleibt
               es bei oben bündig, sonst rutschte das Symbol in die Mitte des
               Textblocks. */}
+          {/* Mindestbreite 12rem: in einer schmalen Karte (Seitenspalte)
+              rutschen die Aktionen unter den Titel, statt Titel und
+              Beschreibung auf wenige Wörter je Zeile zusammenzudrücken. Der
+              Einklapp-Pfeil passt auch auf 320 px noch daneben. */}
           <div
             className={cn(
-              "flex min-w-0 flex-1 gap-3",
+              "flex min-w-0 flex-[1_1_12rem] gap-3",
               !description && !kicker && "items-center",
             )}
           >
