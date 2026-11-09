@@ -13,7 +13,7 @@ import {
   useId,
 } from "react";
 import { createPortal } from "react-dom";
-import type { DateRange, Matcher } from "react-day-picker";
+import type { DateRange, Matcher, Modifiers } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
 import { addMonths } from "date-fns/addMonths";
 import { format } from "date-fns/format";
@@ -64,7 +64,35 @@ const RANGE_CLASSNAMES = {
   months: RANGE_MONTHS_CLASS,
   month: RANGE_MONTH_CLASS,
   day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative pointer-coarse:h-11",
+  // The range paints itself (rangeStart, rangeEnd, rangeMiddle, singlePick);
+  // `selected` only carries the semantics for assistive tech.
+  selected: "",
 };
+
+/** Every calendar day from `from` to `to`, both included. */
+function daysOfRange(from: Date | undefined, to: Date | undefined): Date[] {
+  if (!from) return [];
+  const days: Date[] = [];
+  for (
+    let day = from;
+    day <= (to ?? from) && days.length < 3700;
+    day = addDays(day, 1)
+  ) {
+    days.push(day);
+  }
+  return days;
+}
+
+/** The German name of a day button, with its place in the range. */
+function rangeDayLabel(date: Date, modifiers?: Modifiers): string {
+  const day = format(date, "EEEE, d. MMMM yyyy", { locale: de });
+  const named = modifiers?.today ? `Heute, ${day}` : day;
+  if (modifiers?.rangeStart) return `${named}, Beginn des Zeitraums`;
+  if (modifiers?.rangeEnd) return `${named}, Ende des Zeitraums`;
+  if (modifiers?.rangeMiddle) return `${named}, im Zeitraum`;
+  if (modifiers?.singlePick) return `${named}, gewählt`;
+  return named;
+}
 
 // The look of `DAY_PICKER_CLASSNAMES.selected`. Important because the day marks
 // a caller adds (`modifiersClassNames`) are too.
@@ -426,6 +454,7 @@ export function RangeCalendarInline({
 
   const hasPresets = presets && presets.length > 0;
   const draftLabel = formatDraftRangeLabel(draftFrom, draftTo);
+  const selectedDays = daysOfRange(draftFrom, draftTo);
 
   return (
     <div
@@ -446,7 +475,12 @@ export function RangeCalendarInline({
         </div>
       )}
       <div className="p-3 sm:p-4">
-        <div className="mb-3 text-center text-sm font-medium text-gray-700">
+        {/* Announced as it changes: after the first day „Enddatum wählen“,
+            after the second the chosen range. */}
+        <div
+          role="status"
+          className="mb-3 text-center text-sm font-medium text-gray-700"
+        >
           {draftLabel}
         </div>
         <div className="mb-3 flex items-center justify-between">
@@ -514,8 +548,14 @@ export function RangeCalendarInline({
         >
           <LazyDayPicker
             today={parseISODate(today)}
-            mode="single"
-            selected={undefined}
+            // The chosen days are the grid's selection, so a screen reader
+            // hears them; the two-click logic stays in handleDayClick.
+            mode="multiple"
+            selected={selectedDays}
+            labels={{
+              labelDayButton: rangeDayLabel,
+              labelGridcell: rangeDayLabel,
+            }}
             onDayClick={handleDayClick}
             month={month}
             onMonthChange={setMonth}
