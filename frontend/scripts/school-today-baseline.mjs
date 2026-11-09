@@ -118,6 +118,5 @@ export default {
   "src/app/[tenant]/(protected)/time-tracking/page.tsx": [
     "const now = new Date();",
     "const now = new Date();",
-    "const tzOffset = -new Date().getTimezoneOffset();",
   ],
 };
