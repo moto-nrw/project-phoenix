@@ -103,15 +103,5 @@ func runAutoCheckoutWithNotDueSessions(t *testing.T, notDue int) autoCheckoutSta
 
 func newAutoCheckoutService(t *testing.T, db *testpkg.DB, workTime workforceCompose.WorkTime) timetracking.WorkSessionService {
 	t.Helper()
-	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
-	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	return timetracking.NewWorkSessionService(
-		workTime, workTime, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).WorkSessionEdit), reposAbsences.StaffAbsence,
-		reposPresence.GroupSupervisor, reposPresence.ActiveGroup, owners.WorkSessionStaff(reposPeople.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(db)), reposMembership.Membership), owners.NewWorkSessionSchedules(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkSessionTimeModels(owners.NewWorkTimeModelRepository(workTime)),
-		snapshotSessionSettings{}, nil, db, owners.RenderTimeTrackingPDF,
-		owners.RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(workforceCompose.NewTimeTrackingShifts(workTime)),
-	)
+	return newWorkSessionTestService(t, db, workTime, workTime, api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor)
 }
