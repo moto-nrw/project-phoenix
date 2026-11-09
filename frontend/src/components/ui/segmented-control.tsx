@@ -121,7 +121,7 @@ export function SegmentedControl<T extends string>({
     fullWidth && !iconOnly
       ? "h-auto! min-h-8 py-1 max-sm:min-h-9"
       : "h-8! max-sm:h-9!";
-  const base = `flex ${height} ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`;
+  const base = `flex ${height} ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none`;
 
   // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
   // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im

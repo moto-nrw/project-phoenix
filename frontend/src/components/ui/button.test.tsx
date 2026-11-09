@@ -146,7 +146,7 @@ describe("Button", () => {
         "bg-transparent",
         "hover:underline",
         "focus-visible:ring-2",
-        "focus-visible:ring-gray-400",
+        "focus-visible:ring-gray-600",
       ]),
     );
     // Ein Textknopf hat kein Polster und keinen Schatten der Größe.

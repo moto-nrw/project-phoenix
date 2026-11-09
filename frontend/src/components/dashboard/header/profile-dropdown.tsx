@@ -230,7 +230,7 @@ export function ProfileDropdownMenu({
             onClose();
             onStartPreview();
           }}
-          className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-900 active:text-white"
+          className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none active:bg-gray-900 active:text-white"
         >
           <EyeIcon
             aria-hidden="true"

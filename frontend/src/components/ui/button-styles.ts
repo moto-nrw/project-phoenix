@@ -142,7 +142,7 @@ export function buttonStyles({
   // bleibt es bei den Kit-Maßen. Kein Knopf braucht dafür ein eigenes
   // `min-h-11`. Kein `transform` im Übergang: das Kit skaliert nicht.
   const baseStyles =
-    "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50";
+    "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none disabled:opacity-50";
 
   // Die Variante steht hinter der Größe: Varianten mit eigenem Maß (`fab`,
   // `filter`, `day_chip` …) setzen sich so auch bei der Schriftgröße durch.

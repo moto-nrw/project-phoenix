@@ -42,7 +42,7 @@ export function listRowClasses({
     DENSITY_CLASSES[density],
     TONE_CLASSES[tone],
     interactive &&
-      `w-full text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${TONE_HOVER_CLASSES[tone]}`,
+      `w-full text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none focus-visible:ring-inset ${TONE_HOVER_CLASSES[tone]}`,
   );
 }
 

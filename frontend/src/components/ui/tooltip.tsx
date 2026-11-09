@@ -77,7 +77,7 @@ export function Tooltip({
       <span
         tabIndex={0}
         aria-describedby={id}
-        className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-600"
         onKeyDown={dismissOnEscape}
       >
         {children}
