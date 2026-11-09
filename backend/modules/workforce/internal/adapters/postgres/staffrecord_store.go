@@ -64,16 +64,10 @@ type staffQualificationRow struct {
 }
 
 type staffFinancialDataRow struct {
-	bun.BaseModel `bun:"table:users.staff_financial_data,alias:staff_financial_data"`
-	ID            int64 `bun:"id,pk,autoincrement"`
-	TenantID      int64 `bun:"tenant_id,notnull"`
-	StaffID       int64 `bun:"staff_id,notnull"`
-	// The plaintext columns before #6332: writers always store NULL, only
-	// rows the maintenance backfill has not sealed yet still carry a value.
-	// Migration 1.15.838 drops them.
-	IBAN                       *string   `bun:"iban"`
-	TaxID                      *string   `bun:"tax_id"`
-	SocialSecurityNumber       *string   `bun:"social_security_number"`
+	bun.BaseModel              `bun:"table:users.staff_financial_data,alias:staff_financial_data"`
+	ID                         int64     `bun:"id,pk,autoincrement"`
+	TenantID                   int64     `bun:"tenant_id,notnull"`
+	StaffID                    int64     `bun:"staff_id,notnull"`
 	IBANSealed                 []byte    `bun:"iban_sealed"`
 	IBANMasked                 *string   `bun:"iban_masked"`
 	TaxIDSealed                []byte    `bun:"tax_id_sealed"`
@@ -592,8 +586,7 @@ func staffQualificationsToDomain(rows []staffQualificationRow) []domain.StaffQua
 	return result
 }
 
-// staffFinancialDataFromDomain writes only sealed values and the mask; the
-// plaintext columns are always cleared.
+// staffFinancialDataFromDomain writes only sealed values and the mask (#6332).
 func staffFinancialDataFromDomain(value domain.StaffFinancialData) *staffFinancialDataRow {
 	return &staffFinancialDataRow{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID,
@@ -604,8 +597,7 @@ func staffFinancialDataFromDomain(value domain.StaffFinancialData) *staffFinanci
 
 func staffFinancialDataToDomain(row staffFinancialDataRow) domain.StaffFinancialData {
 	return domain.StaffFinancialData{
-		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, IBAN: row.IBAN, TaxID: row.TaxID,
-		SocialSecurityNumber: row.SocialSecurityNumber, IBANSealed: row.IBANSealed, IBANMasked: row.IBANMasked,
+		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, IBANSealed: row.IBANSealed, IBANMasked: row.IBANMasked,
 		TaxIDSealed: row.TaxIDSealed, SocialSecurityNumberSealed: row.SocialSecurityNumberSealed,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}

@@ -33,8 +33,8 @@ type schoolBankFixture struct {
 	otherGuardian, otherStf int64
 }
 
-// #6332: the school traversal of the CLI backfills the plaintext rows and
-// rekeys the legacy-sealed rows of both new sources. Afterwards the bank ring
+// #6332: the school traversal of the CLI rekeys the legacy-sealed rows of
+// both new sources (1.15.838 dropped the plaintext columns the backfill read). Afterwards the bank ring
 // alone opens every value of all four sources (the Träger sources are covered
 // by TestBankDataRekeyJobOpensBothSourcesWithoutLegacy), a second complete
 // pass changes nothing, and another school stays untouched although the
@@ -85,10 +85,9 @@ func TestSchoolBankDataRekeyBackfillsAndOpensWithoutLegacy(t *testing.T) {
 		require.NotContains(t, logged.String(), secret, "no bank value or key in the SQL debug log")
 	}
 
-	// The other school keeps its plaintext until its own run, which needs no
-	// legacy key for plaintext rows.
+	// The other school keeps its legacy values until its own run.
 	output.Reset()
-	require.NoError(t, runSchoolBankDataRekeyJob(ctx, peopleCompose.NewGuardianBankDataRekey(bankOnly), workforceCompose.NewStaffBankDataRekey(bankOnly), f.other, 100, &output))
+	require.NoError(t, runSchoolBankDataRekeyJob(ctx, guardians, staff, f.other, 100, &output))
 	require.Contains(t, output.String(), "source=guardian_financial scanned_total=1 changed_total=1")
 	require.Contains(t, output.String(), "source=staff_financial scanned_total=1 changed_total=1")
 }
@@ -102,14 +101,16 @@ func TestSchoolBankDataRekeyRollsBackABatchThatDoesNotOpen(t *testing.T) {
 	legacy, err := securityRuntimeCompose.NewFieldCipher(legacyKeys)
 	require.NoError(t, err)
 	f := arrangeSchoolBankRows(t, ctx, db, legacy)
+	_, err = db.NewRaw(`UPDATE users.guardian_financial_data SET account_holder_sealed = ? WHERE guardian_profile_id = ?`, []byte("invalid sealed holder"), f.guardians[1]).Exec(ctx)
+	require.NoError(t, err)
 	before := schoolBankSnapshot(t, ctx, db, f.own, true)
-	bankOnly, err := securityRuntimeCompose.NewBankDataCipher(testpkg.NewTestHealthDataKeys(), "")
+	transition, err := securityRuntimeCompose.NewBankDataCipher(testpkg.NewTestHealthDataKeys(), legacyKeys)
 	require.NoError(t, err)
 	var output bytes.Buffer
-	err = runSchoolBankDataRekeyJob(ctx, peopleCompose.NewGuardianBankDataRekey(bankOnly), workforceCompose.NewStaffBankDataRekey(bankOnly), f.own, 100, &output)
-	require.Error(t, err, "the legacy-sealed row does not open without the legacy ring")
+	err = runSchoolBankDataRekeyJob(ctx, peopleCompose.NewGuardianBankDataRekey(transition), workforceCompose.NewStaffBankDataRekey(transition), f.own, 100, &output)
+	require.Error(t, err, "the invalid row does not open")
 	require.NotContains(t, err.Error(), schoolRekeyIBAN)
-	require.Equal(t, before, schoolBankSnapshot(t, ctx, db, f.own, true), "the plaintext row sealed earlier in the batch rolls back")
+	require.Equal(t, before, schoolBankSnapshot(t, ctx, db, f.own, true), "the row rewrapped earlier in the batch rolls back")
 }
 
 // The ports demand the bank ring: Security Runtime's health cipher cannot be
@@ -142,40 +143,28 @@ func arrangeSchoolBankRows(t *testing.T, ctx context.Context, db *bun.DB, legacy
 		require.NoError(t, err)
 		return sealed
 	}
-	insertGuardian := func(school int64, name string, sealed bool) int64 {
+	insertGuardian := func(school int64, name string) int64 {
 		profile := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Rekey", name, fmt.Sprintf("rekey-%s-%d@example.invalid", strings.ToLower(name), school))
-		var err error
-		if sealed {
-			_, err = db.NewRaw(`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban_sealed, iban_masked, account_holder_sealed)
+		_, err := db.NewRaw(`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban_sealed, iban_masked, account_holder_sealed)
    VALUES (?, ?, ?, '•••• 3000', ?)`, school, profile.ID,
-				seal("guardian_financial_data.iban", school, profile.ID, schoolRekeyIBAN),
-				seal("guardian_financial_data.account_holder", school, profile.ID, schoolRekeyHolder)).Exec(ctx)
-		} else {
-			_, err = db.NewRaw(`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban, account_holder)
-   VALUES (?, ?, ?, ?)`, school, profile.ID, schoolRekeyIBAN, schoolRekeyHolder).Exec(ctx)
-		}
+			seal("guardian_financial_data.iban", school, profile.ID, schoolRekeyIBAN),
+			seal("guardian_financial_data.account_holder", school, profile.ID, schoolRekeyHolder)).Exec(ctx)
 		require.NoError(t, err)
 		return profile.ID
 	}
-	insertStaff := func(school int64, name string, sealed bool) int64 {
+	insertStaff := func(school int64, name string) int64 {
 		member := testpkg.CreateTestStaffForTenant(t, db, school, "Rekey", name)
-		var err error
-		if sealed {
-			_, err = db.NewRaw(`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban_sealed, iban_masked, tax_id_sealed, social_security_number_sealed)
+		_, err := db.NewRaw(`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban_sealed, iban_masked, tax_id_sealed, social_security_number_sealed)
    VALUES (?, ?, ?, '•••• 3000', ?, ?)`, school, member.ID,
-				seal("staff_financial_data.iban", school, member.ID, schoolRekeyIBAN),
-				seal("staff_financial_data.tax_id", school, member.ID, schoolRekeyTaxID),
-				seal("staff_financial_data.social_security_number", school, member.ID, schoolRekeySocial)).Exec(ctx)
-		} else {
-			_, err = db.NewRaw(`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban, tax_id, social_security_number)
-   VALUES (?, ?, ?, ?, ?)`, school, member.ID, schoolRekeyIBAN, schoolRekeyTaxID, schoolRekeySocial).Exec(ctx)
-		}
+			seal("staff_financial_data.iban", school, member.ID, schoolRekeyIBAN),
+			seal("staff_financial_data.tax_id", school, member.ID, schoolRekeyTaxID),
+			seal("staff_financial_data.social_security_number", school, member.ID, schoolRekeySocial)).Exec(ctx)
 		require.NoError(t, err)
 		return member.ID
 	}
-	f.guardians = []int64{insertGuardian(f.own, "Plain", false), insertGuardian(f.own, "Sealed", true)}
-	f.staff = []int64{insertStaff(f.own, "Plain", false), insertStaff(f.own, "Sealed", true)}
-	f.otherGuardian, f.otherStf = insertGuardian(f.other, "Other", false), insertStaff(f.other, "Other", false)
+	f.guardians = []int64{insertGuardian(f.own, "First"), insertGuardian(f.own, "Second")}
+	f.staff = []int64{insertStaff(f.own, "First"), insertStaff(f.own, "Second")}
+	f.otherGuardian, f.otherStf = insertGuardian(f.other, "Other"), insertStaff(f.other, "Other")
 	return f
 }
 
@@ -183,7 +172,7 @@ func arrangeSchoolBankRows(t *testing.T, ctx context.Context, db *bun.DB, legacy
 // only the business fields and timestamps.
 func schoolBankSnapshot(t *testing.T, ctx context.Context, db *bun.DB, school int64, withBank bool) string {
 	t.Helper()
-	strip := `- ARRAY['iban','account_holder','iban_sealed','iban_masked','account_holder_sealed','tax_id','social_security_number','tax_id_sealed','social_security_number_sealed']`
+	strip := `- ARRAY['iban_sealed','iban_masked','account_holder_sealed','tax_id_sealed','social_security_number_sealed']`
 	if withBank {
 		strip = ""
 	}
@@ -208,30 +197,23 @@ func assertSchoolBankRowsOpen(t *testing.T, ctx context.Context, db *bun.DB, f s
 	}
 	for _, id := range f.guardians {
 		var row struct {
-			IBAN, Holder        *string
 			IBANSealed, HSealed []byte
 			Masked              *string
 		}
-		require.NoError(t, db.NewRaw(`SELECT iban, account_holder AS holder, iban_sealed, account_holder_sealed AS h_sealed, iban_masked AS masked
+		require.NoError(t, db.NewRaw(`SELECT iban_sealed, account_holder_sealed AS h_sealed, iban_masked AS masked
    FROM users.guardian_financial_data WHERE tenant_id = ? AND guardian_profile_id = ?`, f.own, id).Scan(ctx, &row))
-		require.Nil(t, row.IBAN, "the plaintext IBAN is cleared")
-		require.Nil(t, row.Holder, "the plaintext holder is cleared")
 		require.Equal(t, "•••• 3000", *row.Masked)
 		open("guardian_financial_data.iban", id, row.IBANSealed, schoolRekeyIBAN)
 		open("guardian_financial_data.account_holder", id, row.HSealed, schoolRekeyHolder)
 	}
 	for _, id := range f.staff {
 		var row struct {
-			IBAN, TaxID, Social                 *string
 			IBANSealed, TaxSealed, SocialSealed []byte
 			Masked                              *string
 		}
-		require.NoError(t, db.NewRaw(`SELECT iban, tax_id, social_security_number AS social, iban_sealed, tax_id_sealed AS tax_sealed,
+		require.NoError(t, db.NewRaw(`SELECT iban_sealed, tax_id_sealed AS tax_sealed,
        social_security_number_sealed AS social_sealed, iban_masked AS masked
    FROM users.staff_financial_data WHERE tenant_id = ? AND staff_id = ?`, f.own, id).Scan(ctx, &row))
-		require.Nil(t, row.IBAN)
-		require.Nil(t, row.TaxID)
-		require.Nil(t, row.Social)
 		require.Equal(t, "•••• 3000", *row.Masked)
 		open("staff_financial_data.iban", id, row.IBANSealed, schoolRekeyIBAN)
 		open("staff_financial_data.tax_id", id, row.TaxSealed, schoolRekeyTaxID)

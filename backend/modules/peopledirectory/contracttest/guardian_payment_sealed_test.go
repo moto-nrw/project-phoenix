@@ -12,8 +12,6 @@ import (
 )
 
 type storedGuardianBank struct {
-	IBAN                *string `bun:"iban"`
-	AccountHolder       *string `bun:"account_holder"`
 	IBANSealed          []byte  `bun:"iban_sealed"`
 	IBANMasked          *string `bun:"iban_masked"`
 	AccountHolderSealed []byte  `bun:"account_holder_sealed"`
@@ -32,7 +30,7 @@ func TestGuardianPaymentIsStoredSealedAndOpensOnlyInItsOwnRow(t *testing.T) {
 	stored := func(t *testing.T, profileID int64) storedGuardianBank {
 		t.Helper()
 		var row storedGuardianBank
-		require.NoError(t, db.NewRaw(`SELECT iban, account_holder, iban_sealed, iban_masked, account_holder_sealed
+		require.NoError(t, db.NewRaw(`SELECT iban_sealed, iban_masked, account_holder_sealed
    FROM users.guardian_financial_data WHERE guardian_profile_id = ?`, profileID).Scan(ctx, &row))
 		return row
 	}
@@ -45,8 +43,12 @@ func TestGuardianPaymentIsStoredSealedAndOpensOnlyInItsOwnRow(t *testing.T) {
 	owner := testpkg.CreateTestGuardianProfile(t, db, "sealed-owner")
 	write(t, owner.ID, iban, holder)
 	row := stored(t, owner.ID)
-	assert.Nil(t, row.IBAN, "no plaintext IBAN column value")
-	assert.Nil(t, row.AccountHolder, "no plaintext account holder column value")
+	// 1.15.838: neither table keeps a plaintext bank or tax column.
+	var plaintextColumns []string
+	require.NoError(t, db.NewRaw(`SELECT table_name || '.' || column_name FROM information_schema.columns
+   WHERE table_schema = 'users' AND table_name IN ('guardian_financial_data', 'staff_financial_data')
+     AND column_name IN ('iban', 'account_holder', 'tax_id', 'social_security_number')`).Scan(ctx, &plaintextColumns))
+	assert.Empty(t, plaintextColumns)
 	require.NotEmpty(t, row.IBANSealed)
 	require.NotEmpty(t, row.AccountHolderSealed)
 	assert.False(t, bytes.Contains(row.IBANSealed, []byte(iban)), "the sealed IBAN holds no plaintext")

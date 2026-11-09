@@ -1,0 +1,98 @@
+package migrations
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/uptrace/bun"
+)
+
+const bankDataPlaintextDropVersion = "1.15.838"
+
+func init() {
+	MigrationRegistry.Register(&Migration{
+		Version:     bankDataPlaintextDropVersion,
+		Description: "Klartextspalten der Bank- und Steuerdaten von Eltern und Personal entfernt (#6332)",
+		DependsOn: []string{
+			staffFinancialDataSealedVersion,    // the last migration before this one
+			guardianFinancialDataSealedVersion, // the sealed guardian columns
+		},
+		Precondition: bankDataPlaintextDropPrecondition,
+	})
+	Migrations.MustRegister(bankDataPlaintextDropUp, bankDataPlaintextDropDown)
+}
+
+// The plaintext columns before #6332. bank-data-rekey --school seals their
+// values and clears them in every school (ADR 0186); only then may they go.
+// A row that still carries one stops the release in the preflight, before
+// the application stops: no key reaches a migration, so it cannot seal.
+const bankDataPlaintextRowsSQL = `
+SELECT (SELECT count(*) FROM users.guardian_financial_data
+         WHERE iban IS NOT NULL OR account_holder IS NOT NULL)
+     + (SELECT count(*) FROM users.staff_financial_data
+         WHERE iban IS NOT NULL OR tax_id IS NOT NULL OR social_security_number IS NOT NULL)`
+
+var errBankDataPlaintextRemains = errors.New("bank data plaintext remains; run bank-data-rekey --school for every school first (ADR 0186)")
+
+func bankDataPlaintextRows(ctx context.Context, db bun.IDB) (int, error) {
+	var rows int
+	if err := db.NewRaw(bankDataPlaintextRowsSQL).Scan(ctx, &rows); err != nil {
+		return 0, fmt.Errorf("count plaintext bank data: %w", err)
+	}
+	return rows, nil
+}
+
+func bankDataPlaintextDropPrecondition(ctx context.Context, db *bun.DB) error {
+	rows, err := bankDataPlaintextRows(ctx, db)
+	if err != nil {
+		return err
+	}
+	if rows > 0 {
+		return fmt.Errorf("%w: %d rows", errBankDataPlaintextRemains, rows)
+	}
+	return nil
+}
+
+// bankDataPlaintextDropUp rechecks under table locks, so a writer of an old
+// release cannot add plaintext between the check and the drop.
+func bankDataPlaintextDropUp(ctx context.Context, db *bun.DB) error {
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.guardian_financial_data, users.staff_financial_data IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+			return fmt.Errorf("lock the bank data tables: %w", err)
+		}
+		rows, err := bankDataPlaintextRows(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if rows > 0 {
+			return fmt.Errorf("%w: %d rows", errBankDataPlaintextRemains, rows)
+		}
+		if _, err := tx.ExecContext(ctx, `
+ALTER TABLE users.guardian_financial_data
+	DROP COLUMN iban,
+	DROP COLUMN account_holder;
+ALTER TABLE users.staff_financial_data
+	DROP COLUMN iban,
+	DROP COLUMN tax_id,
+	DROP COLUMN social_security_number;`); err != nil {
+			return fmt.Errorf("drop the plaintext bank columns: %w", err)
+		}
+		return nil
+	})
+}
+
+// bankDataPlaintextDropDown restores the empty columns; the values stay sealed.
+func bankDataPlaintextDropDown(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, `
+ALTER TABLE users.guardian_financial_data
+	ADD COLUMN IF NOT EXISTS iban TEXT,
+	ADD COLUMN IF NOT EXISTS account_holder TEXT;
+ALTER TABLE users.staff_financial_data
+	ADD COLUMN IF NOT EXISTS iban TEXT,
+	ADD COLUMN IF NOT EXISTS tax_id TEXT,
+	ADD COLUMN IF NOT EXISTS social_security_number TEXT;`); err != nil {
+		return fmt.Errorf("restore the plaintext bank columns: %w", err)
+	}
+	return nil
+}
