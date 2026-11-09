@@ -244,6 +244,15 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 	domain.SessionKind(domain.PortalParent.Name): {
 		before: requireLiveSchool,
 		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+			if r.locked && b.tenantID <= 0 {
+				// Parent tokens name no school. Resolve the successor's
+				// school under the account lock before locking it (#6305).
+				var err error
+				b.tenantID, _, err = s.resolveAccountTenantDefaultInTransaction(ctx, b.accountID)
+				if err != nil {
+					return heldFacts{}, err
+				}
+			}
 			if err := liveSchoolUnderLock(ctx, s, b, r); err != nil {
 				return heldFacts{}, err
 			}

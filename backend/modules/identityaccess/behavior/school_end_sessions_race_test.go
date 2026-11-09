@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,4 +154,41 @@ func TestParentLoginWhileItsSchoolEndsMintsNoSession(t *testing.T) {
 
 	assert.Error(t, loginErr, "the sign-in finds the school gone")
 	assert.Zero(t, sessionsAtSchool(t, db, schoolID), "no session of the deleted school is left")
+}
+
+// A parent token names no school. Its refresh must lock the school it
+// resolves for the successor, even when revocation missed the account
+// because its first sign-in committed after accounts were enumerated.
+func TestParentRefreshWhileItsSchoolEndsMintsNoSuccessor(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	email, _ := newGuardianAccount(t, db, service, "parent-refresh-school-ends", schoolID)
+	_, refreshToken, err := service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	require.Equal(t, 1, sessionsAtSchool(t, db, schoolID))
+
+	// Keep the school lock held by revocation through its soft delete.
+	// Leave the newly committed session present to model the account that
+	// was absent from revocation's initial snapshot.
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+
+	var access, successor string
+	waited, refreshErr := runAgainst(t, db, holder, func() error {
+		var err error
+		access, successor, err = service.RefreshToken(ctx, refreshToken)
+		return err
+	})
+
+	assert.True(t, waited, "the refresh waits for its effective school")
+	assert.ErrorIs(t, refreshErr, identityaccess.ErrTenantNotFound)
+	assert.Empty(t, access)
+	assert.Empty(t, successor)
+	assert.Equal(t, 1, sessionsAtSchool(t, db, schoolID), "no successor of the deleted school is minted")
 }
