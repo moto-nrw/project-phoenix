@@ -22984,6 +22984,29 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/workforce/compose.WorkTime.ListStaffAbsences. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed read: the series materializer lists the staff member's open sick reports (modules/workforce/internal/application/absence.go:34), a plain filtered select under the per-staff shift lock it already holds; no owned-row mutation or locking read (#6302).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. The Workforce operation wrapper reports to the injected observer, a callable the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe, the closure ADR 0098 approved for Records.ListStaffShifts. The series materializer's sick-report read (#6302) is approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffShifts",
       "classification": "platform",
       "effect": "scope",
@@ -23330,6 +23353,29 @@
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
       "target_owner": "school-calendar"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SeriesSickReportReader.ListStaffAbsences",
+      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/workforce/internal/planning.Records.ListStaffAbsences. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed read: the series materializer lists the staff member's open sick reports (modules/workforce/internal/application/absence.go:34), a plain filtered select under the per-staff shift lock it already holds; no owned-row mutation or locking read (#6302).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SeriesSickReportReader.ListStaffAbsences",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. The Workforce operation wrapper reports to the injected observer, a callable the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe, the closure ADR 0098 approved for Records.ListStaffShifts. The series materializer's sick-report read (#6302) is approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.FindWithPersonByIDs",

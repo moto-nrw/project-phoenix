@@ -16393,6 +16393,22 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffShifts",
       "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffShifts",
@@ -16639,6 +16655,22 @@
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
       "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SeriesSickReportReader.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SeriesSickReportReader.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.FindWithPersonByIDs",
