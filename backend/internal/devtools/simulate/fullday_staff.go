@@ -145,7 +145,7 @@ func (rt *Runtime) isOnLeave(staffID int64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	today := rt.Options.now().In(simulationBerlin).Format(isoDate)
+	today := rt.Day.String()
 	raw, err := client.Get(fmt.Sprintf("/api/time-tracking/absences?from=%s&to=%s&status=approved", today, today))
 	if err != nil {
 		return false, fmt.Errorf("list today's absences of staff %d: %w", staffID, err)
