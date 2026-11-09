@@ -362,12 +362,12 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
+			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar, workTime)
 			return
 		},
 		func() (err error) {
 			lifecycle, err = owners.BuildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
-				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
+				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service, owners.NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {
@@ -474,7 +474,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			planning, err = buildTimetablePlanning(db, env, hub, timetableRows, lifecycle, schedules, presence, timetableOwner,
-				offerings, audit, people)
+				offerings, audit, people, owners.NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {

@@ -263,6 +263,9 @@ func (s *staffDeviations) markOriginalAbsent(ctx context.Context, op substituteW
 // addSubstitute inserts the substitute row and, on an active block, hands the
 // live supervision from the absent person to the substitute.
 func (s *staffDeviations) addSubstitute(ctx context.Context, op substituteWriteOp, subID int64, now time.Time, touched timetable.TouchedActivities) error {
+	// Validation refused a sick substitute already, so the row takes no sick
+	// state; it is still written through the one assignment write (I-1).
+	day := calendar.Date(op.Instance.Date)
 	newRow := &scheduleModel.InstanceStaff{
 		InstanceID:   op.Instance.ID,
 		StaffID:      subID,
@@ -271,7 +274,7 @@ func (s *staffDeviations) addSubstitute(ctx context.Context, op substituteWriteO
 		IsSubstitute: true,
 		IsAbsent:     false,
 	}
-	if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaff, newRow); err != nil {
+	if err := writeStaffAssignment(ctx, s.deps.InstanceStaff, newRow, day, nil, false); err != nil {
 		return err
 	}
 	if op.Instance.Status != scheduleModel.InstanceStatusActive || op.Instance.ActiveGroupID == nil {
