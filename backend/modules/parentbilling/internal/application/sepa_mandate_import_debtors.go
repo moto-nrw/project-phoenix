@@ -20,29 +20,7 @@ const invalidDebtorNumber = "\x00invalid"
 
 // assignDebtorNumbers reads the number of each row and decides per family.
 func assignDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex, known map[string]string) {
-	check := importCheck{columns: columns}
-	numbers := map[string][]string{}
-	for i := range candidates {
-		row := &candidates[i].row
-		row.DebtorNumber = strings.TrimSpace(check.cell(table.rows[i], parentbilling.ImportFieldDebtorNumber))
-		switch {
-		case row.DebtorNumber == "":
-		case checkDebtorNumber(row.DebtorNumber) != nil || containsIBAN(row.DebtorNumber):
-			// An unreadable number still disagrees with its siblings: the
-			// family gets no number the file does not agree on.
-			if family := candidates[i].family; family != "" && !slices.Contains(numbers[family], invalidDebtorNumber) {
-				numbers[family] = append(numbers[family], invalidDebtorNumber)
-			}
-			row.DebtorNumber, row.DebtorNumberStatus = "", parentbilling.DebtorNumberInvalid
-		case candidates[i].family == "":
-			row.DebtorNumberStatus = parentbilling.DebtorNumberNoFamily
-		default:
-			family := candidates[i].family
-			if !slices.Contains(numbers[family], row.DebtorNumber) {
-				numbers[family] = append(numbers[family], row.DebtorNumber)
-			}
-		}
-	}
+	numbers := readDebtorNumbers(candidates, table, columns)
 	for i := range candidates {
 		row := &candidates[i].row
 		if row.DebtorNumber == "" || row.DebtorNumberStatus != "" {
@@ -61,6 +39,36 @@ func assignDebtorNumbers(candidates []importCandidate, table importTable, column
 			row.DebtorNumberStatus = parentbilling.DebtorNumberNew
 		}
 	}
+}
+
+// readDebtorNumbers reads the number of each row and answers the distinct
+// numbers of each family. An unreadable number still disagrees with its
+// siblings: the family gets no number the file does not agree on.
+func readDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex) map[string][]string {
+	check := importCheck{columns: columns}
+	numbers := map[string][]string{}
+	note := func(family, number string) {
+		if !slices.Contains(numbers[family], number) {
+			numbers[family] = append(numbers[family], number)
+		}
+	}
+	for i := range candidates {
+		row, family := &candidates[i].row, candidates[i].family
+		row.DebtorNumber = strings.TrimSpace(check.cell(table.rows[i], parentbilling.ImportFieldDebtorNumber))
+		switch {
+		case row.DebtorNumber == "":
+		case checkDebtorNumber(row.DebtorNumber) != nil || containsIBAN(row.DebtorNumber):
+			if family != "" {
+				note(family, invalidDebtorNumber)
+			}
+			row.DebtorNumber, row.DebtorNumberStatus = "", parentbilling.DebtorNumberInvalid
+		case family == "":
+			row.DebtorNumberStatus = parentbilling.DebtorNumberNoFamily
+		default:
+			note(family, row.DebtorNumber)
+		}
+	}
+	return numbers
 }
 
 // debtorNumbersToSet are the families whose number the import takes over,
