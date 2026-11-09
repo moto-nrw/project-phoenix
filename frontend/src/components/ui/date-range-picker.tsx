@@ -419,6 +419,14 @@ export function RangeCalendarInline({
   const today = useBerlinToday();
   const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
+  // A phone shows one month: the one where the chosen range ends, so its
+  // end day is in view when the calendar opens.
+  const showedEnd = useRef(false);
+  useEffect(() => {
+    if (!isSingleMonth || showedEnd.current || !value?.to) return;
+    showedEnd.current = true;
+    setMonth(value.to);
+  }, [isSingleMonth, value?.to]);
   // Manual draft state. We use `mode="single"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
@@ -461,7 +469,9 @@ export function RangeCalendarInline({
       className={`flex flex-col sm:flex-row ${hasPresets ? "" : "justify-center"}`}
     >
       {hasPresets && (
-        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-2 text-sm sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:p-3">
+        // On a phone the presets wrap into rows: a scrolled row cut the last
+        // one at the edge without a cue.
+        <div className="flex flex-wrap gap-1 border-b border-gray-100 p-2 text-sm sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0 sm:p-3">
           {presets.map((preset) => (
             <button
               key={preset.label}

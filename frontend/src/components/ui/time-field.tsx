@@ -223,7 +223,11 @@ export function TimeField({
             handleFocusLeave(event);
           }}
           className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 pointer-coarse:h-11 pointer-coarse:pr-12 ${
-            inline ? "bg-white text-sm pointer-coarse:text-base" : "text-base"
+            // Text like the kit Input's touch size: 14 px with a mouse, 16 px
+            // by finger (no zoom on focus), beside fields of the same row.
+            inline
+              ? "bg-white text-sm pointer-coarse:text-base"
+              : "text-sm pointer-coarse:text-base"
           } ${
             invalid
               ? inline
