@@ -144,11 +144,11 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   }
 
   if (field.type === "select") {
-    const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
+    // Like the parents' form: a choice starts empty, nothing is preselected.
     return (
       // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachbildung eines Auswahlfelds in der Formularvorschau, keine Fläche; trägt den Radius der Bedienelemente (#6137)
       <div className="mt-3 flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-500 shadow-sm">
-        <span className="min-w-0 truncate">{firstOption}</span>
+        <span className="min-w-0 truncate">Bitte wählen</span>
         <ChevronDown
           className="h-4 w-4 shrink-0 text-gray-400"
           aria-hidden="true"
