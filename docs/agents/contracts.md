@@ -929,7 +929,7 @@ CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
 A refresh successor is HMAC-derived from the presented token, so hand-off
 recovery recomputes it. A resend or guardian approval mails a new link and
 voids the previous one; listings return no token. A guardian link also
-stores the normalized address it was issued for (migration 1.15.846, #6294):
+stores the normalized address it was issued for (migration 1.15.855, #6294):
 validate and accept answer 410 `identity.guardian_invitation_address_changed`
 without profile data once the profile address differs, and accept holds the
 profile row lock the contact edits take. Every new guardian token sets the

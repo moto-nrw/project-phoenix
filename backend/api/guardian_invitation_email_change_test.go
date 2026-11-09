@@ -88,7 +88,7 @@ func TestGuardianComposition_ListMarksDeadInvitationLinks(t *testing.T) {
 			Token: fmt.Sprintf("dead-link-migrated-%d", time.Now().UnixNano()), GuardianProfileID: guardianID,
 			CreatedBy: inviter, ExpiresAt: time.Now().Add(-time.Hour),
 		})
-		// 1.15.846 ends a legacy link without a recorded recipient.
+		// 1.15.855 ends a legacy link without a recorded recipient.
 		_, err := db.NewRaw(`UPDATE auth.guardian_invitations SET email = NULL WHERE id = ?`, invitation.ID).Exec(context.Background())
 		require.NoError(t, err)
 		assert.Equal(t, "link_invalid", statusOf(studentID, guardianID))
