@@ -1,13 +1,16 @@
 "use client";
 
 // Die Dialoge der Prüfphase eines Monatslaufs (#5916): eine Rechnung mit
-// Grund ausschließen und das Rechnungsdatum des Laufs ändern. Die Laufseite
-// lädt diese Datei erst, wenn ein Dialog aufgeht.
+// Grund ausschließen und das Rechnungsdatum des Laufs ändern. Ein Ausschluss
+// betrifft genau eine Rechnung (#6346); der Dialog nennt, was mit der anderen
+// Rechnung desselben Vertrags geschieht. Die Laufseite lädt diese Datei erst,
+// wenn ein Dialog aufgeht.
 
 import { useEffect, useRef, useState } from "react";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -21,7 +24,12 @@ import {
   setCareRunInvoiceDate,
 } from "~/lib/traeger-care-review-api";
 import { formatMonth } from "./care-billing-format";
-import { invoiceDateBounds } from "./care-review-format";
+import {
+  exclusionScopeText,
+  exclusionTitle,
+  invoiceDateBounds,
+  invoiceKindLabel,
+} from "./care-review-format";
 import { formatEuro } from "./contribution-format";
 
 const logger = createLogger({ component: "CareRunReviewModals" });
@@ -29,17 +37,24 @@ const logger = createLogger({ component: "CareRunReviewModals" });
 /** The longest reason the backend keeps. */
 const MAX_REASON = 500;
 
-/** Leaves one invoice of the preview out of the release, with a reason. */
+/**
+ * Leaves one invoice of the preview out of the release, with a reason. Only
+ * this invoice: the dialog names the other invoice of the contract that
+ * stays in the run, or the Mensa that goes with it (#6346).
+ */
 export function CareExcludeModal({
   runId,
   invoice,
+  invoices,
   onClose,
   onExcluded,
 }: Readonly<{
   runId: string;
   invoice: CareInvoice | null;
+  /** Every invoice of the run, so the dialog can name the other one. */
+  invoices: readonly CareInvoice[];
   onClose: () => void;
-  onExcluded: (run: CareRunDetail) => void;
+  onExcluded: (run: CareRunDetail, invoice: CareInvoice) => void;
 }>) {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -65,7 +80,8 @@ export function CareExcludeModal({
     setSaving(true);
     try {
       onExcluded(
-        await excludeCareInvoice(runId, invoice.contractId, reason.trim()),
+        await excludeCareInvoice(runId, invoice, reason.trim()),
+        invoice,
       );
     } catch (err) {
       logger.error("traeger_care_invoice_exclude_failed", {
@@ -80,13 +96,18 @@ export function CareExcludeModal({
   const child = invoice
     ? `${invoice.childFirstName} ${invoice.childLastName}`.trim()
     : "";
+  const scope = invoice
+    ? exclusionScopeText(invoice, invoices, formatEuro)
+    : null;
   return (
     <FormModal
       isOpen={invoice !== null}
       onClose={onClose}
       closeDisabled={saving}
       isBackdropDismissDisabled
-      title="Rechnung ausschließen"
+      title={
+        invoice ? exclusionTitle(invoice, invoices) : "Rechnung ausschließen"
+      }
       size="md"
       error={formErrors.error}
       footer={
@@ -108,13 +129,24 @@ export function CareExcludeModal({
         }}
       >
         {invoice ? (
-          <p className="text-sm text-gray-700">
-            <span className="font-semibold text-gray-900">{child}</span>,{" "}
-            {invoice.schoolName},{" "}
-            <span className="tabular-nums">
-              {formatEuro(invoice.totalCents)}
-            </span>
-          </p>
+          <InsetPanel padding="md" data-testid="care-exclusion-invoice">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{child}</p>
+                <p className="mt-0.5 text-sm text-gray-600">
+                  {invoiceKindLabel(invoice)} · {invoice.schoolName}
+                </p>
+              </div>
+              <p className="shrink-0 text-base font-semibold text-gray-900 tabular-nums">
+                {formatEuro(invoice.totalCents)}
+              </p>
+            </div>
+            {scope ? (
+              <p className="mt-3 border-t border-gray-200 pt-3 text-sm text-gray-700">
+                {scope}
+              </p>
+            ) : null}
+          </InsetPanel>
         ) : null}
         <Textarea
           id="care-exclusion-reason"

@@ -31,6 +31,7 @@ import {
 } from "~/lib/traeger-care-review-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { invoiceCountLabel } from "./care-billing-format";
+import { invoiceKindLabel } from "./care-review-format";
 import { formatEuro } from "./contribution-format";
 
 const logger = createLogger({ component: "CareRunReview" });
@@ -42,6 +43,11 @@ const REVIEW_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
 
 function childName(invoice: CareInvoice): string {
   return `${invoice.childFirstName} ${invoice.childLastName}`.trim();
+}
+
+/** Names one invoice of a run: its contract and what it bills (#6346). */
+export function invoiceKey(invoice: CareInvoice): string {
+  return `${invoice.contractId}-${invoice.service}`;
 }
 
 /** The row menu of a preview invoice: leave it out of the release. */
@@ -73,7 +79,7 @@ export function ExclusionMenu({
           : []),
         {
           label: "Ausschließen",
-          description: "Bekommt bei der Freigabe keine Nummer",
+          description: "Nur diese Rechnung. Sie bekommt keine Nummer.",
           onClick: () => onExclude(invoice),
         },
         ...(onFamilyBilling
@@ -124,8 +130,8 @@ export function CareReviewExport({ runId }: Readonly<{ runId: string }>) {
 }
 
 /**
- * The invoices left out of the release, each with its reason and the way
- * back into the run.
+ * The invoices left out of the release, each with what it bills, its reason
+ * and the way back into the run. Each row is one invoice (#6346).
  */
 export function CareExcludedCard({
   invoices,
@@ -133,7 +139,7 @@ export function CareExcludedCard({
   onInclude,
 }: Readonly<{
   invoices: readonly CareInvoice[];
-  /** The contract whose invoice is on its way back. */
+  /** The invoice on its way back, as `contractId-service`. */
   returning: string | null;
   onInclude: (invoice: CareInvoice) => void;
 }>) {
@@ -147,18 +153,21 @@ export function CareExcludedCard({
           {invoiceCountLabel(invoices.length)} · {formatEuro(total)}
         </span>
       }
-      description="Diese Rechnungen bekommen bei der Freigabe keine Nummer. Das Kind kommt im nächsten Lauf dieses Monats wieder."
+      description="Diese Rechnungen bekommen bei der Freigabe keine Nummer. Sie kommen im nächsten Lauf dieses Monats wieder."
     >
       <ResponsiveActionList>
         {invoices.map((invoice) => (
           <li
-            key={`${invoice.contractId}-${invoice.service}`}
+            key={invoiceKey(invoice)}
             className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
           >
             <div className="min-w-0">
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-semibold text-gray-900">
                   {childName(invoice)}
+                </span>
+                <span className="font-medium text-gray-700">
+                  {invoiceKindLabel(invoice)}
                 </span>
                 <span className="text-gray-600">{invoice.schoolName}</span>
                 <span className="text-gray-500 tabular-nums">
@@ -179,10 +188,10 @@ export function CareExcludedCard({
                 type="button"
                 variant="surface"
                 size="compact"
-                isLoading={returning === invoice.contractId}
+                isLoading={returning === invoiceKey(invoice)}
                 loadingText="Wird aufgenommen …"
                 disabled={returning !== null}
-                aria-label={`Wieder aufnehmen: Rechnung von ${childName(invoice)}`}
+                aria-label={`Wieder aufnehmen: ${invoiceKindLabel(invoice)} von ${childName(invoice)}`}
                 onClick={() => onInclude(invoice)}
               >
                 Wieder aufnehmen
