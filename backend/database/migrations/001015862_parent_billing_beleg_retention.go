@@ -14,8 +14,8 @@ func init() {
 		Version:     parentBillingBelegRetentionVersion,
 		Description: "Belege des Trägers: Weisung, Aussetzung, Frist je Beleg, Klärungsliste und Löschprotokoll (#4720)",
 		DependsOn: []string{
-			parentBillingSEPADebitsVersion,         // the debits the retention keeps
-			parentBillingOnlineSEPAMandatesVersion, // the newest migration on development
+			parentBillingSEPADebitsVersion,    // the debits the retention keeps
+			declarationAlwaysRevocableVersion, // the newest migration on development
 		},
 	})
 	Migrations.MustRegister(parentBillingBelegRetentionUp, parentBillingBelegRetentionDown)
