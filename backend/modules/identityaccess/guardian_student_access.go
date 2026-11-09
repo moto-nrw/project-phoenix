@@ -26,11 +26,14 @@ type GuardianStudentAccessGrant struct {
 	Permissions    json.RawMessage
 }
 
-// GuardianStudentAccess is the command side of the relationship access. Every
-// command runs in the caller's transaction and names its school explicitly,
-// so it also serves the administrative transactions that write across
-// schools.
+// GuardianStudentAccess is the command side of the relationship access.
+// School commands join the caller's school or administrative transaction;
+// release account locks join only the named Träger's transaction.
 type GuardianStudentAccess interface {
+	// LockLiveTraegerGuardianAccounts locks live candidates still assigned to
+	// an active school of the Träger until its ambient transaction commits.
+	// Results are unique and ordered by account ID.
+	LockLiveTraegerGuardianAccounts(context.Context, int64, []int64) ([]int64, error)
 	// LockLiveGuardianAccount takes a shared account-row lock until the caller's
 	// transaction ends and reports whether the account has not been erased.
 	LockLiveGuardianAccount(context.Context, int64) (bool, error)

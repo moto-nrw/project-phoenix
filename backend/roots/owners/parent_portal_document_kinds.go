@@ -8,11 +8,23 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
+
+// NewParentReleaseAccountLocks binds the release workflow to Identity &
+// Access's account locks in the caller's Träger transaction.
+func NewParentReleaseAccountLocks(db transactionruntime.Database) func(context.Context, int64, []int64) ([]int64, error) {
+	access, err := identityCompose.NewGuardianStudentAccess(db.Pool(), func(identityCompose.Observation) {})
+	if err != nil {
+		panic(fmt.Sprintf("compose release account locks: %v", err))
+	}
+	return access.LockLiveTraegerGuardianAccounts
+}
 
 // The pushes „Neues Dokument vom Träger“ of a sent care contract and of a
 // release for parents (#5941) share the letters' notifier, notification

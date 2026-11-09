@@ -42,9 +42,35 @@ ALTER TABLE platform.push_outbox ADD CONSTRAINT chk_push_outbox_traeger_kind CHE
 		'care_contract_document', 'parent_billing_document', 'traeger_document_release', 'traeger_document_release_account'));
 COMMENT ON CONSTRAINT chk_push_outbox_traeger_kind ON platform.push_outbox IS
 	'The push kinds of a Träger. A new kind needs its demo erasure in platform.erase_closed_demo_visitors (#6342).';
+
+-- A release discovers its candidates in school transactions before it opens
+-- the enqueue transaction of its Träger. Revalidate and lock them there, in
+-- the same order as demo erasure's FOR UPDATE, until the outbox rows commit.
+-- The Träger role cannot read school memberships; expose only its own live
+-- candidates, never account details or candidates of another Träger.
+CREATE FUNCTION auth.lock_live_traeger_guardian_accounts(target_org BIGINT, candidates BIGINT[])
+RETURNS SETOF BIGINT
+LANGUAGE sql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+	SELECT account.id FROM auth.accounts AS account
+	WHERE target_org = NULLIF(current_setting('app.current_org_id', true), '')::BIGINT
+		AND account.id = ANY (candidates)
+		AND account.personal_data_erased_at IS NULL
+		AND EXISTS (
+			SELECT 1 FROM auth.account_tenants AS membership
+			JOIN platform.schools AS school ON school.id = membership.tenant_id
+			WHERE membership.account_id = account.id AND membership.status = 'active'
+				AND school.organization_id = target_org AND school.deleted_at IS NULL
+		)
+	ORDER BY account.id FOR KEY SHARE OF account
+$$;
+REVOKE ALL ON FUNCTION auth.lock_live_traeger_guardian_accounts(BIGINT, BIGINT[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION auth.lock_live_traeger_guardian_accounts(BIGINT, BIGINT[]) TO phoenix_tenant;
 `
 
 const demoVisitorErasureOutboxKindsConstraintsDownSQL = `
+DROP FUNCTION IF EXISTS auth.lock_live_traeger_guardian_accounts(BIGINT, BIGINT[]);
 ALTER TABLE platform.email_outbox DROP CONSTRAINT IF EXISTS chk_email_outbox_traeger_kind;
 ALTER TABLE platform.push_outbox DROP CONSTRAINT IF EXISTS chk_push_outbox_traeger_kind;
 `

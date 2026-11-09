@@ -303,7 +303,7 @@ func BuildParentDocumentNotices(
 		// The pushes of a sent contract and of a release (#5941).
 		ContractInboxNotices: NewParentContractInboxNotices(), ReleaseNotices: NewParentReleaseNotices(),
 		ReleaseSchools: NewParentReleaseSchools(organizations), ReleaseRecipients: NewParentReleaseRecipients(NewParentGroupAudience(db)),
-		ReleaseFanOut: ParentReleaseFanOut{Delivery: outbox}, TraegerDocumentNotifier: notifier,
+		ReleaseFanOut: ParentReleaseFanOut{Delivery: outbox}, LockReleaseAccounts: NewParentReleaseAccountLocks(db), TraegerDocumentNotifier: notifier,
 	})
 }
 

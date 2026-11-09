@@ -79,7 +79,7 @@ func traegerDocumentNotices(t *testing.T) (releaseNotices, *recordedPushes, *bun
 	return releaseNotices{DocumentNotices: parentportalcompose.NewDocumentNotices(deps, parentService.DocumentPushPorts{
 		ContractInboxNotices: owners.NewParentContractInboxNotices(), ReleaseNotices: owners.NewParentReleaseNotices(),
 		ReleaseSchools: owners.NewParentReleaseSchools(organizations), ReleaseRecipients: owners.NewParentReleaseRecipients(owners.NewParentGroupAudience(testpkg.NewDatabase(t, db))),
-		ReleaseFanOut: fan, TraegerDocumentNotifier: pushes,
+		ReleaseFanOut: fan, LockReleaseAccounts: owners.NewParentReleaseAccountLocks(testpkg.NewDatabase(t, db)), TraegerDocumentNotifier: pushes,
 	}), fan: fan}, pushes, db
 }
 

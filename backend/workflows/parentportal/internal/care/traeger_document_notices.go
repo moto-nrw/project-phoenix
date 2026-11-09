@@ -89,6 +89,9 @@ type DocumentPushPorts struct {
 	ReleaseRecipients       ReleaseRecipients
 	ReleaseFanOut           ReleaseFanOut
 	TraegerDocumentNotifier TraegerDocumentNotifier
+	// LockReleaseAccounts locks live candidates of the Träger until the
+	// enqueue transaction commits, excluding accounts erased since discovery.
+	LockReleaseAccounts func(context.Context, int64, []int64) ([]int64, error)
 }
 
 // TraegerDocumentNotifier sends the push of a contract or a release through
@@ -156,7 +159,7 @@ func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organization
 	if err := s.releaseNoticeConfigured(organizationID, releaseID); err != nil {
 		return err
 	}
-	if s.ReleaseFanOut == nil || s.ReleaseRecipients == nil {
+	if s.ReleaseFanOut == nil || s.ReleaseRecipients == nil || s.LockReleaseAccounts == nil {
 		return errors.New("parent: release fan-out is not configured")
 	}
 	audience, found, err := s.activeRelease(ctx, organizationID, releaseID)
@@ -172,12 +175,24 @@ func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organization
 		return err
 	}
 	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		return s.ReleaseFanOut.EnqueueReleaseAccounts(txCtx, organizationID, releaseID, accounts)
+		return s.enqueueReleaseAccounts(txCtx, organizationID, releaseID, accounts)
 	})
 	if err != nil {
 		return fmt.Errorf("parent: fan out release notice: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) enqueueReleaseAccounts(ctx context.Context, organizationID, releaseID int64, accounts []int64) error {
+	// Candidates are sorted by account ID. Lock and revalidate them in that
+	// order, matching demo erasure's exclusive locks. If erasure committed
+	// after discovery, omit its accounts; otherwise it waits for this commit
+	// and then sees every entry this fan-out wrote.
+	live, err := s.LockReleaseAccounts(ctx, organizationID, accounts)
+	if err != nil {
+		return err
+	}
+	return s.ReleaseFanOut.EnqueueReleaseAccounts(ctx, organizationID, releaseID, live)
 }
 
 // NotifyTraegerDocumentReleaseAccount sends the push of a release to one
