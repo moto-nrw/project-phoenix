@@ -5797,7 +5797,7 @@ export const parentDeclarationTopic =
       ],
       differences: [
         "Nach dem Veröffentlichen stehen Text und Dateien fest.",
-        "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+        "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf. Eine Zustimmung zum alten Text können Eltern weiter widerrufen.",
         "Eltern, die schon geantwortet haben, sehen ein zurückgezogenes Einverständnis weiter. Dort steht `Einverständnis beendet`. Neu antworten können sie nicht mehr.",
       ],
       troubleshootingDetails: [
@@ -6780,7 +6780,7 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       {
         title: "Eine Zustimmung widerrufen",
         steps: [
-          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`.",
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`. Hat die Schule den Text geändert und fragt neu, steht er unter `Offen`.",
           "Tippen Sie beim Kind auf `Zustimmung widerrufen`.",
           "Bestätigen Sie im Fenster mit `Widerrufen`.",
         ],
@@ -6801,13 +6801,14 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
       "Steht bei einem Einverständnis `Einverständnis beendet`? Dann fragt die Schule nicht mehr nach. Ihre Zustimmung können Sie dort weiter widerrufen.",
       "Hat die Schule die Elternbriefe ausgeschaltet? Dann stehen unter `Erledigt` nur noch Ihre Zustimmungen. Sie können sie dort weiter widerrufen.",
+      "Hat die Schule den Text geändert, nachdem Sie zugestimmt haben? Dann fragt sie neu. Darunter steht Ihre Zustimmung zum alten Text mit diesem Text. Sie gilt, bis Sie sie mit `Zustimmung widerrufen` zurücknehmen.",
       "Steht beim Kind, dass Sie nicht mehr neu antworten können? Dann hat die OGS das für Sie geändert. Ihre Zustimmung können Sie trotzdem widerrufen.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
-      "Fehlt `Zustimmung widerrufen`? Dann hat die Schule den Text geändert. Ihre alte Zustimmung gilt nicht für den neuen Text. Fehlt das ganze Einverständnis, haben Sie für das Kind vielleicht keinen Zugang mehr. Fragen Sie die OGS.",
+      "Fehlt `Zustimmung widerrufen` oder das ganze Einverständnis? Dann haben Sie für das Kind vielleicht keinen Zugang mehr. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,

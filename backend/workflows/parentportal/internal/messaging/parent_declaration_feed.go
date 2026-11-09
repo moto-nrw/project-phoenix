@@ -11,13 +11,16 @@ import (
 
 // declarationFeedFacts are the batched reads behind the declaration items of
 // one feed page: five statements whatever the page size, none at all when the
-// page carries no Erklärung.
+// page carries no Erklärung. earlier holds all versions of the declarations
+// where the guardian still has a consent to an older wording (#6303): one
+// more statement for each such declaration, none otherwise.
 type declarationFeedFacts struct {
 	settings    map[int64]AnnouncementDeclarationSettings
 	versions    map[int64]*DeclarationVersion
 	children    map[int64][]*DeclarationChild
 	signers     map[int64][]*DeclarationSigner
 	submissions []*DeclarationSubmission
+	earlier     map[int64]map[int64]*DeclarationVersion
 }
 
 // attachDeclarationData builds the declaration part of each Erklärung item
@@ -37,18 +40,20 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 	if err != nil {
 		return err
 	}
+	if err := s.loadEarlierVersions(ctx, facts, accountID); err != nil {
+		return err
+	}
 	now := time.Now()
 	for _, item := range items {
 		if item.DeliveryMode == ParentAnnouncementDeliveryDeclaration {
 			item.Declaration = buildFeedDeclaration(s.Declarations, accountID, item, facts, now)
-			showEndedDeclarationAsAnswered(item)
 		}
 	}
 	return nil
 }
 
 // withoutEmptyEndedDeclarations drops an ended declaration that kept no child:
-// the guardian answered only an older version, or the child left the school.
+// the guardian holds no answer to it any more, or the child left the school.
 // It would be an empty card about wording the guardian never answered.
 func withoutEmptyEndedDeclarations(items []*AnnouncementFeedItem) []*AnnouncementFeedItem {
 	out := items[:0]
@@ -74,11 +79,12 @@ func endNewsOffDeclarations(items []*AnnouncementFeedItem, scope AnnouncementFee
 }
 
 // onlyGivenConsentsWithNewsOff keeps, for a school with parent news off, only
-// the children whose guardian gave their consent, without the answers of
-// other guardians and with the own consent as the child's state: switching the module off shows nothing else of that
-// school, not a refusal, a revocation, another child or another person
-// (data minimization, #6303). withoutEmptyEndedDeclarations then drops the
-// declarations left without a child.
+// the children whose guardian gave their consent, to the current or an older
+// wording, without the answers of other guardians and with the own consent as
+// the child's state: switching the module off shows nothing else of that
+// school, not a refusal, a revocation, another child or another person (data
+// minimization, #6303). presentEndedDeclarations then shows the wording agreed
+// to, and withoutEmptyEndedDeclarations drops the declarations left empty.
 func onlyGivenConsentsWithNewsOff(items []*AnnouncementFeedItem, scope AnnouncementFeedScope) []*AnnouncementFeedItem {
 	for _, item := range items {
 		if item.Declaration == nil || slices.Contains(scope.TenantIDs, item.TenantID) {
@@ -86,13 +92,20 @@ func onlyGivenConsentsWithNewsOff(items []*AnnouncementFeedItem, scope Announcem
 		}
 		given := item.Declaration.Children[:0]
 		for _, child := range item.Declaration.Children {
-			if child.MyAction != nil && *child.MyAction == DeclarationActionAgreed {
-				// The child's state would reveal another guardian's answer
-				// (a refusal wins); show the own consent ("agreed") instead.
-				child.OtherSigners = []DeclarationSignerState{}
-				child.State = *child.MyAction
-				given = append(given, child)
+			agreed := child.MyAction != nil && *child.MyAction == DeclarationActionAgreed
+			if !agreed && child.EarlierConsent == nil {
+				continue
 			}
+			if !agreed {
+				// Only the consent to the older wording is shown, not the
+				// own refusal or revocation of the current one.
+				child.MyAction, child.MySubmittedAt, child.AllowedActions = nil, nil, []string{}
+			}
+			// The child's state would reveal another guardian's answer (a
+			// refusal wins); show the own consent ("agreed") instead.
+			child.OtherSigners = []DeclarationSignerState{}
+			child.State = DeclarationActionAgreed
+			given = append(given, child)
 		}
 		item.Declaration.Children = given
 	}
@@ -182,11 +195,7 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 	}
 	for _, c := range facts.children[item.ID] {
 		child := buildFeedDeclarationChild(policy, accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now, out.Ended)
-		// An ended declaration stays for the children the guardian answered
-		// for; for the others it asks nothing any more.
-		if out.Ended && child.MyAction == nil {
-			continue
-		}
+		child.EarlierConsent = facts.earlierConsent(policy, rules, item.ID, c.StudentID, accountID, now)
 		out.Children = append(out.Children, child)
 	}
 	return out

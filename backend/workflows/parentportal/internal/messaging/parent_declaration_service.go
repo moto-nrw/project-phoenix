@@ -67,7 +67,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	if accountID <= 0 || announcementID <= 0 || in.StudentID <= 0 || in.VersionID <= 0 {
 		return nil, false, fmt.Errorf("parent: account_id, announcement_id, student_id and version_id must be positive")
 	}
-	target, err := s.resolveDeclarationTarget(ctx, accountID, announcementID, in.StudentID, in.Action)
+	target, err := s.resolveDeclarationTarget(ctx, accountID, announcementID, in.StudentID, in.VersionID, in.Action)
 	if err != nil {
 		return nil, false, err
 	}
@@ -111,7 +111,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 // any other answer, so a parent token cannot probe announcement or student
 // ids. A guardian in the audience whose child is not reached gets the more
 // useful child error.
-func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, announcementID, studentID int64, action string) (*declarationTarget, error) {
+func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, announcementID, studentID, versionID int64, action string) (*declarationTarget, error) {
 	var target *declarationTarget
 	ownLatest := ""
 	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
@@ -119,7 +119,7 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 		if err != nil {
 			return fmt.Errorf("parent: load declaration: %w", err)
 		}
-		if ownLatest, err = s.requireDeclarationOpenFor(adminCtx, a, accountID, studentID, action); err != nil {
+		if ownLatest, err = s.requireDeclarationOpenFor(adminCtx, a, accountID, studentID, versionID, action); err != nil {
 			return err
 		}
 		children, err := s.AnnouncementRepo.DeclarationChildrenForAccount(adminCtx, accountID, []int64{announcementID})
@@ -176,48 +176,44 @@ func declarationAdmitsAction(a *ParentAnnouncement, action string) bool {
 // shows takes only a revocation, and only from a guardian who answered for
 // the child before. Anybody else learns nothing about it, not even that it
 // exists. For a revocation it returns the guardian's own latest action for
-// the child on the current version, which the parent news gate needs.
-func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) (string, error) {
+// the child on the version the request names, which the parent news gate
+// needs: the wording revoked may be an older one (#6303).
+func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID, versionID int64, action string) (string, error) {
 	if !declarationAdmitsAction(a, action) {
 		return "", ErrAnnouncementNotFound
 	}
 	if action != DeclarationActionRevoked {
 		return "", nil
 	}
-	answered, onCurrent, err := s.ownDeclarationHistory(ctx, a, accountID, studentID)
+	answered, onVersion, err := s.ownDeclarationHistory(ctx, a.ID, accountID, studentID, versionID)
 	if err != nil {
 		return "", err
 	}
 	if !answered && !announcementIsLive(a) {
 		return "", ErrAnnouncementNotFound
 	}
-	return onCurrent, nil
+	return onVersion, nil
 }
 
 // ownDeclarationHistory reports whether the account ever declared for the
-// child on this announcement and its newest action on the current version
-// ("" when none): a consent to an older wording is no consent to the current
-// one, as in the feed.
-func (s *Service) ownDeclarationHistory(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64) (bool, string, error) {
-	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{a.ID}, []int64{studentID})
+// child on this announcement and its newest action on the given version (""
+// when none).
+func (s *Service) ownDeclarationHistory(ctx context.Context, announcementID, accountID, studentID, versionID int64) (bool, string, error) {
+	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{announcementID}, []int64{studentID})
 	if err != nil {
 		return false, "", fmt.Errorf("parent: load declaration history: %w", err)
 	}
-	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, a.GetTenantID(), a.ID)
-	if err != nil {
-		return false, "", fmt.Errorf("parent: load declaration version: %w", err)
-	}
-	answered, onCurrent := false, ""
+	answered, onVersion := false, ""
 	for _, sub := range history { // newest first
 		if sub.AccountID == nil || *sub.AccountID != accountID {
 			continue
 		}
 		answered = true
-		if onCurrent == "" && version != nil && sub.VersionID == version.ID {
-			onCurrent = sub.Action
+		if onVersion == "" && sub.VersionID == versionID {
+			onVersion = sub.Action
 		}
 	}
-	return answered, onCurrent, nil
+	return answered, onVersion, nil
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the
@@ -266,10 +262,11 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err := repo.LockDeclarationChild(ctx, announcementID, in.StudentID); err != nil {
 		return nil, false, err
 	}
-	rules, version, requiresSignature, err := s.lockedDeclarationVersion(ctx, target.tenantID, announcementID, in)
+	locked, err := s.lockedDeclarationVersion(ctx, target.tenantID, announcementID, in)
 	if err != nil {
 		return nil, false, err
 	}
+	version := locked.version
 	signer, err := repo.HoldDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
 	if err != nil {
 		return nil, false, err
@@ -293,10 +290,14 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 		return mine, false, nil
 	}
 	now := time.Now()
-	if err := checkDeclarationAction(s.Declarations, rules, mayDeclare, mine, in.Action, now); err != nil {
+	// An older wording takes no new answer, only the revocation of a consent.
+	if err := checkDeclarationAction(s.Declarations, locked.rules, mayDeclare && locked.current, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
-	signatureID, err := s.recordDeclarationSignature(ctx, target.tenantID, accountID, version, signer, in, requiresSignature, now)
+	if in.Action == DeclarationActionRevoked {
+		return s.revokeOwnConsents(ctx, target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now)
+	}
+	signatureID, err := s.recordDeclarationSignature(ctx, target.tenantID, accountID, version, signer, in, locked.requiresSignature, now)
 	if err != nil {
 		return nil, false, err
 	}
@@ -308,31 +309,54 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	return submission, true, nil
 }
 
-// lockedDeclarationVersion re-reads the announcement under the child lock and
-// requires that the guardian declares on the current version. A new
-// declaration for a child whose care ended is refused; a revocation is not.
-// It also returns whether the reloaded settings ask for a signature.
-func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarationRules, *DeclarationVersion, bool, error) {
+// lockedDeclaration is the declaration as re-read under the child lock: its
+// rules, the version the request names, whether that is the current one, and
+// whether the settings ask for a signature.
+type lockedDeclaration struct {
+	rules             declarationRules
+	version           *DeclarationVersion
+	current           bool
+	requiresSignature bool
+}
+
+// lockedDeclarationVersion re-reads the announcement under the child lock.
+// Agreeing and declining need the current version. A revocation may name an
+// older one: a consent to an older wording stays revocable after the school
+// changed the text (#6303). A new declaration for a child whose care ended is
+// refused; a revocation is not.
+func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (*lockedDeclaration, error) {
 	a, err := s.AnnouncementRepo.FindByID(ctx, announcementID)
 	if err != nil {
-		return declarationRules{}, nil, false, fmt.Errorf("parent: reload declaration: %w", err)
+		return nil, fmt.Errorf("parent: reload declaration: %w", err)
 	}
 	if !declarationAdmitsAction(a, in.Action) {
-		return declarationRules{}, nil, false, ErrAnnouncementNotFound
+		return nil, ErrAnnouncementNotFound
 	}
-	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)
+	latest, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)
 	if err != nil {
-		return declarationRules{}, nil, false, fmt.Errorf("parent: load declaration version: %w", err)
+		return nil, fmt.Errorf("parent: load declaration version: %w", err)
 	}
-	if version == nil || version.ID != in.VersionID {
-		return declarationRules{}, nil, false, ErrDeclarationVersionChanged
+	if latest == nil {
+		return nil, ErrDeclarationVersionChanged
+	}
+	version := latest
+	if latest.ID != in.VersionID {
+		if in.Action != DeclarationActionRevoked {
+			return nil, ErrDeclarationVersionChanged
+		}
+		if version, err = s.declarationVersionByID(ctx, tenantID, announcementID, in.VersionID); err != nil {
+			return nil, err
+		}
 	}
 	if in.Action != DeclarationActionRevoked {
 		if err := s.requireCareRunning(ctx, tenantID, in.StudentID); err != nil {
-			return declarationRules{}, nil, false, err
+			return nil, err
 		}
 	}
-	return feedDeclarationRules(a.Declaration, a.ResponseDeadline), version, a.Declaration.RequiresSignature, nil
+	return &lockedDeclaration{
+		rules: feedDeclarationRules(a.Declaration, a.ResponseDeadline), version: version,
+		current: version.ID == latest.ID, requiresSignature: a.Declaration.RequiresSignature,
+	}, nil
 }
 
 // checkDeclarationAction enforces the actions the feed offers

@@ -90,5 +90,10 @@
     "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin.",
     "signatureRequired": "Lütfen imza atın ve “İmzayı onayla”ya dokunun."
   },
-  "errorObjectAnswer": "yanıt"
+  "errorObjectAnswer": "yanıt",
+  "earlierConsent": {
+    "title": "{version}. sürüme onay: {date}.",
+    "note": "Okul metni daha sonra değiştirdi. Bu metne verdiğiniz onay, siz geri alana kadar geçerlidir.",
+    "endsToo": "Bu, {version}. sürüme verdiğiniz onayı da sona erdirir."
+  }
 }

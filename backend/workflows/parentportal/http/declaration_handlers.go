@@ -44,6 +44,38 @@ type declarationChildResponse struct {
 	MySubmittedAt  *time.Time                       `json:"my_submitted_at"`
 	AllowedActions []string                         `json:"allowed_actions"`
 	OtherSigners   []declarationSignerStateResponse `json:"other_signers"`
+	// EarlierConsent is the guardian's own consent to an older wording that
+	// still stands after the school changed the text (#6303); null otherwise.
+	EarlierConsent *declarationEarlierConsentResponse `json:"earlier_consent"`
+}
+
+// declarationEarlierConsentResponse carries the wording agreed to, so the
+// guardian sees what they revoke.
+type declarationEarlierConsentResponse struct {
+	Version        declarationEarlierVersionResponse `json:"version"`
+	SubmittedAt    time.Time                         `json:"submitted_at"`
+	AllowedActions []string                          `json:"allowed_actions"`
+}
+
+type declarationEarlierVersionResponse struct {
+	ID          string `json:"id"`
+	VersionNo   int    `json:"version_no"`
+	ContentHash string `json:"content_hash"`
+	Title       string `json:"title"`
+	Body        string `json:"body"`
+}
+
+func toEarlierConsentResponse(c *parentService.DeclarationEarlierConsent) *declarationEarlierConsentResponse {
+	if c == nil || c.Version == nil {
+		return nil
+	}
+	return &declarationEarlierConsentResponse{
+		Version: declarationEarlierVersionResponse{
+			ID: strconv.FormatInt(c.Version.ID, 10), VersionNo: c.Version.VersionNo, ContentHash: c.Version.ContentHash,
+			Title: c.Version.Title, Body: c.Version.Body,
+		},
+		SubmittedAt: c.SubmittedAt, AllowedActions: c.AllowedActions,
+	}
 }
 
 // AnnouncementDeclarationResponse is the declaration block of a feed item.
@@ -80,6 +112,7 @@ func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *Announ
 			StudentID: strconv.FormatInt(c.StudentID, 10), FirstName: c.FirstName, LastName: c.LastName,
 			CanSubmit: c.CanSubmit, State: c.State, MyAction: c.MyAction, MySubmittedAt: c.MySubmittedAt,
 			AllowedActions: c.AllowedActions, OtherSigners: make([]declarationSignerStateResponse, 0, len(c.OtherSigners)),
+			EarlierConsent: toEarlierConsentResponse(c.EarlierConsent),
 		}
 		if child.AllowedActions == nil {
 			child.AllowedActions = []string{}

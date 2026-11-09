@@ -1229,6 +1229,24 @@ export interface ParentDeclarationChild {
     readonly action: ParentDeclarationAction | null;
     readonly submitted_at: string | null;
   }[];
+  /**
+   * This guardian's consent to an older wording that still stands after the
+   * school changed the text (#6303). It stays revocable; null without one.
+   */
+  readonly earlier_consent?: ParentDeclarationEarlierConsent | null;
+}
+
+/** A standing consent to an older wording of an Einverständnis. */
+export interface ParentDeclarationEarlierConsent {
+  readonly version: {
+    readonly id: string;
+    readonly version_no: number;
+    readonly content_hash: string;
+    readonly title: string;
+    readonly body: string;
+  };
+  readonly submitted_at: string;
+  readonly allowed_actions: readonly ParentDeclarationAction[];
 }
 
 export interface ParentDeclaration {

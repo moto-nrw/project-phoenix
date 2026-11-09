@@ -46,7 +46,7 @@ export function parentDeclarationTopic(): HelpTopic {
     ],
     differences: [
       "Nach dem Veröffentlichen stehen Text und Dateien fest.",
-      "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+      "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf. Eine Zustimmung zum alten Text können Eltern weiter widerrufen.",
       "Eltern, die schon geantwortet haben, sehen ein zurückgezogenes Einverständnis weiter. Dort steht `Einverständnis beendet`. Neu antworten können sie nicht mehr.",
     ],
     troubleshootingDetails: [

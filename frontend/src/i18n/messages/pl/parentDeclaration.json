@@ -90,5 +90,10 @@
     "uncertainReload": "Aktualny stan jest ładowany ponownie. Sprawdź go, zanim odpowiesz jeszcze raz.",
     "signatureRequired": "Podpisz się i dotknij „Potwierdź podpis”."
   },
-  "errorObjectAnswer": "odpowiedź"
+  "errorObjectAnswer": "odpowiedź",
+  "earlierConsent": {
+    "title": "Zgoda na wersję {version}: {date}.",
+    "note": "Szkoła później zmieniła tekst. Twoja zgoda na ten tekst obowiązuje, dopóki jej nie wycofasz.",
+    "endsToo": "Kończy to również Twoją zgodę na wersję {version}."
+  }
 }

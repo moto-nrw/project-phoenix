@@ -90,5 +90,10 @@
     "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri.",
     "signatureRequired": "Ju lutemi nënshkruani dhe prekni „Konfirmo nënshkrimin”."
   },
-  "errorObjectAnswer": "përgjigjja"
+  "errorObjectAnswer": "përgjigjja",
+  "earlierConsent": {
+    "title": "Pëlqimi për versionin {version}: {date}.",
+    "note": "Më pas shkolla e ndryshoi tekstin. Pëlqimi juaj për këtë tekst vlen derisa ta tërhiqni.",
+    "endsToo": "Kështu përfundon edhe pëlqimi juaj për versionin {version}."
+  }
 }

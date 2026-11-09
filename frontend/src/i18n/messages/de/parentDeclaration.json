@@ -90,5 +90,10 @@
     "uncertainReload": "Der Stand wird neu geladen. Bitte prüfen Sie ihn, bevor Sie noch einmal antworten.",
     "signatureRequired": "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“."
   },
-  "errorObjectAnswer": "die Antwort"
+  "errorObjectAnswer": "die Antwort",
+  "earlierConsent": {
+    "title": "Sie haben Fassung {version} am {date} Uhr zugestimmt.",
+    "note": "Die Schule hat den Text danach geändert. Ihre Zustimmung zu diesem Text gilt, bis Sie sie widerrufen.",
+    "endsToo": "Damit endet auch Ihre Zustimmung zu Fassung {version}."
+  }
 }

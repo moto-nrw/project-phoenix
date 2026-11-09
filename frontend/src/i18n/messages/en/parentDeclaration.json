@@ -90,5 +90,10 @@
     "uncertainReload": "The current status is being reloaded. Please check it before you reply again.",
     "signatureRequired": "Please sign and tap “Confirm signature”."
   },
-  "errorObjectAnswer": "the reply"
+  "errorObjectAnswer": "the reply",
+  "earlierConsent": {
+    "title": "You agreed to version {version} on {date}.",
+    "note": "The school changed the text afterwards. Your consent to this text stays valid until you withdraw it.",
+    "endsToo": "This also ends your consent to version {version}."
+  }
 }

@@ -7,7 +7,6 @@ package care_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -153,23 +152,25 @@ func TestDeclaration_ParentNewsOffHidesOtherGuardiansAndForeignChildren(t *testi
 	assert.Len(t, s.history(t), 2)
 }
 
-func TestDeclaration_ParentNewsOffKeepsNoConsentToAnOlderWording(t *testing.T) {
+// TestDeclaration_ParentNewsOffShowsNoRefusalOfAnOlderWording: with parent
+// news off a refusal of an older wording shows nothing, and the current
+// wording takes no answer. A consent to an older wording stays revocable
+// (TestDeclaration_ConsentToAnOlderWordingStaysRevocableWithParentNewsOff).
+func TestDeclaration_ParentNewsOffShowsNoRefusalOfAnOlderWording(t *testing.T) {
 	t.Parallel()
 	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
-	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionDeclined)
 	require.NoError(t, err)
-	// The school corrects the text: version 2 asks everybody again.
-	s.unpublishDeclaration(t)
-	v2 := freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
-	now := time.Now().Add(-time.Minute)
-	require.NoError(t, testpkg.TenantCommand2(t, s.seedCtx, testpkg.SetupTestDB(t), s.repo.SetPublished, s.announcement.ID, &now))
+	v2 := s.publishSecondWording(t)
 
 	off := s.withParentNewsOff(t)
 
-	assert.Nil(t, off.feedItem(t, s.chain.AccountID), "a consent to an older wording is no consent to show")
-	_, _, err = off.svc.SubmitDeclaration(off.ctx, s.chain.AccountID, s.announcement.ID, parentportal.DeclarationInput{
-		StudentID: s.chain.StudentID, VersionID: v2.ID, Action: parentportal.DeclarationActionRevoked,
-	}, nil)
-	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "nothing of the school shows while parent news is off")
+	assert.Nil(t, off.feedItem(t, s.chain.AccountID), "a refusal is no consent to show")
+	for _, version := range []int64{s.version.ID, v2.ID} {
+		_, _, err = off.submitOn(s.chain.AccountID, version, parentportal.DeclarationActionRevoked)
+		require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "nothing of the school shows while parent news is off")
+	}
+	_, _, err = off.submitOn(s.chain.AccountID, v2.ID, parentportal.DeclarationActionAgreed)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 	assert.Len(t, s.history(t), 1)
 }
