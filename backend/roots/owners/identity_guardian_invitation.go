@@ -176,8 +176,8 @@ func NewGuardianInvitationReads(reads identityaccess.GuardianInvitationReads) gu
 	return guardianInvitationReads{reads: reads}
 }
 
-func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]peoplePorts.GuardianInvitationRecord, error) {
-	invitations, err := r.reads.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
+func (r guardianInvitationReads) ListUnspent(ctx context.Context, guardianProfileIDs []int64) ([]peoplePorts.GuardianInvitationRecord, error) {
+	invitations, err := r.reads.ListUnspentGuardianInvitations(ctx, guardianProfileIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +218,7 @@ func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peop
 			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, EmailSentAt: invitation.EmailSentAt,
 			EmailError: invitation.EmailError, StudentID: invitation.StudentID,
 			ApprovalStatus: invitation.ApprovalStatus, CreatedAt: invitation.CreatedAt,
+			RecipientEmail: invitation.Email,
 		})
 	}
 	return result

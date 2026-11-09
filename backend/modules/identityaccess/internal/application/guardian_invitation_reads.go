@@ -50,6 +50,18 @@ func (r GuardianInvitationReads) ListOpenGuardianInvitations(ctx context.Context
 	return guardianInvitationList(invitations, err)
 }
 
+// ListUnspentGuardianInvitations returns the invitations of those contacts
+// that nobody accepted or refused, expired ones included (#6294).
+func (r GuardianInvitationReads) ListUnspentGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {
+	var invitations []domain.GuardianInvitation
+	err := r.run(ctx, func(txCtx context.Context) error {
+		var err error
+		invitations, err = r.invitations.ListUnspentGuardianInvitations(txCtx, guardianProfileIDs)
+		return err
+	})
+	return guardianInvitationList(invitations, err)
+}
+
 // ListRedeemableGuardianInvitations returns the invitations of the school in
 // context whose link can still be spent.
 func (r GuardianInvitationReads) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {
@@ -81,6 +93,13 @@ func (l *AccountLifecycle) ListOpenGuardianInvitations(ctx context.Context, guar
 		return nil, errAccountLifecycleUnavailable
 	}
 	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListOpenGuardianInvitations(bindRuntime(l.auth.attach, ctx), guardianProfileIDs)
+}
+
+func (l *AccountLifecycle) ListUnspentGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListUnspentGuardianInvitations(bindRuntime(l.auth.attach, ctx), guardianProfileIDs)
 }
 
 func (l *AccountLifecycle) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {

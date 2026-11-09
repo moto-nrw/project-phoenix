@@ -25,6 +25,9 @@ type GuardianInvitationRecord struct {
 	StudentID         *int64
 	ApprovalStatus    string
 	CreatedAt         time.Time
+	// RecipientEmail is the normalized address the link was issued for, or
+	// "" for a legacy link without a recorded recipient (#6294).
+	RecipientEmail string
 }
 
 // GuardianInvitations is the consumer-owned port over the Identity & Access
@@ -33,9 +36,10 @@ type GuardianInvitationRecord struct {
 // The composition root binds it; auth.guardian_invitations belongs to the
 // owner module.
 type GuardianInvitations interface {
-	// ListOpen returns the invitations of those contacts that are still
-	// going somewhere: redeemable, or awaiting a staff decision.
-	ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitationRecord, error)
+	// ListUnspent returns the invitations of those contacts that nobody
+	// accepted or refused, expired ones included, so the list tells an open
+	// link from one that ended unused (#6294).
+	ListUnspent(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitationRecord, error)
 	// ListRedeemable returns the invitations of the school in context whose
 	// link can still be spent.
 	ListRedeemable(ctx context.Context) ([]GuardianInvitationRecord, error)

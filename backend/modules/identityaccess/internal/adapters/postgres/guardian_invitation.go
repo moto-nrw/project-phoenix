@@ -192,6 +192,35 @@ func (s *Store) ListOpenGuardianInvitations(ctx context.Context, guardianProfile
 	return guardianInvitations(rows), nil
 }
 
+// ListUnspentGuardianInvitations returns every invitation of the requested
+// profiles that nobody accepted or refused, expired ones included, newest
+// first. The guardian list tells an open link from one that ended unused
+// (#6294); expired rows stay until the sign-in data retention removes them.
+func (s *Store) ListUnspentGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]domain.GuardianInvitation, error) {
+	if len(guardianProfileIDs) == 0 {
+		return nil, nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []guardianInvitationRow
+	err = guardianTenantFilter(s.scope(ctx), db.NewSelect().Model(&rows).
+		Where(`"guardian_invitation".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs)).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".approval_status IN (?)`, bun.List([]string{
+			domain.GuardianInvitationApprovalNotRequired,
+			domain.GuardianInvitationApprovalApproved,
+			domain.GuardianInvitationApprovalPending,
+		}))).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("identity access postgres: list unspent guardian invitations: %w", err)
+	}
+	return guardianInvitations(rows), nil
+}
+
 // ListRedeemableGuardianInvitations returns the invitations of the school in
 // context whose link can still be spent, newest first. A request awaiting or
 // refused by a staff decision has no usable link and is left out.

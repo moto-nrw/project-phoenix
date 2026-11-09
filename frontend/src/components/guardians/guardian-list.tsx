@@ -58,6 +58,10 @@ const ACCOUNT_STATUS_META: Record<
     color: LOCATION_COLORS.SCHOOLYARD,
   },
   pending: { label: "Einladung offen", color: LOCATION_COLORS.WARNING },
+  link_invalid: {
+    label: "Link gilt nicht mehr",
+    color: LOCATION_COLORS.WARNING,
+  },
   none: { label: "Kein Konto", color: LOCATION_COLORS.UNKNOWN },
 };
 
@@ -70,6 +74,7 @@ const INVITE_ACTION_LABEL: Record<
 > = {
   active_no_access: "Zugriff gewähren",
   pending: "Erneut einladen",
+  link_invalid: "Einladung neu senden",
   none: "Einladen",
 };
 
@@ -271,6 +276,15 @@ export default function GuardianList({
                 </div>
               )}
             </div>
+
+            {guardian.accountStatus === "link_invalid" && (
+              <p className="-mt-1 mb-3 text-sm text-gray-600">
+                Der Einladungslink gilt nicht mehr.
+                {showInvite && !readOnly
+                  ? ` Mit „${getInviteActionLabel(guardian.accountStatus)}“ bekommt die Person einen neuen Link.`
+                  : null}
+              </p>
+            )}
 
             {showMissingEmailHint && !readOnly && (
               <p className="-mt-1 mb-3 text-sm text-gray-600">

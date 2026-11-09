@@ -13,21 +13,24 @@ func TestGuardianAccountStatus(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name                                       string
-		hasAccount, hasPortalAccess, invitePending bool
-		want                                       string
+		name                                                  string
+		hasAccount, hasPortalAccess, invitePending, linkEnded bool
+		want                                                  string
 	}{
-		{"account with access", true, true, false, "active"},
-		{"account without access on this child", true, false, false, "active_no_access"},
-		{"account without access, pending upgrade approval", true, false, true, "pending"},
-		{"no account, open invitation", false, false, true, "pending"},
-		{"no account, no invitation", false, false, false, "none"},
+		{"account with access", true, true, false, false, "active"},
+		{"account without access on this child", true, false, false, false, "active_no_access"},
+		{"account without access, pending upgrade approval", true, false, true, false, "pending"},
+		{"no account, open invitation", false, false, true, false, "pending"},
+		{"no account, no invitation", false, false, false, false, "none"},
+		// #6294: the only link ended unused; a new invitation is needed.
+		{"no account, link ended", false, false, false, true, "link_invalid"},
+		{"no account, open invitation beside an ended link", false, false, true, true, "pending"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := guardianAccountStatus(tc.hasAccount, tc.hasPortalAccess, tc.invitePending)
+			got := guardianAccountStatus(tc.hasAccount, tc.hasPortalAccess, tc.invitePending, tc.linkEnded)
 			if got != tc.want {
-				t.Fatalf("guardianAccountStatus(%v, %v, %v) = %q, want %q", tc.hasAccount, tc.hasPortalAccess, tc.invitePending, got, tc.want)
+				t.Fatalf("guardianAccountStatus(%v, %v, %v, %v) = %q, want %q", tc.hasAccount, tc.hasPortalAccess, tc.invitePending, tc.linkEnded, got, tc.want)
 			}
 		})
 	}

@@ -148,6 +148,10 @@ type GuardianInvitationReads interface {
 	// ListOpenGuardianInvitations returns the invitations of those contacts
 	// that are redeemable or awaiting a staff decision.
 	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error)
+	// ListUnspentGuardianInvitations returns the invitations of those
+	// contacts that nobody accepted or refused, expired ones included: the
+	// guardian list tells an open link from one that ended unused (#6294).
+	ListUnspentGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error)
 	// ListRedeemableGuardianInvitations returns the invitations of the school
 	// in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)

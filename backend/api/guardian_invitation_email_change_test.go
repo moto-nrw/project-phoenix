@@ -43,3 +43,63 @@ func TestGuardianComposition_EmailCorrectionEndsTheMailedLink(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, accounts, "the old link must not create the corrected address's account")
 }
+
+// #6294: the staff list tells a dead link from an open one. A link whose
+// address changed, and a link the address binding ended, read as
+// "link_invalid", so staff see that a new invitation is needed. A link that
+// simply ran out keeps the plain "none".
+func TestGuardianComposition_ListMarksDeadInvitationLinks(t *testing.T) {
+	t.Parallel()
+	ctx := setupGuardiansCompositionRoute(t)
+	db := testpkg.SetupTestDB(t)
+	invitations, err := NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), GuardianInvitationTestConfig{
+		Outbox: NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	inviter := ctx.account("dead-link-inviter")
+	statusOf := func(studentID, guardianID int64) string {
+		t.Helper()
+		for _, row := range ctx.studentGuardians(t, studentID) {
+			if row.Guardian.ID == guardianID {
+				return row.AccountStatus
+			}
+		}
+		t.Fatalf("guardian %d is not listed for student %d", guardianID, studentID)
+		return ""
+	}
+
+	t.Run("address changed after the link was mailed", func(t *testing.T) {
+		guardianID, studentID, _ := ctx.createLinkedGuardian(t, "dead-link-address")
+		_, err := invitations.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+			GuardianProfileID: guardianID, CreatedBy: inviter,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "pending", statusOf(studentID, guardianID))
+
+		corrected := fmt.Sprintf("dead-link-corrected-%d@example.test", time.Now().UnixNano())
+		rr := ctx.do(t, testutil.AdminTestClaims(999), http.MethodPut, fmt.Sprintf("/%d", guardianID), map[string]any{"email": corrected})
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+		assert.Equal(t, "link_invalid", statusOf(studentID, guardianID))
+	})
+
+	t.Run("link ended by the address binding", func(t *testing.T) {
+		guardianID, studentID, _ := ctx.createLinkedGuardian(t, "dead-link-migrated")
+		invitation := testpkg.InsertTestGuardianInvitation(t, db, &testpkg.GuardianInvitation{
+			Token: fmt.Sprintf("dead-link-migrated-%d", time.Now().UnixNano()), GuardianProfileID: guardianID,
+			CreatedBy: inviter, ExpiresAt: time.Now().Add(-time.Hour),
+		})
+		// 1.15.832 ends a legacy link without a recorded recipient.
+		_, err := db.NewRaw(`UPDATE auth.guardian_invitations SET email = NULL WHERE id = ?`, invitation.ID).Exec(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "link_invalid", statusOf(studentID, guardianID))
+	})
+
+	t.Run("link that simply ran out", func(t *testing.T) {
+		guardianID, studentID, _ := ctx.createLinkedGuardian(t, "dead-link-expired")
+		testpkg.InsertTestGuardianInvitation(t, db, &testpkg.GuardianInvitation{
+			Token: fmt.Sprintf("dead-link-expired-%d", time.Now().UnixNano()), GuardianProfileID: guardianID,
+			CreatedBy: inviter, ExpiresAt: time.Now().Add(-time.Hour),
+		})
+		assert.Equal(t, "none", statusOf(studentID, guardianID))
+	})
+}
