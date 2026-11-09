@@ -2,6 +2,7 @@ package contracttest_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,4 +123,52 @@ func TestRetroactiveRebookingWithoutGapReplacesTheStaleTask(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, replaced)
 	assert.Equal(t, careplan.WithdrawalStateObsolete, replaced.State)
+}
+
+// TestRebookingThatFillsPartOfAGapKeepsTheRestGap is the #6288 review case of
+// a partial fill: the task's gap began on 04.09. A booking now covers
+// 04.–06.09 and care starts again on 11.09 until 03.10. The gap 07.–10.09
+// remains, so the open task must move to 07.09, not to the end of the later
+// booking on 04.10, nor stay on 04.09 when care resumes open-ended.
+func TestRebookingThatFillsPartOfAGapKeepsTheRestGap(t *testing.T) {
+	t.Parallel()
+	resumeUntil := calendar.NewDate(2026, 10, 4)
+	for _, tc := range []struct {
+		path  string
+		until *calendar.Date
+	}{
+		{"due effects", &resumeUntil}, {"booking change", &resumeUntil},
+		{"due effects, open-ended resume", nil}, {"booking change, open-ended resume", nil},
+	} {
+		path := strings.Split(tc.path, ",")[0]
+		t.Run(tc.path, func(t *testing.T) {
+			db := testpkg.SetupTestDB(t)
+			testpkg.OwnTenant(t)
+			scope := testpkg.NewTenantScope(t, db)
+			student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Teils", "Gefüllt", "3e")
+			firstGap := calendar.NewDate(2026, 9, 4)
+			createCareBooking(t, db, scope, student.ID, "before", nil, &firstGap)
+			repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
+			studentID := student.ID
+			require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &careplan.WithdrawalCompletion{
+				StudentID: &studentID, FirstBookinglessDay: firstGap,
+				Trigger: careplan.WithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+			}))
+			fillUntil := calendar.NewDate(2026, 9, 7)
+			createCareBooking(t, db, scope, student.ID, "fill", &firstGap, &fillUntil)
+			resumeFrom := calendar.NewDate(2026, 9, 11)
+			createCareBooking(t, db, scope, student.ID, "resume", &resumeFrom, tc.until)
+			svc := fixedDayBookingAuthorityService(t, db, rebookingGapDay)
+
+			if path == "due effects" {
+				_, err := svc.ApplyDueEffects(scope.Context(), rebookingGapDay)
+				require.NoError(t, err)
+			} else {
+				require.NoError(t, svc.ReconcileAuthoritativeBookingChange(scope.Context(),
+					careplan.CareWithdrawalBookingChange{StudentID: studentID, ConfirmedRole: "admin"}))
+			}
+			assert.Equal(t, fillUntil, requirePendingCompletion(t, repo, scope.Context(), studentID).FirstBookinglessDay,
+				"the rest gap keeps its own first day")
+		})
+	}
 }
