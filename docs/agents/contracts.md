@@ -1134,7 +1134,7 @@ changes or deletes one, and reads `platform.demo_school_origins`, which only a
 trigger on `platform.demo_school_states` writes. For the database erasure of
 retired demo schools (#5559, ADR 0189) it may execute only
 `platform.retired_demo_schools_due_for_database_erasure` and
-`platform.erase_retired_demo_school` (migration 1.15.863); the latter alone
+`platform.erase_retired_demo_school` (migration 1.15.869); the latter alone
 sets `db_erased_at` and `db_row_counts` on the file marker, and a trigger
 rejects a marker the demo role inserts with them.
 
