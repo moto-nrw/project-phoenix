@@ -488,4 +488,13 @@ Infrafehler des Rahmens, unabhängig von der Existenz der Zeile), ohne Retry
 und ohne zweiten Weg. Ein Aufruf in einer offenen Einheit oder aus einem an
 eine andere Schule gebundenen Kontext wählt vor dem Start den Einzelweg
 (Punkt 7); dafür fragt der Workflow `Runtime.AmbientScope` ab.
+
+Schritt 5 ersetzt Zielgruppe und Schul-Rahmen durch die Übergabe
+`…/parent_announcement_attachments.go:*Service.WithinGuardianAnnouncementTenant:s.Runtime.WithinAdminThenTenant#1`
+(Admin-Register und `transactionFrameBundleSites`, Grund mit ADR 0161). Eine
+abgelehnte Zielgruppe endet als 404 am Ende von `discover`, ohne
+Rollenwechsel; ebendort steht die Prüfung, ob ein an eine Schule gebundener
+Kontext zur Schule der Ankündigung passt. Passt er nicht, antwortet der
+Einzelweg wie bisher, ohne dass ein weiterer Rahmen startet. Ein
+Kontextabbruch nach abgelehnter Zielgruppe antwortet 404 statt 500 (E4).
 Invariantentabelle und Belege: #6388.

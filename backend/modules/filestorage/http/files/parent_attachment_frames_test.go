@@ -43,7 +43,7 @@ const (
 	answerFailed         = "500 general.server"
 
 	tenantRoleSwitch = "SELECT set_config('role', 'phoenix_tenant'"
-	audienceMatch    = "WITH pending_applicants AS"
+	audienceLast     = `SELECT "pds".*` // the last audience statement for an account outside it
 	switchRead       = `SELECT "setting_value"`
 )
 
@@ -331,36 +331,44 @@ func TestParentAttachmentFrameFaultsAnswerPerTable(t *testing.T) {
 		return attachmentWant{answer: answerRefused, begins: begins, pending: true}
 	}
 	cases := []attachmentFaultCase{
-		// BEGIN of the first unit, the audience (in step 5 the bundled unit).
-		{name: "BEGIN admin 1, cache empty", path: listOf, cache: "empty", arm: armBegin(0), old: failed(1), now: failed(1)},
-		{name: "BEGIN admin 1, cache open", path: listOf, cache: "open", arm: armBegin(0), old: failed(1), now: failed(1)},
-		{name: "BEGIN admin 1, cache closed", path: listOf, cache: "closed", arm: armBegin(0), old: failed(1), now: failed(1)},
-		{name: "BEGIN admin 1, system", path: systemOf, cache: "empty", arm: armBegin(0), old: failed(1), now: failed(1)},
+		// BEGIN of the first unit: before the bundle the audience, now the
+		// bundled handoff.
+		{name: "BEGIN 1, cache empty", path: listOf, cache: "empty", arm: armBegin(0), old: failed(1), now: failed(1)},
+		{name: "BEGIN 1, cache open", path: listOf, cache: "open", arm: armBegin(0), old: failed(1), now: failed(1)},
+		{name: "BEGIN 1, cache closed", path: listOf, cache: "closed", arm: armBegin(0), old: failed(1), now: failed(1)},
+		{name: "BEGIN 1, system", path: systemOf, cache: "empty", arm: armBegin(0), old: failed(1), now: failed(1)},
 		// BEGIN of the second unit: before the bundle the switch unit (or the
-		// row unit), in step 3 the bundled school unit.
+		// row unit), now the check after the read.
 		{name: "BEGIN 2, cache empty (E9/E15)", path: listOf, cache: "empty", arm: armBegin(1), old: refused(2), now: failed(2)},
 		{name: "BEGIN 2, cache open", path: listOf, cache: "open", arm: armBegin(1), old: failed(2), now: failed(2)},
-		{name: "BEGIN 2, cache closed (E9/E15)", path: listOf, cache: "closed", arm: armBegin(1), old: refusedPending(1), now: failed(2)},
+		{name: "BEGIN 2, cache closed", path: listOf, cache: "closed", arm: armBegin(1), old: refusedPending(1), now: refusedPending(1)},
 		{name: "BEGIN 2, system", path: systemOf, cache: "empty", arm: armBegin(1), old: failed(2), now: failed(2)},
-		// The school unit's role switch.
-		{name: "tenant set_config, cache empty (E9/E15)", path: listOf, cache: "empty", arm: armStatement(tenantRoleSwitch), old: refused(2), now: failed(2)},
-		{name: "tenant set_config, cache open", path: listOf, cache: "open", arm: armStatement(tenantRoleSwitch), old: failed(2), now: failed(2)},
-		{name: "tenant set_config, cache closed (E9/E15)", path: listOf, cache: "closed", arm: armStatement(tenantRoleSwitch), old: refusedPending(1), now: failed(2)},
-		{name: "tenant set_config, system", path: systemOf, cache: "empty", arm: armStatement(tenantRoleSwitch), old: failed(2), now: failed(2)},
-		// The COMMIT of the second unit.
+		// The school role switch: before the bundle in the switch (or row)
+		// unit, now in the handoff.
+		{name: "tenant set_config, cache empty (E9/E15)", path: listOf, cache: "empty", arm: armStatement(tenantRoleSwitch), old: refused(2), now: failed(1)},
+		{name: "tenant set_config, cache open", path: listOf, cache: "open", arm: armStatement(tenantRoleSwitch), old: failed(2), now: failed(1)},
+		{name: "tenant set_config, cache closed (E9/E15)", path: listOf, cache: "closed", arm: armStatement(tenantRoleSwitch), old: refusedPending(1), now: failed(1)},
+		{name: "tenant set_config, system", path: systemOf, cache: "empty", arm: armStatement(tenantRoleSwitch), old: failed(2), now: failed(1)},
+		// The administrative role switch of the first unit.
+		{name: "admin role, cache empty", path: listOf, cache: "empty", arm: armStatement("SET LOCAL ROLE phoenix_admin"), old: failed(1), now: failed(1)},
+		// The first COMMIT: before the bundle the audience's, now the
+		// handoff's (the old switch unit's COMMIT failed closed, see COMMIT 2).
+		{name: "COMMIT 1, cache empty", path: listOf, cache: "empty", arm: armCommit(0), old: failed(1), now: failed(1)},
+		// The second COMMIT: before the bundle the switch (or row) unit's, now
+		// the check after the read.
 		{name: "COMMIT 2, cache empty (E9/E15)", path: listOf, cache: "empty", arm: armCommit(1), old: refused(2), now: failed(2)},
 		{name: "COMMIT 2, cache open", path: listOf, cache: "open", arm: armCommit(1), old: failed(2), now: failed(2)},
-		{name: "COMMIT 2, cache closed", path: listOf, cache: "closed", arm: armCommit(1), old: refusedPending(1), now: refusedPending(2)},
+		{name: "COMMIT 2, cache closed", path: listOf, cache: "closed", arm: armCommit(1), old: refusedPending(1), now: refusedPending(1)},
 		{name: "COMMIT 2, system", path: systemOf, cache: "empty", arm: armCommit(1), old: failed(2), now: failed(2)},
 		// A ROLLBACK that fails after a refusal is a failure of the unit.
-		{name: "ROLLBACK after switch off, cache closed (E9/E15)", path: listOf, cache: "closed", arm: armRollback(0), old: refusedPending(1), now: failed(2)},
-		{name: "ROLLBACK after negative audience", path: listOf, stranger: true, cache: "empty", arm: armRollback(0), old: refusedPending(1), now: refusedPending(1)},
+		{name: "ROLLBACK after switch off, cache closed (E9/E15)", path: listOf, cache: "closed", arm: armRollback(0), old: refusedPending(1), now: failed(1)},
+		{name: "ROLLBACK after negative audience (E9/E15)", path: listOf, stranger: true, cache: "empty", arm: armRollback(0), old: refusedPending(1), now: failed(1)},
 		// File Storage keeps classifying its own not-found with a joined
 		// rollback error, as before.
-		{name: "ROLLBACK after missing row", path: missingRowOf, cache: "empty", arm: armRollback(0), old: refused(3), now: refused(2)},
+		{name: "ROLLBACK after missing row", path: missingRowOf, cache: "empty", arm: armRollback(0), old: refused(3), now: refused(1)},
 		// A cancelled request after a refusal.
-		{name: "cancel after negative audience", path: listOf, stranger: true, cache: "empty", arm: cancelAfter(audienceMatch), old: failed(1), now: failed(1)},
-		{name: "cancel after switch read, switch off", path: listOf, cache: "switch off", arm: cancelAfter(switchRead), old: refused(2), now: refused(2)},
+		{name: "cancel after negative audience (E4)", path: listOf, stranger: true, cache: "empty", arm: cancelAfter(audienceLast), old: failed(1), now: refused(1)},
+		{name: "cancel after switch read, switch off", path: listOf, cache: "switch off", arm: cancelAfter(switchRead), old: refused(2), now: refused(1)},
 	}
 	for _, c := range cases {
 		ctx := rig.contextFor(t, c.cache)
@@ -417,18 +425,22 @@ type attachmentRouteCase struct {
 func TestParentAttachmentRoutesAnswerPerTable(t *testing.T) {
 	t.Parallel()
 	rig := newAttachmentFrameRig(t)
-	const list3 = "admin commit, tenant commit, admin commit"
+	const (
+		oldList  = "admin commit, tenant commit, tenant commit, admin commit"
+		handoff  = "admin>tenant commit, admin commit"
+		refusing = "admin>tenant rollback"
+	)
 	cases := []attachmentRouteCase{
-		{name: "list", path: listOf, cache: "empty", old: [2]string{answerOK, "admin commit, tenant commit, tenant commit, admin commit"}, now: [2]string{answerOK, list3}},
+		{name: "list", path: listOf, cache: "empty", old: [2]string{answerOK, oldList}, now: [2]string{answerOK, handoff}},
 		{name: "download", path: func(r *attachmentFrameRig) string { return r.downloadPath(r.attachmentID) }, cache: "empty",
-			old: [2]string{answerOK, "admin commit, tenant commit, tenant commit, admin commit, tenant commit"}, now: [2]string{answerOK, list3 + ", tenant commit"}},
-		{name: "system announcement", path: systemOf, cache: "empty", old: [2]string{answerOK, list3}, now: [2]string{answerOK, list3}},
-		{name: "outside the audience", path: listOf, stranger: true, cache: "empty", old: [2]string{answerRefused, "admin commit"}, now: [2]string{answerRefused, "admin commit"}},
-		{name: "switch off", path: listOf, cache: "switch off", old: [2]string{answerRefused, "admin commit, tenant commit"}, now: [2]string{answerRefused, "admin commit, tenant rollback"}},
-		{name: "switch off, cached", path: listOf, cache: "closed", old: [2]string{answerRefused, "admin commit"}, now: [2]string{answerRefused, "admin commit, tenant rollback"}},
-		{name: "missing row", path: missingRowOf, cache: "empty", old: [2]string{answerRefused, "admin commit, tenant commit, tenant rollback"}, now: [2]string{answerRefused, "admin commit, tenant rollback"}},
-		{name: "switch unreadable", path: listOf, cache: "empty", revoke: "config.setting_values", old: [2]string{answerRefused, "admin commit, tenant rollback"}, now: [2]string{answerRefused, "admin commit, tenant rollback"}},
-		{name: "rows unreadable", path: listOf, cache: "empty", revoke: "documents.announcement_attachments", old: [2]string{answerFailed, "admin commit, tenant commit, tenant rollback"}, now: [2]string{answerFailed, "admin commit, tenant rollback"}},
+			old: [2]string{answerOK, oldList + ", tenant commit"}, now: [2]string{answerOK, handoff + ", tenant commit"}},
+		{name: "system announcement", path: systemOf, cache: "empty", old: [2]string{answerOK, "admin commit, tenant commit, admin commit"}, now: [2]string{answerOK, handoff}},
+		{name: "outside the audience", path: listOf, stranger: true, cache: "empty", old: [2]string{answerRefused, "admin commit"}, now: [2]string{answerRefused, "admin rollback"}},
+		{name: "switch off", path: listOf, cache: "switch off", old: [2]string{answerRefused, "admin commit, tenant commit"}, now: [2]string{answerRefused, refusing}},
+		{name: "switch off, cached", path: listOf, cache: "closed", old: [2]string{answerRefused, "admin commit"}, now: [2]string{answerRefused, refusing}},
+		{name: "missing row", path: missingRowOf, cache: "empty", old: [2]string{answerRefused, "admin commit, tenant commit, tenant rollback"}, now: [2]string{answerRefused, refusing}},
+		{name: "switch unreadable", path: listOf, cache: "empty", revoke: "config.setting_values", old: [2]string{answerRefused, "admin commit, tenant rollback"}, now: [2]string{answerRefused, refusing}},
+		{name: "rows unreadable", path: listOf, cache: "empty", revoke: "documents.announcement_attachments", old: [2]string{answerFailed, "admin commit, tenant commit, tenant rollback"}, now: [2]string{answerFailed, refusing}},
 	}
 	for _, c := range cases {
 		token := rig.parentToken

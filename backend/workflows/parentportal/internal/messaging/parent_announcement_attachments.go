@@ -43,27 +43,37 @@ func (s *Service) GuardianAnnouncementTenant(ctx context.Context, accountID, ann
 	return audience.tenantID, nil
 }
 
-// errAnnouncementHidden ends the school unit of WithinGuardianAnnouncementTenant
-// when the school's switch hides the announcement. It never leaves this file
-// and is recognised only as the unit's direct result: a rollback error joined
-// to it is a failure of the unit, not a refusal.
-var errAnnouncementHidden = errors.New("parent: announcement hidden by the school's switch")
+// The refusals of WithinGuardianAnnouncementTenant's unit. They never leave
+// this file and count only as the unit's direct result: a rollback error
+// joined to one is a failure of the unit, not a refusal.
+var (
+	// errAudienceRefused ends discovery when the account may not see the
+	// announcement; the handoff never switches roles.
+	errAudienceRefused = errors.New("parent: announcement not for this account")
+	// errBoundElsewhere ends discovery when the caller's context is bound to
+	// another school, which the announcement's school unit cannot join.
+	errBoundElsewhere = errors.New("parent: context bound to another school")
+	// errAnnouncementHidden ends the school part when the switch hides the
+	// announcement.
+	errAnnouncementHidden = errors.New("parent: announcement hidden by the school's switch")
+)
 
 // WithinGuardianAnnouncementTenant is the first pass of the same gate for the
-// attachment entry (ADR 0161 step 3, #5894): it decides the audience in the
-// administrative transaction, then reads the school's switch and runs read in
-// ONE tenant transaction of the announcement's school, switch first. The
-// checks and statements are those of GuardianAnnouncementTenant followed by
-// read in a unit of its own; only the COMMIT and BEGIN between switch and
-// read are gone.
+// attachment entry (ADR 0161 steps 3 and 5, #5894): ONE transaction decides
+// the audience as admin, hands off to the announcement's school, reads the
+// switch there and runs read. Checks and statements keep the order of
+// GuardianAnnouncementTenant followed by read; only the units between them
+// are gone.
 //
-// A refusal is tenant id 0 with no error, and read is not called. A switch
-// that is off or unreadable ends the school unit before read's first
-// statement. A school unit that cannot start, switch roles or commit fails
-// with its error once (E9/E15): no retry, and no second way after the
-// failure. A caller inside an open unit or bound to another school takes the
-// unbundled way, chosen from the context before the school unit starts
-// (ADR 0161 point 7).
+// A refusal is tenant id 0 with no error, and read is not called: the audience
+// ends discovery before the role switch, the switch ends the school part
+// before read's first statement. A unit that cannot start, switch roles,
+// commit or roll back fails with its error once (E9/E15): no retry, and no
+// second way after the failure. A caller inside an open unit takes the
+// unbundled way, chosen from the context before anything starts; a context
+// bound to another school is recognised at the end of discovery, where the
+// check between the old units now sits, and gets the unbundled answer
+// (ADR 0161 points 6 and 7).
 func (s *Service) WithinGuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64, read func(ctx context.Context, tenantID int64) error) (int64, error) {
 	if accountID <= 0 || announcementID <= 0 {
 		return 0, nil
@@ -72,30 +82,58 @@ func (s *Service) WithinGuardianAnnouncementTenant(ctx context.Context, accountI
 		return 0, errors.New("parent: attachment read is required")
 	}
 	unitOpen, bound := s.Runtime.AmbientScope(ctx)
-	audience, err := s.guardianAnnouncementAudience(ctx, accountID, announcementID)
-	if err != nil || audience.tenantID == 0 {
-		return 0, err
+	if unitOpen {
+		return s.guardianAnnouncementTenantUnbundled(ctx, accountID, announcementID, read)
 	}
-	// An open unit, or a context bound to another school, cannot start this
-	// school's unit without joining or refusing a foreign one; switch and
-	// read then run as before, each on its own (ADR 0161 point 7).
-	if unitOpen || (bound != 0 && bound != audience.tenantID) {
-		return s.switchThenRead(ctx, audience, announcementID, read)
-	}
-	err = s.Runtime.WithinTenant(ctx, audience.tenantID, func(txCtx context.Context) error {
+	var audience announcementAudience
+	err := s.Runtime.WithinAdminThenTenant(ctx, func(adminCtx context.Context) (int64, error) {
+		return s.discoverAttachmentAudience(adminCtx, accountID, announcementID, bound, &audience)
+	}, func(txCtx context.Context) error {
 		if !s.announcementVisibleForTenant(txCtx, audience.tenantID, announcementID, audience.systemKind) {
 			return errAnnouncementHidden
 		}
 		return read(txCtx, audience.tenantID)
 	})
-	// Only the unit's direct result is a refusal; see errAnnouncementHidden.
-	if err == errAnnouncementHidden {
+	// Only the unit's direct result is a refusal; see the errors above.
+	switch err {
+	case nil:
+		return audience.tenantID, nil
+	case errAudienceRefused, errAnnouncementHidden:
 		return 0, nil
+	case errBoundElsewhere:
+		return s.switchThenRead(ctx, audience, announcementID, read)
+	default:
+		return 0, err
 	}
+}
+
+// discoverAttachmentAudience is the handoff's discovery: the audience, then
+// the check that the caller's bound school, if any, is the announcement's.
+// It keeps what it found in audience for the school part and the refusals.
+func (s *Service) discoverAttachmentAudience(adminCtx context.Context, accountID, announcementID, bound int64, audience *announcementAudience) (int64, error) {
+	found, err := s.announcementAudienceIn(adminCtx, accountID, announcementID)
 	if err != nil {
 		return 0, err
 	}
-	return audience.tenantID, nil
+	if found.tenantID == 0 {
+		return 0, errAudienceRefused
+	}
+	*audience = found
+	if bound != 0 && bound != found.tenantID {
+		return 0, errBoundElsewhere
+	}
+	return found.tenantID, nil
+}
+
+// guardianAnnouncementTenantUnbundled is the way before ADR 0161 for a caller
+// inside an open unit: the audience in its administrative unit, then switch
+// and read each on their own.
+func (s *Service) guardianAnnouncementTenantUnbundled(ctx context.Context, accountID, announcementID int64, read func(ctx context.Context, tenantID int64) error) (int64, error) {
+	audience, err := s.guardianAnnouncementAudience(ctx, accountID, announcementID)
+	if err != nil || audience.tenantID == 0 {
+		return 0, err
+	}
+	return s.switchThenRead(ctx, audience, announcementID, read)
 }
 
 // switchThenRead is the second half of the way before ADR 0161: the switch,
