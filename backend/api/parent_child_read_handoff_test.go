@@ -525,17 +525,20 @@ func TestParentExcusedRequestsStartTheirWindowAfterTheChildCheck(t *testing.T) {
 		require.NoError(t, rig.db.NewRaw(`INSERT INTO active.excused_absence_requests (tenant_id,student_id,submitted_by,dates,note,absence_status,status,reviewed_at) VALUES (?,?,?,'["2026-08-03"]'::jsonb,'Fenster','excused','rejected',?) RETURNING id`, family.TenantID, family.StudentID, family.AccountID, at).Scan(context.Background(), &id))
 		return fmt.Sprintf(`"id":"%d"`, id)
 	}
+	// The window's start exactly as the production code computes it: two
+	// calendar weeks back in the local zone, so a daylight saving change
+	// inside the window moves both alike.
 	const margin, slow = 2 * time.Second, 4 * time.Second
-	window := 14 * 24 * time.Hour
+	windowStart := func() time.Time { return time.Now().AddDate(0, 0, -14) }
 
-	inside := decide(time.Now().Add(margin - window))
+	inside := decide(windowStart().Add(margin))
 	rec, _ := rig.get(t, path, family.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.Contains(t, rec.Body.String(), inside, "inside the window without a delay")
 
 	rig.childCheckDelay.Store(int64(slow))
 	t.Cleanup(func() { rig.childCheckDelay.Store(0) })
-	leaving := decide(time.Now().Add(margin - window))
+	leaving := decide(windowStart().Add(margin))
 	rec, _ = rig.get(t, path, family.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.NotContains(t, rec.Body.String(), leaving, "the window starts after the slow child check")
