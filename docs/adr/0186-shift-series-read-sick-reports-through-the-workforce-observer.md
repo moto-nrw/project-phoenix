@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: proposed
 ---
 
 # Shift series read sick reports through the Workforce observer
