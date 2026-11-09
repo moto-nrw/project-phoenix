@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"time"
@@ -141,4 +142,23 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	return DeliveryTestModule{Runtime: delivery, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
+}
+
+// deliveryPushTestSettings is the router's tenant gate read.
+type deliveryPushTestSettings interface {
+	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+}
+
+// NewDeliveryTestPushNotifier is the production notification router over the
+// durable Web Push channel with fixed test VAPID keys, so a consumer's test
+// can read the push intents its action stores in the real outbox.
+func NewDeliveryTestPushNotifier(db transactionruntime.Database, unit tenant.UnitOfWork, settings deliveryPushTestSettings, module DeliveryTestModule) (deliveryCompose.Notifier, error) {
+	vapid := deliveryCompose.VAPIDConfig{PublicKey: "pub", PrivateKey: "priv", Subscriber: "mailto:test@example.org"}
+	webPush, err := deliveryCompose.NewTenantDurableWebPushChannel(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()),
+		vapid, deliveryCompose.NewDurablePushOutbox(module.Runtime.Module), slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	return deliveryCompose.NewNotifier(settings, slog.Default(), func(string, string, string, time.Duration, error) {}, webPush), nil
 }

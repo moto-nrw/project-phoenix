@@ -72,6 +72,9 @@ type webPushChannel struct {
 	// consume maxConcurrentPushSends outbound connections.
 	sendSlots chan struct{}
 	outbox    PushOutbox
+	// devices is the shared guardian device read of one series; nil outside
+	// a series (see forSeries).
+	devices *guardianDevices
 }
 
 type PushIntent struct {
@@ -177,8 +180,10 @@ func (c *webPushChannel) DeliverDurably(ctx context.Context, event Event) (int, 
 		return 0, errors.New("web push event requires an idempotency key")
 	}
 	accepted := 0
-	enqueue := func(txCtx context.Context) error {
-		subs, err := c.resolveEventSubscriptions(txCtx, event)
+	// A series shares its device read only inside the caller's transaction
+	// (#5869); a transaction of this delivery's own reads for itself.
+	enqueue := func(txCtx context.Context, devices *guardianDevices) error {
+		subs, err := c.resolveSubscriptions(txCtx, event, devices)
 		if err != nil {
 			return err
 		}
@@ -203,11 +208,11 @@ func (c *webPushChannel) DeliverDurably(ctx context.Context, event Event) (int, 
 		return nil
 	}
 	if _, active := tenant.TransactionFromContext(ctx); active {
-		err := enqueue(ctx)
+		err := enqueue(ctx, c.devices)
 		return accepted, err
 	}
 	err := tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return enqueue(txCtx)
+		return enqueue(txCtx, nil)
 	})
 	return accepted, err
 }

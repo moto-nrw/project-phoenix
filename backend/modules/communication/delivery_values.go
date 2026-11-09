@@ -53,6 +53,15 @@ type NotificationSender interface {
 	Notify(context.Context, NotificationEvent) error
 }
 
+// NotificationSeries sends the language variants of one push in order, each
+// as its own Notify or NotifyDurably call would, with one device read for all
+// of them (#5869, #5876). Notify returns how many variants were accepted
+// before the first error, NotifyDurably the receipt of each of them.
+type NotificationSeries struct {
+	Notify        func(context.Context, []NotificationEvent) (int, error)
+	NotifyDurably func(context.Context, []NotificationEvent) ([]int, error)
+}
+
 // NotificationPreferences describes only the producer's consent selectors.
 type NotificationPreferences interface {
 	FilterOptedIn(context.Context, string, []int64) ([]int64, error)

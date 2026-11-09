@@ -144,6 +144,28 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.CareCancellationPublisher.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.CareCancellationPublisher.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
       "classification": "query",
       "effect": "query",
@@ -208,6 +230,138 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.RemindParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.RemindParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.RemindParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.RemindParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails",
       "classification": "platform",
       "effect": "durable",
@@ -252,6 +406,50 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.SendDueParentAnnouncementReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.SendDueParentAnnouncementReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.SendDueParentAnnouncementReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.SendDueParentAnnouncementReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.UnpublishParentAnnouncement",
       "classification": "platform",
       "effect": "mutation",
@@ -274,6 +472,28 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.RemindParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.RemindParentAnnouncement",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
       "classification": "platform",
       "effect": "durable",
@@ -292,6 +512,28 @@
       "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.ClaimFailedEmailDelivery (delivery-platform) through modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.SendDueParentAnnouncementReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.SendDueParentAnnouncementReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
       "target_owner": "delivery-platform"
     },
     {
@@ -768,6 +1010,50 @@
       "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.surveyService.DeleteSurvey. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.PublishSurvey",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.PublishSurvey",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.PublishSurvey",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.PublishSurvey",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.RemindSurvey",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.RemindSurvey",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.RemindSurvey",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.RemindSurvey",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
       "target_owner": "delivery-platform"
     },
     {
@@ -1511,6 +1797,94 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Publish",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Publish",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Publish",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Publish",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.PublishCareCancellation",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.PublishCareCancellation",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindOutstanding",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindOutstanding",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindOutstanding",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindOutstanding",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindUnanswered",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindUnanswered",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindUnanswered",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindUnanswered",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEvents (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.ResendFailedEmails",
       "classification": "platform",
       "effect": "durable",
@@ -1529,6 +1903,28 @@
       "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.ClaimFailedEmailDelivery (delivery-platform) through *modules/communication/internal/application.service.ResendFailedEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.SendDueReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.SendDueReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.SendDueReminders",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.SendDueReminders",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/internal/notifications.Notifier.NotifyEventsDurably (delivery-platform) through roots/owners.BindCommunicationNotificationSeries. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
       "target_owner": "delivery-platform"
     },
     {
