@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.sepa_mandate_imports",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/sepa-mandates/imports (#6198):\nthe selects: the Träger binding of the Träger transaction and the import entries of\nthe mandate trail, which the owner groups into imports. Flat in the number of imports.",
+  "route": "GET /traeger/sepa-mandates/imports"
+}
