@@ -267,19 +267,9 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 		return nil, false, err
 	}
 	version := locked.version
-	signer, err := repo.HoldDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
+	signer, mayDeclare, err := s.holdDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in)
 	if err != nil {
 		return nil, false, err
-	}
-	mayDeclare := signer != nil
-	if signer == nil && in.Action == DeclarationActionRevoked {
-		signer, err = repo.HoldHistoricalDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
-		if err != nil {
-			return nil, false, err
-		}
-	}
-	if signer == nil {
-		return nil, false, ErrDeclarationNotPermitted
 	}
 	mine, err := s.latestOwnDeclaration(ctx, accountID, announcementID, in.StudentID, version.ID)
 	if err != nil {
@@ -307,6 +297,31 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	}
 	submission.VersionNo = version.VersionNo
 	return submission, true, nil
+}
+
+// holdDeclarationSigner holds the relationship that authorizes the guardian
+// for the child. mayDeclare is false for a guardian who lost
+// parent_portal.declarations.submit: they may still revoke an own consent,
+// held through their preserved history, but answer nothing new.
+func (s *Service) holdDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID int64, in DeclarationInput) (*DeclarationSignerContext, bool, error) {
+	repo := s.AnnouncementRepo
+	signer, err := repo.HoldDeclarationSigner(ctx, tenantID, announcementID, accountID, in.StudentID)
+	if err != nil {
+		return nil, false, err
+	}
+	if signer != nil {
+		return signer, true, nil
+	}
+	if in.Action == DeclarationActionRevoked {
+		signer, err = repo.HoldHistoricalDeclarationSigner(ctx, tenantID, announcementID, accountID, in.StudentID)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	if signer == nil {
+		return nil, false, ErrDeclarationNotPermitted
+	}
+	return signer, false, nil
 }
 
 // lockedDeclaration is the declaration as re-read under the child lock: its
