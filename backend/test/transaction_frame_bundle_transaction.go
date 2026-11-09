@@ -8,8 +8,9 @@ import "maps"
 // key, unchanged, because the feed now renders it without a second token
 // lookup (ADR 0161, Nachtrag). Step 4 adds the one-way admin-to-tenant
 // handoff: runtime, composition, caller and the parents portal's runtime
-// port, which only forwards (ADR 0161, Nachtrag zu Schritt 4). A further site
-// needs its own decision.
+// port, which only forwards (ADR 0161, Nachtrag zu Schritt 4). Step 3 keeps
+// the attachment audience's administrative unit under a new key with its
+// reason unchanged (#5894). A further site needs its own decision.
 var transactionFrameBundleSites = map[string]string{
 	// Admin, Schritt 1 (#5881)
 	"modules/schoolcalendar/portal/internal/application/feed.go:*service.calendarFeedOwnerByToken:s.cfg.Runtime.WithinAdmin#1": "ADR 0161: the public calendar feed discovers the token owner in one administrative read unit, parent token first and the staff membership token with its account only on a miss; it writes nothing and ends before the school's tenant projection.",
@@ -25,6 +26,9 @@ var transactionFrameBundleSites = map[string]string{
 	"roots/owners/parent_portal_runtime.go:ParentPortalRuntime.WithinAdminThenTenant:tenant.WithinAdminThenTenant#1": "ADR 0161: binds the one-way admin-to-tenant handoff to the parents portal workflow's runtime port; it only forwards and opens no unit of its own.",
 	// Kommando, Schritt 4 (#5862)
 	"modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go:*PostgresUnitOfWork.WithinAdminThenTenant:r.runInTx#1": "ADR 0161: implements the one-way admin-to-tenant handoff; role and school are transaction-local.",
+	// Admin, Schritt 3 (#5894): verlagert aus
+	// parent_announcement_attachments.go:*Service.GuardianAnnouncementTenant:s.Runtime.WithinAdmin#1
+	"workflows/parentportal/internal/messaging/parent_announcement_attachments.go:*Service.guardianAnnouncementAudience:s.Runtime.WithinAdmin#1": "Authenticated parent messaging/declaration workflow reads or stamps account-addressed items across schools. Explicit account, child/guardian relationship and announcement audience predicates remain authoritative, including per-child permissions.",
 }
 
 // withoutReviewedTransactionFrameBundles removes exactly the reviewed

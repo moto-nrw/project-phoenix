@@ -1,6 +1,6 @@
 {
   "scenario": "communication18.attachments.parent.n5",
-  "max": 21,
+  "max": 18,
   "exact": true,
   "description": "Literal attachment route, complete ordered DTO and positive N3/N5 real uploaded PDF attachments. N8 is outside domain maximum 5. Real audience/settings/File Storage tenant transactions, foreign tenant and missing-auth refusal. Not a global minimum.",
   "route": "GET /parent-news-attachments/{announcementId}"
