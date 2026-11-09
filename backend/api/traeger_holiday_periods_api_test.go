@@ -27,6 +27,8 @@ type holidayTimeModelBody struct {
 	StartsAt   string `json:"starts_at"`
 	EndsAt     string `json:"ends_at"`
 	PriceCents int64  `json:"price_cents"`
+	Archived   bool   `json:"archived,omitempty"`
+	Protected  bool   `json:"protected,omitempty"`
 }
 
 type holidayWeekBody struct {
@@ -326,19 +328,19 @@ func TestTraegerHolidayPeriodListQueryBudgetIsFlat(t *testing.T) {
 	db, router := newHolidayPeriodPortal(t)
 	office := newTraegerOffice(t, db, router, "Träger Budget Ferien", identityaccess.TraegerRoleAdministration)
 	createHolidayPeriod(t, router, office, januaryHolidays(office))
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/holiday-periods/", nil)
 		req.Header.Set("Authorization", "Bearer "+office.token)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	one := list()
 	second := januaryHolidays(office)
 	second.Name = "Osterferien 2027"
 	createHolidayPeriod(t, router, office, second)
-	assert.Len(t, list(), len(one), "the period list reads the same statements for any number of periods")
+	assert.Len(t, list().Statements, len(one.Statements), "the period list reads the same statements for any number of periods")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_periods", one)
 }

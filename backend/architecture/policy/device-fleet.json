@@ -178,17 +178,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "device-fleet.compose.tenant-runtime",
-      "description": "Device Fleet composition resolves tenant, admin, and ambient transactions through the shared runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "device-fleet.compose.facilities-public",
       "description": "Device Fleet composition resolves room names and occupancy rows through the public Facilities query.",
       "scopes": [

@@ -104,6 +104,19 @@ func TestDispatcherDeliverWaitsForTransportAcceptance(t *testing.T) {
 	require.NoError(t, <-returned)
 }
 
+func TestDispatcherDeliverStopsAtAPermanentRejection(t *testing.T) {
+	t.Parallel()
+
+	refused := errors.Join(mailcontract.ErrPermanentRejection, errors.New("554 refused"))
+	mailer := &synchronousTestMailer{errors: []error{refused, refused, refused}}
+	dispatcher := NewDispatcher(mailer, slog.Default())
+
+	err := dispatcher.Deliver(context.Background(), synchronousTestRequest())
+
+	require.ErrorIs(t, err, mailcontract.ErrPermanentRejection)
+	assert.Equal(t, 1, mailer.Attempts(), "no retry can change the answer")
+}
+
 func TestDispatcherDeliverRetriesAndReturnsTransportFailure(t *testing.T) {
 	t.Parallel()
 

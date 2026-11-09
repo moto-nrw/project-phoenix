@@ -49,6 +49,17 @@ services:
       EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT}
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER}
+      EMAIL_FROM_SECURITY_ADDRESS: ${EMAIL_FROM_SECURITY_ADDRESS}
+      EMAIL_FROM_NOTICES_ADDRESS: ${EMAIL_FROM_NOTICES_ADDRESS}
+      EMAIL_WEBHOOK_SECRETS: ${EMAIL_WEBHOOK_SECRETS}
+      LETTERMINT_TEAM_API_TOKEN: ${LETTERMINT_TEAM_API_TOKEN}
+      LETTERMINT_WEBHOOK_ID: ${LETTERMINT_WEBHOOK_ID}
+      EMAIL_FALLBACK_SMTP_HOST: ${EMAIL_FALLBACK_SMTP_HOST}
+      EMAIL_FALLBACK_SMTP_PORT: ${EMAIL_FALLBACK_SMTP_PORT}
+      EMAIL_FALLBACK_SMTP_USER: ${EMAIL_FALLBACK_SMTP_USER}
+      EMAIL_FALLBACK_SMTP_PASSWORD: ${EMAIL_FALLBACK_SMTP_PASSWORD}
+      EMAIL_FALLBACK_FROM_ADDRESS: ${EMAIL_FALLBACK_FROM_ADDRESS}
       MAILPIT_URL: ${MAILPIT_URL}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
@@ -219,12 +230,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: phoenix_test
     # Wegwerf-Datenbank: Durability aus, Speed an. fsync=off heißt: nach einem
-    # unsauberen Stop (Docker-Crash, Force-Quit) kann das Cluster kaputt sein.
-    # Recovery erst nach Absprache, wenn keine Testsitzung den Server nutzt:
-    # Nur den betroffenen Testcontainer und sein postgres_test-Volume entfernen.
-    # Danach Tests oder testdb bootstrap starten: Die Harness startet den Server,
-    # baut das Template und initialisiert fehlende Rollen mit den Test-Werten.
-    # Kein APP_ENV=test migrate reset. Details: docs/agents/operations.md#test-database.
+    # unsauberen Stop der Docker-VM (Crash, Force-Quit, volle Platte) kann das
+    # Cluster kaputt sein. Startet es mit "could not locate a valid checkpoint
+    # record", baut die Harness Container und postgres_test-Volume beim nächsten
+    # Testlauf selbst neu auf (#6230). Andere Fälle nur nach Absprache, wenn keine
+    # Testsitzung den Server nutzt: Nur diesen Container und sein Volume entfernen,
+    # dann Tests oder testdb bootstrap starten. Kein APP_ENV=test migrate reset.
+    # Details: docs/agents/operations.md#test-database.
     # CI läuft NICHT über diese Datei (GitHub-Actions-Service-Container).
     command:
       - postgres

@@ -15,64 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
-// listPublicCareOfferings is the parent-facing endpoint. No JWT — the
-// {tenantSlug} resolves to a tenant; {phaseId} narrows the offering set
-// to one phase. The phase model owns the enrollment window, so the
-// per-offering window check shipped in PR 6 is gone — the handler trusts
-// the phase-level gate run by the caller (or by Submit on its own).
-func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Request) {
-	if rs.CareOfferingService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
-		return
-	}
-	if rs.SchoolService == nil || rs.RequestService == nil || !rs.transactions {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public endpoint not wired")))
-		return
-	}
-
-	slug := chi.URLParam(r, "tenantSlug")
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
-	if !ok {
-		return
-	}
-
-	var data *PublicFormBootstrapData
-	lateInviteToken := lateInviteTokenFromRequest(r)
-	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
-	if err == nil {
-		err = withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
-			loaded, loadErr := rs.RequestService.LoadPublicCareOfferings(txCtx, phaseID, time.Now(), lateInviteToken)
-			data = loaded
-			return loadErr
-		})
-	}
-	if err != nil {
-		renderPublicBootstrapError(w, r, err)
-		return
-	}
-
-	selectionMode := data.Phase.CareOfferingSelectionMode
-	schoolClassCfg := toPublicSchoolClassConfig(data.Phase, data.Capabilities.CollectSchoolClass)
-	items := make([]CareOfferingResponse, 0, len(data.Offerings))
-	for _, o := range data.Offerings {
-		items = append(items, toPublicCareOfferingResponse(o))
-	}
-	capabilities := data.EffectiveCapabilities
-	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
-		Offerings:                 items,
-		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
-		CareRequired:              capabilities.CareOfferingsEnabled && selectionMode != capability.PhaseCareOfferingSelectionOptional,
-		SchoolClass:               schoolClassCfg,
-		CollectGradeLevel:         capabilities.CollectGradeLevel,
-		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
-		EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
-	}, "Public care offerings retrieved")
-}
-
 // renderPublicEnrollmentError renders the error chain returned from a
 // public enrollment endpoint. Disabled-tenant errors get a 404 with a
 // stable code so the parent landing page can render the localized
@@ -116,11 +58,11 @@ func renderPublicBootstrapError(w http.ResponseWriter, r *http.Request, err erro
 	renderPublicEnrollmentError(w, r, err)
 }
 
-// PublicCareOfferingsResponse wraps the public care-offering catalog with
-// the phase's selection mode so the parent form can render the hint and
-// validate before submit. The mode is server-authoritative - the
-// submission service re-checks it in defense-in-depth. CareRequired is
-// kept as a legacy boolean for older frontend builds.
+// PublicCareOfferingsResponse is the offering configuration of a phase as
+// the parent form sees it: the catalog, the selection mode and the class
+// and grade config. The staff form preview returns it so the preview
+// renders what parents get. The mode is server-authoritative - the
+// submission service re-checks it in defense-in-depth.
 type PublicCareOfferingsResponse struct {
 	Offerings                 []CareOfferingResponse  `json:"offerings"`
 	CareOfferingSelectionMode string                  `json:"care_offering_selection_mode"`
@@ -129,9 +71,8 @@ type PublicCareOfferingsResponse struct {
 	CollectGradeLevel         bool                    `json:"collect_grade_level"`
 	CareOfferingsEnabled      bool                    `json:"care_offerings_enabled"`
 	// EligibleGradeLevels mirrors PublicPhase.EligibleGradeLevels (#1663).
-	// This response carries no phase object, and it is the form's fallback
-	// load path when the page did not prefetch a bootstrap — so the grade
-	// restriction has to ride along here too, next to the class config.
+	// This response carries no phase object, so the grade restriction rides
+	// along here, next to the class config.
 	EligibleGradeLevels []int `json:"eligible_grade_levels"`
 }
 
@@ -161,9 +102,8 @@ type PublicLateInvitePrefill struct {
 // PublicSchoolClassConfig is the parent-facing concrete-class config for
 // a phase (issue #1833): whether the tenant collects a concrete class at
 // all, the phase's pick list, and whether it is mandatory from grade 2.
-// Emitted on both the bootstrap and the care-offerings public responses
-// so both form-load paths (prefetched public page + parent-portal
-// internal load) see the same contract.
+// Emitted on the form bootstrap and the staff preview so both see the
+// same contract.
 type PublicSchoolClassConfig struct {
 	Collect          bool     `json:"collect"`
 	AvailableClasses []string `json:"available_classes"`
@@ -208,10 +148,6 @@ func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
 	}
 	return mode
 }
-
-// We deliberately don't expose enrollmentService here — it is already
-// referenced via *Resource.CareOfferingService.
-var _ = capability.ErrCareOfferingNotFound
 
 // PublicPhase is the parent-safe shape returned by the public phases
 // endpoint. Intentionally slim — no created_by, no audit metadata.

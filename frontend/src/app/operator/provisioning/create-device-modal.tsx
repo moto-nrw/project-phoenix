@@ -2,7 +2,9 @@ import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { Modal } from "~/components/ui/modal";
+import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
@@ -41,7 +43,6 @@ export function CreateDeviceModal({
   const [createdDevice, setCreatedDevice] = useState<OperatorDevice | null>(
     null,
   );
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setCreatedDevice(null);
@@ -52,7 +53,6 @@ export function CreateDeviceModal({
       setName("");
       clearError();
       setCreatedDevice(null);
-      setCopied(false);
     }
     // schools is intentionally omitted: callers pass a fresh array reference on
     // every render, and onCreated handlers refetch summaries which re-creates
@@ -114,36 +114,29 @@ export function CreateDeviceModal({
     ],
   );
 
-  const handleCopyApiKey = useCallback(async () => {
-    if (!createdDevice?.apiKey) return;
-    try {
-      await navigator.clipboard.writeText(createdDevice.apiKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      logger.error("clipboard_copy_failed", {
-        error: "Failed to copy API key to clipboard",
-      });
-      showMessage(API_KEY_COPY_FAILED_MESSAGE);
-    }
-  }, [createdDevice, showMessage]);
+  const handleCopyFailed = useCallback(() => {
+    logger.error("clipboard_copy_failed", {
+      error: "Failed to copy API key to clipboard",
+    });
+    showMessage(API_KEY_COPY_FAILED_MESSAGE);
+  }, [showMessage]);
 
   if (createdDevice) {
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Gerät erstellt">
         <div className="space-y-4">
-          <div className="border-moto-green/20 bg-moto-green/10 rounded-lg border p-4">
-            <p className="text-moto-green-strong text-sm font-medium">
-              Gerät erfolgreich erstellt
-            </p>
-            <div className="text-moto-green-strong mt-2 space-y-1 text-sm">
-              <p>
+          <Alert
+            type="success"
+            announce="off"
+            title="Gerät erfolgreich erstellt"
+            message={
+              <>
                 Geräte-ID:{" "}
                 <span className="font-mono">{createdDevice.deviceId}</span>
-              </p>
-              <p>Schule: {createdDevice.schoolName}</p>
-            </div>
-          </div>
+              </>
+            }
+            details={<p className="mt-1">Schule: {createdDevice.schoolName}</p>}
+          />
 
           <p className="text-sm text-gray-600">
             Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.
@@ -151,20 +144,11 @@ export function CreateDeviceModal({
           {createdDevice.apiKey && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">API-Key:</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs break-all">
-                  {createdDevice.apiKey}
-                </code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => void handleCopyApiKey()}
-                  className="shrink-0"
-                >
-                  {copied ? "Kopiert!" : "Kopieren"}
-                </Button>
-              </div>
+              <CopyField
+                value={createdDevice.apiKey}
+                monospace
+                onCopyFailed={handleCopyFailed}
+              />
             </div>
           )}
 

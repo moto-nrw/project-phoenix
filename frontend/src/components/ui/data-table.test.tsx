@@ -3,10 +3,16 @@
  *
  * Covers keyboard activation of clickable rows (Enter / Space), correct
  * suppression of bubbled keydown from inner elements, and the loading
- * placeholder rendering path.
+ * placeholder rendering path, plus expandable, sub and summary rows.
  */
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+
+import {
+  DESKTOP_WIDTH,
+  setViewportWidth,
+  usePhoneViewport,
+} from "~/test/helpers/viewport";
 
 import { DataTable } from "./data-table";
 import type { DataTableColumn } from "./data-table";
@@ -141,30 +147,37 @@ describe("DataTable keyboard navigation", () => {
     }
   });
 
-  it("does not turn rows with controls into nested buttons", () => {
-    render(
-      <DataTable
-        columns={[
-          ...columns,
-          {
-            key: "actions",
-            header: "Aktionen",
-            render: () => <button type="button">Anzeigen</button>,
-          },
-        ]}
-        rows={rows}
-        getRowKey={(row) => row.id}
-        onRowClick={vi.fn()}
-        rowHasInteractiveControls
-        stackedOnMobile
-      />,
-    );
+  describe("at phone width", () => {
+    usePhoneViewport();
 
-    const stacked = screen.getByTestId("data-table-stacked");
-    const row = stacked.querySelector("li");
-    expect(row).not.toHaveAttribute("role", "button");
-    expect(row).not.toHaveAttribute("tabindex");
-    expect(screen.getAllByRole("button", { name: "Anzeigen" })).toHaveLength(4);
+    it("does not turn rows with controls into nested buttons", () => {
+      render(
+        <DataTable
+          columns={[
+            ...columns,
+            {
+              key: "actions",
+              header: "Aktionen",
+              render: () => <button type="button">Anzeigen</button>,
+            },
+          ]}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          onRowClick={vi.fn()}
+          rowHasInteractiveControls
+          stackedOnMobile
+        />,
+      );
+
+      const stacked = screen.getByTestId("data-table-stacked");
+      const row = stacked.querySelector("li");
+      expect(row).not.toHaveAttribute("role", "button");
+      expect(row).not.toHaveAttribute("tabindex");
+      // Only the phone list is in the document (#6220): one button per row.
+      expect(screen.getAllByRole("button", { name: "Anzeigen" })).toHaveLength(
+        2,
+      );
+    });
   });
 });
 
@@ -286,6 +299,8 @@ describe("DataTable pagination", () => {
 // declare the role they play so a phone shows the values a narrow viewport
 // would otherwise push off screen.
 describe("DataTable stacked phone layout", () => {
+  usePhoneViewport();
+
   interface PersonRow {
     id: string;
     name: string;
@@ -316,14 +331,15 @@ describe("DataTable stacked phone layout", () => {
   ];
 
   it("renders the field columns as labelled lines beside the table", () => {
-    render(
+    const table = (
       <DataTable
         columns={stackedColumns}
         rows={people}
         getRowKey={(row) => row.id}
         stackedOnMobile
-      />,
+      />
     );
+    const { unmount } = render(table);
 
     const stacked = screen.getByTestId("data-table-stacked");
     expect(stacked).toHaveTextContent("Mia");
@@ -331,7 +347,15 @@ describe("DataTable stacked phone layout", () => {
     // The label comes from the column header, the value from its renderer.
     expect(stacked).toHaveTextContent("IBAN");
     expect(stacked).toHaveTextContent("•••• 3000");
-    expect(screen.getByTestId("data-table-table")).toBeInTheDocument();
+    // The desktop table leaves the document at phone width (#6220) and is
+    // the only layout above the breakpoint (fresh render: see
+    // setViewportWidth).
+    expect(screen.queryByTestId("data-table-table")).not.toBeInTheDocument();
+    unmount();
+    setViewportWidth(DESKTOP_WIDTH);
+    render(table);
+    expect(screen.getByTestId("data-table-table")).toHaveTextContent("Mia");
+    expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
   });
 
   it("drops a field line whose cell has no value for that row", () => {
@@ -362,6 +386,35 @@ describe("DataTable stacked phone layout", () => {
     expect(items[0]).toHaveTextContent("IBAN");
     expect(items[1]).toHaveTextContent("Lea");
     expect(items[1]).not.toHaveTextContent("IBAN");
+  });
+
+  it("gives a field without its label the full width and keeps the name for screen readers", () => {
+    render(
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Name",
+            stacked: "title",
+            render: (row) => row.name,
+          },
+          {
+            key: "iban",
+            header: "IBAN",
+            stackedLabel: false,
+            render: (row) => row.iban,
+          },
+        ]}
+        rows={people}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+      />,
+    );
+
+    const stacked = screen.getByTestId("data-table-stacked");
+    const label = within(stacked).getAllByText("IBAN")[0];
+    expect(label).toHaveClass("sr-only");
+    expect(stacked).toHaveTextContent("•••• 3000");
   });
 
   it("shares paging with the table instead of counting its own rows", () => {
@@ -494,6 +547,8 @@ describe("DataTable selection and hidden columns (#3834)", () => {
 });
 
 describe("DataTable one-line phone list (#3834)", () => {
+  usePhoneViewport();
+
   const phoneColumns: DataTableColumn<Row>[] = [
     {
       key: "name",
@@ -548,7 +603,7 @@ describe("DataTable one-line phone list (#3834)", () => {
   });
 
   it("keeps the phone status when its desktop column is hidden", () => {
-    render(
+    const table = (
       <DataTable
         columns={[
           phoneColumns[0]!,
@@ -564,11 +619,15 @@ describe("DataTable one-line phone list (#3834)", () => {
         hiddenColumns={new Set(["status"])}
         stackedOnMobile
         stackedLayout="row"
-      />,
+      />
     );
+    const { unmount } = render(table);
 
     const stacked = within(screen.getByTestId("data-table-stacked"));
     expect(stacked.getByText("Status 1")).toBeInTheDocument();
+    unmount();
+    setViewportWidth(DESKTOP_WIDTH);
+    render(table);
     expect(screen.getByTestId("data-table-table")).not.toHaveTextContent(
       "Status 1",
     );
@@ -668,6 +727,8 @@ describe("DataTable load-more button (#4975)", () => {
 });
 
 describe("DataTable form phone layout (#4807)", () => {
+  usePhoneViewport();
+
   interface WageRow {
     id: string;
     name: string;
@@ -752,5 +813,243 @@ describe("DataTable form phone layout (#4807)", () => {
       "list",
     );
     expect(list.parentElement).not.toHaveClass("moto-content-surface");
+  });
+});
+
+describe("DataTable expandable rows, sub rows and summary rows (#5600)", () => {
+  interface HourRow {
+    id: string;
+    day: string;
+    hours: string;
+    open: boolean;
+  }
+  const hourRows: HourRow[] = [
+    { id: "mo", day: "Montag", hours: "8h", open: true },
+    { id: "di", day: "Dienstag", hours: "7h", open: false },
+  ];
+  const hourColumns: DataTableColumn<HourRow>[] = [
+    { key: "day", header: "Tag", render: (row) => row.day },
+    { key: "note", header: "Notiz", render: () => null },
+    { key: "hours", header: "Stunden", render: (row) => row.hours },
+    {
+      key: "actions",
+      header: "Aktionen",
+      headerSrOnly: true,
+      render: () => null,
+    },
+  ];
+  const renderHours = (
+    props: Partial<Parameters<typeof DataTable<HourRow>>[0]> = {},
+  ) =>
+    render(
+      <DataTable
+        columns={hourColumns}
+        rows={hourRows}
+        getRowKey={(row) => row.id}
+        expandable={{
+          canExpand: (row) => row.open,
+          rowLabel: (row, expanded) =>
+            `${row.day}: Details ${expanded ? "schließen" : "öffnen"}`,
+        }}
+        {...props}
+      />,
+    );
+  const details = (row: HourRow, expanded: boolean) =>
+    expanded ? [{ key: `${row.id}-detail`, content: "Details des Tages" }] : [];
+
+  it("opens a row with a click and closes it with a second click", () => {
+    renderHours({ renderSubRows: details });
+
+    const row = screen.getByRole("row", { name: "Montag: Details öffnen" });
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Details des Tages")).not.toBeInTheDocument();
+
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(row).toHaveAccessibleName("Montag: Details schließen");
+    expect(screen.getByText("Details des Tages")).toBeInTheDocument();
+
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Details des Tages")).not.toBeInTheDocument();
+  });
+
+  it.each(["Enter", " "])("toggles a row with the key %j", (key) => {
+    renderHours({ renderSubRows: details });
+
+    const row = screen.getByRole("row", { name: "Montag: Details öffnen" });
+    fireEvent.keyDown(row, { key });
+
+    expect(row).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("ignores a key pressed on a control inside the row", () => {
+    renderHours({
+      columns: [
+        {
+          key: "day",
+          header: "Tag",
+          render: (row) => <button type="button">{row.day} wählen</button>,
+        },
+      ],
+      renderSubRows: details,
+    });
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Montag wählen" }), {
+      key: "Enter",
+    });
+
+    expect(
+      screen.getByRole("row", { name: "Montag: Details öffnen" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("leaves a row without anything to reveal plain", () => {
+    renderHours({ renderSubRows: details });
+
+    const row = screen.getByText("Dienstag").closest("tr")!;
+    expect(row).not.toHaveAttribute("aria-expanded");
+    expect(row).not.toHaveAttribute("tabindex");
+
+    fireEvent.click(row);
+    expect(screen.queryByText("Details des Tages")).not.toBeInTheDocument();
+  });
+
+  it("keeps only one row open", () => {
+    renderHours({
+      expandable: { rowLabel: (row) => row.day },
+      renderSubRows: details,
+    });
+
+    fireEvent.click(screen.getByRole("row", { name: "Montag" }));
+    fireEvent.click(screen.getByRole("row", { name: "Dienstag" }));
+
+    expect(screen.getByRole("row", { name: "Montag" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.getAllByText("Details des Tages")).toHaveLength(1);
+  });
+
+  it("lines sub row cells up under their columns and keeps the cell count", () => {
+    renderHours({
+      renderSubRows: (row) => [
+        {
+          key: `${row.id}-block`,
+          cells: [
+            { columnKey: "day", content: `Block ${row.day}` },
+            { columnKey: "hours", content: "3h" },
+          ],
+        },
+      ],
+    });
+
+    const headCount = screen.getAllByRole("columnheader").length;
+    const cells = within(
+      screen.getByText("Block Montag").closest("tr")!,
+    ).getAllByRole("cell");
+    expect(cells).toHaveLength(headCount);
+    expect(cells[2]).toHaveTextContent("3h");
+    expect(cells[1]).toBeEmptyDOMElement();
+  });
+
+  it("spans a content row over all columns", () => {
+    renderHours({ renderSubRows: (row) => details(row, true) });
+
+    expect(screen.getAllByText("Details des Tages")[0]).toHaveAttribute(
+      "colspan",
+      "4",
+    );
+  });
+
+  it("closes a row with a summary after its sub rows, honouring colSpan", () => {
+    renderHours({
+      renderSubRows: (row) => details(row, true),
+      summaryRow: (row) =>
+        row.id === "di"
+          ? {
+              key: `${row.id}-sum`,
+              cells: [
+                { columnKey: "day", colSpan: 2, content: "Summe Woche" },
+                { columnKey: "hours", content: "15h" },
+              ],
+            }
+          : null,
+    });
+
+    expect(screen.getAllByText("Summe Woche")).toHaveLength(1);
+    const summary = screen.getByText("Summe Woche").closest("tr")!;
+    expect(summary.previousElementSibling).toHaveTextContent(
+      "Details des Tages",
+    );
+    const cells = within(summary).getAllByRole("cell");
+    expect(cells).toHaveLength(3);
+    expect(cells[0]).toHaveAttribute("colspan", "2");
+    expect(cells[1]).toHaveTextContent("15h");
+  });
+
+  it("names a column for assistive tech only and pins it in sub rows", () => {
+    renderHours({
+      renderSubRows: (row) => [
+        {
+          key: `${row.id}-block`,
+          cells: [{ columnKey: "actions", content: <span>Menü</span> }],
+        },
+      ],
+    });
+
+    expect(screen.getByText("Aktionen")).toHaveClass("sr-only");
+    expect(screen.getAllByText("Menü")[0]!.closest("td")).toHaveClass(
+      "sticky",
+      "right-0",
+      "bg-gray-50",
+    );
+  });
+
+  it("carries the row tone into the pinned column, but not on an open row", () => {
+    renderHours({
+      columns: [
+        ...hourColumns.slice(0, 3),
+        {
+          key: "actions",
+          header: "Aktionen",
+          headerSrOnly: true,
+          render: () => <span>Menü</span>,
+        },
+      ],
+      rowTone: () => "today",
+    });
+
+    const menuCell = screen.getAllByText("Menü")[0]!.closest("td")!;
+    expect(menuCell).toHaveClass("from-moto-blue-soft/60");
+    expect(menuCell.closest("tr")).toHaveClass("bg-moto-blue-soft/60");
+
+    fireEvent.click(menuCell.closest("tr")!);
+
+    expect(menuCell).not.toHaveClass("from-moto-blue-soft/60");
+    expect(menuCell.closest("tr")).not.toHaveClass("bg-moto-blue-soft/60");
+    expect(menuCell).toHaveClass("bg-gray-50");
+  });
+
+  it("shows the tooltip of a column head", () => {
+    render(
+      <DataTable
+        columns={[
+          {
+            key: "day",
+            header: "Tag",
+            headerTitle: "Kalendertag",
+            render: (row: HourRow) => row.day,
+          },
+        ]}
+        rows={hourRows}
+        getRowKey={(row) => row.id}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Tag" })).toHaveAttribute(
+      "title",
+      "Kalendertag",
+    );
   });
 });

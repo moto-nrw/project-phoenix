@@ -13,9 +13,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   SignaturePad,
   type SignaturePadLabels,
@@ -104,7 +106,7 @@ export function PickupSignatureStatementLoadError({
   error: unknown | null;
   retry: () => void;
 }>) {
-  const t = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentPickupPermission");
   const { error: loadError, show, clear } = useApiLoadError();
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export function PickupSignatureStatementLoadError({
 
 /** Kurze Tagesliste, z. B. „Mo, Mi“; leer für alle Tage. */
 export function useWeekdayList(): (weekdays: readonly number[]) => string {
-  const t = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentPickupPermission");
   return (weekdays) =>
     normalizeWeekdays(weekdays)
       .map((day) => t(`weekday.${day}` as "weekday.1"))
@@ -140,7 +142,7 @@ export function PickupWeekdaysField({
   disabled?: boolean;
   error?: string | null;
 }>) {
-  const t = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentPickupPermission");
   const everyDay = value.length === 0;
   return (
     <fieldset className="space-y-3" disabled={disabled}>
@@ -230,10 +232,10 @@ export function PickupSignatureField({
   disabled?: boolean;
   error?: string | null;
 }>) {
-  const t = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentPickupPermission");
   const labels = usePickupSignatureLabels();
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 p-4">
+    <InsetPanel tone="white" padding="md" className="space-y-3">
       <div>
         <p className="text-sm font-medium text-gray-900">
           {t("signature.title")}
@@ -249,6 +251,6 @@ export function PickupSignatureField({
         error={error}
         labels={labels}
       />
-    </div>
+    </InsetPanel>
   );
 }

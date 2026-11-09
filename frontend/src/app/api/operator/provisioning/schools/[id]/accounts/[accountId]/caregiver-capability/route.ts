@@ -1,5 +1,5 @@
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
-import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
 const path = (
   _request: Request,
@@ -20,16 +20,12 @@ const path = (
 export const GET = createOperatorJsonProxy({
   method: "GET",
   path,
-  cache: "no-store",
-  explicitGetMethod: true,
 });
 export const POST = createOperatorJsonProxy({
   method: "POST",
   path,
-  cache: "no-store",
 });
 export const DELETE = createOperatorJsonProxy({
   method: "DELETE",
   path,
-  cache: "no-store",
 });

@@ -46,16 +46,13 @@ vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mocks.listPhases,
 }));
 
-vi.mock("~/lib/enrollment-export-api", () => ({
-  exportPhaseRegistrations: mocks.exportPhaseRegistrations,
-}));
-
 vi.mock("~/lib/enrollment-report-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     exportCareUsageReport: mocks.exportCareUsageReport,
     exportPhaseClassRoster: mocks.exportPhaseClassRoster,
+    exportPhaseRegistrations: mocks.exportPhaseRegistrations,
     getCareUsageReport: mocks.getCareUsageReport,
   };
 });
@@ -97,10 +94,8 @@ vi.mock("~/lib/enrollment-public-url", () => ({
   useEnrollmentPublicUrl: () => "http://demo.localhost:3000/anmeldung/1",
 }));
 
-vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(),
-  },
+vi.mock("~/lib/student-api", () => ({
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
 }));
 
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
@@ -343,6 +338,21 @@ describe("AdminEnrollmentPhaseDetail", () => {
     ).toHaveAttribute("href", "/demo/anmeldung/1");
   });
 
+  it.each(["linked_parents", "existing_students"])(
+    "offers no public parent link for the %s audience",
+    async (audience) => {
+      mocks.listPhases.mockResolvedValue([{ ...phase, audience }]);
+      await renderPhase();
+
+      expect(
+        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("link", { name: "Elternansicht öffnen" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("renders care offerings and starts with all statuses", async () => {
     await renderPhase();
 
@@ -400,9 +410,12 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
 
-    expect(
-      screen.getByRole("button", { name: "Anmeldungen exportieren" }),
-    ).toBeVisible();
+    // Der Export der Anmeldungen steht im Kebab des Kopfes (Spec R4).
+    const headMenu = screen.getByRole("button", { name: "Weitere Aktionen" });
+    fireEvent.click(headMenu);
+    expect(screen.getByText("Exportieren")).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Excel" })).toBeVisible();
+    fireEvent.click(headMenu);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),

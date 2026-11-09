@@ -53,13 +53,13 @@ describe("ParentEnrollPicker", () => {
     mocks.listEnrollableSchools.mockReset();
   });
 
-  it("reserves school headers and phase rows while loading", () => {
+  it("shows the kit list skeleton while loading", () => {
     mocks.listEnrollableSchools.mockReturnValue(new Promise(() => {}));
 
     render(<ParentEnrollPicker />);
 
     const skeleton = screen.getByTestId("parent-enroll-skeleton");
-    expect(skeleton.querySelectorAll(".rounded-2xl.border")).toHaveLength(2);
+    expect(screen.getByRole("status")).toContainElement(skeleton);
     expect(skeleton.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
       10,
     );
@@ -116,6 +116,12 @@ describe("ParentEnrollPicker", () => {
     expect(
       screen.getByRole("heading", { name: "OGS Süd" }),
     ).toBeInTheDocument();
+    const schoolCard = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section");
+    const phaseList = schoolCard?.querySelector("ul");
+    expect(phaseList).toHaveClass("border-t");
+    expect(phaseList?.parentElement).not.toHaveClass("compact:mt-3", "mt-4");
 
     // Phase links point at /parents/anmeldung/{subdomain}/{phaseId} — the slug
     // would not resolve for a school whose slug differs from its subdomain.

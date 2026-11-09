@@ -13,6 +13,9 @@ import (
 
 // StatisticsAccessEvent records the report scope, not the reported children's data.
 type StatisticsAccessEvent struct {
+	// StudentID names the child of a read of one child's data (#4683);
+	// nil for a report over several children.
+	StudentID      *int64
 	ActorAccountID int64
 	ActorRole      string
 	RangeStart     time.Time
@@ -68,6 +71,13 @@ type ClosingDayDates interface {
 	ClosingDayDates(ctx context.Context, from, to Date) (map[Date]bool, error)
 }
 
+// CareCalendarDays reads the closing days and the holiday periods of the
+// school in one read (#5994); where it is bound it replaces ClosingDayDates
+// and HolidayPeriods for the days without care.
+type CareCalendarDays interface {
+	CareCalendarDays(ctx context.Context, from, to Date) (closing, holidays map[Date]bool, err error)
+}
+
 type CourseInstance struct {
 	CourseID           int64
 	Name               string
@@ -106,16 +116,35 @@ type StatisticsRetention interface {
 	// RoomRetentionDays returns zero when room history is switched off.
 	RoomRetentionDays(context.Context) (int, error)
 	CourseRetentionDays(context.Context) (int, error)
-	// AttendanceRetentionDays is gdpr.attendance_retention_days.
-	AttendanceRetentionDays(context.Context) (int, error)
-	// StatusDayRetentionDays is gdpr.status_day_retention_days.
-	StatusDayRetentionDays(context.Context) (int, error)
+	// OccupancyRetentionDays answers gdpr.status_day_retention_days and
+	// gdpr.attendance_retention_days together, in one read where the
+	// settings allow it (#4683: the contract Soll costs one statement more).
+	OccupancyRetentionDays(context.Context) (statusDays, attendanceDays int, err error)
+	// PrefetchCareTimeSettings reads every setting Soll und Ist resolves in
+	// one statement and carries the snapshot in the returned context (#4683).
+	PrefetchCareTimeSettings(context.Context) (context.Context, error)
 }
 
 type PlannedCareDay = studentpresence.PlannedCareDay
 
 type PlannedCareDays interface {
 	PlannedCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]PlannedCareDay, error)
+}
+
+type ContractCareDay = studentpresence.ContractCareDay
+
+// ContractCareDays reads the days a care contract of the Träger covers, by
+// child and date (#4683); a day without an entry has no contract in force.
+type ContractCareDays interface {
+	ContractCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]ContractCareDay, error)
+}
+
+type HolidayCareDay = studentpresence.HolidayCareDay
+
+// HolidayCareDays reads the days a confirmed holiday booking covers, by
+// child and date (#5994); a day without an entry has no holiday booking.
+type HolidayCareDays interface {
+	HolidayCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]HolidayCareDay, error)
 }
 
 // Own presence facts the report reads through the application service.

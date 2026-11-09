@@ -87,5 +87,8 @@
   "staff_profile_required": "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
   "staff_value_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "staff_value_unsupported": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "status_day_conflict": "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan."
+  "status_day_conflict": "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+  "guardian_email_block_needs_review": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "guardian_email_block_lift_failed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "guardian_email_block_stays": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }

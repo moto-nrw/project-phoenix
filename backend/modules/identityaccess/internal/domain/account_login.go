@@ -16,17 +16,6 @@ var (
 	ErrAccountAuthenticationUnavailable = errors.New("account authentication is not composed")
 )
 
-// Portal scopes as they travel in JWT claims. The tenant scope is the empty
-// string on the wire.
-const (
-	ScopeTenant   = ""
-	ScopeOrg      = "org"
-	ScopePlatform = "platform"
-	ScopeParent   = "parent"
-	ScopeSchool   = "school"
-	ScopeCaterer  = "caterer"
-)
-
 // LehrkraftRoleName is the school-portal system role (#2207).
 const LehrkraftRoleName = "lehrkraft"
 
@@ -110,7 +99,6 @@ type SessionClaims struct {
 	// section 5): its school access rests on the Träger, not on a mapping.
 	ViaTraeger bool
 	ExpiresAt  int64
-	IssuedAt   int64
 }
 
 // RefreshClaims is the parsed content of a refresh JWT. A Träger session
@@ -165,32 +153,6 @@ type AccountClaimsPayload struct {
 	OrgID       int64
 	Scope       string
 	ViaTraeger  bool
-}
-
-// PersistedPortalScope maps a JWT scope to the portal scope a refresh
-// session is stored under.
-func PersistedPortalScope(jwtScope string) string {
-	switch jwtScope {
-	case ScopeTenant, PortalScopeTenant:
-		return PortalScopeTenant
-	case PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeCaterer:
-		return jwtScope
-	default:
-		return PortalScopeUnknown
-	}
-}
-
-// SessionScopeMatches reports whether an access token's scope belongs to the
-// portal a session validation names.
-func SessionScopeMatches(scope, portal string) bool {
-	switch portal {
-	case "tenant":
-		return scope == ScopeTenant || scope == "tenant"
-	case "platform", "parent", "school", "caterer", ScopeOrg:
-		return scope == portal
-	default:
-		return false
-	}
 }
 
 // IsGuardianOnly reports whether every role name is the guardian role. An
@@ -377,4 +339,23 @@ type PendingAccountWideWipe struct {
 	AccountID int64
 	Reason    string
 	CreatedAt time.Time
+}
+
+// SessionKind is the rules the refresh token's session follows; a scope no
+// persisted portal carries has none.
+func (c RefreshClaims) SessionKind() (SessionKind, bool) {
+	portal, ok := PortalOfClaim(c.Scope)
+	if !ok || !portal.Persisted {
+		return "", false
+	}
+	return SessionKindOf(portal, c.OrgID > 0), true
+}
+
+// SessionKind is the rules the access token's session follows.
+func (c SessionClaims) SessionKind() (SessionKind, bool) {
+	portal, ok := PortalOfClaim(c.Scope)
+	if !ok || !portal.Persisted {
+		return "", false
+	}
+	return SessionKindOf(portal, c.ViaTraeger), true
 }

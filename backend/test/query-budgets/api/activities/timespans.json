@@ -1,0 +1,7 @@
+{
+  "scenario": "api.activities.timespans",
+  "max": 4,
+  "exact": true,
+  "description": "GET /api/activities/timespans through the real typed activities root, public Timetable timeframe capability and protected tenant resource router. Complete request capture: BEGIN, combined tenant role/config, one active-only tenant timeframe SELECT and COMMIT. Measured flat at 0, 3 and 8 active rows; exact DTO/response order, nullable end and omitted empty description, inactive and foreign-tenant exclusion, no DML. Network listener and outer process middleware are outside this scope.",
+  "route": "GET /api/activities/timespans"
+}

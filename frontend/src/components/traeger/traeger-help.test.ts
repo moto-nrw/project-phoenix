@@ -11,6 +11,14 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
+  it("opens the Stichtagszahlen article on its page (#4673)", () => {
+    for (const path of ["/stichtagszahlen", "/traeger/stichtagszahlen"]) {
+      expect(getTraegerHelpTopicForPath(path)).toBe(
+        HELP_TOPICS.traegerKeyDateCounts,
+      );
+    }
+  });
+
   it("opens the school view article on the view of a school (#5686)", () => {
     for (const path of ["/schulen/2", "/traeger/schulen/2"]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(
@@ -75,6 +83,17 @@ describe("getTraegerHelpTopicForPath", () => {
     for (const path of ["/abrechnung", "/traeger/abrechnung/5"]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(
         HELP_TOPICS.traegerBillingRun,
+      );
+    }
+  });
+
+  it("opens the monthly billing article on a run and its letters (#4684)", () => {
+    for (const path of [
+      "/abrechnung/monatsbeitraege/5",
+      "/traeger/abrechnung/monatsbeitraege/5/schreiben",
+    ]) {
+      expect(getTraegerHelpTopicForPath(path)).toBe(
+        HELP_TOPICS.traegerCareMonths,
       );
     }
   });

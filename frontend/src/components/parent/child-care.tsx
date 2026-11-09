@@ -9,14 +9,16 @@ import {
   useRef,
   useState,
 } from "react";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { RequiredMark } from "~/components/ui/field-label";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   RequestSharingControl,
@@ -58,6 +60,7 @@ import {
 } from "~/components/parent/child-requests-context";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
@@ -71,6 +74,9 @@ import {
 } from "~/components/parent/pickup-permission-fields";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -315,7 +321,7 @@ export function useChildCare(studentId: string): ChildCare {
     (sharedFeatures && !sharedFeatures.data?.[studentId]
       ? sharedFeatures.error
       : undefined);
-  const tChild = useTranslations("parentChild");
+  const tChild = useCareTermTranslations("parentChild");
   const { failure: sharedFeatureError } = useSwrResourceLoadError(
     [{ data: sharedFeatures?.data?.[studentId], error: sharedFailure }],
     tChild("errorObjectCare"),
@@ -757,7 +763,7 @@ export function SickNoteModal({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentChildCare");
+  const t = useCareTermTranslations("parentChildCare");
   const datePicker = useLocalizedDatePicker();
   const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
@@ -858,13 +864,12 @@ export function SickNoteModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 sm:w-auto"
+              className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || (!sickEnabled && !excusedEnabled)}
+              isLoading={submitting}
+              loadingText={t("sick.submitting")}
             >
-              {submitting && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
               {status === "sick"
                 ? t("sick.submitSick")
                 : t("sick.submitExcused")}
@@ -880,91 +885,73 @@ export function SickNoteModal({
       ) : (
         <div className="space-y-4">
           <p className="text-sm leading-6 text-gray-700">{t("sick.intro")}</p>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {t("sick.kindLabel")}
-            </span>
-            <CustomSelect
-              value={status}
-              ariaLabel={t("sick.kindLabel")}
-              onChange={(value) => {
-                setStatus(value as StudentStatusKind);
-                form.clear();
-              }}
-              options={[
-                ...(sickEnabled
-                  ? [{ value: "sick", label: t("sick.kindSick") }]
-                  : []),
-                ...(excusedEnabled
-                  ? [{ value: "excused", label: t("sick.kindExcused") }]
-                  : []),
-              ]}
-            />
-          </label>
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
+          <CustomSelect
+            label={t("sick.kindLabel")}
+            value={status}
+            onChange={(value) => {
+              setStatus(value as StudentStatusKind);
+              form.clear();
+            }}
+            options={[
+              ...(sickEnabled
+                ? [{ value: "sick", label: t("sick.kindSick") }]
+                : []),
+              ...(excusedEnabled
+                ? [{ value: "excused", label: t("sick.kindExcused") }]
+                : []),
+            ]}
+          />
+          <InsetPanel as="p" framed className="text-sm leading-5 text-gray-600">
             {t(kindHint)}
-          </p>
+          </InsetPanel>
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gray-700">
-              {t("sick.periodLabel")}
-            </legend>
+            <SectionLabel as="legend">{t("sick.periodLabel")}</SectionLabel>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  {t("sick.from")}
-                </span>
-                <ISODatePicker
-                  {...datePicker}
-                  ariaLabel={t("sick.from")}
-                  value={from}
-                  min={initial}
-                  onChange={(next) => {
-                    setFrom(next);
-                    if (next > to) setTo(next);
-                  }}
-                  calendarLayout="popover"
-                  hideClearButton
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  {t("sick.to")}
-                </span>
-                <ISODatePicker
-                  {...datePicker}
-                  ariaLabel={t("sick.to")}
-                  value={to}
-                  min={from}
-                  onChange={setTo}
-                  calendarLayout="popover"
-                  hideClearButton
-                />
-              </label>
+              <ISODatePicker
+                {...datePicker}
+                id={`${errorId}-from`}
+                label={t("sick.from")}
+                ariaLabel={t("sick.from")}
+                value={from}
+                min={initial}
+                onChange={(next) => {
+                  setFrom(next);
+                  if (next > to) setTo(next);
+                }}
+                calendarLayout="popover"
+                hideClearButton
+              />
+              <ISODatePicker
+                {...datePicker}
+                id={`${errorId}-to`}
+                label={t("sick.to")}
+                ariaLabel={t("sick.to")}
+                value={to}
+                min={from}
+                onChange={setTo}
+                calendarLayout="popover"
+                hideClearButton
+              />
             </div>
           </fieldset>
           <p className="text-sm text-gray-600">{dayCopy}</p>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {t("sick.reasonLabelRequired")}
-              {reasonRequired && <RequiredMark />}
-            </span>
-            <textarea
-              value={reason}
-              maxLength={MAX_NOTE_LEN}
-              onChange={(event) => {
-                setReason(event.target.value);
-                if (form.error) form.clear();
-              }}
-              name={SICK_REASON_FIELD}
-              autoComplete="off"
-              required={reasonRequired}
-              rows={3}
-              placeholder={t("sick.reasonPlaceholder")}
-              aria-invalid={Boolean(reasonError)}
-              aria-describedby={reasonError ? errorId : undefined}
-              className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
+          <Textarea
+            label={t("sick.reasonLabelRequired")}
+            value={reason}
+            maxLength={MAX_NOTE_LEN}
+            onChange={(event) => {
+              setReason(event.target.value);
+              if (form.error) form.clear();
+            }}
+            name={SICK_REASON_FIELD}
+            autoComplete="off"
+            required={reasonRequired}
+            rows={3}
+            placeholder={t("sick.reasonPlaceholder")}
+            aria-invalid={Boolean(reasonError)}
+            aria-describedby={reasonError ? errorId : undefined}
+            className="min-h-20 text-base"
+          />
           {requiresApproval === true && studentId && (
             <RequestSharingSelector
               studentId={studentId}
@@ -1061,8 +1048,9 @@ export function PickupTimeModal({
   /** Der Server hat die Frist gemeldet: Daten neu laden. */
   onCutoffPassed?: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
-  const tModes = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentChildCare");
+  const tModes = useCareTermTranslations("parentMasterData");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
@@ -1100,7 +1088,7 @@ export function PickupTimeModal({
   const [pickupPersonId, setPickupPersonId] = useState("");
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const contacts = useDayPickupContacts(studentId);
-  const tPermission = useTranslations("parentPickupPermission");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
@@ -1463,20 +1451,19 @@ export function PickupTimeModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap sm:w-auto"
+              className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => void handleSaveEdit()}
               disabled={submitting || todayLocked}
+              isLoading={submitting}
+              loadingText={t("pickup.savingEdit")}
             >
-              {submitting && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
               {t("pickup.saveEdit")}
             </Button>
           ) : pending ? null : (
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap sm:w-auto"
+              className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={
                 submitting ||
@@ -1487,10 +1474,9 @@ export function PickupTimeModal({
                 !careExceptionsLoaded ||
                 !pickupChangeRequestsLoaded
               }
+              isLoading={submitting}
+              loadingText={t("pickup.submitting")}
             >
-              {submitting && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
               {t("pickup.submit")}
             </Button>
           )}
@@ -1502,25 +1488,22 @@ export function PickupTimeModal({
           {t(departureModeEnabled ? "pickup.introWithMode" : "pickup.intro")}
         </p>
         {(!careExceptionsLoaded || !pickupChangeRequestsLoaded) && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.loadError")}
-          </p>
+          </InsetPanel>
         )}
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
-            {t("pickup.dateLabel")}
-          </span>
-          <ISODatePicker
-            {...datePicker}
-            ariaLabel={t("pickup.dateLabel")}
-            value={date}
-            min={today}
-            max={maxSelectable}
-            onChange={setDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-        </label>
+        <ISODatePicker
+          {...datePicker}
+          id={`${errorId}-date`}
+          label={t("pickup.dateLabel")}
+          ariaLabel={t("pickup.dateLabel")}
+          value={date}
+          min={today}
+          max={maxSelectable}
+          onChange={setDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
 
         {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
             würde er an einem anderen Tag falsch klingen. */}
@@ -1530,18 +1513,24 @@ export function PickupTimeModal({
           </p>
         )}
         {todayLocked && (
-          <p
+          <InsetPanel
+            as="p"
             role="status"
-            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+            framed
+            className="text-sm text-gray-600"
           >
             {cutoffTime
               ? t("pickup.cutoffClosed", { time: cutoffTime })
               : t("pickup.cutoffClosedGeneric")}
-          </p>
+          </InsetPanel>
         )}
 
         {pending && (
-          <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
+          <InsetPanel
+            tone="warning"
+            padding="compact"
+            className="text-moto-orange-strong space-y-2"
+          >
             {request.pickup_time && (
               <p className="text-base font-semibold tabular-nums">
                 {request.previous_pickup_time
@@ -1596,10 +1585,10 @@ export function PickupTimeModal({
                 isSelf={request.is_self === true}
               />
             )}
-          </div>
+          </InsetPanel>
         )}
         {request?.status === "approved" && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t(
               request.departure_mode
                 ? "pickup.statusApprovedChange"
@@ -1608,7 +1597,7 @@ export function PickupTimeModal({
             {request.pickup_person
               ? ` ${tPermission("pickupPerson.label")} ${request.pickup_person}`
               : ""}
-          </p>
+          </InsetPanel>
         )}
         {studentId && request?.signed && request.is_self !== false && (
           <PickupProofButton
@@ -1629,84 +1618,65 @@ export function PickupTimeModal({
 
         {(pending && !editing) || todayLocked ? null : alreadyHome &&
           childFirstName ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.alreadyHome", { name: childFirstName })}
-          </p>
+          </InsetPanel>
         ) : staffOwned ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <InsetPanel as="p" framed className="text-sm text-gray-600">
             {t("pickup.staffSet", {
-              pickup: existing?.pickup_time ?? "—",
+              pickup: existing?.pickup_time ?? "–",
             })}
-          </p>
+          </InsetPanel>
         ) : (
           <div className="space-y-4">
             {modeField && (
-              <div className="block">
-                <span
-                  id={`${errorId}-mode`}
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  {t("pickup.modeLabel")}
-                </span>
-                <CustomSelect
-                  value={departureMode}
-                  options={[
-                    { value: "", label: t("pickup.modeUnchanged") },
-                    ...REQUESTABLE_DAY_DEPARTURE_MODES.map((mode) => ({
-                      value: mode,
-                      label: modeLabel(mode),
-                    })),
-                  ]}
-                  onChange={(next) => {
-                    setDepartureMode(next as DayDepartureMode | "");
-                    setSignature(null);
-                    if (next !== "" && next !== "pickup") setPickupPersonId("");
-                    if (invalidField === "pickupTime") {
-                      setInvalidField(null);
-                      form.clear();
-                    }
-                  }}
-                  ariaLabelledBy={`${errorId}-mode`}
-                />
-              </div>
+              <CustomSelect
+                label={t("pickup.modeLabel")}
+                value={departureMode}
+                options={[
+                  { value: "", label: t("pickup.modeUnchanged") },
+                  ...REQUESTABLE_DAY_DEPARTURE_MODES.map((mode) => ({
+                    value: mode,
+                    label: modeLabel(mode),
+                  })),
+                ]}
+                onChange={(next) => {
+                  setDepartureMode(next as DayDepartureMode | "");
+                  setSignature(null);
+                  if (next !== "" && next !== "pickup") setPickupPersonId("");
+                  if (invalidField === "pickupTime") {
+                    setInvalidField(null);
+                    form.clear();
+                  }
+                }}
+              />
             )}
             {departureModeEnabled && staffMode && (
-              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              <InsetPanel as="p" framed className="text-sm text-gray-600">
                 {t("pickup.modeStaffSet", { mode: modeLabel(staffMode) })}
-              </p>
+              </InsetPanel>
             )}
             {personField && (
-              <div className="block">
-                <span
-                  id={`${errorId}-person`}
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  {tPermission("pickupPerson.label")}
-                </span>
-                <CustomSelect
-                  value={pickupPersonId}
-                  options={[
-                    { value: "", label: tPermission("pickupPerson.none") },
-                    ...contacts.map((contact) => ({
-                      value: contact.guardian_profile_id,
-                      label:
-                        `${contact.first_name} ${contact.last_name}`.trim(),
-                    })),
-                  ]}
-                  onChange={(next) => {
-                    setPickupPersonId(next);
-                    setSignature(null);
-                    if (invalidField === "pickupTime") {
-                      setInvalidField(null);
-                      form.clear();
-                    }
-                  }}
-                  ariaLabelledBy={`${errorId}-person`}
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  {tPermission("pickupPerson.hint")}
-                </p>
-              </div>
+              <CustomSelect
+                label={tPermission("pickupPerson.label")}
+                hint={tPermission("pickupPerson.hint")}
+                value={pickupPersonId}
+                options={[
+                  { value: "", label: tPermission("pickupPerson.none") },
+                  ...contacts.map((contact) => ({
+                    value: contact.guardian_profile_id,
+                    label: `${contact.first_name} ${contact.last_name}`.trim(),
+                  })),
+                ]}
+                onChange={(next) => {
+                  setPickupPersonId(next);
+                  setSignature(null);
+                  if (invalidField === "pickupTime") {
+                    setInvalidField(null);
+                    form.clear();
+                  }
+                }}
+              />
             )}
             <TimeField
               inputRef={pickupTimeRef}
@@ -1724,38 +1694,37 @@ export function PickupTimeModal({
                   ? `${t("pickup.pickupOptionalHint")} ${t("timeFormatHint")}`
                   : t("timeFormatHint")
               }
+              timePickerLabels={{
+                selectTime: tTimePicker("selectTime"),
+                hour: tTimePicker("hour"),
+                minute: tTimePicker("minute"),
+                minimum: (time) => tTimePicker("minimum", { time }),
+              }}
               placeholder={t("timeExample")}
               // Mit einer Abholperson darf die Uhrzeit gleich bleiben (#4780).
               required={!modeField && !pickupPerson}
               invalid={invalidField === "pickupTime"}
               describedBy={invalidField === "pickupTime" ? errorId : undefined}
             />
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("pickup.reasonLabel")}
-                {reasonRequired && <RequiredMark />}
-              </span>
-              <textarea
-                ref={reasonRef}
-                value={reason}
-                onChange={(e) => {
-                  setReason(e.target.value);
-                  if (invalidField === "reason") {
-                    setInvalidField(null);
-                    form.clear();
-                  }
-                }}
-                maxLength={255}
-                required={reasonRequired}
-                rows={3}
-                placeholder={t("pickup.reasonPlaceholder")}
-                aria-invalid={invalidField === "reason"}
-                aria-describedby={
-                  invalidField === "reason" ? errorId : undefined
+            <Textarea
+              label={t("pickup.reasonLabel")}
+              ref={reasonRef}
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (invalidField === "reason") {
+                  setInvalidField(null);
+                  form.clear();
                 }
-                className="min-h-20 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              />
-            </label>
+              }}
+              maxLength={255}
+              required={reasonRequired}
+              rows={3}
+              placeholder={t("pickup.reasonPlaceholder")}
+              aria-invalid={invalidField === "reason"}
+              aria-describedby={invalidField === "reason" ? errorId : undefined}
+              className="min-h-20 resize-y text-base"
+            />
             {dayStatement && (
               <PickupSignatureField
                 id={DAY_SIGNATURE_FIELD}
@@ -1814,7 +1783,7 @@ function PickupProofButton({
   /** Der Fehler steht im offenen Dialog, nicht in einem Toast darunter. */
   onError: (err: unknown) => void;
 }>) {
-  const tPermission = useTranslations("parentPickupPermission");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -1864,7 +1833,7 @@ export function SickStatusSummary({
   /** Nach einer geänderten Anfrage: die Liste neu laden. */
   onEdited?: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
+  const t = useCareTermTranslations("parentChildCare");
   const locale = useLocale();
   const [editing, setEditing] = useState<ExcusedRequest | null>(null);
 
@@ -1970,9 +1939,11 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
-            <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-              {t("summary.pendingLabel")}
-            </span>
+            <StatusColorBadge
+              color={LOCATION_COLORS.WARNING}
+              compact
+              label={t("summary.pendingLabel")}
+            />
             {studentId && canEdit && r.is_self && (
               <Button
                 type="button"
@@ -2000,9 +1971,11 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
-            <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-              {t("summary.rejectedLabel")}
-            </span>
+            <StatusBadge
+              tone="red"
+              compact
+              label={t("summary.rejectedLabel")}
+            />
           </div>
           {r.decision_reason && (
             <p className="text-xs text-gray-500">

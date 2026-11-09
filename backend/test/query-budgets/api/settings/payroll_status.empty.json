@@ -1,0 +1,7 @@
+{
+  "scenario": "api.settings.payroll_status.empty",
+  "max": 5,
+  "exact": true,
+  "description": "Protected payroll status with zero persisted staff; real production Staff.List binding skips person hydration, JWT and tenant frame, exact DTO, no DML. Serve-host liveness excluded.",
+  "route": "GET /api/settings/payroll-status"
+}

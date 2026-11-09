@@ -32,7 +32,7 @@ function getColorClass(color: StatusIndicatorProps["color"]): string {
   // red DANGER.
   switch (color) {
     case "green":
-      return "animate-pulse bg-moto-green";
+      return "bg-moto-green";
     case "yellow":
       return "bg-moto-amber";
     case "red":

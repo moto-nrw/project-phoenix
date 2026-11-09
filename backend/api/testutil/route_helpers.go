@@ -12,11 +12,6 @@ type (
 	MFAEnrollmentClaims = routetest.MFAEnrollmentClaims
 )
 
-const (
-	MFAEnrollmentScopeTenant   = routetest.MFAEnrollmentScopeTenant
-	MFAEnrollmentScopePlatform = routetest.MFAEnrollmentScopePlatform
-)
-
 var (
 	WithTestTenant                = routetest.WithTestTenant
 	ProtectedTestTenantGroup      = routetest.ProtectedTestTenantGroup
@@ -61,6 +56,5 @@ var (
 	TestTokenAuth                 = routetest.TestTokenAuth
 	ClaimsFromContext             = routetest.ClaimsFromContext
 	WithEnrollmentClaims          = routetest.WithEnrollmentClaims
-	OpaqueCapabilityFingerprint   = routetest.OpaqueCapabilityFingerprint
 	WithRefreshToken              = routetest.WithRefreshToken
 )

@@ -536,34 +536,6 @@ type (
 	GroupSupervisorRow = sessionrecordstest.GroupSupervisorRow
 )
 
-// CreateTestActiveGroup creates a real active group (session) in the database.
-// This requires an ActivityGroup (activities.groups) and Room to exist.
-// Use this for testing session management and visit tracking.
-func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *ActiveGroupRow {
-	tb.Helper()
-
-	now := fixtureInstant()
-	activeGroup := &ActiveGroupRow{
-		GroupID:        &activityGroupID,
-		RoomID:         roomID,
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-	}
-	activeGroup.TenantID = fixtureTenantID(tb)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := db.NewInsert().
-		Model(activeGroup).
-		ModelTableExpr(`active.groups`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test active group")
-
-	return activeGroup
-}
-
 // CreateTestGroupSupervisor creates a real group supervisor record in the database.
 // This requires a Staff and ActiveGroup to already exist.
 func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *GroupSupervisorRow {
@@ -2129,64 +2101,6 @@ func OwnTenantRows(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	tb.Cleanup(func() { cleanupTenantTestData(tb, db, tenantIDs...) })
 }
 
-func discoverTenantTables(ctx context.Context, db bun.IDB) ([]string, error) {
-	var tables []string
-	err := db.NewSelect().
-		TableExpr("information_schema.columns AS c").
-		ColumnExpr("format('%I.%I', c.table_schema, c.table_name)").
-		Join("JOIN information_schema.tables AS t ON t.table_schema = c.table_schema AND t.table_name = c.table_name").
-		Where("c.column_name = 'tenant_id'").
-		Where("c.table_schema NOT IN ('pg_catalog', 'information_schema')").
-		Where("t.table_type = 'BASE TABLE'").
-		OrderExpr("c.table_schema, c.table_name").
-		Scan(ctx, &tables)
-	return tables, err
-}
-
-func discoverUnscopedAccountTables(ctx context.Context, db bun.IDB) ([]string, error) {
-	var tables []string
-	err := db.NewSelect().
-		TableExpr("information_schema.columns AS c").
-		ColumnExpr("format('%I.%I', c.table_schema, c.table_name)").
-		Join("JOIN information_schema.tables AS t ON t.table_schema = c.table_schema AND t.table_name = c.table_name").
-		Where("c.column_name = 'account_id'").
-		Where("c.table_schema NOT IN ('pg_catalog', 'information_schema')").
-		Where("t.table_type = 'BASE TABLE'").
-		Where("NOT EXISTS (SELECT 1 FROM information_schema.columns tenant_column WHERE tenant_column.table_schema = c.table_schema AND tenant_column.table_name = c.table_name AND tenant_column.column_name = 'tenant_id')").
-		OrderExpr("c.table_schema, c.table_name").
-		Scan(ctx, &tables)
-	return tables, err
-}
-
-type unscopedTenantDependent struct {
-	Child         string `bun:"child"`
-	Parent        string `bun:"parent"`
-	JoinPredicate string `bun:"join_predicate"`
-}
-
-func discoverUnscopedTenantDependents(ctx context.Context, db bun.IDB) ([]unscopedTenantDependent, error) {
-	var dependents []unscopedTenantDependent
-	err := db.NewSelect().
-		TableExpr("pg_constraint AS c").
-		ColumnExpr("format('%I.%I', child_namespace.nspname, child.relname) AS child").
-		ColumnExpr("format('%I.%I', parent_namespace.nspname, parent.relname) AS parent").
-		ColumnExpr("string_agg(format('child.%I = parent.%I', child_column.attname, parent_column.attname), ' AND ' ORDER BY key.ordinality) AS join_predicate").
-		Join("JOIN pg_class AS child ON child.oid = c.conrelid").
-		Join("JOIN pg_namespace AS child_namespace ON child_namespace.oid = child.relnamespace").
-		Join("JOIN pg_class AS parent ON parent.oid = c.confrelid").
-		Join("JOIN pg_namespace AS parent_namespace ON parent_namespace.oid = parent.relnamespace").
-		Join("JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS key(child_attnum, parent_attnum, ordinality) ON TRUE").
-		Join("JOIN pg_attribute AS child_column ON child_column.attrelid = child.oid AND child_column.attnum = key.child_attnum").
-		Join("JOIN pg_attribute AS parent_column ON parent_column.attrelid = parent.oid AND parent_column.attnum = key.parent_attnum").
-		Where("c.contype = 'f'").
-		Where("NOT EXISTS (SELECT 1 FROM pg_attribute candidate_column WHERE candidate_column.attrelid = child.oid AND candidate_column.attname = 'tenant_id' AND candidate_column.attnum > 0 AND NOT candidate_column.attisdropped)").
-		Where("EXISTS (SELECT 1 FROM pg_attribute candidate_column WHERE candidate_column.attrelid = parent.oid AND candidate_column.attname = 'tenant_id' AND candidate_column.attnum > 0 AND NOT candidate_column.attisdropped)").
-		GroupExpr("child_namespace.nspname, child.relname, parent_namespace.nspname, parent.relname, c.oid").
-		OrderExpr("child_namespace.nspname, child.relname, c.oid").
-		Scan(ctx, &dependents)
-	return dependents, err
-}
-
 // cleanupTenantTestData removes all test data for the specified tenant IDs
 // from all tenant-scoped tables in one isolated test-database transaction.
 func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
@@ -2949,10 +2863,7 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 		GuardianFirstName: "Guardian",
 		GuardianLastName:  "Test",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags:      []byte("{}"),
-		CustomData:        []byte("{}"),
 		SubmissionSource:  enrollmentOwner.RequestSourcePublic,
-		SourceMetadata:    []byte("{}"),
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}

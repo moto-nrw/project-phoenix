@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,17 +21,19 @@ import (
 // no session, whatever the scope and whether a guard ran.
 func TestSessionMintRefusesAnAccountErasedAfterItsChecks(t *testing.T) {
 	t.Parallel()
-	for _, scope := range []string{domain.ScopeTenant, domain.ScopeParent, domain.ScopeSchool, domain.ScopeCaterer, domain.ScopeOrg} {
-		t.Run("scope "+domain.PersistedPortalScope(scope), func(t *testing.T) {
+	for _, portal := range []domain.Portal{domain.PortalTenant, domain.PortalParent, domain.PortalSchool, domain.PortalCaterer, domain.PortalOrg} {
+		t.Run("portal "+portal.Name, func(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
-			f.seedStaff(1, 10, "user")
+			f.auth.store, f.auth.caterers, f.auth.traeger = admitEveryPortal(f, 1, 10, 7), admittedCaterer{}, validationMemberships{}
 			f.store.erasedBeforeMint = true
-			tenantID := int64(10)
-			if scope == domain.ScopeOrg {
-				tenantID = 0
+			tenantID, orgID := int64(10), int64(0)
+			if portal.Name == domain.PortalOrg.Name {
+				tenantID, orgID = 0, 7
 			}
-			_, err := f.auth.createRefreshSessionGuarded(context.Background(), f.store.accounts[1], tenantID, scope, nil, "", true)
+			_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
+				portal: portal, account: f.store.accounts[1], tenantID: tenantID, orgID: orgID, booked: []int64{10},
+			})
 			require.ErrorIs(t, err, domain.ErrAccountNotFound)
 			assert.Empty(t, f.store.sessionsOf(1), "no session for the erased account")
 			assert.NotContains(t, f.store.calls, "InsertAccountSession")
@@ -43,7 +47,7 @@ func TestLoginsRefuseAnAccountErasedAfterTheCredentialCheck(t *testing.T) {
 	t.Parallel()
 	for name, login := range map[string]func(f *authFixture) error{
 		"tenant": func(f *authFixture) error {
-			_, _, err := f.auth.loginWithAudit(context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests", "")
+			_, _, err := tenantPasswordLogin(f.auth, context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests")
 			return err
 		},
 		"parent": func(f *authFixture) error {
@@ -66,7 +70,7 @@ func TestLoginsRefuseAnAccountErasedAfterTheCredentialCheck(t *testing.T) {
 	}
 }
 
-// The live-account check sits in prepareSessionMint, which only
+// The live-account check sits in authorizeMint, which only
 // persistSessionInTransaction calls. The refresh rotation writes its
 // successor after it locked the live account (lockAccount). No other code of
 // the package writes an account session, so no mint path passes the check
@@ -86,11 +90,17 @@ func TestEveryAccountSessionIsWrittenBehindTheLiveAccountCheck(t *testing.T) {
 			writers[file] = count
 		}
 	}
-	assert.Equal(t, map[string]int{"account_login.go": 1, "session_refresh.go": 1}, writers)
+	assert.Equal(t, map[string]int{"session_mint.go": 1, "session_refresh.go": 1}, writers)
 
-	persist := functionSource(t, "account_login.go", "func (s *AccountAuthentication) persistSessionInTransaction(")
-	requireCalledBefore(t, persist, "s.prepareSessionMint(", "s.sessions.CreateAccountSession(",
+	persist := functionSource(t, "session_mint.go", "func (s *AccountAuthentication) persistSessionInTransaction(")
+	requireCalledBefore(t, persist, "s.authorizeMint(", "s.sessions.CreateAccountSession(",
 		"the login mint checks the live account before it writes the session")
+	// Both writers open their transaction through the one mint unit.
+	assert.Contains(t, persist, "s.mintUnit(ctx, ", "the mint transaction opens through mintUnit")
+	rotate := functionSource(t, "session_refresh.go", "func (s *AccountAuthentication) refreshSessionInTransaction(")
+	assert.Contains(t, rotate, "s.mintUnit(ctx, rotated.run)", "the rotation transaction opens through mintUnit")
+	ledger := functionSource(t, "account_login.go", "func (s *AccountAuthentication) logAuthEvent(")
+	assert.Contains(t, ledger, "s.ledgerUnit(", "an authentication event opens its school transaction through ledgerUnit")
 	refresh := functionSource(t, "session_refresh.go", "func (r *refreshRotation) run(")
 	requireCalledBefore(t, refresh, "r.lockAccount(", "r.persist(",
 		"the refresh rotation locks the live account before it writes the successor")
@@ -118,4 +128,36 @@ func functionSource(t *testing.T, file, signature string) string {
 	end := strings.Index(text[start:], "\n}\n")
 	require.Positive(t, end, signature)
 	return text[start : start+end]
+}
+
+// admittedStore holds what the guards of the caterer, Träger and Träger
+// school sessions ask beyond the login fakes: a caterer, the Träger right
+// "In OGS wechseln" and the school's admin role.
+type admittedStore struct{ *fakeStore }
+
+type admittedCaterer struct{ ports.CatererStore }
+
+func (admittedCaterer) FindCatererOfAccount(context.Context, int64) (domain.Caterer, bool, domain.OperationStats, error) {
+	return domain.Caterer{ID: 1}, true, stats(), nil
+}
+
+func (s admittedStore) ListTraegerRoles(context.Context, int64, int64) ([]string, domain.OperationStats, error) {
+	return []string{identityaccess.TraegerRoleSchoolAccess}, stats(), nil
+}
+
+func (s admittedStore) FindTraegerSchoolRole(context.Context, string, int64) (domain.RoleAssignment, []string, bool, domain.OperationStats, error) {
+	return domain.RoleAssignment{RoleID: 900, Name: domain.AdminRoleName, IsSystem: true}, nil, true, stats(), nil
+}
+
+// admitEveryPortal gives the account what the real guards of the tenant,
+// parent and school sessions demand at the school of the Träger: a mapping
+// with a staff, guardian and teacher role. The returned store adds the Träger
+// right and the school's admin role; admittedCaterer the caterer.
+func admitEveryPortal(f *authFixture, accountID, tenantID, organizationID int64) admittedStore {
+	f.seedStaff(accountID, tenantID, "user")
+	f.store.addMapping(accountID, tenantID,
+		domain.RoleAssignment{RoleID: 101, Name: domain.GuardianRoleName},
+		domain.RoleAssignment{RoleID: 102, Name: domain.LehrkraftRoleName, IsSystem: true})
+	f.schools.add(tenantID, organizationID, fmt.Sprintf("school-%d", tenantID), true, false)
+	return admittedStore{fakeStore: f.store}
 }

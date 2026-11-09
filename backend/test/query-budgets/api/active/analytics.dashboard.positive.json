@@ -1,0 +1,7 @@
+{
+  "scenario": "api.active.analytics.dashboard.positive",
+  "max": 14,
+  "exact": false,
+  "description": "GET /active/analytics/dashboard, N3/N8 populated rooms, activities, visits and supervisors; complete production route middleware capture.",
+  "route": "GET /api/active/analytics/dashboard"
+}

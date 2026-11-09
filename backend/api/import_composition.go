@@ -77,9 +77,14 @@ func newStudentImport(
 			ConsentHistory:  consentHistory,
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
-			CountsTowardChildQuota: schoolmembership.CountsTowardChildQuota,
+			CountsTowardChildQuota: ImportChildQuotaRule(),
 		},
 	), runtime)
+}
+
+// ImportChildQuotaRule binds the same membership rule to import configurations.
+func ImportChildQuotaRule() func(string, string, string, string) bool {
+	return schoolmembership.CountsTowardChildQuota
 }
 
 // newStaffImport composes the staff import. It files the Stammdatensatz
@@ -93,18 +98,18 @@ func newStaffImport(
 ) importModels.RowImporter[importModels.StaffImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewStaffImportConfig(
 		importPorts.StaffImportDeps{
-			Authorization:       NewImportAuthorization(),
-			Transactions:        runtime.Transactions,
-			Invitations:         NewStaffInviter(invitations),
-			FindInvitedPeople:   identity.FindInvitedPersonIDs,
-			FindSchoolAccount:   NewImportSchoolAccountLookup(identity),
-			Roles:               identity,
-			RolePolicy:          dataImportCompose.NewSchoolRolePolicy(),
-			FindRolePermissions: identity.FindRolePermissions,
-			SchoolName:          NewImportSchoolName(organizations),
-			Persons:             persons,
-			Membership:          membership,
-			Records:             workforce,
+			Authorization:                NewImportAuthorization(),
+			Transactions:                 runtime.Transactions,
+			Invitations:                  NewStaffInviter(invitations),
+			FindInvitedPeople:            identity.FindInvitedPersonIDs,
+			FindSchoolAccount:            NewImportSchoolAccountLookup(identity),
+			Roles:                        identity,
+			RolePolicy:                   dataImportCompose.NewSchoolRolePolicy(),
+			FindRolePermissionsByRoleIDs: identity.FindRolePermissionsByRoleIDs,
+			SchoolName:                   NewImportSchoolName(organizations),
+			Persons:                      persons,
+			Membership:                   membership,
+			Records:                      workforce,
 		},
 	), runtime)
 }

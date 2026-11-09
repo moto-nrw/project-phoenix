@@ -1,0 +1,7 @@
+{
+  "scenario": "api.activities.presence20.schedules.n3",
+  "max": 5,
+  "exact": true,
+  "description": "Production resource, positive N3 input, complete real tenant request SQL.",
+  "route": "GET /api/activities/{id}/schedules"
+}

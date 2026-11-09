@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.parentportal.contract_documents.list",
+  "max": 15,
+  "exact": false,
+  "description": "workflows/parentportal — GET /parent/me/documents/contracts (#4678, ADR 0153):\nthe same administrative access resolution as the letters, then per\nTräger its binding, the sent care contracts of the address and one trail\nentry for the listed contracts. Flat in the number of contracts."
+}

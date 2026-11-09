@@ -18,7 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -134,11 +134,12 @@ func TestOperatorMFAService_VerifyChallenge_RejectsTenantScopeToken(t *testing.T
 
 	// Mint a tenant-scope challenge JWT and pass it to the operator service —
 	// the operator path must reject anything that isn't MFAChallengeScopePlatform.
-	tenantToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
+	tenantToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, tokentest.MFAChallengeClaims{
 		AccountID: op.ID,
-		Scope:     sessiontoken.MFAChallengeScopeTenant,
-		TenantID:  70010001, // sentinel — operator service never reads tenant_id, claim is just plumbing
+		Scope:     tokentest.MFAChallengeScopeTenant,
+		TenantID:  70010001,
 	}, time.Minute)
+
 	require.NoError(t, err)
 
 	_, err = svc.VerifyOperatorMFAChallenge(ctx, tenantToken, "123456")
@@ -161,10 +162,11 @@ func TestOperatorMFAService_ResendChallenge_InvalidToken(t *testing.T) {
 func TestOperatorMFAService_ResendChallenge_WrongScopeRejected(t *testing.T) {
 	t.Parallel()
 	svc, tokenAuth, _ := newTestOperatorMFAService(t)
-	tenantToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
+	tenantToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, tokentest.MFAChallengeClaims{
 		AccountID: 4242,
-		Scope:     sessiontoken.MFAChallengeScopeTenant,
+		Scope:     tokentest.MFAChallengeScopeTenant,
 	}, time.Minute)
+
 	require.NoError(t, err)
 	renewed, err := svc.ResendOperatorMFAChallenge(context.Background(), tenantToken, net.ParseIP("127.0.0.1"))
 	require.Error(t, err)

@@ -20,7 +20,6 @@ export default {
         // is selected by tenant input.
         files: [
           "src/app/api/enrollment/[tenantSlug]/submit/route.ts",
-          "src/app/api/enrollment/captcha-config/[tenantSlug]/route.ts",
           "src/app/api/enrollment/phases/public/[tenantSlug]/route.ts",
         ],
         rules: ["react-doctor/tenant-static-proxy-risk"],
@@ -28,7 +27,7 @@ export default {
       {
         // The stored value is a numeric UI countdown expiry. Password-reset
         // and authentication tokens never enter browser storage.
-        files: ["src/components/ui/password-reset-modal.tsx"],
+        files: ["src/components/auth/password-reset-modal.tsx"],
         rules: ["react-doctor/auth-token-in-web-storage"],
       },
       {

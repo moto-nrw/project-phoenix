@@ -127,6 +127,7 @@ function viaSidebar(path: string, label: string): SetupTourStop[] {
 const INVITE_FORM = 'div:has(> form [data-setup-tour="invite-submit"])';
 
 const IMPORT_SUBMIT = '[data-setup-tour="student-import-submit"]';
+const IMPORT_UPLOAD = '[data-setup-tour="student-import-upload"]';
 
 /** Zweige einer Tour, auf eigener Seite und mit eigener Zählung. */
 export type SetupTourBranch = "student-import";
@@ -149,7 +150,7 @@ export const SETUP_TOUR_BRANCHES: Readonly<Record<SetupTourBranch, SetupTour>> =
           advance: "next",
         },
         {
-          target: 'div:has(> input[type="file"])',
+          target: IMPORT_UPLOAD,
           title: "Datei hochladen",
           text: "Ziehen Sie die ausgefüllte Datei hierher oder wählen Sie „Datei auswählen“. Danach zeigt moto eine Vorschau.",
           advance: "next",
@@ -267,10 +268,24 @@ export const SETUP_TOURS: Readonly<
     stops: [
       ...viaSidebar("/database/students", "Kinderdaten"),
       {
-        target: '[data-setup-tour="student-import"]',
+        // Am Handy gibt es den Import nicht: Beide Stationen entfallen dort.
+        target: '[data-setup-tour="student-menu"]',
         title: "Viele Kinder auf einmal",
-        text: "Haben Sie eine Liste? Mit „Importieren“ übernehmen Sie alle Kinder in einem Schritt. Wählen Sie „Importieren“, dann zeigt die Tour, wie es geht. Für ein einzelnes Kind wählen Sie „Weiter“.",
+        text: "Haben Sie eine Liste? Mit „Importieren“ übernehmen Sie alle Kinder in einem Schritt. Öffnen Sie dafür dieses Menü. Für ein einzelnes Kind wählen Sie „Weiter“.",
         advance: "next",
+        optional: true,
+        skipCount: 2,
+        advanceWhenVisible: '[data-setup-tour="student-import"]',
+      },
+      {
+        // Nur bei offenem Menü da. Bleibt es zu (etwa mit „Weiter“ von der
+        // Station davor) oder geht es wieder zu, entfällt die Station sofort.
+        target: '[data-setup-tour="student-import"]',
+        title: "Importieren wählen",
+        text: "Wählen Sie „Importieren“, dann zeigt die Tour, wie es geht. Für ein einzelnes Kind wählen Sie „Weiter“.",
+        advance: "next",
+        skipWhenVisible: 'body:not(:has([data-setup-tour="student-import"]))',
+        skipOnBack: true,
         // Wer hier auf „Importieren“ klickt, sieht, wie der Import geht.
         branch: "student-import",
       },

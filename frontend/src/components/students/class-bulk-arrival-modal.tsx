@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -13,7 +14,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { ClassArrivalExceptionPanel } from "./class-arrival-exception-panel";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ArrivalScheduleInput,
@@ -28,8 +29,8 @@ import {
 import { SchoolPeriodSelect } from "./school-period-select";
 import { formatDate } from "~/lib/date-helpers";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import { cn } from "~/lib/utils";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "FilteredBulkArrivalModal" });
 
@@ -208,7 +209,7 @@ export function FilteredBulkArrivalModal({
     let cancelled = false;
     void fetchArrivalSettings()
       .then((settings) => {
-        if (!cancelled) setSchoolPeriods(settings.school_periods ?? []);
+        if (!cancelled) setSchoolPeriods(settings.schoolPeriods);
       })
       .catch((err) => {
         logger.warn("school_periods_fetch_failed", {
@@ -406,19 +407,19 @@ export function FilteredBulkArrivalModal({
                 const value = draft[day.value] ?? "";
                 const invalid = !isValidTime(value);
                 return (
-                  <div
+                  <InsetPanel
                     key={day.value}
-                    className={cn(
-                      "grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
-                      invalid && "border-moto-red/30 bg-moto-red-soft",
-                    )}
+                    tone={invalid ? "danger" : "muted"}
+                    framed
+                    padding="compact"
+                    className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-3 gap-y-1"
                   >
-                    <label
+                    <FieldLabel
                       htmlFor={`bulk-arrival-${day.value}`}
-                      className="min-w-0 text-sm font-medium text-gray-700"
+                      className="mb-0 min-w-0"
                     >
                       {day.label}
-                    </label>
+                    </FieldLabel>
                     <Input
                       id={`bulk-arrival-${day.value}`}
                       type="time"
@@ -463,7 +464,7 @@ export function FilteredBulkArrivalModal({
                         nicht ändern
                       </span>
                     ) : null}
-                  </div>
+                  </InsetPanel>
                 );
               })}
             </div>

@@ -50,6 +50,7 @@ import {
   type DocumentTemplateText,
   fetchDocumentTemplate,
   hasInvoiceTable,
+  hasLegalRemedy,
   invoiceLayoutOf,
   isDocumentTemplateKind,
   previewDocumentTemplate,
@@ -207,7 +208,7 @@ function TemplateEditorPage({
     return typeof item?.value === "string" ? item.value : "";
   };
   const set = (
-    part: "subject" | "salutation" | "body" | "closing",
+    part: "subject" | "salutation" | "body" | "closing" | "legalRemedy",
     value: string,
   ) => setDraft((before) => (before ? { ...before, [part]: value } : before));
   const rememberCaret = (field: HTMLTextAreaElement) => {
@@ -362,6 +363,31 @@ function TemplateEditorPage({
                     maxLength={500}
                     disabled={!canEdit || saving}
                   />
+                  {hasLegalRemedy(kind) ? (
+                    <div className="flex flex-col gap-2">
+                      <Textarea
+                        id="template-legal-remedy"
+                        label="Rechtsbehelfsbelehrung"
+                        name="legal_remedy"
+                        hint="Steht auf jedem Gebührenbescheid nach dem Brieftext. Nennen Sie Frist, Stelle und Form des Widerspruchs."
+                        rows={6}
+                        value={draft.legalRemedy ?? ""}
+                        onChange={(event) =>
+                          set("legalRemedy", event.target.value)
+                        }
+                        error={formErrors.fieldError("legal_remedy")}
+                        maxLength={5000}
+                        disabled={!canEdit || saving}
+                      />
+                      {(draft.legalRemedy ?? "").trim() === "" ? (
+                        <Alert
+                          type="warning"
+                          size="compact"
+                          message="Ohne Rechtsbehelfsbelehrung gibt moto keinen Gebührenbescheid frei."
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                   {invoice ? (
                     <DocumentTemplateInvoiceFields
                       layout={invoiceLayoutOf(draft)}
@@ -382,9 +408,11 @@ function TemplateEditorPage({
                       variant="outline"
                       size="md"
                       disabled={saving || previewing || !previewStale}
+                      isLoading={previewing}
+                      loadingText="Vorschau lädt…"
                       onClick={() => void showPreview()}
                     >
-                      {previewing ? "Vorschau lädt…" : "Vorschau zeigen"}
+                      Vorschau zeigen
                     </Button>
                     {canEdit && changed ? (
                       <EditActions

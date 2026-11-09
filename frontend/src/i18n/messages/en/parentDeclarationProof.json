@@ -4,7 +4,7 @@
   "download": "Download as PDF",
   "downloading": "Creating …",
   "integrityOk": "Text and answers are unchanged since publication.",
-  "integrityBroken": "Attention: A stored entry was changed afterwards. Please contact the OGS.",
+  "integrityBroken": "Attention: A stored entry was changed afterwards. Please contact the {careTerm}.",
   "notFound": "There is no proof for this child yet. It is created as soon as you have answered a consent request.",
   "generated": "Created on {date}",
   "child": "Child",

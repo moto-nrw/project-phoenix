@@ -32,9 +32,12 @@ type PushSender interface {
 }
 
 type ProviderResult struct {
-	MessageID  string          `json:"message_id,omitempty"`
-	StatusCode int             `json:"status_code,omitempty"`
-	Details    json.RawMessage `json:"details,omitempty"`
+	MessageID string `json:"message_id,omitempty"`
+	// ProviderMessageID is the ID the mail provider reported for an accepted mail.
+	ProviderMessageID string          `json:"provider_message_id,omitempty"`
+	UsedFallback      bool            `json:"used_fallback,omitempty"`
+	StatusCode        int             `json:"status_code,omitempty"`
+	Details           json.RawMessage `json:"details,omitempty"`
 }
 
 const ProviderAcceptedStatusCode = 202
@@ -47,6 +50,9 @@ type ClaimedIntent struct {
 	OrganizationID    int64
 	Transport         Transport
 	Template          string
+	DeliveryToken     string
+	Security          bool
+	UseFallback       bool
 	RelatedEntityType *string
 	RelatedEntityID   *int64
 	EmailRecipient    EmailRecipient

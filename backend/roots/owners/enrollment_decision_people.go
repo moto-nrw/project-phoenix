@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -184,6 +185,27 @@ func (s enrollmentStudentRecords) FindStudent(ctx context.Context, id int64) err
 	return err
 }
 
+// EnrolledMatchCandidates maps the directory's enrolled-child candidates of
+// an enrollment onto Enrollment's values (#6053).
+func (s enrollmentStudentRecords) EnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday timezone.Date) ([]enrollmentOwner.ExistingChildCandidate, error) {
+	rows, err := s.repo.FindEnrolledMatchCandidates(ctx, firstName, lastName, birthday)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]enrollmentOwner.ExistingChildCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidate := enrollmentOwner.ExistingChildCandidate{
+			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
+		}
+		if row.Birthday != nil {
+			dob := enrollmentOwner.Date(row.Birthday.String())
+			candidate.DateOfBirth = &dob
+		}
+		candidates = append(candidates, candidate)
+	}
+	return candidates, nil
+}
+
 // decisionStudentRow is the People Directory row of a decision's student.
 func decisionStudentRow(student *enrollmentCompose.Student) *peopledirectory.StudentState {
 	row := &peopledirectory.StudentState{
@@ -218,6 +240,12 @@ type enrollmentStudentAudit struct {
 
 func (a enrollmentStudentAudit) RecordChangesForActor(ctx context.Context, before, after *enrollmentCompose.Student, editedBy int64) error {
 	return a.auditor.RecordChangesForActor(ctx, decisionStudentRow(before), decisionStudentRow(after), editedBy)
+}
+
+// RecordSystemChanges names the tick explicitly without changing the existing
+// authenticated-actor audit binding.
+func (a enrollmentStudentAudit) RecordSystemChanges(ctx context.Context, before, after *enrollmentCompose.Student) error {
+	return a.auditor.RecordChanges(ctx, decisionStudentRow(before), decisionStudentRow(after), peopledirectory.StudentAuditSystemActorID, peopledirectory.StudentAuditSystemActorName)
 }
 
 func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error {

@@ -19,6 +19,10 @@
 //
 // `variant="row"` zeigt dieselbe verlinkte Kennzahl als kompakte Listenzeile.
 //
+// `variant="inline"` ist die ruhige Kachel für dichte Raster in Karten (Symbol,
+// Wert, Zusatz, Label): ohne Versalien und ohne Farbe. Die Anmeldungen haben
+// sie eingeführt und sich dafür eine eigene Komponente gebaut (#5583).
+//
 // SectionCard bleibt die Antwort für die Karte mit Icon, Überschrift und
 // Inhalt; DataField die für ein Label-Wert-Paar.
 //
@@ -31,10 +35,13 @@
 // green by a factor of two). Both come from LOCATION_COLORS, so this component
 // holds no palette values of its own and cannot go stale when the palette moves.
 
+import { cn } from "~/lib/utils";
+import { listRowClasses } from "./list-row-styles";
 import type { ReactNode } from "react";
 import Link from "~/components/ui/navigation-link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import { IconTile } from "~/components/ui/icon-tile";
+import { ProgressBar } from "~/components/ui/progress-bar";
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
@@ -107,7 +114,56 @@ type StatTileProps = {
   readonly tone?: StatCardTone;
 };
 
-export function StatCard(props: StatCardProps | StatTileProps) {
+type StatInlineProps = {
+  readonly variant: "inline";
+  readonly label: string;
+  readonly value: ReactNode;
+  /**
+   * Zweite Zahl hinter dem Wert, etwa die freien Plätze. Sie bricht in einer
+   * schmalen Kachel um, statt über den Rand hinauszulaufen.
+   */
+  readonly detail?: ReactNode;
+  /** Optional, weil die dichten Vierer-Raster ohne Symbol auskommen. */
+  readonly icon?: ReactNode;
+};
+
+function StatInline({ label, value, detail, icon }: StatInlineProps) {
+  return (
+    // Mittig ausgerichtet, damit eine Kachel ohne Zusatzwert neben einer
+    // umbrochenen Nachbarkachel nicht oben klebt.
+    <div className="moto-content-surface flex items-center rounded-2xl border px-4 py-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {icon == null ? null : <IconTile size="sm" shape="round" icon={icon} />}
+        <span className="min-w-0">
+          <span
+            className={`block text-lg font-semibold text-gray-900 ${
+              detail == null ? "leading-none" : "leading-tight"
+            }`}
+          >
+            {value}
+            {detail == null ? null : (
+              <span className="text-sm font-normal text-gray-500">
+                {" "}
+                · {detail}
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block text-xs font-medium text-gray-500">
+            {label}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function StatCard(
+  props: StatCardProps | StatTileProps | StatInlineProps,
+) {
+  if (props.variant === "inline") {
+    return <StatInline {...props} />;
+  }
+
   if (props.variant === "tile") {
     return (
       <div className="rounded-xl bg-gray-50 px-3 py-2">
@@ -140,13 +196,18 @@ export function StatCard(props: StatCardProps | StatTileProps) {
 
   const card =
     props.variant === "row" ? (
-      <div className="flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors group-hover:bg-gray-100/50">
+      <div
+        className={cn(
+          listRowClasses(),
+          "transition-colors group-hover:bg-gray-100/50",
+        )}
+      >
         {icon}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
           {label}
         </span>
         {loading ? (
-          <Skeleton className="h-4 w-8 rounded" />
+          <Skeleton className="h-4 w-8" />
         ) : (
           <span
             className="text-sm font-semibold text-gray-900 tabular-nums"
@@ -181,7 +242,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
               wirklich eine Aktion liegt; sonst nahm er dem Label auf dem
               Telefon neben dem Symbol ein Drittel der Breite. */}
             <p
-              className={`text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide ${
+              className={`text-xs font-semibold tracking-wider break-words text-gray-500 uppercase max-sm:tracking-wide ${
                 action != null ? "pr-8" : ""
               }`}
             >
@@ -215,15 +276,14 @@ export function StatCard(props: StatCardProps | StatTileProps) {
           <p className="mt-1 text-xs text-gray-500">{hint}</p>
         ) : null}
         {progressPct !== undefined ? (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min(100, Math.max(0, progressPct))}%`,
-                backgroundColor: barColor(tone),
-              }}
-            />
-          </div>
+          <ProgressBar
+            value={Math.round(progressPct)}
+            max={100}
+            label={label}
+            color={barColor(tone)}
+            size="sm"
+            className="mt-3"
+          />
         ) : null}
       </div>
     );

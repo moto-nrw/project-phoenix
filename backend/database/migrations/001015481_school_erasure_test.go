@@ -118,7 +118,21 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		// #5128: records change events in active.visit_revision_events, which
 		// the plan deletes after active.visits ("after" edge).
 		"active.visits:active.record_visit_revision",
+		// #6087: snapshots only care intervals into existing school guest rows.
+		// The source registration is Träger data, outside the school plan; the
+		// sink enrollment.holiday_guests is already tenant-scoped in that plan.
+		// Thus no new source/sink ordering edge is needed for school erasure.
+		"enrollment.holiday_registrations:enrollment.holiday_guest_keeps_care_windows",
+		// #5994: refuses to delete a holiday time model the trail of a
+		// rebooking names while its period lives; Träger data, outside the
+		// plan of a school.
+		"enrollment.holiday_week_time_models:enrollment.holiday_time_model_keeps_booked_history",
 		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
+		// #6197: refuses to delete a correction of an issued monthly invoice
+		// unless its invoice is gone, so only the cascade from the invoice
+		// removes it (the demo erasure deletes the invoice). Träger data
+		// (scope organization), outside the plan of a school.
+		"parent_billing.care_invoice_corrections:parent_billing.refuse_care_invoice_correction_change",
 		// #5628: drops a sibling group of a Träger left with one holiday
 		// registration; Träger data, outside the plan of a school.
 		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",

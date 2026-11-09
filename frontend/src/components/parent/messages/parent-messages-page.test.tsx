@@ -9,7 +9,10 @@ vi.mock("next-auth/react", () => ({
     },
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ApiError } from "~/lib/api-error";
 import { NextIntlClientProvider } from "next-intl";
@@ -189,9 +192,9 @@ describe("ParentMessagesPage", () => {
     expect(
       screen.getByRole("heading", { name: "Nachrichten" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getAllByTestId("parent-page-section-row-skeleton"),
-    ).toHaveLength(3);
+    expect(screen.getByRole("status")).toHaveAccessibleName(
+      "Inhalt wird geladen",
+    );
   });
 
   it("ist bei einem Kind selbst die Unterhaltung, ohne Zwischenschritt", async () => {
@@ -323,7 +326,11 @@ describe("ParentMessagesPage", () => {
     expect(
       screen.getByText("Bitte an die Trinkflasche denken."),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("17.08.2026, 08:00").className).toContain(
+    const fullTimestamp = screen
+      .getAllByText("17.08.2026, 08:00")
+      .find((element) => element.getAttribute("aria-hidden") === "true")!;
+    expect(fullTimestamp).toHaveAttribute("aria-hidden", "true");
+    expect(fullTimestamp.parentElement?.parentElement).toHaveClass(
       "text-moto-blue",
     );
 

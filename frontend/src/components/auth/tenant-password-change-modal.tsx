@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 
-import { PasswordChangeModal } from "~/components/ui/password-change-modal";
+import { PasswordChangeModal } from "~/components/auth/password-change-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { credentialError } from "./credential-error";
 

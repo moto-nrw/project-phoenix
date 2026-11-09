@@ -2,20 +2,17 @@
 
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
-import {
-  PlusIcon,
-  SimpleEmptyState,
-} from "../provisioning/provisioning-shared";
+import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import { CreateDeviceModal } from "../provisioning/create-device-modal";
 import { SetApiKeyModal } from "../provisioning/set-api-key-modal";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
@@ -23,7 +20,7 @@ import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
-import { devicesConcept } from "~/lib/concepts/devices";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 function OperatorDevicesPageContent() {
   useSetBreadcrumb({ pageTitle: "Geräte" });
@@ -114,30 +111,11 @@ function OperatorDevicesPageContent() {
     () => void refreshDevices(),
   );
 
-  const tabs = useMemo(
-    () => ({
-      items: [
-        {
-          id: "devices",
-          label: "Geräte",
-          count: selectedSchool
-            ? schoolDevices?.length
-            : filterOrgId
-              ? orgDevices?.length
-              : allDevices?.length,
-        },
-      ],
-      activeTab: "devices",
-      onTabChange: () => undefined,
-    }),
-    [
-      selectedSchool,
-      filterOrgId,
-      schoolDevices?.length,
-      orgDevices?.length,
-      allDevices?.length,
-    ],
-  );
+  const count = selectedSchool
+    ? schoolDevices?.length
+    : filterOrgId
+      ? orgDevices?.length
+      : allDevices?.length;
 
   const actionButton = (
     <Button
@@ -150,41 +128,63 @@ function OperatorDevicesPageContent() {
     </Button>
   );
 
-  const mobileActionButton = (
-    <Button
-      type="button"
-      variant="primary"
-      size="icon"
-      onClick={() => setCreateDeviceOpen(true)}
-      aria-label="Neues Gerät"
-    >
-      <PlusIcon />
-    </Button>
-  );
-
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Geräte"
-        concept={devicesConcept}
-        tabs={tabs}
-        actionButton={actionButton}
-        mobileActionButton={mobileActionButton}
-      />
-
-      <OrgSchoolFilter
-        idPrefix="device"
-        organizations={activeOrganizations}
-        filteredSchools={filteredSchools}
-        filterOrgId={filterOrgId}
-        selectedSchool={selectedSchool}
-        onOrgChange={handleOrgFilterChange}
-        onSchoolChange={handleSchoolFilterChange}
-      />
-
-      <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
-      <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
-      <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+    <TenantPage
+      title="Geräte"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats
+            items={[{ value: count, label: count === 1 ? "Gerät" : "Geräte" }]}
+          />
+        )
+      }
+      actions={actionButton}
+      searchSlot={
+        <OrgSchoolFilter
+          idPrefix="device"
+          organizations={activeOrganizations}
+          filteredSchools={filteredSchools}
+          filterOrgId={filterOrgId}
+          selectedSchool={selectedSchool}
+          onOrgChange={handleOrgFilterChange}
+          onSchoolChange={handleSchoolFilterChange}
+        />
+      }
+      overlays={
+        <>
+          <CreateDeviceModal
+            isOpen={createDeviceOpen}
+            onClose={() => setCreateDeviceOpen(false)}
+            schools={activeSchools}
+            onCreated={() => {
+              void refreshDevices();
+            }}
+          />
+          <SetApiKeyModal
+            isOpen={setKeyDevice !== null}
+            onClose={() => setSetKeyDevice(null)}
+            device={setKeyDevice}
+            onKeySet={() => {
+              void refreshDevices();
+            }}
+          />
+          <TransferDeviceModal
+            device={transferDevice}
+            schools={activeSchools}
+            onClose={() => setTransferDevice(null)}
+            onTransferred={() => refreshDevices().then(() => undefined)}
+          />
+          <DeleteDeviceModal
+            device={deleteDevice}
+            onClose={() => setDeleteDevice(null)}
+            onDeleted={() => refreshDevices().then(() => undefined)}
+          />
+        </>
+      }
+    >
+      <LoadErrorAlert error={organizationsLoadError} />
+      <LoadErrorAlert error={schoolsLoadError} />
+      <LoadErrorAlert error={devicesLoadError} />
 
       {!urlSchoolId && filterOrgId && (
         <>
@@ -244,10 +244,13 @@ function OperatorDevicesPageContent() {
               </span>
             )}
             {schoolDevices && (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                {schoolDevices.length}{" "}
-                {schoolDevices.length === 1 ? "Gerät" : "Geräte"}
-              </span>
+              <StatusBadge
+                tone="gray"
+                compact
+                label={`${schoolDevices.length} ${
+                  schoolDevices.length === 1 ? "Gerät" : "Geräte"
+                }`}
+              />
             )}
           </div>
           {!schoolDevicesError &&
@@ -269,41 +272,13 @@ function OperatorDevicesPageContent() {
           )}
         </>
       )}
-
-      <CreateDeviceModal
-        isOpen={createDeviceOpen}
-        onClose={() => setCreateDeviceOpen(false)}
-        schools={activeSchools}
-        onCreated={() => {
-          void refreshDevices();
-        }}
-      />
-      <SetApiKeyModal
-        isOpen={setKeyDevice !== null}
-        onClose={() => setSetKeyDevice(null)}
-        device={setKeyDevice}
-        onKeySet={() => {
-          void refreshDevices();
-        }}
-      />
-      <TransferDeviceModal
-        device={transferDevice}
-        schools={activeSchools}
-        onClose={() => setTransferDevice(null)}
-        onTransferred={() => refreshDevices().then(() => undefined)}
-      />
-      <DeleteDeviceModal
-        device={deleteDevice}
-        onClose={() => setDeleteDevice(null)}
-        onDeleted={() => refreshDevices().then(() => undefined)}
-      />
-    </div>
+    </TenantPage>
   );
 }
 
 export default function OperatorDevicesPage() {
   return (
-    <Suspense fallback={<div className="-mt-1.5 w-full" />}>
+    <Suspense fallback={<TenantPage title="Geräte" loading />}>
       <OperatorDevicesPageContent />
     </Suspense>
   );

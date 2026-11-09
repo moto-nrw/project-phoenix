@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -14,29 +15,39 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // mountTraegerRoutes serves the Träger-Portal at /traeger, the public
 // holiday registration (#4661, ADR 0110) at /traeger/holiday-registrations: the one
 // link of a published holiday period, without an account. Turnstile is
-// always required there. The Elternabrechnung (#4664) mounts beside them.
+// always required there. The Elternabrechnung (#4664) and the
+// Betreuungsvertrag (#4678) with its evaluation of overruns (#4683) and the
+// office's decision of the parents' changes (#5979) mount beside them.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
-	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, delivery deliveryRuntime.Capability, keys TurnstileKeys,
-	healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) error {
+	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings TraegerSchoolSettings, attendanceMarks owners.MealAttendanceMarks,
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
+	healthData enrollmentOwner.HolidayHealthCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, parentsURL string, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
-	mountParentBillingRoutes(root, organizations, settings, delivery, healthData, logger)
+	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, logger)
+	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
+		owners.NewCareContractNoticeAddressees(persons, identity), parentsURL)
+	mountCareTimeOverrunRoutes(root, organizations, statistics, audit.Log)
+	// The office decides the parents' changes through Care Plan's review of
+	// the school (#5979).
+	mountCareContractChangeRoutes(root, organizations, changes, schoolSettings, audit.Log)
 	return nil
 }
 
 // TraegerSettings is the Träger level of the settings system: the
 // settings of the Träger-Portal and the branding the letters print.
 type TraegerSettings interface {
-	settingsHTTP.TraegerOperations
+	TraegerPortalSettings
 	TraegerBrandingSettings
 }
 

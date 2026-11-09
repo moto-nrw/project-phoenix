@@ -75,6 +75,7 @@ func (s *Service) provisionalWindow(ctx context.Context, rules domain.OrderingRu
 	if err != nil {
 		return window, stats, err
 	}
+	prepareOrderRegistrations(seen, rules, window.days, periodStart, periodEnd, now)
 	due, dueStats, err := s.dueOrders(ctx, rules, window.state, window.days, periodStart, periodEnd, now, seen)
 	stats = addStats(stats, dueStats)
 	for _, order := range due {

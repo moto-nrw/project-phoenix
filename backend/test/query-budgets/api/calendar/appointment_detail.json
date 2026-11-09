@@ -1,0 +1,7 @@
+{
+  "scenario": "api.calendar.appointment_detail",
+  "max": 9,
+  "exact": true,
+  "description": "Real staff calendar Resource and TenantSessionChain, N3/N8 guardian recipients; full transaction statements, excluding the outer live-session verifier.",
+  "route": "GET /api/calendar/appointments/{appointmentId}"
+}

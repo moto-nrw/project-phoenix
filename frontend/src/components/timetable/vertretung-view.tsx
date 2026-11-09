@@ -42,17 +42,17 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { PlanLegend } from "~/components/ui/plan-legend";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
 import {
   PlanningContextBar,
   PlanningDayChip,
-} from "~/components/ui/planning-context-bar";
+} from "~/components/ui/planning/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { BulkSubstitutionModal } from "~/components/timetable/bulk-substitution-modal";
@@ -946,10 +946,7 @@ function VertretungContent() {
               (isWeekView ? weekdayInstances : dayInstances).length > 0
                 ? undefined
                 : isLoading
-                  ? {
-                      title: "Lädt…",
-                      description: "Termine werden geladen.",
-                    }
+                  ? undefined
                   : {
                       title: "Keine Termine",
                       description: isWeekView

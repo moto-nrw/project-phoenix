@@ -5,9 +5,8 @@ import { useSession } from "next-auth/react";
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   fetchTodaysNotices,
@@ -64,12 +63,8 @@ export function StaffNoticesBlock() {
   );
 
   return (
-    <SectionCard
+    <HomeCard
       title="Tagesinformationen"
-      // Die Karte füllt ihren Platz im Raster und scrollt in sich; ohne das
-      // stünde sie kürzer als ihre Nachbarn und die Reihe wirkt kaputt.
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept={announcementsConcept} />}
       inlineActions
       actions={
@@ -89,9 +84,9 @@ export function StaffNoticesBlock() {
           // eine Karte, die gerade nichts zu sagen hat.
           return (
             <div className="space-y-2" aria-hidden="true">
-              <Skeleton className="h-4 w-2/5 rounded" />
-              <Skeleton className="h-3 w-4/5 rounded" />
-              <Skeleton className="h-3 w-3/5 rounded" />
+              <Skeleton className="h-4 w-2/5" />
+              <Skeleton className="h-3 w-4/5" />
+              <Skeleton className="h-3 w-3/5" />
             </div>
           );
         }
@@ -116,6 +111,6 @@ export function StaffNoticesBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }

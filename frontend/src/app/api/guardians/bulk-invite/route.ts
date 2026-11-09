@@ -1,4 +1,4 @@
-import { proxyPost } from "@/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 // POST /api/guardians/bulk-invite
 // Invite the guardians of many children to the parents portal in one run

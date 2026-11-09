@@ -1,0 +1,7 @@
+{
+  "scenario": "api.timetable.student_day.populated",
+  "max": 15,
+  "exact": true,
+  "description": "Populated N3/N8 student day, real owner handler and tenant transaction; injected admin permission, excluding outer transport/auth/session liveness.",
+  "route": "GET /api/timetable/student/{id}/day"
+}

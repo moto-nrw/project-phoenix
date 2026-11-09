@@ -6,6 +6,7 @@ import {
   PortalSidebar,
   PortalSidebarGroup,
   PortalSidebarLink,
+  PortalSettingsSidebarEntries,
 } from "~/components/ui/portal-sidebar";
 import { traegerPath } from "~/lib/traeger-url";
 import {
@@ -37,25 +38,18 @@ export function TraegerSidebar() {
   if (isTraegerSettingsPath(pathname)) {
     return (
       <PortalSidebar navLabel={TRAEGER_SETTINGS_NAV.label}>
-        <PortalSidebarLink
-          href={returnHref}
-          label={TRAEGER_BACK_NAV.label}
-          concept={TRAEGER_BACK_NAV.concept}
-          active={false}
-          data-traeger-nav-item={TRAEGER_BACK_NAV.key}
+        <PortalSettingsSidebarEntries
+          back={{ ...TRAEGER_BACK_NAV, href: returnHref }}
+          groupLabel={TRAEGER_SETTINGS_NAV.label}
+          items={settingsItems.map((item) => ({
+            key: item.key,
+            href: traegerPath(item.href),
+            label: item.label,
+            concept: item.concept,
+            active: isTraegerNavActive(item.href, pathname),
+          }))}
+          navItemAttribute="data-traeger-nav-item"
         />
-        <PortalSidebarGroup label={TRAEGER_SETTINGS_NAV.label}>
-          {settingsItems.map((item) => (
-            <PortalSidebarLink
-              key={item.key}
-              href={traegerPath(item.href)}
-              label={item.label}
-              concept={item.concept}
-              active={isTraegerNavActive(item.href, pathname)}
-              data-traeger-nav-item={item.key}
-            />
-          ))}
-        </PortalSidebarGroup>
       </PortalSidebar>
     );
   }

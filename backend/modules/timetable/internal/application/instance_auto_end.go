@@ -69,32 +69,43 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 
 // completeIfDueIsolated rolls back only this completion when the scheduler
 // already runs in a tenant transaction: nested transactions map to
-// savepoints, so a failed block does not abort the batch.
+// savepoints, so a failed block does not abort the batch. Blocks that are not
+// due are counted from the listed row before any savepoint: they issue no
+// statement, so there is nothing to isolate (#5809).
 func (s *instanceAutoEnd) completeIfDueIsolated(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time, grace time.Duration, result *timetable.AutoEndResult) error {
+	if skipNotDue(instance, now, grace, result) {
+		return nil
+	}
 	if _, ok := tenant.TransactionFromContext(ctx); !ok {
-		return s.completeIfDue(ctx, instance, now, grace, result)
+		return s.complete(ctx, instance.ID, result)
 	}
 	return tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
-		return s.completeIfDue(savepointCtx, instance, now, grace, result)
+		return s.complete(savepointCtx, instance.ID, result)
 	})
 }
 
-func (s *instanceAutoEnd) completeIfDue(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time, grace time.Duration, result *timetable.AutoEndResult) error {
+// skipNotDue counts a listed block that auto-end leaves running: not active,
+// spontaneous, or before its planned end plus grace. It reads only the row.
+func skipNotDue(instance *scheduleModel.ActivityInstance, now time.Time, grace time.Duration, result *timetable.AutoEndResult) bool {
 	if instance.Status != scheduleModel.InstanceStatusActive {
 		result.SkippedNonActive++
-		return nil
+		return true
 	}
 	if instance.IsSpontaneous {
 		result.SkippedSpontaneous++
-		return nil
+		return true
 	}
 	deadline := timetable.LifecycleBoundary(calendar.Date(instance.Date), instance.EndTime).Add(grace)
 	if now.Before(deadline) {
 		result.SkippedBeforeDeadline++
-		return nil
+		return true
 	}
-	if _, err := s.completion.Complete(ctx, instance.ID); err != nil {
-		return s.classifyCompletionFailure(ctx, instance.ID, err, result)
+	return false
+}
+
+func (s *instanceAutoEnd) complete(ctx context.Context, instanceID int64, result *timetable.AutoEndResult) error {
+	if _, err := s.completion.Complete(ctx, instanceID); err != nil {
+		return s.classifyCompletionFailure(ctx, instanceID, err, result)
 	}
 	result.Completed++
 	return nil

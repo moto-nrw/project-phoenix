@@ -190,7 +190,9 @@ func (s *Service) ResolvePickupExtension(ctx context.Context, taskID int64, bloc
 		if assignErr != nil {
 			return assignErr
 		}
-		result.Assigned, result.Instances = chosen, instances
+		// A retried attempt starts the IDs afresh instead of appending to the
+		// failed attempt's list.
+		result.Assigned, result.Instances, result.InstanceIDs = chosen, instances, make([]int64, 0, len(instances))
 		for _, instance := range instances {
 			result.InstanceIDs = append(result.InstanceIDs, instance.ID)
 		}

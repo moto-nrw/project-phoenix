@@ -110,6 +110,7 @@ function brandingSchema(): SettingsSchema {
 
 const MASTER_DATA: TraegerMasterData = {
   contact: { name: "Petra Lindner", phone: "+49 5402 1234-0", email: "" },
+  withdrawal: { phone: "", email: "" },
   logo: null,
   bankAccounts: [
     {

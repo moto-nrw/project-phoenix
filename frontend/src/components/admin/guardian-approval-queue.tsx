@@ -16,6 +16,7 @@ import {
 } from "@/lib/guardian-api";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   formErrorMessage,
   type FormErrorInput,
@@ -106,7 +107,7 @@ function ApprovalsEmptyState({
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={
           <ConceptIconTile
@@ -131,7 +132,7 @@ function ApprovalsEmptyState({
           ) : undefined
         }
       />
-    </div>
+    </SectionCard>
   );
 }
 
@@ -309,10 +310,7 @@ export default function GuardianApprovalQueue({
         <InviteModeDependentEmptyState state={inviteModeState} />
       ) : (
         requests.map((req) => (
-          <div
-            key={req.id}
-            className="moto-content-surface rounded-2xl border p-4 sm:p-6"
-          >
+          <SectionCard key={req.id}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="truncate text-base font-semibold text-gray-900">
@@ -367,7 +365,7 @@ export default function GuardianApprovalQueue({
                 </Button>
               </div>
             </div>
-          </div>
+          </SectionCard>
         ))
       )}
 

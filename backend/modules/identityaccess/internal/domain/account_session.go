@@ -5,41 +5,6 @@ import (
 	"time"
 )
 
-// Portal scopes an account refresh session is persisted under. Org is the
-// Träger-Portal (ADR 0084); unknown marks legacy rows minted before the scope
-// was recorded.
-const (
-	PortalScopeTenant  = "tenant"
-	PortalScopeOrg     = "org"
-	PortalScopeParent  = "parent"
-	PortalScopeSchool  = "school"
-	PortalScopeCaterer = "caterer"
-	PortalScopeUnknown = "unknown"
-)
-
-// CapPortalScopes returns the portal scopes that share one session cap. Every
-// portal has its own bucket, the Träger-Portal included (ADR 0084). Unknown
-// legacy rows stay in their own bucket so a staff login cannot evict a legacy
-// parent session.
-func CapPortalScopes(portalScope string) []string {
-	switch portalScope {
-	case PortalScopeTenant:
-		return []string{PortalScopeTenant}
-	case PortalScopeOrg:
-		return []string{PortalScopeOrg}
-	case PortalScopeParent:
-		return []string{PortalScopeParent}
-	case PortalScopeSchool:
-		return []string{PortalScopeSchool}
-	case PortalScopeCaterer:
-		return []string{PortalScopeCaterer}
-	case "", PortalScopeUnknown:
-		return []string{PortalScopeUnknown}
-	default:
-		return []string{portalScope}
-	}
-}
-
 // AccountSession is one persisted, revocable refresh session of a platform
 // account at one school (auth.tokens). A family groups the generations one
 // login produced through rotation; the hand-off columns let a lost rotation
@@ -93,14 +58,10 @@ func (s *AccountSession) Validate() error {
 	case s.Token == "":
 		return errors.New("token value is required")
 	}
-	switch s.PortalScope {
-	case PortalScopeTenant, PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeCaterer, PortalScopeUnknown:
-	default:
+	if _, ok := PortalOfPersisted(s.PortalScope); !ok && s.PortalScope != PortalScopeUnknown {
 		return errors.New("invalid portal scope")
 	}
-	// An OGS session may name the Träger of its Absprung (ADR 0084 section 5).
-	traegerSchool := s.PortalScope == PortalScopeTenant && s.OrganizationID > 0
-	if (s.PortalScope == PortalScopeOrg) != (s.OrganizationID > 0 && !traegerSchool) || (s.PortalScope == PortalScopeOrg && s.TenantID != 0) || (traegerSchool && s.TenantID <= 0) {
+	if !s.traegerShapeHolds() {
 		return errors.New("a Träger session names its Träger and no school; an OGS session of the Träger names both; no other session names a Träger")
 	}
 	switch {
@@ -110,6 +71,19 @@ func (s *AccountSession) Validate() error {
 		return errors.New("recovery proof hash requires a rotation handoff")
 	}
 	return nil
+}
+
+// traegerShapeHolds: only a Träger session and an OGS session the Träger
+// opened through the Absprung name a Träger (ADR 0084 section 5).
+func (s *AccountSession) traegerShapeHolds() bool {
+	switch {
+	case s.PortalScope == PortalOrg.Name:
+		return PortalOrg.Holds(s.TenantID, s.OrganizationID)
+	case s.OrganizationID > 0:
+		return s.SessionKind() == SessionKindTraegerSchool && s.TenantID > 0
+	default:
+		return true
+	}
 }
 
 // AccountSessionLiveness narrows a listing by the expiry of the sessions.
@@ -138,8 +112,19 @@ type AccountSessionFilter struct {
 // lifetime.
 const TraegerSchoolHandoffTTL = 2 * time.Minute
 
-// IsTraegerSchoolSession reports an OGS session the Träger-Büro opened through
-// the Absprung: portal scope tenant with the Träger in OrganizationID.
-func IsTraegerSchoolSession(session AccountSession) bool {
-	return session.PortalScope == PortalScopeTenant && session.OrganizationID > 0
+// SessionKind is the rules the stored session follows; a legacy row without
+// a portal keeps its scope.
+func (s AccountSession) SessionKind() SessionKind {
+	portal, ok := PortalNamed(s.PortalScope)
+	if !ok {
+		return SessionKind(s.PortalScope)
+	}
+	return SessionKindOf(portal, s.OrganizationID > 0)
+}
+
+// KeptAtSchool reports whether the session belongs to a school; a legacy
+// row without a portal does.
+func (s AccountSession) KeptAtSchool() bool {
+	portal, ok := PortalOfPersisted(s.PortalScope)
+	return !ok || portal.KeptAtSchool()
 }

@@ -11,7 +11,9 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { compressAvatar } from "~/lib/image-utils";
 import { createLogger } from "~/lib/logger";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StudentPhotoSection" });
 
@@ -138,7 +140,7 @@ export function StudentPhotoSection({
   ]);
 
   return (
-    <div className="bg-moto-blue/5 rounded-xl border border-gray-100 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
           className="text-moto-blue h-3.5 w-3.5 md:h-4 md:w-4"
@@ -183,9 +185,10 @@ export function StudentPhotoSection({
         </div>
       </div>
 
-      <label
+      <ChoiceTile
         htmlFor="photo-consent"
-        className="moto-content-surface mt-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        selected={consentGiven}
+        className="mt-4 items-start p-3"
       >
         <Checkbox
           id="photo-consent"
@@ -209,7 +212,7 @@ export function StudentPhotoSection({
             </span>
           )}
         </div>
-      </label>
+      </ChoiceTile>
 
       {consentGiven ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -253,6 +256,6 @@ export function StudentPhotoSection({
           ) : null}
         </div>
       ) : null}
-    </div>
+    </InsetPanel>
   );
 }

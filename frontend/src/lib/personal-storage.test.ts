@@ -60,6 +60,9 @@ const PERSONAL_SESSION = {
   "parent-first-steps-opened:7": "1",
   "moto-pwa-usage-reported.tenant.7.1": "1",
   "traeger-settings-return-path": "/ferien/5/anmeldungen?status=offen",
+  "staff-settings-return-path": "/students/search?group=5",
+  "school-settings-return-path": "/klasse/3a",
+  "parent-settings-return-path": "/children/5",
 };
 
 // Settings without data of a person; they stay on the device.
@@ -229,6 +232,7 @@ describe("inventory", () => {
 
   // Storage files whose keys come from elsewhere. Each line names where.
   const KEYS_FROM_ELSEWHERE: Record<string, string> = {
+    "src/components/ui/settings-return-path.tsx": "storageKey from the portal",
     "src/lib/sidebar-memory.ts": "SIDEBAR_MEMORY_ENTRIES, checked below",
     "src/lib/hooks/use-local-storage-value.ts": "key from the caller",
     "src/lib/hooks/use-unread-count.ts": "cacheKey from the badge hooks",
@@ -244,7 +248,7 @@ describe("inventory", () => {
     "src/app/traeger/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/tenant/tenant-relogin.ts":
       "DELIBERATE_LOGOUT_KEY (session-cache)",
-    "src/components/ui/logout-modal.tsx":
+    "src/components/auth/logout-modal.tsx":
       "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/notifications/notification-setup-dialog.tsx":
       "setupStorageKey (notification-setup-decision)",

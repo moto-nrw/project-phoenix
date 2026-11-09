@@ -55,6 +55,7 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 			// chain and still counts them, so volume-based scan alerting is
 			// unaffected. Legitimate 4xx on GET/POST/... routes keep logging.
 			slogchi.IgnoreMethod(http.MethodConnect, http.MethodTrace, "PRI"),
+			keepAccessLogLine,
 		},
 	}))
 	router.Use(middleware.Recoverer)
@@ -71,6 +72,13 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	// outside ProtectedTenantGroup (notably /api/sse, which builds its own JWT
 	// chain) dedupe their identity-chain lookups too.
 	router.Use(RequestIdentityCacheMiddleware)
+}
+
+// keepAccessLogLine drops the access line of a webhook's 503, which would count
+// as a server error. Only the missing secret answers 503 here, and that writes
+// its own line; a failed store answers 500 and keeps its line.
+func keepAccessLogLine(ww middleware.WrapResponseWriter, r *http.Request) bool {
+	return ww.Status() != http.StatusServiceUnavailable || !strings.HasPrefix(r.URL.Path, emailWebhookPath+"/")
 }
 
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
@@ -196,7 +204,10 @@ func demoLoopbackExempt() bool {
 }
 
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *sessiontoken.TokenAuth, exemptLoopback bool) {
+// It runs after the session Verifier, whose parse the per-account key reads,
+// and before the session family check, so a flood of signed tokens is limited
+// before it reaches the database.
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, exemptLoopback bool) {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return
 	}
@@ -205,6 +216,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -214,7 +226,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		}
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
-	generalRateLimiter.SetKeyFunc(tokenAuth.RateLimitKey)
+	generalRateLimiter.SetKeyFunc(sessiontoken.RateLimitKey)
 	if exemptLoopback {
 		generalRateLimiter.ExemptLoopback()
 	}
@@ -296,4 +308,28 @@ func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handle
 		return nil
 	}
 	return limiters.auth.Middleware()
+}
+
+// A letter to a whole school brings a burst of provider events from a few IPs,
+// far above the limit of one person. The webhook has its own limit for that.
+const (
+	emailWebhookRequestsPerMinute = 1200
+	emailWebhookBurst             = 300
+)
+
+// emailWebhookRateLimit is nil when rate limiting is disabled.
+func emailWebhookRateLimit() func(http.Handler) http.Handler {
+	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+		return nil
+	}
+	return newEmailWebhookRateLimit(securityLoggerFromEnv())
+}
+
+func newEmailWebhookRateLimit(securityLogger *customMiddleware.SecurityLogger) func(http.Handler) http.Handler {
+	limiter := customMiddleware.NewRateLimiter(emailWebhookRequestsPerMinute, emailWebhookBurst)
+	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+	if securityLogger != nil {
+		limiter.SetLogger(securityLogger)
+	}
+	return limiter.Middleware()
 }

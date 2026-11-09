@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.AttachmentDigests",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.AttachmentDigests",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.AttachmentDigests. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.AttachmentDigests",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.AttachmentDigests",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.AttachmentDigests. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.AttachmentDigests",
@@ -11,6 +32,27 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CountAttachments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.CountAttachments",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.CountAttachments. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CountAttachments",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.CountAttachments",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.CountAttachments. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -25,6 +67,16 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.QueueAttachmentCleanupForAnnouncement",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.QueueAttachmentCleanupForAnnouncement",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.QueueAttachmentCleanupForAnnouncement. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.QueueAttachmentCleanupForAnnouncement",
@@ -35,6 +87,27 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.AttachmentDigests",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.AttachmentDigests",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.AttachmentDigests. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.AttachmentDigests",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.AttachmentDigests",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.AttachmentDigests. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -49,6 +122,27 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CleanupOrphanedFiles",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CleanupOrphanedFiles",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.CleanupOrphanedFiles. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CleanupOrphanedFiles",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CleanupOrphanedFiles",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.CleanupOrphanedFiles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CleanupOrphanedFiles",
@@ -59,6 +153,27 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CountAttachments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CountAttachments",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.CountAttachments. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CountAttachments",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CountAttachments",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.CountAttachments. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -73,6 +188,37 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CreateFolder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CreateFolder",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListActiveSchoolAccountIDs (identity-access) through *modules/filestorage/internal/application.Service.CreateFolder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListActiveSchoolAccountIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CreateFolder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CreateFolder",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.CreateFolder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CreateFolder",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.CreateFolder",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.CreateFolder. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.CreateFolder",
@@ -83,6 +229,38 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteAttachment",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteAttachment",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteAttachment. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteAttachment",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.RegisterAfterCommit (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteAttachment. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteAttachment",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteAttachment. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -97,6 +275,58 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.HasActiveSchoolMembership (identity-access) through *modules/filestorage/internal/application.Service.DeleteFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.HasActiveSchoolMembership",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListAccountRoleIDs (identity-access) through *modules/filestorage/internal/application.Service.DeleteFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountRoleIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFile",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.RegisterAfterCommit (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteFile. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFile",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteFile. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFile",
@@ -107,6 +337,27 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFolder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFolder",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteFolder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.DeleteFolder",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.DeleteFolder",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.DeleteFolder. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -121,6 +372,27 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListAttachments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListAttachments",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.ListAttachments. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListAttachments",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListAttachments",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.ListAttachments. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListAttachments",
@@ -131,6 +403,27 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListAudienceOptions",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListAudienceOptions",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListActiveSchoolAccountIDs (identity-access) through *modules/filestorage/internal/application.Service.ListAudienceOptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListActiveSchoolAccountIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListAudienceOptions",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListAudienceOptions",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.ListAudienceOptions. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -145,6 +438,58 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFiles",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFiles",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.HasActiveSchoolMembership (identity-access) through *modules/filestorage/internal/application.Service.ListFiles. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.HasActiveSchoolMembership",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFiles",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFiles",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListAccountRoleIDs (identity-access) through *modules/filestorage/internal/application.Service.ListFiles. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountRoleIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFiles",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFiles",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.ListFiles. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFiles",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFiles",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.RegisterAfterCommit (tenant-runtime) through *modules/filestorage/internal/application.Service.ListFiles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFiles",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFiles",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.ListFiles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFiles",
@@ -155,6 +500,47 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFolders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFolders",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.HasActiveSchoolMembership (identity-access) through *modules/filestorage/internal/application.Service.ListFolders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.HasActiveSchoolMembership",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFolders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFolders",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListAccountRoleIDs (identity-access) through *modules/filestorage/internal/application.Service.ListFolders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountRoleIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFolders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFolders",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.ListFolders. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.ListFolders",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.ListFolders",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.ListFolders. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -169,6 +555,27 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenAttachment",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.OpenAttachment",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.OpenAttachment. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.OpenAttachment",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.OpenAttachment. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenAttachment",
@@ -179,6 +586,47 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.OpenFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.HasActiveSchoolMembership (identity-access) through *modules/filestorage/internal/application.Service.OpenFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.HasActiveSchoolMembership",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.OpenFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListAccountRoleIDs (identity-access) through *modules/filestorage/internal/application.Service.OpenFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountRoleIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.OpenFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.OpenFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.OpenFile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.OpenFile",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.OpenFile. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -193,6 +641,16 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.QueueAttachmentCleanupForAnnouncement",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.QueueAttachmentCleanupForAnnouncement",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.QueueAttachmentCleanupForAnnouncement. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.QueueAttachmentCleanupForAnnouncement",
@@ -203,6 +661,37 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UpdateFolder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UpdateFolder",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListActiveSchoolAccountIDs (identity-access) through *modules/filestorage/internal/application.Service.UpdateFolder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListActiveSchoolAccountIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UpdateFolder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UpdateFolder",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.UpdateFolder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UpdateFolder",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UpdateFolder",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.UpdateFolder. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -217,6 +706,27 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadAttachment",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadAttachment",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.UploadAttachment. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadAttachment",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.UploadAttachment. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadAttachment",
@@ -227,6 +737,58 @@
       "source_owner": "file-storage",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Dependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.HasActiveSchoolMembership (identity-access) through *modules/filestorage/internal/application.Service.UploadFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.HasActiveSchoolMembership",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches modules/identityaccess.Owner.ListAccountRoleIDs (identity-access) through *modules/filestorage/internal/application.Service.UploadFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountRoleIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadFile",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadFile",
+      "reason": "Platform protocol participation (lock): file-storage reaches tenant.AcquireLock (tenant-runtime) through *modules/filestorage/internal/application.Service.UploadFile. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadFile",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadFile",
+      "reason": "Read-only target already reviewed as query: file-storage reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/filestorage/internal/application.Service.UploadFile. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.Service.UploadFile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage.Capability.UploadFile",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/filestorage/internal/application.Service.UploadFile. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -1141,6 +1703,50 @@
       "source_owner": "file-storage",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
       "target_owner": "settings-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/filestorage/compose.transaction.AcquireLock",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports.Transaction.AcquireLock",
+      "reason": "Platform protocol participation (lock): file-storage reaches tenant.AcquireLock (tenant-runtime) through modules/filestorage/compose.transaction.AcquireLock. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/filestorage/compose.transaction.AfterCommit",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports.Transaction.AfterCommit",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.RegisterAfterCommit (tenant-runtime) through modules/filestorage/compose.transaction.AfterCommit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/filestorage/compose.transaction.RunInTenant",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports.Transaction.RunInTenant",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinTenant (tenant-runtime) through modules/filestorage/compose.transaction.RunInTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/filestorage/compose.transaction.RunWrite",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports.Transaction.RunWrite",
+      "reason": "Platform protocol participation (scope): file-storage reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/filestorage/compose.transaction.RunWrite. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     }
   ]
 }

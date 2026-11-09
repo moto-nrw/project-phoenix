@@ -23,6 +23,9 @@ type Intent struct {
 	ID                int64
 	TenantID          int64
 	Kind              string
+	DeliveryToken     string
+	Security          bool
+	UseFallback       bool
 	RelatedEntityType string
 	RelatedEntityID   int64
 	Payload           map[string]any

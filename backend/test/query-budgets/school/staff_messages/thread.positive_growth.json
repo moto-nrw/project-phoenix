@@ -1,0 +1,7 @@
+{
+  "scenario": "school.staff_messages.thread.positive_growth",
+  "max": 11,
+  "exact": true,
+  "description": "Positive protected route request at N3/N8 colleagues and foreign-school exclusions; detail has 4/9 ordered messages. Captures route middleware, tenant transaction and real capability, excluding fixture writes and outer live-session verification. Measured contract, not a global minimum.",
+  "route": "GET /school/staff-messages/threads/{threadID}"
+}

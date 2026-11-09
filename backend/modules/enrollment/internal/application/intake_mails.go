@@ -13,11 +13,14 @@ import (
 // enqueueSubmissionEmails enqueues the parent confirmation and the admin
 // notifications in the submission transaction, so the request and every
 // delivery intent commit together. Without an outbox nothing is sent.
-func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *Request, children []*RequestChild, statusURL string) error {
+func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollment.Request, children []*enrollment.RequestChild, statusURL string) error {
 	if s.deps.Outbox == nil {
 		return nil
 	}
-	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, tenantID, s.deps.ParentsURL)
+	brand, err := schoolBrand(ctx, s.deps.Notifications, tenantID, s.deps.ParentsURL)
+	if err != nil {
+		return fmt.Errorf("parent confirmation: %w", err)
+	}
 	childNames := make([]string, 0, len(children))
 	for _, c := range children {
 		childNames = append(childNames, fmt.Sprintf("%s %s", c.FirstName, c.LastName))
@@ -26,10 +29,11 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 		enrollment.EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
 		enrollment.EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
 		enrollment.EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
-		enrollment.EnrollmentPayloadSchoolName:        schoolName,
+		enrollment.EnrollmentPayloadSchoolName:        brand.SchoolName,
 		enrollment.EnrollmentPayloadStatusURL:         statusURL,
-		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollment.EnrollmentPayloadLogoURL:           brand.LogoURL,
+		enrollment.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+		enrollment.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 		enrollment.EnrollmentPayloadChildNames:        childNames,
 		enrollment.EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
 	}
@@ -48,10 +52,11 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 			enrollment.EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
 			enrollment.EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
 			enrollment.EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
-			enrollment.EnrollmentPayloadSchoolName:        schoolName,
+			enrollment.EnrollmentPayloadSchoolName:        brand.SchoolName,
 			enrollment.EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/admin/enrollments/%d", s.deps.FrontendURL, request.ID),
-			enrollment.EnrollmentPayloadLogoURL:           logoURL,
-			enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+			enrollment.EnrollmentPayloadLogoURL:           brand.LogoURL,
+			enrollment.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+			enrollment.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 			enrollment.EnrollmentPayloadChildNames:        childNames,
 			enrollment.EnrollmentPayloadRecipientEmail:    admin,
 		}

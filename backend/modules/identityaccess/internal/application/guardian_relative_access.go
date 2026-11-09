@@ -48,7 +48,7 @@ func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req identityacce
 		}
 		public := identityaccess.InviteToStudentResult{
 			Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
-			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 		}
 		return &public, nil
 	}
@@ -250,6 +250,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 		if err := l.mailExistingAccountAccess(ctx, profile, tenantID); err != nil {
 			return nil, failed(opGuardianInviteToStudent, err)
 		}
+		mailHeld := mailWouldStayBack(l.refuseBlockedMail(ctx, tenantID, profile))
 		outcome := domain.InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = domain.InviteOutcomeAlreadyLinked
@@ -260,11 +261,14 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 			slog.Int64("created_by", req.CreatedBy),
 			slog.String("outcome", string(outcome)),
 		)
-		return &domain.InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID}, nil
+		return &domain.InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID, MailHeld: mailHeld}, nil
 	}
 
 	// No account yet: issue a token invitation for this child. The upgrade
 	// (if any) was already applied above, so the row's flag stays false.
+	if err := l.refuseBlockedMail(ctx, tenantID, profile); err != nil {
+		return nil, failed(opGuardianInviteToStudent, err)
+	}
 	invitation, err := l.createStudentInvitation(ctx, req, profile, tenantID, domain.GuardianInvitationApprovalNotRequired, profileCreated, false)
 	if err != nil {
 		return nil, err
@@ -335,7 +339,7 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 		// the upgrade (#2172).
 		if roleUpgrade && !openInvitation.RoleUpgrade {
 			openInvitation.RoleUpgrade = true
-			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
+			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, openInvitation.ApprovalStatus); err != nil {
 				return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 			}
 		}
@@ -362,7 +366,7 @@ func (l *AccountLifecycle) closeSupersededApprovalRequests(ctx context.Context, 
 		inv.ApprovedAt = nil
 		accepted := now
 		inv.AcceptedAt = &accepted
-		if err := l.invitations.UpdateGuardianInvitation(ctx, inv); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, domain.GuardianInvitationApprovalPending); err != nil {
 			return failed(opGuardianInviteToStudent, err)
 		}
 		l.logger.Info("guardian approval request closed: access granted directly",
@@ -522,11 +526,12 @@ func (l *AccountLifecycle) openStudentInvitations(ctx context.Context, guardianP
 
 func (l *AccountLifecycle) expireInvitations(ctx context.Context, invitations []domain.GuardianInvitation, now time.Time) error {
 	for _, inv := range invitations {
+		readStatus := inv.ApprovalStatus
 		inv.ExpiresAt = now
 		if inv.ApprovalStatus == domain.GuardianInvitationApprovalPending {
 			inv.ApprovalStatus = domain.GuardianInvitationApprovalRejected
 		}
-		if err := l.invitations.UpdateGuardianInvitation(ctx, inv); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, readStatus); err != nil {
 			return err
 		}
 	}
@@ -595,17 +600,14 @@ func (l *AccountLifecycle) listPendingApprovalsDetailed(ctx context.Context) ([]
 	return views, nil
 }
 
-func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) (err error) {
-	if l == nil {
-		return errAccountLifecycleUnavailable
-	}
-	defer func() { err = lifecycleError(err) }()
-	ctx = bindRuntime(l.auth.attach, ctx)
-	return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
-		if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {
-			return failed(opGuardianRevokeAccess, err)
-		}
-		return l.revokeAccess(txCtx, domain.RevokeAccessRequest(req))
+func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) error {
+	return runFlowErr(ctx, l.flow(), func(ctx context.Context) error {
+		return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
+			if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {
+				return failed(opGuardianRevokeAccess, err)
+			}
+			return l.revokeAccess(txCtx, domain.RevokeAccessRequest(req))
+		})
 	})
 }
 
@@ -693,7 +695,7 @@ func (l *AccountLifecycle) waiveInvitationApproval(ctx context.Context, openInvi
 		openInvitation.ExpiresAt = time.Now().Add(expiry)
 		openInvitation.EmailSentAt = nil
 		openInvitation.EmailError = nil
-		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, domain.GuardianInvitationApprovalPending); err != nil {
 			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 		}
 	}

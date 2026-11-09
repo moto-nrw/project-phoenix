@@ -2,11 +2,12 @@
 
 import { useCallback, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ChecksIcon } from "@phosphor-icons/react/ssr";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import NavigationLink from "~/components/ui/navigation-link";
+import { ListRowLink } from "~/components/ui/list-row-link";
+import { ChatTimestamp } from "~/components/parent/messages/chat-timestamp";
+import { SectionCard } from "~/components/ui/section-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SharedParentFeaturesProvider } from "~/components/parent/child-requests-context";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
@@ -30,12 +31,11 @@ import {
 } from "~/lib/hooks/use-parent-resources";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
-import {
-  ParentPage,
-  ParentPageHeader,
-  ParentSectionSkeleton,
-} from "~/components/parent/parent-page";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { messagesConcept } from "~/lib/concepts/messages";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { ParentChildCareTermScope } from "~/lib/parent-care-term";
 
 /**
  * Nachrichten mit der OGS.
@@ -125,8 +125,8 @@ function buildRows(
 }
 
 export function ParentMessagesPage() {
-  const t = useTranslations("parentMessages");
-  const tGroupThreads = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentMessages");
+  const tGroupThreads = useCareTermTranslations("parentGroupThreads");
   const childResource = useParentChildren();
   const children = childResource.data ?? EMPTY_CHILDREN;
   const threads = useSWRAuth(
@@ -162,33 +162,24 @@ export function ParentMessagesPage() {
     refreshThreads,
   );
 
-  if (loading) {
-    return (
-      <ParentPage>
-        <div data-parent-tour="messages">
-          <ParentPageHeader
-            kicker={t("kicker")}
-            title={t("title")}
-            description={t("description")}
-          />
-        </div>
-        <ParentSectionSkeleton rows={3} showHeader={false} />
-      </ParentPage>
-    );
-  }
+  const header = (
+    <div data-parent-tour="messages">
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={t("title")}
+        description={t("description")}
+      />
+    </div>
+  );
 
-  if (failure) {
+  if (loading || failure || children.length === 0) {
     return (
-      <ParentPage>
-        <div data-parent-tour="messages">
-          <ParentPageHeader
-            kicker={t("kicker")}
-            title={t("title")}
-            description={t("description")}
-          />
-        </div>
-        <LoadErrorAlert error={error} />
-      </ParentPage>
+      <ParentPage
+        header={header}
+        loading={loading && <ListSkeleton rows={3} avatar={false} />}
+        error={failure ? error : null}
+        empty={{ title: t("noChildren") }}
+      />
     );
   }
 
@@ -226,46 +217,26 @@ export function ParentMessagesPage() {
     );
   }
 
-  if (children.length === 0) {
-    return (
-      <ParentPage>
-        <div data-parent-tour="messages">
-          <ParentPageHeader
-            kicker={t("kicker")}
-            title={t("title")}
-            description={t("description")}
-          />
-        </div>
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("noChildren")}
-        </p>
-      </ParentPage>
-    );
-  }
-
   return (
-    <ParentPage>
-      <div data-parent-tour="messages">
-        <ParentPageHeader
-          kicker={t("kicker")}
-          title={t("title")}
-          description={t("description")}
-        />
-      </div>
-      <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
-        {rows.map((row) => (
-          <li key={`${row.studentId}:${row.audience}`}>
-            <ConversationRow row={row} />
-          </li>
-        ))}
-      </ul>
+    <ParentPage header={header}>
+      <SectionCard padding="none">
+        <ul className="divide-y divide-gray-200">
+          {rows.map((row) => (
+            <li key={`${row.studentId}:${row.audience}`}>
+              <ParentChildCareTermScope studentId={row.studentId}>
+                <ConversationRow row={row} />
+              </ParentChildCareTermScope>
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
       <GroupThreadsSection threads={groupThreads} error={groupThreadsError} />
     </ParentPage>
   );
 }
 
 function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
-  const t = useTranslations("parentMessages");
+  const t = useCareTermTranslations("parentMessages");
   const tMsg = useTranslations("parentOgsMessaging");
   const locale = useLocale();
   const timestamp = formatChatDateTime(row.lastMessageAt, locale);
@@ -298,46 +269,31 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
   const ownLastMessage = row.lastSenderKind === "guardian";
 
   return (
-    <NavigationLink
+    <ListRowLink
       href={parentPath(childConversationPath(row.studentId, row.audience))}
-      className="flex min-h-[88px] w-full items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:-outline-offset-2 focus-visible:outline-none active:bg-gray-100 sm:px-5"
-    >
-      <ConceptIconTile
-        concept={messagesConcept}
-        size="page"
-        shape="round"
-        tone="blue"
-        iconTone="blue"
-      />
-      <span className="min-w-0 flex-1 space-y-0.5">
-        <span className="flex min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-xs font-medium text-gray-500">
-            {t("aboutChild", { name: row.studentName })}
-          </span>
-          {timestamp && (
-            <span
-              aria-label={timestamp}
-              className={`shrink-0 text-xs tabular-nums ${unread ? "text-moto-blue font-semibold" : "text-gray-500"}`}
-            >
-              <span aria-hidden="true" className="sm:hidden">
-                {compactTimestamp}
-              </span>
-              <span aria-hidden="true" className="hidden sm:inline">
-                {timestamp}
-              </span>
-            </span>
-          )}
-        </span>
-        <span className="flex min-w-0 items-center justify-between gap-2">
-          <span
-            className={`min-w-0 truncate text-base text-gray-900 ${unread ? "font-bold" : "font-semibold"}`}
-          >
-            {t(row.audience === "leadership" ? "ogsLeadership" : "ogsTeam", {
-              school: row.schoolName,
-            })}
-          </span>
-          <UnreadBadge count={row.unread} />
-        </span>
+      className="min-h-[88px] py-3.5 sm:px-5"
+      icon={
+        <ConceptIconTile
+          concept={messagesConcept}
+          size="page"
+          shape="round"
+          tone="blue"
+          iconTone="blue"
+        />
+      }
+      overline={t("aboutChild", { name: row.studentName })}
+      metaLabel={timestamp || undefined}
+      meta={
+        timestamp ? (
+          <ChatTimestamp full={timestamp} compact={compactTimestamp} />
+        ) : undefined
+      }
+      title={t(row.audience === "leadership" ? "ogsLeadership" : "ogsTeam", {
+        school: row.schoolName,
+      })}
+      badge={<UnreadBadge count={row.unread} />}
+      unread={unread}
+      subtitle={
         <span className="flex min-w-0 items-center gap-1.5">
           {ownLastMessage && (
             <span
@@ -355,19 +311,9 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
               <ChecksIcon size={17} weight="bold" aria-hidden="true" />
             </span>
           )}
-          <span
-            className={`min-w-0 flex-1 truncate text-sm ${unread ? "text-gray-700" : "text-gray-500"}`}
-          >
-            {preview}
-          </span>
+          <span className="min-w-0 flex-1 truncate">{preview}</span>
         </span>
-      </span>
-      <CaretRightIcon
-        size={20}
-        weight="bold"
-        className="shrink-0 text-gray-400"
-        aria-hidden="true"
-      />
-    </NavigationLink>
+      }
+    />
   );
 }

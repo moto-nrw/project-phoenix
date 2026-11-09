@@ -13,6 +13,8 @@ import { hasPermission } from "~/lib/auth-utils";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { backConcept } from "~/lib/concepts/back";
 import { billingConcept } from "~/lib/concepts/billing";
+import { careContractsConcept } from "~/lib/concepts/careContracts";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
@@ -20,19 +22,25 @@ import { documentsConcept } from "~/lib/concepts/documents";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { peopleConcept } from "~/lib/concepts/people";
+import { reportsConcept } from "~/lib/concepts/reports";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { settingsConcept } from "~/lib/concepts/settings";
+import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /** Das Recht, das „Mitglieder und Rollen" öffnet (ADR 0084, #4650). */
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 /** Das Recht, das die Ferienzeiträume öffnet (#4659). */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
+/** Das Recht, das die Betreuungsverträge öffnet (#4678). */
+const CONTRACTS_RIGHT = "traeger_contracts:manage";
+/** Das Recht, das „Länger als gebucht“ ohne Namen öffnet (#4683). */
+const REPORTS_RIGHT = "traeger_reports:read";
 /** Das Recht, das die Abrechnungsläufe öffnet (#4668). */
 const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
- * Das Recht, das das Dashboard (#4674), die allgemeinen Einstellungen (ADR 0086,
+ * Das Recht, das das Dashboard (#4674), die Stichtagszahlen (#4673), die Belegung (#4676), die allgemeinen Einstellungen (ADR 0086,
  * #4652), Briefkopf und Vorlagen (#4653, #4677) und die Abrechnungsvorgaben öffnet. Auf den
  * Abrechnungsvorgaben stehen die Bankverbindungen für alle mit diesem Recht, wie
  * zuvor auf dem Briefkopf; die Regeln und Rechnungsnummern nur mit dem Recht
@@ -77,6 +85,22 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         concept: schoolsConcept,
         right: null,
       },
+      {
+        // Die festgehaltenen Zahlen je Monat, wie im Bericht des Betreibers (#4673).
+        key: "stichtagszahlen",
+        href: "/traeger/stichtagszahlen",
+        label: "Stichtagszahlen",
+        concept: reportsConcept,
+        right: OVERVIEW_RIGHT,
+      },
+      {
+        // Die Kinder von heute je Schule, Gruppe und Betreuungsform (#4676).
+        key: "belegung",
+        href: "/traeger/belegung",
+        label: "Belegung",
+        concept: utilizationConcept,
+        right: OVERVIEW_RIGHT,
+      },
     ],
   },
   {
@@ -89,6 +113,30 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         label: "Ferienbetreuung",
         concept: holidayWeeksConcept,
         right: ENROLLMENT_RIGHT,
+      },
+      {
+        // Betreuungsverträge aus angenommenen Anmeldungen (#4678).
+        key: "vertraege",
+        href: "/traeger/vertraege",
+        label: "Verträge",
+        concept: careContractsConcept,
+        right: CONTRACTS_RIGHT,
+      },
+      {
+        // Kinder, die länger da waren als gebucht, je Schule (#4683).
+        key: "zeitvergleich",
+        href: "/traeger/zeitvergleich",
+        label: "Länger als gebucht",
+        concept: careTimesConcept,
+        right: REPORTS_RIGHT,
+      },
+      {
+        // Vorhandene Dokumente für Eltern und Schulen freigeben (#4692).
+        key: "dokumente",
+        href: "/traeger/dokumente",
+        label: "Dokumente",
+        concept: documentsConcept,
+        right: OVERVIEW_RIGHT,
       },
     ],
   },
@@ -149,6 +197,13 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     label: "Abrechnungsvorgaben",
     concept: contributionsConcept,
     right: OVERVIEW_RIGHT,
+  },
+  {
+    key: "dokumentarten",
+    href: "/traeger/einstellungen/dokumentarten",
+    label: "Dokumentarten",
+    concept: billingConcept,
+    right: BILLING_RIGHT,
   },
   {
     key: "zugriffsprotokoll",

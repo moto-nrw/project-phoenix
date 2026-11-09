@@ -67,7 +67,7 @@ type accountPasskeyGate interface {
 // accountPasskeySessions mints the pair a completed login returns and proves
 // the account's membership in the school whose portal started the ceremony.
 type accountPasskeySessions interface {
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
+	IssueTokensForPasskey(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
@@ -104,7 +104,7 @@ func (f *AccountPasskeyFlows) StartEnrollmentChallenge(ctx context.Context, acco
 	if err != nil || !found {
 		return domain.PasskeyEnrollmentChallenge{}, domain.ErrAccountNotFound
 	}
-	token, err := f.mfa.StartChallenge(ctx, accountID, tenantID, domain.MFAChallengeScopeTenant, ip)
+	token, err := f.mfa.StartChallenge(ctx, accountID, tenantID, domain.PortalTenant.Name, ip)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
@@ -119,7 +119,7 @@ func (f *AccountPasskeyFlows) BeginRegistration(ctx context.Context, request dom
 	if err := domain.ValidateTenantPasskeyOrigin(request.ExpectedOrigin, request.TenantSubdomain, f.tenantDomain); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	if err := f.mfa.VerifyCodeForAccount(ctx, request.AccountID, request.TenantID, request.Code, domain.MFAChallengeScopeTenant); err != nil {
+	if err := f.mfa.VerifyCodeForAccount(ctx, request.AccountID, request.TenantID, request.Code, domain.PortalTenant.Name); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	account, found, err := f.accounts.FindAccountIdentity(ctx, request.AccountID)
@@ -306,7 +306,7 @@ func (f *AccountPasskeyFlows) FinishLogin(ctx context.Context, request domain.Ac
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}
-	accessToken, refreshToken, err := f.sessions.IssueTokensForAuthenticatedAccount(ctx, verified.accountID, verified.tenantID, request.IPAddress, request.UserAgent)
+	accessToken, refreshToken, err := f.sessions.IssueTokensForPasskey(ctx, verified.accountID, verified.tenantID, request.IPAddress, request.UserAgent)
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}
@@ -489,61 +489,54 @@ func (f *AccountPasskeyFlows) resolveLoginPasskeyUser(ctx context.Context, rawID
 }
 
 func (f *AccountPasskeyFlows) StartAccountPasskeyEnrollment(ctx context.Context, accountID, tenantID int64, ip net.IP) (identityaccess.PasskeyEnrollmentChallenge, error) {
-	if f == nil {
-		return identityaccess.PasskeyEnrollmentChallenge{}, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	challenge, err := f.StartEnrollmentChallenge(bindRuntime(f.attach, ctx), accountID, tenantID, ip)
-	return identityaccess.PasskeyEnrollmentChallenge(challenge), passkeyError(err)
+	return runFlow(ctx, f.flow(), func(ctx context.Context) (identityaccess.PasskeyEnrollmentChallenge, error) {
+		challenge, err := f.StartEnrollmentChallenge(ctx, accountID, tenantID, ip)
+		return identityaccess.PasskeyEnrollmentChallenge(challenge), err
+	})
 }
 
 func (f *AccountPasskeyFlows) BeginAccountPasskeyRegistration(ctx context.Context, request identityaccess.AccountPasskeyRegistrationStart) (identityaccess.PasskeyCeremonyOptions, error) {
-	if f == nil {
-		return identityaccess.PasskeyCeremonyOptions{}, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	options, err := f.BeginRegistration(bindRuntime(f.attach, ctx), domain.AccountPasskeyRegistrationStart(request))
-	return identityaccess.PasskeyCeremonyOptions(options), passkeyError(err)
+	return runFlow(ctx, f.flow(), func(ctx context.Context) (identityaccess.PasskeyCeremonyOptions, error) {
+		options, err := f.BeginRegistration(ctx, domain.AccountPasskeyRegistrationStart(request))
+		return identityaccess.PasskeyCeremonyOptions(options), err
+	})
 }
 
 func (f *AccountPasskeyFlows) FinishAccountPasskeyRegistration(ctx context.Context, request identityaccess.AccountPasskeyRegistrationFinish) (identityaccess.PasskeyCredentialSummary, error) {
-	if f == nil {
-		return identityaccess.PasskeyCredentialSummary{}, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	summary, err := f.FinishRegistration(bindRuntime(f.attach, ctx), domain.AccountPasskeyRegistrationFinish(request))
-	return identityaccess.PasskeyCredentialSummary(summary), passkeyError(err)
+	return runFlow(ctx, f.flow(), func(ctx context.Context) (identityaccess.PasskeyCredentialSummary, error) {
+		summary, err := f.FinishRegistration(ctx, domain.AccountPasskeyRegistrationFinish(request))
+		return identityaccess.PasskeyCredentialSummary(summary), err
+	})
 }
 
 func (f *AccountPasskeyFlows) BeginAccountPasskeyLogin(ctx context.Context, request identityaccess.AccountPasskeyLoginStart) (identityaccess.PasskeyCeremonyOptions, error) {
-	if f == nil {
-		return identityaccess.PasskeyCeremonyOptions{}, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	options, err := f.BeginLogin(bindRuntime(f.attach, ctx), domain.AccountPasskeyLoginStart(request))
-	return identityaccess.PasskeyCeremonyOptions(options), passkeyError(err)
+	return runFlow(ctx, f.flow(), func(ctx context.Context) (identityaccess.PasskeyCeremonyOptions, error) {
+		options, err := f.BeginLogin(ctx, domain.AccountPasskeyLoginStart(request))
+		return identityaccess.PasskeyCeremonyOptions(options), err
+	})
 }
 
 func (f *AccountPasskeyFlows) FinishAccountPasskeyLogin(ctx context.Context, request identityaccess.AccountPasskeyLoginFinish) (identityaccess.PasskeyLoginResult, error) {
-	if f == nil {
-		return identityaccess.PasskeyLoginResult{}, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	result, err := f.FinishLogin(bindRuntime(f.attach, ctx), domain.AccountPasskeyLoginFinish(request))
-	return identityaccess.PasskeyLoginResult(result), passkeyError(err)
+	return runFlow(ctx, f.flow(), func(ctx context.Context) (identityaccess.PasskeyLoginResult, error) {
+		result, err := f.FinishLogin(ctx, domain.AccountPasskeyLoginFinish(request))
+		return identityaccess.PasskeyLoginResult(result), err
+	})
 }
 
 func (f *AccountPasskeyFlows) ListAccountPasskeyCredentials(ctx context.Context, accountID int64) ([]identityaccess.PasskeyCredentialSummary, error) {
-	if f == nil {
-		return nil, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	summaries, err := f.ListCredentials(bindRuntime(f.attach, ctx), accountID)
-	if err != nil {
-		return nil, passkeyError(err)
-	}
-	return publicPasskeySummaries(summaries), nil
+	return runFlow(ctx, f.flow(), func(ctx context.Context) ([]identityaccess.PasskeyCredentialSummary, error) {
+		summaries, err := f.ListCredentials(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		return publicPasskeySummaries(summaries), nil
+	})
 }
 
 func (f *AccountPasskeyFlows) RevokeAccountPasskeyCredential(ctx context.Context, accountID, credentialID int64) error {
-	if f == nil {
-		return identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	return passkeyError(f.RevokeCredential(bindRuntime(f.attach, ctx), accountID, credentialID))
+	return runFlowErr(ctx, f.flow(), func(ctx context.Context) error {
+		return f.RevokeCredential(ctx, accountID, credentialID)
+	})
 }
 
 func publicPasskeySummaries(values []domain.PasskeyCredentialSummary) []identityaccess.PasskeyCredentialSummary {

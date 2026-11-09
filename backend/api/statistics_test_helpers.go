@@ -12,8 +12,10 @@ import (
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -73,11 +75,13 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		return StatisticsTestModule{}, err
 	}
 	service := owners.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
-		PlannedCareDays: owners.StatisticsPlannedCareDays{CareDays: careDays},
-		DB:              db.Pool(),
-		StatusDays:      owners.StatisticsStatusDays{Query: r.CarePlan}, Courses: owners.NewCourseStatistics(db),
+		PlannedCareDays:  owners.StatisticsPlannedCareDays{CareDays: careDays},
+		ContractCareDays: owners.StatisticsContractCareDays{Contracts: careContractCompose.NewBookedCare()},
+		HolidayCareDays:  owners.StatisticsHolidayCareDays{Bookings: enrollmentCompose.NewHolidayGuestBookedCare(owners.StatisticsHolidayStudents{Students: students})},
+		DB:               db.Pool(),
+		StatusDays:       owners.StatisticsStatusDays{Query: r.CarePlan}, Courses: owners.NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.NewTenantHolidays(calendar),
-		ClosingDays: schoolCalendarCompose.NewTenantClosingDays(calendar), Periods: owners.StatisticsReportPeriods{Periods: calendar}, Students: owners.StatisticsReportStudents{Students: students}, Rooms: owners.StatisticsReportRooms{Rooms: rooms},
+		ClosingDays: schoolCalendarCompose.NewTenantClosingDays(calendar), Periods: owners.StatisticsReportPeriods{Periods: calendar}, CalendarDays: calendar, Students: owners.StatisticsReportStudents{Students: students}, Rooms: owners.StatisticsReportRooms{Rooms: rooms},
 		AccessLog: owners.StatisticsAuditLog{Log: owners.NewTestAuditPersistence(db, command).DataAccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {

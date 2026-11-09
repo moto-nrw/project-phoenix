@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
-import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ChevronDown, Info } from "lucide-react";
 import type {
   InputHTMLAttributes,
@@ -18,14 +19,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { Alert } from "~/components/ui/alert";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { ModuleNotBookedState } from "~/components/ui/module-not-booked-state";
+import {
+  PageBody,
+  type PageBodyEmpty,
+  type PageBodyError,
+} from "~/components/ui/page-body";
+import { useNotBookedSlots } from "./not-booked-slot";
 import { useNotBookedPageModule } from "~/lib/not-booked-page-context";
-import type { FormErrorDetail } from "~/components/ui/form-error";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
@@ -45,8 +47,9 @@ import { cn } from "~/lib/utils";
 /**
  * Das Seitengerüst des Tenant-Portals. JEDE Seite unter
  * `app/[tenant]/(protected)` rendert genau dieses Gerüst als Wurzel
- * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-Portals nach der
- * Anmeldung (`app/traeger`, #5146).
+ * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-, Schul- und
+ * Operator-Portals nach der Anmeldung (`app/traeger`, #5146; `app/school`,
+ * `app/operator`, #5604).
  *
  * Die Reihenfolge der Bausteine ist fest und liegt hier, nicht in der Seite:
  *
@@ -112,6 +115,8 @@ export interface TenantPageProps {
   readonly backHref?: string;
   /** Sichtbarer Text des Rückwegs, nennt das Ziel („Zurück zu den Räumen"). */
   readonly backLabel?: string;
+  /** Blendet die Kopfkarte nur für eine druckbare Inhaltsansicht aus. */
+  readonly printHideHeader?: boolean;
 
   /** Suchfeld in der Kopfkarte. */
   readonly search?: {
@@ -195,13 +200,7 @@ export interface TenantPageProps {
    * Für einen fehlgeschlagenen Erstabruf bleibt die ersetzende Form richtig —
    * dahinter steht kein Inhalt, den man stehen lassen könnte.
    */
-  readonly error?:
-    | string
-    | { message: string; action?: ReactNode; keepContent?: boolean }
-    /** Ein Ladefehler aus `useApiLoadError` (#2513): Wiederholen und
-     *  Vorgangskennung kommen als Aktion mit. */
-    | FormErrorDetail
-    | null;
+  readonly error?: PageBodyError;
   /**
    * Ladezustand: ersetzt den Inhalt durch Skelette. `true` rendert das
    * generische Kartenskelett; ein Knoten rendert stattdessen das
@@ -230,12 +229,7 @@ export interface TenantPageProps {
    * wiederholt keine Kopfaktion (`actions`), sondern steht nur für eine
    * andere Handlung, etwa „Filter zurücksetzen" (#5034).
    */
-  readonly empty?: {
-    readonly title: string;
-    readonly description?: string;
-    readonly icon?: ReactNode;
-    readonly action?: ReactNode;
-  } | null;
+  readonly empty?: PageBodyEmpty;
 
   readonly children?: ReactNode;
   /** Nur für Testselektoren, nicht für Layout. */
@@ -339,7 +333,7 @@ function TenantPageInfo({
           // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche
           // reicht per Pseudoelement auf 44 px, die Untergrenze für eine
           // Touch-Fläche, ohne die Titelzeile höher zu machen.
-          className="relative shrink-0 text-gray-500 after:absolute after:-inset-1.5 after:content-['']"
+          className="relative shrink-0 after:absolute after:-inset-1.5 after:content-['']"
         >
           <Info aria-hidden="true" className="h-[18px] w-[18px]" />
         </Button>
@@ -490,17 +484,19 @@ export function TenantBackLink({
  */
 export function TenantPage(props: TenantPageProps) {
   const notBookedModule = useNotBookedPageModule();
-  if (notBookedModule) {
+  const NotBookedState = useNotBookedSlots()?.State;
+  if (notBookedModule && NotBookedState) {
     return (
       <TenantPageView
         title={props.title}
         back={props.back}
         backHref={props.backHref}
         backLabel={props.backLabel}
+        printHideHeader={props.printHideHeader}
         testId={props.testId}
       >
         <SectionCard>
-          <ModuleNotBookedState module={notBookedModule} />
+          <NotBookedState module={notBookedModule} />
         </SectionCard>
       </TenantPageView>
     );
@@ -573,6 +569,7 @@ function TenantPageView({
   back = false,
   backHref,
   backLabel,
+  printHideHeader = false,
   search,
   filters,
   activeFilters,
@@ -635,7 +632,10 @@ function TenantPageView({
           einer CSS-Layer stehen. */}
       <header
         ref={headRef}
-        className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4"
+        className={cn(
+          "moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4",
+          printHideHeader && "print:hidden",
+        )}
       >
         {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 max-sm:gap-x-2">
@@ -759,14 +759,14 @@ function TenantPageView({
         ref={bodyRef}
         className="moto-tenant-body compact:mt-4 compact:space-y-4 mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3"
       >
-        <TenantPageBody
+        <PageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `Der Bereich „${title}“ wird geladen…`}
           error={error}
           empty={empty}
         >
           {children}
-        </TenantPageBody>
+        </PageBody>
       </div>
       {overlays}
     </div>
@@ -928,20 +928,11 @@ function TenantPageTabs({
       disabled && "cursor-not-allowed opacity-50",
     );
 
-  const renderInner = (item: TenantPageTab, active: boolean) => (
+  const renderInner = (item: TenantPageTab) => (
     <>
       {item.label}
       {item.badge !== undefined && item.badge > 0 && (
-        <span
-          className={cn(
-            "bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums",
-            // Auf dem Telefon ist der aktive Reiter eine dunkle Pille; dunkle
-            // Schrift auf hellgrünem Hauch verschwand dort (#5146).
-            active && "max-sm:bg-white/20 max-sm:text-white",
-          )}
-        >
-          {item.badge}
-        </span>
+        <StatusBadge tone="green" size="xs" label={String(item.badge)} />
       )}
     </>
   );
@@ -980,7 +971,7 @@ function TenantPageTabs({
             onChange(item.value);
           }}
         >
-          {renderInner(item, active)}
+          {renderInner(item)}
         </Link>
       );
     }
@@ -996,7 +987,7 @@ function TenantPageTabs({
         onClick={() => onChange(item.value)}
         className={className}
       >
-        {renderInner(item, active)}
+        {renderInner(item)}
       </button>
     );
   };
@@ -1152,135 +1143,5 @@ function TenantPageTabs({
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * Titel und Beschreibung des Leerzustands als EIN Satzgefüge. Titel ohne
- * Schlusszeichen bekommen einen Punkt, damit „Keine Räume vorhanden Legen
- * Sie…" nicht entsteht.
- */
-function joinEmptySentence(title: string, description?: string): string {
-  const trimmed = title.trim();
-  const punctuated = /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
-  return description ? `${punctuated} ${description}` : punctuated;
-}
-
-/**
- * Fehler, Laden und Leerzustand an EINER Stelle, damit sie auf keiner Seite
- * mehr als `return null`, freier Spinner oder „Wird geladen…"-Fließtext
- * auftauchen.
- */
-function TenantPageBody({
-  loading,
-  loadingLabel,
-  error,
-  empty,
-  children,
-}: Readonly<{
-  loading: boolean | ReactNode;
-  /** Vorlesbarer Text des Ladezustands, aus dem Seitentitel gebildet. */
-  loadingLabel: string;
-  error?: TenantPageProps["error"];
-  empty?: TenantPageProps["empty"];
-  children?: ReactNode;
-}>) {
-  // Eine Anfrage, die das Backend mit `module.not_booked` ablehnt, ist kein
-  // Fehler der Seite: die Schule hat das Modul nicht gebucht (#4894). Statt
-  // der roten Meldung steht der erklärende Zustand.
-  const notBookedModule =
-    typeof error === "object" && error !== null && "notBookedModule" in error
-      ? error.notBookedModule
-      : undefined;
-  if (notBookedModule) {
-    return (
-      <SectionCard>
-        <ModuleNotBookedState module={notBookedModule} />
-      </SectionCard>
-    );
-  }
-  const errorParts =
-    typeof error === "string"
-      ? { message: error }
-      : error && !("action" in error || "keepContent" in error)
-        ? { message: error.message, action: errorAlertActions(error) }
-        : (error ?? undefined);
-  if (errorParts && !errorParts.keepContent) {
-    return (
-      <Alert
-        type="error"
-        message={errorParts.message}
-        action={errorParts.action}
-      />
-    );
-  }
-  const errorBanner = errorParts ? (
-    <Alert
-      type="error"
-      message={errorParts.message}
-      action={errorParts.action}
-    />
-  ) : null;
-  if (loading) {
-    return (
-      <>
-        {errorBanner}
-        <div
-          className={loading === true ? "space-y-3" : undefined}
-          role="status"
-          aria-busy="true"
-          aria-live="polite"
-          aria-label={loadingLabel}
-        >
-          {loading === true ? (
-            <>
-              <Skeleton className="h-24 w-full rounded-2xl" />
-              <Skeleton className="h-24 w-full rounded-2xl" />
-              <Skeleton className="h-24 w-full rounded-2xl" />
-            </>
-          ) : (
-            loading
-          )}
-        </div>
-      </>
-    );
-  }
-  if (empty) {
-    // Auf derselben Fläche wie der Inhalt, den sie ersetzt: sonst steht der
-    // Leerzustand als einziger Seitenzustand ohne Karte auf dem Hintergrund
-    // und die Seite sieht leer statt aufgeräumt aus. Laden (Skelettkarten)
-    // und Fehler (getönte Fläche) tragen ihre Fläche schon.
-    //
-    // Zwei Formen: mit Aktion (nächster Schritt) oder Symbol (benannter
-    // Zustand wie ForbiddenPage/FeatureOffPage) bekommt der Leerzustand die
-    // volle Bühne (EmptyState). Eine schmucklose Feststellung ist EIN Satz
-    // in der Karte, wie im Eltern-Portal — eine zentrierte Inszenierung
-    // über einem Sachverhalt, an dem niemand etwas tun kann, ist eine
-    // Aufgabe, die keine ist.
-    return (
-      <>
-        {errorBanner}
-        <SectionCard>
-          {empty.action || empty.icon ? (
-            <EmptyState
-              title={empty.title}
-              description={empty.description}
-              icon={empty.icon}
-              action={empty.action}
-            />
-          ) : (
-            <p className="text-sm leading-6 text-gray-600">
-              {joinEmptySentence(empty.title, empty.description)}
-            </p>
-          )}
-        </SectionCard>
-      </>
-    );
-  }
-  return (
-    <>
-      {errorBanner}
-      {children}
-    </>
   );
 }

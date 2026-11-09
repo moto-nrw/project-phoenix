@@ -253,6 +253,9 @@
 [data-nav-scene="PresentationChartIcon"] .ns-bar{transform-origin:0 152px} .ns-play[data-nav-scene="PresentationChartIcon"] .ns-bar{animation:ns-bar 360ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
 @keyframes ns-bar{0%{transform:scaleY(0)}65%{transform:scaleY(1.2)}100%{transform:none}}
 
+/* ChartBarIcon: die Balken füllen sich nacheinander */
+[data-nav-scene="ChartBarIcon"] .ns-bar{transform-origin:0 208px} .ns-play[data-nav-scene="ChartBarIcon"] .ns-bar{animation:ns-bar 360ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
+
 /* QuestionIcon: das Fragezeichen wundert sich */
 [data-nav-scene="QuestionIcon"] .ns-wonder{transform-origin:128px 144px} .ns-play[data-nav-scene="QuestionIcon"] .ns-wonder{animation:ns-wonder 520ms var(--ns-o) both}
 @keyframes ns-wonder{0%,100%{transform:none}25%{transform:rotate(-18deg)}55%{transform:rotate(14deg)}80%{transform:rotate(-5deg)}}
@@ -316,3 +319,22 @@
 /* UsersFourIcon: das Team hüpft reihum */
 .ns-play[data-nav-scene="UsersFourIcon"] .ns-round{animation:ns-round 300ms var(--ns-o) calc(var(--ns-i,0)*70ms) both}
 @keyframes ns-round{0%,100%{transform:none}45%{transform:translateY(-16px)}}
+
+/* BellIcon: die Glocke schwingt, der Klöppel schlägt nach */
+[data-nav-scene="BellIcon"] .ns-bell{transform-origin:128px 32px} .ns-play[data-nav-scene="BellIcon"] .ns-bell{animation:ns-bell-swing 560ms var(--ns-o) both}
+@keyframes ns-bell-swing{0%,100%{transform:none}25%{transform:rotate(14deg)}55%{transform:rotate(-10deg)}80%{transform:rotate(4deg)}}
+.ns-play[data-nav-scene="BellIcon"] .ns-clapper{animation:ns-bell-clapper 560ms var(--ns-o) 55ms both}
+@keyframes ns-bell-clapper{0%,100%{transform:none}25%{transform:translateX(-20px)}55%{transform:translateX(16px)}80%{transform:translateX(-6px)}}
+
+/* LockKeyIcon: der Bügel springt auf und rastet wieder ein */
+.ns-play[data-nav-scene="LockKeyIcon"] .ns-shackle{animation:ns-lock-shackle 480ms var(--ns-o) both}
+@keyframes ns-lock-shackle{0%,100%{transform:none}40%{transform:translateY(-22px)}75%{transform:translateY(4px)}}
+
+/* TranslateIcon: die beiden Schriftzeichen rücken nacheinander zueinander */
+.ns-play[data-nav-scene="TranslateIcon"] .ns-sign{animation:ns-translate-sign 460ms var(--ns-o) both}
+@keyframes ns-translate-sign{0%,100%{transform:none}40%{transform:translate(14px,10px)}}
+.ns-play[data-nav-scene="TranslateIcon"] .ns-latin{animation:ns-translate-latin 460ms var(--ns-o) 90ms both}
+@keyframes ns-translate-latin{0%,100%{transform:none}40%{transform:translate(-14px,-10px)}}
+
+/* SignatureIcon: die Unterschrift wird über der Linie gezogen */
+.ns-play[data-nav-scene="SignatureIcon"] .ns-draw{animation:ns-draw 560ms cubic-bezier(.45,0,.3,1) both}

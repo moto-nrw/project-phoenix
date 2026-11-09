@@ -79,7 +79,7 @@
     },
     {
       "build": "testhooks",
-      "evidence": "func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {\n\trow := guardianPhoneFixtureRow(value)\n\terr := r.rawGuardianPhoneNumberRepository.Create(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *guardianPhoneFixtureValue(row)\n\t}\n\treturn err\n}",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *parentfixture.GuardianPhoneFixture) error {\n\trow := guardianPhoneFixtureRow(value)\n\terr := r.rawGuardianPhoneNumberRepository.Create(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *guardianPhoneFixtureValue(row)\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.CreateGuardianPhoneFixture",
       "owner": "modules/peopledirectory"
@@ -299,6 +299,13 @@
       "evidence": "func (r nativeStudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByGuardianProfileID(ctx, guardianProfileID)\n\treturn mapRecordSlice(out0, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), out1\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByGuardianProfileID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*directory.GuardianRelationshipSnapshot, error) {\n\trows, err := r.rawStudentGuardianRepository.FindByGuardianProfileIDForDeletePreview(ctx, guardianProfileID)\n\treturn mapRecordSlice(rows, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByGuardianProfileIDForDeletePreview",
       "owner": "modules/peopledirectory"
     },
     {
@@ -625,6 +632,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *StudentStore) ListNamesByClass(ctx context.Context, schoolClass string) ([]directory.StudentName, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListNamesByClass(ctx, schoolClass)\n\treturn append([]directory.StudentName{}, records...), domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListNamesByClass",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]directory.StudentName, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListNamesByIDs(ctx, ids)\n\tresult := make([]directory.StudentName, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.StudentName(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListNamesByIDs",
@@ -765,23 +779,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *GuardianDirectory) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {\n\tvar phone *peopledirectory.GuardianProfilePhoneSnapshot\n\terr := p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\tvar txErr error\n\t\tphone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peoplePorts.PhoneNumberCreateRequest{PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary})\n\t\treturn txErr\n\t})\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPhone{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryPhone(phone), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardianPhone",
-      "owner": "modules/peopledirectory"
-    },
-    {
-      "build": "production",
       "evidence": "func (p *GuardianDirectory) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []peopledirectory.NewStudentGuardian) error {\n\treturn mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.AddGuardiansToStudent(txCtx, studentID, toNewStudentGuardians(guardians))\n\t}))\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardiansToStudent",
-      "owner": "modules/peopledirectory"
-    },
-    {
-      "build": "production",
-      "evidence": "func (p *GuardianDirectory) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {\n\tvar profile *peopledirectory.GuardianProfileSnapshot\n\terr := p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\tvar txErr error\n\t\tprofile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))\n\t\treturn txErr\n\t})\n\tif err != nil {\n\t\treturn peopledirectory.Guardian{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardian(profile), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.CreateGuardian",
       "owner": "modules/peopledirectory"
     },
     {
@@ -824,13 +824,6 @@
       "evidence": "func (p *GuardianDirectory) FindGuardianPhone(ctx context.Context, phoneID int64) (peopledirectory.GuardianPhone, error) {\n\tphone, err := p.guardians.GuardianPhoneNumbers().FindByID(ctx, phoneID)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPhone{}, mapGuardianPhoneError(err)\n\t}\n\treturn toDirectoryPhone(phone), nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardianPhone",
-      "owner": "modules/peopledirectory"
-    },
-    {
-      "build": "production",
-      "evidence": "func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {\n\timpact, err := p.guardians.GetGuardianDeleteImpact(ctx, id)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianDeleteImpact{}, mapGuardianError(err)\n\t}\n\treturn peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.GuardianDeleteImpact",
       "owner": "modules/peopledirectory"
     },
     {
@@ -1402,9 +1395,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {\n\tids, err := s.students.ListDirectoryIDs(ctx)\n\treturn ids, MapError(err)\n}",
+      "evidence": "func (s *Service) ListStudentNamesByClass(ctx context.Context, schoolClass string) ([]peopledirectory.StudentName, error) {\n\tif strings.TrimSpace(schoolClass) == \"\" {\n\t\treturn []peopledirectory.StudentName{}, nil\n\t}\n\tvalues, err := s.students.ListNamesByClass(ctx, schoolClass)\n\tresult := append([]peopledirectory.StudentName{}, values...)\n\treturn result, MapError(err)\n}",
       "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/Service.ListStudentDirectoryIDs",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentNamesByClass",
       "owner": "modules/peopledirectory"
     },
     {

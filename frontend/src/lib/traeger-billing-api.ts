@@ -6,9 +6,22 @@
  * Money stays whole cent. Backend int64 IDs leave here as strings.
  */
 
+import type {
+  MailOutcome,
+  MailProviderBlock,
+} from "~/lib/email-delivery-status";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
+import {
+  type BackendInvoicePayment,
+  type BackendRunDueDate,
+  type InvoicePayment,
+  type RecipientKind,
+  type RunDueDate,
+  invoicePaymentFromBackend,
+  runDueDatesFromBackend,
+} from "./traeger-billing-terms-api";
 
 export type BillingRunStatus = "calculated" | "released";
 
@@ -128,6 +141,12 @@ export interface BillingDocument {
   readonly recipientEmail: string;
   /** The family's debtor number the invoice copies; empty without (#5621). */
   readonly debtorNumber: string;
+  /** Who gets it (#4689); "" on an invoice issued before. */
+  readonly recipientKind?: RecipientKind | "";
+  /** The second parent when both parents get it. */
+  readonly recipientSecondName?: string;
+  /** How and by when it is paid (#4689); null on an invoice issued before. */
+  readonly payment?: InvoicePayment | null;
   readonly serviceFrom: string;
   readonly serviceUntil: string;
   readonly children: readonly BillingChild[];
@@ -155,6 +174,15 @@ export interface BillingRunDetail extends BillingRun {
   readonly numberRangeSet: boolean;
   /** Set once the confirmation letters of the released run exist (#4669). */
   readonly letters: BillingLetters | null;
+  /** The due dates of the run per payment method (#4689). */
+  readonly dueDates?: readonly RunDueDate[];
+  /**
+   * The kind of document the run issues (#4688): before the release the
+   * kind the release would freeze, after it the frozen one.
+   */
+  readonly documentKind?: string;
+  /** A release would refuse: the fee notice has no legal remedy (#4688). */
+  readonly legalRemedyMissing?: boolean;
 }
 
 /** An emergency number of a hosting OGS on the letters of a run. */
@@ -243,6 +271,9 @@ interface BackendDocument {
   recipient_last_name: string;
   recipient_email: string;
   debtor_number?: string;
+  recipient_kind?: RecipientKind | "";
+  recipient_second_name?: string;
+  payment?: BackendInvoicePayment | null;
   service_from: string;
   service_until: string;
   children?:
@@ -287,6 +318,9 @@ interface BackendRunDetail extends BackendRun {
   number_pattern: string;
   number_range_set: boolean;
   letters?: BackendLetters | null;
+  due_dates?: BackendRunDueDate[] | null;
+  document_kind?: string;
+  legal_remedy_missing?: boolean;
 }
 
 interface BackendLetters {
@@ -375,6 +409,9 @@ function documentFromBackend(document: BackendDocument): BillingDocument {
     recipientLastName: document.recipient_last_name,
     recipientEmail: document.recipient_email,
     debtorNumber: document.debtor_number ?? "",
+    recipientKind: document.recipient_kind ?? "",
+    recipientSecondName: document.recipient_second_name ?? "",
+    payment: invoicePaymentFromBackend(document.payment),
     serviceFrom: document.service_from,
     serviceUntil: document.service_until,
     totalCents: document.total_cents,
@@ -417,6 +454,9 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
     letters: run.letters ? lettersFromBackend(run.letters) : null,
+    dueDates: runDueDatesFromBackend(run.due_dates),
+    documentKind: run.document_kind,
+    legalRemedyMissing: run.legal_remedy_missing ?? false,
   };
 }
 
@@ -559,7 +599,10 @@ export async function creditBillingDocument(
  * matches the count and the sum the person checked.
  */
 export async function releaseBillingRun(
-  run: Pick<BillingRunDetail, "id" | "previewCount" | "previewCents">,
+  run: Pick<
+    BillingRunDetail,
+    "id" | "previewCount" | "previewCents" | "documentKind"
+  >,
 ): Promise<BillingRunDetail> {
   return detailFromBackend(
     await traegerRequest<BackendRunDetail>(`${runPath(run.id)}/release`, {
@@ -567,6 +610,8 @@ export async function releaseBillingRun(
       body: {
         document_count: run.previewCount,
         total_cents: run.previewCents,
+        // The release refuses another kind than the one shown (#4688).
+        ...(run.documentKind ? { document_kind: run.documentKind } : {}),
       },
     }),
   );
@@ -605,7 +650,8 @@ export interface BillingFile {
   readonly filename: string;
 }
 
-async function billingFile(
+/** Reads a file of the Träger API; a refusal keeps its error code. */
+export async function billingFile(
   path: string,
   init: RequestInit,
   fallbackName: string,
@@ -686,6 +732,9 @@ export interface LetterMailing {
   readonly recipientLastName: string;
   readonly recipientEmail: string;
   readonly status: LetterMailStatus;
+  /** What became of the last mail; only a provider's report says delivered. */
+  readonly mailOutcome?: MailOutcome;
+  readonly providerBlock?: MailProviderBlock;
   readonly sends: number;
   readonly requestedAt: string | null;
   readonly sentAt: string | null;
@@ -706,6 +755,8 @@ interface BackendLetterMailing {
   recipient_last_name: string;
   recipient_email: string;
   status: LetterMailStatus;
+  mail_outcome?: MailOutcome;
+  provider_block?: MailProviderBlock;
   sends: number;
   requested_at: string | null;
   sent_at: string | null;
@@ -720,6 +771,8 @@ function mailingFromBackend(mailing: BackendLetterMailing): LetterMailing {
     recipientLastName: mailing.recipient_last_name,
     recipientEmail: mailing.recipient_email,
     status: mailing.status,
+    mailOutcome: mailing.mail_outcome,
+    providerBlock: mailing.provider_block,
     sends: mailing.sends,
     requestedAt: mailing.requested_at,
     sentAt: mailing.sent_at,
@@ -822,6 +875,34 @@ export async function saveHolidayNumberRange(
     pattern: string;
     example: string;
   }>(`${NUMBER_RANGES_PATH}/holiday`, { method: "PUT", body: { pattern } });
+  return {
+    service: range.service,
+    pattern: range.pattern,
+    example: range.example,
+  };
+}
+
+/** The number range of the monthly invoices (#4684); the pattern may be empty. */
+export async function fetchCareNumberRange(): Promise<NumberRange> {
+  const ranges = await traegerRequest<
+    { service: string; pattern: string; example: string }[] | null
+  >(NUMBER_RANGES_PATH);
+  const care = (ranges ?? []).find((range) => range.service === "care");
+  return {
+    service: "care",
+    pattern: care?.pattern ?? "",
+    example: care?.example ?? "",
+  };
+}
+
+export async function saveCareNumberRange(
+  pattern: string,
+): Promise<NumberRange> {
+  const range = await traegerRequest<{
+    service: string;
+    pattern: string;
+    example: string;
+  }>(`${NUMBER_RANGES_PATH}/care`, { method: "PUT", body: { pattern } });
   return {
     service: range.service,
     pattern: range.pattern,

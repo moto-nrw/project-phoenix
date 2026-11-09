@@ -22,7 +22,7 @@ import (
 // the shared renderer, the JWT identity and the legacy-service runtime. They
 // are the public HTTP contract goldens of the former api/guardians package
 // and run through the real middleware chain (Verifier -> Authenticator ->
-// TenantMiddleware -> RequiresPermission -> TenantTxMiddleware).
+// TenantScopeMiddleware -> RequiresPermission -> TenantTxMiddleware).
 
 func init() {
 	// Ensure a JWT secret exists so MintTestJWT and Router()'s MustNewTokenAuth
@@ -92,7 +92,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 		appEnv = appEnvs[0]
 	}
 	db, svc := setupGuardianModule(t)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), appEnv, slog.Default())
+	resource := NewGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), appEnv, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

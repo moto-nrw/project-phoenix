@@ -115,7 +115,7 @@ func TestIssueSchoolTokens_PortalNotBooked_Refused(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue-unbooked", tenantID)
 	cancelModule(t, db, tenantID, moduleUnterrichtVormittag)
 
-	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), accountID, tenantID, "", "")
+	_, _, err := issueSchoolTokens(service, context.Background(), accountID, tenantID, "", "")
 
 	requirePortalNotBooked(t, err, "unterricht_vormittag")
 }
@@ -194,4 +194,76 @@ func TestTenantLogin_IgnoresThePortalModules(t *testing.T) {
 	require.NoError(t, err, "the team portal is Basis")
 	_, _, err = service.RefreshToken(ctx, refreshToken)
 	require.NoError(t, err)
+}
+
+// Validation answers a cancelled module as the refresh does (#4895): the
+// session is kept and the portal explains the module, it is not ended. Both
+// the BFF's family check (access token only) and the hand-off with the
+// refresh token agree, and booking again lets the session continue.
+func TestValidateSessionTokens_PortalCancelled_KeepsTheSessionUntilBooked(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	schoolTenant, _ := newSchoolTenant(t, db)
+	teacherEmail, _ := createLehrkraftAccount(t, db, service, "school-validate-unbooked", schoolTenant)
+	school, err := service.LoginSchoolWithMFAGate(context.Background(), teacherEmail, testPassword, "", "", "")
+	require.NoError(t, err)
+	parentTenant, _ := testpkg.CreateTestTenant(t, db)
+	parentEmail, _ := newGuardianAccount(t, db, service, "parent-validate-unbooked", parentTenant)
+	parentAccess, parentRefresh, err := service.LoginParent(context.Background(), parentEmail, testPassword)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		portal, access, refresh, module, key string
+		tenantID                             int64
+	}{
+		{"school", school.AccessToken, school.RefreshToken, "unterricht_vormittag", moduleUnterrichtVormittag, schoolTenant},
+		{"parent", parentAccess, parentRefresh, "eltern_app", moduleElternApp, parentTenant},
+	} {
+		cancelModule(t, db, tc.tenantID, tc.key)
+		for _, refresh := range []string{"", tc.refresh} {
+			_, err := service.ValidateSessionTokens(context.Background(), tc.access, refresh, tc.portal)
+			requirePortalNotBooked(t, err, tc.module)
+			assert.Equal(t, identityaccess.SessionModuleNotBooked, identityaccess.SessionOutcomeOf(err), tc.portal)
+		}
+		bookModule(t, db, tc.tenantID, tc.key)
+		_, err := service.ValidateSessionTokens(context.Background(), tc.access, "", tc.portal)
+		require.NoError(t, err, "%s: booking again lets the session continue", tc.portal)
+	}
+}
+
+// An inactive school and a revoked school-portal role end the session at the
+// next validation as at the next refresh: both answer SessionEnded.
+func TestValidateSessionTokens_EndsWhereTheRefreshEnds(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	for _, tc := range []struct {
+		name    string
+		revoke  func(t *testing.T, tenantID, accountID int64)
+		refusal error
+	}{
+		{"inactive school", func(t *testing.T, tenantID, _ int64) { setSchoolActive(t, db, tenantID, false) }, identityaccess.ErrTenantNotFound},
+		{"revoked school-portal role", func(t *testing.T, tenantID, accountID int64) {
+			_, err := db.ExecContext(context.Background(), "DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?", accountID, tenantID)
+			require.NoError(t, err)
+		}, identityaccess.ErrTenantAccessDenied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tenantID, _ := newSchoolTenant(t, db)
+			email, accountID := createLehrkraftAccount(t, db, service, "school-validate-ended", tenantID)
+			login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+			require.NoError(t, err)
+			tc.revoke(t, tenantID, accountID)
+
+			_, validateErr := service.ValidateSessionTokens(context.Background(), login.AccessToken, "", "school")
+			_, _, refreshErr := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
+
+			require.ErrorIs(t, validateErr, tc.refusal)
+			assert.Equal(t, identityaccess.SessionEnded, identityaccess.SessionOutcomeOf(validateErr))
+			assert.Equal(t, identityaccess.SessionOutcomeOf(refreshErr), identityaccess.SessionOutcomeOf(validateErr), "validation answers as the refresh: %v", refreshErr)
+		})
+	}
 }

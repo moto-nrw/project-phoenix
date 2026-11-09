@@ -119,8 +119,9 @@ func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (de
 	return toDeviceDomain(row), stats, nil
 }
 
-// UpdateColumns writes exactly the named columns of one device and reports
-// how many rows matched.
+// UpdateColumns writes exactly the named columns of one live device and
+// reports how many rows matched. An archived device is history: no column
+// write reaches it.
 func (s *DeviceStore) UpdateColumns(ctx context.Context, input domain.UpdateDevice, columns []string) (int64, domain.OperationStats, error) {
 	if len(columns) == 0 {
 		return 0, domain.OperationStats{}, errors.New("devicefleet postgres: no columns to update")
@@ -133,20 +134,43 @@ func (s *DeviceStore) UpdateColumns(ctx context.Context, input domain.UpdateDevi
 	query := db.NewUpdate().Model(&row).
 		ModelTableExpr(deviceTableExpr).
 		Column(columns...).
-		Where(`"device".id = ?`, input.ID)
+		Where(`"device".id = ?`, input.ID).
+		Where(deviceNotArchive)
 	if !scope.AcrossSchools {
 		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
+	return execDeviceUpdate(ctx, query, "update device columns")
+}
+
+// TouchLastSeen records an observation of one device. last_seen only moves
+// forward: debounced pings can be written after a newer one, and GREATEST
+// ignores NULL, so a device without last_seen takes the first observation.
+func (s *DeviceStore) TouchLastSeen(ctx context.Context, id int64, seenAt time.Time) (int64, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	query := db.NewUpdate().Model((*deviceRow)(nil)).
+		ModelTableExpr(deviceTableExpr).
+		Set(`last_seen = GREATEST("device".last_seen, ?)`, seenAt).
+		Where(`"device".id = ?`, id)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
+	}
+	return execDeviceUpdate(ctx, query, "touch device last seen")
+}
+
+func execDeviceUpdate(ctx context.Context, query *bun.UpdateQuery, operation string) (int64, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return 0, stats, fmt.Errorf("devicefleet postgres: update device columns: %w", err)
+		return 0, stats, fmt.Errorf("devicefleet postgres: %s: %w", operation, err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return 0, stats, fmt.Errorf("devicefleet postgres: count updated devices: %w", err)
+		return 0, stats, fmt.Errorf("devicefleet postgres: count rows of %s: %w", operation, err)
 	}
 	stats.Rows = affected
 	return affected, stats, nil
@@ -466,4 +490,33 @@ func toDeviceDomain(row deviceRow) devicefleet.Device {
 		RegisteredByID: row.RegisteredByID, RoomID: row.RoomID, ArchivedAt: row.ArchivedAt,
 		TransferredToDeviceID: row.TransferredToDeviceID,
 	}
+}
+
+// UpdateColumnsReturning reads the row already locked by this UPDATE. It never
+// writes archived devices or widens the caller's column/tenant scope.
+func (s *DeviceStore) UpdateColumnsReturning(ctx context.Context, input domain.UpdateDevice, columns []string) (devicefleet.Device, domain.OperationStats, error) {
+	if len(columns) == 0 {
+		return devicefleet.Device{}, domain.OperationStats{}, errors.New("devicefleet postgres: no columns to update")
+	}
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return devicefleet.Device{}, domain.OperationStats{}, err
+	}
+	row := deviceRowFromUpdate(input)
+	query := db.NewUpdate().Model(&row).ModelTableExpr(deviceTableExpr).
+		Column(columns...).Where(`"device".id = ?`, input.ID).Where(deviceNotArchive)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
+	}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if errors.Is(err, sql.ErrNoRows) {
+		return devicefleet.Device{}, stats, devicefleet.ErrDeviceNotFound
+	}
+	if err != nil {
+		return devicefleet.Device{}, stats, fmt.Errorf("devicefleet postgres: update device columns: %w", err)
+	}
+	stats.Rows = 1
+	return toDeviceDomain(row), stats, nil
 }

@@ -14,8 +14,8 @@ import (
 
 // editDraft collects the persisted request that reopens the public form.
 type editDraft struct {
-	req           *Request
-	children      []*RequestChild
+	req           *enrollmentNative.Request
+	children      []*enrollmentNative.RequestChild
 	childIDs      []int64
 	guardians     []*enrollmentNative.RequestGuardian
 	school        *enrollmentNative.School
@@ -27,6 +27,7 @@ type editDraft struct {
 	editMode      string
 	capabilities  enrollmentNative.FormCapabilities
 	gradeLevelMax int
+	careTerm      string
 }
 
 // EditDraft loads the persisted request that reopens the public form. It is
@@ -64,7 +65,7 @@ func (s *Intake) loadDraftRequest(adminCtx context.Context, token string, draft 
 	}
 	draft.req = req
 	tenantCtx := s.deps.Runtime.WithTenant(adminCtx, req.TenantID)
-	if draft.children, err = decodedChildrenOfRequest(tenantCtx, s.deps.Children, req.ID, false); err != nil {
+	if draft.children, err = s.deps.Children.ChildrenForRequest(tenantCtx, req.ID, false); err != nil {
 		return fmt.Errorf("edit draft: list children: %w", err)
 	}
 	if s.deps.Guardians != nil {
@@ -93,6 +94,9 @@ func (s *Intake) loadDraftForm(ctx context.Context, draft *editDraft) error {
 	}
 	if draft.gradeLevelMax, err = s.resolveGradeMax(ctx); err != nil {
 		return fmt.Errorf("edit draft: %w", err)
+	}
+	if draft.careTerm, err = s.deps.Settings.CareFacilityTerm(ctx); err != nil {
+		return fmt.Errorf("edit draft: resolve care facility term: %w", err)
 	}
 	if err := s.loadDraftPhase(ctx, draft); err != nil {
 		return err
@@ -140,7 +144,7 @@ func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	// The edit paths re-run the eligibility gates for an enforced draft, so
 	// its classes narrow to the eligible subset; an exempt draft keeps the
 	// full list and drops the grade restriction (#1663).
-	if isTrustedEnrollmentSource(draft.req.SubmissionSource) || hasRolloverGeneratedChild(draft.children) {
+	if storedRequestEligibility(draft.req.SubmissionSource, draft.children) == eligibilityNone {
 		clearGradeRestrictionForEligibilityExemptForm(phase)
 	} else {
 		narrowOfferedClassesToEligibleForForm(phase)
@@ -148,7 +152,7 @@ func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	return nil
 }
 
-func (s *Intake) schemaForEditableRequest(ctx context.Context, req *Request) (*enrollmentNative.FormSchema, error) {
+func (s *Intake) schemaForEditableRequest(ctx context.Context, req *enrollmentNative.Request) (*enrollmentNative.FormSchema, error) {
 	if req != nil && req.SchemaID != nil {
 		return s.intakeSchema(ctx, *req.SchemaID)
 	}
@@ -200,14 +204,7 @@ func (s *Intake) loadDraftOfferings(ctx context.Context, draft *editDraft) error
 }
 
 func (d *editDraft) public() (*enrollmentNative.EditDraft, error) {
-	request, err := requestInput(d.req)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childInputs(d.children)
-	if err != nil {
-		return nil, err
-	}
+	request, children := d.req, d.children
 	linksByChild := make(map[int64][]*enrollmentNative.RequestChildOfferingRecord, len(d.children))
 	for _, link := range d.links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
@@ -218,5 +215,6 @@ func (d *editDraft) public() (*enrollmentNative.EditDraft, error) {
 		LegalTexts: d.legalTexts, EditMode: d.editMode,
 		CollectSchoolClass: d.capabilities.CollectSchoolClass, CollectGradeLevel: d.capabilities.CollectGradeLevel,
 		CareOfferingsEnabled: d.capabilities.CareOfferingsEnabled, GradeLevelMax: d.gradeLevelMax,
+		CareFacilityTerm: d.careTerm,
 	}, nil
 }

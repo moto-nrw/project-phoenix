@@ -155,7 +155,7 @@ func setupRolloverTest(t *testing.T) *rolloverTestEnv {
 // seedApprovedChild walks one parent submission through Submit + admin
 // approval so the source phase has a real `approved` request_children
 // row to roll forward. Returns the child for assertions.
-func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardianFirst, guardianLast, guardianEmail, childFirst, childLast string, grade int16) *enrollmentAPI.RequestChild {
+func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardianFirst, guardianLast, guardianEmail, childFirst, childLast string, grade int16) *capability.RequestChild {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 
@@ -165,7 +165,7 @@ func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardi
 		GuardianFirstName: guardianFirst,
 		GuardianLastName:  guardianLast,
 		GuardianEmail:     guardianEmail,
-		ConsentFlags:      rolloverConsentFlags(),
+		ConsentFlags:      testFormValues(rolloverConsentFlags()),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        childFirst,
@@ -424,7 +424,7 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.com",
-		ConsentFlags:      rolloverConsentFlags(),
+		ConsentFlags:      testFormValues(rolloverConsentFlags()),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -485,7 +485,7 @@ func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 		GuardianFirstName: "Beata",
 		GuardianLastName:  "Withdrawn",
 		GuardianEmail:     "withdrawn@example.com",
-		ConsentFlags:      rolloverConsentFlags(),
+		ConsentFlags:      testFormValues(rolloverConsentFlags()),
 		Children: []enrollmentAPI.SubmitChild{
 			{FirstName: "Max", LastName: "Withdrawn", DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: &one},
 		},
@@ -775,9 +775,20 @@ func (f *fakeApproveDecisionService) Decide(ctx context.Context, input capabilit
 	return &capability.DecideOutcome{}, nil
 }
 
+// LockApprovalGates is a no-op: the stub writes no gated state.
+func (f *fakeApproveDecisionService) LockApprovalGates(context.Context) error {
+	return nil
+}
+
 // ApplyDueClassSwitches is a no-op: the stub approves without planning a
 // class switch, so none can be due.
 func (f *fakeApproveDecisionService) ApplyDueClassSwitches(context.Context, calendar.Date) (int, error) {
+	return 0, nil
+}
+
+// ApplyDueWeeklyPlans is a no-op for the same reason: the stub plans no
+// weekly plan.
+func (f *fakeApproveDecisionService) ApplyDueWeeklyPlans(context.Context, calendar.Date) (int, error) {
 	return 0, nil
 }
 

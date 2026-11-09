@@ -1,0 +1,15 @@
+{
+  "api/traeger/care-notice-runs": [
+    "GET traeger /traeger/care-notice-runs",
+    "POST traeger /traeger/care-notice-runs"
+  ],
+  "api/traeger/care-notice-runs/[id]": [
+    "GET traeger /traeger/care-notice-runs/id%2F1"
+  ],
+  "api/traeger/care-notice-runs/[id]/notices/[contractId]/letter": [
+    "GET traeger /traeger/care-notice-runs/id%2F1/notices/contractId%2F1/letter"
+  ],
+  "api/traeger/care-notice-runs/[id]/release": [
+    "POST traeger /traeger/care-notice-runs/id%2F1/release"
+  ]
+}

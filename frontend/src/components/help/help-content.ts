@@ -126,14 +126,17 @@ function leadTopics(
     // Zuerst der Zugang: ohne Konto sieht eine Familie weder Mitteilung
     // noch Elternbrief noch Essensplan.
     articles.inviteGuardiansTopic(),
+    articles.emailDeliveryTopic(),
     articles.parentAnnouncementTopic(),
     articles.parentLetterTopic(),
+    articles.schoolTraegerDocumentsTopic(),
     articles.parentSurveyTopic(),
     articles.leadSurveysTopic(),
     articles.parentDeclarationTopic(),
     articles.mealPlanTopic(),
     articles.mealOrderingTopic(),
     articles.mealCatererTopic(),
+    articles.mealBillingReleaseTopic(),
     articles.bankDetailsTopic(),
 
     // --- Anmeldungen ---
@@ -236,6 +239,8 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerInvitationTopic(),
   articles.traegerLoginTopic(),
   articles.traegerDashboardTopic(),
+  articles.traegerKeyDateCountsTopic(),
+  articles.traegerOccupancyTopic(),
   articles.traegerSchoolViewTopic(),
   articles.traegerSchoolSwitchTopic(),
   articles.traegerTestSystemTopic(),
@@ -245,10 +250,21 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerHolidayRegistrationTopic(),
   articles.traegerHolidayRegistrationReviewTopic(),
   articles.traegerHolidayContributionTopic(),
+  articles.traegerCareContractsTopic(),
   articles.traegerBillingRunTopic(),
+  articles.traegerCareMonthsTopic(),
+  articles.traegerCareNoticesTopic(),
+  articles.traegerCareReductionsTopic(),
+  articles.traegerCareMealsTopic(),
+  articles.traegerCareCostSharesTopic(),
+  articles.traegerBillingTermsTopic(),
+  articles.traegerSepaMandatesTopic(),
+  articles.traegerSharedDocumentsTopic(),
+  articles.traegerCareTimeOverrunsTopic(),
   articles.traegerAccessLogTopic(),
   articles.traegerBriefkopfTopic(),
   articles.traegerDocumentTemplatesTopic(),
+  articles.traegerDocumentKindsTopic(),
   articles.traegerSettingsTopic(),
 ];
 

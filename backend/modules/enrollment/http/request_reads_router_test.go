@@ -101,7 +101,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	})))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	return &unreadEnv{
 		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
@@ -118,7 +118,7 @@ func (env *unreadEnv) submit(t *testing.T, children int) *enrollmentAPI.SubmitRe
 		GuardianFirstName: "Ulla",
 		GuardianLastName:  "Umbach",
 		GuardianEmail:     "unread-" + strconv.Itoa(children) + "@example.com",
-		ConsentFlags:      map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": false},
+		ConsentFlags:      testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": false}),
 	}
 	for i := range children {
 		req.Children = append(req.Children, enrollmentAPI.SubmitChild{
@@ -355,15 +355,15 @@ func TestAdminRequestsList_QueryBudget(t *testing.T) {
 	env := setupUnreadTest(t)
 	anna := env.reader(t, env.tenantID, managePermissions...)
 	counter := testpkg.CaptureQueriesForContext(t, env.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, "/admin/requests/?phase_id="+strconv.FormatInt(env.phaseID, 10), nil)
 		req = req.WithContext(counter.Context(req.Context()))
 		req.Header.Set("Authorization", "Bearer "+anna)
 		rec := httptest.NewRecorder()
-		env.router.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", env.router), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Matching(func(query string) bool { return strings.Contains(query, "enrollment.request_reads") })
+		return counter.Measurement(counter.Matching(func(query string) bool { return strings.Contains(query, "enrollment.request_reads") }))
 	}
 
 	env.submit(t, 1)
@@ -373,7 +373,7 @@ func TestAdminRequestsList_QueryBudget(t *testing.T) {
 	}
 	large := run()
 
-	require.Len(t, small, 1, "one read-state statement for one enrollment")
-	require.Len(t, large, 1, "one read-state statement for four enrollments")
+	require.Len(t, small.Statements, 1, "one read-state statement for one enrollment")
+	require.Len(t, large.Statements, 1, "one read-state statement for four enrollments")
 	querybudgets.AssertQueryBudget(t, "api.enrollment.admin_requests.read_state", large)
 }

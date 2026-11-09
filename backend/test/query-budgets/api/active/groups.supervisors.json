@@ -1,0 +1,7 @@
+{
+  "scenario": "api.active.groups.supervisors",
+  "max": 5,
+  "exact": true,
+  "description": "Protected tenant GET /api/active/groups/{id}/supervisors: tenant transaction frame, real parent existence SELECT, then ordered today-active supervision SELECT. Measured N0/3/8, full basic DTOs/UTC dates, exclusions, ended parent200, missing/foreign parent404, positive foreign-school200 and DML0. Existing route-sized real-owner binding; excludes full serve-host liveness/module-booking costs. No statement floor or reduction claimed.",
+  "route": "GET /api/active/groups/{id}/supervisors"
+}

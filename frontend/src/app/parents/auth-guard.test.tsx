@@ -102,6 +102,39 @@ describe("ParentAuthGuard", () => {
     );
   });
 
+  // #6187: the page load's session check already names the unbooked module.
+  it("explains the unused portal as soon as the session check says so", () => {
+    render(
+      <ParentAuthGuard notBooked>
+        <div>Elternbereich</div>
+      </ParentAuthGuard>,
+    );
+
+    expect(
+      screen.getByText(/Ihre Schule nutzt das Elternportal zurzeit nicht/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Elternbereich")).not.toBeInTheDocument();
+  });
+
+  // #6187: a renewal refused with module.not_booked keeps the session and
+  // marks it.
+  it("explains the unused portal when the session's renewal found it not booked", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "parent-1", scope: "parent" }, notBooked: true },
+      status: "authenticated",
+    });
+    render(
+      <ParentAuthGuard>
+        <div>Elternbereich</div>
+      </ParentAuthGuard>,
+    );
+
+    expect(
+      screen.getByText(/Ihre Schule nutzt das Elternportal zurzeit nicht/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Elternbereich")).not.toBeInTheDocument();
+  });
+
   // #4895: once none of the parent's schools books Eltern-App, every request
   // of the open session is refused. The portal says so once, instead of an
   // error card per block.

@@ -61,7 +61,7 @@ func BuildPresenceReports(
 		StudentHistory: presenceservice.NewStudentHistory(presence.Presence, historyRoomNames(rooms),
 			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent.Reads),
 			NewAttendanceStaffNames(people.Staff)),
-		Statistics: newStatisticsReports(db, carePlan, careDays, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
+		Statistics: newStatisticsReports(db, carePlan, careDays, calendar, people.Students, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
 	}
 }
 
@@ -81,8 +81,9 @@ func BuildCalendarApp(
 	persons peopledirectory.GuardianPortalContacts,
 ) calendarCompose.Application {
 	repos, links := owner.Repositories, env.Links
-	cfg := NewCalendarFacts(people.Staff, people.Students, NewCalendarGuardianDirectory(people.GuardianProfiles, persons), people.StudentGuardians,
+	cfg := NewCalendarFacts(people.Staff, people.Students, NewCalendarGuardianDirectory(people.GuardianProfiles, persons),
 		carePlanCompose.NewParentChildLinks(portal.ParentChild), structure.Groups)
+	cfg = BindCalendarElternAppBookings(cfg, settings)
 	cfg = BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance.Reads, facilitiesCompose.NewRoomRecords(rooms),
 		newWorkforceShiftRows(workTime), newWorkforceShiftTypeRows(workTime))
 	cfg = BindCalendarFeedFacts(cfg, organizations, identity, identity, people.Persons)

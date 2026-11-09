@@ -14,11 +14,11 @@ import {
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
-import {
-  TIMETABLE_UNTYPED_EDGE_COLOR,
-  timetableSurface,
-} from "./timetable-style";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "./timetable-colors";
 import { calendarConcept } from "~/lib/concepts/calendar";
+import { StatusDot } from "~/components/ui/status-dot";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -58,12 +58,12 @@ export function MonthPlannerGrid({
   const currentMonth = monthDate.getMonth();
 
   return (
-    <div className={`${timetableSurface} overflow-hidden`}>
+    <SectionCard padding="none">
       <div className="grid grid-cols-7 border-b border-gray-200">
         {days.slice(0, 7).map((day) => (
           <div
             key={getGermanWeekdayShort(day)}
-            className="px-3 py-2 text-center text-[11px] font-medium tracking-wide text-gray-500 uppercase"
+            className="px-3 py-2 text-center text-xs font-medium text-gray-500"
           >
             {getGermanWeekdayShort(day)}
           </div>
@@ -139,7 +139,7 @@ export function MonthPlannerGrid({
                 )}
 
                 {planningDisabled && (
-                  <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
+                  <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
                     <MotoConceptIcon concept={calendarConcept} size={14} />
                     Nicht planbar
                   </div>
@@ -148,7 +148,7 @@ export function MonthPlannerGrid({
                 {dayInstances.length === 0 ? (
                   closingReason === undefined &&
                   !planningDisabled && (
-                    <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
+                    <div className="mt-5 flex items-center gap-1 text-xs text-gray-400">
                       <MotoConceptIcon concept={calendarConcept} size={14} />
                       Leer
                     </div>
@@ -169,7 +169,7 @@ export function MonthPlannerGrid({
                                 onClick: () => onInstanceClick(inst),
                               }
                             : {})}
-                          className={`pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
+                          className={`pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-xs shadow-sm ${
                             isCancelled
                               ? "border-moto-red border-dashed text-gray-400 line-through"
                               : "border-gray-200 text-gray-700"
@@ -181,15 +181,14 @@ export function MonthPlannerGrid({
                                 TIMETABLE_UNTYPED_EDGE_COLOR),
                           }}
                         >
-                          <span
-                            className="h-1.5 w-1.5 shrink-0 rounded-full"
-                            style={{
-                              backgroundColor: isCancelled
+                          <StatusDot
+                            color={
+                              isCancelled
                                 ? MOTO_COLOR_PALETTE.red.base
                                 : (inst.planningTrackColor ??
-                                  TIMETABLE_UNTYPED_EDGE_COLOR),
-                            }}
-                            aria-hidden
+                                  TIMETABLE_UNTYPED_EDGE_COLOR)
+                            }
+                            decorative
                           />
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {inst.title}
@@ -200,17 +199,18 @@ export function MonthPlannerGrid({
                             </span>
                           )}
                           {inst.isSpontaneous && !isCancelled && (
-                            <span
-                              className="shrink-0 rounded-full bg-gray-100 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                            <StatusBadge
+                              label="Spontan"
+                              tone="gray"
+                              size="xs"
+                              className="shrink-0"
                               title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                            >
-                              Spontan
-                            </span>
+                            />
                           )}
                           {isActive && !isCancelled && (
-                            <span
-                              className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full"
-                              aria-label="läuft"
+                            <StatusDot
+                              className="bg-moto-green"
+                              label="läuft"
                             />
                           )}
                           {hasConflict && (
@@ -235,7 +235,7 @@ export function MonthPlannerGrid({
                       );
                     })}
                     {moreCount > 0 && (
-                      <div className="text-[10px] font-medium text-gray-500">
+                      <div className="text-xs font-medium text-gray-500">
                         + {moreCount} weitere
                       </div>
                     )}
@@ -252,6 +252,6 @@ export function MonthPlannerGrid({
           {legend}
         </div>
       ) : null}
-    </div>
+    </SectionCard>
   );
 }

@@ -20,7 +20,7 @@
     "emptyDescription": "Për momentin nuk ka asgjë për të bërë.",
     "messageTitleOne": "Mesazh i ri",
     "messageTitleMany": "{count} mesazhe të reja",
-    "messageContext": "OGS · Për {name}",
+    "messageContext": "{careTerm} · Për {name}",
     "pollContext": "Sondazh · {school}",
     "declarationContext": "Pëlqim · {school}",
     "newsContext": "Letër për prindërit · {school}",
@@ -34,6 +34,6 @@
     "errorObject": "lista e plotë e detyrave"
   },
   "childrenLoading": "Po ngarkohen të dhënat e fëmijëve",
-  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. {careTerm}-ja e shkollës suaj mund ta rregullojë këtë.",
   "errorObject": "përmbledhja e fëmijëve tuaj"
 }

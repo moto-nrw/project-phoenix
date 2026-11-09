@@ -1,4 +1,4 @@
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 // Klassenlisteneinträge (#2382): Kinder ohne OGS-Datensatz, nur Name +
 // Klasse. Lesen users:read, Anlegen users:create — beides erzwingt das

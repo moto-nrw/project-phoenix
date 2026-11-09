@@ -412,7 +412,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	// Download serves the original name as an attachment.
 	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Header().Get("Content-Disposition"), "filename=Elternbrief.pdf")
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), `filename="Elternbrief.pdf"`)
 	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
 	assert.Equal(t, fakePDF, rec.Body.Bytes())
 
@@ -420,7 +420,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	// download regardless of the flag.
 	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Equal(t, "inline; filename=Elternbrief.pdf", rec.Header().Get("Content-Disposition"))
+	assert.Equal(t, `inline; filename="Elternbrief.pdf"`, rec.Header().Get("Content-Disposition"))
 	assert.Contains(t, rec.Header().Get("Content-Security-Policy"), "sandbox")
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 
@@ -454,6 +454,31 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 		Where("folder_id = ?", folder).
 		Scan(testpkg.Ctx(t), &events))
 	assert.Equal(t, 4, events, "folder_created + 2x file_uploaded + file_deleted")
+}
+
+// A PDF whose name says HTML is refused before anything is stored: the
+// original name is the download name, so it would be saved as an HTML file.
+func TestUploadRefusesExtensionThatDoesNotMatchContent(t *testing.T) {
+	t.Parallel()
+	c := setupFileStoreRoute(t)
+	folder := c.createFolder(folderPayload{Name: "Briefe", Visibility: "all_staff"})
+
+	for _, filename := range []string{"brief.html", "brief.hta"} {
+		rec := c.upload(folder, filename, fakePDF, c.admin, permissions.AdminWildcard)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), common.CodeFilesFileTypeNotAllowed)
+	}
+
+	ctx := testpkg.Ctx(t)
+	var rows, uploads int
+	require.NoError(t, c.db.NewSelect().TableExpr("documents.files").ColumnExpr("COUNT(*)").Where("folder_id = ?", folder).Scan(ctx, &rows))
+	assert.Zero(t, rows, "no file row")
+	require.NoError(t, c.db.NewSelect().TableExpr("audit.file_events").ColumnExpr("COUNT(*)").
+		Where("folder_id = ? AND action = ?", folder, "file_uploaded").Scan(ctx, &uploads))
+	assert.Zero(t, uploads, "no upload event")
+	var cleanups int
+	require.NoError(t, c.db.NewSelect().TableExpr("documents.file_cleanup").ColumnExpr("COUNT(*)").Where("owner_id = ?", folder).Scan(ctx, &cleanups))
+	assert.Zero(t, cleanups, "no stored object left for cleanup")
 }
 
 func TestStaffUploadSetting(t *testing.T) {

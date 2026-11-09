@@ -1,5 +1,8 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
+import { ListRow } from "~/components/ui/list-row";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -7,6 +10,7 @@ import {
 } from "~/lib/class-handover";
 import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentAbsenceRow } from "~/components/students/student-card";
 import {
@@ -38,6 +42,8 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { responsibilityConcept } from "~/lib/concepts/responsibility";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 interface PlannedNowSectionProps {
   readonly plannedNow: PlannedTimetableInstance[];
@@ -105,25 +111,23 @@ export function PlannedNowSection({
 
   if (sortedPlanned.length === 0) {
     return (
-      <section
-        className="moto-content-surface mb-4 rounded-2xl border p-4"
-        data-setup-tour="supervision-next"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Als Nächstes
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Keine geplante Betreuung in Sicht
-            </p>
-          </div>
-          <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
-            <MotoConceptIcon concept={carePlanConcept} size={18} />
-            Heute
-          </span>
-        </div>
-      </section>
+      <div className="mb-4" data-setup-tour="supervision-next">
+        <SectionCard
+          title="Als Nächstes"
+          action={
+            <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
+              <MotoConceptIcon concept={carePlanConcept} size={18} />
+              Heute
+            </span>
+          }
+        >
+          <EmptyState
+            variant="compact"
+            title="Keine geplante Betreuung in Sicht"
+            className="py-0"
+          />
+        </SectionCard>
+      </div>
     );
   }
 
@@ -159,229 +163,233 @@ export function PlannedNowSection({
   const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
 
   return (
-    <section
-      className="moto-content-surface mb-5 overflow-hidden rounded-2xl border"
-      data-setup-tour="supervision-next"
-    >
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <button
-          type="button"
-          onClick={() =>
-            setSectionExpanded((current) => !(current ?? hasActionableSlot))
-          }
-          className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
-          aria-expanded={isSectionExpanded}
-        >
-          <ConceptIconTile concept={carePlanConcept} size="sm" />
-          <span className="min-w-0">
-            <span className="block text-base font-semibold text-gray-900">
-              Als Nächstes
+    // Der Tour-Anker sitzt an der Hülle: SectionCard reicht keine
+    // data-Attribute durch, die Hülle hat dieselben Maße wie die Karte.
+    <div className="mb-5" data-setup-tour="supervision-next">
+      <SectionCard padding="none">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <button
+            type="button"
+            onClick={() =>
+              setSectionExpanded((current) => !(current ?? hasActionableSlot))
+            }
+            className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
+            aria-expanded={isSectionExpanded}
+          >
+            <ConceptIconTile concept={carePlanConcept} size="sm" />
+            <span className="min-w-0">
+              <span className="block text-base font-semibold text-gray-900">
+                Als Nächstes
+              </span>
+              <span className="mt-0.5 block truncate text-sm text-gray-600">
+                {sortedPlanned[0]?.title}
+              </span>
             </span>
-            <span className="mt-0.5 block truncate text-sm text-gray-600">
-              {sortedPlanned[0]?.title}
-            </span>
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${isSectionExpanded ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-        <div className="flex flex-wrap gap-2 sm:justify-end">
-          <SummaryPill
-            concept={carePlanConcept}
-            label={`${sortedPlanned.length} geplant`}
-            tone="info"
-          />
-          {showTimetableCounts && (
-            <SummaryPill
-              concept={childrenConcept}
-              label={`${expectedCount} Kinder`}
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${isSectionExpanded ? "rotate-180" : ""}`}
+              aria-hidden="true"
             />
-          )}
-          {overdueCount > 0 ? (
+          </button>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
             <SummaryPill
-              concept={emergencyConcept}
-              label={`${overdueCount} überfällig`}
-              tone="warning"
+              concept={carePlanConcept}
+              label={`${sortedPlanned.length} geplant`}
+              tone="info"
             />
-          ) : soonCount > 0 ? (
-            <SummaryPill
-              concept={careTimesConcept}
-              label={`${soonCount} startet gleich`}
-              tone="success"
-            />
-          ) : null}
-        </div>
-      </div>
-
-      {isSectionExpanded ? (
-        <div className="overflow-hidden">
-          <div className="grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
-            {sortedPlanned.map((instance) => {
-              const isExpanded = expandedIds.has(instance.id);
-              const visibleRows = isExpanded
-                ? instance.rosterPreview
-                : instance.rosterPreview.slice(0, 4);
-              const hiddenCount = Math.max(
-                0,
-                instance.rosterPreview.length - visibleRows.length,
-              );
-
-              return (
-                <article
-                  key={instance.id}
-                  className="moto-content-surface overflow-hidden rounded-xl border"
-                  style={blockTintStyle(instance, instance.isAssigned)}
-                >
-                  <div className="p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-sm font-semibold text-gray-900">
-                            {instance.title}
-                            <OwnBlockHint mine={instance.isAssigned} />
-                          </h3>
-                          <SlotStatusBadge instance={instance} />
-                          <ResponsibilityBadge instance={instance} />
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
-                          <span className="inline-flex items-center gap-1.5">
-                            <MotoConceptIcon
-                              concept={careTimesConcept}
-                              size={16}
-                            />
-                            {blockTimeRange(instance)}
-                          </span>
-                          <span>
-                            <MotoConceptIcon
-                              concept={roomsConcept}
-                              size={14}
-                              className="mr-1 inline-block align-[-2px]"
-                            />
-                            {instance.roomName ?? `Raum ${instance.roomId}`}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="md"
-                        disabled={
-                          isStartingInstance === instance.id ||
-                          !canStartPlannedInstance(instance, now)
-                        }
-                        onClick={() => onStart(instance)}
-                        className="shrink-0 gap-2"
-                      >
-                        <Play className="h-4 w-4" aria-hidden="true" />
-                        {isStartingInstance === instance.id
-                          ? "Startet..."
-                          : canStartPlannedInstance(instance, now)
-                            ? "Starten"
-                            : instance.startAvailableAt
-                              ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
-                              : "Nur für Eingeplante"}
-                      </Button>
-                    </div>
-
-                    <div
-                      className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-3" : "grid-cols-1"}`}
-                    >
-                      {showTimetableCounts && (
-                        <>
-                          <SlotStat
-                            label="Erwartet"
-                            value={instance.expectedStudentsCount}
-                            tone="neutral"
-                          />
-                          <SlotStat
-                            label="Anwesend"
-                            value={
-                              instance.currentStudentsCount ??
-                              instance.presentStudentsCount
-                            }
-                            tone={
-                              (instance.currentStudentsCount ??
-                                instance.presentStudentsCount) > 0
-                                ? "success"
-                                : "neutral"
-                            }
-                          />
-                        </>
-                      )}
-                      <SlotStat
-                        label="Betreuende"
-                        value={instance.assignedStaffIds.length}
-                        tone={instance.isAssigned ? "info" : "neutral"}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(instance.id)}
-                      className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                      aria-expanded={isExpanded}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <MotoConceptIcon concept={childrenConcept} size={18} />
-                        Kinder
-                        <span className="text-xs font-normal text-gray-500">
-                          {rosterPreviewLabel(
-                            instance.rosterPreview.length,
-                            instance.expectedStudentsCount,
-                            instance.notScheduledStudentsCount,
-                            showTimetableCounts,
-                          )}
-                        </span>
-                      </span>
-                      <ChevronDown
-                        className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                        aria-hidden="true"
-                      />
-                    </button>
-
-                    {instance.rosterPreview.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {instance.pickupTimesLoaded === false &&
-                        !instance.pickupTimesRedacted ? (
-                          <Alert
-                            type="warning"
-                            announce="polite"
-                            message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
-                          />
-                        ) : null}
-                        {visibleRows.map((row) => (
-                          <RosterPreviewRow
-                            key={row.studentId}
-                            row={row}
-                            pickupTimesLoaded={instance.pickupTimesLoaded}
-                            pickupTimesRedacted={instance.pickupTimesRedacted}
-                          />
-                        ))}
-                        {hiddenCount > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleExpanded(instance.id)}
-                            className="focus-visible:ring-moto-blue/30 text-moto-blue-hover hover:text-moto-blue-strong text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
-                          >
-                            {showTimetableCounts
-                              ? `${hiddenCount} weitere anzeigen`
-                              : "Weitere anzeigen"}
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
+            {showTimetableCounts && (
+              <SummaryPill
+                concept={childrenConcept}
+                label={`${expectedCount} Kinder`}
+              />
+            )}
+            {overdueCount > 0 ? (
+              <SummaryPill
+                concept={emergencyConcept}
+                label={`${overdueCount} überfällig`}
+                tone="warning"
+              />
+            ) : soonCount > 0 ? (
+              <SummaryPill
+                concept={careTimesConcept}
+                label={`${soonCount} startet gleich`}
+                tone="success"
+              />
+            ) : null}
           </div>
         </div>
-      ) : null}
-    </section>
+
+        {isSectionExpanded ? (
+          <div className="overflow-hidden">
+            <div className="grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
+              {sortedPlanned.map((instance) => {
+                const isExpanded = expandedIds.has(instance.id);
+                const visibleRows = isExpanded
+                  ? instance.rosterPreview
+                  : instance.rosterPreview.slice(0, 4);
+                const hiddenCount = Math.max(
+                  0,
+                  instance.rosterPreview.length - visibleRows.length,
+                );
+
+                return (
+                  <article
+                    key={instance.id}
+                    className="moto-content-surface overflow-hidden rounded-xl border"
+                    style={blockTintStyle(instance, instance.isAssigned)}
+                  >
+                    <div className="p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate text-sm font-semibold text-gray-900">
+                              {instance.title}
+                              <OwnBlockHint mine={instance.isAssigned} />
+                            </h3>
+                            <SlotStatusBadge instance={instance} />
+                            <ResponsibilityBadge instance={instance} />
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                            <span className="inline-flex items-center gap-1.5">
+                              <MotoConceptIcon
+                                concept={careTimesConcept}
+                                size={16}
+                              />
+                              {blockTimeRange(instance)}
+                            </span>
+                            <span>
+                              <MotoConceptIcon
+                                concept={roomsConcept}
+                                size={14}
+                                className="mr-1 inline-block align-[-2px]"
+                              />
+                              {instance.roomName ?? `Raum ${instance.roomId}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="md"
+                          disabled={
+                            isStartingInstance === instance.id ||
+                            !canStartPlannedInstance(instance, now)
+                          }
+                          onClick={() => onStart(instance)}
+                          className="shrink-0 gap-2"
+                        >
+                          <Play className="h-4 w-4" aria-hidden="true" />
+                          {isStartingInstance === instance.id
+                            ? "Startet..."
+                            : canStartPlannedInstance(instance, now)
+                              ? "Starten"
+                              : instance.startAvailableAt
+                                ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
+                                : "Nur für Eingeplante"}
+                        </Button>
+                      </div>
+
+                      <div
+                        className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1"}`}
+                      >
+                        {showTimetableCounts && (
+                          <>
+                            <StatCard
+                              label="Erwartet"
+                              value={instance.expectedStudentsCount}
+                              tone="neutral"
+                            />
+                            <StatCard
+                              label="Anwesend"
+                              value={
+                                instance.currentStudentsCount ??
+                                instance.presentStudentsCount
+                              }
+                              tone={
+                                (instance.currentStudentsCount ??
+                                  instance.presentStudentsCount) > 0
+                                  ? "green"
+                                  : "neutral"
+                              }
+                            />
+                          </>
+                        )}
+                        <StatCard
+                          label="Betreuende"
+                          value={instance.assignedStaffIds.length}
+                          tone={instance.isAssigned ? "blue" : "neutral"}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(instance.id)}
+                        className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                        aria-expanded={isExpanded}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <MotoConceptIcon
+                            concept={childrenConcept}
+                            size={18}
+                          />
+                          Kinder
+                          <span className="text-xs font-normal text-gray-500">
+                            {rosterPreviewLabel(
+                              instance.rosterPreview.length,
+                              instance.expectedStudentsCount,
+                              instance.notScheduledStudentsCount,
+                              showTimetableCounts,
+                            )}
+                          </span>
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          aria-hidden="true"
+                        />
+                      </button>
+
+                      {instance.rosterPreview.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {instance.pickupTimesLoaded === false &&
+                          !instance.pickupTimesRedacted ? (
+                            <Alert
+                              type="warning"
+                              announce="polite"
+                              message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+                            />
+                          ) : null}
+                          {visibleRows.map((row) => (
+                            <RosterPreviewRow
+                              key={row.studentId}
+                              row={row}
+                              pickupTimesLoaded={instance.pickupTimesLoaded}
+                              pickupTimesRedacted={instance.pickupTimesRedacted}
+                            />
+                          ))}
+                          {hiddenCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(instance.id)}
+                              className="focus-visible:ring-moto-blue/30 text-moto-blue-hover hover:text-moto-blue-strong text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                            >
+                              {showTimetableCounts
+                                ? `${hiddenCount} weitere anzeigen`
+                                : "Weitere anzeigen"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </SectionCard>
+    </div>
   );
 }
 
@@ -390,23 +398,17 @@ function SlotStatusBadge({
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
   if (instance.isOverdue) {
     return (
-      <span className="bg-moto-amber/20 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-        Überfällig
-      </span>
+      <StatusColorBadge
+        label="Überfällig"
+        color={LOCATION_COLORS.WARNING}
+        compact
+      />
     );
   }
   if (instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES) {
-    return (
-      <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
-        Startet gleich
-      </span>
-    );
+    return <StatusBadge label="Startet gleich" tone="green" compact />;
   }
-  return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-      Heute
-    </span>
-  );
+  return <StatusBadge label="Heute" tone="gray" compact />;
 }
 
 /**
@@ -420,38 +422,19 @@ function ResponsibilityBadge({
   if (!instance.isAssigned) return null;
   if (!instance.isPrimary && !instance.isSubstitute) return null;
   return (
-    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-      <MotoConceptIcon
-        concept={
-          instance.isPrimary ? responsibilityConcept : substitutionConcept
-        }
-        size={16}
-      />
-      {instance.isPrimary ? "Zuständig" : "Vertretung"}
-    </span>
-  );
-}
-
-function SlotStat({
-  label,
-  value,
-  tone,
-}: Readonly<{
-  label: string;
-  value: number;
-  tone: "neutral" | "success" | "info";
-}>) {
-  const className =
-    tone === "success"
-      ? "bg-moto-green/10 text-moto-green-strong"
-      : tone === "info"
-        ? "bg-moto-blue/10 text-moto-blue-hover"
-        : "bg-gray-50 text-gray-900";
-  return (
-    <div className={`rounded-lg px-3 py-2 ${className}`}>
-      <span className="block text-sm font-semibold">{value}</span>
-      <span className="block text-sm font-medium text-gray-500">{label}</span>
-    </div>
+    <StatusBadge
+      label={instance.isPrimary ? "Zuständig" : "Vertretung"}
+      tone="blue"
+      compact
+      icon={
+        <MotoConceptIcon
+          concept={
+            instance.isPrimary ? responsibilityConcept : substitutionConcept
+          }
+          size={16}
+        />
+      }
+    />
   );
 }
 
@@ -513,10 +496,9 @@ function RosterPreviewRow({
   // away from a check-in (#1747).
   const notScheduled = isNotScheduled(row);
   return (
-    <div
-      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
-        notScheduled ? "bg-gray-50" : "bg-white"
-      }`}
+    <ListRow
+      tone={notScheduled ? "muted" : "surface"}
+      className="block text-sm"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -547,14 +529,10 @@ function RosterPreviewRow({
               <CircleAlert className="h-4 w-4" aria-hidden="true" />
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: rosterDotColor(row) }}
-              aria-hidden="true"
-            />
-            {rosterStatusLabel(row)}
-          </span>
+          <StatusColorBadge
+            label={rosterStatusLabel(row)}
+            color={rosterStatusColor(row)}
+          />
         </div>
       </div>
       {classException ? (
@@ -580,19 +558,19 @@ function RosterPreviewRow({
           {warnings[0]?.message}
         </p>
       ) : null}
-    </div>
+    </ListRow>
   );
 }
 
 /**
- * The "Erwartet" dot is the one roster state with no standing in the location
+ * The "Erwartet" pill is the one roster state with no standing in the location
  * palette — it says "nothing has happened yet", so it takes the light neutral
  * from the shared palette rather than borrowing a status hue. Never a raw hex:
  * status and planning colours come from the tokens only.
  */
-const EXPECTED_DOT_COLOR = MOTO_COLOR_PALETTE.neutral.light;
+const EXPECTED_STATUS_COLOR = MOTO_COLOR_PALETTE.neutral.light;
 
-function rosterDotColor(row: TimetableRosterRow) {
+function rosterStatusColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
     return LOCATION_COLORS.GROUP_ROOM;
   }
@@ -609,7 +587,7 @@ function rosterDotColor(row: TimetableRosterRow) {
   // isNotScheduled branch above already owns. Sharing the hex would make a
   // child that is merely expected indistinguishable from one the care plan
   // leaves out today.
-  return EXPECTED_DOT_COLOR;
+  return EXPECTED_STATUS_COLOR;
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {

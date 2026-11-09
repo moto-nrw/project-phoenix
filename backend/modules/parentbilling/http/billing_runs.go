@@ -2,7 +2,6 @@ package parentbillinghttp
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -108,6 +108,9 @@ func (req *BillingCorrectionRequest) Bind(*http.Request) error { return nil }
 type BillingReleaseRequest struct {
 	DocumentCount int   `json:"document_count"`
 	TotalCents    int64 `json:"total_cents"`
+	// DocumentKind is the kind of document the Abrechnung saw (#4688);
+	// missing skips the check.
+	DocumentKind string `json:"document_kind"`
 }
 
 // Bind accepts the body.
@@ -275,7 +278,7 @@ func writeExportFile(w http.ResponseWriter, r *http.Request, file capability.Exp
 		return
 	}
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
@@ -368,13 +371,18 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingRunChanged, common.CodeParentBillingBillingRunChanged},
 		{capability.ErrBillingRunEmpty, common.CodeParentBillingBillingRunEmpty},
 		{capability.ErrNumberRangeMissing, common.CodeParentBillingNumberRangeMissing},
+		{capability.ErrLegalRemedyMissing, common.CodeParentBillingLegalRemedyMissing},
 		{capability.ErrInvoiceNumberTaken, common.CodeParentBillingInvoiceNumberTaken},
 		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
 		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},
 		{capability.ErrLetterheadTooLong, common.CodeParentBillingLetterheadTooLong},
 		{capability.ErrBillingLettersMissing, common.CodeParentBillingBillingLettersMissing},
 		{capability.ErrLetterMailPending, common.CodeParentBillingLetterMailPending},
+		{capability.ErrLetterMailDelayed, common.CodeParentBillingLetterMailDelayed},
+		{capability.ErrLetterMailBlocked, common.CodeParentBillingLetterMailBlocked},
+		{capability.ErrLetterMailBlockUnreadable, common.CodeParentBillingLetterMailBlockUnreadable},
 		{capability.ErrRecipientEmailMissing, common.CodeParentBillingRecipientEmailMissing},
+		{capability.ErrDirectDebitWithoutMandate, common.CodeParentBillingDirectDebitWithoutMandate},
 	} {
 		if errors.Is(err, conflict.err) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, conflict.code))

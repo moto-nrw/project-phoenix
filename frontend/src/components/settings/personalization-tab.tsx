@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
-import { ImageUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { MotoBrand } from "~/components/auth/moto-brand";
 import { useTenant } from "~/lib/tenant-context";
@@ -23,7 +22,10 @@ import { loginImageSrc } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
+import { Dropzone } from "~/components/ui/dropzone";
+import { SpinnerIcon } from "~/components/ui/icons";
 import { SectionCard } from "~/components/ui/section-card";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "PersonalizationTab" });
 
@@ -31,7 +33,6 @@ export function PersonalizationTab() {
   const { tenant } = useTenant();
   const router = useRouter();
   const { success: toastSuccess } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(
     tenant?.settings?.loginImageUrl ?? null,
@@ -40,7 +41,6 @@ export function PersonalizationTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
 
   // Laden: Fehler vor Ort mit Wiederholen, das Bild aus dem Schulkontext
   // bleibt stehen. Hochladen und Entfernen sind Aktionen ohne Formular: ein
@@ -140,20 +140,9 @@ export function PersonalizationTab() {
         });
       } finally {
         setIsUploading(false);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
       }
     },
     [toastSuccess, showMessage, router, showActionError],
-  );
-
-  const handleUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) void processFile(file);
-    },
-    [processFile],
   );
 
   const handleDelete = useCallback(async () => {
@@ -194,46 +183,6 @@ export function PersonalizationTab() {
     latestDeleteRef.current = () => void handleDelete();
   });
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-
-      const file = e.dataTransfer.files[0];
-      if (file) void processFile(file);
-    },
-    [processFile],
-  );
-
-  const handleZoneClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      fileInputRef.current?.click();
-    }
-  }, []);
-
   return (
     // Ein Gitter wächst nicht mit dem Seitenrumpf: Die Karte ist so hoch wie
     // ihr Inhalt, statt als leere weiße Fläche bis zur Unterkante zu reichen
@@ -253,11 +202,18 @@ export function PersonalizationTab() {
         ) : null}
         {/* Current image preview */}
         {isLoading ? (
-          <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
-          </div>
+          <InsetPanel
+            framed
+            className="flex h-[120px] items-center justify-center"
+          >
+            <SpinnerIcon className="h-6 w-6 text-gray-500 motion-reduce:animate-none" />
+          </InsetPanel>
         ) : currentImageUrl ? (
-          <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-6">
+          <InsetPanel
+            framed
+            padding="md"
+            className="flex flex-col items-center gap-4"
+          >
             <Image
               src={loginImageSrc(currentImageUrl)}
               alt="Login-Bild"
@@ -277,7 +233,7 @@ export function PersonalizationTab() {
                 {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
               </Button>
             )}
-          </div>
+          </InsetPanel>
         ) : loadError ? null : (
           // Ohne eigenes Bild zeigt die Login-Seite das moto-Logo. Die
           // Vorschau sagt das, statt die Karte leer zu lassen (#3893).
@@ -292,73 +248,21 @@ export function PersonalizationTab() {
         {/* Upload dropzone — shown when editable */}
         {canEdit && (
           <div className={loadError && !currentImageUrl ? "" : "mt-4"}>
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
+            <Dropzone
               accept="image/jpeg,image/png,image/webp"
-              tabIndex={-1}
-              onChange={handleUpload}
-              disabled={isUploading}
-              className="sr-only"
-              aria-label="Bild auswählen"
+              legend="Bereich zum Hochladen des Login-Bilds"
+              label={
+                currentImageUrl
+                  ? "Neues Bild hierher ziehen"
+                  : "Bild hierher ziehen"
+              }
+              dragLabel="Bild hier ablegen…"
+              buttonLabel="Bild auswählen"
+              hint="Max. 2 MB · JPG, PNG oder WebP · Empfohlen: ca. 900 × 650 px"
+              loading={isUploading}
+              loadingLabel="Bild wird hochgeladen…"
+              onFile={(file) => void processFile(file)}
             />
-
-            <fieldset
-              className={`relative m-0 rounded-xl border-2 border-dashed p-4 text-center transition-all duration-300 sm:p-8 ${
-                isDragging
-                  ? "border-moto-green bg-moto-green-soft"
-                  : "border-gray-300 bg-gray-50 hover:border-gray-400"
-              }`}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              <legend className="sr-only">
-                Bild-Upload-Bereich für Drag-and-Drop
-              </legend>
-              <button
-                type="button"
-                onClick={handleZoneClick}
-                onKeyDown={handleKeyDown}
-                aria-label="Bild hochladen — ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen"
-                className="focus:ring-moto-green absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus:ring-2 focus:ring-offset-2 focus:outline-none"
-              />
-
-              {isUploading ? (
-                <div className="pointer-events-none flex flex-col items-center gap-3">
-                  <div className="border-t-moto-green h-10 w-10 animate-spin rounded-full border-4 border-gray-300" />
-                  <p className="text-sm text-gray-600">
-                    Bild wird hochgeladen…
-                  </p>
-                </div>
-              ) : (
-                <div className="pointer-events-none flex flex-col items-center gap-3">
-                  <ImageUp
-                    className={`h-12 w-12 transition-colors ${isDragging ? "text-moto-green" : "text-gray-400"}`}
-                    strokeWidth={1.5}
-                    aria-hidden
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {isDragging
-                        ? "Bild hier ablegen…"
-                        : currentImageUrl
-                          ? "Neues Bild hierher ziehen"
-                          : "Bild hierher ziehen"}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-500">oder</p>
-                  </div>
-                  <span className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">
-                    Bild auswählen
-                  </span>
-                  <p className="text-xs text-gray-400">
-                    Max. 2 MB · JPG, PNG oder WebP · Empfohlen: ca. 900 × 650 px
-                  </p>
-                </div>
-              )}
-            </fieldset>
           </div>
         )}
       </SectionCard>

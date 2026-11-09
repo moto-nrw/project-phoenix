@@ -16,10 +16,14 @@ import {
 } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import {
+  correctAttendance,
+  fetchAttendanceCorrections,
+  type AttendanceCorrection,
+} from "~/lib/student-care-plan-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AttendanceCorrectionModal" });
@@ -53,15 +57,6 @@ export interface CorrectableSlot {
   readonly note: string | null;
 }
 
-interface CorrectionEntry {
-  readonly field_name: string;
-  readonly old_value?: string | null;
-  readonly new_value?: string | null;
-  readonly reason: string;
-  readonly actor_name?: string | null;
-  readonly corrected_at: string;
-}
-
 interface AttendanceCorrectionModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -85,11 +80,6 @@ function describeValue(value: string | null | undefined): string {
   return value;
 }
 
-// BFF routes read the session cookie; the browser holds no token (#5005).
-const JSON_HEADERS: Record<string, string> = {
-  "Content-Type": "application/json",
-};
-
 export function AttendanceCorrectionModal({
   isOpen,
   onClose,
@@ -106,7 +96,7 @@ export function AttendanceCorrectionModal({
   const clearErrors = errors.clear;
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehler.
   const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
-  const [history, setHistory] = useState<CorrectionEntry[]>([]);
+  const [history, setHistory] = useState<AttendanceCorrection[]>([]);
 
   // Reset whenever a different slot opens the modal — otherwise the previous
   // block's values would be offered as this one's starting point.
@@ -121,21 +111,13 @@ export function AttendanceCorrectionModal({
 
   const loadHistory = useCallback(async () => {
     try {
-      const response = await transportFetch(
-        `/api/timetable/instances/${slot.instanceId}/students/${studentId}/corrections`,
-        { credentials: "include", headers: JSON_HEADERS },
-      );
-      // Ohne Verlauf bleibt die Korrektur möglich; die Liste fehlt dann nur.
-      if (!response.ok) return;
-      const payload = (await response.json()) as {
-        data?: { corrections?: CorrectionEntry[] };
-        corrections?: CorrectionEntry[];
-      };
-      setHistory(payload.data?.corrections ?? payload.corrections ?? []);
+      setHistory(await fetchAttendanceCorrections(slot.instanceId, studentId));
     } catch (err) {
       // The trail is context, not the purpose of this dialog: failing to load
       // it must not block the correction itself.
-      logger.warn("Korrekturverlauf konnte nicht geladen werden", { err });
+      logger.warn("attendance_corrections_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }, [slot.instanceId, studentId]);
 
@@ -178,21 +160,7 @@ export function AttendanceCorrectionModal({
           ? { note: note.trim() === "" ? null : note.trim() }
           : {}),
       };
-      const response = await transportFetch(
-        `/api/timetable/instances/${slot.instanceId}/students/${studentId}/correction`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify(correction),
-        },
-      );
-      if (!response.ok) {
-        throw await apiErrorFromResponse(
-          response,
-          "attendance correction failed",
-        );
-      }
+      await correctAttendance(slot.instanceId, studentId, correction);
       onCorrected();
       onClose();
     } catch (err) {
@@ -249,111 +217,58 @@ export function AttendanceCorrectionModal({
           Uhrzeit und dem Grund gespeichert.
         </p>
 
-        <div>
-          <label
-            id="correction-status-label"
-            htmlFor="correction-status"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Anwesenheit
-          </label>
-          <CustomSelect
-            id="correction-status"
-            value={status}
-            options={[...STATUS_OPTIONS]}
-            onChange={(nextStatus) => {
-              setStatus(nextStatus);
-              if (nextStatus === "expected") setSubstatus("");
-            }}
-            ariaLabelledBy="correction-status-label"
-          />
-        </div>
+        <CustomSelect
+          label="Anwesenheit"
+          id="correction-status"
+          value={status}
+          options={[...STATUS_OPTIONS]}
+          onChange={(nextStatus) => {
+            setStatus(nextStatus);
+            if (nextStatus === "expected") setSubstatus("");
+          }}
+        />
 
         <div>
-          <label
-            id="correction-substatus-label"
-            htmlFor="correction-substatus"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Hinweis
-          </label>
           <CustomSelect
+            label="Hinweis"
             id="correction-substatus"
             value={substatus}
             options={[...SUBSTATUS_OPTIONS]}
             onChange={setSubstatus}
-            ariaLabelledBy="correction-substatus-label"
-            ariaDescribedBy={
-              status === "expected" ? "correction-substatus-help" : undefined
+            hint={
+              status === "expected"
+                ? "Bei „Erwartet“ ist kein Hinweis möglich."
+                : undefined
             }
             disabled={status === "expected"}
           />
-          {status === "expected" ? (
-            <p
-              id="correction-substatus-help"
-              className="mt-1 text-xs text-gray-500"
-            >
-              Bei „Erwartet“ ist kein Hinweis möglich.
-            </p>
-          ) : null}
         </div>
 
-        <div>
-          <label
-            htmlFor="correction-note"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Bemerkung
-          </label>
-          <textarea
-            id="correction-note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            maxLength={NOTE_MAX_LENGTH}
-            rows={3}
-            className="moto-content-surface w-full rounded-md border px-4 py-3 text-sm"
-            placeholder="Keine Bemerkung"
-          />
-        </div>
+        <Textarea
+          id="correction-note"
+          label="Bemerkung"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          maxLength={NOTE_MAX_LENGTH}
+          rows={3}
+          className="resize-y"
+          placeholder="Keine Bemerkung"
+        />
 
-        <div>
-          <FieldLabel
-            htmlFor="correction-reason"
-            required
-            invalid={Boolean(reasonError)}
-            className="mb-1"
-          >
-            Grund der Korrektur
-          </FieldLabel>
-          <textarea
-            id="correction-reason"
-            name="reason"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            maxLength={REASON_MAX_LENGTH}
-            rows={2}
-            required
-            aria-invalid={reasonError ? true : undefined}
-            aria-describedby={
-              reasonError
-                ? "correction-reason-error correction-reason-help"
-                : "correction-reason-help"
-            }
-            className="moto-content-surface w-full rounded-md border px-4 py-3 text-sm"
-            placeholder="Warum wird der Eintrag geändert?"
-          />
-          {reasonError ? (
-            <p
-              id="correction-reason-error"
-              className="text-moto-red-strong mt-1 text-xs"
-            >
-              {reasonError}
-            </p>
-          ) : null}
-          <p id="correction-reason-help" className="mt-1 text-xs text-gray-500">
-            Bitte ausfüllen. Der Grund bleibt dauerhaft gespeichert.
-          </p>
-        </div>
+        <Textarea
+          id="correction-reason"
+          name="reason"
+          label="Grund der Korrektur"
+          hint="Bitte ausfüllen. Der Grund bleibt dauerhaft gespeichert."
+          error={reasonError ?? undefined}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          maxLength={REASON_MAX_LENGTH}
+          rows={2}
+          required
+          className="resize-y"
+          placeholder="Warum wird der Eintrag geändert?"
+        />
 
         {history.length > 0 ? (
           <div className="border-t border-gray-100 pt-3">

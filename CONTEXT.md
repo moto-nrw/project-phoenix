@@ -731,8 +731,29 @@ Schule), Betreuungsvereinbarung.
 
 Eine **Vertragsversion** ist der Inhalt eines Betreuungsvertrags ab einem
 Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Anlegen der
-Version galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
-keine bestehende Version.
+Version galt. Die gebuchten Leistungen stehen je Wochentag: das Modul mit
+seiner Endzeit, oder keine Betreuung. Jede Änderung erzeugt eine neue Version;
+spätere Tarifänderungen ändern keine bestehende Version.
+
+## Modul
+
+Ein **Modul** ist ein Betreuungsangebot einer Schule, das ein Kind an einem
+Wochentag bucht, mit seiner Endzeit an diesem Tag (Gehzeit des Angebots), zum
+Beispiel „Kurzbetreuung bis 14:00 Uhr“. Ein Betreuungsvertrag umfasst alle
+Module eines Kindes an seinem Betreuungsort; ein Tag kann mehrere tragen (Früh-
+und Nachmittagsbetreuung). Der Monatsbeitrag rechnet je Wochentag und Modul.
+_Vermeiden_: Zeitband, Paket.
+
+## Vertragsvorlage
+
+Eine **Vertragsvorlage** legt fest, was ein Betreuungsvertrag für ein Angebot
+(Modul) einer Schule enthält: Laufzeit, Kündigungsfrist, Sonderkündigung,
+Satzungsbestätigung und Vertragspartner. Ein Vertrag kopiert diese Angaben in
+seine Version; eine spätere Änderung der Vorlage ändert keinen Vertrag. Bucht
+ein Kind mehrere Module, müssen ihre Vorlagen gleich sein. Den
+Brieftext legt die Vorlage der Dokumentart „Vertrag“ fest (ADR 0152).
+_Vermeiden_: Vertragsmuster, Briefvorlage (das ist der Text, nicht die
+Bedingungen).
 
 ## Betreuungsort
 
@@ -758,10 +779,21 @@ _Vermeiden_: Rechnungsempfänger, Payer.
 ## Familie
 
 Eine **Familie** ist beim Träger die bestätigte Gruppe aus Kindern mit
-Betreuungsvertrag und ihren Zahlern. Geschwister im Sinn der Beitragsregeln
-sind Kinder derselben Familie, auch an verschiedenen Schulen des Trägers. moto
-schlägt eine Familie vor, die Abrechnung bestätigt sie.
+Betreuungsvertrag und ihren Zahlern. moto schlägt eine Familie vor, die
+Abrechnung bestätigt sie. Die Familie hält außerdem die **Kinderzahl**: wie
+viele Kinder sie hat, auch ohne Vertrag. Eltern geben sie an, die Abrechnung
+bestätigt sie mit Gültigkeit (ADR 0088 §4, Nachtrag 2026-11-08).
 _Vermeiden_: Haushalt.
+
+## Geschwister
+
+**Geschwister** im Sinn der Beitragsregeln sind die Kinder einer Familie.
+Kinder mit Betreuungsvertrag sind Personen in moto, auch an verschiedenen
+Schulen des Trägers. Geschwister ohne Vertrag kennt moto nur als Teil der
+bestätigten Kinderzahl, nie als Person oder Vertragspartner. Eine
+Geschwisterregel zählt die Kinder mit Vertrag; nutzt sie die Kinderzahl,
+zählt sie diese, mindestens aber die Kinder mit Vertrag.
+_Vermeiden_: Kinder ohne Vertrag als Personen anlegen.
 
 ## Mensa-Monatsfreigabe
 
@@ -812,6 +844,14 @@ Ein **Kostenträger** ist eine Stelle, die einen Anteil am Beitrag eines Kindes
 übernimmt, etwa Bildung und Teilhabe oder das Jugendamt. Er ist ein Zahler und
 bekommt seinen Anteil in einem eigenen Beitragsdokument.
 _Vermeiden_: Zuschussgeber.
+
+Ein **Kostenträger-Anteil** sagt, welchen Teil des Monatsbeitrags eines
+Vertrags ein Kostenträger übernimmt: als Prozent oder fester Betrag im Monat,
+mit Art (Bildung und Teilhabe, Jugendamt, sonstiger Zuschuss), Gültigkeit und
+Aktenzeichen des Bescheids. Er ist keine Ermäßigung: Der Beitrag bleibt, nur
+wer ihn zahlt, teilt sich. Übernimmt der Kostenträger alles, ist der Beitrag
+für die Familie **beitragsfrei**.
+_Vermeiden_: Zuschuss als Oberbegriff, Befreiung (erlässt den Beitrag).
 
 ## Nachberechnung
 
@@ -961,7 +1001,8 @@ am **Stichtag**. Der Stichtag ist ein Tag im Monat (1. bis 28.), einer für alle
 Schulen; der Betreiber legt ihn fest. Die Zahl wird am Stichtag ab 6 Uhr
 einmal festgehalten und danach nie geändert, auch wenn sich Kinder oder Geräte
 später ändern. Lief die Erfassung am Stichtag nicht, holt sie sie im selben
-Monat nach und nennt den tatsächlichen Zeitpunkt.
+Monat nach und nennt den tatsächlichen Zeitpunkt. Der Betreiber sieht die Zahlen aller
+Schulen, das Träger-Büro dieselben festgehaltenen Zahlen seiner Schulen (#4673).
 
 **Aktiv verwaltet** ist ein Kind mit dem Status „aktiv“ und einer nicht
 gelöschten Schulzugehörigkeit, deren Betreuungsende nicht vor dem Tag der
@@ -1070,13 +1111,13 @@ Ein **Fachmodul** ist der Teil des Backends, der einen fachlichen Begriff von
 moto mit seinen Regeln und Daten besitzt. Ein **Plattformmodul** stellt eine
 gemeinsame Laufzeit bereit, etwa Mandanten, Transaktionen, Sicherheit oder
 Zustellung, und besitzt nicht die fachliche Bedeutung dessen, was es
-transportiert. moto hat 19 Fachmodule und 10 Plattformmodule:
+transportiert. moto hat 20 Fachmodule und 10 Plattformmodule:
 
 - Fachmodule: Identity & Access, People Directory, School Membership,
   Organisation & Tenancy, School Structure, School Calendar, Facilities,
   Enrollment, Care Plan, Timetable & Activities, Student Presence, Workforce,
   Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage,
-  Elternabrechnung (ADR 0088).
+  Elternabrechnung und Betreuungsvertrag (ADR 0088).
 - Plattformmodule: Tenant Runtime, Transaction Runtime, Security Runtime,
   Settings Platform, Delivery Platform, Observability, Audit Platform,
   Scheduler Runtime, Document Rendering, Export Transfer.

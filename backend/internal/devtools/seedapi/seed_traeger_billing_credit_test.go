@@ -32,6 +32,9 @@ func TestSeedBillingCreditCreditsTheFirstInvoiceOfTheReleasedRun(t *testing.T) {
 			_, _ = w.Write([]byte(`{"status":"success","data":{"documents":[
 				{"id":7,"kind":"invoice","children":[{"child_id":3,"total_cents":200},{"child_id":4,"total_cents":4500}]}]}}`))
 			return
+		case "/traeger/billing-families":
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":7}]}`))
+			return
 		}
 		assert.Equal(t, "Bearer traeger-token", r.Header.Get("Authorization"))
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
@@ -46,8 +49,9 @@ func TestSeedBillingCreditCreditsTheFirstInvoiceOfTheReleasedRun(t *testing.T) {
 		Values:    map[string]any{seedBillingRunKey: int64(41)},
 	}
 	require.NoError(t, (seedTraegerBillingCreditStep{}).Run(context.Background(), runtime))
-	assert.Equal(t, []string{"POST /traeger/auth/login", "GET /traeger/billing-runs/41", "POST /traeger/billing-runs/41/documents/7/credits"}, calls,
-		"the run is read, then the first child with enough left is credited")
+	assert.Equal(t, []string{"POST /traeger/auth/login", "GET /traeger/billing-runs/41", "POST /traeger/billing-runs/41/documents/7/credits",
+		"GET /traeger/billing-families"}, calls,
+		"the run is read, the first child with enough left is credited, then the families are read (#4691)")
 	assert.EqualValues(t, 4, body["child_id"])
 	assert.EqualValues(t, seedCreditCents, body["amount_cents"])
 	assert.Equal(t, seedCreditReason, body["reason"])

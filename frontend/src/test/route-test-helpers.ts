@@ -1,5 +1,8 @@
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { vi } from "vitest";
+import { clientEnv } from "~/env.client";
+import { HOSTED_PORTAL_KEYS, PORTAL_ROUTES } from "~/lib/portal-paths";
 
 /**
  * Shared fixtures for BFF route tests (`src/app/api/**`). Use these instead of
@@ -53,4 +56,15 @@ export function createMockContext(
   params: Record<string, string | string[] | undefined> = {},
 ) {
   return { params: Promise.resolve(params) };
+}
+
+/**
+ * Sets the portal host env names to the test clientEnv's values, for code
+ * that reads hosts through `PORTAL_ROUTES` (setup-common mocks only clientEnv).
+ */
+export function stubPortalHostEnv(): void {
+  for (const key of HOSTED_PORTAL_KEYS) {
+    const name = PORTAL_ROUTES[key].hostEnv;
+    vi.stubEnv(name, clientEnv[name as keyof typeof clientEnv]);
+  }
 }

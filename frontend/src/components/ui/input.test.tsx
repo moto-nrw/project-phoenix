@@ -40,6 +40,23 @@ describe("Input", () => {
     );
   });
 
+  it("describes the field with the hint before the error", () => {
+    render(
+      <Input
+        name="email"
+        label="E-Mail"
+        hint="Dorthin geht die Bestätigung."
+        error="Invalid email address"
+      />,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "E-Mail" }),
+    ).toHaveAccessibleDescription(
+      "Dorthin geht die Bestätigung. Invalid email address",
+    );
+  });
+
   it("does not render error when not provided", () => {
     render(<Input name="email" />);
 
@@ -134,5 +151,70 @@ describe("Input required mark (#5217)", () => {
 
     expect(screen.getByRole("textbox", { name: "Vorname" })).not.toBeRequired();
     expect(screen.queryByText("*")).not.toBeInTheDocument();
+  });
+});
+
+describe("Input revealable", () => {
+  it("zeigt das Passwort auf Knopfdruck und verbirgt es wieder", () => {
+    render(<Input label="Passwort" name="pw" type="password" revealable />);
+
+    const field = screen.getByLabelText("Passwort");
+    expect(field).toHaveAttribute("type", "password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Passwort anzeigen" }));
+    expect(field).toHaveAttribute("type", "text");
+
+    fireEvent.click(screen.getByRole("button", { name: "Passwort verbergen" }));
+    expect(field).toHaveAttribute("type", "password");
+  });
+
+  it("sendet das Formular beim Umschalten nicht ab", () => {
+    render(<Input name="pw" type="password" revealable />);
+
+    expect(
+      screen.getByRole("button", { name: "Passwort anzeigen" }),
+    ).toHaveAttribute("type", "button");
+  });
+
+  it("übernimmt übersetzte Beschriftungen", () => {
+    render(
+      <Input
+        name="pw"
+        type="password"
+        revealable
+        showPasswordLabel="Show password"
+        hidePasswordLabel="Hide password"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(
+      screen.getByRole("button", { name: "Hide password" }),
+    ).toBeInTheDocument();
+  });
+
+  it("lässt den Aufrufer die Sichtbarkeit führen, wenn zwei Felder sie teilen", () => {
+    const onRevealedChange = vi.fn();
+    const { container } = render(
+      <Input
+        name="pw"
+        type="password"
+        revealable
+        revealed
+        onRevealedChange={onRevealedChange}
+      />,
+    );
+
+    expect(container.querySelector("input")).toHaveAttribute("type", "text");
+    fireEvent.click(screen.getByRole("button", { name: "Passwort verbergen" }));
+    expect(onRevealedChange).toHaveBeenCalledWith(false);
+    expect(container.querySelector("input")).toHaveAttribute("type", "text");
+  });
+
+  it("zeigt ohne revealable keinen Knopf", () => {
+    render(<Input label="Passwort" name="pw" type="password" />);
+    // Anker: das Feld selbst ist da.
+    expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

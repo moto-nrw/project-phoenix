@@ -113,14 +113,69 @@ func (s *Service) UpdateDeviceStatus(ctx context.Context, deviceID string, statu
 	})
 }
 
-// UpdateDeviceLastSeen writes last_seen for one device addressed by its
-// globally unique primary key, so a ping stays cross-tenant safe.
+// UpdateDeviceLastSeen records an observation for one device addressed by
+// its globally unique primary key, so a ping stays cross-tenant safe. An
+// observation older than the stored one leaves last_seen unchanged.
 func (s *Service) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
 	if id <= 0 {
 		return s.reject("update_device_last_seen", devicefleet.ErrInvalidDevice)
 	}
-	return s.updateOneColumnSet(ctx, "update_device_last_seen",
-		domain.UpdateDevice{ID: id, LastSeen: &lastSeen}, []string{"last_seen"})
+	return s.runWrite(ctx, "update_device_last_seen", func(ctx context.Context, stats *domain.OperationStats) error {
+		affected, queryStats, err := s.deps.Devices.TouchLastSeen(ctx, id, lastSeen)
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return fmt.Errorf("devicefleet: expected 1 rows affected, got %d", affected)
+		}
+		return nil
+	})
+}
+
+// RecordDeviceHeartbeat needs only the live device's identity, not its room.
+// The store selects that identity and stamps it in one tenant-scoped statement.
+func (s *Service) RecordDeviceHeartbeat(ctx context.Context, deviceID string) error {
+	if deviceID == "" {
+		return s.reject("record_device_heartbeat", devicefleet.ErrInvalidDevice)
+	}
+	return s.runWrite(ctx, "record_device_heartbeat", func(ctx context.Context, stats *domain.OperationStats) error {
+		if _, err := s.deps.Tx.TenantID(ctx); err != nil {
+			return err
+		}
+		affected, queryStats, err := s.deps.Devices.RecordHeartbeat(ctx, deviceID, s.deps.Now())
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return devicefleet.ErrDeviceNotFound
+		}
+		return nil
+	})
+}
+
+// UpdateDeviceLastSeenChecked shares the heartbeat unit with its read-only
+// authentication guard. A rejected guard rolls back without updating the device.
+func (s *Service) UpdateDeviceLastSeenChecked(ctx context.Context, id int64, check devicefleet.DeviceHeartbeatCheck) error {
+	if id <= 0 || check == nil {
+		return s.reject("update_device_last_seen", devicefleet.ErrInvalidDevice)
+	}
+	return s.runWrite(ctx, "update_device_last_seen", func(ctx context.Context, stats *domain.OperationStats) error {
+		seenAt, write, err := check.CheckDeviceHeartbeat(ctx)
+		if err != nil || !write {
+			return err
+		}
+		affected, queryStats, err := s.deps.Devices.TouchLastSeen(ctx, id, seenAt)
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return fmt.Errorf("devicefleet: expected 1 rows affected, got %d", affected)
+		}
+		return nil
+	})
 }
 
 // UpdateRoomID moves one device into a room.
@@ -296,4 +351,43 @@ func (s *Service) storedDeviceUpdate(input devicefleet.UpdateDevice) domain.Upda
 		input.APIKeyHash, input.MaskedAPIKey = &hash, s.deps.APIKeys.Mask(*input.APIKey)
 	}
 	return toDomainUpdate(input)
+}
+
+// ApplyDeviceEdit reuses RETURNING only inside an existing tenant unit:
+// its UPDATE lock still protects the stored row during the room projection.
+// Without that unit the old post-commit read remains an independent observation.
+func (s *Service) ApplyDeviceEdit(ctx context.Context, edit devicefleet.DeviceEdit) (devicefleet.Device, error) {
+	input := devicefleet.UpdateDevice{ID: edit.ID, DeviceID: edit.DeviceID, DeviceType: edit.DeviceType, Name: edit.Name, RegisteredByID: edit.RegisteredByID}
+	columns := []string{"device_id", "device_type", "name", "registered_by_id"}
+	if edit.Status != nil {
+		input.Status = *edit.Status
+		columns = append(columns, "status")
+	}
+	if input.ID <= 0 {
+		return devicefleet.Device{}, s.reject("update_device_columns", devicefleet.ErrInvalidDevice)
+	}
+	if _, err := s.deps.Tx.TenantID(ctx); err != nil {
+		affected, err := s.UpdateDeviceColumns(ctx, input, columns)
+		if err != nil {
+			return devicefleet.Device{}, err
+		}
+		if affected == 0 {
+			return devicefleet.Device{}, devicefleet.ErrDeviceNotFound
+		}
+		return s.FindDevice(ctx, input.ID)
+	}
+	var updated devicefleet.Device
+	err := s.runWrite(ctx, "update_device_columns", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var err error
+		updated, queryStats, err = s.deps.Devices.UpdateColumnsReturning(txCtx, s.storedDeviceUpdate(input), columns)
+		stats.Add(queryStats)
+		return err
+	})
+	if err != nil {
+		return devicefleet.Device{}, err
+	}
+	return s.findDevice(ctx, "find_device", true, func(context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {
+		return updated, true, domain.OperationStats{}, nil
+	})
 }

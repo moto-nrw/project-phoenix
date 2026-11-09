@@ -1,0 +1,7 @@
+{
+  "scenario": "api.files.audience.communication18.n3",
+  "max": 6,
+  "exact": true,
+  "description": "Literal protected /api/files audience route, positive N3 fixtures and full ordered DTO assertions. Complete real owner transaction graph. Measured fixture contract, not global minimum.",
+  "route": "GET /api/files/audience"
+}

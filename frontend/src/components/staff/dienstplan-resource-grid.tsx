@@ -15,19 +15,22 @@ import {
   ClosingDayConfirmModal,
 } from "~/components/planning/closing-day-marker";
 import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
-import { CapacityStrip } from "~/components/ui/capacity-strip";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
-import { PlanBlock } from "~/components/ui/plan-block";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
+import { PlanBlock } from "~/components/ui/planning/plan-block";
+import {
+  PlanLegend,
+  type PlanLegendEntry,
+} from "~/components/ui/planning/plan-legend";
 import {
   ResourceGrid,
   type ResourceGridColumn,
-} from "~/components/ui/resource-grid";
+} from "~/components/ui/planning/resource-grid";
 import { Tooltip } from "~/components/ui/tooltip";
 import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
@@ -54,6 +57,8 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { sickConcept } from "~/lib/concepts/sick";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
+import { SectionCard } from "~/components/ui/section-card";
 
 // Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
@@ -481,7 +486,7 @@ export function DienstplanResourceGrid({
           {summary && <WeeklySummaryIndicator summary={summary} />}
           {absenceNote && (
             <span
-              className="mt-0.5 block text-[11px] font-medium"
+              className="mt-0.5 block text-xs font-medium"
               style={{ color: LOCATION_COLORS.SICK }}
             >
               {absenceNote}
@@ -577,7 +582,7 @@ export function DienstplanResourceGrid({
         </div>
         {shift.cancelled ? (
           <p
-            className="text-[11px] font-medium"
+            className="text-xs font-medium"
             style={{ color: LOCATION_COLORS.DANGER }}
           >
             Fällt aus{shift.changeReason ? ` · ${shift.changeReason}` : ""}
@@ -586,14 +591,14 @@ export function DienstplanResourceGrid({
           <>
             {isReplacement && (
               <p
-                className="text-[11px] font-medium"
+                className="text-xs font-medium"
                 style={{ color: LOCATION_COLORS.OTHER_ROOM }}
               >
                 Vertretung{shift.changeReason ? ` · ${shift.changeReason}` : ""}
               </p>
             )}
             {shift.breakMinutes > 0 && (
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Pause {shift.breakMinutes} min
               </p>
             )}
@@ -710,40 +715,21 @@ export function DienstplanResourceGrid({
           die Anlege-Geste identisch. */}
       {isCompact && mobileColumn ? (
         <div>
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
+          <SectionCard padding="none">
             <div className="flex gap-1 border-b border-gray-200 bg-white p-2">
               {columns.map((column, index) => {
                 const isSelected = index === safeMobileDayIndex;
                 return (
-                  <button
+                  <PlanningDayChip
                     key={column.key}
-                    type="button"
+                    stacked
+                    weekdayLabel={column.label}
+                    dateLabel={column.sublabel ?? ""}
+                    selected={isSelected}
                     onClick={() => setMobileDayIndex(index)}
-                    aria-pressed={isSelected}
-                    className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                      isSelected
-                        ? "bg-gray-900 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    <span
-                      className={`text-[10px] font-medium tracking-wide uppercase ${
-                        isSelected ? "text-white/80" : "text-gray-500"
-                      }`}
-                    >
-                      {column.label}
-                    </span>
-                    <span className="text-sm font-semibold tabular-nums">
-                      {column.sublabel}
-                    </span>
-                    {column.headerNote}
-                    {column.isCurrent && !isSelected && (
-                      <span
-                        aria-hidden
-                        className="bg-moto-red h-1 w-1 rounded-full"
-                      />
-                    )}
-                  </button>
+                    marker={column.headerNote}
+                    today={column.isCurrent}
+                  />
                 );
               })}
             </div>
@@ -786,7 +772,7 @@ export function DienstplanResourceGrid({
                 aria-label="Legende Dienstarten und Zustände"
               />
             </div>
-          </div>
+          </SectionCard>
         </div>
       ) : (
         <div>

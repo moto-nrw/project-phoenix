@@ -1,5 +1,7 @@
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
@@ -26,13 +28,13 @@ function DroppedChildren({
   return (
     <div className="mt-1.5">
       <p className="text-gray-700">{`Fällt weg (${dropped.length})`}</p>
-      <ul className="mt-1 divide-y divide-gray-100 rounded-md bg-gray-50 px-2.5">
+      <FramedList className="mt-1">
         {dropped.map((child) => {
           const reason = droppedChildReason(child);
           return (
             <li
               key={child.studentId}
-              className="flex flex-wrap items-baseline justify-between gap-x-3 py-1.5"
+              className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2"
             >
               <span className="text-gray-900">{child.name}</span>
               {reason ? (
@@ -41,7 +43,7 @@ function DroppedChildren({
             </li>
           );
         })}
-      </ul>
+      </FramedList>
     </div>
   );
 }
@@ -113,9 +115,12 @@ export function OfferingPreviewList({
       ) : null}
       <ul className="flex flex-col gap-2">
         {preview.weekdays.map((day) => (
-          <li
+          <InsetPanel
+            as="li"
             key={day.weekday}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            tone="white"
+            padding="compact"
+            className="text-sm"
           >
             <div className="flex items-baseline justify-between gap-3">
               <p className="font-medium text-gray-900">
@@ -131,7 +136,7 @@ export function OfferingPreviewList({
             {day.removed.length > 0 ? (
               <DroppedChildren dropped={day.removed} />
             ) : null}
-          </li>
+          </InsetPanel>
         ))}
       </ul>
     </div>

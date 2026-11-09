@@ -161,7 +161,7 @@ func parentResponseDatePointer(day *timezone.Date) *careplan.Date {
 
 // listMyChildren returns every student linked to the calling parent's
 // account, across every active tenant mapping. Auth: parent-scope JWT
-// (enforced by sessiontoken.ParentMiddleware on the route group). The handler
+// (enforced by ParentScopeMiddleware on the route group). The handler
 // reads claims.ID for the account id — never trusts a query param or
 // body field for it.
 func (rs *Resource) listMyChildren(w http.ResponseWriter, r *http.Request) {

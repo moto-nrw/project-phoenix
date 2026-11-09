@@ -7,11 +7,14 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import {
+  DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
   buildEnrollmentChangeRequestDiffGroups,
   formatEnrollmentChangeRequestValue,
   type EnrollmentChangeRequestDiffCopy,
   type EnrollmentChangeRequestDiffGroup,
+  type EnrollmentFormLabels,
 } from "~/lib/enrollment-change-request-diff";
+import { SectionLabel } from "~/components/ui/section-label";
 import { cn } from "~/lib/utils";
 
 interface EnrollmentChangeRequestDiffProps {
@@ -20,9 +23,10 @@ interface EnrollmentChangeRequestDiffProps {
   readonly diff: Record<string, unknown>;
   readonly beforeLabel?: string;
   readonly afterLabel?: string;
-  readonly emptyLabel?: string;
   readonly emptyMessage?: string;
   readonly copy?: EnrollmentChangeRequestDiffCopy;
+  /** Questions of the request's form version; without them rows show keys. */
+  readonly formLabels?: EnrollmentFormLabels | null;
   readonly className?: string;
 }
 
@@ -32,9 +36,9 @@ export function EnrollmentChangeRequestDiff({
   diff,
   beforeLabel = "Bisher",
   afterLabel = "Neu",
-  emptyLabel = "Nicht gesetzt",
   emptyMessage = "Die Anfrage enthält keine erkennbaren Feldänderungen.",
   copy,
+  formLabels,
   className,
 }: EnrollmentChangeRequestDiffProps) {
   const groups = useMemo(
@@ -44,8 +48,9 @@ export function EnrollmentChangeRequestDiff({
         proposedSnapshot,
         diff,
         copy,
+        formLabels,
       }),
-    [baseSnapshot, proposedSnapshot, diff, copy],
+    [baseSnapshot, proposedSnapshot, diff, copy, formLabels],
   );
 
   if (groups.length === 0) {
@@ -60,7 +65,9 @@ export function EnrollmentChangeRequestDiff({
           group={group}
           beforeLabel={beforeLabel}
           afterLabel={afterLabel}
-          emptyLabel={emptyLabel}
+          emptyLabel={
+            (copy ?? DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY).emptyLabel
+          }
           copy={copy}
         />
       ))}
@@ -86,9 +93,9 @@ function DiffGroup({
       <div className="space-y-2">
         {group.rows.map((row) => (
           <div key={row.id} className="rounded-lg bg-white px-3 py-2">
-            <p className="text-xs font-medium break-words text-gray-500 uppercase">
+            <SectionLabel as="p" className="break-words">
               {row.label}
-            </p>
+            </SectionLabel>
             <div className="mt-2">
               <DataGrid>
                 <DataField label={beforeLabel}>

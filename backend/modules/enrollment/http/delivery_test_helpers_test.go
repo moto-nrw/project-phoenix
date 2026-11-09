@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -16,13 +17,18 @@ import (
 	orm "github.com/uptrace/bun"
 )
 
-type testEnrollmentDelivery struct{ module delivery.Capability }
+type testEnrollmentDelivery struct {
+	module   delivery.Capability
+	outcomes delivery.EmailOutcomes
+}
 
 func newTestEnrollmentDelivery(t *testing.T, db *orm.DB) testEnrollmentDelivery {
 	t.Helper()
 	module, err := api.NewEnrollmentFlowDelivery(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return testEnrollmentDelivery{module: module}
+	outcomes, err := api.NewEnrollmentFlowOutcomes(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	return testEnrollmentDelivery{module: module, outcomes: outcomes}
 }
 
 func (a testEnrollmentDelivery) CountRelatedEmails(ctx context.Context, relatedType string, relatedID int64) (int, error) {
@@ -32,6 +38,22 @@ func (a testEnrollmentDelivery) CountRelatedEmails(ctx context.Context, relatedT
 	}
 	rows, err := a.module.Statuses(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 	return len(rows), err
+}
+
+func (a testEnrollmentDelivery) RelatedEmailOutcomes(ctx context.Context, relatedType string, relatedID int64) ([]capability.RequestMailOutcome, error) {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reports, err := a.outcomes.EmailOutcomes(ctx, tenantID.Int64(), deliveryContract.EmailOutcomeQuery{RelatedType: relatedType, RelatedIDs: []int64{relatedID}})
+	if err != nil {
+		return nil, err
+	}
+	outcomes := make([]capability.RequestMailOutcome, 0, len(reports))
+	for _, report := range reports {
+		outcomes = append(outcomes, capability.RequestMailOutcome{Kind: report.Kind, Outcome: string(report.Outcome), AddressMark: string(report.Mark), OutcomeAt: report.OutcomeAt})
+	}
+	return outcomes, nil
 }
 
 func (a testEnrollmentDelivery) CancelRelatedEmails(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {

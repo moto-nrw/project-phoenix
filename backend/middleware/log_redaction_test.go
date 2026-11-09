@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
+	slogchi "github.com/samber/slog-chi"
 )
 
 func TestRedactFeedToken(t *testing.T) {
@@ -29,6 +33,54 @@ func TestRedactFeedToken(t *testing.T) {
 	for in, want := range cases {
 		if got := RedactFeedToken(in); got != want {
 			t.Errorf("RedactFeedToken(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSigningTokenRedaction(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{
+		"/public/care-contract-signing/42.signing-credential/sign",
+		"/api/public/care-contract-signing/42.signing-credential/document",
+		"https://parents.example/vertrag-unterschreiben/42.signing-credential",
+		"/parents/vertrag-unterschreiben/42.signing-credential?from=mail",
+		"/public/care%2Dcontract-signing/42.signing-credential",
+		"/%76ertrag-unterschreiben/42.signing-credential",
+	} {
+		got := RedactFeedToken(path)
+		if strings.Contains(got, "signing-credential") || !strings.Contains(got, "[REDACTED]") {
+			t.Errorf("signing credential survived: %s", got)
+		}
+	}
+	if got := RedactFeedToken("/api/public/care-contract-signing/42.secret/document?view=1"); got != "/api/public/care-contract-signing/[REDACTED]/document?view=1" {
+		t.Errorf("lost route diagnostics: %s", got)
+	}
+}
+
+func TestSigningCredentialsStayOutOfAccessLogs(t *testing.T) {
+	t.Parallel()
+	for _, suffix := range []string{"", "/document", "/sign"} {
+		var out bytes.Buffer
+		logger := slog.New(NewFeedTokenRedactor(slog.NewJSONHandler(&out, nil)))
+		router := chi.NewRouter()
+		router.Use(slogchi.NewWithConfig(logger, slogchi.Config{WithRequestHeader: true}))
+		router.HandleFunc("/public/care-contract-signing/{link}"+suffix, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		method := http.MethodGet
+		if suffix == "/sign" {
+			method = http.MethodPost
+		}
+		request := httptest.NewRequest(method, "/public/care-contract-signing/42.access-credential"+suffix, nil)
+		request.Header.Set("Referer", "https://parents.example/vertrag-unterschreiben/42.access-credential")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("route no longer works: %d", response.Code)
+		}
+		if strings.Contains(out.String(), "access-credential") {
+			t.Errorf("signing credential leaked: %s", out.String())
+		}
+		if !strings.Contains(out.String(), "[REDACTED]") {
+			t.Errorf("missing access log: %s", out.String())
 		}
 	}
 }

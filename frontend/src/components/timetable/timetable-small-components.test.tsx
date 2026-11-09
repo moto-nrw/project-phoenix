@@ -99,7 +99,7 @@ describe("small timetable components", () => {
     fireEvent.click(screen.getByRole("button", { name: /mensa/i }));
 
     expect(onClick).toHaveBeenCalledOnce();
-    expect(screen.getByLabelText("läuft")).toBeInTheDocument();
+    expect(screen.getByText("läuft")).toBeInTheDocument();
     expect(screen.getByLabelText("1 Konflikte")).toBeInTheDocument();
     expect(screen.getByText(/1 anwesend/)).toBeInTheDocument();
   });
@@ -291,7 +291,9 @@ describe("small timetable components", () => {
     expect(screen.getByText("Keine Zeiten hinterlegt")).toBeInTheDocument();
     expect(screen.getByText("Kein Raum")).toBeInTheDocument();
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
-    expect(container.querySelector("article")).toHaveClass("hover:shadow-md!");
+    expect(container.querySelector("article")).toHaveClass(
+      "moto-hover-elevated",
+    );
   });
 
   it("renders class targets without duplicating their prefix", () => {
@@ -371,6 +373,19 @@ describe("small timetable components", () => {
 
     expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
     expect(screen.getByText("1/3")).toBeVisible();
+  });
+
+  it("uses the shared status badge for full ratio pills", () => {
+    render(
+      <TimetableRatioPill
+        icon={<span />}
+        label="Besetzung"
+        value="1/3"
+        tone="warning"
+      />,
+    );
+
+    expect(screen.getByText("Besetzung 1/3")).toBeInTheDocument();
   });
 
   it("labels dot ratio pills without an image role", () => {

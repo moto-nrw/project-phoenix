@@ -1,0 +1,7 @@
+{
+  "scenario": "parent.children.offering_catalog.http_positive_growth",
+  "max": 17,
+  "exact": true,
+  "description": "Registered composed parent HTTP resource mounted at /parent with production ParentSessionChain, relationship authorization, real owner capabilities and tenant/admin transactions; capture includes every request-scoped SQL statement, excludes fixture setup/signing and outer production server/live-session middleware.",
+  "route": "GET /parent/me/children/{studentId}/care-offerings/catalog"
+}

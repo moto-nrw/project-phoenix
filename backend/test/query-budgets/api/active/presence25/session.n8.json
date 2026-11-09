@@ -1,0 +1,7 @@
+{
+  "scenario": "api.active.presence25.session.n8",
+  "max": 6,
+  "exact": true,
+  "description": "Full protected GET session visits, positive N8; all visit fields asserted.",
+  "route": "GET /api/active/groups/{id}/visits"
+}

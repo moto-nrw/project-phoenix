@@ -7,6 +7,7 @@ package deviceauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -23,12 +24,15 @@ type Middleware = func(http.Handler) http.Handler
 // Fleet is the part of the Device Fleet capability device authentication
 // reads and writes. devicefleet.Capability satisfies it.
 type Fleet interface {
-	FindDeviceByAPIKey(context.Context, string) (devicefleet.Device, error)
+	FindDeviceByAPIKey(context.Context, string, ...devicefleet.DeviceCredentialSchoolCheck) (devicefleet.Device, error)
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
 }
 
-// School is the part of a school device authentication reads.
+// School is the part of a school device authentication reads. A school
+// admits devices only while it is switched active and not deleted, the gate
+// staff login and refresh apply as well.
 type School struct {
+	Active  bool
 	Deleted bool
 }
 
@@ -64,8 +68,8 @@ type Dependencies struct {
 	Logger *slog.Logger
 	// Devices resolves API keys and records device activity. Required.
 	Devices Fleet
-	// Schools blocks devices of deleted schools. Optional: a nil directory
-	// skips the check, which only test graphs use.
+	// Schools blocks devices of inactive and deleted schools. Optional: a
+	// nil directory skips the check, which only test graphs use.
 	Schools      SchoolDirectory
 	SchoolErrors SchoolErrors
 	// Settings resolves the tenant device PIN. Required.
@@ -94,9 +98,8 @@ func New(deps Dependencies) *Authenticators {
 	}
 	return &Authenticators{authenticator: device.NewAuthenticator(device.Dependencies{
 		Logger:     deps.Logger,
-		Devices:    fleetDirectory{fleet: deps.Devices},
+		Devices:    fleetDirectory{fleet: deps.Devices, schools: schools},
 		BindTenant: bindTenant,
-		Schools:    schools,
 		PIN:        pinResolver(deps.Settings),
 	})}
 }
@@ -120,11 +123,20 @@ func DeviceID(ctx context.Context) (string, bool) {
 	return authenticated.DeviceID, true
 }
 
-type fleetDirectory struct{ fleet Fleet }
+type fleetDirectory struct {
+	fleet   Fleet
+	schools device.SchoolLookup
+}
 
 func (d fleetDirectory) FindByAPIKey(ctx context.Context, apiKey string) (*device.AuthenticatedDevice, error) {
-	found, err := d.fleet.FindDeviceByAPIKey(ctx, apiKey)
-	if err != nil {
+	var checks []devicefleet.DeviceCredentialSchoolCheck
+	if d.schools != nil {
+		_, participating := tenant.TransactionFromContext(ctx)
+		checks = append(checks, credentialSchoolCheck{schools: d.schools, participating: participating})
+	}
+	found, err := d.fleet.FindDeviceByAPIKey(ctx, apiKey, checks...)
+	var schoolResult *device.SchoolCheckResult
+	if err != nil && !errors.As(err, &schoolResult) {
 		return nil, err
 	}
 	return &device.AuthenticatedDevice{
@@ -135,12 +147,68 @@ func (d fleetDirectory) FindByAPIKey(ctx context.Context, apiKey string) (*devic
 		Name:       found.Name,
 		Status:     string(found.Status),
 		LastSeen:   found.LastSeen,
-	}, nil
+	}, err
+}
+
+// credentialSchoolCheck is read-only. On a school failure it aborts the
+// discovery unit, so even a failed SQL statement cannot poison later PIN,
+// heartbeat or handler transactions. Only the already resolved credential
+// and the classified outcome survive; no school facts are cached.
+type credentialSchoolCheck struct {
+	schools       device.SchoolLookup
+	participating bool
+}
+
+func (c credentialSchoolCheck) CheckDeviceSchool(ctx context.Context, schoolID int64) error {
+	var closed bool
+	read := func(ctx context.Context) error {
+		var err error
+		closed, err = c.schools.IsSchoolClosed(ctx, schoolID)
+		return err
+	}
+	var err error
+	if c.participating {
+		// A caller-owned transaction must remain usable even when a school
+		// statement fails. Standalone discovery instead rolls back its whole
+		// read-only unit before the adapter can fail open.
+		err = tenant.WithSavepoint(ctx, read)
+		if errors.Is(err, tenant.ErrSavepointControl) {
+			return err
+		}
+	} else {
+		err = read(ctx)
+	}
+	if err != nil || closed {
+		return &device.SchoolCheckResult{Closed: closed, Err: err}
+	}
+	return nil
 }
 
 func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seenAt time.Time) error {
 	// Each heartbeat has its own school unit, never a completed request transaction.
 	return d.fleet.UpdateDeviceLastSeen(tenant.ContextWithoutTransaction(ctx), deviceID, seenAt)
+}
+
+// RecordLastSeenChecked keeps PIN validation and a due heartbeat in the same
+// existing owner unit. Ambient callers retain their original PIN transaction;
+// only the heartbeat is detached, as on the uncombined path.
+func (d fleetDirectory) RecordLastSeenChecked(ctx context.Context, deviceID int64, check func(context.Context) (time.Time, bool, error)) error {
+	checked, available := d.fleet.(devicefleet.CheckedDeviceHeartbeat)
+	_, participating := tenant.TransactionFromContext(ctx)
+	if available && !participating {
+		return checked.UpdateDeviceLastSeenChecked(ctx, deviceID, heartbeatCheck(check))
+	}
+	seenAt, write, err := check(ctx)
+	if err != nil || !write {
+		return err
+	}
+	return d.RecordLastSeen(ctx, deviceID, seenAt)
+}
+
+type heartbeatCheck func(context.Context) (time.Time, bool, error)
+
+func (c heartbeatCheck) CheckDeviceHeartbeat(ctx context.Context) (time.Time, bool, error) {
+	return c(ctx)
 }
 
 // schoolLookup classifies the pre-tenant school-directory capability.
@@ -150,7 +218,7 @@ type schoolLookup struct {
 	errors  SchoolErrors
 }
 
-func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error) {
+func (l schoolLookup) IsSchoolClosed(ctx context.Context, schoolID int64) (bool, error) {
 	school, err := l.schools.FindSchool(ctx, schoolID)
 	if err != nil {
 		if l.errors.Missing(err) {
@@ -164,11 +232,11 @@ func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool
 	if school == nil {
 		return false, device.ErrSchoolNotFound
 	}
-	return school.Deleted, nil
+	return !school.Active || school.Deleted, nil
 }
 
 // bindTenant makes the device's school the ambient tenant. Device routes do
-// not use sessiontoken.TenantMiddleware, so an unusable tenant id is reported here.
+// not use TenantScopeMiddleware, so an unusable tenant id is reported here.
 func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
 	id, err := tenant.NewTenantID(tenantID)
 	if err != nil {

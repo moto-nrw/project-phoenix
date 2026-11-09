@@ -36,7 +36,7 @@ type SessionMirror interface {
 }
 
 type SessionHeartbeat interface {
-	PingDevice(context.Context, string) error
+	RecordDeviceHeartbeat(context.Context, string) error
 }
 
 type sessionLifecycle struct {
@@ -124,7 +124,7 @@ func (s *sessionLifecycle) CurrentSession(ctx context.Context) (devicescan.Sessi
 	if err != nil {
 		return devicescan.SessionCurrentResponse{}, err
 	}
-	if err := s.heartbeat.PingDevice(ctx, device.DeviceID); err != nil {
+	if err := s.heartbeat.RecordDeviceHeartbeat(ctx, device.DeviceID); err != nil {
 		s.logger.WarnContext(ctx, "failed to update device last seen",
 			slog.String("device_id", device.DeviceID),
 			slog.String("error", err.Error()),

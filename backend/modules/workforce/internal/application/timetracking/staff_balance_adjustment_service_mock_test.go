@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -117,7 +118,7 @@ func TestStaffBalanceAdjustmentService_AnnouncesTimeTrackingChange(t *testing.T)
 	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
 	broadcaster := &recordingTimeTrackingPublisher{}
 	service.broadcaster = broadcaster
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 

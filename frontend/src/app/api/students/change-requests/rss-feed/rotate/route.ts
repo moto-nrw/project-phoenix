@@ -1,16 +1,6 @@
-import type { NextRequest } from "next/server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
-
-interface RequestFeedLink {
-  readonly url: string;
-}
-
-export const POST = createPostHandler<RequestFeedLink>(
-  async (_request: NextRequest, _body: unknown, token: string) =>
-    apiPost<RequestFeedLink>(
-      "/api/students/change-requests/rss-feed/rotate",
-      token,
-    ),
-);
+// The backend answers the new link without an envelope.
+export const POST = proxyPost("/api/students/change-requests/rss-feed/rotate", {
+  raw: true,
+});

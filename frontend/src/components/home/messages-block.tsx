@@ -1,10 +1,9 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
-import Link from "~/components/ui/navigation-link";
-import { SectionCard } from "~/components/ui/section-card";
+import { ListRow } from "~/components/ui/list-row";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
@@ -54,11 +53,9 @@ export function MessagesBlock() {
   const allHref = tenantPath(parentsEnabled ? "/messages" : "/team-chat");
 
   return (
-    <SectionCard
+    <HomeCard
       title="Ungelesene Nachrichten"
       leading={<HomeCardIcon concept={messagesConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -79,9 +76,11 @@ export function MessagesBlock() {
         <ul className="space-y-2">
           {rows.map((row) => (
             <li key={row.key}>
-              <Link
+              <ListRow
                 href={row.href}
-                className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                trailing={
+                  <StatusBadge tone="blue" label={`${row.count} ungelesen`} />
+                }
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-gray-900">
@@ -91,12 +90,11 @@ export function MessagesBlock() {
                     {row.hint}
                   </span>
                 </span>
-                <StatusBadge tone="blue" label={`${row.count} ungelesen`} />
-              </Link>
+              </ListRow>
             </li>
           ))}
         </ul>
       )}
-    </SectionCard>
+    </HomeCard>
   );
 }

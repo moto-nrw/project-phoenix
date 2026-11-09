@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -512,18 +513,28 @@ func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 	f := buildPickupPermissionService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	for _, name := range []string{"eins", "zwei", "drei"} {
-		contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-budget-"+name)
-		_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: signedContactPermission(t, f, chain, nil)})
-		require.NoError(t, err)
-	}
-
 	counter := testpkg.CaptureQueriesForContext(t, f.db)
-	ctx = counter.Context(ctx)
-	rows, err := f.svc.ListPickupPermissionRequests(ctx, chain.AccountID, chain.StudentID)
-	require.NoError(t, err)
-	assert.Len(t, rows, 3)
-	querybudgets.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Queries())
+	created, smallStatements := 0, 0
+	for _, n := range []int{1, 3, 12} {
+		for created < n {
+			contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, fmt.Sprintf("oma-4780-budget-%d", created))
+			_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: signedContactPermission(t, f, chain, nil)})
+			require.NoError(t, err)
+			created++
+		}
+		counter.Reset()
+		rows, err := f.svc.ListPickupPermissionRequests(counter.Context(ctx), chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.Len(t, rows, n)
+		assert.Zero(t, counter.WriteRows())
+		t.Logf("pickup permission requests N=%d total=%d", n, counter.Total())
+		querybudgets.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Measurement(counter.Queries()))
+		if n == 1 {
+			smallStatements = counter.Total()
+		} else {
+			assert.Equal(t, smallStatements, counter.Total(), "request growth adds no roundtrips")
+		}
+	}
 }
 
 func TestPickupPermissionRequestsAreVisibleToEveryChildGuardian(t *testing.T) {

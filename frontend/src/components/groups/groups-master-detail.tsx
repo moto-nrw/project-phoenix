@@ -1,5 +1,7 @@
 "use client";
 
+import { MousePointer2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -8,11 +10,10 @@ import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -20,6 +21,7 @@ import { groupsConfig } from "@/components/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
 import type { Group } from "@/lib/group-helpers";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface GroupsMasterDetailProps {
   groups: Group[];
@@ -65,9 +67,7 @@ export function GroupsMasterDetail({
       renderItem={renderItem}
       keyFor={keyForGroup}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Gruppen gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Gruppen gefunden." />
       }
     />
   );
@@ -79,9 +79,12 @@ export function GroupsMasterDetail({
       onDeleteClick={onDeleteClick}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Keine Gruppe ausgewählt"
       description="Wähle links eine Gruppe, um Stammdaten direkt im Detailbereich zu bearbeiten."
+      className="h-full justify-center"
     />
   );
 
@@ -208,12 +211,11 @@ function GroupSummary({ group }: { group: Group }) {
   return (
     <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {group.room_name ?? "Kein Gruppenraum"}
-        </span>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {group.student_count ?? 0} Kinder
-        </span>
+        <StatusBadge
+          label={group.room_name ?? "Kein Gruppenraum"}
+          tone="gray"
+        />
+        <StatusBadge label={`${group.student_count ?? 0} Kinder`} tone="gray" />
       </div>
 
       <div className="mt-4">

@@ -81,14 +81,14 @@ func mountServeMiddleware(
 	if err != nil {
 		return nil, err
 	}
-	setupRateLimiting(router, securityLogger, sessionAuth, demoLoopbackExempt())
 	// One verifier serves every route: it only parses the presented token, and
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
-	router.Use(sessionAuth.Verifier())
+	router.Use(sessionAuth.Verifier(), sessiontoken.ParseVerified)
+	setupRateLimiting(router, securityLogger, demoLoopbackExempt())
 	// Every verified access token must still rest on a live refresh-token
 	// family, so logout ends it at once on every instance (#5194).
-	router.Use(sessiontoken.RequireLiveSession(accessSessionLiveness(sessions)))
+	router.Use(RequireLiveAccessSession(sessions))
 	// Classifies each path by module; TenantScopeMiddleware and
 	// SchoolScopeMiddleware refuse a module the bound school has not booked
 	// (#4893, #4895), ParentScopeMiddleware a parents portal none of the
@@ -106,6 +106,11 @@ func mountServeMiddleware(
 	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
 	mountAnalyticsConsent(router, consent)
 	return sessionAuth, nil
+}
+
+// RequireLiveAccessSession constructs the production access-family gate.
+func RequireLiveAccessSession(sessions identityaccess.AccessSessions) func(http.Handler) http.Handler {
+	return sessiontoken.RequireLiveSession(accessSessionLiveness(sessions))
 }
 
 // accessSessionLiveness binds the per-request family check of the verifier

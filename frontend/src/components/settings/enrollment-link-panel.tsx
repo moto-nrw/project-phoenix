@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
-import { createLogger } from "~/lib/logger";
-import { Button, buttonClassName } from "~/components/ui/button";
+import { buttonClassName } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
-
-const logger = createLogger({ component: "EnrollmentLinkPanel" });
 
 interface Props {
   readonly tab: SchemaTab;
@@ -19,24 +18,10 @@ interface Props {
  * EnrollmentLinkPanel surfaces the public parent-enrollment URL at the top
  * of the enrollment settings tab. Hidden when enrollment.enabled is false
  * so admins aren't tempted to share a link that 404s.
- *
- * URL composition mirrors useTenantRouter: subdomain mode keeps the host
- * as `{slug}.{baseDomain}` and uses bare paths; path mode prefixes the
- * tenant slug. We compute both with `window.location` so we don't have to
- * import the env or care which TENANT_DOMAIN is configured.
  */
 export function EnrollmentLinkPanel({ tab }: Props) {
   const tenantSlug = useTenantSlugSafe();
-  const [origin, setOrigin] = useState<string>("");
-  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
   const { showMessage } = useApiErrorDisplay();
-
-  // Window access is client-only; defer until mount.
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setOrigin(window.location.origin);
-    }
-  }, []);
 
   const enabled = useMemo(() => {
     for (const cat of tab.categories) {
@@ -49,39 +34,11 @@ export function EnrollmentLinkPanel({ tab }: Props) {
     return false;
   }, [tab]);
 
-  const enrollUrl = useMemo(() => {
-    if (!origin || !tenantSlug) return "";
-    // Detect subdomain mode by checking whether the tenant slug is the
-    // first label of the current host. Path mode otherwise.
-    const inSubdomainMode =
-      typeof window !== "undefined" &&
-      window.location.hostname.startsWith(`${tenantSlug}.`);
-    if (inSubdomainMode) {
-      return `${origin}/anmeldung`;
-    }
-    return `${origin}/${tenantSlug}/anmeldung`;
-  }, [origin, tenantSlug]);
+  const enrollUrl = useEnrollmentPublicUrl({ tenantSlug });
 
   if (!enabled || !enrollUrl) {
     return null;
   }
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(enrollUrl);
-      setCopyState("copied");
-      window.setTimeout(() => setCopyState("idle"), 2500);
-    } catch (err) {
-      logger.error("enrollment_link_copy_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der Link
-      // steht daneben und lässt sich von Hand markieren.
-      showMessage(
-        "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
-      );
-    }
-  };
 
   return (
     <SectionCard
@@ -93,26 +50,26 @@ export function EnrollmentLinkPanel({ tab }: Props) {
       description="Teilen Sie diesen Link mit Eltern, damit sie ihre Kinder anmelden können. Jeder mit dem Link kann ihn öffnen. Eltern brauchen dafür kein Konto."
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <code className="moto-content-surface flex-1 truncate rounded-lg border px-3 py-2 font-mono text-xs text-gray-800">
-          {enrollUrl}
-        </code>
-        <Button
-          type="button"
-          variant={copyState === "copied" ? "success" : "primary"}
-          size="compact"
-          onClick={() => void handleCopy()}
-          className="shrink-0"
-        >
-          {copyState === "copied" ? "Kopiert" : "Kopieren"}
-        </Button>
+        <CopyField
+          value={enrollUrl}
+          monospace
+          className="flex-1"
+          onCopyFailed={() =>
+            // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der
+            // Link steht daneben und lässt sich von Hand markieren.
+            showMessage(
+              "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+            )
+          }
+        />
         <a
           href={enrollUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={buttonClassName({
-            variant: "surface",
-            size: "compact",
-            className: "shrink-0",
+            variant: "outline",
+            size: "md",
+            className: "shrink-0 self-start sm:self-auto",
           })}
         >
           Öffnen

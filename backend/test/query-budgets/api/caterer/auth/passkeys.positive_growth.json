@@ -1,0 +1,7 @@
+{
+  "scenario": "api.caterer.auth.passkeys.positive_growth",
+  "max": 13,
+  "exact": true,
+  "description": "GET /caterer/auth/passkeys: composed caterer passkeys and configured caterer RP host; real account/link, signed caterer JWT, CatererSessionChain and host request memos. Exact N3/N8 summaries, other-account/revoked decoys; no school-passkey substitution. Meal workflow and host-family liveness excluded.",
+  "route": "GET /caterer/auth/passkeys"
+}

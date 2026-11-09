@@ -1,6 +1,13 @@
 "use client";
 
 import {
+  SCHOOL_WEEKDAY_CODES,
+  isSchoolWeekday,
+  isoWeekdayShortLabel,
+  weekdayISONumber,
+  weekdayShortLabel,
+} from "~/lib/weekdays";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -8,7 +15,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type CareOffering,
@@ -59,6 +68,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -69,7 +79,10 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import {
+  isSupportedGradeLevel,
+  supportedGradeLevelMax,
+} from "~/lib/grade-level";
 import { useTenant } from "~/lib/tenant-context";
 import {
   useApiFormError,
@@ -88,45 +101,15 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
-
-const DAY_LABELS: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
-const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
-const CARE_DAY_TO_ISO: Record<string, number> = {
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
-  sun: 7,
-};
-
-const ISO_WEEKDAY_LABELS: Record<number, string> = {
-  1: "Mo",
-  2: "Di",
-  3: "Mi",
-  4: "Do",
-  5: "Fr",
-  6: "Sa",
-  7: "So",
-};
 
 const KIND_LABELS: Record<Phase["kind"], string> = {
   school_year: "Schuljahr",
@@ -155,12 +138,12 @@ function missingRequiredPickupDays(offering: {
 }): string[] {
   if (!offering.is_active || offering.counts_as_care === false) return [];
   return offering.available_days.filter(
-    (day) => WEEKDAY_KEYS.includes(day) && !offering.pickup_times?.[day],
+    (day) => isSchoolWeekday(day) && !offering.pickup_times?.[day],
   );
 }
 
 function missingPickupTimesMessage(days: string[]): string {
-  const labels = days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  const labels = days.map((day) => weekdayShortLabel(day)).join(", ");
   return `Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein: ${labels}.`;
 }
 
@@ -230,16 +213,16 @@ function formatPrice(cents?: number | null): string {
 }
 
 function formatDays(days: string[]): string {
-  const visibleDays = days.filter((day) => WEEKDAY_KEYS.includes(day));
+  const visibleDays = days.filter((day) => isSchoolWeekday(day));
   if (visibleDays.length === 0) return "Keine Wochentage";
-  return visibleDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  return visibleDays.map((day) => weekdayShortLabel(day)).join(", ");
 }
 
 function templateLabel(template: TimetableTemplate): string {
   const days = template.schedules
     .map((schedule) => schedule.weekday)
     .sort((a, b) => a - b)
-    .map((weekday) => ISO_WEEKDAY_LABELS[weekday] ?? `Tag ${weekday}`)
+    .map((weekday) => isoWeekdayShortLabel(weekday) ?? `Tag ${weekday}`)
     .join(", ");
   const time = template.schedules[0]
     ? `${template.schedules[0].startTime}-${template.schedules[0].endTime}`
@@ -331,12 +314,12 @@ function linkedTemplateWeekdayError(
     template.schedules.map((schedule) => schedule.weekday),
   );
   const missingDays = draft.available_days.filter((day) => {
-    const isoWeekday = CARE_DAY_TO_ISO[day];
+    const isoWeekday = weekdayISONumber(day);
     return isoWeekday !== undefined && !templateDays.has(isoWeekday);
   });
   if (missingDays.length === 0) return null;
 
-  const labels = missingDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  const labels = missingDays.map((day) => weekdayShortLabel(day)).join(", ");
   return `Der Regeltermin deckt die Angebotstage ${labels} nicht ab. Bitte entfernen Sie die Verknüpfung oder ergänzen Sie diese Tage im Regeltermin.`;
 }
 
@@ -363,7 +346,7 @@ function nameWeekdayMismatchWarning(draft: CareOfferingInput): string | null {
   if (!namedDay) return null;
   const extraDays = draft.available_days.filter((day) => day !== namedDay);
   if (extraDays.length === 0) return null;
-  const labels = extraDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  const labels = extraDays.map((day) => weekdayShortLabel(day)).join(", ");
   return `Der Name nennt nur einen Wochentag, ausgewählt sind zusätzlich ${labels}. Bitte prüfen, ob das Angebot wirklich an diesen Tagen stattfindet.`;
 }
 
@@ -398,7 +381,7 @@ function linkedTemplateWarnings(
   );
   const offeringDays = new Set(
     draft.available_days
-      .map((day) => CARE_DAY_TO_ISO[day])
+      .map((day) => weekdayISONumber(day))
       .filter((day): day is number => day !== undefined),
   );
   if ([...templateDays].some((day) => !offeringDays.has(day))) {
@@ -428,9 +411,7 @@ export function CareOfferingsEditor({
   ) => void;
 } = {}) {
   const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(tenant?.gradeLevelMax);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
   const selectedPhaseIdRef = useRef("");
@@ -987,8 +968,10 @@ export function CareOfferingsEditor({
               if (!open) cancelFocusMode();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader>
+            <SlideOverContent size="lg">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={saving} />}
+              >
                 <SlideOverTitle>
                   {cloneSource
                     ? "Betreuungsangebot duplizieren"
@@ -1129,30 +1112,34 @@ function CareOfferingToolbar({
   onCreate: () => void;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       {/* Kennzahlen, Phasenauswahl und Anlegen stehen in einer Zeile, solange
           alles hineinpasst; sonst rutschen Auswahl und Knopf in eine eigene
           Zeile. Ein langer Phasenname wird im Auswahlfeld gekürzt und
           verdrängt die Kacheln nie (#5022). */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="grid min-w-0 flex-[999_1_40rem] gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={carePlanConcept} size={16} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={carePlanConcept} size={16} />}
             label="Angebote"
             value={offeringCount}
           />
-          <EnrollmentStatTile
-            icon={Check}
+          <StatCard
+            variant="inline"
+            icon={<Check aria-hidden="true" />}
             label="Aktiv"
             value={activeOfferingCount}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={calendarConcept} size={18} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={calendarConcept} size={18} />}
             label="Tage"
             value={selectableDaysCount}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={childrenConcept} size={18} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
             label="Kapazität"
             value={hasCapacityLimit ? totalCapacity : "frei"}
             detail={
@@ -1193,27 +1180,27 @@ function CareOfferingToolbar({
           ) : null}
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
 function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
-    <div
-      className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong flex flex-col gap-3 rounded-2xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
-      role="status"
-    >
-      <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
-      <Button
-        type="button"
-        variant="surface"
-        size="md"
-        onClick={onRetry}
-        className="shrink-0"
-      >
-        Erneut laden
-      </Button>
-    </div>
+    <Alert
+      type="warning"
+      announce="polite"
+      message={PLANNER_METADATA_UNAVAILABLE_MESSAGE}
+      action={
+        <Button
+          type="button"
+          variant="surface"
+          size="compact"
+          onClick={onRetry}
+        >
+          Erneut laden
+        </Button>
+      }
+    />
   );
 }
 
@@ -1221,7 +1208,7 @@ function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={<ConceptIconTile concept={calendarPeriodsConcept} size="page" />}
         title="Erst eine Anmeldephase anlegen"
@@ -1241,19 +1228,19 @@ function NoPhaseState() {
           </ButtonLink>
         }
       />
-    </section>
+    </SectionCard>
   );
 }
 
 function EmptyCareOfferingState() {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState
         icon={<ConceptIconTile concept={carePlanConcept} size="page" />}
         title="Noch kein Betreuungsangebot angelegt"
         description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
       />
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1431,15 +1418,11 @@ function toggleSetValue<T>(values: Iterable<T>, value: T): Set<T> {
   return next;
 }
 
-function isSupportedAutoAddGrade(value: number): boolean {
-  return isSupportedGradeLevelMax(value);
-}
-
 function careOfferingGradeOptions(
   gradeLevelMax: number | null,
   selectedGrades: readonly number[],
 ): number[] {
-  const options = new Set(selectedGrades.filter(isSupportedAutoAddGrade));
+  const options = new Set(selectedGrades.filter(isSupportedGradeLevel));
   if (gradeLevelMax !== null) {
     for (let grade = 1; grade <= gradeLevelMax; grade++) options.add(grade);
   }
@@ -1563,39 +1546,31 @@ function CareOfferingTemplateField({
   );
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
-      <label className="block" htmlFor="care-offering-template">
-        <span className="text-xs font-medium text-gray-700">Regeltermin</span>
-        <CustomSelect
-          id="care-offering-template"
-          ariaLabel="Regeltermin"
-          value={linkedTemplateID}
-          onChange={(value) =>
-            onChange({ activity_group_id: value ? Number(value) : null })
-          }
-          disabled={selectorDisabled}
-          className="mt-1"
-          invalid={templateError !== undefined}
-          ariaDescribedBy={
-            templateError ? "care-offering-template-error" : undefined
-          }
-          options={options}
-        />
-        <FieldErrorHint
-          id="care-offering-template-error"
-          as="span"
-          message={templateError}
-          live
-        />
-      </label>
+    <InsetPanel as="section" tone="white" padding="md">
+      <CustomSelect
+        id="care-offering-template"
+        label="Regeltermin"
+        value={linkedTemplateID}
+        onChange={(value) =>
+          onChange({ activity_group_id: value ? Number(value) : null })
+        }
+        disabled={selectorDisabled}
+        error={templateError}
+        errorLive
+        options={options}
+      />
       <p className="mt-2 text-xs text-gray-600">
         Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
         den ausgewählten Angebotstagen erwartet.
       </p>
       {compatibilityUnknown ? (
-        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
-          {unknownCompatibilityMessage(metadataStatus)}
-        </p>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-2"
+          message={unknownCompatibilityMessage(metadataStatus)}
+        />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -1607,13 +1582,21 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {templateWarnings.length > 0 ? (
-        <ul className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 space-y-1 rounded-lg border px-3 py-2 text-xs">
-          {templateWarnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-2"
+          message={
+            <ul className="space-y-1">
+              {templateWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          }
+        />
       ) : null}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -1627,7 +1610,9 @@ function CareOfferingWeekdayFields({
   const toggleDay = (day: string) => {
     const nextDays = toggleSetValue(draft.available_days, day);
     const patch: Partial<CareOfferingInput> = {
-      available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
+      available_days: SCHOOL_WEEKDAY_CODES.filter((dayKey) =>
+        nextDays.has(dayKey),
+      ),
     };
     // Ein abgewählter Tag nimmt seine Gehzeit mit.
     if (!nextDays.has(day) && draft.pickup_times?.[day]) {
@@ -1650,12 +1635,9 @@ function CareOfferingWeekdayFields({
   const pickupTimesRequired = draft.is_active && draft.counts_as_care;
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Wochentage
-      </legend>
+    <FormFieldset legend="Wochentage">
       <div className="flex flex-wrap gap-2">
-        {WEEKDAY_KEYS.map((day) => {
+        {SCHOOL_WEEKDAY_CODES.map((day) => {
           const active = draft.available_days.includes(day);
           return (
             <ToggleChip
@@ -1663,36 +1645,42 @@ function CareOfferingWeekdayFields({
               pressed={active}
               onPressedChange={() => toggleDay(day)}
             >
-              {DAY_LABELS[day]}
+              {weekdayShortLabel(day)}
             </ToggleChip>
           );
         })}
       </div>
       {nameMismatch ? (
-        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border px-3 py-2 text-xs">
-          {nameMismatch}
-        </p>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-3"
+          message={nameMismatch}
+        />
       ) : null}
       {draft.available_days.length > 0 ? (
         <div className="mt-4">
-          <p className="text-xs font-medium text-gray-700">
+          <FieldLabel>
             {pickupTimesRequired
               ? "Gehzeit je Betreuungstag"
               : "Gehzeit je Wochentag (optional)"}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
+          </FieldLabel>
+          <p className="text-xs text-gray-500">
             Diese Zeiten gelten automatisch für gebuchte Kinder. Von Hand
             gepflegte Gehzeiten bleiben erhalten.
           </p>
           <div className="mt-2 flex flex-wrap gap-3">
             {draft.available_days.map((day) => (
               <label key={day} className="flex items-center gap-2 text-xs">
-                <span className="w-6 text-gray-700">{DAY_LABELS[day]}</span>
+                <span className="w-6 text-gray-700">
+                  {weekdayShortLabel(day)}
+                </span>
                 <Input
                   type="time"
                   controlSize="compact"
                   required={pickupTimesRequired}
-                  aria-label={`${DAY_LABELS[day]} Gehzeit`}
+                  aria-label={`${weekdayShortLabel(day)} Gehzeit`}
                   value={draft.pickup_times?.[day] ?? ""}
                   onChange={(event) => setPickupTime(day, event.target.value)}
                 />
@@ -1715,7 +1703,7 @@ function CareOfferingWeekdayFields({
           hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1748,14 +1736,14 @@ function CareOfferingAutomationFields({
     });
   };
   const selectedGrades = (draft.auto_add_grade_levels ?? [])
-    .filter(isSupportedAutoAddGrade)
+    .filter(isSupportedGradeLevel)
     .sort((a, b) => a - b);
   const gradeOptions = careOfferingGradeOptions(gradeLevelMax, selectedGrades);
   const toggleAutoAddGrade = (grade: number) => {
     const next = toggleSetValue(selectedGrades, grade);
     onChange({
       auto_add_grade_levels: [...next]
-        .filter(isSupportedAutoAddGrade)
+        .filter(isSupportedGradeLevel)
         .sort((a, b) => a - b),
     });
   };
@@ -1770,10 +1758,7 @@ function CareOfferingAutomationFields({
   );
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Betreuungstage & Mitbuchung
-      </legend>
+    <FormFieldset legend="Betreuungstage & Mitbuchung">
       <div className="space-y-4">
         <CheckboxCard
           checked={draft.counts_as_care}
@@ -1782,7 +1767,7 @@ function CareOfferingAutomationFields({
           hint="Gilt für Filter, Kennzahlen und Exporte."
         />
 
-        <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+        <InsetPanel framed>
           <p className="text-xs font-medium text-gray-700">
             {offeringLabel} wird automatisch mitgebucht, wenn Eltern eines
             dieser Angebote wählen:
@@ -1807,7 +1792,11 @@ function CareOfferingAutomationFields({
             </p>
           )}
           {selectedTriggers.length > 0 ? (
-            <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+            <InsetPanel
+              tone="white"
+              padding="compact"
+              className="mt-2 text-xs text-gray-700"
+            >
               {selectedTriggers.map((trigger) => (
                 <p key={trigger.id}>
                   Wenn Eltern „{trigger.name}“ wählen, wird{" "}
@@ -1818,21 +1807,29 @@ function CareOfferingAutomationFields({
                 Andersherum gilt das nicht: Wer nur {offeringLabelMidSentence}{" "}
                 wählt, bekommt die anderen Angebote nicht automatisch dazu.
               </p>
-            </div>
+            </InsetPanel>
           ) : null}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
-            <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
-              Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="off"
+              className="mt-2"
+              message="Mitgebuchte Angebote müssen einzelne Tage auswählbar machen."
+            />
           ) : null}
-        </div>
+        </InsetPanel>
 
         <div>
-          <p className="text-xs font-medium text-gray-700">
+          <FieldLabel id="auto-add-grades-label">
             Mitbuchung gilt für Klassenstufen
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          </FieldLabel>
+          <div
+            role="group"
+            aria-labelledby="auto-add-grades-label"
+            className="flex flex-wrap gap-2"
+          >
             {gradeOptions.map((grade) => {
               const active = selectedGrades.includes(grade);
               const aboveCurrentCap =
@@ -1854,7 +1851,7 @@ function CareOfferingAutomationFields({
           </p>
         </div>
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1909,10 +1906,7 @@ function CareOfferingAvailabilityFields({
   const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Bedingungen für die Verfügbarkeit
-      </legend>
+    <FormFieldset legend="Bedingungen für die Verfügbarkeit">
       <CheckboxCard
         checked={rule !== null}
         onChange={(checked) =>
@@ -1927,50 +1921,44 @@ function CareOfferingAvailabilityFields({
               : null,
           })
         }
-        label={
-          rule
-            ? "Nur unter Bedingungen anbieten"
-            : "Für alle Klassenstufen / ohne Bedingungen"
-        }
-        hint="Ohne Bedingungen ist dieses Angebot für jedes Kind verfügbar."
+        // One label for both states: it names what a tick does. The old
+        // pair called the unticked box „Für alle Klassenstufen“, so schools
+        // ticked it to mean „for everyone“ and restricted the offering
+        // instead (#6044).
+        label="Nur für bestimmte Klassenstufen anbieten"
+        hint="Ohne Haken können alle Kinder das Angebot wählen."
       />
       {rule ? (
         <div className="mt-4 space-y-3">
           {rule.conditions.length > 1 ? (
-            <label className="block" htmlFor="care-offering-availability-match">
-              <span className="text-xs font-medium text-gray-700">
-                Mehrere Bedingungen
-              </span>
-              <CustomSelect
-                id="care-offering-availability-match"
-                ariaLabel="Mehrere Bedingungen"
-                value={rule.match}
-                onChange={(value) =>
-                  onChange({
-                    availability_rule: {
-                      ...rule,
-                      match: value as "all" | "any",
-                    },
-                  })
-                }
-                className="mt-1"
-                options={[
-                  {
-                    value: "all",
-                    label: "Alle Bedingungen müssen erfüllt sein",
+            <CustomSelect
+              id="care-offering-availability-match"
+              label="Mehrere Bedingungen"
+              value={rule.match}
+              onChange={(value) =>
+                onChange({
+                  availability_rule: {
+                    ...rule,
+                    match: value as "all" | "any",
                   },
-                  {
-                    value: "any",
-                    label: "Mindestens eine Bedingung muss erfüllt sein",
-                  },
-                ]}
-              />
-            </label>
+                })
+              }
+              options={[
+                {
+                  value: "all",
+                  label: "Alle Bedingungen müssen erfüllt sein",
+                },
+                {
+                  value: "any",
+                  label: "Mindestens eine Bedingung muss erfüllt sein",
+                },
+              ]}
+            />
           ) : null}
           {rule.conditions.map((condition, index) => (
-            <div
+            <InsetPanel
+              framed
               key={getStableObjectKey(condition, "availability-condition")}
-              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-800">
@@ -2018,56 +2006,42 @@ function CareOfferingAvailabilityFields({
                 </div>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label
-                  className="block"
-                  htmlFor={`availability-source-${index}`}
-                >
-                  <span className="text-xs font-medium text-gray-700">
-                    Bedingungsquelle
-                  </span>
-                  <CustomSelect
-                    id={`availability-source-${index}`}
-                    ariaLabel="Bedingungsquelle"
-                    value="grade_level"
-                    onChange={() => undefined}
-                    options={[
-                      {
-                        value: "grade_level",
-                        label: "Klassenstufe des Kindes",
-                      },
-                    ]}
-                    className="mt-1"
-                  />
-                </label>
-                <label
-                  className="block"
-                  htmlFor={`availability-operator-${index}`}
-                >
-                  <span className="text-xs font-medium text-gray-700">
-                    Operator
-                  </span>
-                  <CustomSelect
-                    id={`availability-operator-${index}`}
-                    ariaLabel="Operator"
-                    value={condition.operator}
-                    onChange={(value) =>
-                      updateCondition(index, {
-                        operator: value as "in" | "not_in",
-                      })
-                    }
-                    options={[
-                      { value: "in", label: "ist eine von" },
-                      { value: "not_in", label: "ist keine von" },
-                    ]}
-                    className="mt-1"
-                  />
-                </label>
+                <CustomSelect
+                  id={`availability-source-${index}`}
+                  label="Bedingungsquelle"
+                  value="grade_level"
+                  onChange={() => undefined}
+                  options={[
+                    {
+                      value: "grade_level",
+                      label: "Klassenstufe des Kindes",
+                    },
+                  ]}
+                />
+                <CustomSelect
+                  id={`availability-operator-${index}`}
+                  label="Operator"
+                  value={condition.operator}
+                  onChange={(value) =>
+                    updateCondition(index, {
+                      operator: value as "in" | "not_in",
+                    })
+                  }
+                  options={[
+                    { value: "in", label: "ist eine von" },
+                    { value: "not_in", label: "ist keine von" },
+                  ]}
+                />
               </div>
               <div className="mt-3">
-                <p className="text-xs font-medium text-gray-700">
+                <FieldLabel id={`availability-grades-${index}-label`}>
                   Klassenstufen
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
+                </FieldLabel>
+                <div
+                  role="group"
+                  aria-labelledby={`availability-grades-${index}-label`}
+                  className="flex flex-wrap gap-2"
+                >
                   {gradeOptions.map((grade) => {
                     const active = condition.value.includes(grade);
                     return (
@@ -2088,7 +2062,7 @@ function CareOfferingAvailabilityFields({
                   })}
                 </div>
               </div>
-            </div>
+            </InsetPanel>
           ))}
           <Button
             type="button"
@@ -2117,30 +2091,32 @@ function CareOfferingAvailabilityFields({
             live
           />
           {!error && conflicts > 0 ? (
-            <p
-              role="status"
-              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
-            >
-              {conflicts === 1
-                ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
-                : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
-              Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die Regel
-              gilt nur für neue Auswahlen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="polite"
+              message={
+                <>
+                  {conflicts === 1
+                    ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
+                    : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
+                  Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die
+                  Regel gilt nur für neue Auswahlen.
+                </>
+              }
+            />
           ) : null}
           {!error && bookingCountUnknown ? (
-            <p
-              role="status"
-              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
-            >
-              Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich
-              gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall
-              bestehen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="polite"
+              message="Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall bestehen."
+            />
           ) : null}
         </div>
       ) : null}
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2225,10 +2201,7 @@ function CareOfferingDisplayFields({
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Anzeige im Elternformular
-      </legend>
+    <FormFieldset legend="Anzeige im Elternformular">
       <div className="grid gap-2 sm:grid-cols-3">
         <CheckboxCard
           checked={draft.includes_holiday_care}
@@ -2261,7 +2234,7 @@ function CareOfferingDisplayFields({
           hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2420,10 +2393,7 @@ function CareOfferingForm({
         placeholder="Kurz erklären, was Eltern hier auswählen."
       />
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Pflichtauswahl
-        </legend>
+      <FormFieldset legend="Pflichtauswahl">
         <p className="mt-1 mb-3 text-sm leading-6 text-gray-600">
           Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
           geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
@@ -2478,7 +2448,7 @@ function CareOfferingForm({
             einer späteren Änderung gilt dann pro Tag ein Angebot.
           </p>
         )}
-      </fieldset>
+      </FormFieldset>
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />
 
@@ -2595,20 +2565,16 @@ function CloneOfferingForm({
         </p>
       </header>
 
-      <label className="block" htmlFor="care-offering-clone-target-phase">
-        <span className="text-xs font-medium text-gray-700">Zielphase</span>
-        <CustomSelect
-          id="care-offering-clone-target-phase"
-          ariaLabel="Zielphase"
-          value={targetPhaseId}
-          onChange={setTargetPhaseId}
-          className="mt-1"
-          options={phases.map((phase) => ({
-            value: phase.id,
-            label: `${phase.name} (${KIND_LABELS[phase.kind]})`,
-          }))}
-        />
-      </label>
+      <CustomSelect
+        id="care-offering-clone-target-phase"
+        label="Zielphase"
+        value={targetPhaseId}
+        onChange={setTargetPhaseId}
+        options={phases.map((phase) => ({
+          value: phase.id,
+          label: `${phase.name} (${KIND_LABELS[phase.kind]})`,
+        }))}
+      />
 
       <div className="flex justify-end gap-2">
         <Button

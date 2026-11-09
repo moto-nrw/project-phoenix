@@ -505,6 +505,31 @@ session using that server and confirming they have finished:
    credentials from `backend/dev.env` instead of the harness configuration and
    is rejected before opening a database. No manual migration reset is needed.
 
+### Server cannot find its checkpoint record
+
+A test server whose start logs
+`PANIC:  could not locate a valid checkpoint record` lost writes after
+PostgreSQL had already shut down cleanly. The test servers run with
+`fsync=off`, so data stays in the Docker VM's page cache until the guest writes
+it back. If the Docker engine stops uncleanly before that, for example a VM
+stop while the Mac's disk is full (OrbStack logs `No space left on device` at
+`~/.orbstack/log/vmgr*.log`), `pg_control` and the WAL disagree and the cluster
+never starts again (#6230). The idle stop itself is clean: `docker stop`
+without timeout, fast shutdown with a shutdown checkpoint, exit code 0.
+
+The harness repairs this itself. When a managed server (rules in
+[Managed server lifetime](#managed-server-lifetime)) is refused after startup
+and its most recent start exited with that PANIC, the next test process removes
+exactly that container and its `<project>_postgres_test` volume, starts a fresh
+server and rebuilds the template. A file lock serializes concurrent test
+processes. Running, cleanly stopped or otherwise failing servers and
+legacy/unlabelled containers are never removed. This also covers the shared
+server on `TEST_DB_PORT`: a cluster that cannot start has no live users.
+
+For an unmanaged or legacy server, rebuild it manually as described in
+[Rebuild a disposable test cluster](#rebuild-a-disposable-test-cluster).
+Free disk space first, or the fresh server will fail the same way.
+
 ### Managed server lifetime
 
 On macOS and Linux (including WSL), new managed test servers stop automatically
@@ -851,8 +876,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   for the current state, `--ref v1.4.0` for exactly that release; runs from
   other branches attach nothing. It seeds a fresh stack, captures every shot,
   attaches the output as the artifact `product-screenshots-<version>` (7 days)
-  and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`.
-  A rerun of the same version replaces the ZIP. Pull requests into `main` that
+  and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`,
+  plus the same file as `product-screenshots.zip`: the newest images are always
+  at `https://github.com/moto-nrw/project-phoenix/releases/latest/download/product-screenshots.zip`
+  (PyrePortal does the same for the kiosk). A rerun of the same version replaces
+  both ZIPs. Pull requests into `main` that
   touch the pipeline run the capture without the release asset; pull requests
   into `development` do not run it. To test a pipeline change on a feature
   branch, start it by hand (`gh workflow run product-screenshots.yml --ref

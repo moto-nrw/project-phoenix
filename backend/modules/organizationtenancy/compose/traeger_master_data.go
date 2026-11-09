@@ -17,3 +17,13 @@ func NewTraegerMasterData() organizationtenancy.TraegerMasterData {
 func NewTraegerDocumentTemplates() organizationtenancy.TraegerDocumentTemplates {
 	return application.NewTraegerDocumentTemplates(postgres.NewTraegerMasterDataStore())
 }
+
+// NewTraegerDocuments builds the Träger-Büro's shared documents (#4692).
+func NewTraegerDocuments(dependencies organizationtenancy.TraegerDocumentPorts) organizationtenancy.TraegerDocuments {
+	return application.NewTraegerDocuments(postgres.NewTraegerDocumentStore(), dependencies)
+}
+
+// NewSharedTraegerDocuments builds the parents' and schools' reads (#4692).
+func NewSharedTraegerDocuments() *postgres.TraegerDocumentStore {
+	return postgres.NewTraegerDocumentStore()
+}

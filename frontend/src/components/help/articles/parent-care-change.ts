@@ -54,6 +54,7 @@ export function parentCareChangeTopic(): HelpTopic {
       "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
       "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
       "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+      "Gilt Ihr Betreuungsvertrag schon? Dann kann auch der Träger Ihrer OGS die Anfrage bestätigen. Nach der Bestätigung bekommt der Vertrag eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
       "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
     ],
     differences: [

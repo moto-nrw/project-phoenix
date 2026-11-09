@@ -6,7 +6,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
 
 import PayrollPage from "./page";
 import { ApiError } from "~/lib/api-error";
@@ -468,6 +473,99 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     setAbsenceTypeWageTypeMock.mockResolvedValue(undefined);
     resetSwr();
     swrData["payroll-rules"] = { data: payrollRules() };
+  });
+
+  afterEach(() => setViewportWidth(DESKTOP_WIDTH));
+
+  it.each([
+    [DESKTOP_WIDTH, PHONE_WIDTH],
+    [PHONE_WIDTH, DESKTOP_WIDTH],
+  ])(
+    "keeps unsaved cell drafts when resizing from %i to %i",
+    async (from, to) => {
+      setViewportWidth(from);
+      render(<PayrollPage />);
+      // Prime Happy DOM's listener state before the first resize.
+      act(() => window.dispatchEvent(new Event("resize")));
+      const edits = [
+        { name: "Lohnartnummer Regelarbeit", value: "1001" },
+        { name: "Bezeichnung Nachtzuschlag", value: "Nachtdienst" },
+        { name: "Lohnartnummer Nachtzuschlag", value: "310" },
+        { name: "Nachtarbeit von", value: "21:00" },
+        { name: "Nachtarbeit bis", value: "05:00" },
+        { name: "Höhe Nachtarbeit in Prozent", value: "30,5" },
+      ];
+      for (const { name, value } of edits) {
+        // Time inputs have no implicit textbox role.
+        const input = screen.getByLabelText(name);
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value } });
+      }
+
+      setViewportWidth(to);
+
+      for (const { name, value } of edits) {
+        expect(screen.getByLabelText(name)).toHaveValue(value);
+      }
+      expect(
+        screen.getAllByTestId(
+          to === PHONE_WIDTH ? "data-table-stacked" : "data-table-table",
+        ),
+      ).toHaveLength(4);
+      expect(setSettingValueMock).not.toHaveBeenCalled();
+      expect(updateWageTypeMock).not.toHaveBeenCalled();
+      expect(updateSurchargeRuleMock).not.toHaveBeenCalled();
+
+      fireEvent.blur(screen.getByLabelText("Lohnartnummer Regelarbeit"));
+      fireEvent.blur(screen.getByLabelText("Bezeichnung Nachtzuschlag"));
+      fireEvent.blur(screen.getByLabelText("Lohnartnummer Nachtzuschlag"));
+      fireEvent.blur(screen.getByLabelText("Nachtarbeit von"));
+      fireEvent.blur(screen.getByLabelText("Höhe Nachtarbeit in Prozent"));
+      await waitFor(() => {
+        expect(updateWageTypeMock).toHaveBeenLastCalledWith("7", {
+          name: "Nachtdienst",
+          number: "310",
+          unit: "stunden",
+        });
+        expect(updateSurchargeRuleMock).toHaveBeenLastCalledWith(
+          "8",
+          expect.objectContaining({
+            windowStartMinute: 1260,
+            windowEndMinute: 300,
+            rateHundredths: 3050,
+          }),
+        );
+      });
+      await waitFor(() =>
+        expect(setSettingValueMock).toHaveBeenCalledWith(
+          "payroll.lohnart_regelarbeit",
+          "1001",
+        ),
+      );
+    },
+  );
+
+  it("replaces a draft with a changed server value without restoring it on resize", () => {
+    setViewportWidth(DESKTOP_WIDTH);
+    const view = render(<PayrollPage />);
+    act(() => window.dispatchEvent(new Event("resize")));
+    fireEvent.change(screen.getByLabelText("Lohnartnummer Regelarbeit"), {
+      target: { value: "1001" },
+    });
+
+    const status = payrollStatus();
+    status.categories[0]!.number = "1002";
+    swrData["payroll-status"] = { data: status };
+    view.rerender(<PayrollPage />);
+    expect(screen.getByLabelText("Lohnartnummer Regelarbeit")).toHaveValue(
+      "1002",
+    );
+
+    setViewportWidth(PHONE_WIDTH);
+    expect(screen.getAllByTestId("data-table-stacked")).toHaveLength(4);
+    expect(screen.getByLabelText("Lohnartnummer Regelarbeit")).toHaveValue(
+      "1002",
+    );
   });
 
   it("zeigt die eigenen Lohnarten, die Zuschläge und die Abwesenheitsarten", () => {

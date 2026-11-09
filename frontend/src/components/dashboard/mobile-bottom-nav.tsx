@@ -2,14 +2,16 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React, {
-  useRef,
-  useCallback,
-  useState,
-  useEffect,
-  useMemo,
-} from "react";
-import { NavLink } from "~/components/ui/nav-link";
+import { Alert } from "~/components/ui/alert";
+import { SectionLabel } from "~/components/ui/section-label";
+import React, { useRef, useCallback, useState, useMemo } from "react";
+import {
+  PortalBottomNav,
+  PortalBottomNavButton,
+  PortalBottomNavLink,
+  PortalNavSheetLink,
+  usePortalBottomNavIndicator,
+} from "~/components/ui/portal-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -91,7 +93,7 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { LogoutModal } from "~/components/ui/logout-modal";
+import { LogoutModal } from "~/components/auth/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { RefreshButton } from "./header/refresh-button";
 import { Bell, Eye } from "lucide-react";
@@ -124,6 +126,10 @@ import { rfidConcept } from "~/lib/concepts/rfid";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { settingsConcept } from "~/lib/concepts/settings";
+import {
+  StaffSettingsBottomNav,
+  useIsStaffSettingsPage,
+} from "./staff-settings-nav";
 import { staffConcept } from "~/lib/concepts/staff";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { supervisionConcept } from "~/lib/concepts/supervision";
@@ -184,22 +190,8 @@ function MobileNavIcon({
   );
 }
 
-// Animation timing constant for initial mount transition delay
-// This ensures the sliding indicator position is set before enabling smooth transitions
-const INITIAL_MOUNT_DELAY_MS = 100;
-
-/**
- * Indikator-Position nur setzen, wenn sie sich ändert. Die Effekte unten
- * hängen an `displayMainItems`, das jeder Render neu filtert; ein immer neues
- * State-Objekt hielt darüber eine Render-Schleife am Laufen (#2938: rund
- * 2.000 Renders pro Sekunde im Leerlauf auf jeder Seite).
- */
-function keepIfUnchanged(left: number, width: number) {
-  return (previous: { left: number; width: number }) =>
-    previous.left === left && previous.width === width
-      ? previous
-      : { left, width };
-}
+const ITEM_PADDING = "px-3";
+const ITEM_LABEL = "truncate text-sm font-semibold";
 
 interface NavItem {
   href: string;
@@ -211,7 +203,6 @@ interface NavItem {
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
-  comingSoon?: boolean;
   // Additional pathname prefixes that should highlight this nav entry as
   // active, used when one bottom-nav slot represents a group of related
   // routes (e.g. the five Verwaltung pages).
@@ -355,7 +346,6 @@ interface AdditionalNavItem {
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
   hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
-  comingSoon?: boolean; // Show as grayed out "coming soon" feature
   activePaths?: string[];
   newTab?: boolean; // Open in a new browser tab (e.g. public help guide)
   // Modul nicht gebucht (#4894): nur für Leitungen, mit Schloss.
@@ -699,7 +689,19 @@ interface MobileBottomNavProps {
   readonly className?: string;
 }
 
-export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
+/**
+ * In den Einstellungen folgt die Leiste der Seitenleiste (#5750): Rückweg zur
+ * App und die Bereiche statt der Hauptnavigation.
+ */
+export function MobileBottomNav(props: MobileBottomNavProps) {
+  return useIsStaffSettingsPage() ? (
+    <StaffSettingsBottomNav />
+  ) : (
+    <MainMobileBottomNav {...props} />
+  );
+}
+
+function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
   const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
   const rawPathname = usePathname();
@@ -735,9 +737,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Refs for sliding indicator
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
-  const [indicatorVisible, setIndicatorVisible] = useState(false);
-  const isInitialMount = useRef(true);
 
   // Get session for role checking
   const { data: session } = useSession();
@@ -1181,64 +1180,22 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isActiveRoute(item.href, item.activePaths),
   );
 
-  // Update sliding indicator position when route changes
-  useEffect(() => {
-    const updateIndicator = () => {
-      // Find active nav item index
-      const activeIndex = displayMainItems.findIndex((item) =>
-        isActiveRoute(item.href, item.activePaths),
-      );
-
-      if (activeIndex !== -1 && navRefs.current[activeIndex]) {
-        const activeElement = navRefs.current[activeIndex];
-        if (activeElement) {
-          const { offsetLeft, offsetWidth } = activeElement;
-          setIndicatorStyle(keepIfUnchanged(offsetLeft, offsetWidth));
-          setIndicatorVisible(true);
-        }
-      } else if (isAnyAdditionalNavActive && moreButtonRef.current) {
-        // "Mehr" button is active
-        const { offsetLeft, offsetWidth } = moreButtonRef.current;
-        setIndicatorStyle(keepIfUnchanged(offsetLeft, offsetWidth));
-        setIndicatorVisible(true);
-      } else {
-        // No active item found - hide indicator
-        setIndicatorVisible(false);
+  // Die Fläche liegt unter dem aktiven Reiter oder, wenn das Ziel im Menü
+  // steht, unter „Mehr"; ohne aktives Ziel fehlt sie.
+  const activeMainIndex = displayMainItems.findIndex((item) =>
+    isActiveRoute(item.href, item.activePaths),
+  );
+  const indicator = usePortalBottomNavIndicator(
+    () => {
+      if (activeMainIndex !== -1) {
+        return navRefs.current[activeMainIndex] ?? null;
       }
-    };
-
-    // Small delay to ensure DOM is ready
-    const timer = setTimeout(updateIndicator, 10);
-    return () => clearTimeout(timer);
-  }, [pathname, displayMainItems, isAnyAdditionalNavActive, isActiveRoute]);
-
-  // Enable transitions after initial position is set and rendered
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      isInitialMount.current = false;
-    }, INITIAL_MOUNT_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Force indicator update on mount and when refs change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const activeIndex = displayMainItems.findIndex((item) =>
-        isActiveRoute(item.href, item.activePaths),
-      );
-
-      if (activeIndex !== -1 && navRefs.current[activeIndex]) {
-        const activeElement = navRefs.current[activeIndex];
-        if (activeElement) {
-          const { offsetLeft, offsetWidth } = activeElement;
-          setIndicatorStyle(keepIfUnchanged(offsetLeft, offsetWidth));
-          setIndicatorVisible(true);
-        }
-      }
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, [displayMainItems, isActiveRoute]);
+      return isAnyAdditionalNavActive ? moreButtonRef.current : null;
+    },
+    `${activeMainIndex}|${isAnyAdditionalNavActive}|${isOverflowMenuOpen}|${displayMainItems
+      .map((item) => item.href)
+      .join()}`,
+  );
 
   const moreLabel = "Mehr";
 
@@ -1285,9 +1242,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     {/* Gruppenüberschrift wie in der Seitenleiste; die
                         Start- und Fußzeilen stehen ohne. */}
                     {group.label && (
-                      <p className="px-1 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      <SectionLabel as="p" className="px-1">
                         {group.label}
-                      </p>
+                      </SectionLabel>
                     )}
                     {group.items.map((item) => {
                       const isActive = isActiveRoute(
@@ -1301,64 +1258,38 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                             ? tenantPath(navigationEntryTarget(item.href))
                             : navigationEntryTarget(item.href);
 
-                      // Coming soon items are not clickable
-                      if (item.comingSoon) {
-                        return (
-                          <div
-                            key={item.label}
-                            className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 opacity-50"
-                          >
-                            <MobileNavIcon
-                              item={item}
-                              active={false}
-                              className="h-5 w-5 text-gray-400"
-                            />
-                            <span className="flex-1 text-base font-medium text-gray-400">
-                              {item.label}
-                            </span>
-                            <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-500">
-                              Bald verfügbar
-                            </span>
-                          </div>
-                        );
-                      }
-
                       return (
-                        <NavLink
+                        <PortalNavSheetLink
                           key={item.href}
                           href={href}
+                          label={item.label}
+                          icon={
+                            <MobileNavIcon
+                              item={item}
+                              active={isActive}
+                              className={`h-5 w-5 ${isActive ? "" : "text-gray-600"}`}
+                            />
+                          }
+                          active={isActive}
+                          plain
+                          newTab={item.newTab}
                           // Ziel der geführten Touren (#3748), wie in der
                           // Seitenleiste.
                           data-setup-tour={`nav-${item.href}`}
                           onClick={closeOverflowMenu}
-                          {...(item.newTab
-                            ? { target: "_blank", rel: "noopener noreferrer" }
-                            : {})}
-                          className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
-                            isActive
-                              ? "bg-gray-100 font-semibold text-gray-900"
-                              : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
-                          } `}
-                        >
-                          <MobileNavIcon
-                            item={item}
-                            active={isActive}
-                            className={`h-5 w-5 ${isActive ? "" : "text-gray-600"}`}
-                          />
-                          <span className="text-base font-medium">
-                            {item.label}
-                          </span>
-                          {item.locked ? (
-                            <ModuleLockMark className="ml-auto" />
-                          ) : item.href === ENROLLMENT_SECTION.href ? (
-                            <UnreadBadge
-                              count={enrollmentsUnreadCount}
-                              tone="staff"
-                              noun="ungelesene Anmeldungen"
-                              className="ml-auto"
-                            />
-                          ) : null}
-                        </NavLink>
+                          badge={
+                            item.locked ? (
+                              <ModuleLockMark className="ml-auto" />
+                            ) : item.href === ENROLLMENT_SECTION.href ? (
+                              <UnreadBadge
+                                count={enrollmentsUnreadCount}
+                                tone="staff"
+                                noun="ungelesene Anmeldungen"
+                                className="ml-auto"
+                              />
+                            ) : null
+                          }
+                        />
                       );
                     })}
                   </div>
@@ -1370,10 +1301,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 canStartStaffPreview) && (
                 <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
                   {isSessionExpired ? (
-                    <p className="bg-moto-red-soft text-moto-red-strong rounded-xl px-4 py-3 text-sm font-medium">
-                      Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut
-                      an.
-                    </p>
+                    <Alert
+                      type="warning"
+                      message="Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+                    />
                   ) : null}
                   {mode !== "parent" ? <RefreshButton drawer /> : null}
                   {mode === "teacher" ? (
@@ -1474,124 +1405,61 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         />
       ) : null}
 
-      {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
-      <nav
-        className={`fixed right-0 bottom-0 left-0 z-30 translate-y-0 transition-transform duration-150 ease-in-out lg:hidden ${className} `}
+      <PortalBottomNav
+        listClassName="gap-1"
+        barClassName="px-2"
+        fade={false}
+        indicator={indicator}
+        className={className}
       >
-        {/* Pill container with margins */}
-        <div className="px-4 pb-4">
-          <div className="rounded-full border border-gray-200/50 bg-white/95 px-2 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
-            <div className="relative flex items-center justify-around gap-1">
-              {/* Sliding background indicator */}
-              {indicatorVisible && (
-                <div
-                  className={`absolute top-0 h-full rounded-full bg-gray-100 ${
-                    isInitialMount.current
-                      ? ""
-                      : "transition-all duration-150 ease-out"
-                  }`}
-                  style={{
-                    left: `${indicatorStyle.left}px`,
-                    width: `${indicatorStyle.width}px`,
-                  }}
+        {displayMainItems.map((item, index) => {
+          const isActive = isActiveRoute(item.href, item.activePaths);
+          return (
+            <PortalBottomNavLink
+              key={item.href}
+              href={navigationEntryTarget(item.href)}
+              ref={(el: HTMLAnchorElement | null) => {
+                navRefs.current[index] = el;
+              }}
+              label={item.label}
+              icon={
+                <MobileNavIcon
+                  item={item}
+                  active={isActive}
+                  className="h-5 w-5 flex-shrink-0"
                 />
-              )}
+              }
+              active={isActive}
+              // Ziel der geführten Touren auf dem Handy (#3748).
+              data-setup-tour={`mobile-nav-${item.href}`}
+              paddingClassName={ITEM_PADDING}
+              labelClassName={ITEM_LABEL}
+              quiet
+              shrinkActive
+            />
+          );
+        })}
 
-              {/* Main navigation items */}
-              {displayMainItems.map((item, index) => {
-                const isActive = isActiveRoute(item.href, item.activePaths);
-                if (item.comingSoon) {
-                  return (
-                    <button
-                      key={item.label}
-                      ref={(el) => {
-                        navRefs.current[index] = null;
-                        if (el) {
-                          el.dataset.navItem = item.label;
-                        }
-                      }}
-                      type="button"
-                      disabled
-                      className="relative z-10 flex min-h-[44px] cursor-not-allowed items-center justify-center gap-2.5 rounded-full px-3 py-2.5 text-gray-300 transition-colors duration-200"
-                      aria-label={`${item.label} bald verfügbar`}
-                    >
-                      <MobileNavIcon
-                        item={item}
-                        active={false}
-                        className="h-5 w-5 flex-shrink-0"
-                      />
-                    </button>
-                  );
-                }
-
-                return (
-                  <NavLink
-                    key={item.href}
-                    href={navigationEntryTarget(item.href)}
-                    ref={(el: HTMLAnchorElement | null) => {
-                      navRefs.current[index] = el;
-                    }}
-                    aria-label={item.label}
-                    // Ziel der geführten Touren auf dem Handy (#3748).
-                    data-setup-tour={`mobile-nav-${item.href}`}
-                    // Nur der aktive Reiter mit Namen darf schrumpfen: Ein
-                    // langer Name schob sonst `Mehr` aus dem Bild (#4975).
-                    className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
-                      isActive
-                        ? "min-w-0 bg-gray-100 text-gray-900"
-                        : "shrink-0 text-gray-400 hover:text-gray-600"
-                    } `}
-                  >
-                    {/* Icon */}
-                    <MobileNavIcon
-                      item={item}
-                      active={isActive}
-                      className="h-5 w-5 flex-shrink-0"
-                    />
-
-                    {isActive && (
-                      <span className="truncate text-sm font-semibold">
-                        {item.label}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-
-              {/* More button */}
-              {showOverflowMenu && (
-                <button
-                  ref={moreButtonRef}
-                  type="button"
-                  onClick={() => setIsOverflowMenuOpen(true)}
-                  aria-label={moreLabel}
-                  data-setup-tour="nav-more"
-                  className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
-                    isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? "min-w-0 bg-gray-100 text-gray-900"
-                      : "shrink-0 text-gray-400 hover:text-gray-600"
-                  } `}
-                >
-                  {/* Icon */}
-                  <Icon
-                    path={navigationIcons.more}
-                    className="h-5 w-5 flex-shrink-0"
-                  />
-
-                  {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
-                    <span className="truncate text-sm font-semibold">
-                      {moreLabel}
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Safe area padding */}
-        <div className="h-safe-area-inset-bottom bg-transparent" />
-      </nav>
+        {showOverflowMenu && (
+          <PortalBottomNavButton
+            ref={moreButtonRef}
+            label={moreLabel}
+            icon={
+              <Icon
+                path={navigationIcons.more}
+                className="h-5 w-5 flex-shrink-0"
+              />
+            }
+            active={isOverflowMenuOpen || isAnyAdditionalNavActive}
+            onClick={() => setIsOverflowMenuOpen(true)}
+            data-setup-tour="nav-more"
+            paddingClassName={ITEM_PADDING}
+            labelClassName={ITEM_LABEL}
+            quiet
+            shrinkActive
+          />
+        )}
+      </PortalBottomNav>
     </>
   );
 }

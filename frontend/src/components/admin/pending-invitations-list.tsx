@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -20,6 +21,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
@@ -27,10 +29,14 @@ import {
   resendInvitation,
   revokeInvitation,
 } from "~/lib/invitation-api";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { mailStatusCopy } from "~/lib/email-delivery-status";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "PendingInvitationsList" });
 
@@ -39,6 +45,28 @@ interface PendingInvitationsListProps {
   /** Nach dem Widerrufen: eine externe Person steht wieder auf „Kein
    * Konto“ (#4573), die Personalliste lädt ihren Stand neu. */
   readonly onRevoked?: () => void;
+}
+
+// Mail to staff still goes out to a marked address (#5935), so the note only says
+// what is known about the address and never speaks of a block. The address of an
+// invitation is fixed: the next step is a new invitation.
+function staffMailNote(invitation: PendingInvitation): string | null {
+  const nextStep =
+    "Stimmt die Adresse nicht, löschen Sie die Einladung und laden Sie neu ein.";
+  if (invitation.mailOutcome === "undeliverable") {
+    return `Die Mail kam nicht an. ${nextStep}`;
+  }
+  if (invitation.addressMark === "complained") {
+    return `Von dieser Adresse kam eine Beschwerde über eine Mail. ${nextStep}`;
+  }
+  if (invitation.addressMark === "failed") {
+    return `Eine frühere Mail an diese Adresse kam nicht an. ${nextStep}`;
+  }
+  if (invitation.mailOutcome === "accepted") return null;
+  return (
+    mailStatusCopy(invitation.mailOutcome, "", false, invitation.providerBlock)
+      ?.explanation ?? null
+  );
 }
 
 export function PendingInvitationsList({
@@ -153,6 +181,123 @@ export function PendingInvitationsList({
     [invitations],
   );
 
+  const columns: DataTableColumn<PendingInvitation>[] = [
+    {
+      key: "email",
+      header: "E-Mail",
+      className: "w-1/3 max-w-0 font-medium max-sm:w-full",
+      render: (invitation) => {
+        const mailCopy = mailStatusCopy(
+          invitation.mailOutcome,
+          invitation.addressMark,
+          false,
+          invitation.providerBlock,
+        );
+        return (
+          <>
+            <span className="block truncate">{invitation.email}</span>
+            {mailCopy && (
+              <span className="mt-1 block">
+                <StatusBadge
+                  label={mailCopy.label}
+                  tone={mailCopy.tone}
+                  compact
+                />
+              </span>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: "role",
+      header: "Rolle",
+      headerClassName: "hidden sm:table-cell",
+      className: "hidden truncate sm:table-cell",
+      render: (invitation) => (
+        <span className="text-gray-600">
+          {getRoleDisplayName(invitation.roleName)}
+        </span>
+      ),
+    },
+    {
+      key: "creator",
+      header: "Von",
+      headerClassName: "hidden lg:table-cell",
+      className: "hidden truncate lg:table-cell",
+      render: (invitation) => (
+        <span className="text-xs text-gray-500">
+          {invitation.creatorEmail ??
+            (invitation.firstName && invitation.lastName
+              ? `${invitation.firstName} ${invitation.lastName}`
+              : "System")}
+        </span>
+      ),
+    },
+    {
+      key: "expires",
+      header: "Gültig bis",
+      headerClassName: "hidden md:table-cell",
+      className: "hidden whitespace-nowrap md:table-cell",
+      render: (invitation) => {
+        if (!isValidDateString(invitation.expiresAt)) {
+          return <span className="text-xs text-gray-400">Ungültig</span>;
+        }
+        const expiresDate = new Date(invitation.expiresAt);
+        return (
+          <StatusBadge
+            label={`${expiresDate.toLocaleDateString("de-DE", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })} ${expiresDate.toLocaleTimeString("de-DE", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`}
+            tone={isDateExpired(invitation.expiresAt) ? "red" : "gray"}
+          />
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Aktionen",
+      align: "right",
+      className: "whitespace-nowrap",
+      // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1 Regel 4).
+      // Löschen fragt weiter im ConfirmationModal nach.
+      render: (invitation) => (
+        <div className="flex justify-end">
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${invitation.email}`}
+            items={[
+              ...(isDateExpired(invitation.expiresAt) ||
+              invitation.mailOutcome === "delayed" ||
+              invitation.providerBlock === "active" ||
+              invitation.providerBlock === "unreadable"
+                ? []
+                : [
+                    {
+                      label: "Erneut senden",
+                      icon: <Send className="h-4 w-4" aria-hidden />,
+                      disabled: actionLoading === invitation.id,
+                      onClick: () => handleResend(invitation.id),
+                    },
+                  ]),
+              {
+                label: "Löschen",
+                icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                destructive: true,
+                disabled: actionLoading === invitation.id,
+                onClick: () => setRevokeTarget(invitation),
+              },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ];
+
   // Bis der Katalogtext des Ladefehlers da ist, bleibt der Ladezustand
   // stehen, nie „Keine offenen Einladungen“.
   const failedWithoutData = loadFailed && invitations.length === 0;
@@ -161,152 +306,41 @@ export function PendingInvitationsList({
     (failedWithoutData && formErrorMessage(loadError.error) === null)
   ) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12">
-        <div className="flex items-center gap-3 text-sm text-gray-600">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></div>
-          Wird geladen…
-        </div>
-      </div>
+      <SectionCard>
+        <Loading message="Wird geladen…" />
+      </SectionCard>
     );
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-3 md:p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <div className="rounded-lg bg-gray-100 p-1.5">
-          <Mail className="h-4 w-4 text-gray-500" aria-hidden="true" />
-        </div>
-        <h2 className="text-sm font-semibold text-gray-900">
-          Offene Einladungen
-        </h2>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-          {invitations.length}
-        </span>
-      </div>
-
+    <SectionCard
+      title="Offene Einladungen"
+      icon={Mail}
+      titleBadge={
+        <StatusBadge label={String(invitations.length)} tone="gray" compact />
+      }
+    >
       <LoadErrorAlert error={loadError.error} className="mb-4" />
 
       {failedWithoutData ? null : sortedInvitations.length === 0 ? (
-        <div className="mt-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-6 text-center">
-          <p className="text-xs text-gray-400">Keine offenen Einladungen</p>
-        </div>
+        <EmptyState
+          variant="dashed"
+          title="Keine offenen Einladungen"
+          className="mt-2"
+        />
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50/50">
-              <tr>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-left text-xs font-semibold text-gray-600 md:px-4 md:py-3"
-                >
-                  E-Mail
-                </th>
-                <th
-                  scope="col"
-                  className="hidden px-3 py-2 text-left text-xs font-semibold text-gray-600 sm:table-cell md:px-4 md:py-3"
-                >
-                  Rolle
-                </th>
-                <th
-                  scope="col"
-                  className="hidden px-3 py-2 text-left text-xs font-semibold text-gray-600 md:px-4 md:py-3 lg:table-cell"
-                >
-                  Von
-                </th>
-                <th
-                  scope="col"
-                  className="hidden px-3 py-2 text-left text-xs font-semibold text-gray-600 md:table-cell md:px-4 md:py-3"
-                >
-                  Gültig bis
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-right text-xs font-semibold text-gray-600 md:px-4 md:py-3"
-                >
-                  Aktionen
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {sortedInvitations.map((invitation) => {
-                const isValidDate = isValidDateString(invitation.expiresAt);
-                const isExpired = isDateExpired(invitation.expiresAt);
-                const expiresDate = isValidDate
-                  ? new Date(invitation.expiresAt)
-                  : null;
-
-                return (
-                  <tr
-                    key={invitation.id}
-                    className="transition-colors hover:bg-gray-50/50"
-                  >
-                    <td className="max-w-0 truncate px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">
-                      {invitation.email}
-                    </td>
-                    <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
-                      {getRoleDisplayName(invitation.roleName)}
-                    </td>
-                    <td className="hidden truncate px-3 py-2 text-xs text-gray-500 md:px-4 md:py-3 lg:table-cell">
-                      {invitation.creatorEmail ??
-                        (invitation.firstName && invitation.lastName
-                          ? `${invitation.firstName} ${invitation.lastName}`
-                          : "System")}
-                    </td>
-                    <td className="hidden px-3 py-2 whitespace-nowrap md:table-cell md:px-4 md:py-3">
-                      {isValidDate && expiresDate ? (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap md:px-2.5 md:py-1 ${isExpired ? "bg-moto-red-soft text-moto-red-strong" : "bg-gray-100 text-gray-700"}`}
-                        >
-                          {expiresDate.toLocaleDateString("de-DE", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}{" "}
-                          {expiresDate.toLocaleTimeString("de-DE", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Ungültig</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap md:px-4 md:py-3">
-                      {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
-                          Bauart 1 Regel 4). Löschen fragt weiter im
-                          ConfirmationModal nach. */}
-                      <div className="flex justify-end">
-                        <OverflowMenu
-                          ariaLabel={`Aktionen für ${invitation.email}`}
-                          items={[
-                            ...(isExpired
-                              ? []
-                              : [
-                                  {
-                                    label: "Erneut senden",
-                                    icon: (
-                                      <Send className="h-4 w-4" aria-hidden />
-                                    ),
-                                    disabled: actionLoading === invitation.id,
-                                    onClick: () => handleResend(invitation.id),
-                                  },
-                                ]),
-                            {
-                              label: "Löschen",
-                              icon: <Trash2 className="h-4 w-4" aria-hidden />,
-                              destructive: true,
-                              disabled: actionLoading === invitation.id,
-                              onClick: () => setRevokeTarget(invitation),
-                            },
-                          ]}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="mt-4">
+          <DataTable
+            columns={columns}
+            rows={sortedInvitations}
+            getRowKey={(invitation) => invitation.id}
+            renderSubRows={(invitation) => {
+              const mailNote = staffMailNote(invitation);
+              return mailNote
+                ? [{ key: `${invitation.id}-mail-note`, content: mailNote }]
+                : [];
+            }}
+          />
         </div>
       )}
 
@@ -328,6 +362,6 @@ export function PendingInvitationsList({
         </p>
         <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }

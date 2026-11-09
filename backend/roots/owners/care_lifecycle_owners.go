@@ -129,6 +129,7 @@ type careExitPresence struct {
 	presence interface {
 		ListOpenPresence(context.Context, []int64) ([]int64, error)
 		LatestPresenceDate(context.Context, int64) (*string, error)
+		PresenceDaysBetween(context.Context, []int64, owner0.Date, owner0.Date) ([]studentpresence.PresenceDay, error)
 		LockOpenPresence(context.Context, []int64) error
 		CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	}
@@ -144,6 +145,21 @@ func (p careExitPresence) LatestPresenceDate(ctx context.Context, studentID int6
 		return nil, err
 	}
 	return parseCareExitDay(value)
+}
+
+func (p careExitPresence) PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to owner0.Date) (map[owner0.Date]map[int64]bool, error) {
+	days, err := p.presence.PresenceDaysBetween(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[owner0.Date]map[int64]bool)
+	for _, day := range days {
+		if result[day.Date] == nil {
+			result[day.Date] = make(map[int64]bool)
+		}
+		result[day.Date][day.StudentID] = true
+	}
+	return result, nil
 }
 
 func (p careExitPresence) LockOpenPresence(ctx context.Context, studentIDs []int64) error {

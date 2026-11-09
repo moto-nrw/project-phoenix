@@ -263,8 +263,8 @@ func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t
 	phone := "+49 221 555 991"
 	edit := validSubmission(t, env.phaseID)
 	edit.GuardianPhone = &phone
-	edit.CustomData = map[string]any{}
-	edit.Children[0].CustomData = map[string]any{}
+	edit.CustomData = testFormValues(map[string]any{})
+	edit.Children[0].CustomData = testFormValues(map[string]any{})
 
 	_, err := env.svc.ReplaceEditable(ctx, result.Request.StatusToken, edit)
 	require.NoError(t, err)
@@ -274,9 +274,9 @@ func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t
 	require.Len(t, children, 1)
 	require.NotNil(t, stored.GuardianPhone)
 	assert.Equal(t, phone, *stored.GuardianPhone)
-	assert.Equal(t, "legacy-seed", stored.CustomData["seed_source"])
-	assert.Equal(t, "Demo-Datensatz fuer Anmeldung und Elternportal", stored.CustomData["note"])
-	assert.Equal(t, "keine", children[0].CustomData["allergies"])
+	assert.Equal(t, "legacy-seed", testFormValue(stored.CustomData, "seed_source"))
+	assert.Equal(t, "Demo-Datensatz fuer Anmeldung und Elternportal", testFormValue(stored.CustomData, "note"))
+	assert.Equal(t, "keine", testFormValue(children[0].CustomData, "allergies"))
 }
 
 func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleChildRemoved(t *testing.T) {
@@ -339,7 +339,7 @@ func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleCh
 			LastName:         base.Children[0].LastName,
 			DateOfBirth:      base.Children[0].DateOfBirth,
 			TargetGradeLevel: base.Children[0].TargetGradeLevel,
-			CustomData:       map[string]any{},
+			CustomData:       testFormValues(map[string]any{}),
 		},
 		{
 			ID:               result.Children[2].ID,
@@ -347,7 +347,7 @@ func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleCh
 			LastName:         base.Children[2].LastName,
 			DateOfBirth:      base.Children[2].DateOfBirth,
 			TargetGradeLevel: base.Children[2].TargetGradeLevel,
-			CustomData:       map[string]any{},
+			CustomData:       testFormValues(map[string]any{}),
 		},
 	}
 	_, err = env.svc.ReplaceEditable(ctx, result.Request.StatusToken, edit)
@@ -356,9 +356,9 @@ func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleCh
 	_, children, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
-	assert.Equal(t, "first-child", children[0].CustomData["legacy_note"])
-	assert.Equal(t, "last-child", children[1].CustomData["legacy_note"])
-	assert.NotEqual(t, "removed-middle-child", children[1].CustomData["legacy_note"])
+	assert.Equal(t, "first-child", testFormValue(children[0].CustomData, "legacy_note"))
+	assert.Equal(t, "last-child", testFormValue(children[1].CustomData, "legacy_note"))
+	assert.NotEqual(t, "removed-middle-child", testFormValue(children[1].CustomData, "legacy_note"))
 }
 
 func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
@@ -372,9 +372,9 @@ func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *
 	phone := "+49 221 555 991"
 	proposed := proposedChangeSubmission(t, env, result)
 	proposed.GuardianPhone = &phone
-	proposed.CustomData = map[string]any{}
+	proposed.CustomData = testFormValues(map[string]any{})
 	proposed.Children[0].FirstName = "Lina-Marie"
-	proposed.Children[0].CustomData = map[string]any{}
+	proposed.Children[0].CustomData = testFormValues(map[string]any{})
 
 	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentAPI.CreateChangeRequestInput{
 		Submission: proposed,
@@ -396,10 +396,10 @@ func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *
 	require.Len(t, children, 1)
 	require.NotNil(t, stored.GuardianPhone)
 	assert.Equal(t, phone, *stored.GuardianPhone)
-	assert.Equal(t, "legacy-seed", stored.CustomData["seed_source"])
-	assert.Equal(t, "Demo-Datensatz fuer Anmeldung und Elternportal", stored.CustomData["note"])
+	assert.Equal(t, "legacy-seed", testFormValue(stored.CustomData, "seed_source"))
+	assert.Equal(t, "Demo-Datensatz fuer Anmeldung und Elternportal", testFormValue(stored.CustomData, "note"))
 	assert.Equal(t, "Lina-Marie", children[0].FirstName)
-	assert.Equal(t, "keine", children[0].CustomData["allergies"])
+	assert.Equal(t, "keine", testFormValue(children[0].CustomData, "allergies"))
 }
 
 func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
@@ -743,12 +743,12 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Toggle",
 		GuardianEmail:     "approved-change-request-toggle@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Lina",
 			LastName:         "Toggle",
@@ -836,12 +836,12 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Klasse",
 		GuardianEmail:     "change-request-offen-grade@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:   "Lina",
 			LastName:    "Klasse",
@@ -903,18 +903,18 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 		GuardianFirstName: "Mara",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "admin-correction@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Lina",
 			LastName:         "Falsch",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &gradeOne,
-			CustomData:       map[string]any{"allergies": "keine"},
+			CustomData:       testFormValues(map[string]any{"allergies": "keine"}),
 		}},
 	}
 	result, err := env.requestSvc.Submit(ctx, submission)
@@ -922,7 +922,7 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	require.Len(t, result.Children, 1)
 	storedChild, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
-	storedChild.CustomData = map[string]any{"allergies": "keine"}
+	storedChild.CustomData = testFormValues(map[string]any{"allergies": "keine"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), storedChild))
 	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  result.Request.ID,
@@ -964,7 +964,7 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	assert.Equal(t, correctedDOB.String(), string(child.DateOfBirth))
 	require.NotNil(t, child.TargetGradeLevel)
 	assert.Equal(t, gradeTwo, *child.TargetGradeLevel)
-	assert.Equal(t, map[string]any{"allergies": "keine"}, child.CustomData)
+	assert.Equal(t, testFormValues(map[string]any{"allergies": "keine"}), child.CustomData)
 
 	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
 	require.NoError(t, err)
@@ -1011,7 +1011,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			}
 
 			reason := "Nachname anhand der Geburtsurkunde berichtigt"
-			expectedNote := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+			expectedNote := "Die Schule hat die Daten direkt korrigiert. Diese Änderungsanfrage ist damit erledigt. Grund: " + reason
 			var audit *enrollmentAPI.ChangeRequestAggregate
 			err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				var correctionErr error
@@ -1201,12 +1201,12 @@ func createApprovedAdminCorrectionFixture(
 		GuardianFirstName: "Mara",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Lina",
 			LastName:         "Falsch",
@@ -1246,12 +1246,12 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 		GuardianFirstName: "Mara",
 		GuardianLastName:  "Historie",
 		GuardianEmail:     "admin-historical-correction@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:         "Lina",
 			LastName:          "Alt",
@@ -1647,12 +1647,12 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     "ignored@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				ID:               childID,
@@ -1660,9 +1660,9 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 				LastName:         "Rollback",
 				DateOfBirth:      calendar.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
-				CustomData: map[string]any{
+				CustomData: testFormValues(map[string]any{
 					"pickup_times": map[string]any{"mon": "16:00"},
-				},
+				}),
 			},
 		},
 	}

@@ -32,6 +32,8 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { schoolsConcept } from "~/lib/concepts/schools";
+import { Loading } from "~/components/ui/loading";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "AccountTenantAccessModal" });
 
@@ -419,7 +421,7 @@ export function AccountTenantAccessModal({
         }
       >
         {loading ? (
-          <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
+          <Loading message="Wird geladen …" />
         ) : (
           <div className="space-y-6">
             <LoadErrorAlert error={accessLoad.error} />
@@ -445,101 +447,97 @@ export function AccountTenantAccessModal({
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
               ) : (
-                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
-                  {activeEntries.map((entry) => (
-                    <li
-                      key={entry.tenantId}
-                      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-medium text-gray-900">
-                            {entry.schoolName}
-                          </span>
-                          <StatusBadge
-                            tone={statusTone(entry.status)}
-                            label={statusLabel(entry.status)}
-                          />
-                          {!entry.hasStaff && (
+                <SectionCard padding="none">
+                  <ul className="divide-y divide-gray-200">
+                    {activeEntries.map((entry) => (
+                      <li
+                        key={entry.tenantId}
+                        className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium text-gray-900">
+                              {entry.schoolName}
+                            </span>
                             <StatusBadge
-                              tone="orange"
-                              label="Ohne Personaldaten"
+                              tone={statusTone(entry.status)}
+                              label={statusLabel(entry.status)}
                             />
-                          )}
+                            {!entry.hasStaff && (
+                              <StatusBadge
+                                tone="orange"
+                                label="Ohne Personaldaten"
+                              />
+                            )}
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-gray-500">
+                            {entry.organizationName}
+                            {entry.roles.length > 0 &&
+                              ` • ${entry.roles.map((role) => roleLabel(role.name)).join(", ")}`}
+                          </p>
                         </div>
-                        <p className="mt-0.5 truncate text-xs text-gray-500">
-                          {entry.organizationName}
-                          {entry.roles.length > 0 &&
-                            ` • ${entry.roles.map((role) => roleLabel(role.name)).join(", ")}`}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <div className="w-44">
-                          <CustomSelect
-                            value={primaryRoleId(entry)}
-                            options={roleChangeOptions(entry).map((role) => ({
-                              value: role.id,
-                              label: roleLabel(role.name),
-                            }))}
-                            onChange={(value) =>
-                              void handleRoleChange(entry, value)
+                        <div className="flex shrink-0 items-center gap-2">
+                          <div className="w-44">
+                            <CustomSelect
+                              value={primaryRoleId(entry)}
+                              options={roleChangeOptions(entry).map((role) => ({
+                                value: role.id,
+                                label: roleLabel(role.name),
+                              }))}
+                              onChange={(value) =>
+                                void handleRoleChange(entry, value)
+                              }
+                              disabled={
+                                saving ||
+                                !entry.schoolActive ||
+                                !rolesBySchool[entry.tenantId] ||
+                                entryIsLehrkraft(entry)
+                              }
+                              ariaLabel={`Rolle an ${entry.schoolName}`}
+                              placeholder="Rolle wählen"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline_danger"
+                            size="md"
+                            disabled={saving || accessRevocationBlocked(entry)}
+                            onClick={() => {
+                              clearRevokeError();
+                              setRevokeTarget(entry);
+                            }}
+                            title={
+                              accessRevocationBlocked(entry)
+                                ? "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt."
+                                : undefined
                             }
-                            disabled={
-                              saving ||
-                              !entry.schoolActive ||
-                              !rolesBySchool[entry.tenantId] ||
-                              entryIsLehrkraft(entry)
-                            }
-                            ariaLabel={`Rolle an ${entry.schoolName}`}
-                            placeholder="Rolle wählen"
-                          />
+                          >
+                            Entziehen
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline_danger"
-                          size="md"
-                          disabled={saving || accessRevocationBlocked(entry)}
-                          onClick={() => {
-                            clearRevokeError();
-                            setRevokeTarget(entry);
-                          }}
-                          title={
-                            accessRevocationBlocked(entry)
-                              ? "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt."
-                              : undefined
-                          }
-                        >
-                          Entziehen
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </SectionCard>
               )}
             </SectionCard>
 
-            <section
-              ref={grantFormRef}
-              className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4"
-            >
-              {/* h4 wie die beiden Geschwister-Sektionen: FormModal rendert
+            {/* Der Ref bleibt am Abschnitt: useApiFormError sucht darin das
+                erste fehlerhafte Feld. */}
+            <section ref={grantFormRef}>
+              <InsetPanel framed padding="md" className="space-y-3">
+                {/* h4 wie die beiden Geschwister-Sektionen: FormModal rendert
                   seinen Titel als h3. */}
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <Plus className="h-4 w-4 text-gray-500" />
-                Schulzugang ergänzen
-              </h4>
-              <FormErrorAlert message={grantErrors.error} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="account-access-school"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Schule
-                  </label>
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                  <Plus className="h-4 w-4 text-gray-500" />
+                  Schulzugang ergänzen
+                </h4>
+                <FormErrorAlert message={grantErrors.error} />
+                <div className="grid gap-3 sm:grid-cols-2">
                   <CustomSelect
                     id="account-access-school"
                     name="school_id"
+                    label="Schule"
                     invalid={Boolean(grantErrors.fieldError("school_id"))}
                     value={addSchoolId}
                     options={availableSchools.map((school) => ({
@@ -557,17 +555,10 @@ export function AccountTenantAccessModal({
                         : "Schule wählen"
                     }
                   />
-                </div>
-                <div>
-                  <label
-                    htmlFor="account-access-role"
-                    className="mb-1 block text-xs font-medium text-gray-600"
-                  >
-                    Rolle
-                  </label>
                   <CustomSelect
                     id="account-access-role"
                     name="role_id"
+                    label="Rolle"
                     invalid={Boolean(grantErrors.fieldError("role_id"))}
                     value={addRoleId}
                     options={rolesForSchool(addSchoolId).map((role) => ({
@@ -581,50 +572,51 @@ export function AccountTenantAccessModal({
                     placeholder="Rolle wählen"
                   />
                 </div>
-              </div>
 
-              {needsName && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    label="Vorname"
-                    name="first_name"
-                    error={grantErrors.fieldError("first_name")}
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    placeholder="Vorname"
+                {needsName && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input
+                      label="Vorname"
+                      name="first_name"
+                      error={grantErrors.fieldError("first_name")}
+                      value={firstName}
+                      onChange={(event) => setFirstName(event.target.value)}
+                      placeholder="Vorname"
+                    />
+                    <Input
+                      label="Nachname"
+                      name="last_name"
+                      error={grantErrors.fieldError("last_name")}
+                      value={lastName}
+                      onChange={(event) => setLastName(event.target.value)}
+                      placeholder="Nachname"
+                    />
+                  </div>
+                )}
+
+                <p className="flex items-start gap-2 text-xs text-gray-500">
+                  <MotoConceptIcon
+                    concept={permissionsConcept}
+                    size={16}
+                    className="mt-0.5"
                   />
-                  <Input
-                    label="Nachname"
-                    name="last_name"
-                    error={grantErrors.fieldError("last_name")}
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                    placeholder="Nachname"
-                  />
+                  Die Betreuungsrolle bleibt beim Rollenwechsel erhalten. Sie
+                  wird über &quot;Betreuung verwalten&quot; vergeben und
+                  entfernt.
+                </p>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    disabled={saving || !addSchoolId || !addRoleId}
+                    onClick={() => void handleGrant()}
+                  >
+                    {saving ? "Wird gespeichert..." : "Zugang erteilen"}
+                  </Button>
                 </div>
-              )}
-
-              <p className="flex items-start gap-2 text-xs text-gray-500">
-                <MotoConceptIcon
-                  concept={permissionsConcept}
-                  size={16}
-                  className="mt-0.5"
-                />
-                Die Betreuungsrolle bleibt beim Rollenwechsel erhalten. Sie wird
-                über &quot;Betreuung verwalten&quot; vergeben und entfernt.
-              </p>
-
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  disabled={saving || !addSchoolId || !addRoleId}
-                  onClick={() => void handleGrant()}
-                >
-                  {saving ? "Wird gespeichert..." : "Zugang erteilen"}
-                </Button>
-              </div>
+              </InsetPanel>
             </section>
 
             {formerEntries.length > 0 && (
@@ -637,27 +629,29 @@ export function AccountTenantAccessModal({
                 // FormModal rendert seinen Titel als h3.
                 headingLevel={4}
               >
-                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
-                  {formerEntries.map((entry) => (
-                    <li
-                      key={entry.tenantId}
-                      className="flex items-center justify-between gap-3 p-4"
-                    >
-                      <div className="min-w-0">
-                        <span className="truncate text-sm text-gray-700">
-                          {entry.schoolName}
-                        </span>
-                        <p className="mt-0.5 truncate text-xs text-gray-500">
-                          {entry.organizationName}
-                        </p>
-                      </div>
-                      <StatusBadge
-                        tone={statusTone(entry.status)}
-                        label={statusLabel(entry.status)}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <SectionCard padding="none">
+                  <ul className="divide-y divide-gray-200">
+                    {formerEntries.map((entry) => (
+                      <li
+                        key={entry.tenantId}
+                        className="flex items-center justify-between gap-3 p-4"
+                      >
+                        <div className="min-w-0">
+                          <span className="truncate text-sm text-gray-700">
+                            {entry.schoolName}
+                          </span>
+                          <p className="mt-0.5 truncate text-xs text-gray-500">
+                            {entry.organizationName}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          tone={statusTone(entry.status)}
+                          label={statusLabel(entry.status)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </SectionCard>
               </SectionCard>
             )}
           </div>

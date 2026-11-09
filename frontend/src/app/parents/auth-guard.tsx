@@ -46,6 +46,9 @@ const PARENT_PUBLIC_PAGES = [
   // The public holiday registration of a Träger, gated by its link (#4661).
   "/parents/ferienanmeldung",
   "/ferienanmeldung",
+  // The one-time link of a care contract mail, gated by its link (#4679).
+  "/parents/vertrag-unterschreiben",
+  "/vertrag-unterschreiben",
   // The public demo's entry page signs the visitor in itself (#3468).
   "/parents/demo",
   "/demo",
@@ -53,8 +56,11 @@ const PARENT_PUBLIC_PAGES = [
 
 export function ParentAuthGuard({
   children,
+  notBooked = false,
 }: {
   readonly children: React.ReactNode;
+  /** The page load's session check found the portal's module not booked. */
+  readonly notBooked?: boolean;
 }) {
   const pathname = usePathname();
   const isPublicPage = PARENT_PUBLIC_PAGES.some(
@@ -71,7 +77,6 @@ export function ParentAuthGuard({
     { keepPreviousData: false },
   );
 
-  // Login page: render without auth guards.
   if (isPublicPage) {
     return <>{children}</>;
   }
@@ -100,7 +105,9 @@ export function ParentAuthGuard({
         <ParentShell>
           {sessionLoading ? (
             <ParentPageSkeleton rows={2} />
-          ) : notBookedModuleOf(profileError) ? (
+          ) : notBooked ||
+            session.notBooked ||
+            notBookedModuleOf(profileError) ? (
             // Keine Schule des Kontos nutzt das Elternportal mehr (#4895):
             // ein Hinweis statt einer Fehlerkarte je Bereich der Seite.
             <Alert

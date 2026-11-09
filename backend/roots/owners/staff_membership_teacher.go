@@ -240,6 +240,10 @@ func (r TeacherMembershipRepository) hydrateTeacherStaff(ctx context.Context, te
 	if err != nil {
 		return nil, err
 	}
+	return r.hydrateTeacherPersons(ctx, teachers, staffValues)
+}
+
+func (r TeacherMembershipRepository) hydrateTeacherPersons(ctx context.Context, teachers []*peopleValues.Teacher, staffValues []schoolmembership.Staff) ([]*peopleValues.Teacher, error) {
 	staffByID := make(map[int64]*peopleValues.Staff, len(staffValues))
 	personIDs := make([]int64, 0, len(staffValues))
 	for _, value := range staffValues {
@@ -292,6 +296,28 @@ func (r TeacherMembershipRepository) ListAllWithStaffAndPerson(ctx context.Conte
 		return nil, membershipError(op, err)
 	}
 	teachers, err := r.hydrateTeacherStaff(ctx, toLegacyTeacherList(values), true)
+	if err != nil {
+		return nil, repositoryError(op, err)
+	}
+	return teachers, nil
+}
+
+func (r TeacherMembershipRepository) ListRosterWithStaffAndPerson(ctx context.Context) ([]*peopleValues.Teacher, error) {
+	const op = "list all with staff and person"
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IncludeStaff: true, MembershipOnly: true})
+	if err != nil {
+		return nil, membershipError(op, err)
+	}
+	if len(values) == 0 {
+		return []*peopleValues.Teacher{}, nil
+	}
+	members := make([]schoolmembership.Staff, 0, len(values))
+	for _, teacher := range values {
+		if teacher.Staff != nil {
+			members = append(members, *teacher.Staff)
+		}
+	}
+	teachers, err := r.hydrateTeacherPersons(ctx, toLegacyTeacherList(values), members)
 	if err != nil {
 		return nil, repositoryError(op, err)
 	}

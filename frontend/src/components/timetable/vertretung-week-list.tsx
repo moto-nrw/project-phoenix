@@ -24,9 +24,12 @@
 import {
   CoverageIndicator,
   type CoverageState,
-} from "~/components/ui/coverage-indicator";
+} from "~/components/ui/planning/coverage-indicator";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   classifyInstances,
   VertretungRowList,
@@ -35,8 +38,8 @@ import {
 import { formatDayHeader, toISODate } from "~/lib/timetable-helpers";
 import type { EnrichedInstance, GapInstance } from "~/lib/timetable-types";
 
-import { timetableSurface } from "./timetable-style";
 import { VertretungListFilter } from "./vertretung-list-filter";
+import { cn } from "~/lib/utils";
 
 export interface VertretungWeekListProps {
   /** Die angezeigten Wochentage (Mo–Fr). */
@@ -81,12 +84,14 @@ export function VertretungWeekList({
   className,
 }: VertretungWeekListProps) {
   // flex-col: die Filterzeile bleibt stehen, nur die Liste darunter scrollt.
-  const containerClassName = className
-    ? `${timetableSurface} flex flex-col ${className}`
-    : `${timetableSurface} flex flex-col`;
-
   return (
-    <div className={containerClassName} data-testid="vertretung-week-list">
+    <SectionCard
+      padding="none"
+      overflow="visible"
+      className={cn("flex flex-col", className)}
+      bodyClassName="flex min-h-0 flex-1 flex-col"
+      testId="vertretung-week-list"
+    >
       {onModeChange && (
         <VertretungListFilter
           mode={mode}
@@ -150,13 +155,11 @@ export function VertretungWeekList({
                 className="sticky top-0 z-10 flex w-full items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-left transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none focus-visible:ring-inset"
               >
                 <span className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-900">
+                  <span className={SECTION_LABEL_CLASS}>
                     {formatDayHeader(day)}
                   </span>
                   {iso === todayISO && (
-                    <span className="rounded-full bg-gray-900 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                      Heute
-                    </span>
+                    <StatusBadge label="Heute" tone="gray" size="xs" />
                   )}
                 </span>
                 <CoverageIndicator
@@ -211,6 +214,6 @@ export function VertretungWeekList({
           );
         })}
       </div>
-    </div>
+    </SectionCard>
   );
 }

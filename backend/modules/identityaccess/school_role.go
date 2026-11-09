@@ -2,10 +2,9 @@ package identityaccess
 
 import (
 	"context"
-	"errors"
 )
 
-var ErrRoleNotFound = errors.New("role not found")
+var ErrRoleNotFound = notFoundError("role not found")
 
 // SchoolRole contains the stored facts used by school-role assignment and
 // grant checks. It exposes no persistence model or relation types.
@@ -18,6 +17,10 @@ type SchoolRole struct {
 	Permissions []string
 	// SchoolPortal marks a school role made from the Lehrkraft template (#4574).
 	SchoolPortal bool
+	// NameKey is LOWER(name) as PostgreSQL computes it. ListSchoolRoles fills
+	// it so a caller can match names exactly as FindSchoolRoleByName does,
+	// which compares the trimmed, lowered input with LOWER(name) (#5887).
+	NameKey string
 }
 
 func (r *SchoolRole) AuthorizationGrantData() (bool, string, *string, bool, bool, []string) {
@@ -32,6 +35,9 @@ type SchoolRoleQuery interface {
 	FindSchoolRoleByName(context.Context, string) (*SchoolRole, error)
 }
 
+// RolePermissionQuery reads the permission names of the given roles of the
+// caller's school or of the system in one statement (#5887). A role without
+// permissions, or one of another school, has no entry.
 type RolePermissionQuery interface {
-	FindRolePermissions(context.Context, int64) ([]string, error)
+	FindRolePermissionsByRoleIDs(context.Context, []int64) (map[int64][]string, error)
 }

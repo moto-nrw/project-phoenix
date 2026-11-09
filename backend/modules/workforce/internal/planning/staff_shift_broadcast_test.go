@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestStaffShiftCreateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 	).(*staffShiftService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.broadcaster = broadcaster
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
@@ -57,7 +58,7 @@ func TestStaffShiftCreateDoesNotBroadcastAfterFailure(t *testing.T) {
 	).(*staffShiftService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.broadcaster = broadcaster
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
@@ -84,7 +85,7 @@ func TestStaffShiftUpdateCanDeferTimeTrackingBroadcast(t *testing.T) {
 	).(*staffShiftService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.broadcaster = broadcaster
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
@@ -104,7 +105,7 @@ func TestStaffShiftSeriesCreateBroadcastsTimeTrackingChangeAfterCommit(t *testin
 	service := newSeriesServiceForTest(seriesServiceMocks{}).(*staffShiftSeriesService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.broadcaster = broadcaster
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 

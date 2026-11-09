@@ -9,13 +9,12 @@ import (
 
 // Account authentication (#3251): tenant, parent and school login, refresh,
 // tenant and school switching, logout, session validation, session cleanup
-// and session revocation. The error messages are the wire contract the
-// retained auth service established; HTTP layers switch on the sentinels.
+// and session revocation. HTTP layers classify the sentinels, never their
+// texts (ADR 0006).
 var (
-	ErrInvalidCredentials = errors.New("invalid username or password")
-	ErrAccountInactive    = errors.New("account is inactive")
-	ErrTenantNotFound     = errors.New("tenant not found")
-	// ErrTenantAccessDenied's text is mapped by the tenant frontend; keep it.
+	ErrInvalidCredentials        = errors.New("invalid username or password")
+	ErrAccountInactive           = errors.New("account is inactive")
+	ErrTenantNotFound            = errors.New("tenant not found")
 	ErrTenantAccessDenied        = errors.New("account does not have access to this tenant")
 	ErrParentMustUseParentPortal = errors.New("guardian accounts must log in at the parents portal")
 	ErrAccountNoGuardianRole     = errors.New("account is not a guardian at any school")
@@ -53,10 +52,8 @@ func PortalNotBooked(err error) (*PortalNotBookedError, bool) {
 	return nil, false
 }
 
-// AuthenticationError reports which operation of a flow failed. Its text is
-// the retained auth service's ("auth error during <op>: <cause>") so the
-// responses that render it stay unchanged; Err carries the public sentinel
-// for errors.Is.
+// AuthenticationError reports which operation of a flow failed; Err carries
+// the public sentinel for errors.Is.
 type AuthenticationError struct {
 	Op  string
 	Err error
@@ -85,6 +82,9 @@ const (
 	// account has no credential yet; the response carries an
 	// enrollment-scoped access token.
 	LoginStatusMFAEnrollmentRequired LoginStatus = "mfa_enrollment_required"
+	// LoginStatusOrganizationSelectionRequired: a member of several Träger
+	// repeats the Träger sign-in with one of the listed Träger.
+	LoginStatusOrganizationSelectionRequired LoginStatus = "organization_selection_required"
 )
 
 // LoginResult is the discriminated login response. Exactly one of
@@ -125,7 +125,6 @@ type SessionClaims struct {
 	// the school and acts with the school's admin role through the Träger.
 	ViaTraeger bool
 	ExpiresAt  int64
-	IssuedAt   int64
 }
 
 // AccessSession names the refresh-token family a verified access token rests
@@ -383,9 +382,10 @@ type AccountLogin interface {
 // TenantAccountLogin authenticates accounts at the tenant portal.
 type TenantAccountLogin interface {
 	IssueTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
-	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// IssueTokensForPasskey mints the verified tenant session of a passkey
+	// sign-in at the ceremony's school.
+	IssueTokensForPasskey(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
 
 // ParentAccountLogin authenticates guardians and confirms their passwords.
@@ -400,7 +400,6 @@ type SchoolAccountLogin interface {
 	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (accessToken, refreshToken string, err error)
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
-	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
 
 // AccountSessionAuthentication renews and validates account sessions.
@@ -415,11 +414,21 @@ type AccountSessionAuthentication interface {
 	// SwitchTenant retires the presented family with a short grace because
 	// the browser replaces that session with the returned pair; an empty
 	// presentedFamilyID skips the retirement.
-	SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (accessToken, refreshToken string, err error)
+	SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 
 	HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ValidateSessionTokens(ctx context.Context, accessToken, refreshToken, portal string) (SessionClaims, error)
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
+}
+
+// ActiveSession is one live refresh session as the admin token listing shows
+// it.
+type ActiveSession struct {
+	ID         int64
+	Expiry     time.Time
+	Mobile     bool
+	Identifier *string
+	CreatedAt  time.Time
 }
 
 // AccountSessionMaintenance is the capability session cleanup and session
@@ -428,17 +437,10 @@ type AccountSessionAuthentication interface {
 type AccountSessionMaintenance interface {
 	CountExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredTokens(ctx context.Context) (int, error)
-	ListActiveSessions(ctx context.Context, accountID int64) ([]AccountSession, error)
+	ListActiveSessions(ctx context.Context, accountID int64) ([]ActiveSession, error)
 	ListSessionIDs(ctx context.Context, accountID int64) ([]int64, error)
 	RevokeAllTokensWithReason(ctx context.Context, accountID int64, reason string) error
 	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
-	// DeleteAccountSessionsWithAudit revokes the account's sessions at the
-	// caller's school on the caller's transaction, or schedules the
-	// account-wide wipe an account-wide reason asks for.
-	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]AccountSession, error)
-	// QueuePushCleanup removes the push subscriptions the revoked sessions
-	// orphaned, after the caller's transaction commits.
-	QueuePushCleanup(ctx context.Context, accountID int64, sessions []AccountSession, reason string)
 	ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error
 	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error
 }

@@ -3,11 +3,14 @@ package enrollment
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SchemaQueries reads immutable versions, lineages and their references.
 type SchemaQueries interface {
 	Schema(ctx context.Context, id int64) (*FormSchema, error)
+	StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]SchemaVersionResult, error)
 	ActiveSchema(ctx context.Context) (*FormSchema, error)
 	SchemaVersions(ctx context.Context) ([]*FormSchema, error)
 	Schemas(ctx context.Context, ids []int64) ([]*FormSchema, error)
@@ -86,6 +89,7 @@ type RequestCommands interface {
 	DeleteRequest(ctx context.Context, id int64) error
 	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error
 	AcquireExistingStudentMatchLock(ctx context.Context, phaseID int64) error
+	AcquireChildIdentityLock(ctx context.Context, firstName, lastName string, birthday calendar.Date) error
 	PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error)
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 	MarkRequestParentChanged(ctx context.Context, requestID int64) error
@@ -112,6 +116,9 @@ type ChildCommands interface {
 	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *Date) error
 	LinkCreatedStudent(ctx context.Context, childID, studentID int64) error
 	UpdateMatchedStudent(ctx context.Context, childID int64, studentID *int64) error
+	// PinOfficeChosenStudent pins the enrolled student the office chose at
+	// approval and marks the pin as the office's (#6053).
+	PinOfficeChosenStudent(ctx context.Context, childID, studentID int64) error
 	RestoreWithdrawnChildren(ctx context.Context, id int64, waitlistedIDs []int64) ([]int64, error)
 	TransitionPhaseChildren(ctx context.Context, id int64, currentStatus, newStatus string) (int, error)
 	UpdateChildStatus(ctx context.Context, id int64, status string, reason *string, reviewedBy int64) error
@@ -125,6 +132,14 @@ type ClassSwitches interface {
 	SetChildClassSwitch(ctx context.Context, childID int64, change *ClassSwitch) error
 	ChildClassSwitch(ctx context.Context, childID int64) (*ClassSwitch, error)
 	DueClassSwitches(ctx context.Context, asOf Date) ([]DueClassSwitch, error)
+}
+
+// WeeklyPlans records and reads the weekly plan an approved future
+// re-enrollment applies at its start (#6043).
+type WeeklyPlans interface {
+	SetChildWeeklyPlan(ctx context.Context, childID int64, plan *WeeklyPlan) error
+	ChildWeeklyPlan(ctx context.Context, childID int64) (*WeeklyPlan, error)
+	DueWeeklyPlans(ctx context.Context, asOf Date) ([]WeeklyPlan, error)
 }
 
 // ChangeRequestQueries reads change requests, their review queue and messages.

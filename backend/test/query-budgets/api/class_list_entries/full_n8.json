@@ -1,0 +1,7 @@
+{
+  "scenario": "api.class_list_entries.list.full.n8",
+  "max": 6,
+  "exact": true,
+  "description": "Full protected class-list HTTP request with eight positive matches, including the tenant frame.",
+  "route": "GET /api/class-list-entries/"
+}

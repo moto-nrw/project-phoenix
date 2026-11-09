@@ -20,6 +20,7 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -39,13 +40,13 @@ type EnrollmentNotices struct {
 // change requests, the capacity gate and the reports read.
 func BuildEnrollmentNotices(
 	env RootEnvironment, enrollment EnrollmentRows, settings settingsCompose.BatchSettingsService, outbox MailOutbox,
-	organizations organizationtenancy.Query, audit AuditOwner, carePlan careplan.Capability, module deliveryModule.Capability,
+	organizations organizationtenancy.Query, audit AuditOwner, carePlan careplan.Capability, module deliveryModule.Capability, outcomes deliveryModule.EmailOutcomes,
 ) EnrollmentNotices {
 	deletions := NewEnrollmentDeletionModule(EnrollmentDeletionSources{
 		Owner: enrollment.Bookings, Guardians: enrollment.Guardians,
 		CountAuditAdjustments: audit.Persistence.EnrollmentOfferingAdjustment.CountForDeletion,
 		CountBookings:         carePlan.CountCareOfferingBookings, Audit: audit.Persistence.EnrollmentDeletionAudit,
-		Delivery: enrollmentDeliveryAdapter{module: module}, Settings: settings, Logger: env.Logger,
+		Delivery: enrollmentDeliveryAdapter{module: module, outcomes: outcomes}, Settings: settings, Logger: env.Logger,
 	})
 	return EnrollmentNotices{
 		Notifications:   NewEnrollmentNotifications(enrollment.Bookings, settings, outbox, EnrollmentSchoolDirectory{Schools: organizations}),
@@ -99,13 +100,14 @@ func BuildEnrollmentDecisions(
 		Companions:        EnrollmentDecisionCompanions(NewStudentCompanionRepository(carePlan), carePlan.DeleteCompanionEdges),
 		PickupSchedules:   arrivalTimetable.NewEnrollmentPickupSchedules(careRows.PickupSchedules),
 		ArrivalSchedules:  arrivalTimetable.NewEnrollmentArrivalSchedules(careRows.ArrivalSchedules),
-		Bookings:          offerings.Bookings, GuardianAccess: identity,
+		Bookings:          offerings.Bookings, GuardianAccess: identity, GuardianInvitations: identity, GuardianAuthorizer: people.StudentGuardians,
 		StudentAudit:           EnrollmentDecisionStudentAudit(services.StudentAudit),
 		StudentConsents:        EnrollmentDecisionStudentConsents(services.StudentConsents),
 		CareWithdrawal:         schedules.Lifecycle,
 		Broadcasts:             EnrollmentDecisionBroadcasts(hub),
 		ParentsURL:             EnrollmentDecisionParentsURL(env.Links.ParentsURL, env.Links.FrontendURL),
 		Settings:               EnrollmentDecisionSettingValues(settings),
+		IsTransient:            transactionFailures.IsTransientDatabaseError,
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		Pickups:                weeklyPickupHooks(schedules.AutoExcusal, carePlanRows.PickupStudentLocks),
 		Logger:                 env.Logger.With("service", "enrollment-decision"), Today: env.Today,

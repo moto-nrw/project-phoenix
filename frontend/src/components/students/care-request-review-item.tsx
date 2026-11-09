@@ -16,6 +16,7 @@ import {
   downloadCareRequestProofPdf,
 } from "~/lib/care-request-review-api";
 import { Button } from "~/components/ui/button";
+import { SectionLabel } from "~/components/ui/section-label";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
 import {
   fetchPickupExtensions,
@@ -394,9 +395,7 @@ function PickupImpact({ row }: Readonly<{ row: StaffCareRequest }>) {
   }
   return (
     <div className="mt-3 border-t border-gray-200 pt-2">
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Nach dem Freigeben
-      </p>
+      <SectionLabel as="p">Nach dem Freigeben</SectionLabel>
       <div className="mt-1 text-sm text-gray-700">{content}</div>
     </div>
   );

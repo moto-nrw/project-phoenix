@@ -179,6 +179,12 @@ type ParentAnnouncementLetterRecipient struct {
 	RecipientEmail *string
 	EmailStatus    string
 	Reachability   string
+	MailOutcome    string
+	AddressMark    string
+	Stopped        bool
+	StopShared     bool
+	MailedTo       *string
+	ProviderBlock  string
 	LastError      *string
 	SentAt         *time.Time
 }
@@ -204,6 +210,12 @@ type ParentAnnouncementLetterSummary struct {
 	ChildrenWithoutPortal int `json:"children_without_portal"`
 	RecipientsTotal       int `json:"recipients_total"`
 	EmailsSent            int `json:"emails_sent"`
+	EmailsDelivered       int `json:"emails_delivered"`
+	EmailsDelayed         int `json:"emails_delayed"`
+	EmailsAddressCheck    int `json:"emails_address_check"`
+	EmailsStopped         int `json:"emails_stopped"`
+	EmailsProviderBlocked int `json:"emails_provider_blocked"`
+	EmailsResendable      int `json:"emails_resendable"`
 	EmailsPending         int `json:"emails_pending"`
 	EmailsFailed          int `json:"emails_failed"`
 	WithoutEmail          int `json:"without_email"`
@@ -237,6 +249,12 @@ type ParentAnnouncementEmailDeliveryStatus struct {
 	RecipientEmail    *string
 	Reachability      string
 	EmailStatus       string
+	MailOutcome       string
+	AddressMark       string
+	Stopped           bool
+	StopShared        bool
+	MailedTo          *string
+	ProviderBlock     string
 	LastError         *string
 	SentAt            *time.Time
 	Attempts          int
@@ -295,10 +313,15 @@ type ParentAnnouncementCapability interface {
 	ParentDeclarationCapability
 }
 
+// ParentAnnouncementRead selects a narrow projection; the default read remains complete.
+type ParentAnnouncementRead uint8
+
+const ParentAnnouncementHeaderOnly ParentAnnouncementRead = 1
+
 // ParentAnnouncementQuery reads announcements and their engagement reports.
 type ParentAnnouncementQuery interface {
 	ListParentAnnouncements(context.Context, bool) ([]ParentAnnouncement, error)
-	GetParentAnnouncement(context.Context, int64) (*ParentAnnouncement, error)
+	GetParentAnnouncement(context.Context, int64, ...ParentAnnouncementRead) (*ParentAnnouncement, error)
 	ParentAnnouncementStats(context.Context, int64) (*ParentAnnouncementStats, error)
 	ParentAnnouncementRecipients(context.Context, int64) ([]ParentAnnouncementRecipient, error)
 	ParentAnnouncementPollResults(context.Context, int64) (*ParentAnnouncementPollResults, error)

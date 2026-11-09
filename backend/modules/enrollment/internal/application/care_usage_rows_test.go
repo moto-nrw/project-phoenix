@@ -14,13 +14,13 @@ import (
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:                10,
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
 		GuardianEmail:     "eva@example.test",
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:        20,
 		RequestID: 10,
 		FirstName: "Lina",
@@ -58,13 +58,13 @@ func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:                10,
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
 		GuardianEmail:     "eva@example.test",
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:        20,
 		RequestID: 10,
 		FirstName: "Lina",
@@ -278,8 +278,8 @@ func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
 func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{ID: 10}
-	child := &reportChild{
+	req := &enrollmentNative.Request{ID: 10}
+	child := &enrollmentNative.RequestChild{
 		ID:     20,
 		Status: enrollmentNative.ChildStatusApproved,
 	}
@@ -325,8 +325,8 @@ func TestCareUsageBookedPickupDaysIncludesNonCareOfferingDays(t *testing.T) {
 func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{ID: 10}
-	child := &reportChild{
+	req := &enrollmentNative.Request{ID: 10}
+	child := &enrollmentNative.RequestChild{
 		ID:     20,
 		Status: enrollmentNative.ChildStatusApproved,
 	}
@@ -367,8 +367,8 @@ func TestNormalizedCareUsageOfferingIDsDefaultsOnlyWhenSelectionIsMissing(t *tes
 func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{ID: 10}
-	child := &reportChild{
+	req := &enrollmentNative.Request{ID: 10}
+	child := &enrollmentNative.RequestChild{
 		ID:     20,
 		Status: enrollmentNative.ChildStatusApproved,
 	}

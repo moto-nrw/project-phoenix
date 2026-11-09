@@ -2,5 +2,6 @@
   "scenario": "api.activities.available_supervisors.specialization.reads",
   "max": 5,
   "exact": false,
-  "description": "#2941: formerly one identity query per supervisor / teacher."
+  "description": "#2941: formerly one identity query per supervisor / teacher.",
+  "route": "GET /api/activities/supervisors/available"
 }

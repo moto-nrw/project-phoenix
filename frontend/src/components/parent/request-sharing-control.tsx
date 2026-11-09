@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
@@ -25,6 +26,9 @@ import {
   type ParentRequestShareType,
   type RequestSharingState,
 } from "~/lib/parent-api";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 interface RequestSharingControlProps {
   readonly studentId: string;
@@ -49,7 +53,7 @@ export function RequestSharingSelector({
   selected,
   onChange,
 }: RequestSharingSelectorProps) {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const { state, failed, error } = useSharingOptions(studentId);
   // No choice possible means no recipients: report an empty selection so a
   // stale pick from an earlier state can never travel with the request.
@@ -63,21 +67,29 @@ export function RequestSharingSelector({
     return error ? (
       <LoadErrorAlert error={error} />
     ) : (
-      <p aria-busy="true" className="text-sm text-gray-500">
+      <p
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         {t("loading")}
       </p>
     );
   }
   if (!state)
     return (
-      <p aria-busy="true" className="text-sm text-gray-500">
+      <p
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         {t("loading")}
       </p>
     );
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
   return (
-    <div className="rounded-xl bg-gray-50 p-3">
+    <InsetPanel>
       <SharingRecipients
         state={state}
         selected={[...selected]}
@@ -92,7 +104,7 @@ export function RequestSharingSelector({
         }
         t={t}
       />
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -104,7 +116,7 @@ function useSharingState(
   refreshCount: number,
   reload: () => void,
 ) {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const [state, setState] = useState<RequestSharingState | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -228,9 +240,10 @@ function SharingRecipients({
       </legend>
       {hint ? <p className="text-sm text-gray-600">{hint}</p> : null}
       {state.recipients.map((recipient) => (
-        <label
+        <ChoiceTile
           key={recipient.guardian_profile_id}
-          className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900"
+          selected={selected.includes(recipient.guardian_profile_id)}
+          className="min-h-12 py-2 font-normal text-gray-900"
         >
           <Checkbox
             checked={selected.includes(recipient.guardian_profile_id)}
@@ -238,7 +251,7 @@ function SharingRecipients({
             onChange={() => toggle(recipient.guardian_profile_id)}
           />
           <span>{`${recipient.first_name} ${recipient.last_name}`}</span>
-        </label>
+        </ChoiceTile>
       ))}
     </fieldset>
   );
@@ -282,7 +295,7 @@ function SharingFooter({
 
 function useRequestSharingControl(props: RequestSharingControlProps) {
   const { studentId, requestType, requestId, isSelf } = props;
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const [open, setOpen] = useState(false);
   const [refreshCount, setRefreshCount] = useState(0);
   const reload = useCallback(
@@ -375,7 +388,11 @@ function SharingDialog({
     >
       <div className="space-y-4">
         {sharing.loading ? (
-          <p aria-busy="true" className="text-sm text-gray-500">
+          <p
+            aria-busy="true"
+            className="flex items-center gap-2 text-sm text-gray-500"
+          >
+            <SpinnerIcon className="h-4 w-4" />
             {t("loading")}
           </p>
         ) : null}
@@ -396,13 +413,17 @@ function SharingDialog({
 }
 
 export function RequestSharingControl(props: RequestSharingControlProps) {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const control = useRequestSharingControl(props);
   const { sharing } = control;
   if (!props.isSelf) return null;
   if (sharing.loading)
     return (
-      <p aria-busy="true" className="text-sm text-gray-500">
+      <p
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
         {t("loading")}
       </p>
     );

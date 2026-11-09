@@ -14,6 +14,9 @@ type DemoAccessStore interface {
 	// FindActiveDemoAccessByEmail returns the newest access of the address
 	// that has not expired at now. It serialises requests of one address.
 	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
+	// RereadActiveDemoAccessByEmail requires the address lock already held by
+	// this administrative transaction and always takes a fresh read snapshot.
+	RereadActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
 	// LockDemoSchool serializes entry, expiry and replacement of one public
 	// demo school for the caller's administrative transaction.
@@ -71,10 +74,12 @@ type DemoAccessTokens interface {
 // DemoSessions mints the session of a redeemed demo access. The account
 // authentication of this module satisfies it.
 type DemoSessions interface {
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
-	// IssueParentTokensForAuthenticatedAccount mints the parent-scope session
-	// of the demo role parent (#3468).
-	IssueParentTokensForAuthenticatedAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error)
+	// IssueDemoTokens mints the tenant session of the demo school; the demo
+	// link proves the mailbox like an e-mail code.
+	IssueDemoTokens(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
+	// IssueDemoParentTokens mints the parent-scope session of the demo role
+	// parent (#3468).
+	IssueDemoParentTokens(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error)
 	// RevokeTokensByTenantID ends every session of a hidden demo school (#3470).
 	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
 }

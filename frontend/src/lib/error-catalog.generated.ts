@@ -28,6 +28,56 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "care_contract.application_not_found":
+        "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
+      "care_contract.change_contract_not_active":
+        "Dieser Vertrag gilt nicht mehr. Änderungswünsche entscheidet jetzt die Schule.",
+      "care_contract.change_ends_care":
+        "Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Bitte tragen Sie sie unter „Vertrag beenden“ ein oder lehnen Sie den Wunsch ab.",
+      "care_contract.change_not_applicable":
+        "Die Schule lässt diese Änderung gerade nicht zu. Bitte sprechen Sie mit der Schule.",
+      "care_contract.change_not_found":
+        "Diesen Änderungswunsch gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "care_contract.contract_input_invalid":
+        "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
+      "care_contract.contract_not_draft":
+        "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
+      "care_contract.contract_not_endable":
+        "Dieser Vertrag ist schon gekündigt oder widerrufen oder noch nicht abgeschlossen. Bitte laden Sie die Seite neu.",
+      "care_contract.contract_not_found":
+        "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
+      "care_contract.contract_not_signable":
+        "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
+      "care_contract.field_invalid":
+        "Einige Angaben stimmen nicht. Bitte prüfen Sie Ihre Eingaben.",
+      "care_contract.letterhead_too_long":
+        "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+      "care_contract.notice_end_not_open":
+        "Für diesen Vertrag gibt es kein offenes Vertragsende mehr. Bitte laden Sie die Seite neu.",
+      "care_contract.notice_template_missing":
+        "Der Träger hat noch keinen Text für die Bestätigung. Bitte melden Sie sich beim Träger.",
+      "care_contract.offering_not_found":
+        "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+      "care_contract.paper_document_invalid":
+        "Bitte laden Sie den unterschriebenen Vertrag als PDF hoch. Die Datei darf höchstens 10 MB groß sein.",
+      "care_contract.recipient_missing":
+        "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
+      "care_contract.school_outside_traeger":
+        "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.selection_invalid":
+        "Diese Auswahl ist so nicht möglich. Bitte ändern Sie die Auswahl.",
+      "care_contract.signature_invalid":
+        "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
+      "care_contract.signing_link_invalid":
+        "Dieser Link gilt nicht mehr. Er war schon benutzt oder ist abgelaufen. Den Vertrag finden Sie in der Eltern-App unter „Dokumente“. Oder fragen Sie beim Träger nach einem neuen Link.",
+      "care_contract.special_termination_closed":
+        "Dieser Vertrag sieht keine Sonderkündigung vor. Bitte wählen Sie die normale Kündigung.",
+      "care_contract.template_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "care_contract.withdrawal_closed":
+        "Die Widerrufsfrist ist vorbei. Sie können den Vertrag noch kündigen.",
+      "care_contract.withdrawal_notice_required":
+        "Bitte bestätigen Sie, dass Sie die Widerrufsbelehrung gelesen haben.",
       "care.announcement_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
@@ -71,6 +121,8 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse wird bereits verwendet. Bitte prüfen Sie die Adresse.",
       "care.guardian_has_own_account":
         "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto. Sie kann die Angaben dort selbst ändern.",
+      "care.guardian_invite_unavailable":
+        "Diese Einladung konnte gerade nicht gesendet werden. Bitte wenden Sie sich an die OGS.",
       "care.guardian_management_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.guardian_no_change":
@@ -323,6 +375,8 @@ export const ERROR_CATALOG = {
         "Diese Änderungsanfrage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "enrollment.change_request_note_required":
         "Bitte schreiben Sie eine kurze Begründung für die Familie.",
+      "enrollment.change_request_parent_not_permitted":
+        "Dieser Elternteil darf das Kind nicht mehr anmelden. Lehnen Sie die Änderungsanfrage bitte ab.",
       "enrollment.change_request_status_changed":
         "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
       "enrollment.child_already_enrolled":
@@ -341,6 +395,8 @@ export const ERROR_CATALOG = {
         "Dieses Kind ist an der Schule noch nicht angemeldet. Diese Anmeldung ist nur für Kinder der Schule.",
       "enrollment.child_not_permitted":
         "Sie dürfen dieses Kind nicht erneut anmelden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.child_possibly_enrolled":
+        "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Bitte prüfen Sie, ob es dasselbe Kind ist.",
       "enrollment.child_required": "Bitte fügen Sie mindestens ein Kind hinzu.",
       "enrollment.class_not_eligible":
         "Diese Anmeldung gilt nur für bestimmte Klassen. Bitte prüfen Sie die Klasse Ihres Kindes.",
@@ -368,6 +424,8 @@ export const ERROR_CATALOG = {
         "Die Online-Anmeldung ist an dieser Schule gerade nicht möglich. Bitte wenden Sie sich an die Schule.",
       "enrollment.edit_not_allowed":
         "Diese Anmeldung kann nicht mehr geändert werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.existing_child_choice_invalid":
+        "Ihre Auswahl passt nicht mehr zu diesem Kind. Bitte laden Sie die Seite neu.",
       "enrollment.export_too_large":
         "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
       "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
@@ -436,7 +494,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_state_conflict":
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
-        "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
+        "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
       "enrollment.holiday_weeks_booked_together":
         "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
       "enrollment.hosted_holiday_week_not_found":
@@ -601,6 +659,8 @@ export const ERROR_CATALOG = {
         "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.email_change_same_email":
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+      "identity.guardian_email_address_blocked":
+        "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -611,12 +671,18 @@ export const ERROR_CATALOG = {
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.invitation_expired":
         "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
+      "identity.invitation_mail_delayed":
+        "Die letzte Einladung ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "identity.invitation_not_found":
         "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
       "identity.invitation_rate_limited":
         "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.lehrkraft_role_immutable":
         "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
+      "identity.mail_block_unreadable":
+        "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+      "identity.mail_blocked_at_provider":
+        "Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
       "identity.mfa_already_enrolled":
         "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
       "identity.mfa_blocked":
@@ -700,6 +766,20 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.billing_month_attendance_expired":
+        "Für diesen Monat können Anwesenheiten bereits gelöscht sein. Eine sichere Freigabe ist deshalb nicht mehr möglich. Wenden Sie sich an Ihren Träger.",
+      "meals.billing_month_changed":
+        "Seit dem Laden hat sich der Monat geändert. Bitte prüfen Sie ihn noch einmal und geben Sie ihn dann frei.",
+      "meals.billing_month_invalid":
+        "Diesen Monat gibt es hier nicht. Wählen Sie einen der letzten 12 Monate.",
+      "meals.billing_month_no_traeger":
+        "Ihre Schule gehört zu keinem Träger. Deshalb rechnet niemand die Mensa ab.",
+      "meals.billing_month_reason_required":
+        "Bitte nennen Sie den Grund für die neue Freigabe. Höchstens 500 Zeichen.",
+      "meals.billing_month_released":
+        "Dieser Monat ist schon freigegeben. Eine Freigabe lässt sich nicht ändern.",
+      "meals.billing_month_running":
+        "Der Monat ist noch nicht vorbei. Sie können ihn ab dem 1. des nächsten Monats freigeben.",
       "meals.child_not_enrolled":
         "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
       "meals.day_closed":
@@ -763,6 +843,65 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.billing_terms_invalid":
+        "Die Zahlungsbedingungen konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.care_amendment_conflict":
+        "Diese Änderung passt nicht mehr zur Rechnung. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_amendment_disabled":
+        "Diese Änderung ist bei Ihrem Träger ausgeschaltet. Sie können sie in den Einstellungen der Abrechnung einschalten.",
+      "parent_billing.care_amendment_invalid":
+        "Bitte prüfen Sie die Eingaben für die Änderung.",
+      "parent_billing.care_amendments_unresolved":
+        "Eine Änderung einer Rechnung passt nicht mehr. Nehmen Sie sie zurück, dann können Sie ausstellen.",
+      "parent_billing.care_cost_share_invalid":
+        "Der Kostenträger-Anteil konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.care_cost_share_not_found":
+        "Diesen Kostenträger-Anteil gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_cost_share_overlap":
+        "Für diese Zeit gibt es schon einen Anteil dieser Art. Beenden Sie zuerst den alten Anteil.",
+      "parent_billing.care_evidence_invalid":
+        "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.care_evidence_not_found":
+        "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_evidence_overlap":
+        "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+      "parent_billing.care_exclusion_conflict":
+        "Diese Rechnung hat sich gerade geändert. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_invoice_cancelled":
+        "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
+      "parent_billing.care_invoice_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_meal_tariff_invalid":
+        "Bitte prüfen Sie den Mensa-Preis: Schule, erster Monat, Abrechnungsart und Betrag.",
+      "parent_billing.care_meal_tariff_month_billed":
+        "Mit diesem Mensa-Preis ist schon eine Rechnung ausgestellt. Er bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
+      "parent_billing.care_meal_tariff_not_found":
+        "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_notice_not_found":
+        "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_run_invalid":
+        "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
+      "parent_billing.care_notice_run_not_found":
+        "Diesen Jahreslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Jahresbescheide“.",
+      "parent_billing.care_notice_run_open":
+        "Für dieses Jahr gibt es schon einen offenen Jahreslauf. Öffnen Sie ihn in der Liste und stellen Sie ihn aus.",
+      "parent_billing.care_recipient_changed":
+        "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
+      "parent_billing.care_rule_in_use":
+        "Diese Einkommensstufe ist bei Kindern eingetragen. Ändern oder löschen Sie zuerst deren Nachweise.",
+      "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",
+      "parent_billing.care_run_not_found":
+        "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",
+      "parent_billing.care_run_open":
+        "Eine gewählte Schule ist in diesem Monat schon in einem offenen Lauf. Öffnen Sie diesen Lauf oder wählen Sie andere Schulen.",
+      "parent_billing.care_tariff_invalid":
+        "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
+      "parent_billing.care_tariff_month_billed":
+        "Mit diesem Preis ist schon eine Rechnung ausgestellt. Er bleibt für diesen Monat. Ändern Sie ihn ab einem späteren Monat.",
+      "parent_billing.care_tariff_not_found":
+        "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_versions_overlap":
+        "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
       "parent_billing.carried_correction_not_found":
         "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_invalid":
@@ -785,6 +924,26 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+      "parent_billing.direct_debit_without_mandate":
+        "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg.",
+      "parent_billing.document_kind_invalid":
+        "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
+      "parent_billing.due_dates_invalid":
+        "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.family_billing_invalid":
+        "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.family_billing_not_found":
+        "Diese Abweichung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.family_children_invalid":
+        "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
+      "parent_billing.family_children_not_found":
+        "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.family_not_found":
+        "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
+      "parent_billing.family_unknown":
+        "Für diesen Vertrag fehlt eine E-Mail-Adresse. Bitte tragen Sie sie im Vertrag ein.",
+      "parent_billing.family_without_address":
+        "Die Rechnung dieses Vertrags hat keine E-Mail-Adresse. Tragen Sie zuerst im Vertrag eine Adresse ein.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "parent_billing.invoice_cancelled":
@@ -793,6 +952,14 @@ export const ERROR_CATALOG = {
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
+      "parent_billing.legal_remedy_missing":
+        "Der Gebührenbescheid braucht eine Rechtsbehelfsbelehrung. Tragen Sie sie in der Vorlage „Bescheid“ ein. Danach können Sie freigeben.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+      "parent_billing.letter_mail_blocked":
+        "Diese Adresse ist gesperrt. Bitte drucken Sie das Schreiben. Der moto-Support klärt die Sperre.",
+      "parent_billing.letter_mail_delayed":
+        "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "parent_billing.letter_mail_pending":
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.letterhead_too_long":
@@ -807,6 +974,20 @@ export const ERROR_CATALOG = {
         "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sepa_creditor_invalid":
+        "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
+      "parent_billing.sepa_creditor_missing":
+        "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+      "parent_billing.sepa_mandate_in_force":
+        "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
+      "parent_billing.sepa_mandate_invalid":
+        "Das Mandat konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.sepa_mandate_not_found":
+        "Dieses Mandat gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.sepa_mandate_reference_taken":
+        "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
+      "parent_billing.sepa_mandate_revoked":
+        "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
       "parent_billing.sibling_group_invalid":
         "Bitte wählen Sie mindestens zwei Anmeldungen aus, die nicht storniert sind.",
       "parent_billing.sibling_group_invoiced":
@@ -1065,6 +1246,12 @@ export const ERROR_CATALOG = {
         "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
       "students.guardian_account_holder_too_long":
         "Der Name des Kontoinhabers ist zu lang. Bitte kürzen Sie ihn.",
+      "students.guardian_email_block_lift_failed":
+        "Die Sperre konnte gerade nicht aufgehoben werden. Bitte versuchen Sie es noch einmal.",
+      "students.guardian_email_block_needs_review":
+        "Diese Sperre können Sie nicht aufheben, weil die Person eine Mail als unerwünscht gemeldet hat. Bitte sprechen Sie die Person direkt an.",
+      "students.guardian_email_block_stays":
+        "Diese Sperre lässt sich hier nicht aufheben. Bitte tragen Sie eine andere Adresse ein oder melden Sie sich beim moto-Support.",
       "students.guardian_email_taken":
         "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
       "students.guardian_iban_invalid":
@@ -1415,6 +1602,16 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_already_released":
+        "Das Dokument ist für diese Menschen schon freigegeben.",
+      "traeger.document_audience_invalid":
+        "Diese Schule oder Gruppe gehört nicht zu Ihrem Träger. Bitte wählen Sie neu.",
+      "traeger.document_invalid":
+        "Bitte geben Sie einen Titel ein, höchstens 120 Zeichen.",
+      "traeger.document_not_found":
+        "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_release_not_found":
+        "Diese Freigabe ist schon zurückgenommen. Bitte laden Sie die Seite neu.",
       "traeger.document_template_invalid":
         "Die Vorlage ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
       "traeger.document_template_kind_not_found":
@@ -1441,6 +1638,8 @@ export const ERROR_CATALOG = {
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
       "traeger.second_factor_required":
         "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
+      "traeger.shared_document_not_found":
+        "Der Träger hat dieses Dokument nicht mehr freigegeben. Bitte laden Sie die Seite neu.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":
@@ -1604,6 +1803,55 @@ export const ERROR_CATALOG = {
       fieldCheck: "Please check this field.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "This contract is already terminated or withdrawn, or not concluded yet. Please reload the page.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "This contract is already signed or is not waiting for a signature. Please reload the page.",
+      "care_contract.field_invalid":
+        "Some details are not valid. Please check your entries.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "This contract has no open end date any more. Please reload the page.",
+      "care_contract.notice_template_missing":
+        "The provider has no confirmation text yet. Please contact the provider.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Please upload the signed contract as a PDF. The file may be at most 10 MB.",
+      "care_contract.recipient_missing":
+        "This contract has no e-mail address. Without an address no confirmation can be sent.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "This selection is not possible. Please change your selection.",
+      "care_contract.signature_invalid":
+        "The signature is missing or empty. Please sign again.",
+      "care_contract.signing_link_invalid":
+        "This link is no longer valid. It was already used or has expired. You can find the contract in the parent app under “Documents”, or ask the provider for a new link.",
+      "care_contract.special_termination_closed":
+        "This contract has no special termination. Please choose the regular termination.",
+      "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "The withdrawal period is over. You can still terminate the contract.",
+      "care_contract.withdrawal_notice_required":
+        "Please confirm that you have read the cancellation policy.",
       "care.announcement_stale":
         "{object} has been changed in the meantime. Please reload the page.",
       "care.care_exception_conflict":
@@ -1646,6 +1894,8 @@ export const ERROR_CATALOG = {
         "This email address is already in use. Please check the address.",
       "care.guardian_has_own_account":
         "This person manages their contact details through their own parent account. They can change the details there themselves.",
+      "care.guardian_invite_unavailable":
+        "This invitation could not be sent right now. Please contact the after-school care team.",
       "care.guardian_management_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "care.guardian_no_change":
@@ -1880,7 +2130,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_state_conflict":
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
-        "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+        "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
       "enrollment.holiday_weeks_booked_together":
         "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
       "enrollment.hosted_holiday_week_not_found":
@@ -1949,6 +2199,8 @@ export const ERROR_CATALOG = {
         "The demo school is being prepared. Please try again in a moment.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.guardian_email_address_blocked":
+        "The invitation could not be sent right now. Please try again.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -1959,8 +2211,14 @@ export const ERROR_CATALOG = {
         "You are signed in with a different account. Please sign in with the invited email address.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
+      "identity.invitation_mail_delayed":
+        "The invitation could not be sent right now. Please try again.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
+      "identity.mail_block_unreadable":
+        "We cannot check right now whether this address is blocked. Please try again later.",
+      "identity.mail_blocked_at_provider":
+        "This address is blocked. Sending again will not help. moto support needs to resolve this.",
       "identity.mfa_blocked":
         "Too many attempts. Please wait a few minutes and then try again.",
       "identity.mfa_session_required":
@@ -1981,6 +2239,8 @@ export const ERROR_CATALOG = {
         "Another account signed in in another window. moto will reload this page shortly.",
       "identity.session_tenant_mismatch":
         "The school was changed in another window. moto will switch this page back shortly. Please try again afterwards.",
+      "meals.billing_month_attendance_expired":
+        "Attendance records for this month may already have been deleted. The month can no longer be released reliably. Please contact your provider.",
       "meals.child_not_enrolled":
         "{object} is not possible. The child is not in care on this day.",
       "meals.day_closed":
@@ -2007,8 +2267,14 @@ export const ERROR_CATALOG = {
         "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
       "module.not_booked":
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
+      "parent_billing.care_amendment_disabled":
+        "{object} could not be changed. Please check its current status.",
+      "parent_billing.family_children_invalid":
+        "Please enter a whole number from 1 to 20.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
+      "parent_billing.letter_mail_block_unreadable":
+        "We cannot check right now whether this address is blocked. Please try again later.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
       "school.parent_conference_change_closed":
@@ -2039,6 +2305,12 @@ export const ERROR_CATALOG = {
         "{object} has been changed in the meantime. Please reload the page.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
+      "students.guardian_email_block_lift_failed":
+        "{object} could not be saved. Please check your entries.",
+      "students.guardian_email_block_needs_review":
+        "{object} could not be saved. Please check your entries.",
+      "students.guardian_email_block_stays":
+        "{object} could not be saved. Please check your entries.",
       "students.offering_change_capacity_full":
         "One of the offerings has no free places left. Please check the occupancy.",
       "students.offering_changes_no_enrollment":
@@ -2071,6 +2343,16 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.document_already_released":
+        "The document is already shared with these people.",
+      "traeger.document_audience_invalid":
+        "This school or group does not belong to your provider. Please choose again.",
+      "traeger.document_invalid":
+        "Please enter a title of at most 120 characters.",
+      "traeger.document_not_found":
+        "This document no longer exists. Please reload the page.",
+      "traeger.document_release_not_found":
+        "This release has already been withdrawn. Please reload the page.",
       "traeger.document_template_invalid":
         "The template is incomplete. Please check the marked fields.",
       "traeger.document_template_kind_not_found":
@@ -2096,6 +2378,8 @@ export const ERROR_CATALOG = {
         "This school does not belong to your Träger. Please reload the page.",
       "traeger.second_factor_required":
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
+      "traeger.shared_document_not_found":
+        "The provider no longer shares this document. Please reload the page.",
       "workforce.payroll_wage_type_name_taken":
         "{object} could not be saved. Please check your entries.",
     },
@@ -2117,6 +2401,55 @@ export const ERROR_CATALOG = {
       fieldCheck: "Проверьте это поле.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Этот договор уже расторгнут или отозван либо ещё не заключён. Пожалуйста, обновите страницу.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Этот договор уже подписан или не ожидает подписи. Пожалуйста, обновите страницу.",
+      "care_contract.field_invalid":
+        "Некоторые данные указаны неверно. Проверьте введённые данные.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Для этого договора больше нет открытой даты окончания. Пожалуйста, обновите страницу.",
+      "care_contract.notice_template_missing":
+        "У организации ещё нет текста подтверждения. Пожалуйста, свяжитесь с организацией.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Пожалуйста, загрузите подписанный договор в формате PDF. Размер файла не более 10 МБ.",
+      "care_contract.recipient_missing":
+        "У этого договора нет адреса электронной почты. Без адреса подтверждение отправить нельзя.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такой выбор невозможен. Измените выбор.",
+      "care_contract.signature_invalid":
+        "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
+      "care_contract.signing_link_invalid":
+        "Эта ссылка больше не действует. Она уже была использована или срок её действия истёк. Договор находится в приложении для родителей в разделе «Документы». Или попросите у организации новую ссылку.",
+      "care_contract.special_termination_closed":
+        "Этот договор не предусматривает особого расторжения. Пожалуйста, выберите обычное расторжение.",
+      "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Срок отказа от договора истёк. Вы всё ещё можете расторгнуть договор.",
+      "care_contract.withdrawal_notice_required":
+        "Пожалуйста, подтвердите, что вы прочитали информацию о праве на отказ от договора.",
       "care.announcement_stale":
         "Данные изменились: {object}. Обновите страницу.",
       "care.care_exception_conflict":
@@ -2160,6 +2493,8 @@ export const ERROR_CATALOG = {
         "Этот адрес электронной почты уже используется. Проверьте адрес.",
       "care.guardian_has_own_account":
         "Этот человек управляет своими контактными данными через собственный родительский аккаунт. Он может сам изменить их там.",
+      "care.guardian_invite_unavailable":
+        "Сейчас не удалось отправить это приглашение. Обратитесь, пожалуйста, в группу продлённого дня.",
       "care.guardian_management_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "care.guardian_no_change": "Ничего не изменено. Проверьте свои данные.",
@@ -2415,6 +2750,8 @@ export const ERROR_CATALOG = {
         "Демо-школа сейчас готовится. Попробуйте ещё раз через минуту.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.guardian_email_address_blocked":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -2425,8 +2762,14 @@ export const ERROR_CATALOG = {
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите человека, который вас пригласил, отправить новое приглашение.",
+      "identity.invitation_mail_delayed":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
+      "identity.mail_block_unreadable":
+        "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
+      "identity.mail_blocked_at_provider":
+        "Этот адрес заблокирован. Повторная отправка не поможет. Это должна решить поддержка moto.",
       "identity.mfa_blocked":
         "Слишком много попыток. Подождите несколько минут и попробуйте снова.",
       "identity.mfa_session_required":
@@ -2447,6 +2790,8 @@ export const ERROR_CATALOG = {
         "В другом окне выполнен вход в другой аккаунт. moto сейчас перезагрузит эту страницу.",
       "identity.session_tenant_mismatch":
         "Школа была изменена в другом окне. moto сейчас переключит эту страницу обратно. Попробуйте ещё раз чуть позже.",
+      "meals.billing_month_attendance_expired":
+        "Данные о посещаемости за этот месяц могли быть удалены. Надёжно подтвердить месяц больше нельзя. Обратитесь к организации, управляющей продлёнкой.",
       "meals.child_not_enrolled":
         "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
       "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
@@ -2471,8 +2816,14 @@ export const ERROR_CATALOG = {
         "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
       "module.not_booked":
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
+      "parent_billing.care_amendment_disabled":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.family_children_invalid":
+        "Пожалуйста, укажите целое число от 1 до 20.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
       "school.parent_conference_change_closed":
@@ -2487,6 +2838,12 @@ export const ERROR_CATALOG = {
         "Данные изменились: {object}. Обновите страницу.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
+      "students.guardian_email_block_lift_failed":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "students.guardian_email_block_needs_review":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "students.guardian_email_block_stays":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "students.offering_change_capacity_full":
         "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
       "students.offering_changes_no_enrollment":
@@ -2512,6 +2869,8 @@ export const ERROR_CATALOG = {
         "Бронирование изменилось. Обновите страницу.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
+      "traeger.shared_document_not_found":
+        "Организация больше не открывает доступ к этому документу. Обновите страницу.",
       "workforce.payroll_wage_type_name_taken":
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
     },
@@ -2533,6 +2892,55 @@ export const ERROR_CATALOG = {
       fieldCheck: "Kontrolloni këtë fushë.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Kjo kontratë është ndërprerë ose tërhequr tashmë, ose nuk është lidhur ende. Ju lutemi rifreskoni faqen.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
+      "care_contract.field_invalid":
+        "Disa të dhëna nuk janë të sakta. Kontrolloni të dhënat.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Kjo kontratë nuk ka më datë mbarimi të hapur. Ju lutemi rifreskoni faqen.",
+      "care_contract.notice_template_missing":
+        "Ofruesi nuk ka ende tekst konfirmimi. Ju lutemi kontaktoni ofruesin.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Ju lutemi ngarkoni kontratën e nënshkruar si PDF. Skedari mund të jetë maksimumi 10 MB.",
+      "care_contract.recipient_missing":
+        "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Kjo zgjedhje nuk është e mundur. Ndryshoni zgjedhjen.",
+      "care_contract.signature_invalid":
+        "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
+      "care_contract.signing_link_invalid":
+        "Ky link nuk është më i vlefshëm. Është përdorur tashmë ose ka skaduar. Kontratën e gjeni në aplikacionin për prindër te „Dokumente“. Ose kërkoni një link të ri nga ofruesi.",
+      "care_contract.special_termination_closed":
+        "Kjo kontratë nuk parashikon ndërprerje të veçantë. Ju lutemi zgjidhni ndërprerjen e zakonshme.",
+      "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Afati i tërheqjes ka mbaruar. Ju mund ta ndërprisni ende kontratën.",
+      "care_contract.withdrawal_notice_required":
+        "Ju lutemi konfirmoni që e keni lexuar udhëzimin për të drejtën e tërheqjes.",
       "care.announcement_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "care.care_exception_conflict":
@@ -2576,6 +2984,8 @@ export const ERROR_CATALOG = {
         "Kjo adresë e-maili përdoret tashmë. Kontrolloni adresën.",
       "care.guardian_has_own_account":
         "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore. Ai mund t'i ndryshojë vetë të dhënat atje.",
+      "care.guardian_invite_unavailable":
+        "Kjo ftesë nuk mund të dërgohej tani. Ju lutemi kontaktoni kujdesin pas shkollës.",
       "care.guardian_management_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "care.guardian_no_change":
@@ -2844,6 +3254,8 @@ export const ERROR_CATALOG = {
         "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.guardian_email_address_blocked":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -2854,8 +3266,14 @@ export const ERROR_CATALOG = {
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini personit që ju ftoi një ftesë të re.",
+      "identity.invitation_mail_delayed":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
+      "identity.mail_block_unreadable":
+        "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
+      "identity.mail_blocked_at_provider":
+        "Kjo adresë është e bllokuar. Dërgimi përsëri nuk ndihmon. Këtë duhet ta sqarojë mbështetja e moto.",
       "identity.mfa_blocked":
         "Shumë përpjekje. Prisni disa minuta dhe provoni përsëri.",
       "identity.mfa_session_required":
@@ -2876,6 +3294,8 @@ export const ERROR_CATALOG = {
         "Një llogari tjetër u identifikua në një dritare tjetër. moto do ta ringarkojë këtë faqe së shpejti.",
       "identity.session_tenant_mismatch":
         "Shkolla u ndryshua në një dritare tjetër. moto do ta kthejë këtë faqe së shpejti. Ju lutemi provoni përsëri pak më vonë.",
+      "meals.billing_month_attendance_expired":
+        "Të dhënat e pranisë për këtë muaj mund të jenë fshirë. Muaji nuk mund të miratohet më me siguri. Ju lutemi kontaktoni ofruesin tuaj.",
       "meals.child_not_enrolled":
         "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
       "meals.day_closed":
@@ -2901,8 +3321,14 @@ export const ERROR_CATALOG = {
         "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
       "module.not_booked":
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
+      "parent_billing.care_amendment_disabled":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.family_children_invalid":
+        "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
       "school.parent_conference_change_closed":
@@ -2917,6 +3343,12 @@ export const ERROR_CATALOG = {
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
+      "students.guardian_email_block_lift_failed":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "students.guardian_email_block_needs_review":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "students.guardian_email_block_stays":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "students.offering_change_capacity_full":
         "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
       "students.offering_changes_no_enrollment":
@@ -2943,6 +3375,8 @@ export const ERROR_CATALOG = {
         "Rezervimi ka ndryshuar. Ju lutemi ngarkoni përsëri faqen.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+      "traeger.shared_document_not_found":
+        "Ofruesi nuk e ndan më këtë dokument. Ju lutemi rifreskoni faqen.",
       "workforce.payroll_wage_type_name_taken":
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
     },
@@ -2964,6 +3398,55 @@ export const ERROR_CATALOG = {
       fieldCheck: "Sprawdź to pole.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Ta umowa została już wypowiedziana lub odwołana albo nie została jeszcze zawarta. Proszę odświeżyć stronę.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Ta umowa jest już podpisana lub nie czeka na podpis. Odśwież stronę.",
+      "care_contract.field_invalid":
+        "Niektóre dane są nieprawidłowe. Sprawdź wpisane dane.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Dla tej umowy nie ma już otwartej daty zakończenia. Proszę odświeżyć stronę.",
+      "care_contract.notice_template_missing":
+        "Organizator nie ma jeszcze tekstu potwierdzenia. Proszę skontaktować się z organizatorem.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Prześlij podpisaną umowę jako plik PDF. Plik może mieć maksymalnie 10 MB.",
+      "care_contract.recipient_missing":
+        "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Taki wybór nie jest możliwy. Zmień wybór.",
+      "care_contract.signature_invalid":
+        "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
+      "care_contract.signing_link_invalid":
+        "Ten link jest już nieważny. Został użyty lub wygasł. Umowę znajdziesz w aplikacji dla rodziców w zakładce „Dokumenty”. Możesz też poprosić organizatora o nowy link.",
+      "care_contract.special_termination_closed":
+        "Ta umowa nie przewiduje wypowiedzenia nadzwyczajnego. Proszę wybrać zwykłe wypowiedzenie.",
+      "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Termin na odstąpienie od umowy minął. Nadal można wypowiedzieć umowę.",
+      "care_contract.withdrawal_notice_required":
+        "Potwierdź, że przeczytałeś pouczenie o prawie odstąpienia od umowy.",
       "care.announcement_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "care.care_exception_conflict":
@@ -3007,6 +3490,8 @@ export const ERROR_CATALOG = {
         "Ten adres e-mail jest już używany. Sprawdź adres.",
       "care.guardian_has_own_account":
         "Ta osoba zarządza swoimi danymi kontaktowymi przez własne konto rodzica. Może sama zmienić tam te dane.",
+      "care.guardian_invite_unavailable":
+        "Nie udało się teraz wysłać tego zaproszenia. Prosimy o kontakt ze świetlicą.",
       "care.guardian_management_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "care.guardian_no_change":
@@ -3263,6 +3748,8 @@ export const ERROR_CATALOG = {
         "Szkoła demo jest właśnie przygotowywana. Spróbuj ponownie za chwilę.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.guardian_email_address_blocked":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -3273,8 +3760,14 @@ export const ERROR_CATALOG = {
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
+      "identity.invitation_mail_delayed":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
+      "identity.mail_block_unreadable":
+        "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
+      "identity.mail_blocked_at_provider":
+        "Ten adres jest zablokowany. Ponowne wysłanie nie pomoże. Sprawę musi wyjaśnić pomoc techniczna moto.",
       "identity.mfa_blocked":
         "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
       "identity.mfa_session_required":
@@ -3295,6 +3788,8 @@ export const ERROR_CATALOG = {
         "W innym oknie zalogowało się inne konto. moto zaraz odświeży tę stronę.",
       "identity.session_tenant_mismatch":
         "Szkoła została zmieniona w innym oknie. moto zaraz przełączy tę stronę z powrotem. Spróbuj ponownie za chwilę.",
+      "meals.billing_month_attendance_expired":
+        "Dane o obecności z tego miesiąca mogły już zostać usunięte. Nie można bezpiecznie zatwierdzić miesiąca. Prosimy skontaktować się z organem prowadzącym.",
       "meals.child_not_enrolled":
         "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
       "meals.day_closed":
@@ -3320,8 +3815,14 @@ export const ERROR_CATALOG = {
         "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
       "module.not_booked":
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
+      "parent_billing.care_amendment_disabled":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.family_children_invalid":
+        "Proszę podać liczbę całkowitą od 1 do 20.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
       "school.parent_conference_change_closed":
@@ -3336,6 +3837,12 @@ export const ERROR_CATALOG = {
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
+      "students.guardian_email_block_lift_failed":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "students.guardian_email_block_needs_review":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "students.guardian_email_block_stays":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "students.offering_change_capacity_full":
         "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
       "students.offering_changes_no_enrollment":
@@ -3361,6 +3868,8 @@ export const ERROR_CATALOG = {
         "Rezerwacja została zmieniona. Odśwież stronę.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+      "traeger.shared_document_not_found":
+        "Organizator nie udostępnia już tego dokumentu. Odśwież stronę.",
       "workforce.payroll_wage_type_name_taken":
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
     },
@@ -3382,6 +3891,55 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bu alanı kontrol edin.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Bu sözleşme zaten feshedildi veya geri alındı ya da henüz yapılmadı. Lütfen sayfayı yenileyin.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Bu sözleşme zaten imzalandı veya imza beklemiyor. Lütfen sayfayı yenileyin.",
+      "care_contract.field_invalid":
+        "Bazı bilgiler doğru değil. Girdiğiniz bilgileri kontrol edin.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Bu sözleşmenin artık açık bir bitiş tarihi yok. Lütfen sayfayı yenileyin.",
+      "care_contract.notice_template_missing":
+        "Kurumun henüz onay metni yok. Lütfen kurumla iletişime geçin.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Lütfen imzalı sözleşmeyi PDF olarak yükleyin. Dosya en fazla 10 MB olabilir.",
+      "care_contract.recipient_missing":
+        "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Bu seçim mümkün değil. Lütfen seçiminizi değiştirin.",
+      "care_contract.signature_invalid":
+        "İmza eksik veya boş. Lütfen tekrar imzalayın.",
+      "care_contract.signing_link_invalid":
+        "Bu bağlantı artık geçerli değil. Daha önce kullanıldı veya süresi doldu. Sözleşmeyi veli uygulamasında „Belgeler“ altında bulabilirsiniz. Ya da kurumdan yeni bir bağlantı isteyin.",
+      "care_contract.special_termination_closed":
+        "Bu sözleşmede özel fesih yok. Lütfen normal feshi seçin.",
+      "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Cayma süresi doldu. Sözleşmeyi hâlâ feshedebilirsiniz.",
+      "care_contract.withdrawal_notice_required":
+        "Lütfen cayma hakkı bilgilendirmesini okuduğunuzu onaylayın.",
       "care.announcement_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "care.care_exception_conflict":
@@ -3425,6 +3983,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi zaten kullanılıyor. Lütfen adresi kontrol edin.",
       "care.guardian_has_own_account":
         "Bu kişi iletişim bilgilerini kendi veli hesabından yönetiyor. Bilgileri orada kendisi değiştirebilir.",
+      "care.guardian_invite_unavailable":
+        "Bu davet şu anda gönderilemedi. Lütfen okul sonrası bakım ekibiyle iletişime geçin.",
       "care.guardian_management_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "care.guardian_no_change":
@@ -3687,6 +4247,8 @@ export const ERROR_CATALOG = {
         "Demo okul hazırlanıyor. Lütfen birazdan tekrar deneyin.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.guardian_email_address_blocked":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -3697,8 +4259,14 @@ export const ERROR_CATALOG = {
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
+      "identity.invitation_mail_delayed":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
+      "identity.mail_block_unreadable":
+        "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
+      "identity.mail_blocked_at_provider":
+        "Bu adres engellendi. Yeniden göndermek işe yaramaz. Bunu moto destek ekibi çözmelidir.",
       "identity.mfa_blocked":
         "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
       "identity.mfa_session_required":
@@ -3719,6 +4287,8 @@ export const ERROR_CATALOG = {
         "Başka bir pencerede başka bir hesapla giriş yapıldı. moto bu sayfayı birazdan yeniden yükleyecek.",
       "identity.session_tenant_mismatch":
         "Okul başka bir pencerede değiştirildi. moto bu sayfayı birazdan geri geçirecek. Lütfen biraz sonra tekrar deneyin.",
+      "meals.billing_month_attendance_expired":
+        "Bu aya ait devam kayıtları silinmiş olabilir. Ay artık güvenilir biçimde onaylanamaz. Lütfen hizmet sağlayıcınızla iletişime geçin.",
       "meals.child_not_enrolled":
         "{object} mümkün değil. Çocuk bu gün bakımda değil.",
       "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
@@ -3743,8 +4313,14 @@ export const ERROR_CATALOG = {
         "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
       "module.not_booked":
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
+      "parent_billing.care_amendment_disabled":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.family_children_invalid":
+        "Lütfen 1 ile 20 arasında bir tam sayı girin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
       "school.parent_conference_change_closed":
@@ -3759,6 +4335,12 @@ export const ERROR_CATALOG = {
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
+      "students.guardian_email_block_lift_failed":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "students.guardian_email_block_needs_review":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "students.guardian_email_block_stays":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "students.offering_change_capacity_full":
         "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
       "students.offering_changes_no_enrollment":
@@ -3785,6 +4367,8 @@ export const ERROR_CATALOG = {
         "Rezervasyon değişti. Lütfen sayfayı yeniden yükleyin.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
+      "traeger.shared_document_not_found":
+        "Kurum bu belgeyi artık paylaşmıyor. Lütfen sayfayı yenileyin.",
       "workforce.payroll_wage_type_name_taken":
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
     },
@@ -3806,6 +4390,55 @@ export const ERROR_CATALOG = {
       fieldCheck: "Перевірте це поле.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_endable":
+        "Цей договір уже розірвано або відкликано чи ще не укладено. Будь ласка, оновіть сторінку.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Цей договір уже підписано або він не очікує підпису. Будь ласка, оновіть сторінку.",
+      "care_contract.field_invalid":
+        "Деякі дані вказано неправильно. Перевірте введені дані.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.notice_end_not_open":
+        "Для цього договору більше немає відкритої дати завершення. Будь ласка, оновіть сторінку.",
+      "care_contract.notice_template_missing":
+        "Організація ще не має тексту підтвердження. Будь ласка, зверніться до організації.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Будь ласка, завантажте підписаний договір у форматі PDF. Розмір файлу не більше 10 МБ.",
+      "care_contract.recipient_missing":
+        "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такий вибір неможливий. Змініть вибір.",
+      "care_contract.signature_invalid":
+        "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
+      "care_contract.signing_link_invalid":
+        "Це посилання більше не дійсне. Його вже використано або термін дії минув. Договір є в застосунку для батьків у розділі «Документи». Або попросіть в організації нове посилання.",
+      "care_contract.special_termination_closed":
+        "Цей договір не передбачає особливого розірвання. Будь ласка, оберіть звичайне розірвання.",
+      "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_closed":
+        "Строк відмови від договору минув. Ви ще можете розірвати договір.",
+      "care_contract.withdrawal_notice_required":
+        "Будь ласка, підтвердьте, що ви прочитали інформацію про право відмови від договору.",
       "care.announcement_stale": "Дані змінилися: {object}. Оновіть сторінку.",
       "care.care_exception_conflict":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
@@ -3848,6 +4481,8 @@ export const ERROR_CATALOG = {
         "Ця адреса ел. пошти вже використовується. Перевірте адресу.",
       "care.guardian_has_own_account":
         "Ця особа має власний батьківський обліковий запис і сама керує своїми контактними даними. Вона може сама змінити їх там.",
+      "care.guardian_invite_unavailable":
+        "Зараз не вдалося надіслати це запрошення. Будь ласка, зверніться до групи продовженого дня.",
       "care.guardian_management_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "care.guardian_no_change": "Нічого не змінено. Перевірте свої дані.",
@@ -4103,6 +4738,8 @@ export const ERROR_CATALOG = {
         "Демо-школа зараз готується. Спробуйте ще раз за хвилину.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.guardian_email_address_blocked":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
@@ -4113,8 +4750,14 @@ export const ERROR_CATALOG = {
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть людину, яка вас запросила, надіслати нове запрошення.",
+      "identity.invitation_mail_delayed":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
+      "identity.mail_block_unreadable":
+        "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
+      "identity.mail_blocked_at_provider":
+        "Цю адресу заблоковано. Повторне надсилання не допоможе. Це має вирішити підтримка moto.",
       "identity.mfa_blocked":
         "Забагато спроб. Зачекайте кілька хвилин і спробуйте ще раз.",
       "identity.mfa_session_required":
@@ -4135,6 +4778,8 @@ export const ERROR_CATALOG = {
         "В іншому вікні увійшов інший обліковий запис. moto зараз перезавантажить цю сторінку.",
       "identity.session_tenant_mismatch":
         "Школу змінено в іншому вікні. moto зараз перемкне цю сторінку назад. Спробуйте ще раз трохи пізніше.",
+      "meals.billing_month_attendance_expired":
+        "Дані про відвідування за цей місяць могли бути видалені. Надійно підтвердити місяць уже неможливо. Зверніться до організації, що керує групою продовженого дня.",
       "meals.child_not_enrolled":
         "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
       "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
@@ -4159,8 +4804,14 @@ export const ERROR_CATALOG = {
         "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
       "module.not_booked":
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
+      "parent_billing.care_amendment_disabled":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.family_children_invalid":
+        "Будь ласка, вкажіть ціле число від 1 до 20.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
       "school.parent_conference_change_closed":
@@ -4175,6 +4826,12 @@ export const ERROR_CATALOG = {
         "Дані змінилися: {object}. Оновіть сторінку.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
+      "students.guardian_email_block_lift_failed":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "students.guardian_email_block_needs_review":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "students.guardian_email_block_stays":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "students.offering_change_capacity_full":
         "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",
       "students.offering_changes_no_enrollment":
@@ -4200,6 +4857,8 @@ export const ERROR_CATALOG = {
         "Бронювання змінилося. Оновіть сторінку.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
+      "traeger.shared_document_not_found":
+        "Організація більше не відкриває доступ до цього документа. Оновіть сторінку.",
       "workforce.payroll_wage_type_name_taken":
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
     },

@@ -73,6 +73,7 @@ describe("TraegerSidebar", () => {
     for (const [group, name] of [
       ["Übersicht", "Dashboard"],
       ["Übersicht", "Schulen"],
+      ["Übersicht", "Stichtagszahlen"],
       ["Betreuung", "Ferienbetreuung"],
       ["Finanzen", "Abrechnung"],
     ] as const) {
@@ -85,9 +86,15 @@ describe("TraegerSidebar", () => {
     expect(linkNames(mainNav())).toEqual([
       "Dashboard",
       "Schulen",
+      "Stichtagszahlen",
+      "Belegung",
       "Ferienbetreuung",
+      "Dokumente",
       "Abrechnung",
     ]);
+    expect(
+      mainNav().getByRole("link", { name: "Stichtagszahlen" }),
+    ).toHaveAttribute("href", "/stichtagszahlen");
     expect(mainNav().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/uebersicht",
@@ -106,12 +113,20 @@ describe("TraegerSidebar", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     render(<TraegerSidebar />);
 
-    expect(linkNames(mainNav())).toEqual(["Dashboard", "Schulen"]);
-    expect(mainNav().queryByText("Betreuung")).toBeNull();
+    // Die Dokumente des Trägers liest jede Rolle (#4692); deshalb bleibt
+    // „Betreuung“ mit ihnen stehen, ohne die Ferienbetreuung.
+    expect(linkNames(mainNav())).toEqual([
+      "Dashboard",
+      "Schulen",
+      "Stichtagszahlen",
+      "Belegung",
+      "Dokumente",
+    ]);
+    expect(mainNav().queryByText("Ferienbetreuung")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();
   });
 
-  it("shows the Dashboard only with its right (#4674)", () => {
+  it("shows the Dashboard and the Stichtagszahlen only with their right (#4674, #4673)", () => {
     sessionUser.permissions = [];
     render(<TraegerSidebar />);
 
@@ -130,6 +145,8 @@ describe("TraegerSidebar", () => {
       "Mitglieder und Rollen",
       "Briefkopf und Vorlagen",
       "Abrechnungsvorgaben",
+      // Dokumentart je Leistung, für die Rolle „Abrechnung“ (#4688).
+      "Dokumentarten",
       "Zugriffsprotokoll",
     ]);
     expect(

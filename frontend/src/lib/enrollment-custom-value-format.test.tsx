@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import type { AdminRequestSchemaField } from "~/lib/enrollment-admin-api";
 import { formatCustomValue } from "./enrollment-custom-value-format";
 
 describe("formatCustomValue", () => {
@@ -159,5 +160,92 @@ describe("formatCustomValue", () => {
 
   it("treats an empty file answer as no answer", () => {
     expect(formatCustomValue([], { type: "file" })).toBeNull();
+  });
+});
+
+describe("formatCustomValue on the admin review page", () => {
+  const field = (
+    type: string,
+    overrides: Partial<AdminRequestSchemaField> = {},
+  ): AdminRequestSchemaField => ({
+    key: "student.pickup_status",
+    label: "Abholregelung",
+    type,
+    applies_to_child: true,
+    ...overrides,
+  });
+
+  // Regression: weekday_boolean values ({mon: true, tue: false}) used to be
+  // filtered out entirely (the object branch only kept non-empty strings), so
+  // Abholregelung and Buskind vanished from the admin review page. They must
+  // now render the selected days, like the backend export (formatWeekdayBoolean).
+  it("renders selected days for a weekday_boolean value", () => {
+    const value = {
+      mon: true,
+      tue: false,
+      wed: true,
+      thu: false,
+      fri: true,
+    };
+    expect(formatCustomValue(value, field("weekday_boolean"))).toBe(
+      "Mo, Mi, Fr",
+    );
+  });
+
+  it("renders weekday_boolean even when no field metadata is passed", () => {
+    const value = { mon: true, tue: true };
+    expect(formatCustomValue(value)).toBe("Mo, Di");
+  });
+
+  it("renders 'Geht alleine nach Hause' for an explicit empty pickup_status map", () => {
+    expect(
+      formatCustomValue(
+        {},
+        field("weekday_boolean", { target: "student.pickup_status" }),
+      ),
+    ).toBe("Geht alleine nach Hause");
+  });
+
+  it("still renders selected days for pickup_status when days are chosen", () => {
+    const value = { mon: true, fri: true };
+    expect(
+      formatCustomValue(
+        value,
+        field("weekday_boolean", { target: "student.pickup_status" }),
+      ),
+    ).toBe("Mo, Fr");
+  });
+
+  // #1694: the accompanied ("Mit anderem Kind") mode was added to the parent
+  // form but the admin formatter only knew alone/bus/pickup, so a multi_mode
+  // answer rendered the raw "accompanied" token to staff.
+  it("renders the accompanied mode label for a weekday_multi_mode value", () => {
+    const value = { mon: ["accompanied"], wed: ["bus", "accompanied"] };
+    expect(formatCustomValue(value, field("weekday_multi_mode"))).toBe(
+      "Mo: geht mit anderem Kind; Mi: fährt Bus, geht mit anderem Kind",
+    );
+  });
+
+  // #1694 regression: a weekday_mode answer of all-accompanied days used to be
+  // swallowed by the bus/pickup-only filter and rendered as the "Geht immer
+  // alleine" fallback — actively WRONG info (the child never goes alone).
+  it("renders accompanied days for a weekday_mode value, not 'Geht immer alleine'", () => {
+    const value = { mon: "accompanied", tue: "accompanied", wed: "bus" };
+    expect(formatCustomValue(value, field("weekday_mode"))).toBe(
+      "Mo: geht mit anderem Kind, Di: geht mit anderem Kind, Mi: fährt Bus",
+    );
+  });
+
+  it("still renders weekday_schedule time values per day", () => {
+    const value = { mon: "07:30", wed: "08:00" };
+    const { container } = render(
+      <>{formatCustomValue(value, field("weekday_schedule"))}</>,
+    );
+    expect(container.textContent).toContain("Mo:");
+    expect(container.textContent).toContain("07:30");
+    expect(container.textContent).toContain("Mi:");
+    expect(container.textContent).toContain("08:00");
+    // Days without a time must not appear.
+    expect(container.textContent).not.toContain("Di:");
   });
 });

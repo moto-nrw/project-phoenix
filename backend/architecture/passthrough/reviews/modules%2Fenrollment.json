@@ -301,9 +301,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
-      "id": "modules/enrollment/http/intakeService.EditModeForStatus",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "decision": "0173",
+      "id": "modules/enrollment/http/intakeService.GetByStatusToken",
+      "reason": "Route-shape translation: splits the owner's request status into request and children; ADR 0173 removed the decode it carried (#6092)."
     },
     {
       "decision": "0090",
@@ -342,22 +342,17 @@
     },
     {
       "decision": "0090",
-      "id": "modules/enrollment/http/intakeService.LoadPublicCareOfferings",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/enrollment/http/intakeService.LoadPublicFormBootstrap",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
-      "id": "modules/enrollment/http/intakeService.PublicActiveSchema",
+      "id": "modules/enrollment/http/intakeService.ReplaceEditable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
-      "id": "modules/enrollment/http/intakeService.ReplaceEditable",
+      "id": "modules/enrollment/http/intakeService.StatusPage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

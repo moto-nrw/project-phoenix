@@ -87,7 +87,7 @@ func submitAndApproveOfferingChild(
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Quelle",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		}),
 		Children: []enrollmentTest.SubmitChild{{
@@ -817,7 +817,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Erneuerung",
 		GuardianEmail:     "renewal-jg-neu@example.com",
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		}),
 		Children: []enrollmentTest.SubmitChild{{
@@ -1057,7 +1057,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Union",
 		GuardianEmail:     "union-both@example.com",
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		}),
 		Children: []enrollmentTest.SubmitChild{{
@@ -1173,7 +1173,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Breit",
 		GuardianEmail:     "drift-breit@example.com",
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		}),
 		Children: []enrollmentTest.SubmitChild{{
@@ -1675,7 +1675,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Fenster",
 		GuardianEmail:     "link-window@example.com",
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		}),
 		Children: []enrollmentTest.SubmitChild{{
@@ -1866,7 +1866,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Misch",
 		GuardianEmail:     "legacy-misch@example.com",
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		}),
 		Children: []enrollmentTest.SubmitChild{{

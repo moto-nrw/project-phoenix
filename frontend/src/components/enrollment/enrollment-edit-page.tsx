@@ -1,10 +1,11 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public/parents token flow is outside tenant-router
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import { prefetchedDataFromBootstrap } from "~/components/enrollment/enrollment-form-config";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
 import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
@@ -19,7 +20,14 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Textarea } from "~/components/ui/textarea";
 import { ParentPageHeader } from "~/components/parent/parent-page";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
+import {
+  CareFacilityTermScope,
+  useCareTermTranslations,
+  useProvideCareFacilityTerm,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
 
@@ -32,9 +40,23 @@ interface Props {
   readonly adjustOnly?: boolean;
 }
 
-export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
+/**
+ * The edit form of one enrollment; its school, and with it the
+ * care-facility term of the fixed texts (#6042), comes from the bootstrap.
+ */
+export function EnrollmentEditPage(props: Props) {
+  return (
+    <CareFacilityTermScope>
+      <EnrollmentEditPageContent {...props} />
+    </CareFacilityTermScope>
+  );
+}
+
+function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
   const { token } = use(params);
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
+  const loadErrorObject = t("errorObject");
+  const loadErrorFallback = t("editLoadError");
   const router = useRouter();
   const pathname = usePathname();
   const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
@@ -43,6 +65,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     bootstrap: EnrollmentEditBootstrap;
   } | null>(null);
   const bootstrap = loaded?.token === token ? loaded.bootstrap : null;
+  useProvideCareFacilityTerm(bootstrap?.care_facility_term);
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(true);
   const toast = useToast();
@@ -73,7 +96,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
       try {
         const result = await fetchEnrollmentEditBootstrap(
           token,
-          t("editLoadError"),
+          loadErrorFallback,
         );
         if (!cancelled) setLoaded({ token, bootstrap: result });
       } catch (err) {
@@ -82,7 +105,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
         });
         if (!cancelled) {
           void showLoadError(err, {
-            object: t("errorObject"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -94,7 +117,14 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [token, t, loadAttempt, clearLoadError, showLoadError]);
+  }, [
+    token,
+    loadErrorObject,
+    loadErrorFallback,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
+  ]);
 
   const submitter = useCallback(
     async (payload: SubmitEnrollmentPayload) => {
@@ -105,7 +135,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           changeReason,
           t("changeRequestSaveError"),
         );
-        window.dispatchEvent(new Event("change-requests-refresh"));
+        announceChangeRequestsChanged();
         return {
           request_id: changeRequest.request_id,
           status_url: statusHref,
@@ -128,6 +158,12 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
       router.push(query ? `${statusHref}?${query}` : statusHref);
     },
     [router, statusHref, toast, t, bootstrap?.edit_mode],
+  );
+  // The edit path re-runs the submit's eligibility gates, so the form gets
+  // the same narrowed grade set (#1663).
+  const prefetchedData = useMemo(
+    () => (bootstrap ? prefetchedDataFromBootstrap(bootstrap) : undefined),
+    [bootstrap],
   );
 
   if (loading) {
@@ -193,21 +229,14 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
 
       {isChangeRequestMode ? (
         <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {t("changeRequestEyebrow")}
-          </p>
-          <label className="mt-3 block">
-            <span className="text-sm font-semibold text-gray-700">
-              {t("changeRequestReasonLabel")}
-            </span>
-            <textarea
-              value={changeReason}
-              onChange={(event) => setChangeReason(event.target.value)}
-              rows={3}
-              placeholder={t("changeRequestReasonPlaceholder")}
-              className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-            />
-          </label>
+          <Textarea
+            label={t("changeRequestReasonLabel")}
+            value={changeReason}
+            onChange={(event) => setChangeReason(event.target.value)}
+            rows={3}
+            placeholder={t("changeRequestReasonPlaceholder")}
+            className="resize-y"
+          />
         </section>
       ) : null}
 
@@ -219,20 +248,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           phaseID={bootstrap.draft.phase_id}
           gradeLevelMax={bootstrap.grade_level_max}
           onSubmitted={handleSubmitted}
-          prefetchedData={{
-            schema: bootstrap.schema,
-            offerings: bootstrap.offerings,
-            careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-            collectGradeLevel: bootstrap.collect_grade_level,
-            careOfferingsEnabled: bootstrap.care_offerings_enabled,
-            captchaConfig: null,
-            legalTexts: bootstrap.legal_texts,
-            profile: null,
-            schoolClass: bootstrap.school_class,
-            // The edit path re-runs the same eligibility gates as submit, so
-            // the grade select must offer the same narrowed set (#1663).
-            eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
-          }}
+          prefetchedData={prefetchedData}
           initialDraft={bootstrap.draft}
           statusToken={token}
           submitter={submitter}

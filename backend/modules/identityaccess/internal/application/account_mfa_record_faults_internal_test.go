@@ -136,6 +136,21 @@ type failingMFARecords struct {
 	findCredential       func(ctx context.Context, accountID int64) (domain.AccountMFACredential, bool, error)
 	findGlobalOverride   func(ctx context.Context, accountID int64) (domain.AccountMFAOverride, bool, error)
 	resetMFAAttempts     func(ctx context.Context, accountID int64) error
+	findActiveChallenge  error
+}
+
+func (r failingMFARecords) FindActiveChallengeForAccount(ctx context.Context, id, accountID int64) (domain.AccountMFAChallenge, bool, error) {
+	if r.findActiveChallenge != nil {
+		return domain.AccountMFAChallenge{}, false, r.findActiveChallenge
+	}
+	return r.AccountMFARecords.FindActiveChallengeForAccount(ctx, id, accountID)
+}
+
+func (r failingMFARecords) FindActiveChallengeInScope(ctx context.Context, accountID, tenantID int64, scope string) (domain.AccountMFAChallenge, bool, error) {
+	if r.findActiveChallenge != nil {
+		return domain.AccountMFAChallenge{}, false, r.findActiveChallenge
+	}
+	return r.AccountMFARecords.FindActiveChallengeInScope(ctx, accountID, tenantID, scope)
 }
 
 func (r failingMFARecords) ResetMFAAttempts(ctx context.Context, accountID int64) error {
@@ -271,7 +286,7 @@ func TestAccountMFA_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	require.NoError(t, err)
 	challenge, err := native.CreateChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: 1,
-		Scope:     domain.MFAChallengeScopeTenant,
+		Scope:     domain.PortalTenant.Name,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(domain.MFAChallengeTTL),
 		IPAddress: net.ParseIP("203.0.113.99"),
@@ -281,7 +296,7 @@ func TestAccountMFA_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	// ChallengeID mirrors what StartChallenge stamps: the verify path resolves
 	// the exact row the token names, so a hand-built token must name it too.
 	fixture.codec.parse["challenge-jwt"] = domain.MFAChallengeClaims{
-		AccountID: 1, Scope: domain.MFAChallengeScopeTenant, ChallengeID: challenge.ID,
+		AccountID: 1, Scope: domain.PortalTenant.Name, ChallengeID: challenge.ID,
 	}
 
 	verified, err := svc.VerifyMFAChallenge(ctx, "challenge-jwt", plaintext)
@@ -309,7 +324,7 @@ func TestAccountMFA_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	require.NoError(t, err)
 	_, err = native.CreateChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: 1,
-		Scope:     domain.MFAChallengeScopeTenant,
+		Scope:     domain.PortalTenant.Name,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(domain.MFAChallengeTTL),
 	})
@@ -341,7 +356,7 @@ func TestAccountMFA_VerifyCodeForAccount_ResetFailureIsReported(t *testing.T) {
 	require.NoError(t, err)
 	_, err = native.CreateChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: 1,
-		Scope:     domain.MFAChallengeScopeTenant,
+		Scope:     domain.PortalTenant.Name,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(domain.MFAChallengeTTL),
 	})
@@ -409,3 +424,26 @@ func TestLoginWithMFAGate_EnrollmentInfraError_ReturnsMFAStatusUnavailable(t *te
 }
 
 func (r *memoryMFARecords) LockAccountForOverrideWrite(context.Context, int64) error { return nil }
+
+// A challenge lookup that fails is an outage, not a wrong code: the
+// verification answers 503 and the account's lockout counter stays put.
+func TestAccountMFA_VerifyReportsAFailedChallengeLookupAsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	native := newMemoryMFARecords(domain.AccountIdentity{ID: 1, Email: "mfa-outage@example.com", Active: true})
+	fixture := newAccountMFAFixture(t, failingMFARecords{AccountMFARecords: native, findActiveChallenge: errors.New("connection reset")})
+	fixture.codec.parse["challenge-jwt"] = domain.MFAChallengeClaims{AccountID: 1, Scope: domain.PortalTenant.Name, TenantID: 10, ChallengeID: 7}
+
+	_, err := fixture.capability.VerifyMFAChallengeForOwner(ctx, "challenge-jwt", "123456", identityaccess.MFAChallengeScopeTenant, 1, 10)
+	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
+	assert.NotErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
+
+	_, err = fixture.capability.VerifyMFACodeForAccount(ctx, 1, 10, "123456", identityaccess.MFAChallengeScopeTenant)
+	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
+	assert.NotErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
+
+	identity, _, err := native.FindAccountIdentity(ctx, 1)
+	require.NoError(t, err)
+	assert.Zero(t, identity.MFAAttempts, "an outage counts toward no lockout")
+}

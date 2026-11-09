@@ -36,6 +36,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/auditlog/audittest",
+      "owner": "audit-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/auditlog/compose",
       "owner": "audit-platform",
       "role": "compose",
@@ -125,6 +132,10 @@
       "write_owner": "audit-platform"
     },
     {
+      "name": "audit.traeger_signatures",
+      "write_owner": "audit-platform"
+    },
+    {
       "name": "audit.guardian_financial_change_ledger",
       "write_owner": "audit-platform"
     },
@@ -170,6 +181,10 @@
     },
     {
       "name": "audit.traeger_account_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.traeger_document_downloads",
       "write_owner": "audit-platform"
     }
   ],

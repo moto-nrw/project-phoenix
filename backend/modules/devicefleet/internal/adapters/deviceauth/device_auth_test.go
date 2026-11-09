@@ -104,14 +104,14 @@ func newNilDeviceDirectory() nilDeviceDirectory {
 }
 
 type stubSchoolLookup struct {
-	deleted bool
-	err     error
-	calls   int
+	closed bool
+	err    error
+	calls  int
 }
 
-func (s *stubSchoolLookup) IsSchoolDeleted(_ context.Context, _ int64) (bool, error) {
+func (s *stubSchoolLookup) IsSchoolClosed(_ context.Context, _ int64) (bool, error) {
 	s.calls++
-	return s.deleted, s.err
+	return s.closed, s.err
 }
 
 type tenantKey struct{}
@@ -564,7 +564,7 @@ func TestDevice_PINResolverWrongPIN(t *testing.T) {
 // School guard
 // =============================================================================
 
-func TestRejectDeletedSchool(t *testing.T) {
+func TestRejectClosedSchool(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -573,7 +573,7 @@ func TestRejectDeletedSchool(t *testing.T) {
 		wantReject bool
 	}{
 		{"active school", &stubSchoolLookup{}, false},
-		{"soft-deleted school", &stubSchoolLookup{deleted: true}, true},
+		{"inactive or soft-deleted school", &stubSchoolLookup{closed: true}, true},
 		{"nil lookup fails open", nil, false},
 		{"school not found", &stubSchoolLookup{err: ErrSchoolNotFound}, true},
 		{"wrapped not found", &stubSchoolLookup{err: fmt.Errorf("find: %w", ErrSchoolNotFound)}, true},
@@ -588,7 +588,7 @@ func TestRejectDeletedSchool(t *testing.T) {
 			device := &AuthenticatedDevice{DeviceID: "device-001", TenantID: 100}
 			authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(tc.schools))
 
-			result := authenticator.rejectDeletedSchool(context.Background(), device)
+			result := authenticator.rejectClosedSchool(context.Background(), device)
 			if !tc.wantReject {
 				assert.Nil(t, result)
 				return
@@ -600,13 +600,13 @@ func TestRejectDeletedSchool(t *testing.T) {
 	}
 }
 
-func TestRejectDeletedSchool_SkipsLookupWithoutTenant(t *testing.T) {
+func TestRejectClosedSchool_SkipsLookupWithoutTenant(t *testing.T) {
 	t.Parallel()
 
-	schools := &stubSchoolLookup{deleted: true}
+	schools := &stubSchoolLookup{closed: true}
 	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(schools))
 
-	assert.Nil(t, authenticator.rejectDeletedSchool(context.Background(), &AuthenticatedDevice{DeviceID: "device-001"}))
+	assert.Nil(t, authenticator.rejectClosedSchool(context.Background(), &AuthenticatedDevice{DeviceID: "device-001"}))
 	assert.Zero(t, schools.calls)
 }
 
@@ -617,7 +617,7 @@ func TestDeviceOnly_DeletedSchool_Forbidden(t *testing.T) {
 	device := activeDevice("device-deleted-school")
 	device.TenantID = 100
 	directory.addDevice("valid-api-key-deleted", device)
-	authenticator := newTestAuthenticator(directory, withSchools(&stubSchoolLookup{deleted: true}))
+	authenticator := newTestAuthenticator(directory, withSchools(&stubSchoolLookup{closed: true}))
 
 	_, errResp := authenticator.authenticateDeviceOnly(context.Background(), bearer("valid-api-key-deleted"))
 	require.NotNil(t, errResp, "devices belonging to deleted schools must be rejected")
@@ -742,4 +742,66 @@ func TestNewAuthenticator_UsesSuppliedDebouncer(t *testing.T) {
 	_, errResp = second.authenticateDeviceOnly(context.Background(), bearer("key"))
 	require.Nil(t, errResp)
 	assert.False(t, directory.wasUpdated(), "authenticators built over one debouncer share its state")
+}
+
+// The checked port can fail before its guard (unit setup) or after a valid PIN
+// (heartbeat write). Neither failure may turn a bad PIN into an accepted one,
+// and heartbeat failures must remain best effort for a valid PIN.
+type checkedFailureDirectory struct {
+	*mockDeviceDirectory
+	setupErr error
+}
+
+func (d checkedFailureDirectory) RecordLastSeenChecked(ctx context.Context, id int64, check func(context.Context) (time.Time, bool, error)) error {
+	if d.setupErr != nil {
+		return d.setupErr
+	}
+	seenAt, write, err := check(ctx)
+	if err != nil || !write {
+		return err
+	}
+	return d.RecordLastSeen(ctx, id, seenAt)
+}
+
+func TestDevice_CheckedHeartbeatFailurePolicy(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("heartbeat unavailable")
+	for _, tc := range []struct {
+		name     string
+		setupErr error
+		pinErr   error
+		writes   int
+	}{
+		{"setup failure, valid PIN", failure, nil, 1},
+		{"setup failure, unreadable PIN", failure, failure, 0},
+		{"write failure, valid PIN", nil, nil, 1},
+		{"guard failure, unreadable PIN", nil, failure, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			directory := checkedFailureDirectory{mockDeviceDirectory: newMockDeviceDirectory(), setupErr: tc.setupErr}
+			directory.addDevice("checked-key", activeDevice("checked-device"))
+			directory.updateError = failure
+			auth := newTestAuthenticator(directory, func(deps *Dependencies) {
+				deps.PIN = func(context.Context, int64) (string, error) { return "correct-pin", tc.pinErr }
+			})
+			_, rejected := auth.authenticateDevice(context.Background(), pinCredentials("checked-key", "correct-pin"))
+			if tc.pinErr != nil {
+				require.NotNil(t, rejected)
+				require.Equal(t, statusUnauthorized, rejected.HTTPStatusCode)
+				require.Equal(t, ErrInvalidPIN.Error(), rejected.Detail)
+				_, cached := auth.deps.LastSeen.cache.Load(int64(0))
+				require.False(t, cached, "a rejected PIN must not enter the heartbeat debounce state")
+			} else {
+				require.Nil(t, rejected, "heartbeat infrastructure failures remain fail-open after a valid PIN")
+				// A failed cold write must not consume the successful debounce window.
+				directory.updateError = nil
+				_, rejected = auth.authenticateDevice(context.Background(), pinCredentials("checked-key", "correct-pin"))
+				require.Nil(t, rejected)
+				require.Equal(t, tc.writes+1, directory.updateCount)
+				return
+			}
+			require.Equal(t, tc.writes, directory.updateCount)
+		})
+	}
 }

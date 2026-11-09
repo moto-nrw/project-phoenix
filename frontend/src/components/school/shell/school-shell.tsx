@@ -5,6 +5,7 @@ import { PortalShell } from "~/components/ui/portal-shell";
 import { useSchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import { useSchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { SchoolBottomNav } from "./school-bottom-nav";
+import { SchoolSettingsReturnPathMemory } from "./school-settings-nav";
 import { SchoolSidebar } from "./school-sidebar";
 
 /**
@@ -32,7 +33,9 @@ export function SchoolShell({
       header={<Header />}
       sidebar={<SchoolSidebar teamChat={teamChat} notices={notices} />}
       bottomNav={<SchoolBottomNav teamChat={teamChat} notices={notices} />}
+      contentClassName="flex flex-1 flex-col"
     >
+      <SchoolSettingsReturnPathMemory />
       {children}
     </PortalShell>
   );

@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -64,6 +65,8 @@ func NewWorker(
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
 	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
 	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder, healthData enrollmentOwner.HolidayHealthCipher,
+	careContractReminders schedulerPorts.CareContractReminders,
+	careContracts schedulerPorts.CareContractConclusion,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -135,20 +138,20 @@ func NewWorker(
 		TimetableBridge:              days.Bridge,
 		StudentLifecycleAudit:        schedulerStudentAudit(studentAudit),
 		CareExitEffector:             schedules.Lifecycle,
-		OutboxWorker:                 outbox,
-		SettleExpiredTransfers:       exportTransferCompose.NewDispatchRecovery(),
-		AppointmentReminders:         reminders,
-		RolloverDeadlineRunner:       rolloverDeadlines{rollovers: flows.Rollovers},
-		BookingConsistency:           bookings,
-		MealOrders:                   mealPlan.SettleOrders,
-		InstanceRepo:                 schedulerDayInstances(timetableRepos),
-		InstanceRoomRepo:             schedulerExistingRooms(rooms),
-		InstanceStudentRepo:          timetableRepos.ParticipantCheckouts(),
-		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
-		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
+		OutboxWorker:                 outbox, EmailReconciliation: outbox,
+		SettleExpiredTransfers: exportTransferCompose.NewDispatchRecovery(),
+		AppointmentReminders:   reminders,
+		RolloverDeadlineRunner: rolloverDeadlines{rollovers: flows.Rollovers},
+		BookingConsistency:     bookings,
+		MealOrders:             mealPlan.SettleOrders,
+		InstanceRepo:           schedulerDayInstances(timetableRepos),
+		InstanceRoomRepo:       schedulerExistingRooms(rooms),
+		InstanceStudentRepo:    timetableRepos.ParticipantCheckouts(),
+		StudentStatusDayRepo:   NewStudentStatusDayRepository(carePlan),
+		OverdueBroadcaster:     newSchedulerOverdueBroadcaster(hub),
+		StudentLifecycleRepo:   schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
 		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
-		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, organizations, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(),
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, organizations, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), CareContractConclusion: careContracts, CareContractReminders: careContractReminders, StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(), TraegerDocumentReadRetention: organizationCompose.NewSharedTraegerDocuments(),
 	})
 }
 

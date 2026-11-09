@@ -1,0 +1,7 @@
+{
+  "scenario": "api.active.supervisors.list.active",
+  "max": 4,
+  "exact": true,
+  "description": "Protected tenant supervision list: supervisions active today, true/1 aliases. BEGIN, combined tenant/role scope, one tenant-filtered ordered supervision SELECT, COMMIT. Measured N0/3/8 with full basic DTO/date/ordering, exclusions, foreign tenant and DML0 controls. Existing route-sized real-owner binding; excludes full serve-host liveness/module-booking costs.",
+  "route": "GET /api/active/supervisors/"
+}

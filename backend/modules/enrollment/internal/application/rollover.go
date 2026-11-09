@@ -26,7 +26,6 @@ type (
 	}
 	RolloverChildren interface {
 		enrollment.SubmittedOfferingCommands
-		RequestChildOfferingsAtDate(context.Context, int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
 		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
 		InsertChild(context.Context, *enrollment.RequestChild) error
 		ChildrenByID(context.Context, []int64) ([]*enrollment.RequestChild, error)
@@ -52,8 +51,15 @@ type (
 	// and applies the class switches renewals planned for the new school
 	// year once it starts (#3917).
 	RolloverDecider interface {
+		// LockApprovalGates takes the class-writes and recurrence gates the
+		// tick's approvals, class switches and weekly plans write under, and
+		// that a rollover holds before it inserts the follow-up phase.
+		LockApprovalGates(ctx context.Context) error
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
 		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
+		// ApplyDueWeeklyPlans applies the weekly plans renewals approved
+		// before their start planned for that day (#6043).
+		ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date) (int, error)
 	}
 )
 
@@ -111,7 +117,7 @@ type rolloverRequestInput struct {
 	tenantID          int64
 	sourcePhase       *enrollment.Phase
 	newPhase          *enrollment.Phase
-	sourceChildren    []*RequestChild
+	sourceChildren    []*enrollment.RequestChild
 	maxGrade          int
 	collectGradeLevel bool
 	// offeringIDMap translates source-phase care offering IDs to their
@@ -119,7 +125,10 @@ type rolloverRequestInput struct {
 	// source-phase reference in the target phase is exactly the mixed-phase
 	// state #2249 forbids.
 	offeringIDMap map[int64]int64
-	result        *enrollment.RolloverResult
+	// sourceOfferings reads every source child's booking effective at the
+	// end of the source phase once, at the first child copy (#5836).
+	sourceOfferings *rolloverSourceOfferings
+	result          *enrollment.RolloverResult
 }
 
 // CreatePhaseFromSource is the workhorse:
@@ -192,6 +201,7 @@ func (s *Rollovers) runCreate(ctx context.Context, tenantID int64, req enrollmen
 		maxGrade:          maxGrade,
 		collectGradeLevel: collectGradeLevel,
 		offeringIDMap:     offeringIDMap,
+		sourceOfferings:   newRolloverSourceOfferings(sourceChildren),
 		result:            result,
 	})
 }
@@ -211,7 +221,7 @@ func (s *Rollovers) cloneOfferingCatalog(ctx context.Context, sourcePhaseID, tar
 	return mapping, nil
 }
 
-func (s *Rollovers) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollment.Phase, children []*RequestChild) ([]int64, error) {
+func (s *Rollovers) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollment.Phase, children []*enrollment.RequestChild) ([]int64, error) {
 	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
@@ -266,6 +276,9 @@ func (s *Rollovers) createRolloverPhase(ctx context.Context, tenantID int64, req
 			return nil, fmt.Errorf("%w: %v", enrollment.ErrRolloverInvalidRequest, err)
 		}
 	}
+	if err := s.lockGatesBeforeInsert(ctx, tenantID, source.ID); err != nil {
+		return nil, err
+	}
 	if err := s.deps.Phases.InsertPhase(ctx, phase); err != nil {
 		if errors.Is(err, enrollment.ErrPhaseNameTaken) {
 			return nil, fmt.Errorf("%w: %q", enrollment.ErrRolloverDuplicateName, req.Name)
@@ -273,6 +286,25 @@ func (s *Rollovers) createRolloverPhase(ctx context.Context, tenantID int64, req
 		return nil, fmt.Errorf("rollover: create phase: %w", err)
 	}
 	return phase, nil
+}
+
+// lockGatesBeforeInsert takes the approval gates (ADR 0162, ADR 0179)
+// before the follow-up phase insert holds KEY SHARE on the source phase. A
+// rollover that waited for the recurrence gate only in the catalog clone
+// after the insert deadlocked with a phase delete that holds the gate and
+// waits to delete the source (#6168). The gates come after the eligibility
+// check, whose class-collection lock a phase update also takes before the
+// recurrence gate. The source is read again under the gate, so a delete that
+// committed meanwhile reports the missing source.
+func (s *Rollovers) lockGatesBeforeInsert(ctx context.Context, tenantID, sourcePhaseID int64) error {
+	if s.deps.Decisions == nil {
+		return nil
+	}
+	if err := s.deps.Decisions.LockApprovalGates(ctx); err != nil {
+		return fmt.Errorf("rollover: lock approval gates: %w", err)
+	}
+	_, err := s.loadRolloverSourcePhase(ctx, tenantID, sourcePhaseID)
+	return err
 }
 
 // rolloverPhaseFromSource builds the follow-up phase. Name translations ride
@@ -365,10 +397,6 @@ func (s *Rollovers) resolveMaxGrade(ctx context.Context) (int, error) {
 }
 
 // childrenByStatuses reads and decodes a phase's children in the statuses.
-func (s *Rollovers) childrenByStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*RequestChild, error) {
-	values, err := s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
-	if err != nil {
-		return nil, err
-	}
-	return childValues(values)
+func (s *Rollovers) childrenByStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*enrollment.RequestChild, error) {
+	return s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
 }

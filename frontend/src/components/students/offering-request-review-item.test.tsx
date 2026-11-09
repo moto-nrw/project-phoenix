@@ -121,7 +121,9 @@ function renderItem(
 }
 
 async function confirmApproval() {
-  fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+  const approve = screen.getByRole("button", { name: /^Freigeben$/ });
+  await waitFor(() => expect(approve).toBeEnabled());
+  fireEvent.click(approve);
   const confirm = await screen.findByRole("button", {
     name: "Änderung freigeben",
   });
@@ -782,7 +784,7 @@ describe("OfferingRequestReviewItem", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Danach ist für Lara Beispiel kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
+          "Ab dem 01.02.2027 ist für Lara Beispiel kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
         ),
       ).toBeInTheDocument();
       fireEvent.click(

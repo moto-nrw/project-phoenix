@@ -231,10 +231,10 @@ const WeekChart = memo(function WeekChart({
 
   return (
     <SectionCard
-      className="flex min-h-[280px] flex-col overflow-hidden p-0 md:h-full md:min-h-0"
+      className="flex min-h-[280px] flex-col overflow-hidden md:h-full md:min-h-0"
       bodyClassName="flex min-h-0 flex-1 flex-col"
     >
-      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+      <div className="flex min-h-0 flex-1 flex-col">
         <WeekChartHeader chartData={chartData} />
         {error ? (
           <LoadErrorAlert error={error} />

@@ -146,34 +146,36 @@ export function Monatskarte({
     // Mirrors the loaded card below: title row, then SummaryRow-shaped
     // label/value lines in the same divide-y raster.
     return (
-      <output
-        aria-label="Monatskarte wird geladen"
-        aria-live="polite"
-        className="moto-content-surface block rounded-2xl border p-4 sm:p-6"
-      >
-        <div className="mb-3 flex items-center">
-          <Skeleton className="h-5 w-44 rounded" />
-        </div>
-        <div className="divide-y divide-gray-100" aria-hidden="true">
-          {Array.from({ length: 4 }, (_, i) => (
-            <div
-              key={i}
-              className="flex items-baseline justify-between gap-4 py-1.5"
-            >
-              <Skeleton className="h-4 w-32 rounded" />
-              <Skeleton className="h-4 w-16 rounded" />
-            </div>
-          ))}
-        </div>
-        <span className="sr-only">Monatskarte wird geladen</span>
-      </output>
+      <SectionCard padding="none">
+        <output
+          aria-label="Monatskarte wird geladen"
+          aria-live="polite"
+          className="block p-4 sm:p-6"
+        >
+          <div className="mb-3 flex items-center">
+            <Skeleton className="h-5 w-44" />
+          </div>
+          <div className="divide-y divide-gray-100" aria-hidden="true">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div
+                key={i}
+                className="flex items-baseline justify-between gap-4 py-1.5"
+              >
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
+          <span className="sr-only">Monatskarte wird geladen</span>
+        </output>
+      </SectionCard>
     );
   }
   if (error) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+      <SectionCard>
         <LoadErrorAlert error={error} />
-      </div>
+      </SectionCard>
     );
   }
   if (!summary) return null;
@@ -201,7 +203,7 @@ export function Monatskarte({
   return (
     <SectionCard
       title={`Monatskarte ${monthLabel(summary.year, summary.month)}`}
-      titleClassName="text-sm"
+      titleSize="sm"
       headingLevel={3}
       actions={
         <>
@@ -339,25 +341,31 @@ export function Monatskarte({
       </div>
 
       {summary.isClosed && summary.driftMinutes !== 0 && (
-        <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong mt-3 rounded-xl border p-3 text-xs">
-          <p className="font-semibold">
-            Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
-          </p>
-          <p className="mt-1">
-            Neu gerechnet wäre der Übertrag{" "}
-            <span className="font-medium tabular-nums">
-              {formatSignedDuration(summary.closingBalanceMinutes)}
-            </span>{" "}
-            ({formatSignedDuration(summary.driftMinutes)} gegenüber dem
-            abgeschlossenen Stand). Der Übertrag in den Folgemonat bleibt beim
-            eingefrorenen Wert.
-          </p>
-          <p className="mt-1">
-            Zwei Wege zur Korrektur: die Differenz im offenen Monat als Buchung
-            im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder den Monat
-            wieder öffnen, wenn der Abschluss selbst falsch war.
-          </p>
-        </div>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-3"
+          title="Seit dem Abschluss wurden Zeiten in diesem Monat geändert."
+          message={
+            <p>
+              Neu gerechnet wäre der Übertrag{" "}
+              <span className="font-medium tabular-nums">
+                {formatSignedDuration(summary.closingBalanceMinutes)}
+              </span>{" "}
+              ({formatSignedDuration(summary.driftMinutes)} gegenüber dem
+              abgeschlossenen Stand). Der Übertrag in den Folgemonat bleibt beim
+              eingefrorenen Wert.
+            </p>
+          }
+          details={
+            <p className="mt-1">
+              Zwei Wege zur Korrektur: die Differenz im offenen Monat als
+              Buchung im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder
+              den Monat wieder öffnen, wenn der Abschluss selbst falsch war.
+            </p>
+          }
+        />
       )}
 
       {isPreAccountMonth && (

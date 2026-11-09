@@ -48,4 +48,53 @@ describe("EmptyState", () => {
     const iconWrapper = container.querySelector("span[aria-hidden='true']");
     expect(iconWrapper).not.toBeNull();
   });
+
+  it("frames the dashed placeholder with title and description", () => {
+    render(
+      <EmptyState
+        variant="dashed"
+        title="Noch keine Kinder"
+        description="Sie erscheinen hier nach der Anmeldung."
+      />,
+    );
+    expect(screen.getByText("Noch keine Kinder")).toBeInTheDocument();
+    expect(
+      screen.getByText("Sie erscheinen hier nach der Anmeldung."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the tone's icon on a medallion hidden from assistive technology", () => {
+    render(
+      <EmptyState
+        tone="success"
+        icon={<svg data-testid="medallion-icon" />}
+        title="Konto erstellt"
+      />,
+    );
+    expect(
+      screen.getByTestId("medallion-icon").closest("[aria-hidden]"),
+    ).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("renders a result without a title below a page head", () => {
+    render(
+      <EmptyState
+        tone="error"
+        icon={<svg />}
+        description="Der Link ist abgelaufen."
+      />,
+    );
+    expect(screen.getByText("Der Link ist abgelaufen.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("renders the progress slot", () => {
+    render(
+      <EmptyState
+        title="Konto erstellt"
+        progress={<span role="progressbar" />}
+      />,
+    );
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
 });

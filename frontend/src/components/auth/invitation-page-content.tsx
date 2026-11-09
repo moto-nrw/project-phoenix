@@ -125,23 +125,19 @@ export function InvitationPageContent({
   if (isLoading) {
     return (
       <AuthShell
-        eyebrow="Einladung"
-        eyebrowClassName="text-moto-green"
         title="Konto einrichten"
         subtitle="Wir prüfen Ihre Einladung."
         variant="tenant"
         brand={brand}
         formMaxWidth="max-w-[32rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }
 
   return (
     <AuthShell
-      eyebrow="Einladung"
-      eyebrowClassName="text-moto-green"
       title={
         invitation?.requiresAccountLogin
           ? "Schule hinzufügen"

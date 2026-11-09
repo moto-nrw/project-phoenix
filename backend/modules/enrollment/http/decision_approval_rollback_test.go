@@ -148,12 +148,12 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Fixed",
 		GuardianEmail:     account.Email,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Fina",

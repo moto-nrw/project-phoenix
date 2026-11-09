@@ -98,8 +98,8 @@ describe("FilteredBulkArrivalModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchArrivalSettings.mockResolvedValue({
-      care_days_source: "weekly_plan",
-      school_periods: [],
+      careDaysSource: "weekly_plan",
+      schoolPeriods: [],
     });
     mockFetchBulkArrivalScheduleStatus.mockResolvedValue(0);
     mockFetchClassArrivalTimes.mockResolvedValue({
@@ -305,10 +305,10 @@ describe("FilteredBulkArrivalModal", () => {
   // still stores a plain clock time.
   it("saves the end time of the lesson picked for a weekday", async () => {
     mockFetchArrivalSettings.mockResolvedValue({
-      care_days_source: "weekly_plan",
-      school_periods: [
-        { period: 5, end_time: "12:35" },
-        { period: 6, end_time: "13:20" },
+      careDaysSource: "weekly_plan",
+      schoolPeriods: [
+        { period: 5, endTime: "12:35" },
+        { period: 6, endTime: "13:20" },
       ],
     });
     mockBulkUpsert.mockResolvedValue(undefined);

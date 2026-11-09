@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCatalogRefreshOnFocus } from "~/components/database/catalog/catalog-manage-link";
 
-import { useModal } from "~/components/dashboard/modal-context";
+import { useModal } from "~/components/ui/modal-context";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { SeriesClosingDaysChoiceModal } from "~/components/planning/series-closing-days-choice-modal";
 import { Alert } from "~/components/ui/alert";
@@ -18,7 +19,6 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -535,7 +535,7 @@ export function TimetableEventModal({
       }}
     >
       <SlideOverContent
-        widthClass="sm:w-[760px]"
+        size="lg"
         // The ChoiceModal portals to document.body and lives outside the
         // drawer's DOM. Without these guards Vaul's DismissableLayer treats
         // every click inside the open dialog as an outside-click and closes
@@ -554,21 +554,16 @@ export function TimetableEventModal({
         }}
       >
         <SlideOverHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <SlideOverTitle>{title}</SlideOverTitle>
-              <SlideOverDescription>
-                {isSeriesFlow
-                  ? form.type === "duty"
-                    ? "Regelmäßigen Dienst ohne Kinder planen."
-                    : "Regelmäßigen Termin mit Kindern und Personal planen."
-                  : isEditingInstance
-                    ? "Termin im Betreuungsplan bearbeiten."
-                    : "Einmaligen Termin im Betreuungsplan anlegen."}
-              </SlideOverDescription>
-            </div>
-            <SlideOverCloseButton />
-          </div>
+          <SlideOverTitle>{title}</SlideOverTitle>
+          <SlideOverDescription>
+            {isSeriesFlow
+              ? form.type === "duty"
+                ? "Regelmäßigen Dienst ohne Kinder planen."
+                : "Regelmäßigen Termin mit Kindern und Personal planen."
+              : isEditingInstance
+                ? "Termin im Betreuungsplan bearbeiten."
+                : "Einmaligen Termin im Betreuungsplan anlegen."}
+          </SlideOverDescription>
         </SlideOverHeader>
 
         <div className="border-b border-gray-200 px-5 py-3">
@@ -839,7 +834,7 @@ export function TimetableEventModal({
           </form>
         </SlideOverBody>
 
-        <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="order-2 sm:order-1">
             {canDeleteSeries && (
               <Button
@@ -1053,7 +1048,11 @@ export function TimetableEventModal({
                   ? "Wenn Sie diesen und alle folgenden Termine ändern, gehen diese Anpassungen verloren:"
                   : "Wenn Sie alle Termine der Serie ändern, gehen diese Anpassungen verloren:"}
               </p>
-              <ul className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm">
+              <InsetPanel
+                as="ul"
+                framed
+                className="max-h-52 overflow-y-auto text-sm"
+              >
                 {lostEdits.result.occurrences.map((occ) => (
                   <li
                     // Deleted occurrences share instanceId "0"; date+start keeps
@@ -1071,7 +1070,7 @@ export function TimetableEventModal({
                     </span>
                   </li>
                 ))}
-              </ul>
+              </InsetPanel>
               <p className="text-xs leading-relaxed text-gray-500">
                 Notieren Sie sich diese Termine, um sie anschließend erneut
                 anzupassen.

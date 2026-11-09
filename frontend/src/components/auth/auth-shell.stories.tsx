@@ -14,7 +14,6 @@ type Story = StoryObj<typeof AuthShell>;
 
 export const Tenant: Story = {
   args: {
-    eyebrow: "Anmeldung",
     title: "Willkommen zurück",
     subtitle: "Melde dich mit deinen Zugangsdaten an.",
     variant: "tenant",
@@ -34,7 +33,6 @@ export const Parents: Story = {
 
 export const WithBrandAndFooter: Story = {
   args: {
-    eyebrow: "Operator",
     title: "Zugang zur Plattform",
     subtitle: "Nur für autorisierte Mitarbeitende.",
     variant: "operator",

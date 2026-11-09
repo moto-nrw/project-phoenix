@@ -58,12 +58,8 @@ func withSSETokenDeadline(ctx context.Context) (context.Context, context.CancelF
 func NewSSEHTTPRouter(resource *sseHTTP.Resource[realtime.Event, *realtime.Client]) chi.Router {
 	r := chi.NewRouter()
 
-	// Create JWT auth instance for middleware
-
-	// SSE endpoint requires authentication
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(sessiontoken.TenantMiddleware(tenant.ClaimScope{}))
+		TenantSessionChain(r)
 		r.Get("/events", resource.StaffEvents)
 	})
 
@@ -74,8 +70,7 @@ func newParentSSERouter(resource *sseHTTP.Resource[realtime.Event, *realtime.Cli
 	r := chi.NewRouter()
 
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(ParentScopeMiddleware)
+		ParentSessionChain(r)
 		r.Get("/events", resource.ParentEvents)
 	})
 
@@ -86,8 +81,7 @@ func newSchoolSSERouter(resource *sseHTTP.Resource[realtime.Event, *realtime.Cli
 	r := chi.NewRouter()
 
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(SchoolScopeMiddleware)
+		SchoolSessionChain(r)
 		r.Get("/events", resource.SchoolEvents)
 	})
 

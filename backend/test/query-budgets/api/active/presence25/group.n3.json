@@ -1,0 +1,7 @@
+{
+  "scenario": "api.active.presence25.group.n3",
+  "max": 5,
+  "exact": true,
+  "description": "Full protected GET group visits, positive N3; all visit fields asserted.",
+  "route": "GET /api/active/visits/group/{groupId}"
+}

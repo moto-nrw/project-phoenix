@@ -46,6 +46,15 @@ type StudentRecord struct {
 
 	EnrolledFrom  string `json:"enrolled_from,omitempty"`
 	EnrolledUntil string `json:"enrolled_until,omitempty"`
+	// FirstCareFrom is the earliest day the child can have been cared for
+	// at this school, empty when unknown (School Membership, #6041). Not on
+	// the wire.
+	FirstCareFrom string `json:"-"`
+	// CarePausedAfter and CareResumedFrom bound the care gap of a returning
+	// child: days strictly between them are no care days, empty when no gap
+	// is known (School Membership, #6073). Not on the wire.
+	CarePausedAfter string `json:"-"`
+	CareResumedFrom string `json:"-"`
 
 	AddressStreet     *string `json:"address_street,omitempty"`
 	AddressCity       *string `json:"address_city,omitempty"`
@@ -165,8 +174,6 @@ type StudentDirectoryQuery interface {
 type StudentDirectorySelection interface {
 	ListStudentDirectory(context.Context, StudentDirectoryFilter) ([]StudentRecord, error)
 	CountStudentDirectory(context.Context, StudentDirectoryFilter) (int, error)
-	// ListStudentDirectoryIDs returns the ids of every non-alumni child.
-	ListStudentDirectoryIDs(context.Context) ([]int64, error)
 	// ListStudentRecordsByID reads the owned rows of the given children,
 	// alumni included, ordered by id.
 	ListStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)

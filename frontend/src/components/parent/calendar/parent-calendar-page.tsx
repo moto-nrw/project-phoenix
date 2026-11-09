@@ -44,7 +44,8 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Skeleton } from "~/components/ui/skeleton";
+import { CardSkeleton } from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   StatusBadge,
   type StatusBadgeTone,
@@ -74,6 +75,9 @@ import {
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
 import { childrenConcept } from "~/lib/concepts/children";
+import { StatusDot } from "~/components/ui/status-dot";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 const logger = createLogger({ component: "ParentCalendarPage" });
 const MAX_CALENDAR_WINDOW_OFFSET = 91;
@@ -204,7 +208,7 @@ function eventTime(event: CalendarEvent, allDayLabel: string): string {
 }
 
 export function ParentCalendarPage() {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const locale = useLocale();
   const toast = useToast();
   const searchParams = useSearchParams();
@@ -310,27 +314,17 @@ export function ParentCalendarPage() {
     (group) => group.length > 0,
   );
 
-  if (loading && events.length === 0) {
-    return (
-      <ParentPage>
+  return (
+    <ParentPage
+      header={
         <ParentPageHeader
           kicker={t("kicker")}
           title={t("title")}
           description={t("description")}
         />
-        <CalendarPageSkeleton />
-      </ParentPage>
-    );
-  }
-
-  return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={t("description")}
-      />
-
+      }
+      loading={loading && events.length === 0 && <CalendarPageSkeleton />}
+    >
       {error ? (
         <LoadErrorAlert error={error} />
       ) : (
@@ -343,12 +337,12 @@ export function ParentCalendarPage() {
               onRespond={respond}
             />
           ) : (
-            <section className="moto-content-surface h-full rounded-2xl border p-5 sm:p-6">
+            <SectionCard className="h-full">
               <EmptyState
                 icon={<CalendarDotsIcon className="size-8" />}
                 title={t("empty")}
               />
-            </section>
+            </SectionCard>
           )}
 
           <div className="hidden h-full lg:col-start-2 lg:block">
@@ -382,37 +376,18 @@ export function ParentCalendarPage() {
 
 function CalendarPageSkeleton() {
   return (
-    <>
+    <div className="space-y-5">
       <div
         data-testid="parent-calendar-skeleton"
         className="grid items-stretch gap-5 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
-        aria-hidden="true"
       >
-        <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4">
-          {[2, 1].map((rowCount) => (
-            <div key={rowCount} className="space-y-3">
-              <Skeleton className="h-6 w-32" />
-              {Array.from({ length: rowCount }, (_, index) => (
-                <Skeleton key={index} className="h-20 w-full rounded-r-lg" />
-              ))}
-            </div>
-          ))}
-        </section>
-        <section className="moto-content-surface hidden h-full overflow-hidden rounded-2xl border lg:block">
-          <div className="flex items-center justify-between border-b border-gray-200 p-4">
-            <Skeleton className="size-8 rounded-md" />
-            <Skeleton className="h-5 w-36" />
-            <Skeleton className="size-8 rounded-md" />
-          </div>
-          <div className="grid grid-cols-7 gap-px bg-gray-100 p-px">
-            {Array.from({ length: 42 }, (_, index) => (
-              <Skeleton key={index} className="h-24 rounded-none bg-white" />
-            ))}
-          </div>
-        </section>
+        <CardSkeleton rows={3} />
+        <div className="hidden lg:block">
+          <CardSkeleton rows={6} />
+        </div>
       </div>
-      <ParentSectionSkeleton rows={2} />
-    </>
+      <ParentSectionSkeleton rows={2} announce={false} />
+    </div>
   );
 }
 
@@ -430,10 +405,10 @@ function CalendarEventList({
     status: "accepted" | "declined",
   ) => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const groupOrder: EventGroupKey[] = ["thisWeek", "nextWeek", "later"];
   return (
-    <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4">
+    <SectionCard className="h-full" bodyClassName="h-full space-y-5">
       {groupOrder.map((groupKey) => {
         const group = groups[groupKey];
         if (group.length === 0) return null;
@@ -457,7 +432,7 @@ function CalendarEventList({
           </section>
         );
       })}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -473,7 +448,7 @@ function useRespondWithError(
   show: ApiErrorShow,
   before?: () => void,
 ) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const onRespondRef = useRef(onRespond);
   const beforeRef = useRef(before);
   useLayoutEffect(() => {
@@ -507,7 +482,8 @@ function CalendarListEvent({
   responding: boolean;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  // A cancelled date names the care of its own school (#6082).
+  const t = useCareTermTranslations("parentCalendar", useEventCareTerm(event));
   // The row's own buttons sit in the list, so their error is a toast.
   const { show: showRespondError } = useApiErrorDisplay();
   const respondInRow = useRespondWithError(onRespond, showRespondError);
@@ -649,106 +625,109 @@ function CalendarMonthPanel({
     status: "accepted" | "declined",
   ) => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const days = useMemo(() => monthDays(referenceDate), [referenceDate]);
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
   }).format(referenceDate);
   return (
-    <section
-      data-testid="parent-calendar-month-grid"
-      className="moto-content-surface h-full overflow-hidden rounded-2xl border"
-      aria-labelledby="parent-calendar-month"
+    <SectionCard
+      testId="parent-calendar-month-grid"
+      padding="none"
+      className="h-full"
     >
-      <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-2 border-b border-gray-200 p-3 sm:p-4">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("previousMonth")}
-          disabled={!canGoBack}
-          onClick={() => onChangeMonth(-1)}
-        >
-          <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
-        </Button>
-        <h2
-          id="parent-calendar-month"
-          className="truncate text-center text-base font-semibold text-gray-900 sm:text-lg"
-        >
-          {monthLabel}
-        </h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("nextMonth")}
-          disabled={!canGoForward}
-          onClick={() => onChangeMonth(1)}
-        >
-          <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
-        </Button>
-      </div>
-      <WeekdayHeader locale={locale} />
-      <div className="grid grid-cols-7">
-        {days.map((day) => {
-          const dateISO = toISODate(day);
-          const outsideMonth = day.getMonth() !== referenceDate.getMonth();
-          const dayEvents = eventsForDay(events, dateISO);
-          const visibleEvents = dayEvents.slice(0, MAX_VISIBLE_EVENTS);
-          const moreCount = dayEvents.length - visibleEvents.length;
-          const inLoadedRange = dateISO >= today && dateISO <= rangeEnd;
-          return (
-            <div
-              key={dateISO}
-              className={`min-h-14 border-r border-b border-gray-100 p-1 md:min-h-28 md:p-1.5 [&:nth-child(7n)]:border-r-0 ${outsideMonth ? "bg-gray-50/60" : "bg-white"}`}
-            >
-              <span
-                aria-current={dateISO === today ? "date" : undefined}
-                className={`inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums ${
-                  dateISO === today
-                    ? "bg-gray-900 text-white"
-                    : outsideMonth || !inLoadedRange
-                      ? "text-gray-400"
-                      : "text-gray-700"
-                }`}
+      <section aria-labelledby="parent-calendar-month">
+        <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-2 border-b border-gray-200 p-3 sm:p-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t("previousMonth")}
+            disabled={!canGoBack}
+            onClick={() => onChangeMonth(-1)}
+          >
+            <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />
+          </Button>
+          <h2
+            id="parent-calendar-month"
+            className="truncate text-center text-base font-semibold text-gray-900 sm:text-lg"
+          >
+            {monthLabel}
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t("nextMonth")}
+            disabled={!canGoForward}
+            onClick={() => onChangeMonth(1)}
+          >
+            <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
+          </Button>
+        </div>
+        <WeekdayHeader locale={locale} />
+        <div className="grid grid-cols-7">
+          {days.map((day) => {
+            const dateISO = toISODate(day);
+            const outsideMonth = day.getMonth() !== referenceDate.getMonth();
+            const dayEvents = eventsForDay(events, dateISO);
+            const visibleEvents = dayEvents.slice(0, MAX_VISIBLE_EVENTS);
+            const moreCount = dayEvents.length - visibleEvents.length;
+            const inLoadedRange = dateISO >= today && dateISO <= rangeEnd;
+            return (
+              <div
+                key={dateISO}
+                className={`min-h-14 border-r border-b border-gray-100 p-1 md:min-h-28 md:p-1.5 [&:nth-child(7n)]:border-r-0 ${outsideMonth ? "bg-gray-50/60" : "bg-white"}`}
               >
-                {day.getDate()}
-              </span>
-              <div className="mt-0.5 flex min-h-2 justify-center gap-0.5 md:hidden">
-                {dayEvents.slice(0, 3).map((event) => (
-                  <span
-                    key={event.id}
-                    className={`size-1.5 rounded-full ${eventState(event) === "needsResponse" ? "ring-1 ring-offset-1" : ""}`}
-                    style={{
-                      backgroundColor: eventColors(event).base,
-                      color: eventColors(event).base,
-                    }}
-                    aria-hidden="true"
-                  />
-                ))}
+                <span
+                  aria-current={dateISO === today ? "date" : undefined}
+                  className={`inline-flex size-7 items-center justify-center rounded-full text-sm tabular-nums ${
+                    dateISO === today
+                      ? "bg-gray-900 text-white"
+                      : outsideMonth || !inLoadedRange
+                        ? "text-gray-400"
+                        : "text-gray-700"
+                  }`}
+                >
+                  {day.getDate()}
+                </span>
+                <div className="mt-0.5 flex min-h-2 justify-center gap-0.5 md:hidden">
+                  {dayEvents.slice(0, 3).map((event) => (
+                    <StatusDot
+                      key={event.id}
+                      color={eventColors(event).base}
+                      className={
+                        eventState(event) === "needsResponse"
+                          ? "ring-1 ring-offset-1"
+                          : ""
+                      }
+                      label={event.title}
+                    />
+                  ))}
+                </div>
+                <div className="mt-1 hidden space-y-1 md:block">
+                  {visibleEvents.map((event) => (
+                    <MonthEventButton
+                      key={`${dateISO}-${event.id}`}
+                      event={event}
+                      locale={locale}
+                      responding={respondingId === event.id}
+                      onRespond={(status) => onRespond(event, status)}
+                    />
+                  ))}
+                  {moreCount > 0 ? (
+                    <span className="block px-1 text-xs font-medium text-gray-500">
+                      {t("moreEvents", { count: moreCount })}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-1 hidden space-y-1 md:block">
-                {visibleEvents.map((event) => (
-                  <MonthEventButton
-                    key={`${dateISO}-${event.id}`}
-                    event={event}
-                    locale={locale}
-                    responding={respondingId === event.id}
-                    onRespond={(status) => onRespond(event, status)}
-                  />
-                ))}
-                {moreCount > 0 ? (
-                  <span className="block px-1 text-[11px] font-medium text-gray-500">
-                    {t("moreEvents", { count: moreCount })}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+            );
+          })}
+        </div>
+      </section>
+    </SectionCard>
   );
 }
 
@@ -783,7 +762,7 @@ function MonthEventButton({
   responding: boolean;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const colors = eventColors(event);
   const pending = eventState(event) === "needsResponse";
   const accessibleStatus = pending ? `, ${t("responseRequired")}` : "";
@@ -804,7 +783,7 @@ function MonthEventButton({
           aria-expanded={open}
           aria-controls={open ? panelId : undefined}
           data-rsvp-state={pending ? "pending" : undefined}
-          className={`h-auto min-h-7 w-full justify-start !rounded-l-none rounded-r-md border-l-4 px-1.5 py-1 text-left text-[11px] leading-4 font-semibold text-gray-900 hover:brightness-95 ${pending ? "border border-dashed border-gray-400" : "border-solid"}`}
+          className={`h-auto min-h-7 w-full justify-start !rounded-l-none rounded-r-md border-l-4 px-1.5 py-1 text-left text-xs leading-4 font-semibold text-gray-900 hover:brightness-95 ${pending ? "border border-dashed border-gray-400" : "border-solid"}`}
           style={{
             backgroundColor: colors.soft,
             backgroundImage: pending ? pendingHatch(colors.base) : undefined,
@@ -839,7 +818,8 @@ function CalendarEventPopover({
   renderTrigger: EventPopoverTrigger;
 }>) {
   const [open, setOpen] = useState(false);
-  const t = useTranslations("parentCalendar");
+  // A cancelled date names the care of its own school (#6082).
+  const t = useCareTermTranslations("parentCalendar", useEventCareTerm(event));
   const isCompact = useMediaQuery(BELOW_LG);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const mobilePanelId = useId();
@@ -947,7 +927,7 @@ function CalendarEventDetails({
   onClose: () => void;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   // The details are an open popover or drawer, so the error stays inside.
   const {
     error: respondError,
@@ -1067,4 +1047,11 @@ function DetailRow({
       <span>{label}</span>
     </div>
   );
+}
+
+function useEventCareTerm(event: CalendarEvent): string {
+  const { termOf, termOfSchool } = useParentCareTerms();
+  return event.student_id
+    ? termOf(event.student_id)
+    : termOfSchool(event.school_name);
 }

@@ -90,8 +90,17 @@ function renderIcon(icon: LucideIcon | ReactNode) {
   );
 }
 
-interface StatusPillCommonProps {
+/** `data-*` hooks land on the pill element itself. */
+export type StatusPillDataAttributes = {
+  readonly [key: `data-${string}`]: string | undefined;
+};
+
+interface StatusPillCommonProps extends StatusPillDataAttributes {
   readonly label: string;
+  /** Layout classes for the rendered pill, for example `w-full` in a grid. */
+  readonly className?: string;
+  /** Hides a shortened visual label when a caller supplies its full text elsewhere. */
+  readonly ariaHidden?: boolean;
   /**
    * Native tooltip on the badge itself. Use when the short label needs the
    * full context on hover (e.g. "Feiertag" → the holiday's name). Set it here
@@ -111,6 +120,13 @@ interface StatusPillCommonProps {
   readonly compact?: boolean;
   /** `xs` for dense grids; wins over `compact`. */
   readonly size?: StatusBadgeSize;
+  /**
+   * Shortens a long label (a body's name) to the width of its container
+   * with an ellipsis; the full label stays in the tooltip.
+   */
+  readonly truncate?: boolean;
+  /** Lets a long label break onto a second line instead of overflowing. */
+  readonly wrap?: boolean;
 }
 
 /**
@@ -119,6 +135,8 @@ interface StatusPillCommonProps {
  */
 export function StatusPillBase({
   label,
+  className,
+  ariaHidden,
   title,
   icon,
   accessibleLabel,
@@ -127,6 +145,9 @@ export function StatusPillBase({
   backgroundColor,
   textColor,
   outline = false,
+  truncate = false,
+  wrap = false,
+  ...dataAttributes
 }: StatusPillCommonProps & {
   readonly backgroundColor?: string;
   readonly textColor?: string;
@@ -135,17 +156,21 @@ export function StatusPillBase({
   const iconNode = renderIcon(icon);
   return (
     <span
-      title={title}
-      className={`inline-flex items-center rounded-full text-xs font-medium whitespace-nowrap ${
+      aria-hidden={ariaHidden}
+      title={title ?? (truncate ? label : undefined)}
+      className={`inline-flex items-center rounded-full text-xs font-medium ${
+        wrap ? "max-w-full min-w-0 whitespace-normal" : "whitespace-nowrap"
+      } ${
         iconNode ? "gap-1" : ""
-      } ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""}`}
+      } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""} ${className ?? ""}`}
       style={outline ? undefined : { backgroundColor, color: textColor }}
+      {...dataAttributes}
     >
       {iconNode}
       {accessibleLabel ? (
         <span className="sr-only">{accessibleLabel}</span>
       ) : null}
-      {label}
+      {truncate ? <span className="truncate">{label}</span> : label}
     </span>
   );
 }

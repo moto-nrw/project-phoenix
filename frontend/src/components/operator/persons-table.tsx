@@ -1,10 +1,12 @@
 "use client";
 
-import { Button } from "~/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useMemo } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface PersonsTableProps {
   persons: OperatorPerson[];
@@ -24,7 +26,7 @@ export function PersonTags({
 }: Readonly<{
   person: OperatorPerson;
   /**
-   * Zeigt einen Gedankenstrich, wenn die Person kein einziges Merkmal traegt.
+   * Zeigt einen Strich („–“), wenn die Person kein einziges Merkmal traegt.
    * Nur fuer die Tabellenzelle gedacht, die nicht leer bleiben soll. Die
    * Kartenansicht rendert in dem Fall nichts, so wie vor der Extraktion.
    */
@@ -32,26 +34,16 @@ export function PersonTags({
 }>) {
   if (!person.isStaff && !person.isStudent && !person.hasRfidCard) {
     return emptyPlaceholder ? (
-      <span className="text-xs text-gray-400">—</span>
+      <span className="text-xs text-gray-400">–</span>
     ) : null;
   }
   return (
     <div className="flex flex-wrap gap-1">
       {person.isStaff && (
-        <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-          Mitarbeiter
-        </span>
+        <StatusBadge tone="blue" compact label="Mitarbeiter" />
       )}
-      {person.isStudent && (
-        <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-          Kinder
-        </span>
-      )}
-      {person.hasRfidCard && (
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-          RFID
-        </span>
-      )}
+      {person.isStudent && <StatusBadge tone="green" compact label="Kinder" />}
+      {person.hasRfidCard && <StatusBadge tone="gray" compact label="RFID" />}
     </div>
   );
 }
@@ -108,7 +100,7 @@ export function PersonsTable({
           row.accountEmail ? (
             <span className="text-gray-600">{row.accountEmail}</span>
           ) : (
-            <span className="text-xs text-gray-400">—</span>
+            <span className="text-xs text-gray-400">–</span>
           ),
         sortValue: (row) => (row.accountEmail ?? "").toLowerCase(),
       },
@@ -119,22 +111,18 @@ export function PersonsTable({
         header: "Aktionen",
         align: "right",
         render: (row) => (
-          <div
-            className="flex justify-end"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            role="presentation"
-          >
-            <Button
-              type="button"
-              variant="ghost_danger"
-              size="compact"
-              onClick={() => onDelete(row)}
-              title="Person löschen"
-            >
-              Löschen
-            </Button>
-          </div>
+          <OverflowMenu
+            items={[
+              {
+                label: "Löschen",
+                icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                destructive: true,
+                onClick: () => onDelete(row),
+              },
+            ]}
+            triggerSize="sm"
+            ariaLabel={`Aktionen für ${row.firstName} ${row.lastName}`}
+          />
         ),
       });
     }

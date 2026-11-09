@@ -193,6 +193,46 @@
       "target_owner": "workforce"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "1d44b601e5b434f4857acf115a436395",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "f5feab78f0eec5cf8f8d332609492f83",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "2aca8dad78db6b40e43e675d26662785",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
       "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
@@ -233,6 +273,22 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.End",
+      "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.End",
+      "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.End",
       "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
@@ -244,6 +300,46 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.End",
       "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "binding_digest": "1d44b601e5b434f4857acf115a436395",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "binding_digest": "f5feab78f0eec5cf8f8d332609492f83",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "binding_digest": "2aca8dad78db6b40e43e675d26662785",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
       "source_owner": "school-structure",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
       "target_owner": ""
@@ -1218,7 +1314,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
-      "binding_digest": "d59c0d88822b3803c90ee2bc99cba499",
+      "binding_digest": "92424db5ffaba9903ae7a04d9937a9a0",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
       "source_owner": "school-structure",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
@@ -1234,7 +1330,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
-      "binding_digest": "80bc7cda638671f527b07611c6072930",
+      "binding_digest": "2b87d4b4b1a193eaf2d8fef251ac0d1f",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
@@ -1250,7 +1346,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
-      "binding_digest": "0806754e59a989ba123f12a5d0d9bacc",
+      "binding_digest": "05efc7b85854f67e95a77307c6f22272",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1266,7 +1362,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
-      "binding_digest": "37b216dd98221f643c064fcdf1b444db",
+      "binding_digest": "dd1bc9f3a51230947a992e946d397f31",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",

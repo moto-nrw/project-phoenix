@@ -1,7 +1,7 @@
 {
   "errorObject": "kayıt dönemleri listesi",
   "back": "Veli portalına dön",
-  "kicker": "OGS bakımı için kayıt",
+  "kicker": "{careTerm} bakımı için kayıt",
   "title": "Yeni kayıt",
   "description": "Çocuğunuzu kaydetmek için bir okul ve bir kayıt dönemi seçin.",
   "loading": "Kayıt dönemleri yükleniyor …",

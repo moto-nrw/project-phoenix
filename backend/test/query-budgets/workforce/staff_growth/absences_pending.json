@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.staff_growth.absences_pending",
+  "max": 4,
+  "exact": true,
+  "description": "Measured full route-sized request including JWT/permission middleware, tenant transaction and handler; fixtures outside capture. Positive N=3 and N=8.",
+  "route": "GET /api/staff/absences/pending"
+}

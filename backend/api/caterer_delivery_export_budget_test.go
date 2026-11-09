@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,10 +41,16 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
 	family := testpkg.CreateTestSessionFamily(t, db, account.ID, testpkg.Tenant(t), tenant.ScopeCaterer)
-	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
+	token, err := tokentest.CreateJWT(tokenAuth, sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
 	require.NoError(t, err)
 
-	addSchool := func(children int) {
+	addChildren := func(school int64, children int) {
+		t.Helper()
+		for range children {
+			testpkg.CreateTestStudentForTenant(t, db, school, "Budget", "Kind", "2a")
+		}
+	}
+	addSchool := func(children int) int64 {
 		t.Helper()
 		school := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, school)
@@ -54,9 +61,8 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		require.NoError(t, err)
 		_, err = db.ExecContext(ctx, `INSERT INTO auth.caterer_schools (caterer_id, tenant_id, delivery_address) VALUES (?, ?, 'Hof')`, catererID, school)
 		require.NoError(t, err)
-		for range children {
-			testpkg.CreateTestStudentForTenant(t, db, school, "Budget", "Kind", "2a")
-		}
+		addChildren(school, children)
+		return school
 	}
 
 	// A week far ahead: every day is open and lies after the supply started.
@@ -64,7 +70,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	week := fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(4))
 	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
 	countedHandler := api.queryBudgetHandler(counter)
-	export := func(path string) (int, []string) {
+	export := func(path string) (int, testpkg.QueryMeasurement) {
 		t.Helper()
 		counter.Reset()
 		// A detached job on the router's pool must not consume the request's
@@ -77,19 +83,31 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		response := checkpointRequest(countedHandler, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
 		require.NoError(t, <-foreignQuery)
 		assert.NotContains(t, counter.Queries(), "SELECT 1", "detached pool traffic is outside the request budget")
-		return response.Code, withoutSessionCheck(t, counter.Queries())
+		return response.Code, counter.Measurement(withoutSessionCheck(t, counter.Queries()))
 	}
 
-	addSchool(1)
+	firstSchool := addSchool(1)
 	status, one := export(week)
 	require.Equal(t, http.StatusOK, status)
+	addChildren(firstSchool, 7)
+	status, moreChildren := export(week)
+	require.Equal(t, http.StatusOK, status)
+	assert.Len(t, moreChildren.Statements, len(one.Statements), "growing the same school from 1 to 8 children adds no statement")
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export.one_school_week", moreChildren)
+
+	status, oneDay := export(fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday))
+	require.Equal(t, http.StatusOK, status)
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export.one_school_day", oneDay)
+	t.Logf("caterer delivery list: 1 school, 1 → 8 children: %d → %d statements; 1 day → 5 days: %d → %d", len(one.Statements), len(moreChildren.Statements), len(oneDay.Statements), len(moreChildren.Statements))
+
 	addSchool(3)
-	_, two := export(week)
+	status, two := export(week)
+	require.Equal(t, http.StatusOK, status)
 	addSchool(5)
 	status, three := export(week)
 	require.Equal(t, http.StatusOK, status)
-	t.Logf("caterer delivery list: 1 school → %d statements, 2 → %d, 3 → %d", len(one), len(two), len(three))
-	assert.Equal(t, len(two)-len(one), len(three)-len(two), "a fixed number of statements per school, flat in its children")
+	t.Logf("caterer delivery list: 1 school → %d statements, 2 → %d, 3 → %d", len(one.Statements), len(two.Statements), len(three.Statements))
+	assert.Equal(t, len(two.Statements)-len(one.Statements), len(three.Statements)-len(two.Statements), "a fixed number of statements per school, flat in its children")
 	assert.Empty(t, counter.Matching(func(sql string) bool {
 		return strings.HasPrefix(strings.TrimSpace(sql), "insert") || strings.HasPrefix(strings.TrimSpace(sql), "update") || strings.HasPrefix(strings.TrimSpace(sql), "delete")
 	}), "the caterer's list writes nothing")
@@ -98,5 +116,5 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 
 	status, refused := export(fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(7)))
 	assert.Equal(t, http.StatusBadRequest, status)
-	assert.Less(t, len(refused), len(one), "a window over a week is refused before any school is read")
+	assert.Less(t, len(refused.Statements), len(one.Statements), "a window over a week is refused before any school is read")
 }

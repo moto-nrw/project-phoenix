@@ -29,6 +29,11 @@ import (
 //  1. *ast.FuncDecl with a receiver (a method, not a free function).
 //  2. Exported name (first letter upper-case).
 //  3. Body line span (Rbrace.Line - Lbrace.Line + 1) at most 14.
+//     A method that calls one of Identity & Access's flow helpers
+//     (runFlow, runFlowErr, runFlow2) counts three lines more, the nil
+//     guard, runtime binding and deferred translation the helper takes over
+//     net of its literal's framing (ADR 0177), so a collapse into the helper
+//     neither hides nor reveals a delegation.
 //  4. The body contains EXACTLY ONE *ast.CallExpr whose Fun is a selector
 //     chain of the form <receiver>.<field>.<method>(...), that is, a call
 //     through a FIELD of the receiver. Direct calls to sister methods
@@ -235,6 +240,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0116: the hosted holiday weeks of modules/enrollment (+1).
 // Raised by ADR 0115: the new owner modules/parentbilling (+5).
 // Raised by ADR 0119: the billing run list of modules/parentbilling (+1).
+// Raised by ADR 0158: the monthly run list of modules/parentbilling (+1).
 // Lowered by ADR 0118: the holiday registration retention of modules/enrollment
 // also prunes its deletion log and is no pass-through any more (-1).
 // Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
@@ -244,7 +250,17 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1409
+// Lowered: AddGuardianPhone validates ambient create facts instead of merely forwarding.
+// Raised by ADR 0158: the monthly run list of modules/parentbilling (+1).
+// Raised by ADR 0167: the payment terms read of modules/parentbilling (+1).
+// Lowered by #6178: the operator login consults the operator MFA flows
+// directly instead of the four forwards of OperatorMFAGate; the portal lookup
+// of CapabilityGate.StartChallenge (no own switch any more) counts again (-3).
+// Raised by ADR 0168: the first complete attendance day of
+// modules/studentpresence (+1).
+// Raised by ADR 0172: the document contact read of modules/organizationtenancy (+1).
+// Raised by ADR 0182: the effective notice dues read of modules/parentbilling (+1).
+const modulePassthroughOwnerBudgetTotal = 1404
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -279,25 +295,33 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 214,
+	"modules/identityaccess": 208,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
-	"modules/organizationtenancy": 12,
+	// Raised by ADR 0172: the document contact read without an account (+1).
+	"modules/organizationtenancy": 13,
 	// Added by ADR 0115: the rule checks and the link check of the new owner
 	// Elternabrechnung. Raised by ADR 0119: the billing run list (+1).
-	"modules/parentbilling":    6,
-	"modules/peopledirectory":  208,
+	// Raised by ADR 0158: the monthly run list (+1).
+	// Raised by ADR 0167: the payment terms read (+1).
+	// Raised by ADR 0182: the effective notice dues read, which validates the
+	// month and resolves the change level onto the public contract (+1).
+	"modules/parentbilling":    9,
+	"modules/peopledirectory":  205,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
 	"modules/schoolcalendar":   16,
-	"modules/schoolmembership": 16,
+	"modules/schoolmembership": 15,
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,
 	"modules/settings":         17,
 	// Raised by ADR 0131: the kiosk count revision read (+1).
 	// Raised by ADR 0133: the kiosk room count revision read (+1).
-	"modules/studentpresence": 122,
+	// Raised by ADR 0168: the first complete attendance day, which checks
+	// the window and takes the later of its cutoff and the retention mark
+	// (+1).
+	"modules/studentpresence": 123,
 	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
 	"modules/workforce":      140,

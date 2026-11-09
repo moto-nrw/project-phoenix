@@ -1,8 +1,11 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
+import { PORTAL_ROUTES } from "~/lib/portal-paths";
 import { Check, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -11,7 +14,6 @@ import {
   credentialError,
   INVITATION_REFUSALS,
 } from "~/components/auth/credential-error";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -25,7 +27,7 @@ import {
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
-import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -75,8 +77,6 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Fehler über den gemeinsamen Weg (#2518): Katalogtext je Code im
   // Fehlerkasten, Prüfungen vor dem Senden markieren ihr Feld.
   const formRef = useRef<HTMLFormElement>(null);
@@ -130,7 +130,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       // is unauth, so there is no NextAuth session to clear here.
       let redirectUrl: string | null = null;
       if (globalThis.window !== undefined) {
-        const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+        const parentsHostname = PORTAL_ROUTES.parent.hostname();
         if (parentsHostname) {
           const { protocol } = globalThis.window.location;
           redirectUrl = `${protocol}//${parentsHostname}/login`;
@@ -176,48 +176,31 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
 
   if (isAccepted) {
     return (
-      <div className="flex flex-col items-center py-12">
-        <IconTile
-          size="page"
-          shape="round"
-          tone="inverse"
-          className="mb-6"
-          icon={
-            <svg
-              className="text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
+      <EmptyState
+        tone="success"
+        icon={<Check aria-hidden="true" />}
+        titleAs="h3"
+        title={t("acceptedTitle")}
+        description={t("acceptedText")}
+        progress={
+          <>
+            <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-gray-900"
+                style={{
+                  animation: "guardianProgressFill 1.5s ease-in-out forwards",
+                }}
               />
-            </svg>
-          }
-        />
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          {t("acceptedTitle")}
-        </h3>
-        <p className="mb-6 text-sm text-gray-500">{t("acceptedText")}</p>
-        <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-gray-900"
-            style={{
-              animation: "guardianProgressFill 1.5s ease-in-out forwards",
-            }}
-          />
-        </div>
-        <style>{`
-          @keyframes guardianProgressFill {
-            from { width: 0%; }
-            to { width: 100%; }
-          }
-        `}</style>
-      </div>
+            </div>
+            <style>{`
+              @keyframes guardianProgressFill {
+                from { width: 0%; }
+                to { width: 100%; }
+              }
+            `}</style>
+          </>
+        }
+      />
     );
   }
 
@@ -230,17 +213,11 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          {t("invitationFor")}{" "}
-          <span className="font-semibold text-gray-900">
-            {guardianFullName || invitation.email}
-          </span>
-        </p>
-        {guardianFullName && (
-          <p className="mt-1 text-gray-500">{invitation.email}</p>
-        )}
-      </section>
+      <InvitationSummary
+        label={t("invitationFor")}
+        name={guardianFullName}
+        email={invitation.email}
+      />
 
       <div>
         <FieldLabel
@@ -250,27 +227,21 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         >
           {t("passwordLabel")}
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            aria-invalid={passwordInvalid || undefined}
-            controlSize="compact"
-            className="pr-12"
-            required
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-            showLabel={t("showPassword")}
-            hideLabel={t("hidePassword")}
-          />
-        </div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          aria-invalid={passwordInvalid || undefined}
+          controlSize="compact"
+          required
+          revealable
+          showPasswordLabel={t("showPassword")}
+          hidePasswordLabel={t("hidePassword")}
+        />
       </div>
 
       <div>
@@ -281,30 +252,24 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         >
           {t("confirmPasswordLabel")}
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="confirmPassword"
-            name="confirmPassword"
-            type={showConfirmPassword ? "text" : "password"}
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            aria-invalid={confirmInvalid || undefined}
-            controlSize="compact"
-            className="pr-12"
-            required
-          />
-          <PasswordToggleButton
-            showPassword={showConfirmPassword}
-            onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-            showLabel={t("showPassword")}
-            hideLabel={t("hidePassword")}
-          />
-        </div>
+        <Input
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          aria-invalid={confirmInvalid || undefined}
+          controlSize="compact"
+          required
+          revealable
+          showPasswordLabel={t("showPassword")}
+          hidePasswordLabel={t("hidePassword")}
+        />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <InsetPanel framed>
         <p className="text-xs font-medium text-gray-700">
           {t("requirementsTitle")}
         </p>
@@ -336,7 +301,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             </div>
           ))}
         </div>
-      </div>
+      </InsetPanel>
 
       <Button
         type="submit"

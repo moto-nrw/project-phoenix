@@ -232,11 +232,42 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 	tb.Helper()
 	tb.Cleanup(func() {
 		for _, table := range []string{
-			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.cost_bearers",
-			"parent_billing.number_range_counters", "parent_billing.number_ranges",
+			// An evidence holds its income level (#4685): it goes first.
+			"parent_billing.care_evidences",
+			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.care_runs", "parent_billing.care_tariffs",
+			"parent_billing.care_price_lists",
+			// The runs of the Jahresbescheide take their notices, months and
+			// trail with them (#6219).
+			"parent_billing.care_notice_runs",
+			// The Mensa prices and the schools' released Mensa months (#4686);
+			// the Mensa positions go with the runs.
+			"parent_billing.care_meal_tariffs", "schedule.meal_billing_months",
+			"parent_billing.cost_bearers",
+			"parent_billing.number_range_counters", "parent_billing.number_ranges", "parent_billing.document_kinds",
+			"parent_billing.service_terms",
+			// The creditor of the SEPA direct debit (#4695); the mandates go
+			// with the care contracts.
+			"parent_billing.sepa_creditors",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
 			require.NoError(tb, err, "Failed to clean up test Elternabrechnung rows")
+		}
+	})
+}
+
+// OwnTraegerCareContracts removes the care contracts of the Träger, their
+// templates and trail and the Träger's mails (#4678) when the test ends. The
+// rows carry no tenant, so the tenant cleanup does not reach them.
+func OwnTraegerCareContracts(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	// The contract letter reads the master data, which logs the read.
+	OwnTraegerMasterData(tb, db, organizationID)
+	tb.Cleanup(func() {
+		for _, table := range []string{
+			"care_contract.contracts", "care_contract.contract_templates", "care_contract.contract_events", "platform.email_outbox",
+		} {
+			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up test care contract rows")
 		}
 	})
 }

@@ -13,6 +13,7 @@ import {
 import { OnepagerHeader } from "~/components/help/onepager-header";
 import { buttonStyles } from "~/components/ui/button-styles";
 import { IconTile } from "~/components/ui/icon-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -112,10 +113,6 @@ export default function NfcQuickstartPage() {
 
           <div className="flex flex-1 flex-col px-10 py-9 print:px-8 print:py-6">
             <div className="relative grid gap-4 print:gap-3">
-              <div
-                className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-gray-300 md:block print:block"
-                aria-hidden="true"
-              />
               {steps.map((step, index) => {
                 const Icon = step.icon;
                 const isRight = index === 1;
@@ -168,16 +165,6 @@ export default function NfcQuickstartPage() {
                   >
                     <div
                       className={[
-                        "bg-moto-green absolute top-8 hidden h-3 w-3 items-center justify-center rounded-full md:flex print:flex",
-                        isRight
-                          ? "left-1/2 -translate-x-[calc(100%+2px)]"
-                          : "left-1/2 translate-x-2",
-                      ].join(" ")}
-                      aria-hidden="true"
-                    />
-
-                    <div
-                      className={[
                         // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- printed guide step card: inside .moto-dotted-background--guide the print rules turn moto-content-surface transparent, which would let the dotted page background show through this bordered card in the PDF
                         "relative w-full rounded-2xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:p-4",
                         isRight ? "md:mr-0 print:mr-0" : "",
@@ -207,9 +194,13 @@ export default function NfcQuickstartPage() {
                         <p className="mt-3 text-[15px] leading-6 text-gray-700 print:mt-2 print:text-[13px] print:leading-5">
                           {step.text}
                         </p>
-                        <p className="mt-3 rounded-xl bg-gray-50 px-4 py-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:px-3 print:py-2 print:text-xs print:leading-4">
+                        <InsetPanel
+                          as="p"
+                          padding="md"
+                          className="mt-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:px-3 print:py-2 print:text-xs print:leading-4"
+                        >
                           {step.detail}
-                        </p>
+                        </InsetPanel>
                       </div>
                     </div>
                   </article>
@@ -222,23 +213,30 @@ export default function NfcQuickstartPage() {
                 const Icon =
                   index === 0 ? ShieldCheck : index === 1 ? BadgeCheck : Wrench;
                 return (
-                  <div
+                  <InsetPanel
                     key={hint}
-                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4 print:rounded-xl print:p-3"
+                    framed
+                    padding="md"
+                    className="print:p-3"
                   >
                     <Icon
                       className="text-moto-green-strong h-5 w-5"
                       aria-hidden="true"
                     />
-                    <p className="mt-3 text-xs leading-5 font-medium text-gray-700 print:mt-2 print:text-[11px] print:leading-4">
+                    <p className="mt-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:leading-4">
                       {hint}
                     </p>
-                  </div>
+                  </InsetPanel>
                 );
               })}
             </section>
 
-            <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5 print:mt-4 print:p-4">
+            <InsetPanel
+              as="section"
+              framed
+              padding="md"
+              className="mt-6 print:mt-4"
+            >
               <div className="flex items-start gap-4 print:gap-3">
                 <IconTile
                   size="page"
@@ -272,9 +270,9 @@ export default function NfcQuickstartPage() {
                   </p>
                 </div>
               </div>
-            </section>
+            </InsetPanel>
 
-            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3 print:text-[11px]">
+            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-sm text-gray-500 print:pt-3">
               <p className="max-w-[620px]">
                 Für OGS-Teams im Alltag. Persönliche Daten werden nicht auf den
                 Armbändern gespeichert.

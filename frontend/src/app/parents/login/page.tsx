@@ -22,11 +22,12 @@ import {
   MotoBrand,
 } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { LOGIN_REFUSALS } from "~/components/auth/credential-error";
+import { LOGIN_RATE_LIMITED } from "~/lib/login-refusal";
 import { createLogger } from "~/lib/logger";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
@@ -34,6 +35,7 @@ import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { normalizeLocale } from "~/i18n/locales";
 import { clientEnv } from "~/env.client";
 import { Button } from "~/components/ui/button";
+import { PORTAL_ROUTES } from "~/lib/portal-paths";
 
 const logger = createLogger({ component: "ParentLoginPage" });
 
@@ -60,24 +62,19 @@ function staffLoginUrl(): string {
 }
 
 /**
- * The refusal codes parent-config.ts hands back through NextAuth, as the
- * registry codes the shared error path speaks (#2518). Any other
- * CredentialsSignin is a refused login ("invalid_credentials", or NextAuth's
- * own "credentials" when authorize returned nothing). Any other NextAuth
- * error is a fault on our side.
+ * The form error of a refused login. The provider names the backend's code
+ * (server/auth/portals.ts); Auth.js's own "credentials" code, for a login that
+ * named none, reads as wrong credentials. Any other Auth.js error is a fault
+ * on our side.
  */
 function loginRefusal(error: string, code: string | undefined): ApiError {
-  if (code === "account_inactive") {
-    return new ApiError("parent login refused", undefined, {
-      code: "identity.session_account_inactive",
-    });
+  if (error !== "CredentialsSignin") {
+    return new ApiError("parent login failed", 500, { code: "general.server" });
   }
-  if (error === "CredentialsSignin") {
-    return new ApiError("parent login refused", undefined, {
-      code: "identity.invalid_credentials",
-    });
-  }
-  return new ApiError("parent login failed", 500, { code: "general.server" });
+  const refusal =
+    LOGIN_REFUSALS.find((known) => known === code) ??
+    "identity.invalid_credentials";
+  return new ApiError("parent login refused", undefined, { code: refusal });
 }
 
 export default function ParentLoginPage() {
@@ -111,7 +108,6 @@ function ParentLoginForm() {
   const [portalNotBooked, setPortalNotBooked] = useState(false);
   const locale = normalizeLocale(useLocale());
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   // Gesetzt, wenn die Personal-Anmeldung ein Elternkonto hierher geschickt hat.
   const searchParams = useSearchParams();
@@ -223,7 +219,7 @@ function ParentLoginForm() {
     setPortalNotBooked(false);
 
     try {
-      const result = await signIn("parent-credentials", {
+      const result = await signIn(PORTAL_ROUTES.parent.providerId, {
         redirect: false,
         email,
         password,
@@ -231,21 +227,17 @@ function ParentLoginForm() {
 
       if (result?.error) {
         setIsLoading(false);
-        // ErrAccountNoGuardianRole: Personal-Konto im Elternportal. Der
-        // Backend-Code kommt seit parent-config.ts unmaskiert an — der
-        // 403 setzt eine korrekte Passwortprüfung voraus, verrät also
-        // nichts über ein fremdes Konto.
-        if (result.code === "not_a_guardian") {
+        // The 403 follows a correct password check, so naming a staff
+        // account tells a stranger nothing.
+        if (result.code === "care.not_a_guardian") {
           setIsStaffAccount(true);
           return;
         }
-        if (result.code === "portal_not_booked") {
+        if (result.code === "module.not_booked") {
           setPortalNotBooked(true);
           return;
         }
-        // Für zu viele Versuche kennt die Registry keinen Anmelde-Code; der
-        // Klassentext "nicht erreichbar, erneut versuchen" wäre hier falsch.
-        if (result.code === "rate_limited") {
+        if (result.code === LOGIN_RATE_LIMITED) {
           formErrors.invalid(t("errors.rateLimited"));
           return;
         }
@@ -288,7 +280,6 @@ function ParentLoginForm() {
     <>
       <AuthShell
         eyebrow={t("eyebrow")}
-        eyebrowClassName="text-moto-green"
         title={t("title")}
         subtitle={t("subtitle")}
         variant="parents"
@@ -354,26 +345,20 @@ function ParentLoginForm() {
               <FieldLabel htmlFor="parent-password" required>
                 {t("passwordLabel")}
               </FieldLabel>
-              <div className="relative">
-                <Input
-                  id="parent-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  controlSize="compact"
-                  autoComplete="current-password"
-                  required
-                  disabled={isSessionSettling}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
-                  showLabel={t("showPassword")}
-                  hideLabel={t("hidePassword")}
-                />
-              </div>
+              <Input
+                id="parent-password"
+                name="password"
+                type="password"
+                controlSize="compact"
+                autoComplete="current-password"
+                required
+                disabled={isSessionSettling}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                revealable
+                showPasswordLabel={t("showPassword")}
+                hidePasswordLabel={t("hidePassword")}
+              />
             </div>
 
             <div className="text-center">
@@ -414,6 +399,7 @@ function ParentLoginForm() {
           title: tReset("title"),
           description: tReset("description"),
           emailLabel: tReset("emailLabel"),
+          invalidEmail: tReset("invalidEmail"),
           cancel: tReset("cancel"),
           submit: tReset("submit"),
           submitting: tReset("submitting"),

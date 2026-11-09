@@ -33,6 +33,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { BillingRunOverviewCard } from "./billing-run-overview-card";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
+
+// DataTable renders only the layout for the window width (#6220).
+afterEach(() => setViewportWidth(DESKTOP_WIDTH));
 
 function invoice(
   id: string,
@@ -176,6 +184,9 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
   it.each(["tr", "li"])(
     "keeps clicks on the %s row menu separate from the letter preview",
     async (tag) => {
+      // The li rows are the phone list, in the document only at phone
+      // width (#6220).
+      if (tag === "li") setViewportWidth(PHONE_WIDTH);
       renderCard();
       const documentRow = row("Muster, Eva", tag);
       const menu = within(documentRow).getByRole("button", {
@@ -205,6 +216,9 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
   it.each(["tr", "li"])(
     "does not open a letter when a portaled cancellation action in a %s row is clicked",
     async (tag) => {
+      // The li rows are the phone list, in the document only at phone
+      // width (#6220).
+      if (tag === "li") setViewportWidth(PHONE_WIDTH);
       const onCancel = vi.fn();
       render(
         <ToastProvider>

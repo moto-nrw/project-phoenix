@@ -285,6 +285,117 @@ describe("listMyChildren", () => {
 
 // --- listEnrollableSchools -------------------------------------------
 
+describe("listMyDocuments", () => {
+  it("keeps the letters and contracts when the shared documents fail (#4692)", async () => {
+    mockFetch(async (input) =>
+      String(input).endsWith("/shared")
+        ? jsonResponse({ code: "general.internal_error" }, { status: 500 })
+        : jsonResponse({
+            data: [{ id: "1", sent_at: "2026-09-01T08:00:00Z" }],
+          }),
+    );
+    const result = await listMyDocuments();
+    expect(result.documents).toHaveLength(2);
+    expect(result.shared).toEqual([]);
+    expect(result.failedSource).toBe("shared");
+  });
+
+  it("names no single source when two of the three fail (#4692 review)", async () => {
+    mockFetch(async (input) =>
+      String(input).endsWith("/shared")
+        ? jsonResponse({ data: [] })
+        : jsonResponse({ code: "general.internal_error" }, { status: 500 }),
+    );
+    const result = await listMyDocuments();
+    expect(result.failedSource).toBe("several");
+    expect(result.error).toBeInstanceOf(Error);
+  });
+
+  it("returns the documents a Träger released for the parents (#4692)", async () => {
+    const shared = {
+      id: "9",
+      organization_id: "3",
+      traeger_name: "Ganztag Nord",
+      title: "Hausordnung",
+      file_name: "hausordnung.pdf",
+      content_type: "application/pdf",
+      size_bytes: 2048,
+      released_at: "2026-09-02T10:00:00Z",
+    };
+    mockFetch(async (input) =>
+      jsonResponse({ data: String(input).endsWith("/shared") ? [shared] : [] }),
+    );
+    const result = await listMyDocuments();
+    expect(result.documents).toEqual([]);
+    expect(result.shared).toEqual([shared]);
+    expect(result.failedSource).toBeNull();
+  });
+
+  it.each(["/contracts", "/documents"])(
+    "keeps the available source when %s fails",
+    async (suffix) => {
+      mockFetch(async (input) =>
+        String(input).endsWith(suffix)
+          ? jsonResponse({ code: "general.internal_error" }, { status: 500 })
+          : jsonResponse({
+              data: [{ id: "1", sent_at: "2026-09-01T08:00:00Z" }],
+            }),
+      );
+      const result = await listMyDocuments();
+      expect(result.documents).toHaveLength(1);
+      expect(result.failedSource).toBe(
+        suffix === "/contracts" ? "contracts" : "letters",
+      );
+      expect(result.error).toBeInstanceOf(Error);
+    },
+  );
+
+  it("merges the letters and the care contracts, newest first", async () => {
+    const doc = (id: string, kind: string, sentAt: string) => ({
+      id,
+      organization_id: "3",
+      traeger_name: "Ganztag Nord",
+      kind,
+      number: "",
+      period_name: "",
+      service_from: "",
+      service_until: "",
+      issued_on: "",
+      total_cents: 0,
+      child_names: ["Lina"],
+      sent_at: sentAt,
+    });
+    const urls: string[] = [];
+    mockFetch(async (input) => {
+      const url = String(input);
+      urls.push(url);
+      return jsonResponse({
+        data: url.endsWith("/contracts")
+          ? [doc("8", "care_contract", "2026-09-02T10:00:00+02:00")]
+          : [
+              doc("5", "invoice", "2026-09-03T08:00:00Z"),
+              doc("4", "invoice", "2026-09-01T08:00:00Z"),
+            ],
+      });
+    });
+
+    const out = await listMyDocuments();
+
+    expect(urls.map((url) => new URL(url, "http://x").pathname).sort()).toEqual(
+      [
+        "/api/parent/me/documents",
+        "/api/parent/me/documents/contracts",
+        "/api/parent/me/documents/shared",
+      ],
+    );
+    expect(out.documents.map((document) => document.id)).toEqual([
+      "5",
+      "8",
+      "4",
+    ]);
+  });
+});
+
 describe("listEnrollableSchools", () => {
   it("hits the enrollable-schools endpoint and unwraps the data array", async () => {
     const seen: string[] = [];

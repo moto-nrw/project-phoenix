@@ -72,11 +72,18 @@ func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, er
 }
 
 func (stubTakeoverSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == settingKeyDuplicateHandling {
+	switch key {
+	case settingKeyDuplicateHandling:
 		return settingValueDuplicateWarn, nil
+	case settingKeyCareFacilityTerm:
+		return takeoverCareFacilityTerm, nil
 	}
 	return "", nil
 }
+
+// takeoverCareFacilityTerm is the school's own term for its care in these
+// suites (#6042), so the token pages prove they carry the school's choice.
+const takeoverCareFacilityTerm = "GTS"
 
 func (stubTakeoverSettings) ResolveInt(_ context.Context, key string) (int, error) {
 	switch key {
@@ -105,6 +112,10 @@ type notifyModeSettings struct {
 
 func (s notifyModeSettings) NotifyPerDecision(ctx context.Context) (string, error) {
 	return s.settings.ResolveString(ctx, settingKeyNotifyPerDecision)
+}
+
+func (s notifyModeSettings) CareFacilityTerm(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, settingKeyCareFacilityTerm)
 }
 
 func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeoverLockEnv {
@@ -188,7 +199,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
@@ -197,12 +208,12 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "takeover-lock@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           false,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -285,8 +296,9 @@ func (env *takeoverLockEnv) changeRequestBody(gradeLina, gradeTimo int) string {
 
 type statusEnvelope struct {
 	Data struct {
-		EditMode string `json:"edit_mode"`
-		Children []struct {
+		EditMode         string `json:"edit_mode"`
+		CareFacilityTerm string `json:"care_facility_term"`
+		Children         []struct {
 			ID     string `json:"id"`
 			Status string `json:"status"`
 			Locked bool   `json:"locked"`
@@ -369,6 +381,20 @@ func TestPublicWithdraw_ForeignChildIDAnswersNotFound(t *testing.T) {
 			assert.NotEqual(t, capability.ChildStatusWithdrawn, child.Status, "no child may be withdrawn")
 		}
 	}
+}
+
+// The token pages run on the parents host without a school context, so the
+// status and the edit form carry the school's care-facility term (#6042).
+func TestPublicStatus_CarriesTheSchoolsCareFacilityTerm(t *testing.T) {
+	t.Parallel()
+	env := setupTakeoverLockTest(t)
+
+	status := decodeStatus(t, env.get(t, "/requests/"+env.token))
+	assert.Equal(t, takeoverCareFacilityTerm, status.Data.CareFacilityTerm)
+
+	bootstrap := env.get(t, "/requests/"+env.token+"/edit-bootstrap")
+	require.Equal(t, http.StatusOK, bootstrap.Code, bootstrap.Body.String())
+	assert.Contains(t, bootstrap.Body.String(), `"care_facility_term":"GTS"`)
 }
 
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {

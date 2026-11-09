@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.workforce20.allowance_preview",
+  "max": 6,
+  "exact": true,
+  "description": "Full protected Resource request with N=3/N=8 positive yearly entitlements and preview years. Exact observed count, not a SQL minimum.",
+  "route": "GET /api/absence-types/{id}/allowances/{staffId}/preview"
+}

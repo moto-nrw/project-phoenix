@@ -1,0 +1,18 @@
+{
+  "title": "Fëmijët në familjen tuaj",
+  "description": "Për zbritjen për vëllezër e motra, ofruesi numëron të gjithë fëmijët e familjes suaj. Numërohen edhe fëmijët pa kontratë kujdesi.",
+  "fieldLabel": "Sa fëmijë ka familja juaj?",
+  "less": "Një fëmijë më pak",
+  "more": "Një fëmijë më shumë",
+  "send": "Dërgo",
+  "sending": "Po dërgohet …",
+  "saved": "Ofruesi e ka marrë përgjigjen tuaj dhe do ta kontrollojë.",
+  "errorObject": "numri i fëmijëve",
+  "confirmedBadge": "Konfirmuar",
+  "confirmedFrom": "{count, plural, one {1 fëmijë} other {# fëmijë}}, vlen nga {from}.",
+  "confirmedUntil": "{count, plural, one {1 fëmijë} other {# fëmijë}}, vlen nga {from} deri më {until}.",
+  "pendingBadge": "Në kontroll",
+  "pending": "Përgjigjja juaj nga {date}: {count, plural, one {1 fëmijë} other {# fëmijë}}. Ofruesi po e kontrollon.",
+  "noRight": "Numrin e japin prindërit që mund të dërgojnë regjistrime për këtë fëmijë.",
+  "onlyNumber": "Ruajmë vetëm numrin. Emrat e fëmijëve të tjerë nuk na duhen."
+}

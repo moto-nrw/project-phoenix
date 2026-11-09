@@ -1,0 +1,396 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+type versionRow struct {
+	bun.BaseModel `bun:"table:care_contract.contract_versions"`
+
+	ID                     int64          `bun:"id"`
+	VersionNumber          int            `bun:"version_number"`
+	Status                 string         `bun:"status"`
+	EffectiveFrom          calendar.Date  `bun:"effective_from,type:date"`
+	EndsOn                 *calendar.Date `bun:"ends_on,type:date"`
+	ChildFirstName         string         `bun:"child_first_name"`
+	ChildLastName          string         `bun:"child_last_name"`
+	ChildBirthDate         *calendar.Date `bun:"child_birth_date,type:date"`
+	SchoolName             string         `bun:"school_name"`
+	PhaseName              string         `bun:"phase_name"`
+	PriceCents             *int64         `bun:"price_cents"`
+	Services               string         `bun:"services"`
+	TermKind               string         `bun:"term_kind"`
+	TermMonths             *int           `bun:"term_months"`
+	NoticeMonths           int            `bun:"notice_months"`
+	NoticeTo               string         `bun:"notice_to"`
+	SpecialTermination     bool           `bun:"special_termination"`
+	SpecialTerminationNote string         `bun:"special_termination_note"`
+	StatuteRequired        bool           `bun:"statute_required"`
+	StatuteTitle           string         `bun:"statute_title"`
+	StatuteURL             string         `bun:"statute_url"`
+	ContractPartner        string         `bun:"contract_partner"`
+	CreatedAt              time.Time      `bun:"created_at"`
+	Source                 string         `bun:"source"`
+	ValidUntil             *calendar.Date `bun:"valid_until,type:date"`
+}
+
+const versionColumns = `v.id, v.version_number, v.status, v.effective_from, v.ends_on, v.child_first_name,
+	v.child_last_name, v.child_birth_date, v.school_name, v.phase_name, v.price_cents, v.term_kind, v.term_months,
+	v.notice_months, v.notice_to, v.special_termination, v.special_termination_note, v.statute_required,
+	v.statute_title, v.statute_url, v.contract_partner, v.created_at`
+
+// servicesSQL reads the services of version v as one JSON array, by weekday
+// and end time, in the same statement as the version.
+const servicesSQL = `COALESCE((SELECT json_agg(json_build_object('weekday', s.weekday,
+		'care_offering_id', s.care_offering_id, 'module_name', s.module_name,
+		'ends_at', COALESCE(to_char(s.ends_at, 'HH24:MI'), ''),
+		'last_day', to_char(s.last_day, 'YYYY-MM-DD'))
+		ORDER BY array_position(ARRAY['mon','tue','wed','thu','fri','sat','sun']::text[], s.weekday::text),
+			s.ends_at NULLS LAST, s.module_name)
+	FROM care_contract.contract_version_services AS s
+	WHERE s.organization_id = v.organization_id AND s.contract_version_id = v.id), '[]')::text`
+
+// currentVersionOrderSQL orders the versions of a contract (alias v) so the
+// current one comes first (#4681): the effective version in force today
+// (Berlin date), else the next effective one, else the newest version. A
+// contract before its conclusion has only its first version.
+const currentVersionOrderSQL = `(v.status IN ` + effectiveStatusSQL + `
+		AND v.effective_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date) DESC,
+	CASE WHEN v.status IN ` + effectiveStatusSQL + `
+		AND v.effective_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date THEN v.effective_from END DESC NULLS LAST,
+	CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN v.effective_from END ASC NULLS LAST,
+	v.version_number DESC`
+
+const currentVersionSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services, ` + validUntilSQL + ` AS valid_until
+	FROM care_contract.contract_versions AS v
+	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY ` + currentVersionOrderSQL + ` LIMIT 1`
+
+func (r versionRow) version() (carecontract.Version, error) {
+	services := []carecontract.Service{}
+	if err := json.Unmarshal([]byte(r.Services), &services); err != nil {
+		return carecontract.Version{}, fmt.Errorf("care contract postgres: read services: %w", err)
+	}
+	return carecontract.Version{
+		ID: r.ID, Number: r.VersionNumber, Status: r.Status, EffectiveFrom: r.EffectiveFrom, EndsOn: r.EndsOn,
+		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ChildBirthDate: r.ChildBirthDate,
+		SchoolName: r.SchoolName, PhaseName: r.PhaseName, Services: services, PriceCents: r.PriceCents,
+		CreatedAt: r.CreatedAt, Source: r.Source, ValidUntil: r.ValidUntil,
+		Terms: carecontract.TemplateInput{
+			TermKind: r.TermKind, TermMonths: r.TermMonths, NoticeMonths: r.NoticeMonths, NoticeTo: r.NoticeTo,
+			SpecialTermination: r.SpecialTermination, SpecialTerminationNote: r.SpecialTerminationNote,
+			StatuteRequired: r.StatuteRequired, StatuteTitle: r.StatuteTitle, StatuteURL: r.StatuteURL,
+			ContractPartner: r.ContractPartner,
+		},
+	}, nil
+}
+
+// Contract reads one contract of the Träger with its current version, its
+// parties and its stored document. forUpdate locks the contract row first.
+func (Store) Contract(ctx context.Context, organizationID, contractID int64, forUpdate bool) (ports.ContractRecord, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return ports.ContractRecord{}, err
+	}
+	if forUpdate {
+		var locked int64
+		err := db.NewRaw(`SELECT id FROM care_contract.contracts WHERE organization_id = ? AND id = ? FOR UPDATE`,
+			organizationID, contractID).Scan(ctx, &locked)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ports.ContractRecord{}, carecontract.ErrContractNotFound
+		}
+		if err != nil {
+			return ports.ContractRecord{}, fmt.Errorf("care contract postgres: lock contract: %w", err)
+		}
+	}
+	var summary summaryRow
+	err = db.NewRaw(contractSQL, organizationID, contractID).Scan(ctx, &summary)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ports.ContractRecord{}, carecontract.ErrContractNotFound
+	}
+	if err != nil {
+		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read contract: %w", err)
+	}
+	var version versionRow
+	if err := db.NewRaw(currentVersionSQL, organizationID, contractID).Scan(ctx, &version); err != nil {
+		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read version: %w", err)
+	}
+	var parties []struct {
+		FirstName string `bun:"first_name"`
+		LastName  string `bun:"last_name"`
+		Email     string `bun:"email"`
+		AccountID *int64 `bun:"account_id"`
+	}
+	if err := db.NewRaw(`SELECT first_name, last_name, email, account_id FROM care_contract.contract_parties
+		WHERE organization_id = ? AND contract_id = ? ORDER BY id`, organizationID, contractID).Scan(ctx, &parties); err != nil {
+		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read parties: %w", err)
+	}
+	current, err := version.version()
+	if err != nil {
+		return ports.ContractRecord{}, err
+	}
+	record := ports.ContractRecord{Summary: summary.summary(), Version: current, Parties: []carecontract.Party{},
+		Concluded: summary.concluded(), EarlyStart: summary.EarlyStart}
+	for _, party := range parties {
+		record.Parties = append(record.Parties, carecontract.Party{
+			FirstName: party.FirstName, LastName: party.LastName, Email: party.Email, HasAccount: party.AccountID != nil,
+		})
+	}
+	if err := readDocuments(ctx, db, organizationID, &record); err != nil {
+		return ports.ContractRecord{}, err
+	}
+	return record, nil
+}
+
+// readDocuments fills in the stored PDF of the record's version and the
+// newest stored PDF of the contract with its version (#4681).
+func readDocuments(ctx context.Context, db bun.IDB, organizationID int64, record *ports.ContractRecord) error {
+	var documents []struct {
+		ID        int64 `bun:"id"`
+		VersionID int64 `bun:"contract_version_id"`
+	}
+	if err := db.NewRaw(`SELECT id, contract_version_id FROM care_contract.contract_documents
+		WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC`, organizationID, record.Summary.ID).Scan(ctx, &documents); err != nil {
+		return fmt.Errorf("care contract postgres: read documents: %w", err)
+	}
+	for i, document := range documents {
+		if i == 0 {
+			record.SentDocument = &ports.SentDocument{ID: document.ID, VersionID: document.VersionID}
+		}
+		if document.VersionID == record.Version.ID && record.DocumentID == nil {
+			id := document.ID
+			record.DocumentID = &id
+		}
+	}
+	return nil
+}
+
+// Mailings reads the sends of a contract, newest first.
+func (Store) Mailings(ctx context.Context, organizationID, contractID int64) ([]ports.StoredMailing, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		WithdrawalNotice bool      `bun:"withdrawal_notice"`
+		OutboxID         int64     `bun:"outbox_id"`
+		RecipientEmail   string    `bun:"recipient_email"`
+		SentAt           time.Time `bun:"sent_at"`
+	}
+	if err := db.NewRaw(`SELECT m.outbox_id, m.recipient_email, m.sent_at, d.withdrawal_notice FROM care_contract.contract_mailings AS m
+		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
+		WHERE m.organization_id = ? AND m.contract_id = ? ORDER BY m.sent_at DESC, m.id DESC`, organizationID, contractID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read mailings: %w", err)
+	}
+	result := make([]ports.StoredMailing, len(rows))
+	for i, row := range rows {
+		result[i] = ports.StoredMailing{OutboxID: row.OutboxID, Recipient: row.RecipientEmail, SentAt: row.SentAt, WithdrawalNotice: row.WithdrawalNotice}
+	}
+	return result, nil
+}
+
+// InsertDocument stores the PDF of the contract's current version.
+func (Store) InsertDocument(ctx context.Context, organizationID, accountID int64, record ports.ContractRecord, templateVersion int, file carecontract.File) (int64, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	if err := db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
+			template_version, filename, pdf, created_by_account_id, withdrawal_notice)
+		VALUES (?, ?, ?, ?, ?, ?, ?, true) RETURNING id`, organizationID, record.Summary.ID, record.Version.ID, templateVersion,
+		file.Filename, file.Data, accountRef(accountID)).Scan(ctx, &id); err != nil {
+		return 0, fmt.Errorf("care contract postgres: insert document: %w", err)
+	}
+	return id, nil
+}
+
+// Document reads the stored PDF of the contract's current version.
+func (Store) Document(ctx context.Context, organizationID, contractID int64) (carecontract.File, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return carecontract.File{}, err
+	}
+	var row documentRow
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_documents AS d
+		WHERE d.organization_id = ? AND d.contract_id = ? ORDER BY d.id DESC LIMIT 1`, organizationID, contractID).Scan(ctx, &row)
+	return row.file(err, carecontract.ErrContractNotFound)
+}
+
+type documentRow struct {
+	WithdrawalNotice bool   `bun:"withdrawal_notice"`
+	Filename         string `bun:"filename"`
+	PDF              []byte `bun:"pdf"`
+}
+
+func (r documentRow) file(err error, notFound error) (carecontract.File, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return carecontract.File{}, notFound
+	}
+	if err != nil {
+		return carecontract.File{}, fmt.Errorf("care contract postgres: read document: %w", err)
+	}
+	return carecontract.File{Filename: r.Filename, ContentType: "application/pdf", Data: r.PDF, WithdrawalNotice: r.WithdrawalNotice}, nil
+}
+
+func (Store) InsertMailing(ctx context.Context, organizationID, accountID, contractID, documentID, outboxID int64, recipient string) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id,
+			contract_document_id, outbox_id, recipient_email, sent_by_account_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		organizationID, contractID, documentID, outboxID, recipient, accountRef(accountID)); err != nil {
+		return fmt.Errorf("care contract postgres: insert mailing: %w", err)
+	}
+	return nil
+}
+
+// MarkSent records enqueueing, not provision of the withdrawal notice.
+func (Store) MarkSent(ctx context.Context, organizationID, contractID int64, at time.Time) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, sent_at = ?
+		WHERE organization_id = ? AND id = ? AND status = ?`,
+		carecontract.StatusSent, at, organizationID, contractID, carecontract.StatusDraft)
+	if err != nil {
+		return fmt.Errorf("care contract postgres: mark sent: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err == nil && affected != 1 {
+		return carecontract.ErrContractNotDraft
+	}
+	return nil
+}
+
+// DeleteDraft removes a draft; the policy refuses any other contract.
+func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) (bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return false, err
+	}
+	result, err := db.ExecContext(ctx, `DELETE FROM care_contract.contracts WHERE organization_id = ? AND id = ? AND status = ?`,
+		organizationID, contractID, carecontract.StatusDraft)
+	if err != nil {
+		return false, fmt.Errorf("care contract postgres: delete draft: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
+// inboxSQL reads the contracts sent to an address, with the first send to
+// it. Names, modules and date come from the version whose PDF was sent last
+// to the address, so the list matches the PDF the parents open (#4681).
+const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
+	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status, c.ends_on,
+	(c.status = '` + carecontract.StatusSent + `' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
+		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
+	(c.status = '` + carecontract.StatusActive + `' AND ` + inboxChildScopeSQL + `) AS can_end,
+	(SELECT MAX(s.signed_at) FROM care_contract.contract_signatures AS s
+		WHERE s.organization_id = c.organization_id AND s.contract_id = c.id) AS signed_at,
+	c.concluded_at, c.conclusion_method,
+	LEAST(c.withdrawal_informed_at, (SELECT CASE WHEN s.method <> '` + carecontract.SignaturePaper + `' THEN s.withdrawal_notice_at END
+		FROM care_contract.contract_signatures AS s WHERE s.organization_id = c.organization_id AND s.contract_id = c.id
+		ORDER BY s.signed_at DESC, s.id DESC LIMIT 1)) AS informed_at
+	FROM care_contract.contracts AS c
+	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
+		WHERE organization_id = ? AND lower(recipient_email) = lower(?) GROUP BY contract_id) AS m ON m.contract_id = c.id
+	JOIN LATERAL (SELECT cv.* FROM care_contract.contract_mailings AS cm
+		JOIN care_contract.contract_documents AS cd ON cd.organization_id = cm.organization_id AND cd.id = cm.contract_document_id
+		JOIN care_contract.contract_versions AS cv ON cv.organization_id = cd.organization_id AND cv.id = cd.contract_version_id
+		WHERE cm.organization_id = c.organization_id AND cm.contract_id = c.id AND lower(cm.recipient_email) = lower(?)
+		ORDER BY cm.sent_at DESC, cm.id DESC LIMIT 1) AS v ON true
+	WHERE c.organization_id = ? AND ` + inboxChildScopeSQL + `
+	ORDER BY m.first_sent DESC, c.id DESC`
+
+// InboxContracts lists the contracts sent to the address, newest first.
+func (Store) InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]ports.InboxRow, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		ID             int64          `bun:"id"`
+		ChildFirstName string         `bun:"child_first_name"`
+		ChildLastName  string         `bun:"child_last_name"`
+		ModuleNames    []string       `bun:"module_names,array"`
+		SchoolName     string         `bun:"school_name"`
+		EffectiveFrom  calendar.Date  `bun:"effective_from,type:date"`
+		Replaced       bool           `bun:"replaced"`
+		SentAt         time.Time      `bun:"sent_at"`
+		Status         string         `bun:"status"`
+		EndsOn         *calendar.Date `bun:"ends_on,type:date"`
+		SignedAt       *time.Time     `bun:"signed_at"`
+		CanSign        bool           `bun:"can_sign"`
+		CanEnd         bool           `bun:"can_end"`
+		ConcludedAt    *time.Time     `bun:"concluded_at"`
+		Method         *string        `bun:"conclusion_method"`
+		InformedAt     *time.Time     `bun:"informed_at"`
+	}
+	schools, students := inboxChildScope(reader.Children)
+	signingSchools, signingStudents := inboxChildScope(reader.SigningChildren)
+	if err := db.NewRaw(inboxSQL, pgdialect.Array(signingSchools), pgdialect.Array(signingStudents),
+		pgdialect.Array(signingSchools), pgdialect.Array(signingStudents), organizationID, reader.Email, reader.Email,
+		organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
+		Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read inbox: %w", err)
+	}
+	result := make([]ports.InboxRow, len(rows))
+	for i, row := range rows {
+		result[i].InformedAt = row.InformedAt
+		if row.ConcludedAt != nil && row.Method != nil {
+			result[i].Concluded = &carecontract.Concluded{Method: *row.Method, At: *row.ConcludedAt}
+		}
+		result[i].Contract = carecontract.InboxContract{
+			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
+			ModulesText: carecontract.JoinNames(row.ModuleNames),
+			SchoolName:  row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,
+			Status: row.Status, EndsOn: row.EndsOn, SignedAt: row.SignedAt, CanSign: row.CanSign, CanEnd: row.CanEnd,
+		}
+	}
+	return result, nil
+}
+
+// InboxDocument reads the PDF of a contract sent to the address.
+func (Store) InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return carecontract.File{}, err
+	}
+	var row documentRow
+	schools, students := inboxChildScope(reader.Children)
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_mailings AS m
+		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
+		JOIN care_contract.contracts AS c ON c.organization_id = m.organization_id AND c.id = m.contract_id
+		WHERE m.organization_id = ? AND m.contract_id = ? AND lower(m.recipient_email) = lower(?) AND `+inboxChildScopeSQL+`
+		ORDER BY m.sent_at DESC, m.id DESC LIMIT 1`, organizationID, contractID, reader.Email, pgdialect.Array(schools), pgdialect.Array(students)).Scan(ctx, &row)
+	return row.file(err, carecontract.ErrInboxDocumentNotFound)
+}
+
+// inboxChildScopeSQL binds school and student as pairs, never as independent
+// lists. An empty scope or an unassigned contract child grants no access.
+const inboxChildScopeSQL = `EXISTS (SELECT 1 FROM unnest(?::bigint[], ?::bigint[]) AS allowed(school_id, student_id)
+ WHERE allowed.school_id = c.school_id AND allowed.student_id = c.student_id)`
+
+func inboxChildScope(children map[int64][]int64) ([]int64, []int64) {
+	schools, students := []int64{}, []int64{}
+	for school, permitted := range children {
+		for _, student := range permitted {
+			schools = append(schools, school)
+			students = append(students, student)
+		}
+	}
+	return schools, students
+}

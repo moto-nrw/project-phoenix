@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { LogoutModal } from "~/components/ui/logout-modal";
+import { LogoutModal } from "~/components/auth/logout-modal";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
@@ -37,7 +37,11 @@ import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
 import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
-import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
+import {
+  ProfileDropdownHeader,
+  ProfileDropdownMenu,
+  ProfileTrigger,
+} from "./header/profile-dropdown";
 import {
   SectionBreadcrumb,
   OgsGroupsBreadcrumb,
@@ -147,11 +151,16 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
 > = [
   ["/schulen", "Schulen"],
   ["/uebersicht", "Dashboard"],
+  ["/stichtagszahlen", "Stichtagszahlen"],
+  ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
+  ["/dokumente", "Dokumente"],
   ["/abrechnung", "Abrechnung"],
+  ["/vertraege", "Verträge"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
   ["/einstellungen/briefkopf", "Briefkopf und Vorlagen"],
   ["/einstellungen/abrechnung", "Abrechnungsvorgaben"],
+  ["/einstellungen/dokumentarten", "Dokumentarten"],
   ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
   ["/einstellungen", "Allgemein"],
 ];
@@ -266,7 +275,11 @@ export function Header() {
       return tParentNav("settings");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
       return tParentNav("mealPlan");
-    if (pathname === "/parents/documents" || pathname === "/documents")
+    // Ein Vertrag zum Unterschreiben gehört zu den Dokumenten (#4679).
+    if (
+      matchesPathPrefix(pathname, "/parents/documents") ||
+      matchesPathPrefix(pathname, "/documents")
+    )
       return tParentNav("documents");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
@@ -509,7 +522,14 @@ export function Header() {
               ariaLabel={profileMenuLabel}
               preferredWidth={288}
               align="end"
-              className="border-0 bg-transparent p-0 shadow-none"
+              focusPanelOnOpen
+              header={
+                <ProfileDropdownHeader
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userEmail={userEmail}
+                />
+              }
               renderTrigger={({ ref, toggle, panelId }) => (
                 <ProfileTrigger
                   ref={ref}
@@ -526,10 +546,6 @@ export function Header() {
             >
               {({ close }) => (
                 <ProfileDropdownMenu
-                  isOpen={isProfileMenuOpen}
-                  displayName={displayName}
-                  displayAvatar={displayAvatar}
-                  userEmail={userEmail}
                   profileUrl={profileUrl}
                   profileLabel={
                     mode === "operator"

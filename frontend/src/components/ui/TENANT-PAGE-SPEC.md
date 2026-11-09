@@ -5,9 +5,11 @@ Gerüst. Kein „ungefähr gleich", kein Sonderweg pro Seite. Es gibt KEINE
 Ausnahmeseite mehr — Startseite, Profil und Notfallliste tragen dasselbe
 Gerüst wie jede Liste.
 
-Nicht anfassen: Eltern-Portal (`app/parents`, `components/parent`),
-Schul-Portal (`app/school`, `components/school`, `components/class-day`),
-Operator-Portal (`app/operator`, `components/operator`).
+Dasselbe Gerüst gilt für das Träger-Portal und seit #5604 für das Schul-Portal
+(`app/school`, `components/school`, `components/class-day`) und das
+Operator-Portal (`app/operator`, `components/operator`), jeweils ohne die Seiten
+vor der Anmeldung. Das Eltern-Portal (`app/parents`, `components/parent`) behält `ParentPage`; Laden,
+Leerzustand und Fehler laufen dort über denselben `PageBody` (#5606).
 
 ## Das Gerüst
 
@@ -72,6 +74,10 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Unter sm: eine Aktion steht neben der Statuszeile; ab zwei bleiben die
    Symbolknöpfe dort und jeder Textknopf bekommt eine volle Zeile darunter
    (Abschnitt „Unter sm").
+   Der Bearbeitungszustand der Startseite trägt „Abbrechen“ und „Fertig“: Das
+   Paar ist eine Entscheidung. Der Product Owner hat diese Ausnahme am
+   08.11.2026 freigegeben. `tenant-page-scaffold.test.ts` prüft Regel 3 und 4
+   und führt sie als einzige (#5605).
 5. **Suche und Filter gehören in `search`/`filters`.** Handgebaute Zeilen aus
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
@@ -188,8 +194,8 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     Werte, Sätze und Bedienelemente sind `text-sm` oder größer; die
     wichtigste Aussage einer Fläche ist ihre größte (`text-2xl` für die
     eine Antwort, `text-sm leading-6` für den Satz darunter — das
-    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind per Ratchet
-    gesperrt (`ui-kit/no-tiny-text`, Baseline shrink-only).
+    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind gesperrt
+    (`ui-kit/no-tiny-text`, hard-zero).
 17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
     zieht Knöpfe, Links in Button-Optik (`ButtonLink`), Felder und
     Auswahllisten der Kopfkarte auf 40 px (Telefon: 44 px, die
@@ -198,6 +204,8 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     `ToggleChip` (`h-10`) und die Navigationsgruppe der
     `PlanningContextBar` teilen dieses Maß. Kein 32-px-Bedienelement mehr
     neben einem 40er in derselben Zeile.
+    `ui-kit/no-control-height-override` sperrt `h-8`, `h-9` und `!size-*` an
+    Eingabefeldern, Auswahllisten und Kebab-Menüs (#5605).
 18. **Höchstens EIN Bedienband in der Kopfkarte.** Titel und Statuszeile
     sind Text; darunter steht GENAU EINE interaktive Zeile (Suche + Filter
     - eine Aktion, oder das Planungsband). Die Kontextzeile der

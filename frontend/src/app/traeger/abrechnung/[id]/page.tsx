@@ -8,7 +8,9 @@
 // lässt sich stornieren und gutschreiben (#4690); eine stornierte Rechnung
 // stellt der nächste Lauf des Zeitraums neu aus und schlägt ihre Korrekturen
 // wieder vor (#5663). Die Statuszeile führt zurück zum Ferienzeitraum des
-// Laufs, für alle, die die Ferienbetreuung öffnen dürfen (#5688).
+// Laufs, für alle, die die Ferienbetreuung öffnen dürfen (#5688). Jede
+// Rechnung zeigt Zahlungsweg und Fälligkeit; die Fälligkeiten des Laufs
+// lassen sich bis zur Freigabe ändern (#4689).
 
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
@@ -26,6 +28,8 @@ import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
+import { runDueDatesText } from "~/components/traeger/billing-payment-format";
+import { HolidayDebitHintsCard } from "~/components/traeger/care-run-review-lazy";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
@@ -37,6 +41,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -190,7 +195,11 @@ export default function TraegerBillingRunPage() {
   const preview = run?.status === "calculated";
   const corrections =
     run?.documents.filter((document) => document.kind !== "invoice") ?? [];
-  const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const canRelease =
+    preview &&
+    run.numberRangeSet &&
+    run.previewCount > 0 &&
+    !run.legalRemedyMissing;
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
 
   return (
@@ -286,6 +295,19 @@ export default function TraegerBillingRunPage() {
           <SectionCard
             title="Abrechnungslauf"
             description={runDescription(run)}
+            actions={
+              preview ? (
+                <ButtonLink
+                  href={traegerPath(
+                    `/traeger/abrechnung/${run.id}/faelligkeiten`,
+                  )}
+                  variant="outline"
+                  size="md"
+                >
+                  Fälligkeiten ändern
+                </ButtonLink>
+              ) : undefined
+            }
           >
             <DataGrid columns={2}>
               <DataField label="Betreuung">
@@ -322,6 +344,13 @@ export default function TraegerBillingRunPage() {
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
+              <DataField label="Dokumentart">
+                {runDocumentKindLabel(run.documentKind)}
+              </DataField>
+              <DataField label="Fällig">
+                {runDueDatesText(run.dueDates ?? []) ??
+                  "Nach dem Zahlungsziel der Ferienbetreuung"}
+              </DataField>
               <DataField label="Rechnungsnummern">
                 {run.issuedOn ? (
                   `Ausgestellt am ${formatDate(run.issuedOn)}`
@@ -333,6 +362,24 @@ export default function TraegerBillingRunPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
+          {preview && run.legalRemedyMissing ? (
+            <Alert
+              type="warning"
+              title="Rechtsbehelfsbelehrung fehlt"
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              action={
+                <ButtonLink
+                  href={traegerPath(
+                    "/traeger/einstellungen/briefkopf/vorlagen/bescheid",
+                  )}
+                  variant="surface"
+                  size="compact"
+                >
+                  Vorlage öffnen
+                </ButtonLink>
+              }
+            />
+          ) : null}
           {preview && !run.numberRangeSet ? (
             <Alert
               type="warning"
@@ -365,6 +412,7 @@ export default function TraegerBillingRunPage() {
               }
             />
           ) : null}
+          {preview ? <HolidayDebitHintsCard documents={run.documents} /> : null}
           {preview && run.unbilled > 0 ? (
             <Alert
               type="info"
@@ -374,8 +422,12 @@ export default function TraegerBillingRunPage() {
           {run.status === "released" ? (
             <BillingLettersCard
               runId={run.id}
+              payments={run.documents
+                .filter((document) => document.kind === "invoice")
+                .map((document) => document.payment)}
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
+              documentKind={run.documentKind}
             />
           ) : null}
           {run.status === "released" && run.letters ? (

@@ -23,10 +23,12 @@ vi.mock("vaul", async () => {
         children,
         direction,
         onOpenChange,
+        dismissible,
       }: {
         children: React.ReactNode;
         direction?: string;
         onOpenChange?: (open: boolean) => void;
+        dismissible?: boolean;
       }) => {
         const interactOutsideHandler = React.useRef<
           ((event: Event) => void) | undefined
@@ -34,7 +36,7 @@ vi.mock("vaul", async () => {
         return (
           <OpenChangeContext.Provider value={onOpenChange}>
             <InteractOutsideContext.Provider value={interactOutsideHandler}>
-              <div data-direction={direction}>
+              <div data-direction={direction} data-dismissible={dismissible}>
                 {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund
                   und meldet das über onOpenChange. Das echte Vaul lässt sich in
                   jsdom nicht fahren, prüfbar ist aber das, was uns gehört: dass
@@ -53,6 +55,24 @@ vi.mock("vaul", async () => {
                   onClick={() => {
                     const event = new Event("pointerdown", {
                       cancelable: true,
+                    });
+                    interactOutsideHandler.current?.(event);
+                    if (!event.defaultPrevented) onOpenChange?.(false);
+                  }}
+                />
+                {/* Ein Klick in einem Kit-Modal über dem Panel: Radix meldet
+                  ihn als Außenklick mit dem Modal-Element als Ziel. */}
+                <button
+                  type="button"
+                  data-testid="vaul-outside-in-modal"
+                  onClick={() => {
+                    const event = new Event("pointerdown", {
+                      cancelable: true,
+                    });
+                    Object.defineProperty(event, "target", {
+                      value: document.querySelector(
+                        '[data-testid="modal-option"]',
+                      ),
                     });
                     interactOutsideHandler.current?.(event);
                     if (!event.defaultPrevented) onOpenChange?.(false);
@@ -110,6 +130,8 @@ import {
   SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
 } from "./slide-over";
 
 function StatefulContent() {
@@ -244,6 +266,37 @@ describe("SlideOver", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("bleibt bei einem Klick in einem Kit-Modal darüber offen (#6148)", () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <>
+        <SlideOver open onOpenChange={onOpenChange}>
+          <SlideOverContent>
+            <StatefulContent />
+          </SlideOverContent>
+        </SlideOver>
+        <div data-modal-focus-scope="true">
+          <button type="button" data-testid="modal-option">
+            Bestehendes Kind verwenden
+          </button>
+        </div>
+      </>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Entwurf"), {
+      target: { value: "Felix" },
+    });
+    fireEvent.click(screen.getByTestId("vaul-outside-in-modal"));
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Entwurf")).toHaveValue("Felix");
+
+    // Ein Klick neben Panel und Modal schließt weiter.
+    fireEvent.click(screen.getByTestId("vaul-outside"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("bleibt mit isBackdropDismissDisabled bei einem Klick daneben offen und behält die Eingabe (#3370)", () => {
     const onOpenChange = vi.fn();
     const onInteractOutside = vi.fn();
@@ -339,5 +392,73 @@ describe("SlideOver", () => {
       "hover:bg-gray-100",
     );
     expect(close.className).not.toContain("rounded-full");
+  });
+
+  it("puts the close X into the header by default", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Schließen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("disables every dismissal path while saving", () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <SlideOver open isDismissDisabled onOpenChange={onOpenChange}>
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
+    expect(
+      screen.getByText("Titel").closest("[data-direction]"),
+    ).toHaveAttribute("data-dismissible", "false");
+    fireEvent.click(screen.getByTestId("vaul-dismiss"));
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("takes its own close control and can go without one", () => {
+    const { rerender } = render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader
+            close={
+              <SlideOverCloseButton aria-label="Export schließen" disabled />
+            }
+          >
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Export schließen" }),
+    ).toBeDisabled();
+    rerender(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverHeader close={false}>
+            <SlideOverTitle>Titel</SlideOverTitle>
+          </SlideOverHeader>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    expect(
+      screen.queryByRole("button", { name: /schließen/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Titel")).toBeInTheDocument();
   });
 });

@@ -11,7 +11,7 @@ import {
   PrivacyConsentSection,
   DepartureSection,
 } from "./student-form-fields";
-import type { Student } from "@/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 describe("PersonalInfoSection", () => {
   const mockFormData: Partial<Student> = {
@@ -101,11 +101,9 @@ describe("HealthInfoSection", () => {
     render(<HealthInfoSection value="Peanut allergy" onChange={onChange} />);
 
     expect(screen.getByDisplayValue("Peanut allergy")).toBeInTheDocument();
-    expect(
-      screen
-        .getByDisplayValue("Peanut allergy")
-        .parentElement?.querySelector("h3 > svg"),
-    ).toHaveClass("text-moto-red");
+    expect(screen.getByRole("heading").querySelector("svg")).toHaveClass(
+      "text-moto-red",
+    );
   });
 
   it("calls onChange when textarea changes", () => {
@@ -125,11 +123,9 @@ describe("AdditionalInfoSection", () => {
     render(<AdditionalInfoSection value="Extra details" onChange={onChange} />);
 
     expect(screen.getByDisplayValue("Extra details")).toBeInTheDocument();
-    expect(
-      screen
-        .getByDisplayValue("Extra details")
-        .parentElement?.querySelector("h3 > svg"),
-    ).toHaveClass("text-moto-blue");
+    expect(screen.getByRole("heading").querySelector("svg")).toHaveClass(
+      "text-moto-blue",
+    );
   });
 
   it("calls onChange when textarea changes", () => {

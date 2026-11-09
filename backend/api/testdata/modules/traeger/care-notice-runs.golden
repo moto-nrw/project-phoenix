@@ -1,0 +1,5 @@
+GET /traeger/care-notice-runs/ -> basis
+GET /traeger/care-notice-runs/{id} -> basis
+GET /traeger/care-notice-runs/{id}/notices/{contractID}/letter -> basis
+POST /traeger/care-notice-runs/ -> basis
+POST /traeger/care-notice-runs/{id}/release -> basis

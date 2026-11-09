@@ -99,6 +99,9 @@ type Teacher struct {
 	Role           string     `json:"role,omitempty"`
 	Qualifications string     `json:"qualifications,omitempty"`
 	DeletedAt      *time.Time `json:"-"`
+	// Staff is populated only by TeacherFilter.IncludeStaff. Retired or
+	// missing memberships leave it nil; teacher selection stays unchanged.
+	Staff *Staff `json:"-"`
 }
 
 func (t Teacher) IsDeleted() bool { return t.DeletedAt != nil }
@@ -210,6 +213,11 @@ type TeacherFilter struct {
 	RoleContains           string
 	HasQualifications      *bool
 	IncludeDeleted         bool
+	// IncludeStaff embeds live membership facts in the same owner read and
+	// retains the separate Workforce employment read unless MembershipOnly is set.
+	IncludeStaff bool
+	// MembershipOnly omits Employment when the roster consumes membership facts only.
+	MembershipOnly bool
 }
 
 // ExternalCaregiverRecordFilter narrows a listing of external caregiver
@@ -260,6 +268,9 @@ type ClassListQuery interface {
 	// MatchingStudentIDs names the enrolled students sharing an entry's name
 	// and class: the "Zuordnen" hint, never an automatic merge.
 	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
+	// MatchingStudentIDsForEntries answers MatchingStudentIDs for every
+	// entry from one shared read; result[i] answers entries[i].
+	MatchingStudentIDsForEntries(context.Context, []ClassListEntryFields) ([][]int64, error)
 }
 
 // TeachingAssignmentQuery reads the class teacher and group teacher rows.

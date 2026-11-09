@@ -14,11 +14,8 @@ import {
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -26,7 +23,6 @@ import {
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { PasswordRequirements } from "~/components/auth/password-requirements";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   LoadErrorAlert,
   FormErrorAlert,
@@ -48,9 +44,6 @@ import { Button } from "~/components/ui/button";
 const logger = createLogger({ component: "TraegerInvitePage" });
 
 const SHELL_COPY = {
-  eyebrow: "Träger-Portal",
-  // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
-  eyebrowClassName: "text-moto-blue",
   title: "Einladung ins Träger-Büro",
   subtitle: "Nehmen Sie die Einladung an. Danach melden Sie sich an.",
 } as const;
@@ -176,29 +169,25 @@ function InviteForm({
         >
           {existing ? "Passwort Ihres moto-Kontos" : "Neues Passwort"}
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            controlSize="compact"
-            autoComplete={existing ? "current-password" : "new-password"}
-            required
-            disabled={submitting}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            aria-invalid={Boolean(formErrors.fieldError("password"))}
-            aria-describedby={
-              formErrors.fieldError("password") ? "password-error" : undefined
-            }
-            className="pr-10"
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-          />
-        </div>
-        <AuthFieldError
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          controlSize="compact"
+          autoComplete={existing ? "current-password" : "new-password"}
+          required
+          disabled={submitting}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          aria-invalid={Boolean(formErrors.fieldError("password"))}
+          aria-describedby={
+            formErrors.fieldError("password") ? "password-error" : undefined
+          }
+          revealable
+          revealed={showPassword}
+          onRevealedChange={setShowPassword}
+        />
+        <FieldErrorHint
           id="password-error"
           message={formErrors.fieldError("password")}
         />
@@ -225,7 +214,7 @@ function InviteForm({
                   : undefined
               }
             />
-            <AuthFieldError
+            <FieldErrorHint
               id="confirm-password-error"
               message={formErrors.fieldError("confirm_password")}
             />
@@ -279,7 +268,7 @@ function InviteContent() {
   }, [load]);
 
   if (loading) {
-    return <Loading fullPage={false} message="Einladung wird geprüft …" />;
+    return <Loading message="Einladung wird geprüft …" />;
   }
   if (invitationLoad.error || !invitation) {
     return (
@@ -294,7 +283,7 @@ function InviteContent() {
 export default function TraegerInvitePage() {
   return (
     <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-      <Suspense fallback={<Loading fullPage={false} message="Laden …" />}>
+      <Suspense fallback={<Loading message="Laden …" />}>
         <InviteContent />
       </Suspense>
     </AuthShell>

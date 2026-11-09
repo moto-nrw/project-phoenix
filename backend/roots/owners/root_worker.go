@@ -201,7 +201,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, tracer *observability.Tracer, tracker ProductEventTracker, tokensFor func() (TokenAdapter, error), communicationSession interface {
 	AccountID(context.Context) int64
 	Permissions(context.Context) []string
-}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions, buildAnalytics func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker, schoolNames func(ProductEventTracker) SchoolNamesPublisher, plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder) (schedulerPorts.Worker, error) {
+}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions, buildAnalytics func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker, schoolNames func(ProductEventTracker) SchoolNamesPublisher, plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder, careContracts CareContractConclusionBuilder) (schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
@@ -402,7 +402,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			announcements, err = BuildParentAnnouncements(env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery),
+			announcements, err = BuildParentAnnouncements(env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes,
 				notifications, messaging, purger)
 			return
 		},
@@ -456,7 +456,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			lifecycle, err = BuildTimetableDay(env, hub, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
-				services.Users, membership, active, schedules, timetableSession, withStaff)
+				services.Users, membership, active, schedules, timetableSession, caller.Caller(), withStaff)
 			return
 		},
 		func() error {
@@ -470,7 +470,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			notices = BuildEnrollmentNotices(env, enrollment, settings.Service, delivery.Enqueuer(), organizations, audit, carePlan, DeliveryModuleOf(delivery))
+			notices = BuildEnrollmentNotices(env, enrollment, settings.Service, delivery.Enqueuer(), organizations, audit, carePlan, DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes)
 			phases, err = BuildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service)
 			return
 		},
@@ -536,7 +536,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			outbox, err = BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, BuildParentDocumentNotices(env, portalReads, organizations, identity, people, notifications))
+				IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, BuildParentDocumentNotices(db, env, portalReads, organizations, identity, people, notifications, delivery.Runtime.Module))
 			return
 		},
 	)
@@ -546,7 +546,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker), plannedExits, dayLog, env.HealthData)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker), plannedExits, dayLog, env.HealthData, CareContractRemindersJob(db.UnitOfWork(), organizations, settings.Traeger, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, env.Links.ParentsURL), careContracts(organizations, settings, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, audit.Persistence.DataAccessLog, env.Links.ParentsURL))
 }
 
 func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, organizations organizationtenancy.Capability, hub *realtime.Hub, bookings enrollmentPhaseRestrictions, tracker ProductEventTracker, bind func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker) (SettingsOwner, ProductEventTracker, error) {

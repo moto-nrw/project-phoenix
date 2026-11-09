@@ -90,11 +90,6 @@ func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, chal
 	return token, MFAError(err)
 }
 
-func (c ComposedAccountMFA) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	token, err := c.Flows.ResendChallenge(c.ctx(ctx), challengeToken, ip)
-	return token, MFAError(err)
-}
-
 func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {
 	return MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))
 }
@@ -243,16 +238,11 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 	if g.Capability == nil {
 		return "", errMFANotComposed
 	}
-	challengeScope := identityaccess.MFAChallengeScopeTenant
-	switch scope {
-	case domain.ScopeSchool:
-		challengeScope = identityaccess.MFAChallengeScopeSchool
-	case domain.ScopeOrg:
-		challengeScope = identityaccess.MFAChallengeScopeOrg
-	case domain.ScopeCaterer:
-		challengeScope = identityaccess.MFAChallengeScopeCaterer
+	portal, ok := domain.PortalNamed(scope)
+	if !ok || !portal.Challenge {
+		return "", identityaccess.ErrMFAUnsupportedScope
 	}
-	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))
+	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress))
 }
 
 func (g CapabilityGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {

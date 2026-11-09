@@ -9,7 +9,10 @@ vi.mock("next-auth/react", () => ({
     },
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -185,6 +188,13 @@ describe("ParentStartPage", () => {
     expect(
       screen.getByTestId("parent-start-child-skeleton"),
     ).toBeInTheDocument();
+    const childSkeleton = screen.getByTestId("parent-start-child-skeleton");
+    expect(
+      childSkeleton.querySelectorAll(".animate-pulse.rounded-xl"),
+    ).toHaveLength(1);
+    expect(
+      childSkeleton.querySelectorAll(".animate-pulse.rounded-lg"),
+    ).toHaveLength(2);
     expect(
       screen.queryByTestId("parent-start-child-action-skeleton"),
     ).not.toBeInTheDocument();

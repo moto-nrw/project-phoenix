@@ -2,10 +2,9 @@ import baseline from "./ui-kit-button-baseline.json" with { type: "json" };
 
 // Button-Ratchet (#5531, scripts/oxlint-plugin-ui-kit.mjs).
 //
-// Baseline: Funde je Datei und Regel zum Stand von #5531, erzeugt mit
-// `pnpm run ui-kit:button-baseline`. Shrink-only: eine Datei
-// mit mehr Funden schlägt im Lint fehl; eine mit weniger lässt den Test
-// „button ratchet baseline“ fehlschlagen, bis die Zahl gesenkt ist.
+// Baseline: seit #6182 für alle Regeln leer, die Regeln sind hart null. Jeder
+// Fund außerhalb der Allowlist schlägt im Lint fehl; `pnpm run
+// ui-kit:button-baseline` weigert sich, die Baseline wieder anzuheben.
 /** @type {Record<string, Record<string, number>>} */
 export const buttonRatchetBaseline = baseline;
 
@@ -17,7 +16,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/segmented-control.tsx",
-    lines: [134, 173, 190],
+    lines: [140, 179, 196],
     reason: "SegmentedControl: Wertauswahl, kein Knopf",
   },
   {
@@ -28,8 +27,14 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
+    file: "src/components/ui/switch.tsx",
+    lines: [39],
+    reason: "Switch: der Kit-Baustein für An/Aus (role=switch), kein Knopf",
+  },
+  {
+    rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
-    lines: [223],
+    lines: [224],
     reason: "Auswahloptionen eines Filters, kein Knopf",
   },
   {
@@ -40,288 +45,161 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/listbox-dropdown.tsx",
-    lines: [1010],
-    reason:
-      "Auslöser des Kit-Auswahlfelds (ListboxDropdown), Eingabefeld, kein Knopf (#5580)",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [441],
+    lines: [457],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/date-range-picker.tsx",
-    lines: [82],
-    reason: "Auslöser des Zeitraumfelds (Eingabefeld)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/ui/plan-block.tsx",
-    lines: [208],
+    file: "src/components/ui/planning/plan-block.tsx",
+    lines: [213],
     reason: "Planungsblock im Raster: Kachel, kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [134],
-    reason: "Navigationszeile der unteren Leiste",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [177, 215, 262],
-    reason: "Navigationszeilen der unteren Leiste im Elternportal",
+    lines: [393, 432],
+    reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [326],
+    lines: [323],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [381],
+    lines: [380],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-team-message-modal.tsx",
-    lines: [162],
+    lines: [159],
     reason: "Person in der Empfängerliste wählen: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [46],
-    reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
-    lines: [148],
+    lines: [158],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1069],
+    lines: [1052],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [361],
+    lines: [349],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/settings/fields/boolean-field.tsx",
-    lines: [17],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3140],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [209],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/timetable/weekly-calendar-grid.tsx",
-    lines: [388],
-    reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/staff/dienstplan-resource-grid.tsx",
-    lines: [718],
-    reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
   },
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [855, 888, 988, 1157],
+    lines: [829, 862, 962, 1143],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [548, 797],
+    lines: [524, 776],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [378],
+    lines: [329],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1059],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
-    rule: "no-button-override",
-    file: "src/components/class-day/class-day-overview.tsx",
-    lines: [172],
-    reason:
-      "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1327, 1528, 1563],
-    reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/day-flow-block.tsx",
-    lines: [140],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/home-block-content.tsx",
-    lines: [203, 275],
-    reason: "Listenzeilen der Startseite, verlinken weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/messages-block.tsx",
-    lines: [82],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/my-group-block.tsx",
-    lines: [257, 288, 320],
-    reason: "Listenzeilen der Startseite, verlinken weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/open-requests-block.tsx",
-    lines: [101],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/home/reminders-block.tsx",
-    lines: [134],
-    reason: "Listenzeile der Startseite, verlinkt weiter",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/students/care-plan-view.tsx",
-    lines: [503],
-    reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
-  },
-  {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1319],
-    reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1560],
+    lines: [1544],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [410],
+    lines: [403],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/parent-messages-card.tsx",
-    lines: [135],
+    lines: [144],
     reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [946],
+    lines: [930],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/students/student-detail-components.tsx",
-    lines: [1166],
-    reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/time-tracking/betreuungsplan-heute-card.tsx",
-    lines: [394],
-    reason:
-      "Zeile „Betreuungsplan heute“, verlinkt auf Heute: Navigationszeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/timetable/event-form/step-termin.tsx",
-    lines: [140],
-    reason: "Typauswahl im Terminformular: Auswahlkachel",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [277],
+    lines: [306],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
+  },
+  // #5608: Seit die Regel `moto-content-surface`, Farben per `style` und
+  // `label`/`span` mit `cursor-pointer` erkennt, sieht sie diese Kacheln und
+  // Felder. Sie sind keine Knöpfe im Sinn von #5529.
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/ui/tile-card.tsx",
+    lines: [94, 149],
+    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/ui/color-swatch-input.tsx",
+    lines: [21],
+    reason: "Farbfeld: zeigt die gewählte Farbe und öffnet die Farbauswahl",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/compact-student-card.tsx",
+    lines: [88],
+    reason: "Kinderkarte im Raster, öffnet das Profil: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/parent/child/child-switcher.tsx",
+    lines: [55],
+    reason:
+      "Kinderkarte im Elternportal (Ausnahme des Epics #5576, nicht anfassen): Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/care-schedule-manager.tsx",
+    lines: [1501],
+    reason: "Statustag-Karte, öffnet das Entfernen: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/calendar/personal-calendar.tsx",
+    lines: [1015],
+    reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
   // Navigation, nicht als Ruhezustand eines Knopfs.
   {
     rule: "no-grey-button-fill",
-    file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1319],
-    reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
-  },
-  {
-    rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [277],
+    lines: [306],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1563],
-    reason:
-      "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [215],
-    reason:
-      "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/announcements/page.tsx",
-    lines: [696],
-    reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/announcements/page.tsx",
-    lines: [806, 948, 1037],
-    reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

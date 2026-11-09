@@ -13,7 +13,11 @@ type DeviceStore interface {
 	Create(context.Context, devicefleet.CreateDevice) (devicefleet.Device, domain.OperationStats, error)
 	Update(context.Context, domain.UpdateDevice) (devicefleet.Device, domain.OperationStats, error)
 	UpdateColumns(context.Context, domain.UpdateDevice, []string) (int64, domain.OperationStats, error)
+	UpdateColumnsReturning(context.Context, domain.UpdateDevice, []string) (devicefleet.Device, domain.OperationStats, error)
+	// TouchLastSeen moves last_seen forward to the observation, never back.
+	TouchLastSeen(context.Context, int64, time.Time) (int64, domain.OperationStats, error)
 	UpdateStatusByDeviceID(context.Context, string, devicefleet.DeviceStatus) (int64, domain.OperationStats, error)
+	RecordHeartbeat(context.Context, string, time.Time) (int64, domain.OperationStats, error)
 	Delete(context.Context, int64) (int64, domain.OperationStats, error)
 	FindByID(context.Context, int64, string) (devicefleet.Device, bool, domain.OperationStats, error)
 	FindByDeviceID(context.Context, string) (devicefleet.Device, bool, domain.OperationStats, error)
@@ -89,6 +93,8 @@ type TenantFacts interface {
 
 // Transaction is the owner's seam onto the shared tenant runtime.
 type Transaction interface {
+	// TenantID validates the ambient tenant unit without changing role, scope or SQL.
+	TenantID(context.Context) (int64, error)
 	// RunWrite executes callback inside the caller's ambient tenant
 	// transaction, opening one when none exists.
 	RunWrite(context.Context, func(context.Context) error) error

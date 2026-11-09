@@ -1,4 +1,8 @@
-import { StatusPillBase, type StatusBadgeSize } from "./status-badge";
+import {
+  StatusPillBase,
+  type StatusBadgeSize,
+  type StatusPillDataAttributes,
+} from "./status-badge";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 
 // The kit pill (StatusPillBase, #5584) for a data-driven colour from
@@ -22,11 +26,16 @@ export function StatusColorBadge({
   color,
   title,
   size,
-}: {
+  compact,
+  wrap,
+  ...dataAttributes
+}: StatusPillDataAttributes & {
   readonly label: string;
   readonly color: string;
   readonly title?: string;
   readonly size?: StatusBadgeSize;
+  readonly compact?: boolean;
+  readonly wrap?: boolean;
 }) {
   const tone = getLocationBadgeTone(color);
 
@@ -35,8 +44,11 @@ export function StatusColorBadge({
       label={label}
       title={title}
       size={size}
+      compact={compact}
+      wrap={wrap}
       backgroundColor={tone.backgroundColor}
       textColor={tone.textColor}
+      {...dataAttributes}
     />
   );
 }

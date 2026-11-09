@@ -28,4 +28,5 @@ export const POST = createOperatorPostHandler<null, ModalBody>(
       backendBody,
     );
   },
+  { retry: { off: "a renewed session would send the current password twice" } },
 );

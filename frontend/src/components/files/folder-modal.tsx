@@ -6,6 +6,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -22,6 +23,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "FolderModal" });
 
@@ -173,28 +175,19 @@ export function FolderModal({
       }
     >
       <div ref={formRef} className="space-y-5">
-        <div className="space-y-1.5">
-          <label
-            htmlFor="ordner-name"
-            className="text-xs font-medium text-gray-600"
-          >
-            Name
-          </label>
-          <Input
-            id="ordner-name"
-            name="name"
-            value={name}
-            error={formErrors.fieldError("name")}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z. B. Konzeption, Formulare, Notfallpläne"
-            maxLength={120}
-          />
-        </div>
+        <Input
+          id="ordner-name"
+          name="name"
+          label="Name"
+          value={name}
+          error={formErrors.fieldError("name")}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="z. B. Konzeption, Formulare, Notfallpläne"
+          maxLength={120}
+        />
 
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-gray-600">
-            Wer sieht den Ordner?
-          </p>
+          <FieldLabel>Wer sieht den Ordner?</FieldLabel>
           <SegmentedControl
             variant="joined"
             fullWidth
@@ -209,15 +202,15 @@ export function FolderModal({
         </div>
 
         {visibility === "selected" && (
-          <div className="space-y-4 rounded-xl bg-gray-50 p-4">
+          <InsetPanel padding="md" className="space-y-4">
             <LoadErrorAlert error={audienceLoadError} />
             <div className="space-y-1.5">
-              <label
+              <FieldLabel
                 htmlFor="ordner-rollen"
-                className="text-xs font-medium text-gray-600"
+                invalid={Boolean(audienceHint)}
               >
                 Rollen
-              </label>
+              </FieldLabel>
               <MultiSelect
                 id="ordner-rollen"
                 value={roleIds}
@@ -244,12 +237,7 @@ export function FolderModal({
               ) : null}
             </div>
             <div className="space-y-1.5">
-              <label
-                htmlFor="ordner-personen"
-                className="text-xs font-medium text-gray-600"
-              >
-                Personen
-              </label>
+              <FieldLabel htmlFor="ordner-personen">Personen</FieldLabel>
               <MultiSelect
                 id="ordner-personen"
                 value={accountIds}
@@ -267,7 +255,7 @@ export function FolderModal({
               Eine Person sieht den Ordner, wenn sie selbst gewählt ist oder
               eine der gewählten Rollen hat.
             </p>
-          </div>
+          </InsetPanel>
         )}
 
         <p className="text-xs leading-5 text-gray-500">

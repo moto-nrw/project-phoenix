@@ -116,7 +116,7 @@ type parentAttachmentRoutes struct {
 
 // ParentAnnouncementAttachmentRouter serves the guardian side. It is mounted
 // at the root rather than under /parent, which is a catch-all mount, and is
-// authenticated with ParentMiddleware. No tenant transaction: a parent token
+// authenticated with ParentScopeMiddleware. No tenant transaction: a parent token
 // is cross-tenant, so the entry resolves the school from the announcement.
 func (rs *Resource) ParentAnnouncementAttachmentRouter(protectedParentGroup func(chi.Router, func(chi.Router)), guardian GuardianAttachments) chi.Router {
 	if guardian == nil {

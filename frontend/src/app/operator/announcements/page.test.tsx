@@ -93,29 +93,22 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 
 // Mock UI components
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title, badge, filters, actionButton }: any) => (
-    <div data-testid="page-header">
-      <h1>{title}</h1>
-      {badge && <span data-testid="badge">{badge.count}</span>}
-      {filters &&
-        filters.map((f: any) => (
-          <select
-            key={f.id}
-            data-testid={`filter-${f.id}`}
-            value={f.value}
-            onChange={(e) => f.onChange(e.target.value)}
-          >
-            {f.options.map((opt: any) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({ filters }: any) =>
+    filters?.map((f: any) => (
+      <select
+        key={f.id}
+        data-testid={`filter-${f.id}`}
+        value={f.value}
+        onChange={(e) => f.onChange(e.target.value)}
+      >
+        {f.options.map((opt: any) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
         ))}
-      {actionButton}
-    </div>
-  ),
+      </select>
+    )),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -175,7 +168,8 @@ vi.mock("framer-motion", () => ({
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   },
 }));
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("lucide-react")>()),
   MoreVertical: () => <span>MoreVertical</span>,
   Pencil: () => <span>Pencil</span>,
   Trash2: () => <span>Trash2</span>,
@@ -241,8 +235,10 @@ describe("OperatorAnnouncementsPage", () => {
 
     render(<OperatorAnnouncementsPage />);
 
-    // 3 skeleton cards × 6 Skeleton components each = 18
-    expect(screen.getAllByTestId("skeleton")).toHaveLength(18);
+    // Das Gerüst kündigt den Ladezustand an und zeigt seine Skelette (#5604).
+    expect(
+      screen.getByLabelText("Ankündigungen werden geladen"),
+    ).toBeInTheDocument();
   });
 
   it("renders empty state when no announcements", () => {
@@ -254,8 +250,37 @@ describe("OperatorAnnouncementsPage", () => {
 
     render(<OperatorAnnouncementsPage />);
 
-    expect(screen.getByText("Keine Ankündigungen")).toBeInTheDocument();
-    expect(screen.getByText("Neue Ankündigung")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Keine Ankündigungen. Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Neue Ankündigung" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Filter zurücksetzen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers resetting the status filter when it finds nothing", () => {
+    render(<OperatorAnnouncementsPage />);
+
+    fireEvent.change(screen.getByTestId("filter-status"), {
+      target: { value: "published" },
+    });
+
+    expect(
+      screen.getByText("Keine Ankündigungen mit dem Status „Veröffentlicht“"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Neue Ankündigung" }),
+    ).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter zurücksetzen" }),
+    );
+
+    expect(screen.getByText("Test Announcement")).toBeInTheDocument();
   });
 
   it("renders announcements list", () => {
@@ -795,6 +820,38 @@ describe("OperatorAnnouncementsPage", () => {
     expect(screen.queryByText("Keine Ankündigungen")).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Wiederholen" })[0]!);
     expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("shows a failed organization load while announcements are loading", async () => {
+    const reloadOrganizations = vi.fn();
+    mockUseSWR.mockImplementation((key: string) => {
+      if (key === "operator-announcements") {
+        return { data: undefined, isLoading: true, mutate: mockMutate };
+      }
+      if (key === "operator-organizations") {
+        return {
+          data: undefined,
+          error: new ApiError("down", 503),
+          isLoading: false,
+          mutate: reloadOrganizations,
+        };
+      }
+      return { data: undefined, isLoading: false, mutate: mockMutate };
+    });
+
+    render(<OperatorAnnouncementsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Träger"),
+      ),
+    ).toBeInTheDocument();
+    // Anker: der Ladefehler mit Wiederholen-Aktion ist sichtbar.
+    expect(
+      screen.queryByLabelText("Ankündigungen werden geladen"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(reloadOrganizations).toHaveBeenCalled();
   });
 
   describe("org/tenant targeting", () => {

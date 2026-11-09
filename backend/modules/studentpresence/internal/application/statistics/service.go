@@ -46,13 +46,16 @@ const (
 
 // Config wires the service dependencies.
 type Config struct {
-	Statistics      ports.RoomUtilizations
-	Attendance      ports.AttendanceDays
-	StatusDays      ports.StatusDays
-	Courses         ports.CourseStatistics
-	Holidays        ports.HolidayDates
-	ClosingDays     ports.ClosingDayDates
-	Periods         ports.HolidayPeriods
+	Statistics  ports.RoomUtilizations
+	Attendance  ports.AttendanceDays
+	StatusDays  ports.StatusDays
+	Courses     ports.CourseStatistics
+	Holidays    ports.HolidayDates
+	ClosingDays ports.ClosingDayDates
+	Periods     ports.HolidayPeriods
+	// CalendarDays, where set, reads ClosingDays and Periods in one
+	// statement (#5994).
+	CalendarDays    ports.CareCalendarDays
 	Students        ports.StatisticsStudents
 	Rooms           ports.StatisticsRooms
 	AccessLog       ports.StatisticsAccessLog
@@ -268,108 +271,6 @@ func (s *service) fillCourseSection(ctx context.Context, report *studentpresence
 	report.CourseStudents = courseStudents
 	report.CourseTotals = courseTotals
 	return nil
-}
-
-// careDays returns the ordered set of care days in the window and the
-// exclusion breakdown.
-func (s *service) careDays(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, studentpresence.StatisticsExcludedDays, error) {
-	var excluded studentpresence.StatisticsExcludedDays
-	holidays, err := s.holidayDates(ctx, from, to)
-	if err != nil {
-		return nil, excluded, err
-	}
-	closing, err := s.closingDayDates(ctx, from, to)
-	if err != nil {
-		return nil, excluded, err
-	}
-	vacation, err := s.holidayPeriodDates(ctx, from, to)
-	if err != nil {
-		return nil, excluded, err
-	}
-
-	care := map[calendar.Date]bool{}
-	for d := from; !d.After(to); d = d.AddDays(1) {
-		// A weekend counts only where it follows Friday's plan (#3921).
-		careWeekday, err := calendar.IsCareWeekday(ctx, d)
-		if err != nil {
-			return nil, excluded, fmt.Errorf("statistics: resolve weekend plan: %w", err)
-		}
-		if !careWeekday {
-			continue
-		}
-		if countExclusions(&excluded, holidays[d], closing[d], vacation[d]) {
-			continue
-		}
-		care[d] = true
-	}
-	return care, excluded, nil
-}
-
-// countExclusions adds a weekday to every exclusion bucket it falls into and
-// reports whether it is excluded at all; the total counts the union.
-func countExclusions(excluded *studentpresence.StatisticsExcludedDays, holiday, closing, vacation bool) bool {
-	if holiday {
-		excluded.PublicHolidays++
-	}
-	if closing {
-		excluded.ClosingDays++
-	}
-	if vacation {
-		excluded.HolidayPeriods++
-	}
-	off := holiday || closing || vacation
-	if off {
-		excluded.Total++
-	}
-	return off
-}
-
-func (s *service) holidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
-	if s.cfg.Holidays == nil {
-		return map[calendar.Date]bool{}, nil
-	}
-	set, err := s.cfg.Holidays.HolidayDates(ctx, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("load public holidays: %w", err)
-	}
-	return set, nil
-}
-
-func (s *service) closingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
-	if s.cfg.ClosingDays == nil {
-		return map[calendar.Date]bool{}, nil
-	}
-	set, err := s.cfg.ClosingDays.ClosingDayDates(ctx, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("load closing days: %w", err)
-	}
-	return set, nil
-}
-
-func (s *service) holidayPeriodDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
-	vacation := map[calendar.Date]bool{}
-	if s.cfg.Periods == nil {
-		return vacation, nil
-	}
-	periods, err := s.cfg.Periods.StatisticsHolidayPeriods(ctx, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("load holiday periods: %w", err)
-	}
-	for _, p := range periods {
-		// Clamp to the report window: a period may span years, and only
-		// its overlap with [from, to] can ever be a care day.
-		start, end := p.StartDate, p.EndDate
-		if start.Before(from) {
-			start = from
-		}
-		if end.After(to) {
-			end = to
-		}
-		for d := start; !d.After(end); d = d.AddDays(1) {
-			vacation[d] = true
-		}
-	}
-	return vacation, nil
 }
 
 func filterStudentsByGroup(students []*ports.StatisticsStudent, groupIDs []int64) []*ports.StatisticsStudent {
@@ -643,6 +544,17 @@ func (s *service) roomRetentionDays(ctx context.Context, students []studentprese
 }
 
 func (s *service) recordAccess(ctx context.Context, filters studentpresence.StatisticsFilters, actor studentpresence.StatisticsActor, action, format string, dedup bool) error {
+	return s.recordAccessOf(ctx, filters, actor, action, format, dedup, nil)
+}
+
+// recordStudentAccess records a read of one child's care times (#4683, ADR
+// 0088 section 7): the child travels as the entry's student and in the
+// metadata, so reads of different children never deduplicate each other.
+func (s *service) recordStudentAccess(ctx context.Context, filters studentpresence.StatisticsFilters, actor studentpresence.StatisticsActor, studentID int64) error {
+	return s.recordAccessOf(ctx, filters, actor, "view_student", "", true, &studentID)
+}
+
+func (s *service) recordAccessOf(ctx context.Context, filters studentpresence.StatisticsFilters, actor studentpresence.StatisticsActor, action, format string, dedup bool, studentID *int64) error {
 	if s.cfg.AccessLog == nil {
 		return fmt.Errorf("%w: access log not configured", studentpresence.ErrStatisticsAuditFailed)
 	}
@@ -651,6 +563,9 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 		role = "unknown"
 	}
 	meta := accessMetadata(filters, action)
+	if studentID != nil {
+		meta["student_id"] = strconv.FormatInt(*studentID, 10)
+	}
 	now := s.cfg.Now()
 	if dedup {
 		exists, err := s.cfg.AccessLog.SeenStatisticsAccessSince(ctx, actor.AccountID, meta, now.Add(-viewDedupWindow))
@@ -662,6 +577,7 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 		}
 	}
 	entry := ports.StatisticsAccessEvent{
+		StudentID:      studentID,
 		ActorAccountID: actor.AccountID,
 		ActorRole:      role,
 		RangeStart:     filters.From.BerlinMidnight(),

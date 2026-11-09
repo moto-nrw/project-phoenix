@@ -30,16 +30,18 @@ import {
   useState,
 } from "react";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ListRowLink } from "~/components/ui/list-row-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   OwnBlockHint,
+  blockEdgeColor,
   blockRowStyle,
   blockStaffNames,
 } from "~/components/timetable/block-row-parts";
@@ -239,57 +241,70 @@ function TagesplanRow({
     cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
 
+  const timeColumn = (
+    <span
+      className={`${parallel ? TIME_PARALLEL_CLASS : TIME_CLASS} ${over ? "opacity-50" : ""}`}
+    >
+      <span className="block text-sm font-semibold text-gray-900 tabular-nums">
+        {instance.startTime}
+      </span>
+      <span className="block text-xs text-gray-500 tabular-nums">
+        {blockEndLine(instance)}
+      </span>
+    </span>
+  );
+  const titleContent = (
+    <>
+      {instance.title}
+      <OwnBlockHint mine={mine} />
+      {instance.planningTrackName ? (
+        <span className="ml-2 text-xs font-normal text-gray-500">
+          {instance.planningTrackName}
+        </span>
+      ) : null}
+    </>
+  );
+  const detailLines = (
+    <>
+      {cancelled ? (
+        <span
+          className="block truncate text-xs font-medium"
+          style={{ color: LOCATION_COLORS.DANGER }}
+        >
+          {instance.cancelReason
+            ? `Fällt aus · ${instance.cancelReason}`
+            : "Fällt aus"}
+        </span>
+      ) : null}
+      <span className="block truncate text-xs text-gray-500">
+        {metaParts.flatMap((part, index) =>
+          index === 0 ? [part] : [" · ", part],
+        )}
+      </span>
+      {staff && !cancelled ? (
+        <span className="block truncate text-xs text-gray-400">
+          <MotoConceptIcon
+            concept={staffConcept}
+            size={14}
+            className="mr-1 inline-block align-[-2px]"
+          />
+          {staff}
+        </span>
+      ) : null}
+    </>
+  );
   const body = (
     <>
-      <span
-        className={`${parallel ? TIME_PARALLEL_CLASS : TIME_CLASS} ${over ? "opacity-50" : ""}`}
-      >
-        <span className="block text-sm font-semibold text-gray-900 tabular-nums">
-          {instance.startTime}
-        </span>
-        <span className="block text-xs text-gray-500 tabular-nums">
-          {blockEndLine(instance)}
-        </span>
-      </span>
+      {timeColumn}
       <span
         className={`${parallel ? "w-full min-w-0 @xs:w-auto @xs:flex-1" : "min-w-0 flex-1"} ${over ? "opacity-50" : ""}`}
       >
         <span
           className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
         >
-          {instance.title}
-          <OwnBlockHint mine={mine} />
-          {instance.planningTrackName ? (
-            <span className="ml-2 text-xs font-normal text-gray-500">
-              {instance.planningTrackName}
-            </span>
-          ) : null}
+          {titleContent}
         </span>
-        {cancelled ? (
-          <span
-            className="block truncate text-xs font-medium"
-            style={{ color: LOCATION_COLORS.DANGER }}
-          >
-            {instance.cancelReason
-              ? `Fällt aus · ${instance.cancelReason}`
-              : "Fällt aus"}
-          </span>
-        ) : null}
-        <span className="block truncate text-xs text-gray-500">
-          {metaParts.flatMap((part, index) =>
-            index === 0 ? [part] : [" · ", part],
-          )}
-        </span>
-        {staff && !cancelled ? (
-          <span className="block truncate text-xs text-gray-400">
-            <MotoConceptIcon
-              concept={staffConcept}
-              size={14}
-              className="mr-1 inline-block align-[-2px]"
-            />
-            {staff}
-          </span>
-        ) : null}
+        {detailLines}
       </span>
     </>
   );
@@ -298,12 +313,6 @@ function TagesplanRow({
       <StatusColorBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
     </span>
   ) : null;
-  const chevron = (
-    <ChevronRight
-      className="h-4 w-4 shrink-0 text-gray-400"
-      aria-hidden="true"
-    />
-  );
   const startButton = startable ? (
     <Button
       type="button"
@@ -325,53 +334,53 @@ function TagesplanRow({
   // In einer schmalen Spalte stehen Zeit, Inhalt und Aktion untereinander;
   // Badge, Chevron und Starten-Knopf rücken zusammen ans Ende.
   if (parallel) {
-    const trailing =
-      badge || openable || startButton ? (
-        <span className="flex shrink-0 items-center gap-3">
-          {badge}
-          {openable ? chevron : null}
-          {startButton}
-        </span>
-      ) : null;
     const inner =
       "flex h-full w-full flex-col items-start gap-2 px-3 py-3 @xs:flex-row @xs:items-center @xs:gap-3 @xs:px-4 @xs:py-3.5";
     return (
       <li
-        className="@container border-b border-l-4 border-gray-100"
-        style={{ ...edgeStyle, ...placement }}
+        className={`@container border-b border-gray-100 last:border-b-0 ${
+          openable ? "" : "border-l-4"
+        }`}
+        style={openable ? placement : { ...edgeStyle, ...placement }}
       >
         {openable ? (
-          <button
-            type="button"
+          <ListRowLink
             onClick={() => onOpenSession(instance.activeGroupId as string)}
-            className={`${inner} text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset`}
-          >
-            {body}
-            {trailing}
-          </button>
+            icon={timeColumn}
+            title={<span className="font-semibold">{titleContent}</span>}
+            subtitle={detailLines}
+            badge={badge}
+            accent={blockEdgeColor(instance)}
+            accentTint={mine && !cancelled}
+            contentClassName="w-full @xs:w-auto"
+            className="h-full flex-col items-start gap-2 px-3 py-3 @xs:flex-row @xs:items-center @xs:gap-3 @xs:px-4 @xs:py-3.5"
+          />
         ) : (
           <div className={inner}>
             {body}
-            {trailing}
+            {badge}
+            {startButton}
           </div>
         )}
       </li>
     );
   }
 
+  // Laufender Block: Navigationszeile aus dem Kit mit der Kante seiner
+  // Planungsspur (#5593). Läuft er, ist er nie vorbei: keine Dimmung.
   if (openable) {
     return (
       <li>
-        <button
-          type="button"
+        <ListRowLink
           onClick={() => onOpenSession(instance.activeGroupId as string)}
-          className="flex w-full items-center gap-3 border-b border-l-4 border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          style={edgeStyle}
-        >
-          {body}
-          {badge}
-          {chevron}
-        </button>
+          icon={timeColumn}
+          title={<span className="font-semibold">{titleContent}</span>}
+          subtitle={detailLines}
+          badge={badge}
+          accent={blockEdgeColor(instance)}
+          accentTint={mine && !cancelled}
+          className="border-b border-gray-100 py-3.5 last:border-b-0"
+        />
       </li>
     );
   }
@@ -680,7 +689,7 @@ export function TagesplanView() {
         ) : null}
 
         {!isLoading && !listError && groups.length > 0 ? (
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
+          <SectionCard padding="none">
             <ul>
               {groups.map((group, index) => (
                 <Fragment key={group.key}>
@@ -700,7 +709,7 @@ export function TagesplanView() {
                 <NowDivider nowHHMM={nowHHMM} />
               ) : null}
             </ul>
-          </div>
+          </SectionCard>
         ) : null}
       </SectionCard>
     </div>

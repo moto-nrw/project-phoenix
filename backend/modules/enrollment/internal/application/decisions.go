@@ -86,13 +86,13 @@ func (d *Decisions) StudentDecisionRequests(ctx context.Context, studentID int64
 // assembles them; a CreatedStudentID keeps only that student's children.
 func (d *Decisions) listDecisionRequests(ctx context.Context, filters enrollmentNative.RequestListFilters, errPrefix string) ([]*enrollmentNative.DecisionSummary, error) {
 	requests, err := d.deps.Requests.AdminRequests(ctx, filters)
-	if err == nil {
-		_, err = requestValues(requests)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errPrefix, err)
 	}
-	return d.assembleAll(ctx, requests, filters.CreatedStudentID)
+	if len(requests) == 0 {
+		return []*enrollmentNative.DecisionSummary{}, nil
+	}
+	return d.assembleRequests(ctx, requests, filters.CreatedStudentID)
 }
 
 // assembleAll assembles every request; a positive studentID keeps only the
@@ -134,15 +134,20 @@ func filterSummaryChildren(summary *enrollmentNative.DecisionSummary, studentID 
 func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publicResult *enrollmentNative.DecisionSummary, publicErr error) {
 	defer func() { publicErr = PublicError(publicErr) }()
 	req, err := d.deps.Requests.RequestByID(ctx, requestID, false)
-	if err == nil {
-		_, err = requestValue(req)
-	}
 	if err != nil {
 		return nil, careplan.ErrBookingRequestNotFound
 	}
 	summary, err := d.assemble(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+	// Best effort: the detail still renders without the candidates, and the
+	// approval itself re-checks them and fails closed (#6053).
+	if err := d.attachExistingChildCandidates(ctx, req, summary); err != nil {
+		d.logger().Warn("decision: enrolled-child candidates unavailable",
+			slog.Int64("request_id", requestID),
+			slog.String("error", err.Error()),
+		)
 	}
 	if d.deps.LateInvites == nil || enrollmentNative.NormalizedSubmissionSource(req.SubmissionSource) != enrollmentNative.RequestSourceLateInvite {
 		return summary, nil
@@ -170,9 +175,6 @@ func (d *Decisions) assemble(ctx context.Context, req *enrollmentNative.Request)
 		phase = nil
 	}
 	children, err := d.deps.Children.ChildrenForRequest(ctx, req.ID, false)
-	if err == nil {
-		_, err = childValues(children)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}

@@ -6,6 +6,8 @@ import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Device } from "@/lib/iot-helpers";
 import {
@@ -20,6 +22,7 @@ import {
   DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
 import { devicesConcept } from "~/lib/concepts/devices";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 
 /**
  * Der API-Schlüssel eines Geräts: verborgen, mit zwei Schaltflächen aus dem
@@ -28,7 +31,8 @@ import { devicesConcept } from "~/lib/concepts/devices";
  */
 function ApiKeyField({ device }: Readonly<{ device: Device }>) {
   const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useClipboardCopy("DeviceApiKeyField", 2000);
+  const { showMessage } = useApiErrorDisplay();
 
   if (!device.api_key) {
     return (
@@ -63,9 +67,13 @@ function ApiKeyField({ device }: Readonly<{ device: Device }>) {
           variant="outline"
           size="compact"
           onClick={() => {
-            void navigator.clipboard.writeText(device.api_key!);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            void copy(device.api_key!).then((ok) => {
+              if (!ok) {
+                showMessage(
+                  "Der Schlüssel konnte nicht kopiert werden. Bitte zeigen Sie ihn an und kopieren Sie ihn selbst.",
+                );
+              }
+            });
           }}
         >
           {copied ? "Kopiert" : "Kopieren"}
@@ -177,9 +185,6 @@ export const devicesConfig = defineEntityConfig<Device>({
             label: "Verbindung",
             value: (device) => (
               <span className="inline-flex items-center gap-1.5">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
-                />
                 <span className="font-medium">
                   {device.is_online ? "Online" : "Offline"}
                 </span>
@@ -198,11 +203,10 @@ export const devicesConfig = defineEntityConfig<Device>({
           {
             label: "Status",
             value: (device) => (
-              <span
-                className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
-              >
-                {getDeviceStatusDisplayName(device.status)}
-              </span>
+              <StatusColorBadge
+                label={getDeviceStatusDisplayName(device.status)}
+                color={getDeviceStatusColor(device.status)}
+              />
             ),
           },
         ],

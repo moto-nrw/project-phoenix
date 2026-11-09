@@ -3,15 +3,21 @@ package application
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // ValidateSessionTokens verifies a frontend session hand-off (access token
 // plus optional refresh token for one portal) without consuming any refresh
-// recovery state. Every mismatch is ErrInvalidToken.
+// recovery state. It asks whether the session would still renew: the facts
+// its refresh decides, through the refresh's own definitions, without locks
+// and without building claims, because validation writes nothing. A refusal carries the sentinel the
+// refresh answers with (identityaccess.SessionOutcomeOf); any other error is
+// a read that could not run.
 func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, access, refresh, portal string) (_ identityaccess.SessionClaims, err error) {
 	if s == nil {
 		return identityaccess.SessionClaims{}, errAccountAuthenticationUnavailable
@@ -23,43 +29,121 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 	if err != nil || claims.AccountID <= 0 || claims.ExpiresAt <= now || !domain.SessionScopeMatches(claims.Scope, portal) {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
-	if (portal == "tenant" || portal == "school") && claims.TenantID <= 0 {
-		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
-	}
-	// A Träger session names its Träger and no school (ADR 0084).
-	if portal == domain.ScopeOrg && (claims.OrgID <= 0 || claims.TenantID != 0) {
+	if named, _ := domain.PortalNamed(portal); !named.Holds(claims.TenantID, claims.OrgID) {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
 	refreshClaims, err := s.parseSessionRefresh(refresh, claims, now)
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
 	}
-	if refreshClaims == nil {
-		if err := s.verifyAccessFamily(ctx, claims, portal); err != nil {
-			return identityaccess.SessionClaims{}, err
+	var handOff accountHandOff
+	if portal == domain.PortalPlatform.Name {
+		if refreshClaims == nil {
+			err = s.verifyOperatorFamily(ctx, claims)
 		}
+	} else {
+		handOff, err = accountHandOffOf(claims)
 	}
-	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		return s.validateSessionInTx(txCtx, claims, refreshClaims, portal)
-	})
 	if err != nil {
+		return identityaccess.SessionClaims{}, err
+	}
+	var booked func(context.Context) error
+	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if portal == domain.PortalPlatform.Name {
+			return s.validateOperatorSession(txCtx, claims, refreshClaims)
+		}
+		var err error
+		booked, err = s.validateAccountSessionInTx(txCtx, handOff, claims, refreshClaims)
+		return err
+	})
+	if err == nil && booked != nil {
+		// The portal port reads the module booking in a transaction of its
+		// own, after the session's own facts.
+		err = booked(ctx)
+	}
+	if err != nil {
+		s.logValidationRefusal(err, claims, portal)
 		return identityaccess.SessionClaims{}, err
 	}
 	return identityaccess.SessionClaims(claims), nil
 }
 
-// verifyAccessFamily confirms that the refresh-token family an access token
-// names still backs it, for a hand-off without its refresh token (#5399).
-// The refresh row check covers the family otherwise. The BFF asks before it
-// writes or shows a session, so the answer of a request that outlived its
-// logout neither sets a cookie nor reads as signed in. ErrInvalidToken means
-// revoked, expired or foreign; any other error means the check could not run.
-func (s *AccountAuthentication) verifyAccessFamily(ctx context.Context, claims domain.SessionClaims, portal string) error {
-	if portal != "platform" {
-		return s.VerifyAccessSession(ctx, identityaccess.AccessSession{
-			AccountID: claims.AccountID, ActingAdminID: claims.ActingAdminID, Scope: claims.Scope, FamilyID: claims.FamilyID,
-		})
+// accountHandOff is the session an account access token names: its kind,
+// the rules of that kind and what the session rests on.
+type accountHandOff struct {
+	kind    domain.SessionKind
+	policy  sessionPolicy
+	binding sessionBinding
+}
+
+func accountHandOffOf(claims domain.SessionClaims) (accountHandOff, error) {
+	kind, ok := claims.SessionKind()
+	policy, known := sessionPolicies[kind]
+	if !ok || !known || claims.FamilyID == "" || (claims.ViaTraeger && kind != domain.SessionKindTraegerSchool) {
+		return accountHandOff{}, identityaccess.ErrInvalidToken
 	}
+	return accountHandOff{
+		kind:    kind,
+		policy:  policy,
+		binding: sessionBinding{op: "validate session", renewal: validateSession, accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID},
+	}, nil
+}
+
+// validateAccountSessionInTx reads the family (or the presented refresh
+// row), the account and the facts of the session's kind on one
+// transaction, and returns the booking check that runs after it.
+func (s *AccountAuthentication) validateAccountSessionInTx(txCtx context.Context, handOff accountHandOff, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) (func(context.Context) error, error) {
+	var session domain.AccountSession
+	if refreshClaims == nil {
+		head, err := s.sessions.LatestAccountSessionInFamily(txCtx, claims.FamilyID)
+		if err := familyBacks(head, err, domain.AccessSession{
+			AccountID: claims.AccountID, ActingAdminID: claims.ActingAdminID, Scope: claims.Scope, FamilyID: claims.FamilyID,
+		}); err != nil {
+			return nil, err
+		}
+		session = domain.AccountSession(head)
+	}
+	account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
+	if err != nil {
+		return nil, err
+	}
+	if !found || !account.Active {
+		return nil, identityaccess.ErrInvalidToken
+	}
+	if refreshClaims != nil {
+		if session, err = s.validateRefreshRow(txCtx, handOff.kind, claims, *refreshClaims, account.ID); err != nil {
+			return nil, err
+		}
+	}
+	return handOff.policy.check(txCtx, s, handOff.binding, session)
+}
+
+// logValidationRefusal records a refused validation once, apart from the
+// refresh's events. Every page view of a refused session asks, so a refusal
+// is Info; a read that failed, the second-factor state included, is Warn. A missing module is already logged by
+// the portal check (logPortalRefusal).
+func (s *AccountAuthentication) logValidationRefusal(err error, claims domain.SessionClaims, portal string) {
+	attrs := []any{
+		slog.String("portal", portal),
+		slog.Int64("account_id", claims.AccountID),
+		slog.Int64("tenant_id", claims.TenantID),
+		slog.String("reason", err.Error()),
+	}
+	switch identityaccess.SessionOutcomeOf(authenticationError(err)) {
+	case identityaccess.SessionModuleNotBooked:
+	case identityaccess.SessionUnclassified, identityaccess.SessionUndecided:
+		s.logger.Warn("session_validation_failed", attrs...)
+	default:
+		s.logger.Info("session_validation_refused", attrs...)
+	}
+}
+
+// verifyOperatorFamily confirms that the operator family an access token
+// names still backs it, for a hand-off without its refresh token (#5399).
+// The BFF asks before it writes or shows a session, so the answer of a
+// request that outlived its logout neither sets a cookie nor reads as signed
+// in.
+func (s *AccountAuthentication) verifyOperatorFamily(ctx context.Context, claims domain.SessionClaims) error {
 	if claims.FamilyID == "" {
 		return identityaccess.ErrInvalidToken
 	}
@@ -90,7 +174,7 @@ func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, cla
 	if refreshClaims == nil {
 		return nil
 	}
-	session, err := s.sessions.findOperatorSessionForUpdate(ctx, refreshClaims.Token)
+	session, err := s.sessions.findOperatorSessionByToken(ctx, refreshClaims.Token)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
 		return identityaccess.ErrInvalidToken
 	}
@@ -107,7 +191,7 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	var refreshClaims *domain.RefreshClaims
 	if refresh != "" {
 		parsed, err := s.codec.ParseRefreshToken(refresh)
-		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || (claims.Scope == domain.ScopeOrg && parsed.OrgID != claims.OrgID) || claims.ReadOnly || claims.FamilyID == "" {
+		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || (claims.Scope == domain.PortalOrg.Claim && parsed.OrgID != claims.OrgID) || claims.ReadOnly || claims.FamilyID == "" {
 			return nil, identityaccess.ErrInvalidToken
 		}
 		refreshClaims = &parsed
@@ -115,115 +199,18 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	return refreshClaims, nil
 }
 
-func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims, portal string) error {
-	if portal == "platform" {
-		return s.validateOperatorSession(txCtx, claims, refreshClaims)
-	}
-	account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
-	if err != nil {
-		return err
-	}
-	if !found || !account.Active {
-		return identityaccess.ErrInvalidToken
-	}
-	if err := s.sessionReachesSchool(txCtx, account.ID, claims, portal); err != nil {
-		return err
-	}
-	if portal == domain.ScopeOrg {
-		if err := s.activeTraegerMember(txCtx, account.ID, claims.OrgID); err != nil {
-			return err
-		}
-	}
-	if refreshClaims == nil {
-		return nil
-	}
-	session, err := s.sessions.findAccountSessionByToken(txCtx, refreshClaims.Token)
+func (s *AccountAuthentication) validateRefreshRow(ctx context.Context, kind domain.SessionKind, claims domain.SessionClaims, refreshClaims domain.RefreshClaims, accountID int64) (domain.AccountSession, error) {
+	session, err := s.sessions.findAccountSessionByToken(ctx, refreshClaims.Token)
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-		return identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
 	if err != nil {
-		return err
+		return domain.AccountSession{}, err
 	}
-	if session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || !sessionOfTraeger(session, claims) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
-		return identityaccess.ErrInvalidToken
+	if session.AccountID != accountID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || !sameTraeger(kind, claims.OrgID, session) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
-	return nil
-}
-
-// activeTraegerMember re-reads the Träger membership a Träger session rests on.
-func (s *AccountAuthentication) activeTraegerMember(ctx context.Context, accountID, organizationID int64) error {
-	if s.traeger == nil {
-		return errAccountAuthenticationUnavailable
-	}
-	organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	if !containsTraeger(organizations, organizationID) {
-		return identityaccess.ErrInvalidToken
-	}
-	return nil
-}
-
-// sessionReachesSchool re-checks the school of a school-bound token: an
-// active mapping, or for a Träger school session the Träger, which must still
-// grant the school (ADR 0084 section 5). A token without a school passes.
-func (s *AccountAuthentication) sessionReachesSchool(ctx context.Context, accountID int64, claims domain.SessionClaims, portal string) error {
-	if claims.ViaTraeger {
-		if portal != "tenant" || claims.TenantID <= 0 || claims.OrgID <= 0 {
-			return identityaccess.ErrInvalidToken
-		}
-		return s.traegerGrantsSchool(ctx, accountID, claims.OrgID, claims.TenantID)
-	}
-	if claims.TenantID <= 0 {
-		return nil
-	}
-	active, _, err := s.store.LockActiveTenantMappingShared(ctx, accountID, claims.TenantID)
-	if err != nil {
-		return err
-	}
-	if !active {
-		return identityaccess.ErrInvalidToken
-	}
-	return nil
-}
-
-// traegerGrantsSchool re-checks a Träger school session: active membership,
-// the right "In OGS wechseln" and a live school of the Träger. Failed reads
-// remain unavailable; only confirmed loss of access invalidates the token.
-func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64) error {
-	if s.traeger == nil {
-		return errAccountAuthenticationUnavailable
-	}
-	err := s.requireTraegerSchoolSwitch(ctx, accountID, organizationID)
-	if errors.Is(err, identityaccess.ErrNoTraegerMembership) || errors.Is(err, identityaccess.ErrTraegerSchoolSwitchForbidden) {
-		return identityaccess.ErrInvalidToken
-	}
-	if err != nil {
-		return err
-	}
-	school, found, err := s.schools.FindSchool(ctx, schoolID)
-	if err != nil {
-		return err
-	}
-	if !found || school.Deleted || !school.Active || school.OrganizationID != organizationID {
-		return identityaccess.ErrInvalidToken
-	}
-	return nil
-}
-
-// sessionOfTraeger reports whether a token's session names the Träger the
-// token names: a Träger token its Träger, a Träger school token the Träger it
-// came through (#4654); every other session names none.
-func sessionOfTraeger(session domain.AccountSession, claims domain.SessionClaims) bool {
-	switch {
-	case claims.Scope == domain.ScopeOrg:
-		return session.OrganizationID == claims.OrgID
-	case claims.ViaTraeger:
-		return domain.IsTraegerSchoolSession(session) && session.OrganizationID == claims.OrgID
-	default:
-		return session.OrganizationID == 0
-	}
+	return session, nil
 }
 
 // VerifyAccessSession confirms that the family an access token names still
@@ -243,9 +230,15 @@ func (s *AccountAuthentication) VerifyAccessSession(ctx context.Context, session
 	}
 	// The family is read across schools: a parent or caterer session is
 	// pinned to one school, and a tenant the caller's context may carry must
-	// not hide it. The token names account and portal; the predicate checks
-	// both.
+	// not hide it.
 	head, err := s.sessions.LatestAccountSessionInFamily(s.runtime.Detach(bindRuntime(s.attach, ctx)), token.FamilyID)
+	return familyBacks(head, err, token)
+}
+
+// familyBacks judges the latest generation of the family a token names; the
+// predicate checks account and portal. ErrInvalidToken means revoked,
+// expired or foreign; any other error is the read that failed.
+func familyBacks(head ports.AccountSession, err error, token domain.AccessSession) error {
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 		return identityaccess.ErrInvalidToken
 	}

@@ -15,7 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -231,7 +231,7 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 		// Wrap in transaction so partial writes are rolled back on error
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := tenant.WithTransactionForTest(ctx, &tx)
+		txCtx := tenanttest.WithTransaction(ctx, &tx)
 
 		err = testpkg.TenantCommand2(t, txCtx, db, service.UpsertBulkStudentPickupSchedules, student.ID, schedules)
 

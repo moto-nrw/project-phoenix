@@ -2,15 +2,19 @@
 
 // Abrechnungsvorgaben des Trägers (#5685): was für jede Abrechnung gilt.
 // Bankverbindungen (#4653) sieht jede Rolle mit „Übersicht lesen“, ändern darf
-// sie, wer „Einstellungen“ hat. Rechnungsnummern (#4668), Ermäßigungen (#4664)
-// und Kostenträger (#5627) gehören zum Recht „Abrechnung“.
+// sie, wer „Einstellungen“ hat. Rechnungsnummern der Ferien (#4668) und der
+// Monatsbeiträge (#4684), Ermäßigungen (#4664), Kostenträger (#5627) und
+// Zahlung und Rechnungen je Leistung (#4689) und die Lastschrift mit
+// Gläubiger-ID (#4695) gehören zum Recht „Abrechnung“.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { BillingTermsCard } from "~/components/traeger/billing-terms-card";
 import { ContributionRulesCard } from "~/components/traeger/contribution-rules-card";
 import { CostBearersCard } from "~/components/traeger/cost-bearers-card";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { NumberRangeCard } from "~/components/traeger/number-range-card";
+import { SepaCreditorCard } from "~/components/traeger/sepa-creditor-card";
 import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accounts-card";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { Alert } from "~/components/ui/alert";
@@ -19,15 +23,21 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import {
+  fetchCareNumberRange,
   fetchHolidayNumberRange,
   type NumberRange,
 } from "~/lib/traeger-billing-api";
+import {
+  type BillingTerms,
+  fetchBillingTerms,
+} from "~/lib/traeger-billing-terms-api";
 import {
   type ContributionRule,
   type CostBearer,
   fetchContributionRules,
   fetchCostBearers,
 } from "~/lib/traeger-contributions-api";
+import { type SepaCreditor, fetchSepaCreditor } from "~/lib/traeger-sepa-api";
 
 const logger = createLogger({ component: "TraegerAbrechnungsvorgabenPage" });
 
@@ -42,6 +52,9 @@ interface BillingDefaults {
   readonly rules: ContributionRule[];
   readonly bearers: CostBearer[];
   readonly numberRange: NumberRange;
+  readonly careNumberRange: NumberRange;
+  readonly terms: BillingTerms;
+  readonly creditor: SepaCreditor;
 }
 
 function useBillingDefaults(enabled: boolean) {
@@ -56,13 +69,24 @@ function useBillingDefaults(enabled: boolean) {
     if (!enabledRef.current) return;
     const generation = ++loadGeneration.current;
     try {
-      const [rules, bearers, numberRange] = await Promise.all([
-        fetchContributionRules(),
-        fetchCostBearers(),
-        fetchHolidayNumberRange(),
-      ]);
+      const [rules, bearers, numberRange, careNumberRange, terms, creditor] =
+        await Promise.all([
+          fetchContributionRules(),
+          fetchCostBearers(),
+          fetchHolidayNumberRange(),
+          fetchCareNumberRange(),
+          fetchBillingTerms(),
+          fetchSepaCreditor(),
+        ]);
       if (!enabledRef.current || generation !== loadGeneration.current) return;
-      setData({ rules, bearers, numberRange });
+      setData({
+        rules,
+        bearers,
+        numberRange,
+        careNumberRange,
+        terms,
+        creditor,
+      });
       setFailure(undefined);
       clearLoadError();
     } catch (err) {
@@ -129,7 +153,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
           {canBill ? null : (
             <Alert
               type="info"
-              message="Rechnungsnummern, Ermäßigungen und Kostenträger pflegt die Rolle „Abrechnung“."
+              message="Zahlung, Rechnungsnummern, Ermäßigungen und Kostenträger pflegt die Rolle „Abrechnung“."
             />
           )}
           <TraegerBankAccountsCard
@@ -141,8 +165,21 @@ export default function TraegerAbrechnungsvorgabenPage() {
       ) : null}
       {canBill && billing.data ? (
         <>
+          <BillingTermsCard
+            data={billing.data.terms}
+            onChanged={billing.load}
+          />
+          <SepaCreditorCard
+            creditor={billing.data.creditor}
+            onChanged={billing.load}
+          />
           <NumberRangeCard
             numberRange={billing.data.numberRange}
+            onChanged={billing.load}
+          />
+          <NumberRangeCard
+            service="care"
+            numberRange={billing.data.careNumberRange}
             onChanged={billing.load}
           />
           <ContributionRulesCard

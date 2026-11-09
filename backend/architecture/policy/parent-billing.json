@@ -45,6 +45,118 @@
   ],
   "data_objects": [
     {
+      "name": "parent_billing.care_cost_share_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_cost_shares",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_corrections",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_cost_shares",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_evidence_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_evidences",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_reductions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_cancellations",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_child_count_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_child_counts",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoices",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_meal_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_meal_tariffs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_letter_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_months",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notices",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_holds",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_amendments",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_schools",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_price_lists",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_tariffs",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.contribution_rules",
       "write_owner": "parent-billing"
     },
@@ -69,6 +181,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.family_billing",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_billing_events",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.holiday_contribution_lines",
       "write_owner": "parent-billing"
     },
@@ -78,6 +198,10 @@
     },
     {
       "name": "parent_billing.holiday_sibling_group_members",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_kinds",
       "write_owner": "parent-billing"
     },
     {
@@ -101,6 +225,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.run_due_dates",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.run_letters",
       "write_owner": "parent-billing"
     },
@@ -110,6 +238,22 @@
     },
     {
       "name": "parent_billing.runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.service_terms",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_creditors",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_mandate_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_mandates",
       "write_owner": "parent-billing"
     }
   ],

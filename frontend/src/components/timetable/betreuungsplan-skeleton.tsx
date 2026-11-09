@@ -1,10 +1,7 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import {
-  timetableSurface,
-  timetableSurfacePadded,
-} from "~/components/timetable/timetable-style";
 import type { TimetableView } from "~/lib/timetable-helpers";
 
 export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
@@ -21,19 +18,19 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         {/* Live-Regionen sagen Text an, kein aria-label (#4996). */}
         <span className="sr-only">Regeltermine werden geladen</span>
         {[0, 1, 2].map((item) => (
-          <div key={item} className={timetableSurfacePadded}>
+          <SectionCard key={item}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="h-3 w-28" />
               </div>
-              <Skeleton className="h-8 w-8 rounded-lg" />
+              <Skeleton shape="control" className="h-8 w-8" />
             </div>
             <div className="mt-5 space-y-2">
-              <Skeleton className="h-10 w-full rounded-xl" />
-              <Skeleton className="h-10 w-11/12 rounded-xl" />
+              <Skeleton shape="inner" className="h-10 w-full" />
+              <Skeleton shape="inner" className="h-10 w-11/12" />
             </div>
-          </div>
+          </SectionCard>
         ))}
       </div>
     );
@@ -56,47 +53,48 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         aria-busy="true"
         aria-label="Tagesansicht wird geladen"
         data-testid="timetable-content-skeleton"
-        className={`${timetableSurface} overflow-hidden`}
       >
-        <span className="sr-only">Tagesansicht wird geladen</span>
-        <div className="hidden h-14 grid-cols-[64px_minmax(0,1fr)] border-b border-gray-200 bg-white sm:grid">
-          <div aria-hidden />
-          <div className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2">
-            <Skeleton className="h-3 w-10" />
-            <Skeleton className="h-6 w-6 rounded-full" />
+        <SectionCard padding="none">
+          <span className="sr-only">Tagesansicht wird geladen</span>
+          <div className="hidden h-14 grid-cols-[64px_minmax(0,1fr)] border-b border-gray-200 bg-white sm:grid">
+            <div aria-hidden />
+            <div className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2">
+              <Skeleton className="h-3 w-10" />
+              <Skeleton shape="round" className="h-6 w-6" />
+            </div>
           </div>
-        </div>
-        <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]">
-          <div className="space-y-16 border-r border-gray-200 bg-gray-50 px-2 py-4">
-            {Array.from({ length: 7 }, (_, hour) => (
-              <Skeleton key={hour} className="ml-auto h-2.5 w-8" />
-            ))}
+          <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]">
+            <div className="space-y-16 border-r border-gray-200 bg-gray-50 px-2 py-4">
+              {Array.from({ length: 7 }, (_, hour) => (
+                <Skeleton key={hour} className="ml-auto h-2.5 w-8" />
+              ))}
+            </div>
+            <div className="relative overflow-hidden border-l border-gray-200">
+              {Array.from({ length: 7 }, (_, line) => (
+                <div
+                  key={line}
+                  className="absolute right-0 left-0 border-t border-gray-100"
+                  style={{ top: `${(line + 1) * 70}px` }}
+                />
+              ))}
+              {daySkeletonEvents.map((event) => (
+                <div
+                  key={`${event.top}-${event.height}`}
+                  className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
+                  style={{
+                    top: `${event.top}px`,
+                    height: `${event.height}px`,
+                    width: event.width,
+                    maxWidth: "calc(100% - 1rem)",
+                  }}
+                >
+                  <Skeleton className="h-3 w-2/5 bg-gray-300/80" />
+                  <Skeleton className="mt-2 h-2.5 w-1/4 bg-gray-300/80" />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="relative overflow-hidden border-l border-gray-200">
-            {Array.from({ length: 7 }, (_, line) => (
-              <div
-                key={line}
-                className="absolute right-0 left-0 border-t border-gray-100"
-                style={{ top: `${(line + 1) * 70}px` }}
-              />
-            ))}
-            {daySkeletonEvents.map((event) => (
-              <div
-                key={`${event.top}-${event.height}`}
-                className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
-                style={{
-                  top: `${event.top}px`,
-                  height: `${event.height}px`,
-                  width: event.width,
-                  maxWidth: "calc(100% - 1rem)",
-                }}
-              >
-                <Skeleton className="h-3 w-2/5 bg-gray-300/80" />
-                <Skeleton className="mt-2 h-2.5 w-1/4 bg-gray-300/80" />
-              </div>
-            ))}
-          </div>
-        </div>
+        </SectionCard>
       </div>
     );
   }
@@ -144,57 +142,58 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         aria-busy="true"
         aria-label="Wochenplan wird geladen"
         data-testid="timetable-content-skeleton"
-        className={`${timetableSurface} overflow-hidden`}
       >
-        <span className="sr-only">Wochenplan wird geladen</span>
-        <div className="hidden h-14 grid-cols-[64px_repeat(7,minmax(0,1fr))] border-b border-gray-200 bg-white sm:grid">
-          <div aria-hidden />
-          {Array.from({ length: 7 }, (_, day) => (
-            <div
-              key={day}
-              className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2"
-            >
-              <Skeleton className="h-3 w-6" />
-              <Skeleton className="h-6 w-6 rounded-full" />
-            </div>
-          ))}
-        </div>
-        <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]">
-          <div className="space-y-16 border-r border-gray-200 bg-gray-50 px-2 py-4">
-            {Array.from({ length: 7 }, (_, hour) => (
-              <Skeleton key={hour} className="ml-auto h-2.5 w-8" />
+        <SectionCard padding="none">
+          <span className="sr-only">Wochenplan wird geladen</span>
+          <div className="hidden h-14 grid-cols-[64px_repeat(7,minmax(0,1fr))] border-b border-gray-200 bg-white sm:grid">
+            <div aria-hidden />
+            {Array.from({ length: 7 }, (_, day) => (
+              <div
+                key={day}
+                className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2"
+              >
+                <Skeleton className="h-3 w-6" />
+                <Skeleton shape="round" className="h-6 w-6" />
+              </div>
             ))}
           </div>
-          {Array.from({ length: 7 }, (_, day) => (
-            <div
-              key={day}
-              className={`relative overflow-hidden border-l border-gray-200 ${day === 0 ? "block" : "hidden sm:block"}`}
-            >
-              {Array.from({ length: 7 }, (_, line) => (
-                <div
-                  key={line}
-                  className="absolute right-0 left-0 border-t border-gray-100"
-                  style={{ top: `${(line + 1) * 70}px` }}
-                />
-              ))}
-              {(weekSkeletonEvents[day] ?? []).map((event) => (
-                <div
-                  key={`${day}-${event.top}-${event.height}-${event.width}`}
-                  className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
-                  style={{
-                    top: `${event.top}px`,
-                    height: `${event.height}px`,
-                    width: event.width,
-                    maxWidth: "calc(100% - 1rem)",
-                  }}
-                >
-                  <Skeleton className="h-3 w-4/5 bg-gray-300/80" />
-                  <Skeleton className="mt-2 h-2.5 w-1/2 bg-gray-300/80" />
-                </div>
+          <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]">
+            <div className="space-y-16 border-r border-gray-200 bg-gray-50 px-2 py-4">
+              {Array.from({ length: 7 }, (_, hour) => (
+                <Skeleton key={hour} className="ml-auto h-2.5 w-8" />
               ))}
             </div>
-          ))}
-        </div>
+            {Array.from({ length: 7 }, (_, day) => (
+              <div
+                key={day}
+                className={`relative overflow-hidden border-l border-gray-200 ${day === 0 ? "block" : "hidden sm:block"}`}
+              >
+                {Array.from({ length: 7 }, (_, line) => (
+                  <div
+                    key={line}
+                    className="absolute right-0 left-0 border-t border-gray-100"
+                    style={{ top: `${(line + 1) * 70}px` }}
+                  />
+                ))}
+                {(weekSkeletonEvents[day] ?? []).map((event) => (
+                  <div
+                    key={`${day}-${event.top}-${event.height}-${event.width}`}
+                    className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
+                    style={{
+                      top: `${event.top}px`,
+                      height: `${event.height}px`,
+                      width: event.width,
+                      maxWidth: "calc(100% - 1rem)",
+                    }}
+                  >
+                    <Skeleton className="h-3 w-4/5 bg-gray-300/80" />
+                    <Skeleton className="mt-2 h-2.5 w-1/2 bg-gray-300/80" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
       </div>
     );
   }
@@ -206,34 +205,35 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
       aria-busy="true"
       aria-label="Monatsplan wird geladen"
       data-testid="timetable-content-skeleton"
-      className={`${timetableSurface} overflow-hidden`}
     >
-      <span className="sr-only">Monatsplan wird geladen</span>
-      <div className="grid grid-cols-7 border-b border-gray-200 bg-white">
-        {Array.from({ length: 7 }, (_, day) => (
-          <div key={day} className="px-3 py-3">
-            <Skeleton className="mx-auto h-2.5 w-8" />
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7">
-        {Array.from({ length: 42 }, (_, day) => (
-          <div
-            key={day}
-            className="min-h-[112px] border-r border-b border-gray-100 bg-white p-2"
-          >
-            <Skeleton className="h-5 w-5 rounded-full" />
-            <div className="mt-5 space-y-1.5">
-              {day % 3 === 0 && (
-                <Skeleton className="h-5 w-full rounded-full" />
-              )}
-              {day % 4 === 0 && (
-                <Skeleton className="h-5 w-10/12 rounded-full" />
-              )}
+      <SectionCard padding="none">
+        <span className="sr-only">Monatsplan wird geladen</span>
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-white">
+          {Array.from({ length: 7 }, (_, day) => (
+            <div key={day} className="px-3 py-3">
+              <Skeleton className="mx-auto h-2.5 w-8" />
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {Array.from({ length: 42 }, (_, day) => (
+            <div
+              key={day}
+              className="min-h-[112px] border-r border-b border-gray-100 bg-white p-2"
+            >
+              <Skeleton shape="round" className="h-5 w-5" />
+              <div className="mt-5 space-y-1.5">
+                {day % 3 === 0 && (
+                  <Skeleton shape="round" className="h-5 w-full" />
+                )}
+                {day % 4 === 0 && (
+                  <Skeleton shape="round" className="h-5 w-10/12" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
     </div>
   );
 }
@@ -261,24 +261,30 @@ export function PlanningContextBarSkeleton({
       aria-label={announce ? ariaLabel : undefined}
       aria-hidden={announce ? undefined : true}
       data-testid={testId}
-      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5"
     >
       {announce ? <span className="sr-only">{ariaLabel}</span> : null}
-      <div>
-        <Skeleton className="h-7 w-40" />
-        <Skeleton className="mt-2 h-4 w-56" />
-      </div>
-      <div className="flex min-h-9 flex-wrap items-center gap-3">
-        <Skeleton className="h-9 w-28 rounded-lg" />
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-9 w-48 rounded-lg" />
-        <Skeleton className="ml-auto h-9 w-24 rounded-lg bg-gray-300" />
-      </div>
-      <div className="border-t border-gray-100 pt-2">
-        <div className="min-h-8">
-          <Skeleton className="h-5 w-32" />
+      <SectionCard padding="none">
+        <div className="flex flex-col gap-4 p-5">
+          <div>
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="mt-2 h-4 w-56" />
+          </div>
+          <div className="flex min-h-9 flex-wrap items-center gap-3">
+            <Skeleton shape="control" className="h-9 w-28" />
+            <Skeleton className="h-6 w-40" />
+            <Skeleton shape="control" className="h-9 w-48" />
+            <Skeleton
+              shape="control"
+              className="ml-auto h-9 w-24 bg-gray-300"
+            />
+          </div>
+          <div className="border-t border-gray-100 pt-2">
+            <div className="min-h-8">
+              <Skeleton className="h-5 w-32" />
+            </div>
+          </div>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

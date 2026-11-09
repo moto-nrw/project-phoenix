@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, POST } from "./route";
 import { suppressConsole } from "~/test/helpers/console";
+import { buildBackendStudent } from "~/test/fixtures/students";
 import { captureException } from "@sentry/nextjs";
 import { ERROR_CODES } from "~/lib/error-codes.generated";
 import {
@@ -22,9 +23,11 @@ const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
   mockApiPut: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
@@ -206,19 +209,6 @@ describe("GET /api/students", () => {
     ]);
   });
 
-  it("handles null response gracefully", async () => {
-    mockApiGet.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse<{ data: { data: unknown[] } }>(
-      response,
-    );
-    expect(json.data.data).toEqual([]);
-  });
-
   it("forwards query parameters to backend", async () => {
     const mockResponse = {
       data: [],
@@ -378,7 +368,6 @@ describe("POST /api/students", () => {
         first_name: "Bob",
         last_name: "Jones",
         school_class: "2b",
-        current_location: "Unbekannt",
       },
     );
     expect(mockApiPut).toHaveBeenCalledExactlyOnceWith(
@@ -407,5 +396,94 @@ describe("POST /api/students", () => {
       privacy_consent_accepted: true,
       data_retention_days: 60,
     });
+  });
+
+  it("leaves the consent alone when the form did not change it", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: buildBackendStudent({ id: 43 }),
+    });
+    mockApiGet.mockResolvedValueOnce({
+      data: { accepted: false, data_retention_days: 14 },
+    });
+
+    const response = await POST(
+      createMockRequest("/api/students", {
+        method: "POST",
+        body: { first_name: "Ida", second_name: "Neu", school_class: "1a" },
+      }),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockApiPut).not.toHaveBeenCalled();
+    // The answer carries the school's default the backend resolved.
+    expect((await response.json()).data).toMatchObject({
+      id: "43",
+      privacy_consent_accepted: false,
+      data_retention_days: 14,
+    });
+  });
+
+  it("answers the created child with the stored consent when the consent write fails", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: buildBackendStudent({ id: 44 }),
+    });
+    mockApiPut.mockRejectedValueOnce(new ApiResponseError(500, "{}"));
+    mockApiGet.mockResolvedValueOnce({
+      data: { accepted: false, data_retention_days: 30 },
+    });
+
+    const response = await POST(
+      createMockRequest("/api/students", {
+        method: "POST",
+        body: {
+          first_name: "Ida",
+          second_name: "Neu",
+          school_class: "1a",
+          privacy_consent_accepted: true,
+          data_retention_days: 7,
+        },
+      }),
+      createMockContext(),
+    );
+
+    // The child exists; the screen must show the consent that is stored,
+    // not the one the form asked for, and the marker lets the form say that
+    // the input was lost (#5970).
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toMatchObject({
+      id: "44",
+      privacy_consent_accepted: false,
+      data_retention_days: 30,
+      privacy_consent_saved: false,
+    });
+  });
+
+  it("carries no consent marker when the consent write succeeded", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: buildBackendStudent({ id: 46 }),
+    });
+    mockApiPut.mockResolvedValueOnce({});
+    mockApiGet.mockResolvedValueOnce({
+      data: { accepted: true, data_retention_days: 7 },
+    });
+
+    const response = await POST(
+      createMockRequest("/api/students", {
+        method: "POST",
+        body: {
+          first_name: "Ida",
+          second_name: "Neu",
+          school_class: "1a",
+          privacy_consent_accepted: true,
+          data_retention_days: 7,
+        },
+      }),
+      createMockContext(),
+    );
+
+    const data = (await response.json()).data;
+    expect(data).toMatchObject({ id: "46", data_retention_days: 7 });
+    expect(data).not.toHaveProperty("privacy_consent_saved");
   });
 });

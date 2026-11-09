@@ -1,0 +1,7 @@
+{
+  "scenario": "api.school.calendar.parent_conference_detail",
+  "max": 8,
+  "exact": true,
+  "description": "Real SchoolRouter with ProtectedSchoolRoutes, N3/N8 booked slots and student names; full tenant transaction statements, excluding the outer live-session verifier.",
+  "route": "GET /school/calendar/parent-conferences/{conferenceId}"
+}

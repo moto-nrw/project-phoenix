@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import type { CareOffering } from "~/lib/care-offering-api";
 import type { CareOfferingBookingStats } from "~/lib/care-offering-booking-stats";
 
@@ -18,6 +18,14 @@ vi.mock("~/lib/care-offering-booking-stats", async (importOriginal) => ({
 }));
 
 import { PhaseOfferingOccupancy } from "./phase-offering-occupancy";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
+
+// DataTable renders only the layout for the window width (#6220).
+afterEach(() => setViewportWidth(DESKTOP_WIDTH));
 
 function offering(overrides: Partial<CareOffering>): CareOffering {
   return {
@@ -82,7 +90,7 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
       "4": stats("4", 5, 5),
     });
 
-    render(<PhaseOfferingOccupancy phaseId="7" />);
+    const { unmount } = render(<PhaseOfferingOccupancy phaseId="7" />);
 
     expect(
       await screen.findByText("Freie Plätze je Angebot"),
@@ -119,16 +127,21 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
     expect(inactive.queryByText("Keine frei")).not.toBeInTheDocument();
     expect(inactive.queryByText("Voll")).not.toBeInTheDocument();
 
-    // The phone list carries the same numbers.
-    expect(
-      within(screen.getByTestId("data-table-stacked")).getByText("7 von 10"),
-    ).toBeInTheDocument();
-
     // Free places of the phase next to the heading: 3 + 0.
     const heading = screen.getByRole("heading", {
       name: "Freie Plätze je Angebot",
     });
     expect(heading.parentElement).toHaveTextContent("3 frei");
+
+    // The phone list carries the same numbers.
+    unmount();
+    setViewportWidth(PHONE_WIDTH);
+    render(<PhaseOfferingOccupancy phaseId="7" />);
+    expect(
+      within(await screen.findByTestId("data-table-stacked")).getByText(
+        "7 von 10",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders only the four sum columns per offering", async () => {

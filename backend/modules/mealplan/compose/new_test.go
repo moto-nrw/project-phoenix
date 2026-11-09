@@ -184,13 +184,14 @@ func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) mealp
 func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now time.Time) mealplan.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
-		DB:           db,
-		Settings:     testMealPlanSettings{mealPlanEnabled: enabled, mealRegistrationEnabled: enabled, cutoff: "09:00", err: settingErr},
-		Observe:      func(Observation) {},
-		Now:          func() time.Time { return now },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     openCalendar,
+		DB:              db,
+		Settings:        testMealPlanSettings{mealPlanEnabled: enabled, mealRegistrationEnabled: enabled, cutoff: "09:00", err: settingErr},
+		Observe:         func(Observation) {},
+		Now:             func() time.Time { return now },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        openCalendar,
 	})
 	require.NoError(t, err)
 	return module
@@ -305,13 +306,14 @@ func TestModuleReportsPersistenceQueryAndRowCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	var observations []Observation
 	module, err := New(Dependencies{
-		DB:           db,
-		Settings:     enabledTestSettings(nil),
-		Observe:      func(observation Observation) { observations = append(observations, observation) },
-		Now:          func() time.Time { return time.Date(2026, 9, 28, 8, 0, 0, 0, testBerlin) },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     openCalendar,
+		DB:              db,
+		Settings:        enabledTestSettings(nil),
+		Observe:         func(observation Observation) { observations = append(observations, observation) },
+		Now:             func() time.Time { return time.Date(2026, 9, 28, 8, 0, 0, 0, testBerlin) },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        openCalendar,
 	})
 	require.NoError(t, err)
 
@@ -357,11 +359,12 @@ func TestParticipationRejectsSameDayChangeAfterKitchenCutoff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	module, err := New(Dependencies{
 		DB: db, Settings: enabledTestSettings(nil),
-		Observe:      func(Observation) {},
-		Now:          func() time.Time { return time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin) },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     openCalendar,
+		Observe:         func(Observation) {},
+		Now:             func() time.Time { return time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin) },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        openCalendar,
 	})
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Beispiel", "3b")
@@ -384,11 +387,12 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 		Settings: testMealPlanSettings{
 			mealPlanEnabled: true, mealRegistrationEnabled: false, cutoff: "10:30",
 		},
-		Observe:      func(Observation) {},
-		Now:          func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     openCalendar,
+		Observe:         func(Observation) {},
+		Now:             func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        openCalendar,
 	})
 	require.NoError(t, err)
 	available, err := disabledModule.RegistrationAvailable(testpkg.Ctx(t))
@@ -404,11 +408,12 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 		Settings: testMealPlanSettings{
 			mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "10:30",
 		},
-		Observe:      func(Observation) {},
-		Now:          func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     openCalendar,
+		Observe:         func(Observation) {},
+		Now:             func() time.Time { return time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin) },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        openCalendar,
 	})
 	require.NoError(t, err)
 	require.NoError(t, enabledModule.SetParticipationForDay(testpkg.Ctx(t), mealplan.SetParticipationDay{
@@ -579,13 +584,14 @@ func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T
 func buildModuleWithRules(t *testing.T, db *bun.DB, ordering OrderingSettings, now time.Time) mealplan.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
-		DB:           db,
-		Settings:     testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, ordering: &ordering},
-		Observe:      func(Observation) {},
-		Now:          func() time.Time { return now },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     openCalendar,
+		DB:              db,
+		Settings:        testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, ordering: &ordering},
+		Observe:         func(Observation) {},
+		Now:             func() time.Time { return now },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        openCalendar,
 	})
 	require.NoError(t, err)
 	return module
@@ -766,13 +772,14 @@ func TestSickCancelledModeCancelsAbsencesReportedAfterTheDeadline(t *testing.T) 
 func buildModuleWithCalendar(t *testing.T, db *bun.DB, calendar mealplan.CalendarFinder, now time.Time) mealplan.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
-		DB:           db,
-		Settings:     enabledTestSettings(nil),
-		Observe:      func(Observation) {},
-		Now:          func() time.Time { return now },
-		Participants: testParticipantFinder,
-		StudentNames: testStudentNames,
-		Calendar:     calendar,
+		DB:              db,
+		Settings:        enabledTestSettings(nil),
+		Observe:         func(Observation) {},
+		Now:             func() time.Time { return now },
+		Participants:    testParticipantFinder,
+		ParticipantDays: testParticipantDaysFinder,
+		StudentNames:    testStudentNames,
+		Calendar:        calendar,
 	})
 	require.NoError(t, err)
 	return module
@@ -1483,5 +1490,17 @@ func TestWeeklyListReadsFlatInTheNumberOfChildren(t *testing.T) {
 	register(4)
 	large := run()
 	assert.Len(t, large, len(small), "one candidate and one participation read per day, not per child")
-	querybudgets.AssertQueryBudget(t, "modules.mealplan.weekly_participants", large)
+	querybudgets.AssertQueryBudget(t, "modules.mealplan.weekly_participants", counter.Measurement(large))
+}
+
+func testParticipantDaysFinder(ctx context.Context, dates []string) (map[string][]mealplan.ParticipantCandidate, error) {
+	result := make(map[string][]mealplan.ParticipantCandidate, len(dates))
+	for _, date := range dates {
+		rows, err := testParticipantFinder(ctx, date)
+		if err != nil {
+			return nil, err
+		}
+		result[date] = rows
+	}
+	return result, nil
 }

@@ -20,38 +20,32 @@ import (
 
 // PreviewStaffOffboarding locks the account before roles, tokens
 // or membership are touched, matching the login/refresh lock order.
-func (l *AccountLifecycle) PreviewStaffOffboarding(ctx context.Context, accountID int64) (result identityaccess.StaffOffboardingPreview, err error) {
-	if l == nil {
-		return identityaccess.StaffOffboardingPreview{}, errAccountLifecycleUnavailable
-	}
-	defer func() { err = lifecycleError(err) }()
-	ctx = bindRuntime(l.auth.attach, ctx)
-	if accountID <= 0 || l.runtime.TenantID(ctx) <= 0 {
-		return result, errors.New("account and tenant are required for staff offboarding")
-	}
-	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		result, err = l.staffOffboardingSnapshot(txCtx, accountID)
-		return err
+func (l *AccountLifecycle) PreviewStaffOffboarding(ctx context.Context, accountID int64) (identityaccess.StaffOffboardingPreview, error) {
+	return runFlow(ctx, l.flow(), func(ctx context.Context) (result identityaccess.StaffOffboardingPreview, err error) {
+		if accountID <= 0 || l.runtime.TenantID(ctx) <= 0 {
+			return result, errors.New("account and tenant are required for staff offboarding")
+		}
+		err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+			result, err = l.staffOffboardingSnapshot(txCtx, accountID)
+			return err
+		})
+		return result, err
 	})
-	return result, err
 }
 
-func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (result identityaccess.StaffOffboardingResult, err error) {
-	if l == nil {
-		return identityaccess.StaffOffboardingResult{}, errAccountLifecycleUnavailable
-	}
-	defer func() { err = lifecycleError(err) }()
-	ctx = bindRuntime(l.auth.attach, ctx)
-	if accountID <= 0 || l.runtime.TenantID(ctx) <= 0 || revision == "" {
-		return result, errors.New("account, tenant and preview revision are required for staff offboarding")
-	}
-	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return l.offboardStaffInTx(txCtx, accountID, revision, &result)
+func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (identityaccess.StaffOffboardingResult, error) {
+	return runFlow(ctx, l.flow(), func(ctx context.Context) (result identityaccess.StaffOffboardingResult, err error) {
+		if accountID <= 0 || l.runtime.TenantID(ctx) <= 0 || revision == "" {
+			return result, errors.New("account, tenant and preview revision are required for staff offboarding")
+		}
+		err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+			return l.offboardStaffInTx(txCtx, accountID, revision, &result)
+		})
+		if err != nil {
+			return identityaccess.StaffOffboardingResult{}, err
+		}
+		return result, nil
 	})
-	if err != nil {
-		return identityaccess.StaffOffboardingResult{}, err
-	}
-	return result, nil
 }
 
 // offboardStaffInTx revokes the staff grants the preview names and closes
@@ -127,10 +121,8 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 }
 
 func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID int64, preview identityaccess.StaffOffboardingPreview) (result identityaccess.StaffOffboardingResult, err error) {
-	for _, roleID := range preview.RoleIDs {
-		if err := l.admin.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
-			return result, err
-		}
+	if err := l.admin.RemoveRolesFromAccount(txCtx, accountID, preview.RoleIDs); err != nil {
+		return result, err
 	}
 	if err := l.auth.RevokeAllTokensWithReason(txCtx, accountID, "role_changed"); err != nil {
 		return result, err
@@ -179,9 +171,8 @@ func (l *AccountLifecycle) requireStaffOffboarding(txCtx context.Context, accoun
 // HasLiveCaregiverProfile reports whether the account's identity at the
 // school in context carries a live caregiver profile.
 func (l *AccountLifecycle) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	if l == nil {
-		return false, errAccountLifecycleUnavailable
-	}
-	hasProfile, err := l.profiles.HasLiveCaregiverProfile(bindRuntime(l.auth.attach, ctx), accountID)
-	return hasProfile, lifecycleError(err)
+	return runFlow(ctx, l.flow(), func(ctx context.Context) (bool, error) {
+		hasProfile, err := l.profiles.HasLiveCaregiverProfile(ctx, accountID)
+		return hasProfile, err
+	})
 }

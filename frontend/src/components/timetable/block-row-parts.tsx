@@ -5,7 +5,7 @@
 // der Tagesplan; die Startseite und "Als Nächstes" tönen nur (#4413).
 
 import type { CSSProperties } from "react";
-import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-colors";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 
@@ -15,14 +15,14 @@ type BlockColorFields = Pick<
 >;
 
 /** Kantenfarbe eines Blocks: rot bei Absage, sonst die Planungsspur. */
-function blockEdgeColor(block: BlockColorFields): string {
+export function blockEdgeColor(block: BlockColorFields): string {
   if (block.status === "cancelled") return LOCATION_COLORS.DANGER;
   return block.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR;
 }
 
 /**
  * Die Tönung des eigenen Blocks in seiner Farbe, dieselbe wie bei PlanBlock
- * (ui/plan-block.tsx); eine Absage bleibt ungetönt. `mine` setzt nur, wer
+ * (ui/planning/plan-block.tsx); eine Absage bleibt ungetönt. `mine` setzt nur, wer
  * eigene und fremde Blöcke nebeneinander zeigt: wo alles eigen ist, sagte
  * die Tönung nichts. Ohne Kante für die Startseite und „Als Nächstes“ (#4413).
  */

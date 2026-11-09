@@ -18,8 +18,8 @@
       "description": "Gdy szkoła opublikuje nowe ogłoszenie w portalu dla rodziców."
     },
     "parent_message": {
-      "label": "Nowa wiadomość z OGS",
-      "description": "Gdy OGS napisze do Państwa w sprawie dziecka."
+      "label": "Nowa wiadomość z {careTerm}",
+      "description": "Gdy {careTerm} napisze do Państwa w sprawie dziecka."
     },
     "parent_appointment": {
       "label": "Nowy lub zmieniony termin",
@@ -31,15 +31,15 @@
     },
     "parent_request_decided": {
       "label": "Decyzja w sprawie Państwa prośby",
-      "description": "Gdy OGS podejmie decyzję w sprawie jednej z Państwa próśb."
+      "description": "Gdy {careTerm} podejmie decyzję w sprawie jednej z Państwa próśb."
     },
     "parent_care_cancelled": {
       "label": "Opieka odwołana",
-      "description": "Gdy OGS odwoła termin opieki Państwa dziecka."
+      "description": "Gdy {careTerm} odwoła termin opieki Państwa dziecka."
     },
     "parent_billing_document": {
       "label": "Nowy dokument od organizatora",
-      "description": "Gdy organizator wyśle Państwu dokument, na przykład potwierdzenie."
+      "description": "Gdy organizator wyśle lub udostępni Państwu dokument, na przykład umowę."
     }
   },
   "errorObjectList": "lista powiadomień",

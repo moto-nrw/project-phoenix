@@ -8,7 +8,7 @@ Grundsatz: **Es gibt vier Bauarten. Jede Fläche entscheidet sich für genau
 eine und erfindet innen nichts Eigenes.** Wer eine fünfte braucht, ändert
 diesen Spec — nicht seine Seite.
 
-Nicht betroffen: Eltern-Portal, Schul-Portal, Operator-Portal.
+Schul- und Operator-Portal gelten seit #5604 wie das Tenant-Portal, das Eltern-Portal seit #5606: nur die Skelette seiner Startseite und Kinderkarte bleiben ausgenommen, weil Epic #5576 sie nicht anfasst.
 
 ## Warum
 
@@ -251,7 +251,7 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    in einem `SlideOver`/`Drawer` fallen durch. Zentrierte Modale bleiben
    außen vor, weil ein `FormModal` ein Feld zur Einordnung zeigen darf;
    dasselbe gilt ortsgebunden für ein Formular im Slide-over (Übergabe einer
-   Gruppe). Operator-, Eltern- und Schul-Portal sind nicht im Scope.
+   Gruppe). Das Eltern-Portal zählt seit #5606 mit.
 2. `bauart/no-local-field-grid` — kein lokales `<dt>/<dd>`-Feldgitter
    außerhalb `ui/detail-modal-components`. **Umgesetzt**
    (`scripts/oxlint-plugin-bauart.mjs`, #3117): jedes handgeschriebene
@@ -260,8 +260,8 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    ist umgezogen, auch Kennzahl- und Statuslisten (Statistik,
    Elternbrief-Status, Push-Einstellungen) laufen über `DataGrid`
    (`columns={1 | 2 | 4}`) und `DataField` (`inline` für Label links, Wert
-   rechts) statt über ein eigenes Bauteil. Operator-, Eltern- und
-   Schul-Portal sind nicht im Scope. Beschriftungspaare aus `<p>`/`<span>`
+   rechts) statt über ein eigenes Bauteil. Das Eltern-Portal
+   zählt seit #5606 mit. Beschriftungspaare aus `<p>`/`<span>`
    erkennt die Ratsche nicht — die gehören ins Review.
 3. `bauart/one-delete-confirm` — nur `ConfirmDeleteModal`; kein
    `window.confirm`, kein `ConfirmationModal` für Löschen. **Umgesetzt**
@@ -280,8 +280,8 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Fläche und passiert. Hard-zero seit #3119 (Startseiten-Bausteine,
    Seitenleiste und Räume sind auf das Kit-`Skeleton` umgezogen; ein
    Seiten-Skelett wie `rooms/page-skeleton.tsx` darf bestehen, solange es
-   nur Kit-Bausteine komponiert); Operator-, Eltern- und Schul-Portal sind
-   nicht im Scope. Ein Skelett, das aus Kit-Bausteinen
+   nur Kit-Bausteine komponiert); Das Eltern-Portal zählt seit #5606 mit,
+   ohne die Skelette seiner Startseite und Kinderkarte. Ein Skelett, das aus Kit-Bausteinen
    zusammengesetzt, aber neben `TenantPage` statt in `loading` gerendert
    wird, erkennt die Ratsche nicht — das gehört ins Review.
 5. `bauart/no-raw-status-hex` — keine rohen Hexwerte für Status- und
@@ -294,10 +294,8 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Stylesheet rendert. Hard-zero seit #3119: die Raumkategorie-Farben
    liegen als `MOTO_COLOR_PALETTE.roomCategory`, die neutrale Blockkante
    der Planung als `MOTO_COLOR_PALETTE.neutral.muted`, alles andere läuft
-   über `moto-*`-Klassen oder Tailwind-Grau. Operator-, Eltern- und
-   Schul-Portal sowie `src/test/` sind nicht im Scope; die Hex- und
-   Skelett-Reste des Eltern-Portals sind mit #3119 trotzdem umgezogen, der
-   Scope der Ratsche bleibt.
+   über `moto-*`-Klassen oder Tailwind-Grau. `src/test/` ist nicht
+   im Scope; das Eltern-Portal zählt seit #5606 mit.
 6. `bauart/no-disabled-menu-item` — keine dauerhaft deaktivierten
    Menüeinträge. **Umgesetzt** (`scripts/oxlint-plugin-bauart.mjs`,
    hard-zero, #3118): ein Menüeintrag (`label` plus `onClick` oder `href`)
@@ -369,7 +367,7 @@ bekommt eine shrink-only Baseline analog zum bestehenden
     in der Liste, weil es in einem Dialog meist einen Formularwert
     entfernt; dafür gilt `bauart/no-row-action-buttons`. Die ortsgebundenen
     Ausnahmen sind Einträge des Objekts, das der Dialog bearbeitet.
-    Operator-, Eltern- und Schul-Portal sind nicht im Scope.
+    Das Eltern-Portal zählt seit #5606 mit.
 13. `bauart/no-edit-overlay` — kein Modal je Feldgruppe und keines für das
     ganze Objekt (Bauart 2 Regel 3). **Umgesetzt**
     (`scripts/oxlint-plugin-bauart.mjs`, #3116): ein `Modal`, `FormModal`

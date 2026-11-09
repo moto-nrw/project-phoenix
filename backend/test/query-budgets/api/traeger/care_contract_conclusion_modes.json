@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_contract_conclusion_modes",
+  "max": 7,
+  "exact": true,
+  "description": "modules/carecontract — GET /traeger/contracts/conclusion-modes (#4680): the schools of the\nTräger, then per school its tenant binding and the setting\ncare_contract.conclusion_mode (the school's value and its Träger's). One\nfixed set per school; no personal data, so no access log.",
+  "route": "GET /traeger/contracts/conclusion-modes"
+}

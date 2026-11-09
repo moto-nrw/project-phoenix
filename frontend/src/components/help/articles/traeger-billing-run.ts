@@ -7,7 +7,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     title: "Ferien abrechnen",
     question: "Wie stelle ich die Rechnungen für die Ferien aus?",
     summary:
-      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut.",
+      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut. Unter `Familien` sehen Sie je Familie alle Rechnungen und den offenen Betrag.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "FileText",
@@ -23,7 +23,7 @@ export function traegerBillingRunTopic(): HelpTopic {
         steps: [
           "Wählen Sie unten in der Navigation `Einstellungen`.",
           "Wählen Sie `Abrechnungsvorgaben`.",
-          "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
+          "Wählen Sie bei `Rechnungsnummern der Ferien` den Knopf `Muster festlegen`.",
           "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
           "Wählen Sie `Speichern`.",
         ],
@@ -72,7 +72,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es bestätigt die Anmeldung und ist zugleich die Rechnung.",
         steps: [
           "Wählen Sie im freigegebenen Lauf bei `Bestätigungsschreiben` den Knopf `Schreiben erstellen`.",
-          "Tragen Sie bei `Zahlen bis` das Datum ein, bis wann die Familien zahlen sollen.",
+          "Prüfen Sie die `Fälligkeiten`. Sie stehen auf den Rechnungen fest. Nur ältere Rechnungen haben noch das Feld `Zahlen bis`.",
           "Schreiben Sie bei `Hinweise für die Eltern` zum Beispiel die Packliste und was bei Krankheit gilt.",
           "Tragen Sie bei `Notfallnummern der Betreuung` je Betreuung den Namen und die Telefonnummer ein.",
           "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
@@ -97,7 +97,9 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
         steps: [
           "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
-          "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
+          "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an.",
+          "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit. Spätestens bei `Überfällig` können Sie neu senden.",
+          "Bei `Nicht gesendet` und `Abgemeldet` zählt, ob die Sperre noch besteht. Besteht sie, fehlt `Erneut senden`, und der Hinweis sagt, was zu tun ist. Drucken Sie das Schreiben dann und geben Sie es der Familie. Ist sie weg, können Sie neu senden.",
           "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
           "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
         ],
@@ -152,6 +154,19 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Schicken Sie die Liste an den Kostenträger. Sie nennt je Kind die Wochen, den Grundbetrag, die Geschwisterermäßigung, den übernommenen Betrag, ob ein Nachweis vorlag und den Tag der Bestätigung.",
         ],
       },
+      {
+        title: "Rechnungen und Beträge einer Familie ansehen",
+        description:
+          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse.",
+        steps: [
+          "Wählen Sie in der Navigation `Abrechnung`.",
+          "Wählen Sie oben den Reiter `Familien`.",
+          "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
+          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
+          "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+          "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
+        ],
+      },
     ],
     result:
       "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme. Storno und Gutschrift stehen dort als eigene Zeilen mit Minusbetrag und der Nummer der Rechnung.",
@@ -169,6 +184,8 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
       "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
+      "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
+      "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -193,6 +210,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     related: [
       HELP_TOPICS.traegerHolidayContribution,
       HELP_TOPICS.traegerHolidayRegistrationReview,
+      HELP_TOPICS.traegerBillingTerms,
     ],
   };
 }

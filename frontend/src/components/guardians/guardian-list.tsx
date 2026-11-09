@@ -1,5 +1,8 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type {
   GuardianAccountStatus,
   GuardianWithRelationship,
@@ -16,6 +19,13 @@ import {
   buildGuardianMailtoHref,
   buildGuardianTelHref,
 } from "./guardian-contact-actions";
+import type { GuardianEmailState } from "@/lib/guardian-api";
+import {
+  GUARDIAN_STOPPED_COPY,
+  STOP_SHARED_NOTE,
+  guardianAddressNextStep,
+  mailStatusCopy,
+} from "~/lib/email-delivery-status";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { displayEmail } from "~/lib/demo-build";
 import {
@@ -27,25 +37,28 @@ import {
   Shield,
   Globe,
   Send,
+  MailCheck,
+  MailX,
 } from "lucide-react";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
-// Account-status pill: a brand-colored dot + neutral label, matching the
-// app's connection-indicator idiom. Routes color through LOCATION_COLORS.
+// Account-status pill: the tint carries the status (no dot, #2476). Routes
+// color through LOCATION_COLORS.
 const ACCOUNT_STATUS_META: Record<
   GuardianAccountStatus,
-  { label: string; dot: string }
+  { label: string; color: string }
 > = {
-  active: { label: "Konto aktiv", dot: LOCATION_COLORS.GROUP_ROOM },
+  active: { label: "Konto aktiv", color: LOCATION_COLORS.GROUP_ROOM },
   active_no_access: {
     label: "Konto aktiv, kein Portalzugriff",
-    dot: LOCATION_COLORS.SCHOOLYARD,
+    color: LOCATION_COLORS.SCHOOLYARD,
   },
-  pending: { label: "Einladung offen", dot: LOCATION_COLORS.WARNING },
-  none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
+  pending: { label: "Einladung offen", color: LOCATION_COLORS.WARNING },
+  none: { label: "Kein Konto", color: LOCATION_COLORS.UNKNOWN },
 };
 
 // Visible label for the invite action per account status. "active_no_access"
@@ -69,13 +82,7 @@ function AccountStatusBadge({
 }: Readonly<{ status?: GuardianAccountStatus }>) {
   const meta = ACCOUNT_STATUS_META[status ?? "none"];
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: meta.dot }}
-      />
-      {meta.label}
-    </span>
+    <StatusColorBadge label={meta.label} color={meta.color} compact wrap />
   );
 }
 
@@ -84,6 +91,11 @@ interface GuardianListProps {
   readonly onEdit?: (guardian: GuardianWithRelationship) => void;
   readonly onInvite?: (guardian: GuardianWithRelationship) => void;
   readonly invitingGuardianId?: string | null;
+  /** Mail state per guardian ID; a guardian without an entry shows none. */
+  readonly emailStates?: Readonly<Record<string, GuardianEmailState>>;
+  readonly onStopEmails?: (guardian: GuardianWithRelationship) => void;
+  readonly onLiftEmailBlock?: (guardian: GuardianWithRelationship) => void;
+  readonly onResumeEmails?: (guardian: GuardianWithRelationship) => void;
   readonly readOnly?: boolean;
   readonly showRelationship?: boolean;
 }
@@ -119,17 +131,20 @@ export default function GuardianList({
   onEdit,
   onInvite,
   invitingGuardianId,
+  emailStates,
+  onStopEmails,
+  onLiftEmailBlock,
+  onResumeEmails,
   readOnly = false,
   showRelationship = true,
 }: GuardianListProps) {
   if (guardians.length === 0) {
     return (
-      <div className="py-6 text-center text-gray-500 sm:py-8">
-        <AlertCircle className="mx-auto mb-2 h-10 w-10 text-gray-400 sm:h-12 sm:w-12" />
-        <p className="text-sm sm:text-base">
-          Keine Erziehungsberechtigten zugewiesen
-        </p>
-      </div>
+      <EmptyState
+        icon={<AlertCircle className="h-10 w-10 sm:h-12 sm:w-12" />}
+        title="Keine Erziehungsberechtigten zugewiesen"
+        className="py-6 sm:py-8"
+      />
     );
   }
 
@@ -161,20 +176,55 @@ export default function GuardianList({
         onClick: () => onEdit(guardian),
       });
     }
+    const mark = emailStates?.[guardian.id]?.addressMark;
+    if (guardian.email && mark === "failed" && onLiftEmailBlock) {
+      items.push({
+        label: "Sperre aufheben",
+        icon: <MailCheck className="h-4 w-4" aria-hidden />,
+        onClick: () => onLiftEmailBlock(guardian),
+      });
+    }
+    const stopped = emailStates?.[guardian.id]?.emailsStopped;
+    if (stopped && onResumeEmails) {
+      items.push({
+        label: "Mails wieder senden",
+        icon: <MailCheck className="h-4 w-4" aria-hidden />,
+        onClick: () => onResumeEmails(guardian),
+      });
+    }
+    if (guardian.email && !stopped && emailStates && onStopEmails) {
+      items.push({
+        label: "Mails stoppen",
+        icon: <MailX className="h-4 w-4" aria-hidden />,
+        onClick: () => onStopEmails(guardian),
+      });
+    }
     return items;
   };
 
   return (
     <div className="space-y-3">
       {guardians.map((guardian) => {
-        const showInvite = canInviteGuardian(guardian, onInvite);
+        const emailState = emailStates?.[guardian.id];
+        const mailCopy = mailStatusCopy(
+          emailState?.mailOutcome,
+          emailState?.addressMark,
+          false,
+          emailState?.providerBlock,
+        );
+        const stopped = emailState?.emailsStopped === true;
+        // A new invitation would change nothing: the note below says why.
+        const showInvite =
+          canInviteGuardian(guardian, onInvite) && !emailState?.sendBlock;
         const showMissingEmailHint = inviteNeedsEmail(guardian, onInvite);
         const menuItems = buildGuardianMenu(guardian, showInvite);
 
         return (
-          <div
+          <InsetPanel
             key={guardian.id}
-            className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
+            tone="white"
+            padding="md"
+            className="max-sm:p-3"
           >
             {/* Header with name and actions */}
             <div className="mb-3 flex items-start justify-between gap-2">
@@ -184,11 +234,23 @@ export default function GuardianList({
                     {getGuardianFullName(guardian)}
                   </span>
                   {guardian.isPrimary && (
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                      Primär
-                    </span>
+                    <StatusBadge label="Primär" tone="gray" compact />
                   )}
                   <AccountStatusBadge status={guardian.accountStatus} />
+                  {mailCopy && (
+                    <StatusBadge
+                      label={mailCopy.label}
+                      tone={mailCopy.tone}
+                      compact
+                    />
+                  )}
+                  {stopped && (
+                    <StatusBadge
+                      label={GUARDIAN_STOPPED_COPY.label}
+                      tone={GUARDIAN_STOPPED_COPY.tone}
+                      compact
+                    />
+                  )}
                 </h4>
                 {showRelationship && (
                   <p className="mt-1 text-xs text-gray-600 sm:text-sm">
@@ -213,6 +275,25 @@ export default function GuardianList({
             {showMissingEmailHint && !readOnly && (
               <p className="-mt-1 mb-3 text-sm text-gray-600">
                 Für die Einladung fehlt die E-Mail-Adresse.
+              </p>
+            )}
+
+            {mailCopy?.explanation && (
+              <p className="-mt-1 mb-3 text-sm text-gray-600">
+                {mailCopy.explanation}
+                {emailState?.addressMark && !readOnly
+                  ? ` ${guardianAddressNextStep(emailState.addressMark)}`
+                  : null}
+              </p>
+            )}
+
+            {stopped && (
+              <p className="-mt-1 mb-3 text-sm text-gray-600">
+                {GUARDIAN_STOPPED_COPY.explanation}
+                {emailState?.stopShared ? ` ${STOP_SHARED_NOTE}` : null}
+                {readOnly
+                  ? null
+                  : " Mit „Mails wieder senden“ heben Sie den Stopp auf."}
               </p>
             )}
 
@@ -262,30 +343,40 @@ export default function GuardianList({
             {/* Badges: Flags and Language */}
             <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
               {guardian.canPickup && (
-                <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                  <Shield className="h-3 w-3" />
-                  {pickupBadgeLabel(guardian.pickupWeekdays)}
-                </span>
+                <StatusBadge
+                  label={pickupBadgeLabel(guardian.pickupWeekdays)}
+                  tone="green"
+                  icon={Shield}
+                  compact
+                  wrap
+                />
               )}
               {guardian.isEmergencyContact && (
-                <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                  <AlertCircle className="h-3 w-3" />
-                  Notfallkontakt
-                </span>
+                <StatusBadge
+                  label="Notfallkontakt"
+                  tone="red"
+                  icon={AlertCircle}
+                  compact
+                />
               )}
               {guardian.languagePreference && (
-                <span className="bg-moto-blue/15 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                  <Globe className="h-3 w-3" />
-                  {getLanguageLabel(guardian.languagePreference)}
-                </span>
+                <StatusBadge
+                  label={getLanguageLabel(guardian.languagePreference)}
+                  tone="blue"
+                  icon={Globe}
+                  compact
+                />
               )}
             </div>
 
             {/* Notes */}
             {guardian.notes && (
-              <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
+              <InsetPanel
+                padding="compact"
+                className="mt-2 text-xs text-gray-600 sm:text-sm"
+              >
                 {guardian.notes}
-              </div>
+              </InsetPanel>
             )}
 
             {/* Contact Actions */}
@@ -303,7 +394,7 @@ export default function GuardianList({
                 contactName={getGuardianFullName(guardian)}
               />
             </div>
-          </div>
+          </InsetPanel>
         );
       })}
     </div>
@@ -374,7 +465,7 @@ function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
         <Phone className="h-4 w-4" />
         <span>{getPhoneLabel(phone)}</span>
         {phone.isPrimary && (
-          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-700">
+          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-xs font-medium text-gray-700">
             Primär
           </span>
         )}

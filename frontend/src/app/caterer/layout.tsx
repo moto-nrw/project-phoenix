@@ -1,6 +1,6 @@
 import { CatererProviders } from "./providers";
 import { CatererAuthGuard } from "./auth-guard";
-import { readCatererSessionSnapshot } from "~/lib/caterer-session-snapshot.server";
+import { readPortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 
 /**
  * Server layout of the caterer portal (ADR 0077): the caterer session, then
@@ -17,7 +17,7 @@ export default async function CatererLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = await readCatererSessionSnapshot();
+  const session = (await readPortalSessionSnapshot("caterer"))?.session ?? null;
   return (
     <CatererProviders session={session}>
       <CatererAuthGuard>{children}</CatererAuthGuard>

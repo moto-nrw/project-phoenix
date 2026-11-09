@@ -1,7 +1,6 @@
 package parentbillinghttp
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -9,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -101,7 +101,7 @@ func (rs *BillingRunResource) letter(w http.ResponseWriter, r *http.Request) {
 // writeLetter answers a PDF that no cache keeps.
 func writeLetter(w http.ResponseWriter, file capability.BillingLetterFile, disposition string) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition(disposition, file.Filename))
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)

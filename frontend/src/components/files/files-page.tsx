@@ -6,7 +6,8 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
-import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
+import { SectionLabel } from "~/components/ui/section-label";
+import { FileText, FolderOpen, Lock, Users } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { Dropzone } from "~/components/ui/dropzone";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -27,7 +29,6 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { formatDate } from "~/lib/date-helpers";
 import { hasPermission } from "~/lib/auth-utils";
-import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
   FOLDER_VISIBILITY_LABELS,
@@ -44,6 +45,10 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { cn } from "~/lib/utils";
 import { FolderModal } from "./folder-modal";
+import {
+  TraegerDocumentsCard,
+  useSchoolTraegerDocuments,
+} from "./traeger-documents-card";
 
 const logger = createLogger({ component: "FilesPage" });
 
@@ -135,6 +140,11 @@ export function FilesPage() {
   });
 
   const canManage = overview?.canManage ?? false;
+  // Dokumente des Trägers (#4692) sieht, wer die Dateien der Schule verwaltet.
+  const traegerDocuments = useSchoolTraegerDocuments(
+    hasPermission(session, "files:manage"),
+  );
+  const showsTraegerCard = traegerDocuments.shown;
   const canUpload = overview?.canUpload ?? false;
   const canChangeUploadPermission =
     hasPermission(session, "config:read") &&
@@ -168,7 +178,7 @@ export function FilesPage() {
               </span>
               <span
                 className={cn(
-                  "flex items-center gap-1 text-[11px]",
+                  "flex items-center gap-1 text-xs",
                   active ? "text-gray-300" : "text-gray-500",
                 )}
               >
@@ -201,7 +211,7 @@ export function FilesPage() {
       loading={isLoading || (!!error && !loadError)}
       error={loadError}
       empty={
-        !isLoading && !error && folders.length === 0
+        !isLoading && !error && folders.length === 0 && !showsTraegerCard
           ? {
               icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
               title: "Noch keine Ordner",
@@ -257,75 +267,82 @@ export function FilesPage() {
       }
     >
       <div className="flex min-h-[28rem] flex-col gap-4">
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          {/* Folder list: a panel on desktop, a select on small screens */}
-          <div className="moto-content-surface rounded-2xl border p-3 lg:hidden">
-            <label
-              htmlFor="dateien-ordner"
-              className="mb-1.5 block text-xs font-medium text-gray-600"
-            >
-              Ordner
-            </label>
-            <CustomSelect
-              id="dateien-ordner"
-              value={selected?.id ?? ""}
-              options={folders.map((folder) => ({
-                value: folder.id,
-                label: `${folder.name} (${folder.fileCount})`,
-              }))}
-              onChange={(value) => setSelectedId(value)}
-              controlSize="compact"
-            />
-          </div>
-          <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">
-            <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-              Ordner
-            </p>
-            <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
-            {canManage && overview && overview.maxBytes > 0 && (
-              <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
-                <DataField label="Speicherplatz">
-                  <span className="tabular-nums">
-                    {formatBytes(overview.usedBytes)} von{" "}
-                    {formatBytes(overview.maxBytes)} belegt
-                  </span>
-                </DataField>
-                <DataField label="Dateien hochladen">
-                  {overview.staffUploadEnabled
-                    ? "Leitung und Team"
-                    : "Nur Leitung"}
-                  {canChangeUploadPermission && (
-                    <span className="mt-1 block">
-                      <Link
-                        href="/settings?tab=operations&highlight=files.staff_upload_enabled"
-                        className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
-                      >
-                        Berechtigung ändern
-                      </Link>
-                    </span>
-                  )}
-                </DataField>
-              </dl>
-            )}
-          </aside>
-
-          {selected && (
-            <SectionCard className="flex min-h-0 flex-col">
-              <FolderFilesPanel
-                key={selected.id}
-                folder={selected}
-                canManage={canManage}
-                canUpload={canUpload}
-                onEdit={() => setFolderModal({ open: true, folder: selected })}
-                onDelete={() => {
-                  deleteFolderErrors.clear();
-                  setDeleteFolderTarget(selected);
-                }}
-                onFilesChanged={() => void mutateFolders()}
+        <TraegerDocumentsCard {...traegerDocuments} />
+        {folders.length > 0 && (
+          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            {/* Folder list: a panel on desktop, a select on small screens */}
+            <SectionCard className="lg:hidden">
+              <CustomSelect
+                id="dateien-ordner"
+                label="Ordner"
+                value={selected?.id ?? ""}
+                options={folders.map((folder) => ({
+                  value: folder.id,
+                  label: `${folder.name} (${folder.fileCount})`,
+                }))}
+                onChange={(value) => setSelectedId(value)}
+                controlSize="compact"
               />
             </SectionCard>
-          )}
-        </div>
+            <SectionCard
+              className="hidden h-full min-h-0 flex-col lg:flex"
+              bodyClassName="flex min-h-0 flex-1 flex-col"
+            >
+              <aside className="flex min-h-0 flex-1 flex-col">
+                <SectionLabel as="p" className="px-3 pt-1 pb-2">
+                  Ordner
+                </SectionLabel>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {folderNav}
+                </div>
+                {canManage && overview && overview.maxBytes > 0 && (
+                  <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                    <DataField label="Speicherplatz">
+                      <span className="tabular-nums">
+                        {formatBytes(overview.usedBytes)} von{" "}
+                        {formatBytes(overview.maxBytes)} belegt
+                      </span>
+                    </DataField>
+                    <DataField label="Dateien hochladen">
+                      {overview.staffUploadEnabled
+                        ? "Leitung und Team"
+                        : "Nur Leitung"}
+                      {canChangeUploadPermission && (
+                        <span className="mt-1 block">
+                          <Link
+                            href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                            className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                          >
+                            Berechtigung ändern
+                          </Link>
+                        </span>
+                      )}
+                    </DataField>
+                  </dl>
+                )}
+              </aside>
+            </SectionCard>
+
+            {selected && (
+              <SectionCard className="flex min-h-0 flex-col">
+                <FolderFilesPanel
+                  key={selected.id}
+                  folder={selected}
+                  canManage={canManage}
+                  canUpload={canUpload}
+                  onEdit={() =>
+                    setFolderModal({ open: true, folder: selected })
+                  }
+                  onDelete={() => {
+                    deleteFolderErrors.clear();
+                    setDeleteFolderTarget(selected);
+                  }}
+                  onFilesChanged={() => void mutateFolders()}
+                />
+              </SectionCard>
+            )}
+          </div>
+        )}
       </div>
     </TenantPage>
   );
@@ -358,19 +375,15 @@ function FolderFilesPanel({
   );
 
   const [uploading, setUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StoredFile | null>(null);
   const [deleting, setDeleting] = useState(false);
   // Fehler beim Löschen bleiben im offenen Bestätigungsdialog.
   const deleteErrors = useApiFormError();
   const { show: showError, showMessage } = useApiErrorDisplay();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const latestDeleteRef = useRef<() => void>(() => undefined);
 
-  const handleFiles = async (list: FileList | File[] | null) => {
-    if (!list || uploading || !canUpload) return;
-    const picked = Array.from(list);
-    if (picked.length === 0) return;
+  const handleFiles = async (picked: File[]) => {
+    if (uploading || !canUpload) return;
     const tooLarge = picked.find((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (tooLarge) {
       showMessage(
@@ -393,7 +406,6 @@ function FolderFilesPanel({
       void showError(err, { object: "das Hochladen der Datei" });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
     // Auch nach einem Fehler: Dateien vor dem Fehlschlag sind gespeichert.
     await mutate();
@@ -563,57 +575,18 @@ function FolderFilesPanel({
       <LoadErrorAlert error={loadError} />
 
       {canUpload ? (
-        <div
-          className={cn(
-            "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors",
-            dragActive ? "" : "border-gray-200 bg-gray-50/50",
-          )}
-          style={
-            dragActive
-              ? {
-                  borderColor: LOCATION_COLORS.GROUP_ROOM,
-                  backgroundColor: GROUP_ROOM_SHADES.bgHover,
-                }
-              : undefined
-          }
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragActive(false);
-            void handleFiles(e.dataTransfer.files);
-          }}
-        >
-          <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
-          <p className="text-sm text-gray-600">
-            Dateien hierher ziehen oder{" "}
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? "Wird hochgeladen…" : "Dateien auswählen"}
-            </Button>
-          </p>
-          <p className="text-xs text-gray-400">
-            PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_FILE_TYPES}
-            className="hidden"
-            aria-label="Dateien auswählen"
-            onChange={(e) => void handleFiles(e.target.files)}
-          />
-        </div>
+        <Dropzone
+          accept={ACCEPTED_FILE_TYPES}
+          legend="Bereich zum Hochladen von Dateien"
+          label="Dateien hierher ziehen"
+          dragLabel="Dateien hier ablegen"
+          buttonLabel="Dateien auswählen"
+          hint="PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB"
+          loading={uploading}
+          loadingLabel="Wird hochgeladen…"
+          multiple
+          onFiles={(files) => void handleFiles(files)}
+        />
       ) : (
         <Alert
           type="info"

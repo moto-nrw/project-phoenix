@@ -39,10 +39,15 @@ func TestSchoolRoleQueriesPreferTenantRoleAndHideForeignPermissions(t *testing.T
 	require.Contains(t, ids, system.ID)
 	require.Contains(t, ids, local.ID)
 	require.NotContains(t, ids, foreign.ID)
-	permissions, err := access.FindRolePermissions(testpkg.Ctx(t), local.ID)
+	for _, role := range roles {
+		require.Equal(t, strings.ToLower(role.Name), role.NameKey, "the list carries the key FindSchoolRoleByName compares")
+	}
+	permissions, err := access.FindRolePermissionsByRoleIDs(testpkg.Ctx(t), []int64{local.ID, foreign.ID, system.ID})
 	require.NoError(t, err)
-	require.Equal(t, []string{permission.Name}, permissions)
-	permissions, err = access.FindRolePermissions(testpkg.Ctx(t), foreign.ID)
+	require.Equal(t, []string{permission.Name}, permissions[local.ID])
+	require.NotContains(t, permissions, foreign.ID, "another school's role grants nothing here")
+	require.NotContains(t, permissions, system.ID, "a role without permissions has no entry")
+	permissions, err = access.FindRolePermissionsByRoleIDs(testpkg.Ctx(t), nil)
 	require.NoError(t, err)
 	require.Empty(t, permissions)
 	_, err = access.FindSchoolRoleByName(testpkg.Ctx(t), foreign.Name)

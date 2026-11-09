@@ -1,0 +1,7 @@
+{
+  "scenario": "api.students.presence25.arrival_times.n3",
+  "max": 10,
+  "exact": true,
+  "description": "Full protected POST arrival_times, positive N3; complete response entries asserted.",
+  "route": "POST /api/students/arrival-times/bulk"
+}

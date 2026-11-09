@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Stats struct {
@@ -64,7 +65,9 @@ type Store interface {
 	VisitStore
 	GroupSessionStore
 	PrivacyConsentStore
+	PastPresenceStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)
+	PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]studentpresence.PresenceDay, Stats, error)
 	CountAttendanceRecords(context.Context, int64) (int, Stats, error)
 	CountStudentVisitsForDeletion(context.Context, int64) (int, Stats, error)
 	LockOpenPresence(context.Context, []int64) (Stats, error)

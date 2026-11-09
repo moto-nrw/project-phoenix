@@ -26,6 +26,7 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -89,7 +90,13 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	mountParentBillingRoutes(router, organizations, settings, delivery.Module, testHealthCipher(), slog.Default())
+	schoolSettings, err := owners.NewSettingsTestModule(database, unit)
+	require.NoError(t, err)
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	mountParentBillingRoutes(router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), slog.Default())
+	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
+		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), "http://parents.localhost:3000")
 	return testpkg.SessionVerifier(router)
 }
 
@@ -496,18 +503,18 @@ func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/schools/", nil)
 		req.Header.Set("Authorization", "Bearer "+answer.AccessToken)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := list()
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Vier")
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fünf")
-	assert.Len(t, list(), len(three), "the school list reads the same statements for any number of schools")
+	assert.Len(t, list().Statements, len(three.Statements), "the school list reads the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools", three)
 }

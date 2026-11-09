@@ -10,8 +10,8 @@ import (
 )
 
 // NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger-Portal's Träger transaction (ADR 0105).
-func NewHolidayPeriods() enrollment.HolidayPeriods {
-	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore())
+func NewHolidayPeriods(today func() calendar.Date) enrollment.HolidayPeriods {
+	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today)
 }
 
 // NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722).
@@ -47,7 +47,28 @@ func NewHolidayGuestBadgeList(today func() calendar.Date) enrollment.HolidayGues
 	return applicationNative.NewHolidayGuestBadgeList(postgres.NewHolidayGuestStore(), today)
 }
 
+// NewHolidayGuestBookedCare builds the read of the guests' booked days for Soll und Ist (#5994), in the hosting school's tenant transaction.
+func NewHolidayGuestBookedCare(children enrollment.HolidayStudentsByBirthDate) enrollment.HolidayGuestBookedCare {
+	return applicationNative.NewHolidayGuestBookedCare(postgres.NewHolidayGuestStore(), children)
+}
+
 // NewHolidayAccessTrail builds the Träger access log's holiday trail (#5326), read in the Träger projection's transaction (ADR 0137).
 func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
 	return postgres.NewHolidayRegistrationStore()
+}
+
+// NewOpenEnrollments counts the children waiting for a decision at each school, for the Träger dashboard (#4675).
+func NewOpenEnrollments() enrollment.OpenEnrollments {
+	return postgres.NewOpenEnrollmentStore()
+}
+
+// NewBookedChildren ties the approved children of the online enrollment to
+// their student, for the Träger's occupancy (#4676, ADR 0154).
+func NewBookedChildren() enrollment.BookedChildren {
+	return postgres.NewBookedChildStore()
+}
+
+// NewContractApplications reads the accepted application children of a school for the Träger's contracts (#4678, ADR 0153), in that school's tenant transaction.
+func NewContractApplications(fingerprint func([]byte) string) enrollment.ContractApplications {
+	return postgres.NewContractApplicationStore(fingerprint)
 }

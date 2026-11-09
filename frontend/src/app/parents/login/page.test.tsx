@@ -133,7 +133,9 @@ describe("ParentLoginPage i18n", () => {
     expect(screen.getByText("Made for after-school care")).toBeInTheDocument();
     expect(screen.getByText("Hosted in Germany")).toBeInTheDocument();
     expect(
-      screen.getByText(/I can find the most important OGS information/),
+      screen.getByText(
+        /I can find the most important information about childcare/,
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Parent")).toHaveLength(4);
     expect(screen.getByText("Everything in one place")).toBeInTheDocument();
@@ -435,7 +437,7 @@ describe("ParentLoginPage i18n", () => {
     it("names the reason when a staff account lands here", async () => {
       mocks.signIn.mockResolvedValue({
         error: "CredentialsSignin",
-        code: "not_a_guardian",
+        code: "care.not_a_guardian",
       });
 
       await submitLogin();
@@ -457,7 +459,7 @@ describe("ParentLoginPage i18n", () => {
     it("explains a parents portal the school does not use", async () => {
       mocks.signIn.mockResolvedValue({
         error: "CredentialsSignin",
-        code: "portal_not_booked",
+        code: "module.not_booked",
       });
 
       await submitLogin();
@@ -475,7 +477,7 @@ describe("ParentLoginPage i18n", () => {
     it("keeps a wrong password generic and offers no staff link", async () => {
       mocks.signIn.mockResolvedValue({
         error: "CredentialsSignin",
-        code: "invalid_credentials",
+        code: "identity.invalid_credentials",
       });
 
       await submitLogin();
@@ -510,7 +512,7 @@ describe("ParentLoginPage i18n", () => {
     it("names a switched-off account by its code", async () => {
       mocks.signIn.mockResolvedValue({
         error: "CredentialsSignin",
-        code: "account_inactive",
+        code: "identity.session_account_inactive",
       });
 
       await submitLogin();
@@ -518,6 +520,21 @@ describe("ParentLoginPage i18n", () => {
       expect(
         await screen.findByText(
           enCatalogText("identity.session_account_inactive", LOGIN_OBJECT),
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("reads Auth.js's own refusal without a backend code as wrong credentials", async () => {
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "credentials",
+      });
+
+      await submitLogin();
+
+      expect(
+        await screen.findByText(
+          enCatalogText("identity.invalid_credentials", LOGIN_OBJECT),
         ),
       ).toBeInTheDocument();
     });
@@ -566,7 +583,7 @@ describe("ParentLoginPage i18n", () => {
       );
       mocks.signIn.mockResolvedValue({
         error: "CredentialsSignin",
-        code: "invalid_credentials",
+        code: "identity.invalid_credentials",
       });
 
       render(<ParentLoginPage />);

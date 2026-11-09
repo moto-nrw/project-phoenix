@@ -27,11 +27,11 @@
     },
     "messagesNews": {
       "title": "Mesajları ve veli mektuplarını bul",
-      "description": "Mesajları okuyun ve okul sonrası bakımdan gelen veli mektuplarını bulun."
+      "description": "Mesajları okuyun ve {careTerm}'den gelen veli mektuplarını bulun."
     },
     "messages": {
       "title": "Mesajları bul",
-      "description": "Burada okul sonrası bakıma mesaj okuyabilir ve yazabilirsiniz."
+      "description": "Burada mesajları okuyabilir ve {careTerm}'ye yazabilirsiniz."
     },
     "installApp": {
       "title": "moto'yu telefona ekle",
@@ -80,10 +80,10 @@
     "messagesNews": {
       "messagesNavigation": "Mesajlar'ı açın.",
       "messagesTitle": "Mesajlar",
-      "messages": "Burada okul sonrası bakımın mesajlarını okuyabilir ve yanıtlayabilirsiniz.",
+      "messages": "Burada {careTerm}'nin mesajlarını okuyabilir ve yanıtlayabilirsiniz.",
       "newsNavigation": "Veli mektupları'nı açın.",
       "newsTitle": "Veli mektupları",
-      "news": "Burada okul sonrası bakımdan gelen mektupları ve önemli bilgileri bulabilirsiniz."
+      "news": "Burada {careTerm}'den gelen mektupları ve önemli bilgileri bulabilirsiniz."
     },
     "installApp": {
       "guideTitle": "moto'yu telefona ekle",

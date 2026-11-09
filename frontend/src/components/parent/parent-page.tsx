@@ -2,18 +2,26 @@
 
 import type React from "react";
 import { useTranslations } from "next-intl";
-import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { BackLink } from "~/components/ui/back-link";
-import { Skeleton } from "~/components/ui/skeleton";
+import {
+  PageBody,
+  type PageBodyEmpty,
+  type PageBodyError,
+} from "~/components/ui/page-body";
+import {
+  CardSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+  TenantPageHeaderSkeleton,
+} from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 
 /**
- * Layout primitives shared by every parents-portal page.
- *
- * Before this module each page hand-rolled its own hero panel, panel header,
- * back bar and skeleton — six variants of the same three elements, in three
- * different type scales. Everything here follows the calm design language of
- * the Anmeldungen / Planung screens: blue uppercase kicker, `text-xl` page
- * title, `text-base` section titles, gray-900 primary actions.
+ * Layout primitives shared by every parents-portal page. The portal keeps its
+ * own scaffold (ADR 0149, Entscheidung 1): head with a kicker, `text-xl` page
+ * title, `text-base` section titles, gray-900 primary actions. Loading, empty
+ * and error follow the `TenantPage` contract through the same `PageBody`.
  */
 
 /**
@@ -23,21 +31,84 @@ import { Skeleton } from "~/components/ui/skeleton";
  * every tenant page does (`AppShell` already supplies the page padding). Long
  * prose stays readable because the text blocks inside carry their own
  * `max-w-2xl`, not because the whole page is narrowed.
+ *
+ * `header` stays in every state; `loading`, `error` and `empty` replace the
+ * content, as in `TenantPage`.
  */
 export function ParentPage({
+  header,
+  loading = false,
+  loadingLabel,
+  error,
+  empty,
+  overlays,
   children,
   className = "",
 }: Readonly<{
-  children: React.ReactNode;
+  /** Der Seitenkopf, meist `ParentPageHeader`. */
+  header?: React.ReactNode;
+  /** `true`: Kartenskelett; ein Knoten: das Skelett der Fläche aus dem Kit. */
+  loading?: boolean | React.ReactNode;
+  /** Vorlesbare Ankündigung; ohne Angabe „Inhalt wird geladen“. */
+  loadingLabel?: string;
+  error?: PageBodyError;
+  empty?: PageBodyEmpty;
+  /** Dialoge der Seite; sie bleiben in jedem Zustand gemountet. */
+  overlays?: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }>) {
-  return <div className={`w-full space-y-5 ${className}`}>{children}</div>;
+  const hasState = Boolean(loading) || Boolean(error) || Boolean(empty);
+  return (
+    <div className={`w-full space-y-5 ${className}`}>
+      {header}
+      {hasState ? (
+        <ParentPageState
+          loading={loading}
+          loadingLabel={loadingLabel}
+          error={error}
+          empty={empty}
+        >
+          {children}
+        </ParentPageState>
+      ) : (
+        children
+      )}
+      {overlays}
+    </div>
+  );
+}
+
+function ParentPageState({
+  loading,
+  loadingLabel,
+  error,
+  empty,
+  children,
+}: Readonly<{
+  loading: boolean | React.ReactNode;
+  loadingLabel?: string;
+  error?: PageBodyError;
+  empty?: PageBodyEmpty;
+  children?: React.ReactNode;
+}>) {
+  const t = useTranslations("parentNav");
+  return (
+    <PageBody
+      loading={loading}
+      loadingLabel={loadingLabel ?? t("sectionLoading")}
+      error={error}
+      empty={empty}
+    >
+      {children}
+    </PageBody>
+  );
 }
 
 /**
  * The page identity block. Detail and list pages use the default white surface.
- * Dashboards may use the plain variant when the app chrome already provides
- * enough context and daily content should stay above the fold.
+ * `prominent` is the greeting on the start page, whose head keeps its padding
+ * on a phone: the epic leaves that page untouched.
  */
 export function ParentPageHeader({
   kicker,
@@ -61,71 +132,68 @@ export function ParentPageHeader({
   prominent?: boolean;
 }>) {
   return (
-    <header className="moto-content-surface space-y-3 rounded-2xl border p-5">
-      {backHref && backLabel && <BackLink href={backHref} label={backLabel} />}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 basis-0 gap-3">
-          {media}
-          <div className="min-w-0">
-            {kicker && (
-              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                {kicker}
-              </p>
-            )}
-            <h1
-              className={`${prominent ? "text-2xl sm:text-[28px]" : "text-xl sm:text-2xl"} leading-tight font-semibold tracking-tight text-balance break-words text-gray-900 ${kicker ? "mt-1" : ""}`}
-            >
-              {title}
-            </h1>
-            {description && (
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-                {description}
-              </p>
+    // `header` bleibt das Element des Seitenkopfs; die Fläche kommt aus dem Kit.
+    <header>
+      <SectionCard
+        overflow="visible"
+        className={prominent ? "compact:p-5 max-sm:p-5" : ""}
+      >
+        <div className="space-y-3">
+          {backHref && backLabel && (
+            <BackLink href={backHref} label={backLabel} />
+          )}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <SectionCard
+              bare
+              kicker={kicker}
+              title={title}
+              description={description}
+              leading={media}
+              headingLevel={1}
+              titleSize={prominent ? "display" : "page"}
+              className="min-w-0 flex-1 basis-0"
+            />
+            {actions ? (
+              <div className="contents sm:flex sm:shrink-0 sm:items-center sm:gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
+                  {actions}
+                </div>
+                <MobilePageHelpTarget />
+              </div>
+            ) : (
+              <MobilePageHelpTarget />
             )}
           </div>
         </div>
-        {actions ? (
-          <div className="contents sm:flex sm:shrink-0 sm:items-center sm:gap-2">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
-              {actions}
-            </div>
-            <MobilePageHelpTarget />
-          </div>
-        ) : (
-          <MobilePageHelpTarget />
-        )}
-      </div>
+      </SectionCard>
     </header>
   );
 }
 
 /**
- * Shared page skeleton. `rows` controls how many section placeholders follow
- * the header so a page can approximate its own shape without redefining the
- * whole block.
+ * Whole-page placeholder from the kit, for a boundary without the page's own
+ * head (`Suspense`, auth guard, shell). `rows` is the number of cards below the
+ * head.
  */
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
   const t = useTranslations("parentNav");
   return (
-    <ParentPage>
-      <div
-        data-testid="parent-page-header-skeleton"
-        className="moto-content-surface rounded-2xl border p-5"
-        role="status"
-      >
-        <span className="sr-only">{t("sectionLoading")}</span>
-        <Skeleton aria-hidden="true" className="h-3 w-24" />
-        <Skeleton aria-hidden="true" className="mt-2 h-7 w-56 max-w-3/4" />
-        <Skeleton aria-hidden="true" className="mt-2 h-4 w-full max-w-xl" />
-        <Skeleton aria-hidden="true" className="mt-2 h-4 w-2/3 max-w-md" />
+    <SkeletonRegion label={t("sectionLoading")}>
+      <div className="w-full space-y-5">
+        <TenantPageHeaderSkeleton />
+        {Array.from({ length: rows }, (_, index) => (
+          <ParentSectionSkeleton key={index} announce={false} />
+        ))}
       </div>
-      {Array.from({ length: rows }, (_, index) => (
-        <ParentSectionSkeleton key={index} announce={false} />
-      ))}
-    </ParentPage>
+    </SkeletonRegion>
   );
 }
 
+/**
+ * One section placeholder from the kit: a card with a head, or list rows with
+ * `showHeader={false}`. Announces itself unless another status covers the same
+ * loading phase (#4994).
+ */
 export function ParentSectionSkeleton({
   rows = 3,
   showHeader = true,
@@ -139,42 +207,29 @@ export function ParentSectionSkeleton({
   announce?: boolean;
 }>) {
   const t = useTranslations("parentNav");
-  // Die Fläche selbst ist nur Grafik. Der Status sagt Screenreadern, dass
-  // hier noch Inhalt kommt, etwa beim ersten Öffnen eines Reiters (#4994).
+  const body = showHeader ? (
+    <CardSkeleton rows={rows} />
+  ) : (
+    <ListSkeleton rows={rows} avatar={false} />
+  );
+  if (announce) {
+    return (
+      <SkeletonRegion
+        label={t("sectionLoading")}
+        testId="parent-page-section-skeleton"
+        className={className}
+      >
+        {body}
+      </SkeletonRegion>
+    );
+  }
   return (
     <div
       data-testid="parent-page-section-skeleton"
-      className={`moto-content-surface overflow-hidden rounded-2xl border ${className}`}
-      role={announce ? "status" : undefined}
-      aria-hidden={announce ? undefined : true}
+      className={className}
+      aria-hidden="true"
     >
-      {announce ? <span className="sr-only">{t("sectionLoading")}</span> : null}
-      <div aria-hidden="true">
-        {showHeader ? (
-          <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
-            <Skeleton className="size-10 shrink-0 rounded-xl" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-5 w-40 max-w-2/3" />
-              <Skeleton className="h-3 w-56 max-w-full" />
-            </div>
-          </div>
-        ) : null}
-        <div className="divide-y divide-gray-100 px-4 sm:px-5">
-          {Array.from({ length: rows }, (_, rowIndex) => (
-            <div
-              key={rowIndex}
-              data-testid="parent-page-section-row-skeleton"
-              className="flex min-h-16 items-center gap-3 py-3"
-            >
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-              <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
-            </div>
-          ))}
-        </div>
-      </div>
+      {body}
     </div>
   );
 }

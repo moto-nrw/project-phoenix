@@ -1,83 +1,18 @@
+import { parent } from "~/lib/parent/route-wrapper.server";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-// Anhänge einer Elternmitteilung (#2890), Elternseite: die Datei selbst.
-//
-// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Der
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
+
+// Anhänge einer Elternmitteilung (#2890), Elternseite: die Datei selbst. Der
 // Empfängerkreis der Mitteilung entscheidet im Backend; wer nicht dazugehört,
 // bekommt 404 — nicht 403, sonst ließe sich an der Antwort ablesen, dass es
 // die Mitteilung gibt.
-
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
-import { problemResponse } from "~/lib/api-helpers.server";
-
-const logger = createLogger({ component: "ParentAttachmentDownload" });
-
-async function GETHandler(
-  request: NextRequest,
-  {
-    params,
-  }: { params: Promise<{ announcementId: string; attachmentId: string }> },
-) {
-  const { announcementId, attachmentId } = await params;
-
-  const session = await parentAuth();
-  const token = session?.user?.token;
-  if (!token) {
-    return problemResponse(401, "Unauthorized", request);
-  }
-
-  const inline = request.nextUrl.searchParams.get("inline") === "1";
-  const studentId = request.nextUrl.searchParams.get("student_id");
-  const query = new URLSearchParams();
-  if (studentId !== null) query.set("student_id", studentId);
-  if (inline) query.set("inline", "1");
-  const backendUrl = `${getServerApiUrl()}/parent-news-attachments/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download${query.size > 0 ? `?${query.toString()}` : ""}`;
-
-  const makeRequest = (bearer: string) =>
-    fetch(backendUrl, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${bearer}` },
-    });
-
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedParentAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
-
-  if (!upstream.ok) {
-    logger.warn("parent_attachment_download_proxy_non_ok", {
-      announcement_id: announcementId,
-      attachment_id: attachmentId,
-      status: upstream.status,
-    });
-    return forwardBackendResponse(upstream, request);
-  }
-
-  const headers = new Headers();
-  // nosniff is the one that matters here: an uploaded file must never be
-  // re-interpreted as something executable because a Content-Type looked
-  // wrong.
-  for (const name of [
-    "content-type",
-    "content-disposition",
-    "cache-control",
-    "content-length",
-    "x-content-type-options",
-    "content-security-policy",
-  ]) {
-    const value = upstream.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-
-  return new NextResponse(upstream.body, { status: 200, headers });
-}
-
-export const GET = withPrivateDownloadNoStore(withParentAuth(GETHandler));
+export const GET = withPrivateDownloadNoStore(
+  parent.proxyFile(
+    (params) =>
+      `/parent-news-attachments/${requirePathSegmentParam(params, "announcementId")}/${requirePathSegmentParam(params, "attachmentId")}/download`,
+    {
+      forwardQuery: ["student_id", "inline"],
+      backendCacheControl: true,
+    },
+  ),
+);

@@ -3,8 +3,9 @@
 // notice, the "Details" button that opens a legal text, and the Markdown the
 // legal modal renders. Also resolves which legal blocks an admin preview shows.
 
-import { FileText, Info } from "lucide-react";
+import { FileText } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import {
@@ -13,6 +14,10 @@ import {
   type PublicLegalBlock,
   type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import {
+  agbDocumentSentence,
+  agbDocumentURL,
+} from "~/lib/enrollment-legal-blocks";
 
 import type { TranslationFn } from "./enrollment-form-shared";
 
@@ -95,27 +100,25 @@ export function EmailContactNotice({
   readonly tr: TranslationFn;
 }) {
   return (
-    <div className="border-moto-blue/25 bg-moto-blue/5 flex items-center gap-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
-      <span className="border-moto-blue/30 text-moto-blue flex h-5 w-5 shrink-0 items-center justify-center rounded-md border bg-white">
-        <Info className="h-3.5 w-3.5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {tr("actions.notice")}
-          </span>
-        </div>
-        <span className="font-medium">{block.label}</span>{" "}
-        {onViewLegal && (
-          <LegalDetailsButton
-            title={block.title}
-            label={tr("actions.details")}
-            ariaLabel={tr("actions.detailsAria", { title: block.title })}
-            onClick={onViewLegal}
-          />
-        )}
-      </div>
-    </div>
+    <Alert
+      type="info"
+      announce="off"
+      message={
+        <>
+          <p className="font-semibold">{tr("actions.notice")}</p>
+          <span className="font-medium">{block.label}</span>{" "}
+          {onViewLegal && (
+            <LegalDetailsButton
+              variant="ghost_tone"
+              title={block.title}
+              label={tr("actions.details")}
+              ariaLabel={tr("actions.detailsAria", { title: block.title })}
+              onClick={onViewLegal}
+            />
+          )}
+        </>
+      }
+    />
   );
 }
 
@@ -124,7 +127,10 @@ function LegalDetailsButton({
   label,
   ariaLabel,
   onClick,
+  variant = "ghost",
 }: {
+  /** `ghost_tone` auf einem getönten Hinweis: übernimmt dessen Textfarbe. */
+  readonly variant?: "ghost" | "ghost_tone";
   readonly title: string;
   readonly label: string;
   readonly ariaLabel: string;
@@ -133,7 +139,7 @@ function LegalDetailsButton({
   return (
     <Button
       type="button"
-      variant="ghost"
+      variant={variant}
       size="compact"
       aria-label={ariaLabel}
       title={title}
@@ -201,25 +207,6 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
 function legalBlockText(
   block: NonNullable<PublicFormSchema["legal_blocks"]>[number],
 ) {
-  const documentURL = (block.document_url ?? "").trim();
-  if (
-    block.key === "agb" &&
-    block.display_mode === "pdf" &&
-    documentURL !== ""
-  ) {
-    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
-  }
-  return block.text;
-}
-
-function publicAGBDocumentURL(storedURL: string): string {
-  const globalPrefix = "/uploads/enrollment-legal-documents/";
-  if (storedURL.startsWith(globalPrefix)) {
-    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
-  }
-  const formPrefix = "/uploads/enrollment-form-legal-documents/";
-  if (storedURL.startsWith(formPrefix)) {
-    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
-  }
-  return storedURL;
+  const documentURL = agbDocumentURL(block);
+  return documentURL !== "" ? agbDocumentSentence(documentURL) : block.text;
 }

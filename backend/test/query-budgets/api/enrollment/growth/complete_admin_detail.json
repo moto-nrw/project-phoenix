@@ -1,0 +1,7 @@
+{
+  "scenario": "api.enrollment.growth.complete_admin_detail",
+  "max": 22,
+  "exact": true,
+  "description": "Positive mounted admin detail handler including real upload listing, read-state write and signature savepoints; N3/N8 sibling children and claimed uploads, ordered IDs/metadata. Every SQL statement is captured.",
+  "route": "GET /api/enrollment/admin/requests/{id}/"
+}

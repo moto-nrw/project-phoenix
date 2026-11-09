@@ -1,6 +1,126 @@
 {
   "entries": [
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.CountUnread",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.CountUnread",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.CreateAnnouncement",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.CreateAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.DeleteAnnouncement",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.DeleteAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetAnnouncement",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetStats",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetStats",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetUnreadForUser",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetUnreadForUser",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetViewDetails",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetViewDetails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.ListAnnouncements",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.ListAnnouncements",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.MarkDismissed",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.MarkDismissed",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.MarkSeen",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.MarkSeen",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.PublishAnnouncement",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.PublishAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.UnpublishAnnouncement",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.UnpublishAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.UpdateAnnouncement",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.UpdateAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.CareCancellationPublisher.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.CareCancellationPublisher.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
       "binding_digest": "7651bbe9f1c7870b5097a7ec75322280",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.DeclarationSignatureReader.DeclarationSignatures",
@@ -31,6 +151,262 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.QueueAttachmentCleanupForAnnouncement",
       "target_owner": "file-storage"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.DeleteParentAnnouncement",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.DeleteParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.DeleteParentAnnouncement",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.DeleteParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.RemindParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.RemindParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.RemindParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.RemindParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails",
+      "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails",
+      "binding_digest": "cfca14d34859946c5f7da3e14752f90b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.ResendParentAnnouncementEmails",
+      "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.ResendParentAnnouncementEmails",
+      "binding_digest": "cfca14d34859946c5f7da3e14752f90b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.SendDueParentAnnouncementReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.SendDueParentAnnouncementReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.SendDueParentAnnouncementReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.SendDueParentAnnouncementReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.UnpublishParentAnnouncement",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.UnpublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.UnpublishParentAnnouncement",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.UnpublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.ResendParentAnnouncementEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "binding_digest": "cfca14d34859946c5f7da3e14752f90b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.ResendParentAnnouncementEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.DeleteExpiredParentAnnouncements",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementRetention.DeleteExpiredParentAnnouncements",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.DeleteExpiredParentAnnouncements",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementRetention.DeleteExpiredParentAnnouncements",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationGroupAudience.GroupAudience",
@@ -194,7 +570,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -202,7 +578,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -210,7 +586,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -250,7 +626,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -258,7 +634,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -266,7 +642,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.PortalMessageInboxReads.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -375,6 +751,62 @@
       "source_owner": "communication",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.read",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.DeleteExpiredSurveys",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteExpiredSurveys",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.DeleteSurvey",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.PublishSurvey",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.PublishSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.PublishSurvey",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.PublishSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.RemindSurvey",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.RemindSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.RemindSurvey",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.RemindSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteExpiredSurveys",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyRetention.DeleteExpiredSurveys",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.OutboxEnqueuer.CancelPendingByRelatedEntity",
@@ -618,10 +1050,34 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "c1de0fd9aa31bd281c931af1bcc70461",
+      "binding_digest": "c5b85cdfbfcf459fe259d4a6b933ee9c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "binding_digest": "6a2791ce35c1c7916e59558533b07ce0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "binding_digest": "ecd941a0ecec99b6903de736436caad1",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "binding_digest": "69e4e947364696ce7cb96574cc915f84",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -706,7 +1162,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -714,7 +1170,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -722,11 +1178,19 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadListInboxForStaff",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
@@ -751,6 +1215,14 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
@@ -887,6 +1359,126 @@
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.StaffRoleKinds",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Delete",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Delete",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.DeleteExpiredParentAnnouncements",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.DeleteExpiredParentAnnouncements",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Publish",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Publish",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Publish",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Publish",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindOutstanding",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindOutstanding",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindOutstanding",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindOutstanding",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindUnanswered",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindUnanswered",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindUnanswered",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindUnanswered",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.ResendFailedEmails",
+      "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.ResendFailedEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.ResendFailedEmails",
+      "binding_digest": "cfca14d34859946c5f7da3e14752f90b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.ResendFailedEmails",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.SendDueReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.SendDueReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.SendDueReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.SendDueReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Unpublish",
+      "binding_digest": "4caf7f271b5c693e342a7d4fff8acaae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Unpublish",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.StaffReadRecords.ListAddressableStaff",
@@ -1033,6 +1625,14 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.CareFacilityTerm",
+      "binding_digest": "42885238057e13b8cdfc4975a0b7866f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.CareFacilityTerm",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.CareFacilityTerm",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
       "binding_digest": "a3826b820077ffc00abd36e7f1a8f605",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.ParentMessageLeadershipEnabled",
@@ -1087,6 +1687,14 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/internal/adapters/postgres.Mapped[github.com/moto-nrw/project-phoenix/modules/communication.Announcement, github.com/moto-nrw/project-phoenix/modules/communication.AnnouncementViewDetail, github.com/moto-nrw/project-phoenix/modules/communication/composition.OperationStats].ViewDetails",
       "target_owner": "staff-announcement-audience"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/composition.transaction.RunAdmin",
+      "binding_digest": "f40e82ad23042c21a35ea9ab372137f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/ports.Transaction.RunAdmin",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.communicationViewerNames.NamesByAccount",
@@ -1522,7 +2130,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.LatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1530,7 +2138,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.LatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1538,7 +2146,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.LatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -1554,7 +2162,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.LatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1562,7 +2170,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.LatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1570,7 +2178,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.LatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -1586,7 +2194,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.LatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1594,7 +2202,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.LatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1602,11 +2210,19 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.LatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.LatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListInboxForStaff",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListInboxForStaff",
@@ -1641,6 +2257,70 @@
       "target_owner": "parent-message-inbox"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
       "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
@@ -1674,7 +2354,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianStudent",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1682,7 +2362,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianStudent",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1690,8 +2370,96 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianStudent",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -1730,7 +2498,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianTenants",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1738,7 +2506,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianTenants",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1746,11 +2514,75 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForGuardianTenants",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForStudent",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForStudent",
@@ -1785,6 +2617,38 @@
       "target_owner": "parent-message-inbox"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
@@ -1794,7 +2658,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1802,7 +2666,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1810,7 +2674,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -1826,7 +2690,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1834,7 +2698,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1842,7 +2706,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
@@ -1858,7 +2722,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1866,7 +2730,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1874,11 +2738,19 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadLatestReadCursorByOther",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadLatestReadCursorByOther",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListInboxForStaff",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListInboxForStaff",
@@ -1905,6 +2777,46 @@
       "target_owner": "school-structure"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListThreadsForStudent",
       "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
@@ -1927,6 +2839,70 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
@@ -1962,7 +2938,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianStudent",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -1970,7 +2946,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianStudent",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -1978,8 +2954,96 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianStudent",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2018,7 +3082,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianTenants",
-      "binding_digest": "f863e328cdd6adaa3106ea6962f12057",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
@@ -2026,7 +3090,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianTenants",
-      "binding_digest": "f19df4c38a5b428602c2c92f8a0c17ce",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
@@ -2034,11 +3098,67 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.PortalListThreadsForGuardianTenants",
-      "binding_digest": "accfab8064074c3e980c8598abd6365b",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "28466c6cbbd3bcb33e0af195a7f936db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "290145cd779a071b928fd99b0bd5e6bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "29608e81add1c9a6d7a90e2bb32fa9b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "1f9a94dcfa40a74dc9a973da4a25596f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "942a02bd02621cd5adf5eb229207f00f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "de1f2d6374e2b24fd4a9731009337c46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "binding_digest": "aadf915e91f91d0aa1fb4c94da8cf9b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForGuardianTenants",

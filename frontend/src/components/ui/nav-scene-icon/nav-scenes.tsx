@@ -29,6 +29,44 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
       </>
     ),
   },
+  BellIcon: {
+    description: "die Glocke schwingt, der Klöppel schlägt nach",
+    render: () => (
+      <>
+        <g className="ns-bell">
+          <path d="M56,104a72,72,0,0,1,144,0c0,35.82,8.3,64.6,14.9,76A8,8,0,0,1,208,192H48a8,8,0,0,1-6.88-12C47.71,168.6,56,139.81,56,104Z" />
+        </g>
+        <path className="ns-clapper" d="M96,192a32,32,0,0,0,64,0" />
+      </>
+    ),
+  },
+  LockKeyIcon: {
+    description: "der Bügel springt auf und rastet wieder ein",
+    render: () => (
+      <>
+        <path className="ns-shackle" d="M88,88V56a40,40,0,0,1,80,0V88" />
+        <rect x="40" y="88" width="176" height="128" rx="8" />
+        <circle className="ns-solid" cx="128" cy="140" r="12" />
+        <path d="M128,152v24" />
+      </>
+    ),
+  },
+  TranslateIcon: {
+    description: "die beiden Schriftzeichen rücken nacheinander zueinander",
+    render: () => (
+      <>
+        <g className="ns-sign">
+          <path d="M32,56H160M96,32V56" />
+          <path d="M128,56c0,48-40,96-96,96" />
+          <path d="M64,88c12,36,46,64,92,64" />
+        </g>
+        <g className="ns-latin">
+          <path d="M120,216l64-120,64,120" />
+          <path d="M144,184h80" />
+        </g>
+      </>
+    ),
+  },
   HouseLineIcon: {
     description: "Dach hüpft, Tür geht auf",
     render: () => (
@@ -521,6 +559,17 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
       </>
     ),
   },
+  ChartBarIcon: {
+    description: "die Balken füllen sich nacheinander",
+    render: () => (
+      <>
+        <path d="M32,208H224" />
+        <path className="ns-bar ns-i0" d="M56,208V144H96v64" />
+        <path className="ns-bar ns-i1" d="M104,208V96h40V208" />
+        <path className="ns-bar ns-i2" d="M152,208V48h40V208" />
+      </>
+    ),
+  },
   ChalkboardTeacherIcon: {
     description: "an der Tafel wird geschrieben",
     render: () => (
@@ -911,6 +960,19 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
           <path d="M112,128H216" />
           <polyline points="176,88 216,128 176,168" />
         </g>
+      </>
+    ),
+  },
+  SignatureIcon: {
+    description: "die Unterschrift wird über der Linie gezogen",
+    render: () => (
+      <>
+        <path d="M24,176H232" />
+        <path
+          className="ns-draw"
+          pathLength="1"
+          d="M24,216c18-30,58-102,68-134c9-30,4-50-14-50c-24,0-38,58-20,106c18,10,44-4,68-34c6,22,16,42,32,42c12,0,22-10,32-24c8,14,24,22,42,22"
+        />
       </>
     ),
   },

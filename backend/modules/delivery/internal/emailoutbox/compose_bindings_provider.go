@@ -21,7 +21,11 @@ type MailPushProvider struct {
 	Logger         *slog.Logger
 	Tenants        IntentTenantTransactions
 	PushAuthorized func(context.Context, deliveryContract.ClaimedIntent) (bool, error)
-	DeferredPush   func(context.Context, deliveryContract.ClaimedIntent) error
+	// PushObjects checks current object validity and concrete recipient rights.
+	// Decisions are keyed by intent ID. Explicit allows survive errors for other
+	// intents; missing decisions deny, or retry when the batch lookup failed.
+	PushObjects  func(context.Context, []deliveryContract.ClaimedIntent) (map[int64]bool, error)
+	DeferredPush func(context.Context, deliveryContract.ClaimedIntent) error
 	// Deliverable reports whether the school still books the module a
 	// claimed mail or push belongs to (#4895). An intent of a cancelled
 	// module is cancelled, never sent; a read failure retries. Nil sends
@@ -71,7 +75,8 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 		relatedID = *intent.RelatedEntityID
 	}
 	row := &Intent{
-		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template,
+		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, DeliveryToken: intent.DeliveryToken,
+		Security: intent.Security, UseFallback: intent.UseFallback,
 		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
 		Payload: payload, PayloadJSON: intent.EmailPayload, Attempts: intent.Attempts,
 	}
@@ -80,17 +85,30 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 		return deliveryContract.ProviderResult{}, err
 	}
 	transport := Transport{Mailer: p.Mailer, MailIdentity: p.MailIdentity, Tenants: p.Tenants, Logger: p.Logger}
-	err = transport.Send(ctx, row, renderer, email.NewEmail(intent.EmailRecipient.Name, intent.EmailRecipient.Address))
+	receipt, err := transport.Send(ctx, row, renderer, email.NewEmail(intent.EmailRecipient.Name, intent.EmailRecipient.Address))
 	if errors.Is(err, ErrRenderCancelled) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrCancelled, err)
 	}
 	if errors.Is(err, ErrRenderDeferred) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrDeferred, err)
 	}
+	if errors.Is(err, email.ErrFallbackRemoved) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrPermanent, err)
+	}
+	if errors.Is(err, email.ErrRecipientRejected) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %w: %v", deliveryContract.ErrPermanent, deliveryContract.ErrRecipientRejected, err)
+	}
+	if errors.Is(err, email.ErrPermanentRejection) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrPermanent, err)
+	}
 	if err != nil {
 		return deliveryContract.ProviderResult{}, err
 	}
-	return deliveryContract.ProviderResult{StatusCode: deliveryContract.ProviderAcceptedStatusCode}, nil
+	return deliveryContract.ProviderResult{
+		StatusCode: deliveryContract.ProviderAcceptedStatusCode,
+		MessageID:  receipt.MessageID, ProviderMessageID: receipt.ProviderMessageID,
+		UsedFallback: receipt.UsedFallback,
+	}, nil
 }
 
 // SendPush sends the claimed push when its subscription is still authorized.
@@ -114,6 +132,9 @@ func (p *MailPushProvider) SendPush(ctx context.Context, intent deliveryContract
 	}
 	if !allowed {
 		return deliveryContract.ProviderResult{}, deliveryContract.ErrCancelled
+	}
+	if err := p.requirePushObject(ctx, intent); err != nil {
+		return deliveryContract.ProviderResult{}, err
 	}
 	return p.Push.SendPush(ctx, intent)
 }

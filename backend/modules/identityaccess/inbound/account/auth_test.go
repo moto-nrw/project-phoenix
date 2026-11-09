@@ -106,7 +106,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 
 // setupProtectedRouter mounts the resource's real Router() under /auth, so
 // tests exercise the production middleware chain (Verifier → Authenticator →
-// TenantMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
+// TenantScopeMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
 // signed JWT minted by executeWithAuth.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
@@ -241,7 +241,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, _ chi.Router) (token string, validRo
 	// Password-only login now correctly returns an enrollment token, not a
 	// usable admin session. Login/MFA behavior has its own HTTP/behavior tests.
 	module := setupAuthModuleOn(t, db)
-	accessToken, _, err := module.Auth.IssueTokensForAuthenticatedAccount(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
+	accessToken, _, err := module.Auth.IssueTokensForPasskey(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 
 	return accessToken, userRole.ID
@@ -662,7 +662,8 @@ func TestPasswordReset(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("confirm bad request with invalid token", func(t *testing.T) {
+	// An unusable link answers 410 in every portal, the tenant included.
+	t.Run("confirm gone with invalid token", func(t *testing.T) {
 		body := map[string]string{
 			"token":            "invalid-token",
 			"new_password":     "NewSecurePass123!",
@@ -672,7 +673,8 @@ func TestPasswordReset(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/auth/password-reset/confirm", body)
 		rr := testutil.ExecuteRequest(router, req)
 
-		testutil.AssertBadRequest(t, rr)
+		require.Equal(t, http.StatusGone, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"code":"identity.password_reset_link_invalid"`)
 	})
 
 	t.Run("confirm bad request with password mismatch", func(t *testing.T) {
@@ -1557,7 +1559,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -1568,7 +1570,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/99999", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1579,7 +1581,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertBadRequest(t, rr)
 	})

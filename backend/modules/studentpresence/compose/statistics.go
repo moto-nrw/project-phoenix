@@ -23,11 +23,10 @@ type (
 	CourseInstance        = ports.CourseInstance
 	CourseParticipation   = ports.CourseParticipation
 	StatusDay             = ports.StatusDay
+	ContractCareDay       = ports.ContractCareDay
 )
 
-// StatisticsDependencies binds the report to its foreign inputs. Attendance
-// days and intervals, room utilization and visit-retention consents are read
-// from Student Presence itself over DB.
+// StatisticsDependencies binds the report to its foreign inputs; attendance, rooms and consents come from Student Presence over DB.
 type StatisticsDependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
@@ -37,14 +36,17 @@ type StatisticsDependencies struct {
 	Holidays        ports.HolidayDates
 	ClosingDays     ports.ClosingDayDates
 	Periods         ports.HolidayPeriods
+	CalendarDays    ports.CareCalendarDays // ClosingDays and Periods in one statement (#5994)
 	Students        ports.StatisticsStudents
 	Rooms           ports.StatisticsRooms
 	AccessLog       ports.StatisticsAccessLog
 	Retention       ports.StatisticsRetention
 	PlannedCareDays ports.PlannedCareDays
-	Logger          *slog.Logger
-	// Now is injectable for tests; nil means time.Now.
-	Now func() time.Time
+	// The contract (#4683), then the holiday booking (#5994) replace the Soll on the days they cover; nil keeps it.
+	ContractCareDays ports.ContractCareDays
+	HolidayCareDays  ports.HolidayCareDays
+	Logger           *slog.Logger
+	Now              func() time.Time // injectable for tests; nil means time.Now
 }
 
 // NewStatistics builds the Statistik report use case.
@@ -61,12 +63,13 @@ func NewStatistics(deps StatisticsDependencies) (studentpresence.StatisticsRepor
 		Holidays:            deps.Holidays,
 		ClosingDays:         deps.ClosingDays,
 		Periods:             deps.Periods,
+		CalendarDays:        deps.CalendarDays,
 		Students:            deps.Students,
 		Rooms:               deps.Rooms,
 		AccessLog:           deps.AccessLog,
 		Retention:           deps.Retention,
 		PrivacyConsents:     presence,
-		PlannedCareDays:     deps.PlannedCareDays,
+		PlannedCareDays:     statistics.WithHolidayCareDays(statistics.WithContractCareDays(deps.PlannedCareDays, deps.ContractCareDays), deps.HolidayCareDays),
 		AttendanceIntervals: postgres.New(databaseRuntime(deps.DB)),
 		Logger:              deps.Logger,
 		Now:                 deps.Now,

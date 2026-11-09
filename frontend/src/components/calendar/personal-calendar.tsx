@@ -1,19 +1,24 @@
 "use client";
+import { SectionCard } from "~/components/ui/section-card";
+import { FramedList } from "~/components/ui/framed-list";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import {
+  PlanLegend,
+  type PlanLegendEntry,
+} from "~/components/ui/planning/plan-legend";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -38,6 +43,14 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { closingDaysConcept } from "~/lib/concepts/closingDays";
 import { peopleConcept } from "~/lib/concepts/people";
 import { roomsConcept } from "~/lib/concepts/rooms";
+import { StatusDot } from "~/components/ui/status-dot";
+import { ColorBar } from "~/components/ui/color-bar";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -228,11 +241,11 @@ const responseLabel: Record<string, string> = {
   info: "Info",
 };
 
-const responseTone: Record<CalendarResponseStatus, string> = {
-  pending: "bg-gray-100 text-gray-700",
-  accepted: "bg-moto-green-soft text-gray-800",
-  declined: "bg-moto-red/10 text-moto-red-strong",
-  info: "bg-moto-blue-soft text-gray-800",
+const responseTone: Record<CalendarResponseStatus, StatusBadgeTone> = {
+  pending: "gray",
+  accepted: "green",
+  declined: "red",
+  info: "blue",
 };
 
 function eventTime(event: CalendarEvent): string {
@@ -633,34 +646,34 @@ export function PersonalCalendar({
             aria-label="Kalender wird geladen"
             className="absolute inset-0 z-10 space-y-2 bg-white/80 p-4"
           >
-            <Skeleton className="h-10 w-full rounded-lg" />
-            <Skeleton className="h-full min-h-40 w-full rounded-lg" />
+            <Skeleton shape="control" className="h-10 w-full" />
+            <Skeleton shape="control" className="h-full min-h-40 w-full" />
           </div>
         ) : null}
         {viewMode === "day" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
+          <SectionCard padding="none" className="hidden lg:block">
             <CalendarTimeGrid
               days={[referenceDate]}
               events={events}
               actions={actions}
             />
             {legendBand}
-          </div>
+          </SectionCard>
         ) : null}
 
         {viewMode === "week" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
+          <SectionCard padding="none" className="hidden lg:block">
             <CalendarTimeGrid
               days={visibleWeekDays}
               events={events}
               actions={actions}
             />
             {legendBand}
-          </div>
+          </SectionCard>
         ) : null}
 
         {viewMode === "month" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
+          <SectionCard padding="none" className="hidden lg:block">
             <div
               className={`grid ${showWeekend ? "grid-cols-7" : "grid-cols-5"}`}
             >
@@ -680,7 +693,7 @@ export function PersonalCalendar({
               })}
             </div>
             {legendBand}
-          </div>
+          </SectionCard>
         ) : null}
 
         <div className="lg:hidden">
@@ -706,16 +719,13 @@ export function PersonalCalendar({
           if (!open) setClicked(null);
         }}
       >
-        <SlideOverContent widthClass="sm:w-[520px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>
-                {selectedEvent?.source === "public_holiday"
-                  ? "Feiertag"
-                  : "Termin"}
-              </SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="md">
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {selectedEvent?.source === "public_holiday"
+                ? "Feiertag"
+                : "Termin"}
+            </SlideOverTitle>
           </SlideOverHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {selectedEvent ? (
@@ -766,17 +776,14 @@ function MobileAgenda({
   }
 
   return (
-    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border">
+    <SectionCard padding="none" bodyClassName="divide-y divide-gray-100">
       {groups.map(({ day, allDay, timed, count }) => (
         <section key={toISODate(day)} className="divide-y divide-gray-100">
-          <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
-            <h2 className="text-sm font-semibold text-gray-900">
-              {formatDayHeader(day)}
-            </h2>
-            <span className="shrink-0 text-xs text-gray-500">
-              {count === 1 ? "1 Eintrag" : `${count} Einträge`}
-            </span>
-          </div>
+          <ListGroupHeader
+            as="h2"
+            title={formatDayHeader(day)}
+            meta={count === 1 ? "1 Eintrag" : `${count} Einträge`}
+          />
           {[...allDay, ...timed].map((event) => (
             <AgendaRow
               key={`${event.id}-${toISODate(day)}`}
@@ -787,7 +794,7 @@ function MobileAgenda({
         </section>
       ))}
       {legend}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1114,11 +1121,11 @@ function AgendaRow({
   // Positionierung, nicht die Darstellung).
   const allDay = event.all_day;
   const badge = cancelled
-    ? { label: "Abgesagt", cls: "bg-moto-red/10 text-moto-red-strong" }
+    ? { label: "Abgesagt", tone: "red" as const }
     : event.response_status
       ? {
           label: responseLabel[event.response_status] ?? event.response_status,
-          cls: responseTone[event.response_status],
+          tone: responseTone[event.response_status],
         }
       : null;
   const subtitle = [
@@ -1151,11 +1158,7 @@ function AgendaRow({
           </>
         )}
       </div>
-      <span
-        className="h-9 w-1 shrink-0 rounded-full"
-        style={{ backgroundColor: tone.bar }}
-        aria-hidden
-      />
+      <ColorBar color={tone.bar} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span
@@ -1166,11 +1169,7 @@ function AgendaRow({
             {event.title}
           </span>
           {badge ? (
-            <span
-              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${badge.cls}`}
-            >
-              {badge.label}
-            </span>
+            <StatusBadge label={badge.label} tone={badge.tone} size="xs" />
           ) : null}
         </div>
         {subtitle ? (
@@ -1211,11 +1210,7 @@ function EventPill({
       } ${cancelled ? "opacity-70" : ""}`}
       style={{ backgroundColor: tone.bg }}
     >
-      <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={{ backgroundColor: tone.bar }}
-        aria-hidden
-      />
+      <StatusDot color={tone.bar} size="md" decorative />
       <span
         className={`min-w-0 flex-1 truncate text-xs font-medium text-gray-900 ${
           cancelled ? "line-through" : ""
@@ -1300,32 +1295,24 @@ function CalendarEventDetail({
     .filter(Boolean)
     .join(" · ");
   const hasActions = showOverview || showRespond || showIcs || canManage;
+  const schoolEventType = schoolEventTypeLabel(event);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span
-          className="rounded-md px-2 py-0.5 text-xs font-semibold text-gray-700"
-          style={{ backgroundColor: tone.bg }}
-        >
-          {tone.label}
-        </span>
-        {schoolEventTypeLabel(event) ? (
-          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-            {schoolEventTypeLabel(event)}
-          </span>
+        <StatusColorBadge label={tone.label} color={tone.bar} compact />
+        {schoolEventType ? (
+          <StatusBadge label={schoolEventType} tone="gray" compact />
         ) : null}
         {cancelled ? (
-          <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-xs font-semibold">
-            Abgesagt
-          </span>
+          <StatusBadge label="Abgesagt" tone="red" compact />
         ) : event.response_status ? (
-          <span
-            className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
-              responseTone[event.response_status]
-            }`}
-          >
-            {responseLabel[event.response_status] ?? event.response_status}
-          </span>
+          <StatusBadge
+            label={
+              responseLabel[event.response_status] ?? event.response_status
+            }
+            tone={responseTone[event.response_status]}
+            compact
+          />
         ) : null}
       </div>
 
@@ -1523,24 +1510,15 @@ export function CalendarOverviewList({
   return (
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="bg-moto-green-soft rounded-lg px-2 py-2 text-gray-800">
-            <div className="font-semibold">{accepted}</div>
-            <div>Zugesagt</div>
-          </div>
-          <div className="bg-moto-red/10 text-moto-red-strong rounded-lg px-2 py-2">
-            <div className="font-semibold">{declined}</div>
-            <div>Abgesagt</div>
-          </div>
-          <div className="rounded-lg bg-gray-100 px-2 py-2 text-gray-700">
-            <div className="font-semibold">{pending}</div>
-            <div>Offen</div>
-          </div>
+        <div className="grid grid-cols-3 gap-2">
+          <StatCard label="Zugesagt" value={accepted} tone="green" />
+          <StatCard label="Abgesagt" value={declined} tone="red" />
+          <StatCard label="Offen" value={pending} tone="neutral" />
         </div>
       ) : null}
-      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+      <FramedList>
         {overview.attendees.map((attendee) => (
-          <div
+          <li
             key={attendee.recipient_id}
             className="flex items-center justify-between gap-3 px-3 py-2"
           >
@@ -1554,16 +1532,13 @@ export function CalendarOverviewList({
                   : "Eltern"}
               </div>
             </div>
-            <span
-              className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${
-                responseTone[attendee.status]
-              }`}
-            >
-              {responseLabel[attendee.status] ?? attendee.status}
-            </span>
-          </div>
+            <StatusBadge
+              label={responseLabel[attendee.status] ?? attendee.status}
+              tone={responseTone[attendee.status]}
+            />
+          </li>
         ))}
-      </div>
+      </FramedList>
     </div>
   );
 }
@@ -1572,9 +1547,9 @@ function EmptyCalendarState({
   viewMode,
 }: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <SectionCard>
       <EmptyState title={calendarEmptyLabel(viewMode)} />
-    </div>
+    </SectionCard>
   );
 }
 

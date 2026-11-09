@@ -107,30 +107,6 @@ vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
-    <div data-testid="page-header">
-      <h1>{title}</h1>
-      {tabs && (
-        <div data-testid="tabs">
-          {tabs.items.map((tab: any) => (
-            <button
-              type="button"
-              key={tab.id}
-              data-testid={`tab-${tab.id}`}
-              className={tabs.activeTab === tab.id ? "active" : ""}
-            >
-              {tab.label}
-              {tab.count !== undefined && ` (${tab.count})`}
-            </button>
-          ))}
-        </div>
-      )}
-      {actionButton}
-    </div>
-  ),
-}));
-
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({ isOpen, children, title, footer }: any) =>
     isOpen ? (
@@ -323,6 +299,18 @@ describe("OperatorDevicesPage", () => {
     expect(screen.getByText("status:offline")).toBeInTheDocument();
   });
 
+  it("falls back for inherited status-map keys", () => {
+    const device = { ...mockDevice, isOnline: false, status: "constructor" };
+    withDefaultSWR({ allDevices: [device] });
+
+    render(<OperatorDevicesPage />);
+
+    expect(screen.getByText("status:constructor")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
+  });
+
   it("renders maintenance status badge", () => {
     const maintenanceDevice = {
       ...mockDevice,
@@ -358,7 +346,7 @@ describe("OperatorDevicesPage", () => {
 
     render(<OperatorDevicesPage />);
 
-    const cells = screen.getAllByText("—");
+    const cells = screen.getAllByText("–");
     expect(cells.length).toBeGreaterThan(0);
   });
 
@@ -368,7 +356,7 @@ describe("OperatorDevicesPage", () => {
 
     render(<OperatorDevicesPage />);
 
-    const cells = screen.getAllByText("—");
+    const cells = screen.getAllByText("–");
     expect(cells.length).toBeGreaterThan(0);
   });
 

@@ -12,12 +12,18 @@ import {
   type RolloverPreview,
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  fromDateTimeLocalValue,
+  parseISODate,
+  toDateTimeLocalValue,
+  toISODate,
+} from "~/lib/date-helpers";
 import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
-import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import type { ChildStatus } from "~/lib/enrollment-status";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { FieldLabel } from "~/components/ui/field-label";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
 import {
@@ -31,6 +37,7 @@ import { Input } from "~/components/ui/input";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -67,22 +74,6 @@ function prefillFromSource(source: Phase): RolloverInput {
   };
 }
 
-// Format `YYYY-MM-DDTHH:MM` (datetime-local input value) ↔ RFC3339.
-function localToRFC3339(local: string): string {
-  if (!local) return "";
-  return new Date(local).toISOString();
-}
-
-function rfc3339ToLocal(rfc: string | null | undefined): string {
-  if (!rfc) return "";
-  const d = new Date(rfc);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  );
-}
-
 interface Props {
   readonly source: Phase;
   readonly onCancel: () => void;
@@ -109,7 +100,7 @@ export function RolloverForm({
     prefillFromSource(source),
   );
   const [deadlineLocal, setDeadlineLocal] = useState(
-    rfc3339ToLocal(draft.rollover_deadline),
+    toDateTimeLocalValue(draft.rollover_deadline),
   );
   const [submitting, setSubmitting] = useState(false);
   const formErrors = useApiFormError();
@@ -205,7 +196,7 @@ export function RolloverForm({
     try {
       const payload: RolloverInput = {
         ...draft,
-        rollover_deadline: localToRFC3339(deadlineLocal),
+        rollover_deadline: fromDateTimeLocalValue(deadlineLocal) ?? "",
       };
       const result = await createRollover(source.id, payload);
       onSuccess(result);
@@ -247,158 +238,126 @@ export function RolloverForm({
     .join(" · ");
 
   const form = (
-    <form
-      onSubmit={handleSubmit}
-      className="moto-content-surface space-y-5 rounded-2xl border p-4 sm:p-6"
-    >
-      {variant === "embedded" ? (
-        <header className="border-b border-gray-100 pb-4">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          <p className="mt-1 text-sm text-gray-600">{ROLLOVER_DESCRIPTION}</p>
-        </header>
-      ) : null}
+    <SectionCard>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {variant === "embedded" ? (
+          <header className="border-b border-gray-100 pb-4">
+            <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+            <p className="mt-1 text-sm text-gray-600">{ROLLOVER_DESCRIPTION}</p>
+          </header>
+        ) : null}
 
-      <FormErrorAlert message={formErrors.error} />
+        <FormErrorAlert message={formErrors.error} />
 
-      {loadingPreview ? (
-        <SectionCard title="Vorschau" icon={Check} loading />
-      ) : previewLoad.error ? (
-        <LoadErrorAlert error={previewLoad.error} />
-      ) : preview ? (
-        <SectionCard
-          title="Vorschau"
-          icon={Check}
-          bodyClassName="compact:mt-3 mt-4 space-y-3"
-        >
-          <dl className="grid gap-3 sm:grid-cols-3">
-            <DataField label="Werden übernommen">
-              {preview.carried_count}
-            </DataField>
-            <DataField label="Manuell zu prüfen">
-              {preview.review_count}
-              {reviewDetails && (
-                <span className="mt-1 block text-xs font-normal text-gray-500">
-                  {reviewDetails}
-                </span>
-              )}
-            </DataField>
-            <DataField label="Nicht übernommen">
-              {preview.excluded_count}
-              {excludedDetails && (
-                <span className="mt-1 block text-xs font-normal text-gray-500">
-                  {excludedDetails}
-                </span>
-              )}
-            </DataField>
-          </dl>
-          <p className="text-xs text-gray-500">
-            Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene,
-            abgelehnte oder noch offene Anmeldungen werden nicht fortgeführt.
-          </p>
-        </SectionCard>
-      ) : null}
+        {loadingPreview ? (
+          <SectionCard title="Vorschau" icon={Check} loading />
+        ) : previewLoad.error ? (
+          <LoadErrorAlert error={previewLoad.error} />
+        ) : preview ? (
+          <SectionCard
+            title="Vorschau"
+            icon={Check}
+            bodyClassName="compact:mt-3 mt-4 space-y-3"
+          >
+            <dl className="grid gap-3 sm:grid-cols-3">
+              <DataField label="Werden übernommen">
+                {preview.carried_count}
+              </DataField>
+              <DataField label="Manuell zu prüfen">
+                {preview.review_count}
+                {reviewDetails && (
+                  <span className="mt-1 block text-xs font-normal text-gray-500">
+                    {reviewDetails}
+                  </span>
+                )}
+              </DataField>
+              <DataField label="Nicht übernommen">
+                {preview.excluded_count}
+                {excludedDetails && (
+                  <span className="mt-1 block text-xs font-normal text-gray-500">
+                    {excludedDetails}
+                  </span>
+                )}
+              </DataField>
+            </dl>
+            <p className="text-xs text-gray-500">
+              Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene,
+              abgelehnte oder noch offene Anmeldungen werden nicht fortgeführt.
+            </p>
+          </SectionCard>
+        ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Input
-          id="rollover-name"
-          name="name"
-          label="Name der neuen Phase"
-          type="text"
-          controlSize="compact"
-          required
-          value={draft.name}
-          onChange={(e) => update("name", e.target.value)}
-          error={formErrors.fieldError("name")}
-        />
-        <label
-          className="block"
-          htmlFor="rollover-kind"
-          id="rollover-kind-label"
-        >
-          <span className="block text-xs font-semibold text-gray-700">Typ</span>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            id="rollover-name"
+            name="name"
+            label="Name der neuen Phase"
+            type="text"
+            controlSize="compact"
+            required
+            value={draft.name}
+            onChange={(e) => update("name", e.target.value)}
+            error={formErrors.fieldError("name")}
+          />
           <CustomSelect
-            ariaLabelledBy="rollover-kind-label"
             id="rollover-kind"
+            label="Typ"
             value={draft.kind}
             onChange={(value) => update("kind", value as RolloverInput["kind"])}
-            className="mt-1"
             options={[
               { value: "school_year", label: "Schuljahr" },
               { value: "holiday", label: "Ferienbetreuung" },
               { value: "custom", label: "Sonstiges" },
             ]}
           />
-        </label>
-      </div>
+        </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="rollover-service-start"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Betreuung von
-            </label>
+        <FormFieldset legend="Betreuungszeitraum">
+          <div className="grid gap-3 sm:grid-cols-2">
             <ISODatePicker
               id="rollover-service-start"
               controlSize="md"
+              label="Betreuung von"
               ariaLabel="Betreuung von"
               value={draft.service_start_date}
               onChange={(next) => update("service_start_date", next)}
               error={formErrors.fieldError("service_start_date")}
-              className="mt-1"
               calendarLayout="popover"
               // The required picker prevents deselection in the calendar; the
               // submit validation remains the safety net for programmatic edits.
               hideClearButton
               required
             />
-          </div>
-          <div className="block">
-            <label
-              htmlFor="rollover-service-end"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Betreuung bis
-            </label>
             <ISODatePicker
               id="rollover-service-end"
               controlSize="md"
+              label="Betreuung bis"
               ariaLabel="Betreuung bis"
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(next) => update("service_end_date", next)}
               error={formErrors.fieldError("service_end_date")}
-              className="mt-1"
               calendarLayout="popover"
               hideClearButton
               required
             />
           </div>
-        </div>
-      </fieldset>
+        </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Elternrückmeldung
-        </legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block" htmlFor="rollover-mode">
-            <span className="block text-xs font-semibold text-gray-700">
-              Modus
-            </span>
+        <FormFieldset legend="Elternrückmeldung">
+          <div className="grid gap-3 sm:grid-cols-2">
             <CustomSelect
               id="rollover-mode"
+              label="Modus"
+              hint={
+                draft.rollover_mode === "opt_out"
+                  ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
+                  : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."
+              }
               value={draft.rollover_mode}
               onChange={(value) =>
                 update("rollover_mode", value as RolloverMode)
               }
-              className="mt-1"
-              ariaLabel="Modus"
               options={[
                 {
                   value: "opt_out",
@@ -410,68 +369,63 @@ export function RolloverForm({
                 },
               ]}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              {draft.rollover_mode === "opt_out"
-                ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
-                : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
-            </p>
-          </label>
-          <div className="block">
-            <label
-              htmlFor="rollover-deadline"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Frist für die Eltern-Antwort
-            </label>
-            <DateTimePicker
-              id="rollover-deadline"
-              controlSize="md"
-              dateAriaLabel="Frist für die Eltern-Antwort"
-              timeAriaLabel="Frist Uhrzeit"
-              className="mt-1"
-              value={deadlineLocal}
-              onChange={setDeadlineLocal}
-              invalid={Boolean(formErrors.fieldError("rollover_deadline"))}
-              // A deadline without an explicit time should run to the end of the
-              // chosen day, not expire at midnight.
-              defaultTime="23:59"
-              hideClearButton
-              required
-            />
+            <div>
+              <FieldLabel htmlFor="rollover-deadline" required>
+                Frist für die Eltern-Antwort
+              </FieldLabel>
+              <DateTimePicker
+                id="rollover-deadline"
+                dateAriaLabel="Frist für die Eltern-Antwort"
+                timeAriaLabel="Frist Uhrzeit"
+                value={deadlineLocal}
+                onChange={setDeadlineLocal}
+                invalid={Boolean(formErrors.fieldError("rollover_deadline"))}
+                // A deadline without an explicit time should run to the end of the
+                // chosen day, not expire at midnight.
+                defaultTime="23:59"
+                hideClearButton
+                required
+              />
+            </div>
           </div>
+        </FormFieldset>
+
+        <div className="space-y-2">
+          <CheckboxCard
+            checked={draft.rollover_bumps_grade ?? true}
+            onChange={(checked) => update("rollover_bumps_grade", checked)}
+            label="Klassenstufe automatisch um 1 erhöhen"
+            hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
+          />
+          <CheckboxCard
+            checked={draft.rollover_auto_approve}
+            onChange={(checked) => update("rollover_auto_approve", checked)}
+            label="Vorgemerkte Anmeldungen automatisch genehmigen"
+            hint="Nur für Opt-Out sinnvoll. Nach Ablauf der Frist werden vorgemerkte Anmeldungen direkt bestätigt."
+          />
         </div>
-      </fieldset>
 
-      <div className="space-y-2">
-        <CheckboxCard
-          checked={draft.rollover_bumps_grade ?? true}
-          onChange={(checked) => update("rollover_bumps_grade", checked)}
-          label="Klassenstufe automatisch um 1 erhöhen"
-          hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
-        />
-        <CheckboxCard
-          checked={draft.rollover_auto_approve}
-          onChange={(checked) => update("rollover_auto_approve", checked)}
-          label="Vorgemerkte Anmeldungen automatisch genehmigen"
-          hint="Nur für Opt-Out sinnvoll. Nach Ablauf der Frist werden vorgemerkte Anmeldungen direkt bestätigt."
-        />
-      </div>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={onCancel}
-          disabled={submitting}
-        >
-          Abbrechen
-        </Button>
-        <Button type="submit" variant="primary" size="md" disabled={submitting}>
-          {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            disabled={submitting}
+          >
+            {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
+          </Button>
+        </div>
+      </form>
+    </SectionCard>
   );
 
   // "page": das Formular ist die Seite und trägt deshalb das Seitengerüst.

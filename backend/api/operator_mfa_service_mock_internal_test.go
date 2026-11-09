@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // MFAServiceMock is a func-field test double for the Identity & Access
@@ -15,14 +13,14 @@ import (
 // test configures only the calls it cares about.
 type MFAServiceMock struct {
 	IsRequiredFn                   func(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
-	ResolveMFAPolicyFn             func(ctx context.Context, accountID, tenantID int64) (identityoperator.MFAPolicy, error)
-	ResolveMFAPolicyInTxFn         func(ctx context.Context, accountID, tenantID int64) (identityoperator.MFAPolicy, error)
+	ResolveMFAPolicyFn             func(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
+	ResolveMFAPolicyInTxFn         func(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
 	HasMFAEnrollmentFn             func(ctx context.Context, accountID int64) (bool, error)
 	AccountBelongsToSchoolFn       func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	StartMFAChallengeFn            func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
-	VerifyMFAChallengeFn           func(ctx context.Context, challengeToken, code string) (identityoperator.VerifiedMFAChallenge, error)
-	VerifyMFAChallengeForScopeFn   func(ctx context.Context, challengeToken, code, expectedScope string) (identityoperator.VerifiedMFAChallenge, error)
-	VerifyMFAChallengeForOwnerFn   func(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityoperator.VerifiedMFAChallenge, error)
+	VerifyMFAChallengeFn           func(ctx context.Context, challengeToken, code string) (identityaccess.VerifiedMFAChallenge, error)
+	VerifyMFAChallengeForScopeFn   func(ctx context.Context, challengeToken, code, expectedScope string) (identityaccess.VerifiedMFAChallenge, error)
+	VerifyMFAChallengeForOwnerFn   func(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityaccess.VerifiedMFAChallenge, error)
 	ResendMFAChallengeFn           func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	ResendMFAChallengeForScopeFn   func(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 	VerifyMFACodeForAccountFn      func(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
@@ -30,7 +28,7 @@ type MFAServiceMock struct {
 	DisableMFAFn                   func(ctx context.Context, accountID int64) error
 	IssueTrustedDeviceFn           func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error)
 	VerifyTrustedDeviceFn          func(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
-	ListTrustedDevicesFn           func(ctx context.Context, accountID, tenantID int64) ([]identityoperator.AccountTrustedDevice, error)
+	ListTrustedDevicesFn           func(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error)
 	RevokeTrustedDeviceFn          func(ctx context.Context, accountID, tenantID, deviceID int64) error
 	IsTrustedDeviceEnabledFn       func(ctx context.Context, tenantID int64) bool
 	TrustedDeviceDaysFn            func(ctx context.Context, tenantID int64) int
@@ -41,10 +39,10 @@ type MFAServiceMock struct {
 	OperatorDisableMFAFn           func(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error
 	OperatorSetMFAOverrideFn       func(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error
 	OperatorSetGlobalMFAOverrideFn func(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error
-	GetMFAAdminStateFn             func(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (identityoperator.MFAAdminState, error)
+	GetMFAAdminStateFn             func(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (identityaccess.MFAAdminState, error)
 }
 
-var _ identityoperator.AccountMFA = (*MFAServiceMock)(nil)
+var _ identityaccess.AccountMFA = (*MFAServiceMock)(nil)
 
 // forcedPolicy answers a fixed verdict regardless of the role set.
 type forcedPolicy bool
@@ -62,7 +60,7 @@ func (m *MFAServiceMock) IsRequired(ctx context.Context, accountID int64, roleNa
 // that configures only IsRequiredFn keeps working on the paths that resolve
 // the policy first (the school login gate) instead of silently answering
 // "MFA off".
-func (m *MFAServiceMock) ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (identityoperator.MFAPolicy, error) {
+func (m *MFAServiceMock) ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {
 	if m.ResolveMFAPolicyFn != nil {
 		return m.ResolveMFAPolicyFn(ctx, accountID, tenantID)
 	}
@@ -80,7 +78,7 @@ func (m *MFAServiceMock) ResolveMFAPolicy(ctx context.Context, accountID, tenant
 // describes one MFA state describes it on both sides of the mint
 // transaction: a test configuring "MFA required" must not see the guard's
 // in-transaction re-read answer "off".
-func (m *MFAServiceMock) ResolveMFAPolicyInTx(ctx context.Context, accountID, tenantID int64) (identityoperator.MFAPolicy, error) {
+func (m *MFAServiceMock) ResolveMFAPolicyInTx(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {
 	if m.ResolveMFAPolicyInTxFn != nil {
 		return m.ResolveMFAPolicyInTxFn(ctx, accountID, tenantID)
 	}
@@ -108,41 +106,34 @@ func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenan
 	return "", nil
 }
 
-func (m *MFAServiceMock) VerifyMFAChallenge(ctx context.Context, challengeToken, code string) (identityoperator.VerifiedMFAChallenge, error) {
+func (m *MFAServiceMock) VerifyMFAChallenge(ctx context.Context, challengeToken, code string) (identityaccess.VerifiedMFAChallenge, error) {
 	if m.VerifyMFAChallengeFn != nil {
 		return m.VerifyMFAChallengeFn(ctx, challengeToken, code)
 	}
-	return identityoperator.VerifiedMFAChallenge{}, nil
+	return identityaccess.VerifiedMFAChallenge{}, nil
 }
 
 // VerifyMFAChallengeForScope falls back to VerifyMFAChallengeFn when no
 // scope-aware override is set: the real flows differ only by the scope
 // check, so a test that stubs the unscoped behavior means it for both.
-func (m *MFAServiceMock) VerifyMFAChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (identityoperator.VerifiedMFAChallenge, error) {
+func (m *MFAServiceMock) VerifyMFAChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (identityaccess.VerifiedMFAChallenge, error) {
 	if m.VerifyMFAChallengeForScopeFn != nil {
 		return m.VerifyMFAChallengeForScopeFn(ctx, challengeToken, code, expectedScope)
 	}
 	if m.VerifyMFAChallengeFn != nil {
 		return m.VerifyMFAChallengeFn(ctx, challengeToken, code)
 	}
-	return identityoperator.VerifiedMFAChallenge{}, nil
+	return identityaccess.VerifiedMFAChallenge{}, nil
 }
 
 // VerifyMFAChallengeForOwner falls back through the scope-aware override to
 // the unscoped one: the real flow adds only the owner comparison. Set
 // VerifyMFAChallengeForOwnerFn to assert on the pinned account and school.
-func (m *MFAServiceMock) VerifyMFAChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityoperator.VerifiedMFAChallenge, error) {
+func (m *MFAServiceMock) VerifyMFAChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityaccess.VerifiedMFAChallenge, error) {
 	if m.VerifyMFAChallengeForOwnerFn != nil {
 		return m.VerifyMFAChallengeForOwnerFn(ctx, challengeToken, code, expectedScope, accountID, tenantID)
 	}
 	return m.VerifyMFAChallengeForScope(ctx, challengeToken, code, expectedScope)
-}
-
-func (m *MFAServiceMock) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	if m.ResendMFAChallengeFn != nil {
-		return m.ResendMFAChallengeFn(ctx, challengeToken, ip)
-	}
-	return "", nil
 }
 
 // ResendMFAChallengeForScope mirrors VerifyMFAChallengeForScope: without a
@@ -204,7 +195,7 @@ func (m *MFAServiceMock) VerifyTrustedDevice(ctx context.Context, accountID, ten
 	return false, nil
 }
 
-func (m *MFAServiceMock) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityoperator.AccountTrustedDevice, error) {
+func (m *MFAServiceMock) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {
 	if m.ListTrustedDevicesFn != nil {
 		return m.ListTrustedDevicesFn(ctx, accountID, tenantID)
 	}
@@ -281,9 +272,9 @@ func (m *MFAServiceMock) OperatorSetGlobalMFAOverride(ctx context.Context, opera
 	return nil
 }
 
-func (m *MFAServiceMock) GetMFAAdminState(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (identityoperator.MFAAdminState, error) {
+func (m *MFAServiceMock) GetMFAAdminState(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (identityaccess.MFAAdminState, error) {
 	if m.GetMFAAdminStateFn != nil {
 		return m.GetMFAAdminStateFn(ctx, actorID, actorTenantID, targetAccountID, actorPermissions)
 	}
-	return identityoperator.MFAAdminState{}, nil
+	return identityaccess.MFAAdminState{}, nil
 }

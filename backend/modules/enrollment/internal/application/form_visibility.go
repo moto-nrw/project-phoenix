@@ -6,12 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // The server-side counterpart of the frontend visibility evaluator
@@ -194,11 +191,11 @@ func mergeEditableCustomData(existing, submitted map[string]any, schema *enrollm
 	return out
 }
 
-func existingChildCustomDataBySubmittedIdentity(existing []*RequestChild, submitted []SubmitChild) []map[string]any {
+func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentNative.RequestChild, submitted []SubmitChild) []map[string]any {
 	out := make([]map[string]any, len(submitted))
 	for i, child := range matchExistingChildrenBySubmittedIdentity(existing, submitted) {
 		if child != nil {
-			out[i] = child.CustomData
+			out[i] = formMap(child.CustomData)
 		}
 	}
 	return out
@@ -207,10 +204,10 @@ func existingChildCustomDataBySubmittedIdentity(existing []*RequestChild, submit
 // matchExistingChildrenBySubmittedIdentity pairs replacement children with
 // the stored ones: a persisted ID is authoritative; an ID-less child matches
 // only when its normalized name and birthday are unique on both sides.
-func matchExistingChildrenBySubmittedIdentity(existing []*RequestChild, submitted []SubmitChild) []*RequestChild {
-	matches := make([]*RequestChild, len(submitted))
+func matchExistingChildrenBySubmittedIdentity(existing []*enrollmentNative.RequestChild, submitted []SubmitChild) []*enrollmentNative.RequestChild {
+	matches := make([]*enrollmentNative.RequestChild, len(submitted))
 	used := matchChildrenByID(existing, submitted, matches)
-	existingByIdentity := make(map[string][]*RequestChild)
+	existingByIdentity := make(map[string][]*enrollmentNative.RequestChild)
 	for _, child := range existing {
 		if child == nil || child.ID <= 0 || used[child.ID] {
 			continue
@@ -237,8 +234,8 @@ func matchExistingChildrenBySubmittedIdentity(existing []*RequestChild, submitte
 
 // matchChildrenByID pairs submitted children carrying a stored ID and
 // reports the stored IDs it used.
-func matchChildrenByID(existing []*RequestChild, submitted []SubmitChild, matches []*RequestChild) map[int64]bool {
-	byID := make(map[int64]*RequestChild, len(existing))
+func matchChildrenByID(existing []*enrollmentNative.RequestChild, submitted []SubmitChild, matches []*enrollmentNative.RequestChild) map[int64]bool {
+	byID := make(map[int64]*enrollmentNative.RequestChild, len(existing))
 	used := make(map[int64]bool, len(existing))
 	for _, child := range existing {
 		if child != nil && child.ID > 0 {
@@ -255,21 +252,6 @@ func matchChildrenByID(existing []*RequestChild, submitted []SubmitChild, matche
 		}
 	}
 	return used
-}
-
-func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
-	return strings.ToLower(textnorm.Name(firstName)) + "\x00" + strings.ToLower(textnorm.Name(lastName)) + "\x00" + strings.TrimSpace(dateOfBirth)
-}
-
-// sameSubmittedIdentity reports whether an edited child still names the same
-// person as the stored child it was paired to; a changed identity drops a
-// stale existing-student pin (#1663).
-func sameSubmittedIdentity(existing *RequestChild, submitted SubmitChild) bool {
-	if existing == nil {
-		return false
-	}
-	return requestChildIdentityKey(existing.FirstName, existing.LastName, existing.DateOfBirth.String()) ==
-		requestChildIdentityKey(submitted.FirstName, submitted.LastName, submitted.DateOfBirth.String())
 }
 
 func editableCustomDataKeys(schema *enrollmentNative.FormSchema, appliesToChild bool) map[string]bool {
@@ -292,10 +274,10 @@ func editableCustomDataKeys(schema *enrollmentNative.FormSchema, appliesToChild 
 
 // relevantCareDaysForChild returns the weekdays every per-child day-scoped
 // field offers: all weekdays without care offerings, otherwise the child's
-// selected care days. The result is read-only.
+// selected care days.
 func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord) map[string]bool {
 	if len(openByID) == 0 {
-		return enrollmentNative.ValidWeekdays
+		return schoolDaySet()
 	}
 	return selectedCareDays(child, openByID)
 }
@@ -316,7 +298,7 @@ func selectedCareDays(child SubmitChild, openByID map[int64]*offeringContract.Ca
 			selected = picksByOffering[id]
 		}
 		for _, day := range selected {
-			if enrollmentNative.ValidWeekdays[day] {
+			if offeringContract.IsSchoolDayCode(day) {
 				days[day] = true
 			}
 		}
@@ -374,4 +356,13 @@ func jsonNormalized(v any) any {
 		return v
 	}
 	return out
+}
+
+// schoolDaySet is a fresh set of the school day codes.
+func schoolDaySet() map[string]bool {
+	days := map[string]bool{}
+	for _, day := range offeringContract.SchoolDayCodes() {
+		days[day] = true
+	}
+	return days
 }

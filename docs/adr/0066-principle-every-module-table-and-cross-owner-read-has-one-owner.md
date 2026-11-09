@@ -17,14 +17,16 @@ decision amends this ADR or names it.
 
 ## Decision
 
-1. **The backend has 19 domain modules and 10 platform modules.**
+1. **The backend has 20 domain modules and 10 platform modules.**
    `backend/architecture/policy.json` declares them as owners of kind `domain`
    and `platform`, and policy validation pins the exact IDs and kinds
    ([ADR 0010](0010-file-storage-is-the-eighteenth-domain.md),
    [ADR 0012](0012-export-transfer-is-the-tenth-platform.md),
    [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
    adds the Elternabrechnung with its first code in
-   [ADR 0115](0115-ferienbeitrag-entsteht-in-der-elternabrechnung-und-wird-bei-bestaetigung-festgehalten.md)):
+   [ADR 0115](0115-ferienbeitrag-entsteht-in-der-elternabrechnung-und-wird-bei-bestaetigung-festgehalten.md)
+   and the Betreuungsvertrag with its first code in
+   [ADR 0153](0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)):
 
    | Domain module | Owner ID |
    |---|---|
@@ -47,6 +49,7 @@ decision amends this ADR or names it.
    | Feedback | `feedback` |
    | File Storage | `file-storage` |
    | Elternabrechnung (Parent Billing) | `parent-billing` |
+   | Betreuungsvertrag (Care Contract) | `care-contract` |
 
    | Platform module | Owner ID |
    |---|---|

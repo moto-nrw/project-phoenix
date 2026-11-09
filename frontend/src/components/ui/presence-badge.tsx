@@ -1,11 +1,12 @@
 import * as React from "react";
 
 import type { StudentLocationContext } from "@/lib/location-helper";
+import { locationPillShape } from "./location-badge";
 import { PresenceHint } from "./presence-hint";
+import { StatusColorBadge } from "./status-color-badge";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
-  getLocationBadgeTone,
   isAtSchoolLocation,
   isInClassLocation,
   isNotCheckedInLocation,
@@ -74,24 +75,6 @@ interface PresenceBadgeProps {
   /** Show "seit XX:XX Uhr" under the badge. Default: false. */
   readonly showLocationSince?: boolean;
 }
-
-const MODERN_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
-const SIMPLE_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
-
-const SIZE_MAP = {
-  sm: {
-    modern: "px-2 py-0.5 text-[11px]",
-    simple: "px-2 py-0.5 text-[11px]",
-  },
-  md: {
-    modern: "px-3 py-1.5 text-xs",
-    simple: "px-2.5 py-0.5 text-xs",
-  },
-  lg: {
-    modern: "px-4 py-2 text-sm",
-    simple: "px-3 py-1 text-sm",
-  },
-} as const;
 
 const DEFAULT_SIZE = "md";
 
@@ -167,8 +150,6 @@ export function PresenceBadge({
   const { label, color } = resolveBadgeStyle(state, student);
 
   const sizeKey = size ?? DEFAULT_SIZE;
-  const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
-  const tone = getLocationBadgeTone(color);
 
   // One hint at most. A contradiction between actual presence and the plan is more actionable
   // than the underlying absence reason (krank, entschuldigt, etc.).
@@ -205,38 +186,18 @@ export function PresenceBadge({
 
   const dataStatus = parseLocation(student.current_location).status;
 
-  const pill =
-    variant === "simple" ? (
-      <span
-        className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
-        style={{
-          backgroundColor: tone.backgroundColor,
-          color: tone.textColor,
-        }}
-        data-location-status={dataStatus}
-        data-presence-state={state}
-      >
-        {label}
-      </span>
-    ) : (
-      <span
-        className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-        style={{
-          backgroundColor: tone.backgroundColor,
-          color: tone.textColor,
-        }}
-        data-location-status={dataStatus}
-        data-presence-state={state}
-      >
-        {label}
-      </span>
-    );
-
   return (
     <div className="flex flex-col items-end">
-      {pill}
+      <StatusColorBadge
+        {...locationPillShape(sizeKey, variant)}
+        wrap
+        label={label}
+        color={color}
+        data-location-status={dataStatus}
+        data-presence-state={state}
+      />
       {showSinceTime && (
-        <span className="mt-0.5 text-[10px] text-gray-500">
+        <span className="mt-0.5 text-xs text-gray-500">
           seit {formattedTime} Uhr
         </span>
       )}

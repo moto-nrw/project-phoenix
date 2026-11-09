@@ -14,14 +14,14 @@ import (
 func TestOrderedExportEntries_UsesGermanDictionaryOrder(t *testing.T) {
 	t.Parallel()
 	child := func(last string) ExportChildRow {
-		return ExportChildRow{Child: &RequestChild{FirstName: "Kim", LastName: last, Status: capability.ChildStatusApproved}}
+		return ExportChildRow{Child: &capability.RequestChild{FirstName: "Kim", LastName: last, Status: capability.ChildStatusApproved}}
 	}
 	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
 		Rows: []ExportRequestRow{
-			{Request: &Request{SubmittedAt: time.Now()}, Children: []ExportChildRow{child("Zimmermann"), child("Özdemir")}},
-			{Request: &Request{SubmittedAt: time.Now()}, Children: []ExportChildRow{child("adler"), child("von Bergen")}},
-			{Request: &Request{SubmittedAt: time.Now()}, Children: []ExportChildRow{child("Becker"), child("Ábel")}},
+			{Request: &capability.Request{SubmittedAt: time.Now()}, Children: []ExportChildRow{child("Zimmermann"), child("Özdemir")}},
+			{Request: &capability.Request{SubmittedAt: time.Now()}, Children: []ExportChildRow{child("adler"), child("von Bergen")}},
+			{Request: &capability.Request{SubmittedAt: time.Now()}, Children: []ExportChildRow{child("Becker"), child("Ábel")}},
 		},
 	}
 	entries := orderedExportEntries(data)

@@ -20,6 +20,11 @@ type SMTPMailer struct {
 	defaultFrom mailcontract.Email
 	templates   *template.Template
 	logger      *slog.Logger
+	// lettermint is zero outside Lettermint: no route headers, no provider ID.
+	lettermint mailcontract.LettermintSending
+	// fixedFrom replaces the sender address on a transport whose server accepts
+	// only its own mailbox.
+	fixedFrom string
 }
 
 const smtpShutdownTimeout = time.Second
@@ -47,26 +52,41 @@ func NewMailer(cfg mailcontract.MailerConfig) (mailcontract.Mailer, error) {
 		return nil, err
 	}
 
-	clientOpts := smtpClientOptions(cfg)
-
-	client, err := mail.NewClient(cfg.Host, clientOpts...)
+	client, err := mail.NewClient(cfg.Host, smtpClientOptions(cfg)...)
 	if err != nil {
 		return nil, err
 	}
-	s := &SMTPMailer{
+	primary := &SMTPMailer{
 		client:      client,
 		defaultFrom: cfg.DefaultFrom,
 		templates:   templates,
 		logger:      logger,
+		lettermint:  cfg.Lettermint,
 	}
-	return RestrictToDemoMails(s, appEnv, logger), nil
+	if cfg.SecurityFallback == nil {
+		return RestrictToDemoMails(primary, appEnv, logger), nil
+	}
+	fallback, err := newFallbackSMTP(*cfg.SecurityFallback, templates, logger)
+	if err != nil {
+		return nil, err
+	}
+	return RestrictToDemoMails(newFallbackMailer(primary, fallback, logger), appEnv, logger), nil
+}
+
+// newFallbackSMTP builds the transport of the fallback mailbox.
+func newFallbackSMTP(cfg mailcontract.FallbackTransport, templates *template.Template, logger *slog.Logger) (*SMTPMailer, error) {
+	client, err := mail.NewClient(cfg.Host, smtpClientOptions(mailcontract.MailerConfig{Port: cfg.Port, User: cfg.User, Password: cfg.Password})...)
+	if err != nil {
+		return nil, err
+	}
+	return &SMTPMailer{client: client, templates: templates, logger: logger, fixedFrom: cfg.From}, nil
 }
 
 // buildMessage turns a Message into the go-mail message that goes on the
 // wire. Split out of Send so the header contract (From, Reply-To) is
 // testable without an SMTP dial.
 func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, error) {
-	email := renderedMessage{Message: message}
+	email := renderedMessage{Message: m.withTransportSender(message)}
 	if err := email.parse(m.templates); err != nil {
 		return nil, err
 	}
@@ -90,7 +110,8 @@ func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, erro
 		}
 	}
 	msg.Subject(email.Subject)
-	msg.SetMessageID()
+	setDeliveryIdentity(msg, email.Message)
+	m.setRouteHeaders(msg, email.Message)
 	// No List-Unsubscribe: the mail is transactional, and a mailto on the
 	// central noreply sender would lead nowhere (#2872).
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
@@ -117,13 +138,28 @@ func (m *SMTPMailer) Send(email mailcontract.Message) error {
 
 // SendContext terminates an in-flight SMTP exchange when the caller cancels.
 func (m *SMTPMailer) SendContext(ctx context.Context, email mailcontract.Message) error {
+	_, err := m.SendWithReceipt(ctx, email)
+	return err
+}
+
+// SendWithReceipt sends the mail and reports the Message-ID it carried.
+func (m *SMTPMailer) SendWithReceipt(ctx context.Context, email mailcontract.Message) (mailcontract.Receipt, error) {
+	// A fallback's mailer answers a request before the provider sees it. Reaching the
+	// provider means the deployment has no fallback any more, while the request is
+	// older. Sending would queue the same mail again after every acceptance.
+	if email.UseFallback && m.fixedFrom == "" {
+		m.logger.Error("security mail fallback request ended",
+			slog.String("template", email.Template),
+			slog.String("reason", "fallback_not_configured"))
+		return mailcontract.Receipt{}, mailcontract.ErrFallbackRemoved
+	}
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
 	}
 
 	msg, err := m.buildMessage(email)
 	if err != nil {
-		return redactAddresses(err, email.To.Address)
+		return mailcontract.Receipt{}, redactAddresses(err, email.To.Address)
 	}
 	recipientAddresses, recipientErr := msg.GetRecipients()
 	if recipientErr != nil {
@@ -148,13 +184,13 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email mailcontract.Message
 			slog.String("template", email.Template),
 			slog.Any("error", err),
 		)
-		return err
+		return mailcontract.Receipt{}, classifySendError(err)
 	}
 	m.logger.Info("email sent successfully",
 		slog.String("message_id", messageID),
 		slog.String("template", email.Template))
 
-	return nil
+	return mailcontract.Receipt{MessageID: strings.Trim(messageID, "<>"), ProviderMessageID: m.providerMessageID(msg, email.Template)}, nil
 }
 
 func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) error {

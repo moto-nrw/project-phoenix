@@ -14,7 +14,7 @@ import { format } from "date-fns/format";
 import { isSameDay } from "date-fns/isSameDay";
 import { startOfWeek } from "date-fns/startOfWeek";
 import { de } from "date-fns/locale/de";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -55,6 +55,7 @@ import { excusedConcept } from "~/lib/concepts/excused";
 import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { RemovableChip } from "~/components/ui/removable-chip";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -788,12 +789,11 @@ export function PlannedStatusDaysModal({
           if (!open) handleClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[560px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{title}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton aria-label="Fenster schließen" />
+        <SlideOverContent size="md">
+          <SlideOverHeader
+            close={<SlideOverCloseButton aria-label="Fenster schließen" />}
+          >
+            <SlideOverTitle>{title}</SlideOverTitle>
           </SlideOverHeader>
           <SlideOverBody error={submitErrors.error}>
             <div className="space-y-5">
@@ -851,44 +851,28 @@ export function PlannedStatusDaysModal({
                     Zeitraum
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="planned-status-range-start"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Von
-                      </label>
-                      <ISODatePicker
-                        id="planned-status-range-start"
-                        value={rangeStart}
-                        onChange={setRangeStart}
-                        calendarLayout="popover"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="planned-status-range-end"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Bis
-                      </label>
-                      <ISODatePicker
-                        id="planned-status-range-end"
-                        value={rangeEnd}
-                        min={rangeStart || undefined}
-                        onChange={setRangeEnd}
-                        calendarLayout="popover"
-                        className="mt-1"
-                        error={
-                          hasInvalidRangeOrder
-                            ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
-                            : hasRangeTooLong
-                              ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
-                              : undefined
-                        }
-                      />
-                    </div>
+                    <ISODatePicker
+                      label="Von"
+                      id="planned-status-range-start"
+                      value={rangeStart}
+                      onChange={setRangeStart}
+                      calendarLayout="popover"
+                    />
+                    <ISODatePicker
+                      label="Bis"
+                      id="planned-status-range-end"
+                      value={rangeEnd}
+                      min={rangeStart || undefined}
+                      onChange={setRangeEnd}
+                      calendarLayout="popover"
+                      error={
+                        hasInvalidRangeOrder
+                          ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
+                          : hasRangeTooLong
+                            ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
+                            : undefined
+                      }
+                    />
                   </div>
                   {rangeDateKeys.length > 0 ? (
                     <p className="mt-2 text-sm text-gray-500">
@@ -1056,23 +1040,20 @@ export function PlannedStatusDaysModal({
                   <div className="flex flex-wrap gap-2">
                     {selectedDates.map((date) => {
                       const key = toISODate(date);
+                      const label = format(date, "dd.MM.yyyy", { locale: de });
                       return (
-                        <Button
+                        <RemovableChip
                           key={key}
-                          type="button"
-                          variant="surface"
-                          size="compact"
-                          onClick={() =>
+                          label={label}
+                          onRemove={() =>
                             setSortedDates(
                               selectedDates.filter(
                                 (selected) => !isSameDay(selected, date),
                               ),
                             )
                           }
-                        >
-                          {format(date, "dd.MM.yyyy", { locale: de })}
-                          <X className="h-3.5 w-3.5 text-gray-400" />
-                        </Button>
+                          removeLabel={`${label} entfernen`}
+                        />
                       );
                     })}
                   </div>
@@ -1222,33 +1203,23 @@ export function PlannedStatusDaysModal({
               ) : null}
 
               {(isSick || isClassTrip) && (
-                <div>
-                  <label
-                    htmlFor="planned-sick-reason"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    {isSick ? "Grund (optional)" : "Hinweis (optional)"}
-                  </label>
-                  <textarea
-                    id="planned-sick-reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={2}
-                    maxLength={2000}
-                    placeholder={
-                      isSick
-                        ? "z. B. Fieber, beim Arzt"
-                        : "z. B. Ziel oder Kontakt vor Ort"
-                    }
-                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                  />
-                </div>
+                <Textarea
+                  id="planned-sick-reason"
+                  label={isSick ? "Grund (optional)" : "Hinweis (optional)"}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder={
+                    isSick
+                      ? "z. B. Fieber, beim Arzt"
+                      : "z. B. Ziel oder Kontakt vor Ort"
+                  }
+                />
               )}
             </div>
           </SlideOverBody>
-          <SlideOverFooter className="flex-row justify-end gap-2">
-            {footer}
-          </SlideOverFooter>
+          <SlideOverFooter>{footer}</SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
       <ConfirmDeleteModal

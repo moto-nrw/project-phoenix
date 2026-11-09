@@ -28,11 +28,12 @@ type HolidayRegistrationResource struct {
 }
 
 // HolidayProofUploads stores a proof of benefits of the public link
-// (#5238). The root opens the Träger units of each call: the upload counts
-// in a unit of its own, so a refused upload still counts, like the uploads
-// of the online registration (#4783).
+// (#5238) in a Träger unit the root opens. The route counts the upload
+// before it reads the body, in a unit of its own (countAttempt), so a
+// refused upload still counts, like the uploads of the online registration
+// (#4783).
 type HolidayProofUploads interface {
-	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, remoteIP string, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
+	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
 }
 
 // NewHolidayRegistrationResource builds the resource. captcha is always
@@ -280,7 +281,9 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 	for _, week := range offer.Weeks {
 		models := make([]HolidayRegistrationTimeModel, 0, len(week.TimeModels))
 		for _, model := range week.TimeModels {
-			models = append(models, HolidayRegistrationTimeModel(model))
+			models = append(models, HolidayRegistrationTimeModel{
+				ID: model.ID, Name: model.Name, StartsAt: model.StartsAt, EndsAt: model.EndsAt, PriceCents: model.PriceCents,
+			})
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
@@ -320,7 +323,9 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 		return
 	}
 	remoteIP := remoteIPFromRequest(r)
-	if err := rs.countAttempt(r.Context(), link.OrganizationID, remoteIP, req.Guardian.Email); err != nil {
+	if err := rs.countAttempt(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
+		return rs.registrations.CountHolidayRegistrationAttempt(txCtx, link.OrganizationID, remoteIP, req.Guardian.Email)
+	}); err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
@@ -341,12 +346,14 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusCreated, HolidayRegistrationReceiptResponse(receipt), "Holiday registration received")
 }
 
-// countAttempt commits the attempt even when it crosses the limit.
-func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error {
+// countAttempt runs one abuse counter of the public link, a registration or
+// a proof upload, in a Träger transaction of its own that commits even when
+// the count refuses, so a refused attempt still counts.
+func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organizationID int64, count func(context.Context) error) error {
 	var limitErr error
 	err := withinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		limitErr = rs.registrations.CountHolidayRegistrationAttempt(txCtx, organizationID, remoteIP, email)
-		if errors.Is(limitErr, capability.ErrRateLimited) {
+		limitErr = count(txCtx)
+		if errors.Is(limitErr, capability.ErrRateLimited) || errors.Is(limitErr, capability.ErrUploadRateLimited) {
 			return nil
 		}
 		return limitErr
@@ -369,7 +376,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
 	case errors.Is(err, capability.ErrUploadRateLimited):
-		w.Header().Set("Retry-After", "3600")
+		setRateLimitRetryAfter(w)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
@@ -382,8 +389,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	case errors.Is(err, capability.ErrHolidayRegistrationFormChanged):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFormChanged))
 	case errors.Is(err, capability.ErrRateLimited):
-		// The same hint as the online registration: no exact remaining time.
-		w.Header().Set("Retry-After", "3600")
+		setRateLimitRetryAfter(w)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionRateLimited))
 	case errors.Is(err, capability.ErrCaptchaRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCaptchaRequired))

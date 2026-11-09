@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +75,7 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
@@ -92,7 +94,7 @@ func linkPickupContact(t *testing.T, db *bun.DB, studentID int64, emailSeed stri
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
@@ -405,7 +407,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 	// the caller is not a guardian of. Editing the profile would propagate to that
 	// other family, so the edit must be refused.
 	other := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "3c")
-	otherLink := &peopledirectory.GuardianLinkFixture{
+	otherLink := &parentfixture.GuardianLinkFixture{
 		StudentID:         other.ID,
 		GuardianProfileID: contactID,
 		RelationshipType:  "relative",
@@ -871,7 +873,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	profile.AddressStreet = ptr("Amtsstr. 5")
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.GuardianProfile.Update, profile))
 
-	phone := &peopledirectory.GuardianPhoneFixture{
+	phone := &parentfixture.GuardianPhoneFixture{
 		GuardianProfileID: profile.ID,
 		PhoneNumber:       "0151 99999999",
 		PhoneType:         peopledirectory.PhoneTypeMobile,
@@ -881,7 +883,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	phone.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateGuardianPhoneFixture, phone))
 
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
@@ -1401,4 +1403,63 @@ func guardianFirstName(t *testing.T, db *bun.DB, profileID int64) string {
 
 func newEmailLookupFailingGuardianRepo[T any](source guardianProfiles[T], err error) emailLookupFailingGuardianRepo[T] {
 	return emailLookupFailingGuardianRepo[T]{guardianProfiles: source, err: err}
+}
+
+// TestUpdateGuardianContact_RequiresEditOnEverySiblingTheContactServes pins
+// that a contact edit, which applies to every child the contact serves, needs
+// parent_portal.guardian.edit on each of them. Holding it on one child and
+// only pickup rights on a sibling locks the shared contact; granting edit on
+// the sibling unlocks it.
+func TestUpdateGuardianContact_RequiresEditOnEverySiblingTheContactServes(t *testing.T) {
+	t.Parallel()
+
+	svc, db := buildGuardianService(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	sibling := testpkg.CreateTestStudent(t, db, "Mia", "Schneider", "2b")
+	siblingLink := testpkg.CreateTestStudentGuardianLink(t, db, sibling.ID, chain.GuardianProfileID, "pickup_only")
+	contactID := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-sibling")
+	shared := &parentfixture.GuardianLinkFixture{
+		StudentID:         sibling.ID,
+		GuardianProfileID: contactID,
+		RelationshipType:  "relative",
+		EmergencyPriority: 2,
+	}
+	shared.TenantID = testpkg.Tenant(t)
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CreateGuardianLinkFixture, shared))
+
+	listed := func(profileID int64) *parentService.ChildGuardian {
+		guardians, err := svc.ListChildGuardians(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		for _, g := range guardians {
+			if g.GuardianProfileID == profileID {
+				return g
+			}
+		}
+		t.Fatalf("guardian %d not listed", profileID)
+		return nil
+	}
+	contactOf := func() *parentService.ChildGuardian { return listed(contactID) }
+	self := listed(chain.GuardianProfileID)
+	assert.True(t, self.CanEditContact, "the caller's own profile stays editable despite the pickup-only sibling")
+	assert.False(t, self.ContactLockedShared)
+	before := contactOf()
+	assert.False(t, before.CanEditContact, "a contact shared with a pickup-only sibling is not editable")
+	assert.True(t, before.ContactLockedShared, "the listing names the shared lock")
+
+	input := parentService.GuardianContactInput{FirstName: "Helga", LastName: "Schneider"}
+	_, err := svc.UpdateGuardianContact(ctx, chain.AccountID, chain.StudentID, contactID, input)
+	require.ErrorIs(t, err, parentService.ErrGuardianSharedAcrossFamilies)
+	assert.Equal(t, before.FirstName, contactOf().FirstName, "the refused edit leaves the contact unchanged")
+
+	note := "Holt dienstags ab"
+	_, err = svc.UpdateGuardianRelationship(ctx, chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{PickupNotes: &note})
+	require.ErrorIs(t, err, parentService.ErrGuardianSharedAcrossFamilies, "the note follows contact-edit eligibility")
+
+	testpkg.SetTestStudentGuardianLinkRole(t, db, siblingLink.ID, "legal_guardian")
+	assert.True(t, contactOf().CanEditContact, "edit on every served child unlocks the contact")
+	updated, err := svc.UpdateGuardianContact(ctx, chain.AccountID, chain.StudentID, contactID, input)
+	require.NoError(t, err)
+	assert.Equal(t, "Helga", updated.FirstName)
 }

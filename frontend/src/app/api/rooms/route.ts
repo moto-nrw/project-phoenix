@@ -1,5 +1,4 @@
-// app/api/rooms/route.ts
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
@@ -61,13 +60,8 @@ interface BackendRoomResponse {
   updated_at: string;
 }
 
-/**
- * Handler for GET /api/rooms
- * Returns a list of rooms, optionally filtered by query parameters
- */
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {
-    // Build URL with any query parameters
     const queryParams = new URLSearchParams();
     request.nextUrl.searchParams.forEach((value, key) => {
       queryParams.append(key, value);
@@ -76,30 +70,27 @@ export const GET = createGetHandler(
     const endpoint = `/api/rooms${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
 
     try {
-      // Fetch rooms from backend API
       const response = await apiGet<ApiRoomsResponse>(endpoint, token);
 
-      // Handle null or undefined response
       if (!response) {
         logger.warn("API returned null response for rooms");
-        return [];
+        return NextResponse.json([]);
       }
 
       logger.debug("rooms API response received");
 
-      // The response has a nested structure with the rooms in the data field
       if (response.status === "success" && Array.isArray(response.data)) {
-        // Keep the original backend format since the service factory will handle mapping
-        return {
+        // The backend format as it is; the service factory maps it.
+        return NextResponse.json({
           data: response.data,
           pagination: response.pagination,
           status: response.status,
           message: response.message,
-        };
+        });
       }
 
       logger.warn("rooms API response has unexpected structure");
-      return {
+      return NextResponse.json({
         data: [],
         pagination: {
           current_page: 1,
@@ -107,7 +98,7 @@ export const GET = createGetHandler(
           total_pages: 1,
           total_records: 0,
         },
-      };
+      });
     } catch (error) {
       logger.warn("rooms fetch failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -117,10 +108,6 @@ export const GET = createGetHandler(
   },
 );
 
-/**
- * Handler for POST /api/rooms
- * Creates a new room
- */
 export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
   async (_request: NextRequest, body: RoomCreateRequest, token: string) => {
     // Validate required fields - only name is mandatory

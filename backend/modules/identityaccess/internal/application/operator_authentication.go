@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -33,9 +34,12 @@ type OperatorAuthentication struct {
 	audit          ports.OperatorAudit
 	credentials    ports.OperatorCredentialCleanup
 	runtime        ports.Runtime
-	attach         func(context.Context) context.Context
-	rotation       ports.Rotation
-	logger         *slog.Logger
+	// sessionUnit is the runtime's WithAdminTx, the one unit in which an
+	// operator session is minted (login) or rotated (refresh).
+	sessionUnit func(context.Context, func(context.Context) error) error
+	attach      func(context.Context) context.Context
+	rotation    ports.Rotation
+	logger      *slog.Logger
 }
 
 // OperatorAuthenticationDependencies are the ports the operator flows
@@ -69,7 +73,7 @@ func NewOperatorAuthentication(operators *Service, deps OperatorAuthenticationDe
 	}
 	return &OperatorAuthentication{
 		operators: operators, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy, hasher: deps.Hasher, codec: deps.Codec, mfa: deps.MFA,
-		audit: deps.Audit, credentials: deps.Credentials, runtime: deps.Runtime, attach: deps.Attach, rotation: deps.Rotation,
+		audit: deps.Audit, credentials: deps.Credentials, runtime: deps.Runtime, sessionUnit: deps.Runtime.WithAdminTx, attach: deps.Attach, rotation: deps.Rotation,
 		logger: logger.With("component", "operator-authentication"),
 	}, nil
 }
@@ -91,12 +95,12 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 	// An infrastructure error refuses this login instead of treating the
 	// operator as not enrolled, which would silently downgrade an enrolled
 	// operator to the enrollment flow.
-	enrolled, err := s.mfa.HasEnrollment(ctx, operator.ID)
+	enrolled, err := s.mfa.HasOperatorMFAEnrollment(ctx, operator.ID)
 	if err != nil {
 		return nil, err
 	}
 	if !enrolled {
-		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.OperatorMFAEnrollmentScope, domain.MFAEnrollmentTokenTTL)
+		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL)
 		if err != nil {
 			return nil, fmt.Errorf("issue operator mfa enrollment token: %w", err)
 		}
@@ -110,11 +114,11 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 	}
 	trusted := false
 	if trustedDeviceCookie != "" {
-		ok, _ := s.mfa.VerifyTrustedDevice(ctx, operator.ID, trustedDeviceCookie)
+		ok, _ := s.mfa.VerifyOperatorTrustedDevice(ctx, operator.ID, trustedDeviceCookie)
 		trusted = ok
 	}
 	if !trusted {
-		challenge, err := s.mfa.StartChallenge(ctx, operator.ID, ipAddress)
+		challenge, err := s.mfa.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)))
 		if err != nil {
 			return nil, fmt.Errorf("start operator mfa challenge: %w", err)
 		}
@@ -123,7 +127,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 			ChallengeToken:       challenge,
 			MaskedEmail:          domain.MaskEmail(operator.Email),
 			TrustedDeviceEnabled: true,
-			TrustedDeviceDays:    s.mfa.TrustedDeviceDays(),
+			TrustedDeviceDays:    s.mfa.OperatorTrustedDeviceDays(),
 		}, nil
 	}
 	return s.authenticatedResult(ctx, operator, ipAddress)
@@ -165,11 +169,11 @@ func (s *OperatorAuthentication) validateCredentials(ctx context.Context, email,
 }
 
 func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operator domain.Operator, ipAddress string) (*domain.OperatorLoginResult, error) {
-	access, refresh, err := s.issueTokenPair(ctx, operator, ipAddress)
+	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, ipAddress)
 	if err != nil {
 		return nil, err
 	}
-	return &domain.OperatorLoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: access, RefreshToken: refresh, Operator: &operator}, nil
+	return &domain.OperatorLoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: access, RefreshToken: refresh, Operator: &issued}, nil
 }
 
 // IssueTokensForAuthenticatedOperator mints a token pair for an operator
@@ -182,49 +186,42 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 		return "", "", errOperatorAuthenticationUnavailable
 	}
 	defer func() { err = operatorError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	operator, err := s.operators.findOperatorByID(ctx, operatorID)
-	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return "", "", identityaccess.ErrOperatorNotFound
-	}
-	if err != nil {
-		return "", "", fmt.Errorf("failed to find operator: %w", err)
-	}
-	if !operator.Active {
-		return "", "", identityaccess.ErrOperatorInactive
-	}
-	return s.issueTokenPair(ctx, operator, ipAddress)
+	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, ipAddress)
+	return access, refresh, err
 }
 
-// issueTokenPair mints the access and refresh JWT for a validated operator,
-// persists the refresh session, stamps the login and writes the login audit
-// row. A failed login stamp or audit row is logged, never fatal: the
-// session exists and the tokens are valid.
-func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operator domain.Operator, ipAddress string) (string, string, error) {
-	session := s.newRefreshSession(operator.ID, "", 0)
-	access, refresh, err := s.mintTokenPair(operator, session)
-	if err != nil {
-		return "", "", err
-	}
-	if _, err := s.operators.CreateOperatorSession(ctx, identityaccess.OperatorSession(session)); err != nil {
-		return "", "", fmt.Errorf("failed to persist operator refresh token: %w", err)
-	}
-	if err := s.operators.RecordOperatorLogin(ctx, operator.ID); err != nil {
-		s.logger.Error("failed to update last login",
-			slog.Int64("operator_id", operator.ID),
-			slog.Any("error", err))
-	}
+// issueTokenPair re-reads the operator, persists the refresh session, stamps
+// the login and writes the login audit row in one administrative
+// transaction, and signs the pair inside it: an operator deactivated after
+// the credential check gets no session, and a login that cannot be recorded
+// issues none either.
+func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
+	session := s.newRefreshSession(operatorID, "", 0)
 	entry := domain.OperatorAuditEntry{
-		OperatorID: operator.ID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
-		ResourceID: &operator.ID, IPAddress: ipAddress,
+		OperatorID: operatorID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
+		ResourceID: &operatorID, IPAddress: ipAddress,
 	}
-	if err := s.audit.RecordOperatorAction(ctx, entry); err != nil {
-		s.logger.Error("failed to create audit log",
-			slog.Int64("operator_id", operator.ID),
-			slog.String("action", domain.OperatorAuditActionLogin),
-			slog.Any("error", err))
+	err = s.sessionUnit(ctx, func(txCtx context.Context) error {
+		var err error
+		if operator, err = s.activeOperator(txCtx, operatorID); err != nil {
+			return err
+		}
+		if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(session)); err != nil {
+			return fmt.Errorf("failed to persist operator refresh token: %w", err)
+		}
+		if err := s.operators.RecordOperatorLogin(txCtx, operator.ID); err != nil {
+			return fmt.Errorf("failed to update last login: %w", err)
+		}
+		if err := s.audit.RecordOperatorAction(txCtx, entry); err != nil {
+			return fmt.Errorf("failed to create audit log: %w", err)
+		}
+		access, refresh, err = s.mintTokenPair(operator, session)
+		return err
+	})
+	if err != nil {
+		return domain.Operator{}, "", "", err
 	}
-	return access, refresh, nil
+	return operator, access, refresh, nil
 }
 
 func (s *OperatorAuthentication) newRefreshSession(operatorID int64, familyID string, generation int) domain.OperatorSession {
@@ -252,10 +249,10 @@ func (s *OperatorAuthentication) mintTokenPair(operator domain.Operator, session
 		Roles:        []string{domain.OperatorRoleName},
 		RoleIsSystem: []bool{true},
 		Permissions:  []string{},
-		Scope:        domain.OperatorScope,
+		Scope:        domain.PortalPlatform.Claim,
 		FamilyID:     session.FamilyID,
 	}
-	refresh := domain.RefreshClaims{AccountID: operator.ID, Token: session.Token, Scope: domain.OperatorScope, ExpiresAt: session.Expiry.Unix()}
+	refresh := domain.RefreshClaims{AccountID: operator.ID, Token: session.Token, Scope: domain.PortalPlatform.Claim, ExpiresAt: session.Expiry.Unix()}
 	accessToken, refreshToken, err := s.codec.IssueTokenPair(access, refresh)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
@@ -270,8 +267,16 @@ func (s *OperatorAuthentication) mintTokenPair(operator domain.Operator, session
 // lineage mismatch revoke the whole family with audit evidence and reject
 // after that revocation committed; a lookup that fails for infrastructure
 // reasons rolls back and stays retryable.
-func (s *OperatorAuthentication) RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-	refreshTokenValue = strings.TrimSpace(refreshTokenValue)
+//
+// The signed token names the operator and the session handle. Tokens of
+// other portals and the stateless operator tokens from before persisted
+// sessions, which carry no platform scope, are refused before the lookup.
+func (s *OperatorAuthentication) RefreshToken(ctx context.Context, refreshJWT string, proof domain.RecoveryProof) (string, string, error) {
+	claims, err := s.codec.ParseRefreshToken(refreshJWT)
+	if err != nil || claims.Scope != domain.PortalPlatform.Claim {
+		return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
+	}
+	operatorID, refreshTokenValue := claims.AccountID, strings.TrimSpace(claims.Token)
 	if refreshTokenValue == "" {
 		return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
 	}
@@ -280,9 +285,9 @@ func (s *OperatorAuthentication) RefreshToken(ctx context.Context, operatorID in
 		rejectAfterCommit         bool
 		recovered                 bool
 	)
-	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	err = s.sessionUnit(ctx, func(txCtx context.Context) error {
 		var err error
-		accessToken, refreshToken, recovered, rejectAfterCommit, err = s.rotateOperatorRefresh(txCtx, operatorID, refreshTokenValue)
+		accessToken, refreshToken, recovered, rejectAfterCommit, err = s.rotateOperatorRefresh(txCtx, operatorID, refreshTokenValue, proof)
 		return err
 	})
 	if err != nil {
@@ -298,54 +303,22 @@ func (s *OperatorAuthentication) RefreshToken(ctx context.Context, operatorID in
 	return accessToken, refreshToken, nil
 }
 
-// resolveRefreshHandoff follows the rotation hand-offs of a presented
-// session within the recovery grace. The request proves possession of the
-// token it presented; successor hops are accepted only after validating
-// their persisted family and generation lineage, because each hop may have
-// been rotated under a different access token.
-func (s *OperatorAuthentication) resolveRefreshHandoff(ctx context.Context, presented domain.OperatorSession, now time.Time) (domain.OperatorSession, bool, error) {
-	current := presented
-	proofValidated := false
-	for hop := 0; hop < s.rotation.MaxRecoveryHops(); hop++ {
-		if current.RotatedAt == nil {
-			return current, current.ID != presented.ID, nil
-		}
-		if current.ReplacementTokenHash == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
-			return current, false, identityaccess.ErrOperatorRefreshTokenInvalid
-		}
-		if err := s.requireOperatorRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
-			return current, false, err
-		}
-		proofValidated = true
-		next, err := s.handoffSuccessor(ctx, current)
-		if err != nil {
-			return current, false, err
-		}
-		current = next
+// handoffs follows the rotation hand-offs of operator refresh sessions.
+func (s *OperatorAuthentication) handoffs() domain.HandoffChain[domain.OperatorSession] {
+	return domain.HandoffChain[domain.OperatorSession]{
+		Link: func(session domain.OperatorSession) domain.HandoffLink {
+			return domain.HandoffLink{ID: session.ID, Token: session.Token, RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash}
+		},
+		Successor: s.operators.findOperatorSessionForUpdate,
+		SameLineage: func(current, next domain.OperatorSession) bool {
+			return next.FamilyID == current.FamilyID && next.OperatorID == current.OperatorID && next.Generation == current.Generation+1
+		},
+		Grace:    s.rotation.RecoveryGrace(),
+		MaxHops:  s.rotation.MaxRecoveryHops(),
+		Invalid:  identityaccess.ErrOperatorRefreshTokenInvalid,
+		NotFound: identityaccess.ErrOperatorSessionNotFound,
+		Portal:   "operator",
 	}
-	return current, false, identityaccess.ErrOperatorRefreshTokenInvalid
-}
-
-// handoffSuccessor locks the session a rotated one handed off to. Only the
-// hash of the successor is stored, so its raw value is recomputed from the
-// token this hop was presented with (#4902); a hand-off recorded before
-// #4902 named a random successor and is not recoverable.
-func (s *OperatorAuthentication) handoffSuccessor(ctx context.Context, current domain.OperatorSession) (domain.OperatorSession, error) {
-	successorToken := domain.SuccessorRefreshToken(current.Token)
-	if domain.HashToken(successorToken) != *current.ReplacementTokenHash {
-		return domain.OperatorSession{}, identityaccess.ErrOperatorRefreshTokenInvalid
-	}
-	next, err := s.operators.findOperatorSessionForUpdate(ctx, successorToken)
-	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
-		return domain.OperatorSession{}, identityaccess.ErrOperatorRefreshTokenInvalid
-	}
-	if err != nil {
-		return domain.OperatorSession{}, fmt.Errorf("failed to follow operator refresh-token handoff: %w", err)
-	}
-	if next.FamilyID != current.FamilyID || next.OperatorID != current.OperatorID || next.Generation != current.Generation+1 {
-		return domain.OperatorSession{}, identityaccess.ErrOperatorRefreshTokenInvalid
-	}
-	return next, nil
 }
 
 func (s *OperatorAuthentication) logRefreshRejected(reason string, operatorID int64, generation int) {
@@ -361,15 +334,15 @@ func (s *OperatorAuthentication) UpdateProfile(ctx context.Context, operatorID i
 	if err != nil {
 		return domain.Operator{}, err
 	}
-	operator, err := s.operators.findOperatorByID(ctx, operatorID)
+	// UpdateOperator edits the row it locked, so a status change committed
+	// meanwhile is kept rather than reverted by this edit.
+	updated, err := s.operators.UpdateOperator(ctx, operatorID, func(operator *identityaccess.Operator) error {
+		operator.DisplayName = displayName
+		return nil
+	})
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound
 	}
-	if err != nil {
-		return domain.Operator{}, err
-	}
-	operator.DisplayName = displayName
-	updated, err := s.operators.UpdateOperator(ctx, identityaccess.Operator(operator))
 	if err != nil {
 		return domain.Operator{}, fmt.Errorf("failed to update operator profile: %w", err)
 	}
@@ -399,19 +372,38 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-	operator.PasswordHash = hash
 	return s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); err != nil {
-			return fmt.Errorf("failed to update password: %w", err)
+		return s.storeRotatedPassword(txCtx, operatorID, operator.PasswordHash, hash)
+	})
+}
+
+// storeRotatedPassword writes the new hash on the caller's transaction and
+// invalidates the e-mail change links and refresh sessions with it. The
+// verification ran without a lock and the hash is slow, so the hash is set on
+// the row UpdateOperator locked: a deactivation committed meanwhile stays in
+// force, and a password rotated meanwhile (verifiedHash no longer stored)
+// invalidates the proof.
+func (s *OperatorAuthentication) storeRotatedPassword(ctx context.Context, operatorID int64, verifiedHash, hash string) error {
+	_, err := s.operators.UpdateOperator(ctx, operatorID, func(current *identityaccess.Operator) error {
+		if current.PasswordHash != verifiedHash {
+			return identityaccess.ErrOperatorPasswordMismatch
 		}
-		if err := s.credentials.RevokeEmailChanges(txCtx, operatorID); err != nil {
-			return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
-		}
-		if err := s.revokeAllWithAudit(txCtx, operatorID, "password_change"); err != nil {
-			return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
-		}
+		current.PasswordHash = hash
 		return nil
 	})
+	if errors.Is(err, identityaccess.ErrOperatorPasswordMismatch) || errors.Is(err, identityaccess.ErrOperatorNotFound) {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	if err := s.credentials.RevokeEmailChanges(ctx, operatorID); err != nil {
+		return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
+	}
+	if err := s.revokeAllWithAudit(ctx, operatorID, "password_change"); err != nil {
+		return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
+	}
+	return nil
 }
 
 // revokeFamilyWithAudit deletes the session's family and records the
@@ -620,7 +612,7 @@ func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
 	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
-func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Context, operator domain.Operator, session domain.OperatorSession, recovered bool, now time.Time) (accessToken, refreshToken string, err error) {
+func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Context, operator domain.Operator, session domain.OperatorSession, recovered bool, proof domain.RecoveryProof, now time.Time) (accessToken, refreshToken string, err error) {
 	if recovered {
 		accessToken, refreshToken, err = s.mintTokenPair(operator, session)
 		return accessToken, refreshToken, err
@@ -633,10 +625,10 @@ func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Contex
 	if err != nil {
 		return accessToken, refreshToken, err
 	}
-	if _, err := s.operators.CreateOperatorSession(txCtx, identityaccess.OperatorSession(successor)); err != nil {
+	if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(successor)); err != nil {
 		return accessToken, refreshToken, fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
 	}
-	if err := s.operators.MarkOperatorSessionRotated(txCtx, session.ID, successor.Token, s.rotation.RecoveryProofHash(txCtx), now); err != nil {
+	if err := s.operators.MarkOperatorSessionRotated(txCtx, session.ID, successor.Token, proof.Hash(), now); err != nil {
 		return accessToken, refreshToken, fmt.Errorf("failed to persist operator refresh-token handoff: %w", err)
 	}
 	if err := s.operators.DeleteExpiredRotatedOperatorSessions(txCtx, session.FamilyID, now); err != nil {
@@ -660,7 +652,7 @@ func (s *OperatorAuthentication) rejectOperatorLineage(txCtx context.Context, se
 	return false, nil
 }
 
-func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, operatorID int64, refreshTokenValue string) (accessToken, refreshToken string, recovered, rejectAfterCommit bool, err error) {
+func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, operatorID int64, refreshTokenValue string, proof domain.RecoveryProof) (accessToken, refreshToken string, recovered, rejectAfterCommit bool, err error) {
 	session, err := s.operators.findOperatorSessionForUpdate(txCtx, refreshTokenValue)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, identityaccess.ErrOperatorRefreshTokenInvalid
@@ -680,7 +672,7 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 		s.logRefreshRejected("token_expired", operatorID, session.Generation)
 		return accessToken, refreshToken, recovered, rejectAfterCommit, nil
 	}
-	session, recovered, err = s.resolveRefreshHandoff(txCtx, session, now)
+	session, recovered, err = s.handoffs().Resolve(txCtx, session, proof, now)
 	if err != nil {
 		if !errors.Is(err, identityaccess.ErrOperatorRefreshTokenInvalid) {
 			return accessToken, refreshToken, recovered, rejectAfterCommit, err
@@ -696,25 +688,17 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	if err != nil || rejectAfterCommit {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, err
 	}
-	operator, err := s.activeOperatorForRefresh(txCtx, operatorID)
+	operator, err := s.activeOperator(txCtx, operatorID)
 	if err != nil {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, err
 	}
-	accessToken, refreshToken, err = s.mintRotatedOperatorSession(txCtx, operator, session, recovered, now)
+	accessToken, refreshToken, err = s.mintRotatedOperatorSession(txCtx, operator, session, recovered, proof, now)
 	return accessToken, refreshToken, recovered, rejectAfterCommit, err
 }
 
-func (s *OperatorAuthentication) requireOperatorRecoveryProof(ctx context.Context, proofHash []byte, alreadyValidated bool) error {
-	if !alreadyValidated {
-		if !s.rotation.MatchesRecoveryProof(ctx, proofHash) {
-			return identityaccess.ErrOperatorRefreshTokenInvalid
-		}
-
-	}
-	return nil
-}
-
-func (s *OperatorAuthentication) activeOperatorForRefresh(txCtx context.Context, operatorID int64) (domain.Operator, error) {
+// activeOperator re-reads the operator inside a session transaction and
+// refuses a missing or deactivated one.
+func (s *OperatorAuthentication) activeOperator(txCtx context.Context, operatorID int64) (domain.Operator, error) {
 	operator, err := s.operators.findOperatorByID(txCtx, operatorID)
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound
@@ -729,32 +713,28 @@ func (s *OperatorAuthentication) activeOperatorForRefresh(txCtx context.Context,
 }
 
 func (s *OperatorAuthentication) LoginOperatorWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-	if s == nil {
-		return nil, errOperatorAuthenticationUnavailable
-	}
-	result, err := s.loginWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie)
-	return operatorLoginResult(result), operatorError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.OperatorLoginResult, error) {
+		result, err := s.loginWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
+		return operatorLoginResult(result), err
+	})
 }
 
-func (s *OperatorAuthentication) RefreshOperatorToken(ctx context.Context, operatorID int64, refreshToken string) (string, string, error) {
-	if s == nil {
-		return "", "", errOperatorAuthenticationUnavailable
-	}
-	access, refresh, err := s.RefreshToken(bindRuntime(s.attach, ctx), operatorID, refreshToken)
-	return access, refresh, operatorError(err)
+func (s *OperatorAuthentication) RefreshOperatorToken(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
+		access, refresh, err := s.RefreshToken(ctx, refreshToken, domain.NewRecoveryProof(recoveryProof))
+		return access, refresh, err
+	})
 }
 
 func (s *OperatorAuthentication) UpdateOperatorProfile(ctx context.Context, operatorID int64, displayName string) (identityaccess.Operator, error) {
-	if s == nil {
-		return identityaccess.Operator{}, errOperatorAuthenticationUnavailable
-	}
-	operator, err := s.UpdateProfile(bindRuntime(s.attach, ctx), operatorID, displayName)
-	return identityaccess.Operator(operator), operatorError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (identityaccess.Operator, error) {
+		operator, err := s.UpdateProfile(ctx, operatorID, displayName)
+		return identityaccess.Operator(operator), err
+	})
 }
 
 func (s *OperatorAuthentication) ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-	if s == nil {
-		return errOperatorAuthenticationUnavailable
-	}
-	return operatorError(s.ChangePassword(bindRuntime(s.attach, ctx), operatorID, currentPassword, newPassword))
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		return s.ChangePassword(ctx, operatorID, currentPassword, newPassword)
+	})
 }

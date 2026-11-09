@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -9,8 +10,9 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { TimeField } from "~/components/ui/time-field";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import {
   formatDate as formatCalendarDate,
   berlinTodayISO,
@@ -27,6 +29,7 @@ import {
   StudentStatusDayConflictError,
 } from "~/lib/student-status-days-api";
 import { classTripConcept } from "~/lib/concepts/classTrip";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
 
@@ -247,57 +250,39 @@ export function ClassTripBulkStatusModal({
       }
     >
       <div className="space-y-4 p-4">
-        <div className="border-moto-blue/25 bg-moto-blue/10 flex items-start gap-3 rounded-lg border p-3 text-sm text-gray-700">
-          <MotoConceptIcon
-            concept={classTripConcept}
-            size={18}
-            className="mt-0.5"
-          />
-          {schoolReport ? (
-            <p>
-              Die OGS sieht die ausgewählten Kinder an diesen Tagen als
-              unterwegs.
-            </p>
-          ) : (
-            <p>
-              Der Status wird für alle {students.length} Schüler in{" "}
-              <strong>{targetLabel}</strong> gesetzt und über Nacht nicht
-              zurückgesetzt.
-            </p>
-          )}
-        </div>
+        <Alert
+          type="info"
+          announce="off"
+          color={LOCATION_COLORS.CLASS_TRIP}
+          icon={<MotoConceptIcon concept={classTripConcept} size={18} />}
+          message={
+            schoolReport ? (
+              "Die OGS sieht die ausgewählten Kinder an diesen Tagen als unterwegs."
+            ) : (
+              <>
+                Der Status wird für alle {students.length} Schüler in{" "}
+                <strong>{targetLabel}</strong> gesetzt und über Nacht nicht
+                zurückgesetzt.
+              </>
+            )
+          }
+        />
         <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="class-trip-bulk-from"
-              className="text-sm font-medium text-gray-700"
-            >
-              Von
-            </label>
-            <ISODatePicker
-              id="class-trip-bulk-from"
-              value={from}
-              onChange={setFrom}
-              calendarLayout="popover"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="class-trip-bulk-to"
-              className="text-sm font-medium text-gray-700"
-            >
-              Bis
-            </label>
-            <ISODatePicker
-              id="class-trip-bulk-to"
-              value={to}
-              min={from || undefined}
-              onChange={setTo}
-              calendarLayout="popover"
-              className="mt-1"
-            />
-          </div>
+          <ISODatePicker
+            label="Von"
+            id="class-trip-bulk-from"
+            value={from}
+            onChange={setFrom}
+            calendarLayout="popover"
+          />
+          <ISODatePicker
+            label="Bis"
+            id="class-trip-bulk-to"
+            value={to}
+            min={from || undefined}
+            onChange={setTo}
+            calendarLayout="popover"
+          />
         </div>
         {schoolReport && returnTimeOffered ? (
           <TimeField
@@ -309,13 +294,8 @@ export function ClassTripBulkStatusModal({
           />
         ) : null}
         {schoolReport ? (
-          <div className="space-y-1">
-            <label
-              htmlFor={studentsFieldId}
-              className="block text-sm font-medium text-gray-700"
-            >
-              Kinder
-            </label>
+          <div>
+            <FieldLabel htmlFor={studentsFieldId}>Kinder</FieldLabel>
             <MultiSelect
               id={studentsFieldId}
               ariaLabel="Kinder"
@@ -338,19 +318,16 @@ export function ClassTripBulkStatusModal({
             />
           </div>
         ) : null}
-        <label className="block text-sm font-medium text-gray-700">
-          {schoolReport ? "Ziel (optional)" : "Hinweis (optional)"}
-          <textarea
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            rows={2}
-            maxLength={schoolReport ? 200 : 2000}
-            placeholder={
-              schoolReport ? "z. B. Zoo" : "z. B. Ziel oder Kontakt vor Ort"
-            }
-            className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-          />
-        </label>
+        <Textarea
+          label={schoolReport ? "Ziel (optional)" : "Hinweis (optional)"}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          rows={2}
+          maxLength={schoolReport ? 200 : 2000}
+          placeholder={
+            schoolReport ? "z. B. Zoo" : "z. B. Ziel oder Kontakt vor Ort"
+          }
+        />
         {conflicts.length > 0 ? (
           <Alert
             type="warning"

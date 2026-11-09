@@ -1,0 +1,7 @@
+{
+  "scenario": "operator.stats",
+  "max": 13,
+  "exact": true,
+  "description": "GET /operator/stats; positive N=3/8 organizations and schools with provisioned web-manual devices; exact complete aggregate response. Real typed operator HTTP router with persisted live operator session and administrative owner reads, no outer Serve-host middleware. Excludes fixture writes. School account enrichment is unused and omitted.",
+  "route": "GET /operator/stats"
+}

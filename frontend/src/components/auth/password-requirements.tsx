@@ -1,4 +1,5 @@
 import { Check, Circle } from "lucide-react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /**
  * The password rules next to a new password, each ticked once met. The
@@ -10,7 +11,7 @@ export function PasswordRequirements({
   requirements: readonly { readonly label: string; readonly met: boolean }[];
 }>) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <InsetPanel framed>
       <p className="mb-2 text-xs font-medium text-gray-700">
         Passwortanforderungen
       </p>
@@ -42,6 +43,6 @@ export function PasswordRequirements({
           </div>
         ))}
       </div>
-    </div>
+    </InsetPanel>
   );
 }

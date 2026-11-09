@@ -1,19 +1,19 @@
 "use client";
 
+import { MousePointer2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useMemo, useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DetailDeleteButton } from "~/components/database/detail-delete-button";
-import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
 import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormErrorInput } from "~/components/ui/form-error";
@@ -22,6 +22,8 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
 import { activitiesConcept } from "~/lib/concepts/activities";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { Loading } from "~/components/ui/loading";
 
 interface ActivitiesMasterDetailProps {
   activities: Activity[];
@@ -80,9 +82,7 @@ export function ActivitiesMasterDetail({
       renderItem={renderItem}
       keyFor={keyForActivity}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Aktivitäten gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Aktivitäten gefunden." />
       }
     />
   );
@@ -98,9 +98,12 @@ export function ActivitiesMasterDetail({
       formResetKey={formResetKey}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Keine Aktivität ausgewählt"
       description="Wähle links eine Aktivität, um Stammdaten direkt im Detailbereich zu bearbeiten."
+      className="h-full justify-center"
     />
   );
 
@@ -209,7 +212,12 @@ function ActivityStammdatenTab({
   const saveErrors = useApiFormError();
 
   if (loading) {
-    return <DetailLoadingSpinner label="Aktivitätsdaten werden geladen..." />;
+    return (
+      <Loading
+        className="h-full min-h-[240px]"
+        message="Aktivitätsdaten werden geladen..."
+      />
+    );
   }
 
   // Ohne frisches Detail kein Formular mit veraltetem Stand.
@@ -245,20 +253,17 @@ function ActivitySummary({ activity }: { activity: Activity }) {
     <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
         {activity.category_name ? (
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-            {activity.category_name}
-          </span>
+          <StatusBadge label={activity.category_name} tone="gray" />
         ) : null}
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {activity.max_participant == null
-            ? "Unbegrenzt"
-            : `${activity.max_participant} Plätze`}
-        </span>
-        {isSystem ? (
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-            Systemaktivität
-          </span>
-        ) : null}
+        <StatusBadge
+          label={
+            activity.max_participant == null
+              ? "Unbegrenzt"
+              : `${activity.max_participant} Plätze`
+          }
+          tone="gray"
+        />
+        {isSystem ? <StatusBadge label="Systemaktivität" tone="gray" /> : null}
       </div>
 
       {activity.supervisor_name ? (

@@ -1,3 +1,6 @@
 GET /traeger/schools/
-GET /traeger/schools/today
+GET /traeger/schools/alerts
+GET /traeger/schools/key-date-counts
+GET /traeger/schools/occupancy
+GET /traeger/schools/occupancy/export
 GET /traeger/schools/{id}

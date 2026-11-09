@@ -7,13 +7,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/go-ozzo/ozzo-validation/is"
 )
 
-// PasswordResetRoutes are the two public reset routes a portal without its
-// own reset flow mounts: POST …/auth/password-reset and …/confirm. The root
-// binds the funcs to Identity & Access with the portal's reset scope, so the
-// link reaches only that portal's accounts and lands on its host. The caterer
-// portal (ADR 0077) and the Träger-Portal (#5149) share them.
+// PasswordResetRoutes are the two public reset routes every account portal
+// mounts: POST …/auth/password-reset and …/confirm. The root binds the funcs
+// to Identity & Access with the portal's reset scope, so the link reaches
+// only that portal's accounts and lands on its host, and one malformed
+// request gets one answer in every portal.
 type PasswordResetRoutes struct {
 	// Initiate answers nil whether or not a link was issued, so the
 	// response cannot be used to enumerate addresses.
@@ -28,7 +31,8 @@ type PasswordResetRoutes struct {
 	RetryAfter func(error) (int, bool)
 }
 
-func (routes PasswordResetRoutes) complete() bool {
+// Complete reports whether every reset function is bound.
+func (routes PasswordResetRoutes) Complete() bool {
 	return routes.Initiate != nil && routes.Reset != nil && routes.LinkUnusable != nil && routes.TooWeak != nil && routes.RetryAfter != nil
 }
 
@@ -51,19 +55,22 @@ type passwordResetConfirmRequest struct {
 }
 
 // ServeInitiate mails a reset link when the address belongs to an account of
-// the portal. The answer is the same for every address; a rate-limited one
-// gets 429 with the Retry-After the frontend countdown reads.
+// the portal. The answer is the same for every well-formed address; a
+// rate-limited one gets 429 with the Retry-After the frontend countdown
+// reads.
 func (routes PasswordResetRoutes) ServeInitiate(w http.ResponseWriter, r *http.Request) {
 	var request passwordResetRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || strings.TrimSpace(request.Email) == "" {
-		RenderError(w, r, ErrorInvalidRequest(errors.New("email is required")))
+	err := json.NewDecoder(r.Body).Decode(&request)
+	email := strings.ToLower(strings.TrimSpace(request.Email))
+	if err != nil || validation.Validate(email, validation.Required, is.Email) != nil {
+		RenderError(w, r, ErrorInvalidRequest(errors.New("a valid email is required")))
 		return
 	}
-	if !routes.complete() {
+	if !routes.Complete() {
 		RenderError(w, r, ErrorInternalServer(errResetUnavailable))
 		return
 	}
-	if err := routes.Initiate(r.Context(), strings.ToLower(strings.TrimSpace(request.Email))); err != nil {
+	if err := routes.Initiate(r.Context(), email); err != nil {
 		if seconds, limited := routes.RetryAfter(err); limited {
 			if seconds > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(seconds))
@@ -88,7 +95,7 @@ func (routes PasswordResetRoutes) ServeConfirm(w http.ResponseWriter, r *http.Re
 		RenderError(w, r, ErrorInvalidOnField(errResetMismatch, CodeIdentityPasswordMismatch, "confirm_password"))
 		return
 	}
-	if !routes.complete() {
+	if !routes.Complete() {
 		RenderError(w, r, ErrorInternalServer(errResetUnavailable))
 		return
 	}

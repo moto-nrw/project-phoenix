@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.staff_growth.month_close",
+  "max": 4,
+  "exact": true,
+  "description": "Measured full resource request. N3/N8 positive output; full tenant transaction captured, fixtures excluded. Cardinality-specific where growth remains.",
+  "route": "GET /api/staff/time-tracking/month-close"
+}

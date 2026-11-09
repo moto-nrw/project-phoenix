@@ -1,0 +1,7 @@
+{
+  "scenario": "api.auth.account.tenants.positive_growth",
+  "max": 12,
+  "exact": true,
+  "description": "GET /auth/account/tenants through the production directory binding and real JWT/session/tenant chain: exactly 3/8 active memberships in operational schools including a hidden school; inactive/deleted schools, inactive and other-account memberships excluded. Complete ordered numeric-ID DTOs; no row/sequence writes. Serve host liveness is not mounted. Twelve statements are three existing admin read transactions.",
+  "route": "GET /auth/account/tenants"
+}

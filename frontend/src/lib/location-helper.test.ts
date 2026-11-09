@@ -209,6 +209,17 @@ describe("getLocationBadgeTone", () => {
     });
   });
 
+  it("keeps holiday and public-holiday colors in their semantic tones", () => {
+    expect(getLocationBadgeTone(MOTO_COLOR_PALETTE.gold.base)).toEqual({
+      backgroundColor: MOTO_COLOR_PALETTE.gold.soft,
+      textColor: MOTO_COLOR_PALETTE.gold.strong,
+    });
+    expect(getLocationBadgeTone(MOTO_COLOR_PALETTE.teal.base)).toEqual({
+      backgroundColor: MOTO_COLOR_PALETTE.teal.soft,
+      textColor: MOTO_COLOR_PALETTE.teal.strong,
+    });
+  });
+
   it("keeps a custom room color's hue in the label", () => {
     // Room colors (#1324) can never match a LOCATION_BADGE_TONES row: the
     // backend reserves exactly the status hexes, so an admin-picked color is

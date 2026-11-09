@@ -1,23 +1,12 @@
 import { apiErrorFromResponse } from "~/lib/api-error";
 import { fetchWithAuth } from "~/lib/fetch-with-auth";
 
-interface Envelope<T> {
-  readonly data?: T;
-}
-
 export interface RequestFeedStatus {
   readonly active: boolean;
 }
 
 export interface RequestFeedLink {
   readonly url: string;
-}
-
-function unwrap<T>(value: T | Envelope<T>): T {
-  if (value && typeof value === "object" && "data" in value) {
-    return (value as Envelope<T>).data as T;
-  }
-  return value as T;
 }
 
 async function request<T>(method: "GET" | "POST", suffix = ""): Promise<T> {
@@ -28,7 +17,7 @@ async function request<T>(method: "GET" | "POST", suffix = ""): Promise<T> {
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "request feed failed");
   }
-  return unwrap((await response.json()) as T | Envelope<T>);
+  return ((await response.json()) as { data: T }).data;
 }
 
 export function getRequestFeedStatus(): Promise<RequestFeedStatus> {

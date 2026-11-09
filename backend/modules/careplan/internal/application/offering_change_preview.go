@@ -29,13 +29,10 @@ func (s *OfferingChanges) PreviewDecision(
 	if err != nil {
 		return nil, err
 	}
-	allowCompleteWithdrawal, err := s.bookingsAuthoritative(ctx)
-	if err != nil {
-		return nil, err
-	}
 	in := selectionMaterialization{
 		phase: diff.phase, requestChildID: row.RequestChildID, effectiveFrom: diff.effectiveFrom,
-		selections: diff.requested, excluded: offeringIDSet(excludedIDs), allowCompleteWithdrawal: allowCompleteWithdrawal,
+		selections: diff.requested, excluded: offeringIDSet(excludedIDs), allowCompleteWithdrawal: diff.allowCompleteWithdrawal,
+		facts: diff.selectionFacts,
 	}
 	if err := s.assertApplicableAt(ctx, in, row.StudentID, &row); err != nil {
 		return nil, err
@@ -50,6 +47,7 @@ func (s *OfferingChanges) PreviewDecision(
 		return nil, fmt.Errorf("offering change: resolve booking authority for preview: %w", err)
 	}
 	return &careplan.OfferingChangePreview{
+		Diff:                              diff.entries,
 		Selections:                        offeringPreviewSelections(ids, diff.selected),
 		ManualPlanningConflicts:           conflicts,
 		ArrivalExpectationsFollowBookings: arrivalExpectationsFollowBookings,

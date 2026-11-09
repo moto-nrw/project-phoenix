@@ -1,0 +1,7 @@
+{
+  "scenario": "api.users.list.positive_growth",
+  "max": 5,
+  "exact": true,
+  "description": "Production-bound protected Users resource: N3/N8 tenant persons with real account emails and RFID values, exact DTO/pagination, foreign-tenant decoy excluded and no writes. Isolated resource router, not Serve-host session liveness.",
+  "route": "GET /api/users/"
+}

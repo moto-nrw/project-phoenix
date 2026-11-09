@@ -176,6 +176,12 @@ func (c *Client) PutFileWithAuth(auth AuthRef, path, fieldName, filename string,
 	return c.uploadFile(auth, "PUT", path, fieldName, filename, contents, nil)
 }
 
+// PostFileWithAuthFields uploads a file with form fields on another
+// session, such as a Träger document with its title (#4692).
+func (c *Client) PostFileWithAuthFields(auth AuthRef, path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
+	return c.uploadFile(auth, "POST", path, fieldName, filename, contents, fields)
+}
+
 func (c *Client) uploadFile(auth AuthRef, method, path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -381,4 +387,10 @@ func extractResponseSummary(resp map[string]any) string {
 		return "ok"
 	}
 	return fmt.Sprintf("{%s}", strings.Join(parts, ", "))
+}
+
+// PostFileWithAuthAndFields makes a multipart POST with a file part and form
+// fields under the given session, such as a paper care contract (#4679).
+func (c *Client) PostFileWithAuthAndFields(auth AuthRef, path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
+	return c.uploadFile(auth, "POST", path, fieldName, filename, contents, fields)
 }

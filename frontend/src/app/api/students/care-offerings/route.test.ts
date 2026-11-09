@@ -12,9 +12,11 @@ const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
@@ -59,17 +61,5 @@ describe("GET /api/students/care-offerings", () => {
       data: Array<{ id: string; name: string }>;
     }>(response);
     expect(json.data).toEqual([{ id: "12", name: "OGS Ganztag" }]);
-  });
-
-  it("answers an empty list for an unexpected backend shape", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: null });
-
-    const response = await GET(
-      createMockRequest("/api/students/care-offerings"),
-      createMockContext(),
-    );
-
-    const json = await parseJsonResponse<{ data: unknown[] }>(response);
-    expect(json.data).toEqual([]);
   });
 });

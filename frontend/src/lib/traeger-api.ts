@@ -88,6 +88,94 @@ export interface TraegerSchoolsToday {
   readonly total: TraegerSchoolFigures;
 }
 
+/** The kinds of a hint on the dashboard (#4675), in the backend's order. */
+export type TraegerAlertKind =
+  "staff_shortage" | "sick_children" | "open_enrollments";
+
+/** The Träger's thresholds of the dashboard hints; 0 switches one off. */
+export interface TraegerAlertThresholds {
+  /** More present children per present staff member marks too little staff. */
+  readonly childrenPerStaff: number;
+  /** At least this share of the children sick today, in percent. */
+  readonly sickPercent: number;
+  /** At least this many children of the online enrollment waiting. */
+  readonly openEnrollments: number;
+}
+
+/** One school with the figures behind its hints and the hints that apply. */
+export interface TraegerSchoolAlerts extends TraegerSchool {
+  readonly figures: TraegerSchoolFigures;
+  /** Children of the online enrollment waiting for a decision. */
+  readonly openEnrollments: number;
+  readonly alerts: readonly TraegerAlertKind[];
+}
+
+/** The hints of every school of the Träger (#4675), ordered by name. */
+export interface TraegerSchoolsAlerts {
+  readonly thresholds: TraegerAlertThresholds;
+  readonly schools: readonly TraegerSchoolAlerts[];
+  readonly asOf: string;
+}
+
+/**
+ * One captured Stichtagszahl of a school (#4673): the actively managed
+ * children and the active terminals on the key date of a month, the same row
+ * the operator billing report shows. Captured once, never changed.
+ */
+export interface TraegerKeyDateCount {
+  /** First day of the month, `YYYY-MM-DD`. */
+  readonly period: string;
+  /** The key date of the month, `YYYY-MM-DD`. */
+  readonly keyDate: string;
+  readonly activeStudents: number;
+  readonly activeTerminals: number;
+  /** When moto captured the figures; later than the key date when late. */
+  readonly recordedAt: string;
+}
+
+/** One school with its captured months, newest first (#4673). */
+export interface TraegerSchoolKeyDateCounts extends TraegerSchool {
+  readonly counts: readonly TraegerKeyDateCount[];
+}
+
+/** The sum of one captured month over the schools of the Träger (#4673). */
+export interface TraegerKeyDateMonth {
+  readonly period: string;
+  readonly keyDate: string;
+  readonly activeStudents: number;
+  readonly activeTerminals: number;
+  /** Schools with captured figures in this month. */
+  readonly schools: number;
+}
+
+/** The Stichtagszahlen of every school and the sum of each month (#4673). */
+export interface TraegerKeyDateCounts {
+  readonly schools: readonly TraegerSchoolKeyDateCounts[];
+  /** Newest month first. */
+  readonly months: readonly TraegerKeyDateMonth[];
+}
+
+interface BackendKeyDateCount {
+  period: string;
+  key_date: string;
+  active_students: number;
+  active_terminals: number;
+  recorded_at: string;
+}
+
+interface BackendKeyDateMonth {
+  period: string;
+  key_date: string;
+  active_students: number;
+  active_terminals: number;
+  schools: number;
+}
+
+interface BackendKeyDateCounts {
+  schools: (BackendSchool & { counts: BackendKeyDateCount[] | null })[] | null;
+  months: BackendKeyDateMonth[] | null;
+}
+
 interface BackendSchoolFigures {
   children_total: number;
   children_present: number;
@@ -106,9 +194,20 @@ interface BackendSchoolView extends BackendSchool {
   figures: BackendSchoolFigures;
 }
 
-interface BackendSchoolsToday {
-  schools: (BackendSchool & { figures: BackendSchoolFigures })[] | null;
-  total: BackendSchoolFigures;
+interface BackendSchoolsAlerts {
+  thresholds: {
+    children_per_staff: number;
+    sick_percent: number;
+    open_enrollments: number;
+  };
+  schools:
+    | (BackendSchool & {
+        figures: BackendSchoolFigures;
+        open_enrollments: number;
+        alerts: TraegerAlertKind[] | null;
+      })[]
+    | null;
+  as_of: string;
 }
 
 interface BackendSchool {
@@ -119,7 +218,8 @@ interface BackendSchool {
   city?: string | null;
 }
 
-async function readJson(response: Response): Promise<unknown> {
+/** Reads a JSON body; null for an empty or unreadable one. */
+export async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
   try {
@@ -235,11 +335,11 @@ function toSchoolFigures(figures: BackendSchoolFigures): TraegerSchoolFigures {
 }
 
 /**
- * Every school of the Träger with its figures of now and their sum (#4674):
- * numbers only, no names.
+ * The hints of every school of the Träger against the Träger's thresholds
+ * (#4675): numbers only, no names.
  */
-export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
-  const response = await transportFetch("/api/traeger/schools/today", {
+export async function fetchTraegerSchoolsAlerts(): Promise<TraegerSchoolsAlerts> {
+  const response = await transportFetch("/api/traeger/schools/alerts", {
     credentials: "include",
     cache: "no-store",
   });
@@ -251,13 +351,59 @@ export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
       data,
     );
   }
-  const today = (data as { data: BackendSchoolsToday }).data;
+  const alerts = (data as { data: BackendSchoolsAlerts }).data;
   return {
-    schools: (today.schools ?? []).map((school) => ({
+    thresholds: {
+      childrenPerStaff: alerts.thresholds.children_per_staff,
+      sickPercent: alerts.thresholds.sick_percent,
+      openEnrollments: alerts.thresholds.open_enrollments,
+    },
+    schools: (alerts.schools ?? []).map((school) => ({
       ...toTraegerSchool(school),
       figures: toSchoolFigures(school.figures),
+      openEnrollments: school.open_enrollments,
+      alerts: school.alerts ?? [],
     })),
-    total: toSchoolFigures(today.total),
+    asOf: alerts.as_of,
+  };
+}
+
+/**
+ * The captured Stichtagszahlen of every school of the Träger and the sum of
+ * each month (#4673): the rows of the operator billing report, numbers only.
+ */
+export async function fetchTraegerKeyDateCounts(): Promise<TraegerKeyDateCounts> {
+  const response = await transportFetch(
+    "/api/traeger/schools/key-date-counts",
+    { credentials: "include", cache: "no-store" },
+  );
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const counts = (data as { data: BackendKeyDateCounts }).data;
+  return {
+    schools: (counts.schools ?? []).map((school) => ({
+      ...toTraegerSchool(school),
+      counts: (school.counts ?? []).map((count) => ({
+        period: count.period,
+        keyDate: count.key_date,
+        activeStudents: count.active_students,
+        activeTerminals: count.active_terminals,
+        recordedAt: count.recorded_at,
+      })),
+    })),
+    months: (counts.months ?? []).map((month) => ({
+      period: month.period,
+      keyDate: month.key_date,
+      activeStudents: month.active_students,
+      activeTerminals: month.active_terminals,
+      schools: month.schools,
+    })),
   };
 }
 
@@ -328,6 +474,13 @@ export interface HolidayTimeModel {
   readonly startsAt: string;
   readonly endsAt: string;
   readonly priceCents: number;
+  /**
+   * No longer offered or bookable; the days booked on it keep it (#5994).
+   * Absent means not archived; a write sets it to archive for good.
+   */
+  readonly archived?: boolean;
+  /** Bookings name it, so it cannot be removed, only archived. Read only. */
+  readonly protected?: boolean;
 }
 
 /** A bookable week of a holiday period with the school that hosts it. */
@@ -366,6 +519,8 @@ interface BackendTimeModel {
   starts_at: string;
   ends_at: string;
   price_cents: number;
+  archived?: boolean;
+  protected?: boolean;
 }
 
 interface BackendWeek {
@@ -413,6 +568,8 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
         startsAt: model.starts_at,
         endsAt: model.ends_at,
         priceCents: model.price_cents,
+        archived: model.archived ?? false,
+        protected: model.protected ?? false,
       })),
     })),
   };
@@ -436,6 +593,7 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
         starts_at: model.startsAt,
         ends_at: model.endsAt,
         price_cents: model.priceCents,
+        archived: model.archived ?? false,
       })),
     })),
   };
@@ -957,6 +1115,15 @@ export interface TraegerContact {
   readonly email: string;
 }
 
+/**
+ * The phone and e-mail the withdrawal notice of a care contract names
+ * (#6200). An empty field takes the contact person's.
+ */
+export interface TraegerWithdrawalContact {
+  readonly phone: string;
+  readonly email: string;
+}
+
 /** A bank account as the Träger-Büro writes it. */
 export interface TraegerBankAccountInput {
   readonly label: string;
@@ -975,6 +1142,7 @@ export interface TraegerBankAccount extends TraegerBankAccountInput {
 /** The master data of the Träger (#4653). */
 export interface TraegerMasterData {
   readonly contact: TraegerContact;
+  readonly withdrawal: TraegerWithdrawalContact;
   readonly logo: TraegerLogo | null;
   readonly bankAccounts: readonly TraegerBankAccount[];
 }
@@ -1045,6 +1213,7 @@ export function traegerLogoSrc(logo: TraegerLogo): string {
 export async function fetchTraegerMasterData(): Promise<TraegerMasterData> {
   const data = await traegerRequest<{
     contact?: Partial<TraegerContact> | null;
+    withdrawal?: Partial<TraegerWithdrawalContact> | null;
     logo?: BackendTraegerLogo | null;
     bank_accounts?: BackendTraegerBankAccount[] | null;
   } | null>(masterDataPath);
@@ -1053,6 +1222,10 @@ export async function fetchTraegerMasterData(): Promise<TraegerMasterData> {
       name: data?.contact?.name ?? "",
       phone: data?.contact?.phone ?? "",
       email: data?.contact?.email ?? "",
+    },
+    withdrawal: {
+      phone: data?.withdrawal?.phone ?? "",
+      email: data?.withdrawal?.email ?? "",
     },
     logo: data?.logo ? mapTraegerLogo(data.logo) : null,
     bankAccounts: (data?.bank_accounts ?? []).map(mapTraegerBankAccount),
@@ -1072,6 +1245,23 @@ export async function saveTraegerContact(
   );
   return {
     name: saved?.name ?? contact.name,
+    phone: saved?.phone ?? contact.phone,
+    email: saved?.email ?? contact.email,
+  };
+}
+
+/**
+ * Stores the phone and e-mail for withdrawals and returns them as the
+ * backend keeps them. Throws an ApiError on failure.
+ */
+export async function saveTraegerWithdrawalContact(
+  contact: TraegerWithdrawalContact,
+): Promise<TraegerWithdrawalContact> {
+  const saved = await traegerRequest<Partial<TraegerWithdrawalContact> | null>(
+    `${masterDataPath}/withdrawal-contact`,
+    { method: "PUT", body: contact },
+  );
+  return {
     phone: saved?.phone ?? contact.phone,
     email: saved?.email ?? contact.email,
   };

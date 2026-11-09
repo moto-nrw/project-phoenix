@@ -3,6 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -10,7 +11,13 @@ import {
   studentHistoryBack,
 } from "../student-referrer";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { ApiError } from "~/lib/api-error";
+import {
+  fetchStudent,
+  fetchStudentChangeHistory,
+  type StudentFieldChange,
+} from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -21,25 +28,6 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 const logger = createLogger({ component: "StudentChangeHistoryPage" });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id?: string;
-  group_name?: string;
-}
-
-interface ChangeEntry {
-  id: string;
-  field: string;
-  old_value: string;
-  new_value: string;
-  edited_by: string;
-  changed_at: string;
-}
 
 // German labels for the tracked fields. The backend stores the raw field token
 // and already-formatted German values; only the field name is mapped here.
@@ -78,6 +66,60 @@ function ValueText({ value }: { readonly value: string }) {
   return <span className="break-words whitespace-pre-wrap">{value}</span>;
 }
 
+// ─── Table ───────────────────────────────────────────────────────────────────
+
+const CHANGE_COLUMNS: DataTableColumn<StudentFieldChange>[] = [
+  {
+    key: "changedAt",
+    header: "Zeitpunkt",
+    className: "whitespace-nowrap tabular-nums",
+    stacked: "meta",
+    render: (entry) => (
+      <span className="text-gray-600">
+        {formatDate(entry.changed_at)}
+        <span className="ml-1 text-gray-400">
+          {formatTime(entry.changed_at)}
+        </span>
+      </span>
+    ),
+  },
+  {
+    key: "editedBy",
+    header: "Geändert von",
+    className: "whitespace-nowrap font-medium",
+    render: (entry) => entry.edited_by,
+  },
+  {
+    key: "field",
+    header: "Feld",
+    className: "whitespace-nowrap",
+    stacked: "title",
+    render: (entry) => (
+      <span className="text-gray-700">{fieldLabel(entry.field)}</span>
+    ),
+  },
+  {
+    key: "old",
+    header: "Vorher",
+    className: "max-w-xs",
+    render: (entry) => (
+      <span className="text-gray-500">
+        <ValueText value={entry.old_value} />
+      </span>
+    ),
+  },
+  {
+    key: "new",
+    header: "Nachher",
+    className: "max-w-xs",
+    render: (entry) => (
+      <span className="text-gray-700">
+        <ValueText value={entry.new_value} />
+      </span>
+    ),
+  },
+];
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function StudentChangeHistoryPage() {
@@ -95,7 +137,7 @@ function StudentChangeHistoryPageContent() {
   const referrer = resolveStudentReferrer(searchParams.get("from"));
 
   const [student, setStudent] = useState<Student | null>(null);
-  const [entries, setEntries] = useState<ChangeEntry[] | null>(null);
+  const [entries, setEntries] = useState<StudentFieldChange[] | null>(null);
   const [loading, setLoading] = useState(true);
   // A 404 is its own state, not an error to retry.
   const [notFound, setNotFound] = useState(false);
@@ -108,16 +150,12 @@ function StudentChangeHistoryPageContent() {
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
   useScrollToTop(studentId);
 
-  const fetchStudent = useCallback(async (): Promise<Student | null> => {
+  const loadStudent = useCallback(async (): Promise<Student | null> => {
     try {
-      const res = await transportFetch(`/api/students/${studentId}`);
+      return await fetchStudent(studentId);
+    } catch (err) {
       // The name only decorates the header; without it the page still shows
       // the history under its generic title.
-      if (!res.ok) return null;
-      const body = (await res.json()) as { data?: Student };
-      return body.data ?? null;
-    } catch (err) {
-      // Same as above: the header falls back to the generic title.
       logger.error("student_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -128,23 +166,16 @@ function StudentChangeHistoryPageContent() {
 
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
-      const res = await transportFetch(
-        `/api/students/${studentId}/change-history`,
-      );
-      if (res.status === 404) {
+      setEntries(await fetchStudentChangeHistory(studentId));
+      setNotFound(false);
+      clearHistoryError();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
         setEntries(null);
         clearHistoryError();
         return;
       }
-      if (!res.ok) {
-        throw await apiErrorFromResponse(res, "change history failed");
-      }
-      const body = (await res.json()) as { data: ChangeEntry[] };
-      setEntries(body.data ?? []);
-      setNotFound(false);
-      clearHistoryError();
-    } catch (err) {
       logger.error("change_history_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -162,7 +193,7 @@ function StudentChangeHistoryPageContent() {
     setLoading(true);
 
     void (async () => {
-      const [s] = await Promise.all([fetchStudent(), fetchHistory()]);
+      const [s] = await Promise.all([loadStudent(), fetchHistory()]);
       if (cancelled) return;
       setStudent(s);
       setLoading(false);
@@ -171,7 +202,7 @@ function StudentChangeHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fetchStudent, fetchHistory, attempt]);
+  }, [loadStudent, fetchHistory, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
@@ -214,92 +245,17 @@ function StudentChangeHistoryPageContent() {
             : null
         }
       >
-        {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
-            bis zur Kartenkante. */}
         <SectionCard
           title="Änderungsverlauf"
           description="Wer hat wann welche Angaben zu diesem Kind geändert"
           concept={changeHistoryConcept}
-          flush
         >
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
-                    <th className="px-6 py-3">Zeitpunkt</th>
-                    <th className="px-6 py-3">Geändert von</th>
-                    <th className="px-6 py-3">Feld</th>
-                    <th className="px-6 py-3">Vorher</th>
-                    <th className="px-6 py-3">Nachher</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {(entries ?? []).map((entry) => (
-                    <tr key={entry.id} className="align-top text-sm">
-                      <td className="px-6 py-3 whitespace-nowrap text-gray-600 tabular-nums">
-                        {formatDate(entry.changed_at)}
-                        <span className="ml-1 text-gray-400">
-                          {formatTime(entry.changed_at)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 font-medium whitespace-nowrap text-gray-900">
-                        {entry.edited_by}
-                      </td>
-                      <td className="px-6 py-3 whitespace-nowrap text-gray-700">
-                        {fieldLabel(entry.field)}
-                      </td>
-                      <td className="max-w-xs px-6 py-3 text-gray-500">
-                        <ValueText value={entry.old_value} />
-                      </td>
-                      <td className="max-w-xs px-6 py-3 text-gray-700">
-                        <ValueText value={entry.new_value} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile card layout */}
-            <div className="divide-y divide-gray-100 md:hidden">
-              {(entries ?? []).map((entry) => (
-                <div key={entry.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">
-                      {fieldLabel(entry.field)}
-                    </span>
-                    <span className="text-xs text-gray-500 tabular-nums">
-                      {formatDate(entry.changed_at)}{" "}
-                      {formatTime(entry.changed_at)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    von {entry.edited_by}
-                  </div>
-                  <div className="mt-2 space-y-1 text-sm">
-                    <div className="flex gap-2">
-                      <span className="shrink-0 text-xs text-gray-400">
-                        Vorher:
-                      </span>
-                      <span className="text-gray-500">
-                        <ValueText value={entry.old_value} />
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="shrink-0 text-xs text-gray-400">
-                        Nachher:
-                      </span>
-                      <span className="text-gray-700">
-                        <ValueText value={entry.new_value} />
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+          <DataTable
+            columns={CHANGE_COLUMNS}
+            rows={entries ?? []}
+            getRowKey={(entry) => entry.id}
+            stackedOnMobile
+          />
         </SectionCard>
       </TenantPage>
     </>

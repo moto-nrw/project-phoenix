@@ -1,9 +1,8 @@
 "use client";
 
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -59,11 +58,9 @@ export function StaffTodayBlock({
   const pending = (isLoading || error !== undefined) && summary === undefined;
 
   return (
-    <SectionCard
+    <HomeCard
       title="Personal heute"
       leading={<HomeCardIcon concept={staffConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -89,7 +86,7 @@ export function StaffTodayBlock({
           ))}
         </div>
       )}
-    </SectionCard>
+    </HomeCard>
   );
 }
 

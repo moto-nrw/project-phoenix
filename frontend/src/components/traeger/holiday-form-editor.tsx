@@ -8,17 +8,23 @@
 // die Anschrift ab (#5625). Speichern legt eine neue Version an.
 
 import { FileText, Plus, TextCursorInput } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   FieldEditorRow,
   FieldErrorContext,
-  FormPreview,
+} from "~/components/enrollment/form-field-builder";
+import {
+  FormPreviewFrame as FormPreview,
   FormPreviewHeading,
   PreviewFieldsSection,
   PreviewSection,
-} from "~/components/enrollment/form-field-builder";
-import { LegalBlocksSection } from "~/components/enrollment/enrollment-form-editor";
-import { AttachmentUploadContext } from "~/components/enrollment/attachment-editor";
+} from "~/components/enrollment/form-preview";
+import { LegalBlocksSection } from "~/components/enrollment/legal-blocks-section";
+import {
+  DraftDocumentContext,
+  useDraftDocuments,
+  type DraftDocumentSave,
+} from "~/components/enrollment/draft-documents";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -36,6 +42,7 @@ import {
   type FormField,
   type FormLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
+import { draftDocumentURLsInLegalBlocks } from "~/lib/enrollment-legal-blocks";
 import { createLogger } from "~/lib/logger";
 import {
   HOLIDAY_FORM_FIELD_TYPES,
@@ -104,8 +111,6 @@ export function HolidayFormEditor({
     ...(form.legalBlocks ?? []),
   ]);
   const [address, setAddress] = useState(form.addressRequirement);
-  const drafts = useRef(new Set<string>());
-  const [uploads, setUploads] = useState(0);
   const adapter = useMemo(
     () => ({
       upload: (file: File) => uploadHolidayDocument(periodId, file),
@@ -114,30 +119,8 @@ export function HolidayFormEditor({
     }),
     [periodId],
   );
-  const lifecycle = useMemo(
-    () => ({
-      remember: (id: string) => {
-        drafts.current.add(id);
-      },
-      begin: () => setUploads((n) => n + 1),
-      end: () => setUploads((n) => Math.max(0, n - 1)),
-    }),
-    [],
-  );
-  const cleanup = useCallback(async () => {
-    await Promise.allSettled(
-      [...drafts.current].map(async (id) => {
-        await adapter.remove(id, { keepalive: true });
-        drafts.current.delete(id);
-      }),
-    );
-  }, [adapter]);
-  useEffect(
-    () => () => {
-      void cleanup();
-    },
-    [cleanup],
-  );
+  const draftDocuments = useDraftDocuments(adapter.remove);
+  const uploading = draftDocuments.uploading;
   const [saving, setSaving] = useState(false);
   const { fieldError: readFieldError } = errorPath;
   const fieldError = useCallback(
@@ -178,18 +161,18 @@ export function HolidayFormEditor({
     }
     setSaving(true);
     errorPath.clear();
+    let draftSave: DraftDocumentSave | null = null;
     try {
+      draftSave = await draftDocuments.startSave(
+        draftDocumentURLsInLegalBlocks(legalBlocks, draftDocuments.drafts()),
+      );
       const saved = await saveHolidayForm(
         periodId,
         prepareHolidayFieldsForSave(fields),
         legalBlocks,
         address,
       );
-      for (const block of saved.legalBlocks ?? []) {
-        for (const attachment of block.attachments ?? [])
-          drafts.current.delete(attachment.document_url);
-      }
-      await cleanup();
+      draftSave.commit();
       setFields([...saved.fields]);
       setLegalBlocks([...(saved.legalBlocks ?? [])]);
       setAddress(saved.addressRequirement);
@@ -198,6 +181,7 @@ export function HolidayFormEditor({
       );
       onSaved(saved);
     } catch (err) {
+      draftSave?.fail();
       logger.error("traeger_holiday_form_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -211,7 +195,7 @@ export function HolidayFormEditor({
   const childFields = fields.filter((field) => field.applies_to_child);
 
   return (
-    <AttachmentUploadContext.Provider value={lifecycle}>
+    <DraftDocumentContext.Provider value={draftDocuments.lifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
         <div
           ref={formRef}
@@ -224,7 +208,7 @@ export function HolidayFormEditor({
               <EditActions
                 onCancel={() => {
                   errorPath.clear();
-                  void cleanup();
+                  void draftDocuments.cleanup();
                   setLegalBlocks([...(form.legalBlocks ?? [])]);
                   setAddress(form.addressRequirement);
                   // New row identities also discard row-local input drafts.
@@ -232,8 +216,8 @@ export function HolidayFormEditor({
                 }}
                 onSave={() => void save()}
                 saving={saving}
-                cancelDisabled={uploads > 0}
-                disabled={!dirty || uploads > 0}
+                cancelDisabled={uploading}
+                disabled={!dirty || uploading}
                 cancelLabel="Änderungen verwerfen"
                 saveLabel="Als neue Version speichern"
               />
@@ -243,7 +227,7 @@ export function HolidayFormEditor({
                 type="button"
                 variant="outline"
                 size="md"
-                disabled={saving || uploads > 0 || missingTemplateFields === 0}
+                disabled={saving || uploading || missingTemplateFields === 0}
                 onClick={() =>
                   setFields((current) =>
                     insertTemplateFields(current, form.template),
@@ -280,7 +264,7 @@ export function HolidayFormEditor({
                       onRemove={() => remove(index)}
                       onMoveUp={() => move(index, -1)}
                       onMoveDown={() => move(index, 1)}
-                      disabled={saving || uploads > 0}
+                      disabled={saving || uploading}
                       fieldTypes={HOLIDAY_FORM_FIELD_TYPES}
                       conditionSources={HOLIDAY_CONDITION_SOURCES}
                       allowAttachments={false}
@@ -311,7 +295,7 @@ export function HolidayFormEditor({
                   type="button"
                   variant="outline"
                   size="md"
-                  disabled={saving || uploads > 0}
+                  disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
                   onClick={() =>
                     setFields((current) => [
@@ -328,7 +312,7 @@ export function HolidayFormEditor({
                   type="button"
                   variant="outline"
                   size="md"
-                  disabled={saving || uploads > 0}
+                  disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
                   onClick={() =>
                     setFields((current) => [
@@ -355,7 +339,7 @@ export function HolidayFormEditor({
                   ariaLabel="Anschrift abfragen"
                   items={HOLIDAY_ADDRESS_CHOICES.map((item) => ({
                     ...item,
-                    disabled: saving || uploads > 0,
+                    disabled: saving || uploading,
                   }))}
                   value={address}
                   onChange={setAddress}
@@ -367,14 +351,7 @@ export function HolidayFormEditor({
                 customOnly
                 uploadAdapter={adapter}
                 onChange={setLegalBlocks}
-                disabled={saving || uploads > 0}
-                draftDocumentURLs={drafts.current}
-                onDraftDocumentUploaded={lifecycle.remember}
-                onDraftDocumentDeleted={(id) => {
-                  drafts.current.delete(id);
-                }}
-                onUploadStart={lifecycle.begin}
-                onUploadEnd={lifecycle.end}
+                disabled={saving || uploading}
               />
             </div>
           </SectionCard>
@@ -456,6 +433,6 @@ export function HolidayFormEditor({
           </aside>
         </div>
       </FieldErrorContext.Provider>
-    </AttachmentUploadContext.Provider>
+    </DraftDocumentContext.Provider>
   );
 }

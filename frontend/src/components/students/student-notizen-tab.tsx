@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 
+import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -15,7 +16,6 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -29,7 +29,6 @@ import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
   NOTE_ORIGIN_SCHOOL,
-  NOTE_SHARED_WITH_SCHOOL_BADGE,
   NOTE_VISIBILITY_ALL_STAFF,
   NOTE_VISIBILITY_CARE_TEAM,
   NOTE_VISIBILITY_GROUP_LEADS,
@@ -38,7 +37,10 @@ import {
   type StudentNoteActivity,
   type StudentNoteDraft,
 } from "~/lib/student-notes-api";
+import { NOTE_SHARED_WITH_SCHOOL_BADGE } from "~/components/students/note-badges";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Notizen tab (#3632): the chronicle of one child. The backend resolves who
 // may read which note and sends can_edit / can_delete with every entry, so
@@ -349,9 +351,7 @@ function NoteForm({
           </div>
         )}
         <div>
-          <span className="mb-2 block text-sm font-medium text-gray-700">
-            Art
-          </span>
+          <FieldLabel>Art</FieldLabel>
           <SegmentedControl
             items={KIND_ITEMS}
             value={draft.kind}
@@ -368,52 +368,29 @@ function NoteForm({
           />
         </div>
         {referenceChoices ? (
-          <div>
-            <label
-              htmlFor={`${idPrefix}-reference`}
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Bezug
-            </label>
-            <CustomSelect
-              id={`${idPrefix}-reference`}
-              value={referenceValue(draft)}
-              options={referenceChoices}
-              onChange={(value) => onChange(withReference(draft, value))}
-            />
-            {referenceHint ? (
-              <p className="mt-1 text-xs text-gray-500">{referenceHint}</p>
-            ) : null}
-          </div>
+          <CustomSelect
+            label="Bezug"
+            hint={referenceHint}
+            id={`${idPrefix}-reference`}
+            value={referenceValue(draft)}
+            options={referenceChoices}
+            onChange={(value) => onChange(withReference(draft, value))}
+          />
         ) : null}
-        <div>
-          <label
-            htmlFor={`${idPrefix}-visibility`}
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            Wer sieht die Notiz?
-          </label>
-          <CustomSelect
-            id={`${idPrefix}-visibility`}
-            value={draft.visibility}
-            options={visibilityOptions}
-            onChange={(visibility) => onChange({ ...draft, visibility })}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor={`${idPrefix}-category`}
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            Thema
-          </label>
-          <CustomSelect
-            id={`${idPrefix}-category`}
-            value={draft.category ?? ""}
-            options={CATEGORY_OPTIONS}
-            onChange={(category) => onChange({ ...draft, category })}
-          />
-        </div>
+        <CustomSelect
+          label="Wer sieht die Notiz?"
+          id={`${idPrefix}-visibility`}
+          value={draft.visibility}
+          options={visibilityOptions}
+          onChange={(visibility) => onChange({ ...draft, visibility })}
+        />
+        <CustomSelect
+          label="Thema"
+          id={`${idPrefix}-category`}
+          value={draft.category ?? ""}
+          options={CATEGORY_OPTIONS}
+          onChange={(category) => onChange({ ...draft, category })}
+        />
       </div>
       {/* Freigabe für die Schule (#4797): standardmäßig aus. */}
       <ChoiceTile selected={sharedWithSchool} className="items-start p-3">
@@ -455,14 +432,14 @@ export function StudentNotizenTab({
   readonly educationGroupName?: string;
 }) {
   const { data, isLoading, error, mutate } = useSWRAuth<StudentNote[]>(
-    `student-notes-${studentId}`,
+    studentKeys.notes(studentId),
     () => studentNotesService.list(studentId),
   );
   // The activities name the references in the chronicle and fill the picker.
   // Without them the card still works; only the activity names are missing.
   const { data: activityData, error: activityError } = useSWRAuth<
     StudentNoteActivity[]
-  >(`student-note-activities-${studentId}`, () =>
+  >(studentKeys.noteActivities(studentId), () =>
     studentNotesService.listActivities(studentId),
   );
   useEffect(() => {
@@ -488,7 +465,7 @@ export function StudentNotizenTab({
   const revalidateNotes = async (permanentNotesChanged: boolean) => {
     const revalidations: Promise<unknown>[] = [mutate()];
     if (permanentNotesChanged) {
-      revalidations.push(tenantMutate(`student-permanent-notes-${studentId}`));
+      revalidations.push(tenantMutate(studentKeys.permanentNotes(studentId)));
     }
     await Promise.all(revalidations);
   };
@@ -653,7 +630,7 @@ export function StudentNotizenTab({
   };
 
   const renderNote = (note: StudentNote) => (
-    <li key={note.id} className="moto-content-surface rounded-2xl border p-4">
+    <InsetPanel as="li" key={note.id} tone="white" padding="md">
       {editing?.id === note.id ? (
         <NoteForm
           idPrefix={`note-${note.id}`}
@@ -705,14 +682,10 @@ export function StudentNotizenTab({
           ) : null}
         </div>
       )}
-    </li>
+    </InsetPanel>
   );
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (error) {
+  if (error && !isLoading) {
     return <LoadErrorAlert error={load.error} />;
   }
 
@@ -721,8 +694,9 @@ export function StudentNotizenTab({
       title="Notizen"
       description="Einträge zu diesem Kind. Eltern sehen sie nicht."
       icon={NotebookPen}
+      loading={isLoading}
       action={
-        composing ? undefined : (
+        composing || isLoading ? undefined : (
           <Button type="button" size="md" onClick={startCompose}>
             Neue Notiz
           </Button>
@@ -733,7 +707,7 @@ export function StudentNotizenTab({
         <FormErrorAlert message={formErrors.error} />
 
         {composing ? (
-          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+          <InsetPanel tone="white" padding="md">
             <NoteForm
               idPrefix="new-note"
               draft={draft}
@@ -753,7 +727,7 @@ export function StudentNotizenTab({
                   : undefined
               }
             />
-          </div>
+          </InsetPanel>
         ) : null}
 
         {notes.length === 0 && !composing ? (

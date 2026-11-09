@@ -33,7 +33,15 @@ type fakeParentService struct {
 	gotConferenceBook       []bool
 	documents               []parentService.BillingDocument
 	documentFile            parentService.BillingDocumentFile
+	noticeOptions           parentService.ContractNoticeOptions
+	gotNoticeInput          parentService.ContractNoticeInput
+	familyChildren          parentService.FamilyChildren
+	gotFamilyChildren       int
+	sharedDocuments         []parentService.SharedDocument
 	documentsErr            error
+	signingView             parentService.ContractSigningView
+	signingErr              error
+	gotSignature            parentService.ContractSignatureInput
 	gotDocumentsAccount     int64
 	gotDocumentOrganization int64
 	gotDocumentID           int64
@@ -142,12 +150,38 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 	}
 	return &parentService.GuardianSubmitStatus{}, nil
 }
-func (f *fakeParentService) ListBillingDocuments(_ context.Context, accountID int64) ([]parentService.BillingDocument, error) {
+func (f *fakeParentService) ListBillingDocuments(_ context.Context, accountID int64, _ parentService.DocumentInbox) ([]parentService.BillingDocument, error) {
 	f.gotDocumentsAccount = accountID
 	return f.documents, f.documentsErr
 }
 
 func (f *fakeParentService) BillingDocumentLetter(_ context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, documentID
+	return f.documentFile, f.documentsErr
+}
+
+func (f *fakeParentService) ContractDocumentFile(_ context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	return f.documentFile, f.documentsErr
+}
+
+func (f *fakeParentService) ContractSigningView(_ context.Context, accountID, organizationID, contractID int64) (parentService.ContractSigningView, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	return f.signingView, f.signingErr
+}
+
+func (f *fakeParentService) SignContract(_ context.Context, accountID, organizationID, contractID int64, input parentService.ContractSignatureInput) (parentService.ContractSigningView, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	f.gotSignature = input
+	return f.signingView, f.signingErr
+}
+
+func (f *fakeParentService) ListSharedDocuments(_ context.Context, accountID int64) ([]parentService.SharedDocument, error) {
+	f.gotDocumentsAccount = accountID
+	return f.sharedDocuments, f.documentsErr
+}
+
+func (f *fakeParentService) SharedDocumentFile(_ context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error) {
 	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, documentID
 	return f.documentFile, f.documentsErr
 }
@@ -828,6 +862,24 @@ func TestGetChildFeatures_ReportsPickupChangeCutoff(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), `"pickup_change_cutoff_time":"11:00"`)
 	assert.Contains(t, w.Body.String(), `"pickup_change_today_closed":true`)
+}
+
+// The portal names each child's care with its school's term (#6082).
+func TestGetChildFeatures_ReportsCareFacilityTerm(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{CareFacilityTerm: "GTS"}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"care_facility_term":"GTS"`)
 }
 
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {

@@ -29,26 +29,18 @@ func (s *Intake) StatusByToken(ctx context.Context, token string) (*enrollmentNa
 	return publicRequestStatus(req, children)
 }
 
-func publicRequestStatus(req *Request, children []*RequestChild) (*enrollmentNative.RequestStatus, error) {
-	request, err := requestInput(req)
-	if err != nil {
-		return nil, err
-	}
-	values, err := childInputs(children)
-	if err != nil {
-		return nil, err
-	}
-	return &enrollmentNative.RequestStatus{Request: request, Children: values}, nil
+func publicRequestStatus(req *enrollmentNative.Request, children []*enrollmentNative.RequestChild) (*enrollmentNative.RequestStatus, error) {
+	return &enrollmentNative.RequestStatus{Request: req, Children: children}, nil
 }
 
 // requestByStatusToken reads the request behind a token that has not
 // expired; any miss is ErrRequestNotFound.
-func (s *Intake) requestByStatusToken(ctx context.Context, token string, lock bool) (*Request, error) {
+func (s *Intake) requestByStatusToken(ctx context.Context, token string, lock bool) (*enrollmentNative.Request, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
-	req, err := decodedRequestByToken(ctx, s.deps.Requests, token, lock)
+	req, err := s.deps.Requests.RequestByToken(ctx, token, lock)
 	if (err != nil && s.deps.Runtime.NotFound(err)) || (err == nil && req == nil) {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
@@ -67,13 +59,13 @@ func (s *Intake) requestByStatusToken(ctx context.Context, token string, lock bo
 	return req, nil
 }
 
-func (s *Intake) statusByToken(ctx context.Context, token string) (*Request, []*RequestChild, error) {
+func (s *Intake) statusByToken(ctx context.Context, token string) (*enrollmentNative.Request, []*enrollmentNative.RequestChild, error) {
 	req, err := s.requestByStatusToken(ctx, token, false)
 	if err != nil {
 		return nil, nil, err
 	}
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
-	children, err := decodedChildrenOfRequest(tenantCtx, s.deps.Children, req.ID, false)
+	children, err := s.deps.Children.ChildrenForRequest(tenantCtx, req.ID, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("status: list children: %w", err)
 	}
@@ -101,21 +93,27 @@ func (s *Intake) statusReasonVisibleToParent(ctx context.Context, phaseID int64)
 	return phase.ShowStatusReasonToParent
 }
 
-// EditModeForStatus returns the edit path the status page may offer. It
-// mirrors the draft's gates without loading the draft.
-func (s *Intake) EditModeForStatus(ctx context.Context, status *enrollmentNative.RequestStatus) (string, error) {
+// StatusPage returns the edit path the status page may offer, mirroring the
+// draft's gates without loading the draft, and the school's care-facility
+// term (#6042). The token page reads in an administrative transaction, so
+// both resolve in the tenant of the request. A read error fails the page
+// instead of guessing an edit path or a wording.
+func (s *Intake) StatusPage(ctx context.Context, status *enrollmentNative.RequestStatus) (enrollmentNative.StatusPage, error) {
+	none := enrollmentNative.StatusPage{EditMode: enrollmentNative.EditModeNone}
 	if status == nil || status.Request == nil {
-		return enrollmentNative.EditModeNone, nil
+		return none, nil
 	}
-	req, err := requestValue(status.Request)
+	req, children := status.Request, status.Children
+	tenantCtx := s.tenantContext(ctx, req.TenantID)
+	editMode, err := s.editModeForStatus(tenantCtx, req, children)
 	if err != nil {
-		return enrollmentNative.EditModeNone, err
+		return none, err
 	}
-	children, err := childValues(status.Children)
+	term, err := s.deps.Settings.CareFacilityTerm(tenantCtx)
 	if err != nil {
-		return enrollmentNative.EditModeNone, err
+		return none, fmt.Errorf("status: resolve care facility term: %w", err)
 	}
-	return s.editModeForStatus(s.tenantContext(ctx, req.TenantID), req, children)
+	return enrollmentNative.StatusPage{EditMode: editMode, CareFacilityTerm: term}, nil
 }
 
 // tenantContext scopes ctx to the tenant of a request the caller handed in.
@@ -123,7 +121,7 @@ func (s *Intake) tenantContext(ctx context.Context, tenantID int64) context.Cont
 	return s.deps.Runtime.WithTenant(ctx, tenantID)
 }
 
-func (s *Intake) editModeForStatus(ctx context.Context, req *Request, children []*RequestChild) (string, error) {
+func (s *Intake) editModeForStatus(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild) (string, error) {
 	mode := editModeForChildren(children)
 	switch mode {
 	case enrollmentNative.EditModeDirectEdit:
@@ -160,7 +158,7 @@ func editModeGateResult(err error) (string, error) {
 	return enrollmentNative.EditModeNone, err
 }
 
-func editModeForChildren(children []*RequestChild) string {
+func editModeForChildren(children []*enrollmentNative.RequestChild) string {
 	if len(children) == 0 {
 		return enrollmentNative.EditModeDirectEdit
 	}
@@ -174,7 +172,7 @@ func editModeForChildren(children []*RequestChild) string {
 
 // ensureRequestEditable allows a direct edit while the request is not
 // withdrawn, edits are allowed and every child is still submitted.
-func (s *Intake) ensureRequestEditable(ctx context.Context, req *Request, children []*RequestChild) error {
+func (s *Intake) ensureRequestEditable(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild) error {
 	if req == nil || req.WithdrawnAt != nil || len(children) == 0 {
 		return enrollmentNative.ErrEditNotAllowed
 	}
@@ -192,7 +190,7 @@ func (s *Intake) ensureRequestEditable(ctx context.Context, req *Request, childr
 // ensureChangeRequestDraftAvailable allows a change request while the
 // request is decided in part, nothing is withdrawn and at least one child is
 // not yet taken over into care.
-func (s *Intake) ensureChangeRequestDraftAvailable(ctx context.Context, req *Request, children []*RequestChild) error {
+func (s *Intake) ensureChangeRequestDraftAvailable(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild) error {
 	if req == nil || req.WithdrawnAt != nil || len(children) == 0 {
 		return enrollmentNative.ErrEditNotAllowed
 	}
@@ -230,14 +228,6 @@ func (s *Intake) GuardiansByStatusToken(ctx context.Context, token string) ([]*e
 // The tenant transaction re-reads the request and its children locked, so a
 // staff decision that commits after the token lookup still blocks the edit.
 func (s *Intake) Edit(ctx context.Context, token string, patch enrollmentNative.EditPatch) error {
-	consentFlags, err := decodeJSONMap(patch.ConsentFlags, "consent flags")
-	if err != nil {
-		return err
-	}
-	customData, err := decodeJSONMap(patch.CustomData, "custom data")
-	if err != nil {
-		return err
-	}
 	req, err := s.requestByStatusToken(ctx, token, false)
 	if err != nil {
 		return err
@@ -252,11 +242,11 @@ func (s *Intake) Edit(ctx context.Context, token string, patch enrollmentNative.
 	}
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	return s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
-		return s.editInTenant(txCtx, token, patch, consentFlags, customData)
+		return s.editInTenant(txCtx, token, patch)
 	})
 }
 
-func (s *Intake) editInTenant(ctx context.Context, token string, patch enrollmentNative.EditPatch, consentFlags, customData map[string]any) error {
+func (s *Intake) editInTenant(ctx context.Context, token string, patch enrollmentNative.EditPatch) error {
 	lockedReq, children, err := s.lockedStatusByToken(ctx, token)
 	if err != nil {
 		return err
@@ -266,10 +256,10 @@ func (s *Intake) editInTenant(ctx context.Context, token string, patch enrollmen
 			return enrollmentNative.ErrEditNotAllowed
 		}
 	}
-	if err := applyEditPatch(lockedReq, patch, consentFlags, customData); err != nil {
+	if err := applyEditPatch(lockedReq, patch); err != nil {
 		return err
 	}
-	if err := s.writeEditPatch(ctx, lockedReq, consentFlags != nil); err != nil {
+	if err := s.writeEditPatch(ctx, lockedReq, patch.ConsentFlags != nil); err != nil {
 		return err
 	}
 	return s.markParentChanged(ctx, lockedReq.ID)
@@ -279,19 +269,19 @@ func (s *Intake) editInTenant(ctx context.Context, token string, patch enrollmen
 // children locked inside the tenant transaction. A parent write checks the
 // child statuses it reads here: a staff decision that committed after the
 // token lookup is visible, and one still open waits for the write.
-func (s *Intake) lockedStatusByToken(ctx context.Context, token string) (*Request, []*RequestChild, error) {
+func (s *Intake) lockedStatusByToken(ctx context.Context, token string) (*enrollmentNative.Request, []*enrollmentNative.RequestChild, error) {
 	req, err := s.requestByStatusToken(ctx, token, true)
 	if err != nil {
 		return nil, nil, err
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, true)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("lock request children: %w", err)
 	}
 	return req, children, nil
 }
 
-func applyEditPatch(req *Request, patch enrollmentNative.EditPatch, consentFlags, customData map[string]any) error {
+func applyEditPatch(req *enrollmentNative.Request, patch enrollmentNative.EditPatch) error {
 	if patch.GuardianFirstName != nil {
 		req.GuardianFirstName = textnorm.Name(*patch.GuardianFirstName)
 	}
@@ -306,18 +296,18 @@ func applyEditPatch(req *Request, patch enrollmentNative.EditPatch, consentFlags
 		}
 		req.GuardianPhone = &v
 	}
-	if consentFlags != nil {
-		req.ConsentFlags = consentFlags
+	if patch.ConsentFlags != nil {
+		req.ConsentFlags = patch.ConsentFlags.Clone()
 	}
-	if customData != nil {
-		req.CustomData = customData
+	if patch.CustomData != nil {
+		req.CustomData = patch.CustomData.Clone()
 	}
 	return nil
 }
 
 // writeEditPatch filters the patched guardian answers against the request's
 // immutable schema and the consent flags against its legal contract.
-func (s *Intake) writeEditPatch(ctx context.Context, req *Request, consentPatched bool) error {
+func (s *Intake) writeEditPatch(ctx context.Context, req *enrollmentNative.Request, consentPatched bool) error {
 	var schema *enrollmentNative.FormSchema
 	if req.SchemaID != nil {
 		loaded, err := s.intakeSchema(ctx, *req.SchemaID)
@@ -331,12 +321,14 @@ func (s *Intake) writeEditPatch(ctx context.Context, req *Request, consentPatche
 			return enrollmentNative.InvalidInput(enrollmentNative.CodeSignatureRequired, "signature", enrollmentNative.ErrSignatureRequired)
 		}
 		byKey := buildFieldsByKey(schema)
-		req.CustomData = sanitizeVisibleAnswers(schema, false, req.CustomData,
-			fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey})
-		claims, err := s.resolveFileAnswers(ctx, req.PhaseID, schema, req.ID, req.CustomData)
+		current := formMap(req.CustomData)
+		answers := sanitizeVisibleAnswers(schema, false, current,
+			fieldVisibilityContext{guardianAnswers: current, fieldsByKey: byKey})
+		claims, err := s.resolveFileAnswers(ctx, req.PhaseID, schema, req.ID, answers)
 		if err != nil {
 			return err
 		}
+		req.CustomData = formValues(answers)
 		if err := s.claimFileUploads(ctx, claims, req.ID); err != nil {
 			return fmt.Errorf("edit: %w", err)
 		}
@@ -346,15 +338,15 @@ func (s *Intake) writeEditPatch(ctx context.Context, req *Request, consentPatche
 		if err != nil {
 			return fmt.Errorf("edit: resolve legal blocks: %w", err)
 		}
-		req.ConsentFlags = filterConsentFlags(req.ConsentFlags, blocks)
+		req.ConsentFlags = formValues(filterConsentFlags(formMap(req.ConsentFlags), blocks))
 	}
-	return updateDecodedRequest(ctx, s.deps.Requests, req, false)
+	return s.deps.Requests.UpdateRequestGuardian(ctx, req, false)
 }
 
 // Withdraw moves one child, or every open child when childID is 0, to
 // withdrawn. An approved child has a student and goes through the admin.
 func (s *Intake) Withdraw(ctx context.Context, token string, childID int64) error {
-	var req *Request
+	var req *enrollmentNative.Request
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
 		var loadErr error
 		req, loadErr = s.requestByStatusToken(adminCtx, token, false)
@@ -392,8 +384,8 @@ func (s *Intake) withdrawInTenant(ctx context.Context, token string, childID int
 // withdrawChildren withdraws the open children of the request, or only the
 // one named by childID. A childID that is not a child of this request is
 // refused as not found rather than answered as a successful no-op.
-func (s *Intake) withdrawChildren(ctx context.Context, children []*RequestChild, childID int64) (bool, error) {
-	if childID != 0 && !slices.ContainsFunc(children, func(child *RequestChild) bool { return child.ID == childID }) {
+func (s *Intake) withdrawChildren(ctx context.Context, children []*enrollmentNative.RequestChild, childID int64) (bool, error) {
+	if childID != 0 && !slices.ContainsFunc(children, func(child *enrollmentNative.RequestChild) bool { return child.ID == childID }) {
 		return false, enrollmentNative.ErrRequestChildNotFound
 	}
 	anyWithdrawn := false
@@ -418,8 +410,8 @@ func (s *Intake) withdrawChildren(ctx context.Context, children []*RequestChild,
 	return anyWithdrawn, nil
 }
 
-func (s *Intake) enqueueWithdrawDecision(ctx context.Context, request *Request) error {
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, request.ID, false)
+func (s *Intake) enqueueWithdrawDecision(ctx context.Context, request *enrollmentNative.Request) error {
+	children, err := s.deps.Children.ChildrenForRequest(ctx, request.ID, false)
 	if err != nil {
 		return fmt.Errorf("withdraw: refresh children for decision digest: %w", err)
 	}

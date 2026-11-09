@@ -673,5 +673,20 @@ describe("RoomDetailSkeleton", () => {
     expect(
       screen.getByRole("status", { name: "Raumdetails werden geladen" }),
     ).toBeInTheDocument();
+    const history = screen
+      .getByRole("heading", { name: "Belegungshistorie" })
+      .closest("section");
+    expect(history).not.toBeNull();
+    expect(
+      history?.querySelectorAll(".moto-content-surface.rounded-xl"),
+    ).toHaveLength(2);
+    expect(history?.querySelectorAll(".border-t")).toHaveLength(2);
+    const students = screen
+      .getByRole("heading", { name: "Kinder im Raum" })
+      .closest("section");
+    expect(students).not.toBeNull();
+    expect(students?.querySelectorAll(".rounded-xl.border")).toHaveLength(3);
+    expect(students?.querySelectorAll(".h-8.w-16")).toHaveLength(3);
+    expect(students?.querySelector(".divide-y")).not.toBeInTheDocument();
   });
 });

@@ -35,6 +35,7 @@ const CodeEnrollmentChangeRequestGuardianLinked = "enrollment.change_request_gua
 const CodeEnrollmentChangeRequestNotAllowed = "enrollment.change_request_not_allowed"
 const CodeEnrollmentChangeRequestNotFound = "enrollment.change_request_not_found"
 const CodeEnrollmentChangeRequestNoteRequired = "enrollment.change_request_note_required"
+const CodeEnrollmentChangeRequestParentNotPermitted = "enrollment.change_request_parent_not_permitted"
 const CodeEnrollmentChangeRequestStatusChanged = "enrollment.change_request_status_changed"
 const CodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
 const CodeEnrollmentChildAlreadyRequested = "enrollment.child_already_requested"
@@ -45,6 +46,7 @@ const CodeEnrollmentChildGradeRequired = "enrollment.child_grade_required"
 const CodeEnrollmentChildNameRequired = "enrollment.child_name_required"
 const CodeEnrollmentChildNotEnrolled = "enrollment.child_not_enrolled"
 const CodeEnrollmentChildNotPermitted = "enrollment.child_not_permitted"
+const CodeEnrollmentChildPossiblyEnrolled = "enrollment.child_possibly_enrolled"
 const CodeEnrollmentChildRequired = "enrollment.child_required"
 const CodeEnrollmentClassNotEligible = "enrollment.class_not_eligible"
 const CodeEnrollmentCompanionNoteRequired = "enrollment.companion_note_required"
@@ -60,6 +62,7 @@ const CodeEnrollmentDepartureModeLimit = "enrollment.departure_mode_limit"
 const CodeEnrollmentDisabled = "enrollment.disabled"
 const CodeEnrollmentDuplicateDetected = "enrollment.duplicate_detected"
 const CodeEnrollmentEditNotAllowed = "enrollment.edit_not_allowed"
+const CodeEnrollmentExistingChildChoiceInvalid = "enrollment.existing_child_choice_invalid"
 const CodeEnrollmentExportTooLarge = "enrollment.export_too_large"
 const CodeEnrollmentFieldRequired = "enrollment.field_required"
 const CodeEnrollmentFormAttachmentInvalid = "enrollment.form_attachment_invalid"
@@ -181,6 +184,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentChangeRequestNotAllowed, "permission"},
 	{CodeEnrollmentChangeRequestNotFound, "business_rejection"},
 	{CodeEnrollmentChangeRequestNoteRequired, "input"},
+	{CodeEnrollmentChangeRequestParentNotPermitted, "business_rejection"},
 	{CodeEnrollmentChangeRequestStatusChanged, "business_rejection"},
 	{CodeEnrollmentChildAlreadyEnrolled, "business_rejection"},
 	{CodeEnrollmentChildAlreadyRequested, "business_rejection"},
@@ -191,6 +195,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentChildNameRequired, "input"},
 	{CodeEnrollmentChildNotEnrolled, "business_rejection"},
 	{CodeEnrollmentChildNotPermitted, "permission"},
+	{CodeEnrollmentChildPossiblyEnrolled, "business_rejection"},
 	{CodeEnrollmentChildRequired, "input"},
 	{CodeEnrollmentClassNotEligible, "input"},
 	{CodeEnrollmentCompanionNoteRequired, "input"},
@@ -206,6 +211,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentDisabled, "business_rejection"},
 	{CodeEnrollmentDuplicateDetected, "business_rejection"},
 	{CodeEnrollmentEditNotAllowed, "permission"},
+	{CodeEnrollmentExistingChildChoiceInvalid, "business_rejection"},
 	{CodeEnrollmentExportTooLarge, "input"},
 	{CodeEnrollmentFieldRequired, "input"},
 	{CodeEnrollmentFormAttachmentInvalid, "input"},

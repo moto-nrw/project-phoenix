@@ -1,11 +1,16 @@
 "use client";
 
-import { ApiError } from "~/lib/api-error";
+import {
+  APPROVAL_WITHOUT_OFFERING_COPY,
+  approvalNeedsOfferingConfirm,
+} from "~/components/enrollment/approval-without-offering";
+import { isTerminalChildStatus } from "~/lib/enrollment-status";
+import type { ChildStatus } from "~/lib/enrollment-status";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -15,72 +20,61 @@ import {
   ClipboardList,
   ExternalLink,
   Mail,
-  Pencil,
   Phone,
   RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminRequestChild,
   type AdminRequestDetail,
-  type AdminOfferingAdjustment,
-  type AdminRequestChildOffering,
   type AdminRequestGuardian,
   type AdminRequestSchemaField,
   type AdminRequestSummary,
-  type ChildStatus,
   type DecisionStatus,
+  type ExistingChildChoice,
   decideAdminChild,
   announceAdminRequestOpened,
   getAdminRequest,
-  listAdminChildOfferingAdjustments,
   restoreAdminRequest,
-  updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
-import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
-import {
-  availableCareOfferings,
-  careOfferingAvailabilityReason,
-} from "~/lib/care-offering-availability";
-import {
-  type CareOfferingBookingStats,
-  fetchCareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
-} from "~/lib/care-offering-booking-stats";
-import { formatOfferingPrice } from "~/lib/care-offering-format";
-import { FeaturePill } from "~/components/enrollment/feature-pill";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
-import {
-  BLOCKED_OFFERING_ROW_TONE,
-  OfferingRowShell,
-} from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  DataField,
-  DataGrid,
-  InfoSection,
-} from "~/components/ui/detail-modal-components";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Textarea } from "~/components/ui/textarea";
-import { Checkbox } from "~/components/ui/checkbox";
-import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
-import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
-import { formatCalendarDate } from "~/lib/localized-date-format";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import { schoolClassLabel } from "~/lib/school-class-label";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import { enrolledClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
+import { ChildOfferingAdjustment } from "~/components/enrollment/child-offering-adjustment";
+import {
+  ChildExtraFields,
+  ChildOfferings,
+  RequestExtraSection,
+  formatDateTime,
+  formatPlainDate,
+} from "~/components/enrollment/enrollment-request-display";
+import {
+  RequestMailStatus,
+  useRequestMails,
+} from "~/components/enrollment/request-mail-status";
+import {
+  existingChildChoiceDescription,
+  existingChildChoiceOptions,
+  existingChildHintMessage,
+  needsExistingChildChoice,
+} from "~/components/enrollment/existing-child-choice";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { EditActions } from "~/components/ui/edit-actions";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -91,14 +85,10 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
-import { mapRosterImpact, type RosterImpact } from "~/lib/roster-impact";
-import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import {
-  useTenant,
   useCareOfferingsEnabled,
   useWaitlistEnabled,
 } from "~/lib/tenant-context";
@@ -109,18 +99,10 @@ import {
   ChildStatusBadge,
   isHeldForChildQuota,
 } from "~/components/enrollment/child-status-badge";
-import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
-import { childrenConcept } from "~/lib/concepts/children";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
-
-const TERMINAL: ReadonlySet<ChildStatus> = new Set([
-  "approved",
-  "rejected",
-  "withdrawn",
-]);
 
 interface ActionDef {
   status: DecisionStatus;
@@ -140,11 +122,20 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
+  const {
+    mails: requestMails,
+    loadError: requestMailsError,
+    refresh: refreshRequestMails,
+  } = useRequestMails(requestId);
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
+  const today = useBerlinToday();
+  const [weeklyPlanCheckedOn, setWeeklyPlanCheckedOn] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const loadError = useApiLoadError();
@@ -159,7 +150,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   // „Wiederholen“ ruft die aktuelle Fassung auf, nicht die vom Fehler.
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
   const latestDecideRef = useRef<
-    (childId: string, status: DecisionStatus) => Promise<void>
+    (
+      childId: string,
+      status: DecisionStatus,
+      existingChildChoice?: ExistingChildChoice,
+    ) => Promise<void>
   >(async () => undefined);
   const latestRestoreRef = useRef<() => Promise<void>>(async () => undefined);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
@@ -170,7 +165,13 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
-    useState<string | null>(null);
+    useState<{ id: string; existingChildChoice?: ExistingChildChoice } | null>(
+      null,
+    );
+  // Ein Kind, das vielleicht schon angemeldet ist: das Büro wählt vor dem
+  // Bestätigen das bestehende Kind oder ein neues (#6053).
+  const [existingChildChoiceChild, setExistingChildChoiceChild] =
+    useState<AdminRequestChild | null>(null);
 
   // `quiet` refreshes without the page's loading state, so a card that just
   // saved keeps showing its result (#5102).
@@ -179,8 +180,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       if (!options?.quiet) setLoading(true);
       clearLoadError();
       try {
+        const checkedOn = berlinTodayISO();
         const fresh = await getAdminRequest(requestId);
         setData(fresh);
+        setWeeklyPlanCheckedOn(checkedOn);
         // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
         announceAdminRequestOpened();
       } catch (err) {
@@ -214,7 +217,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           ),
         };
       });
-      void load();
+      void load({ quiet: true });
     },
     [load],
   );
@@ -223,11 +226,34 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     void load();
   }, [load]);
 
+  const hasPendingWeeklyPlan = data?.children.some(
+    (child) => child.status === "approved" && child.weekly_plan_on,
+  );
+  useEffect(() => {
+    if (hasPendingWeeklyPlan && weeklyPlanCheckedOn !== today) {
+      void load({ quiet: true });
+    }
+  }, [today, weeklyPlanCheckedOn, hasPendingWeeklyPlan, load]);
+
+  useEffect(() => {
+    if (!hasPendingWeeklyPlan) return;
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") void load({ quiet: true });
+    };
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, [hasPendingWeeklyPlan, load]);
+
   const availableActions = waitlistEnabled
     ? ACTIONS
     : ACTIONS.filter((action) => action.status !== "waitlisted");
 
-  const handleDecide = async (childId: string, status: DecisionStatus) => {
+  const handleDecide = async (
+    childId: string,
+    status: DecisionStatus,
+    existingChildChoice?: ExistingChildChoice,
+  ) => {
     if (!data) return;
     const reason = (reasons[childId] ?? "").trim();
     setBusyChildId(childId);
@@ -235,7 +261,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     setDecisionErrorChildId(childId);
     let saved = false;
     try {
-      await decideAdminChild(requestId, childId, status, reason || undefined);
+      // The office's choice travels only when there was one to make.
+      await (existingChildChoice
+        ? decideAdminChild(
+            requestId,
+            childId,
+            status,
+            reason || undefined,
+            existingChildChoice,
+          )
+        : decideAdminChild(requestId, childId, status, reason || undefined));
       saved = true;
     } catch (err) {
       logger.error("admin_enrollment_decide_failed", {
@@ -246,7 +281,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       });
       await decisionErrors.show(err, {
         object: "die Entscheidung",
-        retry: () => void latestDecideRef.current(childId, status),
+        retry: () =>
+          void latestDecideRef.current(childId, status, existingChildChoice),
       });
     } finally {
       setBusyChildId(null);
@@ -255,7 +291,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     toast.success(
       `Die Entscheidung wurde gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}.`,
     );
-    await load();
+    await Promise.all([load(), refreshRequestMails()]);
   };
   useLayoutEffect(() => {
     latestDecideRef.current = handleDecide;
@@ -317,18 +353,30 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const requestDecision = (
     child: AdminRequestChild,
     status: DecisionStatus,
+    existingChildChoice?: ExistingChildChoice,
   ) => {
     if (
       status === "approved" &&
-      careOfferingsEnabled &&
-      data.care_offering_selection_mode === "optional" &&
-      child.offerings_unavailable !== true &&
-      (child.offerings?.length ?? 0) === 0
+      existingChildChoice === undefined &&
+      needsExistingChildChoice(child)
     ) {
-      setApprovalWithoutOfferingChildId(child.id);
+      setExistingChildChoiceChild(child);
       return;
     }
-    void handleDecide(child.id, status);
+    if (
+      approvalNeedsOfferingConfirm({
+        status,
+        careOfferingsEnabled,
+        selectionMode: data.care_offering_selection_mode,
+        bookedOfferings: child.offerings_unavailable
+          ? undefined
+          : (child.offerings?.length ?? 0),
+      })
+    ) {
+      setApprovalWithoutOfferingChildId({ id: child.id, existingChildChoice });
+      return;
+    }
+    void handleDecide(child.id, status, existingChildChoice);
   };
 
   const submittedAt = formatDateTime(data.submitted_at, {
@@ -339,7 +387,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const statusHref = tenantPath(`/anmeldung/status/${data.status_token}`);
+  const statusHref = tenantPath(
+    `/anmeldung/status/${encodeURIComponent(data.status_token)}`,
+  );
   // The restore action shows whenever at least one child is withdrawn —
   // exactly the backend's restore precondition. Individual child withdraws
   // never stamp withdrawn_at, and RestoreWithdrawn restores the withdrawn
@@ -363,7 +413,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     <TenantPage
       title={`${data.guardian_first_name} ${data.guardian_last_name}`}
       back
-      backHref={`/admin/enrollments/phases/${data.phase_id}`}
+      backHref={`/admin/enrollments/phases/${encodeURIComponent(data.phase_id)}`}
       backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
       leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
@@ -373,18 +423,46 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             isOpen={approvalWithoutOfferingChildId !== null}
             onClose={() => setApprovalWithoutOfferingChildId(null)}
             onConfirm={() => {
-              const childId = approvalWithoutOfferingChildId;
+              const pending = approvalWithoutOfferingChildId;
               setApprovalWithoutOfferingChildId(null);
-              if (childId !== null) void handleDecide(childId, "approved");
+              if (pending !== null) {
+                void handleDecide(
+                  pending.id,
+                  "approved",
+                  pending.existingChildChoice,
+                );
+              }
             }}
-            title="Anmeldung bestätigen"
-            confirmText="Trotzdem bestätigen"
+            title={APPROVAL_WITHOUT_OFFERING_COPY.title}
+            confirmText={APPROVAL_WITHOUT_OFFERING_COPY.confirmText}
           >
             <Alert
               type="warning"
-              message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+              message={APPROVAL_WITHOUT_OFFERING_COPY.message}
             />
           </ConfirmationModal>
+          {existingChildChoiceChild ? (
+            <ChoiceModal
+              isOpen
+              title="Ist das Kind schon angemeldet?"
+              description={existingChildChoiceDescription(
+                existingChildChoiceChild,
+              )}
+              options={existingChildChoiceOptions(existingChildChoiceChild)}
+              onClose={() => setExistingChildChoiceChild(null)}
+              onSelect={(value) => {
+                const child = existingChildChoiceChild;
+                setExistingChildChoiceChild(null);
+                requestDecision(
+                  child,
+                  "approved",
+                  value === "new"
+                    ? { createNewStudent: true }
+                    : { existingStudentId: value },
+                );
+              }}
+            />
+          ) : null}
           <ConfirmationModal
             isOpen={restoreOpen}
             onClose={() => {
@@ -409,20 +487,19 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           <AdminEnrollmentDeletionModal
             isOpen={deletionTarget !== null}
             requestId={data.id}
-            childId={
-              deletionTarget?.type === "child" ? deletionTarget.id : undefined
+            child={
+              deletionTarget?.type === "child" ? deletionTarget : undefined
             }
-            childLabel={
-              deletionTarget?.type === "child"
-                ? deletionTarget.label
-                : undefined
+            studentHref={(studentId) =>
+              tenantPath(`/students/${encodeURIComponent(studentId)}`)
             }
-            studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
             onClose={() => setDeletionTarget(null)}
             onDeleted={(impact) => {
               setDeletionTarget(null);
               if (impact.deletes_request) {
-                router.push(`/admin/enrollments/phases/${data.phase_id}`);
+                router.push(
+                  `/admin/enrollments/phases/${encodeURIComponent(data.phase_id)}`,
+                );
                 return;
               }
               toast.success("Das Kind wurde aus der Anmeldung gelöscht.");
@@ -432,9 +509,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-6 p-5 max-sm:p-4">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
                 weiter den letzten Stand und sagt, dass er veraltet sein kann. */}
             <LoadErrorAlert error={loadError.error} />
@@ -470,6 +547,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   phaseId={data.phase_id}
                   phaseName={data.phase_name}
                   child={child}
+                  weeklyPlanToday={weeklyPlanCheckedOn === today ? today : null}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
@@ -502,7 +580,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </SectionCard>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
+            <RequestMailStatus
+              mails={requestMails}
+              loadError={requestMailsError}
+            />
             <ReviewSidebar
               childStats={childStats}
               data={data}
@@ -515,7 +597,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
@@ -528,7 +610,7 @@ function EnrollmentSummary({
   submittedAt: string;
 }>) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel as="section" framed padding="md">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
           <MotoConceptIcon concept={parentsConcept} size={16} />
@@ -559,10 +641,7 @@ function EnrollmentSummary({
             Weitere erziehungsberechtigte Personen
           </h3>
           {data.additional_guardians.map((g: AdminRequestGuardian) => (
-            <div
-              key={g.id}
-              className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
-            >
+            <InsetPanel framed key={g.id}>
               <p className="text-sm font-semibold text-gray-900">
                 {g.first_name} {g.last_name}
               </p>
@@ -576,11 +655,11 @@ function EnrollmentSummary({
                   {g.phone && g.phone.trim() !== "" ? g.phone : "Nicht gesetzt"}
                 </span>
               </div>
-            </div>
+            </InsetPanel>
           ))}
         </div>
       )}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -600,6 +679,7 @@ function ChildInformationCard({
   reason,
   requestId,
   schemaFields,
+  weeklyPlanToday,
 }: Readonly<{
   actions: ActionDef[];
   busy: boolean;
@@ -616,38 +696,32 @@ function ChildInformationCard({
   onDelete: () => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
+  weeklyPlanToday: string | null;
 }>) {
-  const terminal = TERMINAL.has(child.status);
+  const terminal = isTerminalChildStatus(child.status);
+  const existingChildHint = terminal ? null : existingChildHintMessage(child);
   const canDeleteFromEnrollment =
-    child.created_student_id === undefined &&
-    (child.status === "rejected" ||
-      child.status === "withdrawn" ||
-      child.status === "approved");
+    terminal && child.created_student_id === undefined;
   const tenantPath = useTenantAwarePath();
   const studentHref = tenantPath(
     child.created_student_id
-      ? `/students/${child.created_student_id}`
+      ? `/students/${encodeURIComponent(child.created_student_id)}`
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+    <SectionCard padding="none">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-5 max-sm:p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
             {child.first_name} {child.last_name}
           </h3>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              Geburtsdatum: {formatPlainDate(child.date_of_birth)}
-            </span>
-            {child.target_school_class ? (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {schoolClassLabel(child.target_school_class)}
-              </span>
-            ) : child.target_grade_level ? (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {child.target_grade_level}. Klasse
-              </span>
+            <StatusBadge
+              tone="gray"
+              label={`Geburtsdatum: ${formatPlainDate(child.date_of_birth)}`}
+            />
+            {enrolledClassLabel(child) ? (
+              <StatusBadge tone="gray" label={enrolledClassLabel(child)} />
             ) : null}
           </div>
         </div>
@@ -678,7 +752,7 @@ function ChildInformationCard({
           {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
         </div>
       </div>
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-5 max-sm:p-4">
         {isHeldForChildQuota(child) ? (
           <Alert
             type="warning"
@@ -686,18 +760,34 @@ function ChildInformationCard({
             message="Beim Schuljahreswechsel war das Kinderkontingent voll. Darum wurde dieses Kind nicht automatisch verlängert. Bitte entscheiden Sie selbst."
           />
         ) : null}
+        {existingChildHint ? (
+          <Alert type="warning" announce="off" message={existingChildHint} />
+        ) : null}
         {child.status_reason ? (
-          <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            framed
+            padding="compact"
+            className="text-sm text-gray-700"
+          >
             <span className="text-xs font-medium text-gray-500">
               Begründung:{" "}
             </span>
             {child.status_reason}
-          </div>
+          </InsetPanel>
         ) : null}
         {child.reviewed_at ? (
           <p className="text-xs text-gray-500">
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
+        ) : null}
+        {child.status === "approved" &&
+        child.weekly_plan_on &&
+        weeklyPlanToday ? (
+          <Alert
+            type={child.weekly_plan_on < weeklyPlanToday ? "warning" : "info"}
+            announce="off"
+            message={weeklyPlanMessage(child.weekly_plan_on, weeklyPlanToday)}
+          />
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -707,6 +797,7 @@ function ChildInformationCard({
         />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
+            key={`${child.id}:${child.target_grade_level ?? ""}`}
             requestId={requestId}
             phaseId={phaseId}
             child={child}
@@ -716,10 +807,14 @@ function ChildInformationCard({
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-sm text-gray-600"
+            >
               Die Entscheidung ist final. Bei bestätigten Kindern können falsche
               Anmeldedaten weiterhin gezielt korrigiert werden.
-            </div>
+            </InsetPanel>
             {canDeleteFromEnrollment ? (
               <Button
                 type="button"
@@ -745,7 +840,7 @@ function ChildInformationCard({
           />
         )}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
@@ -773,9 +868,17 @@ function ReviewSidebar({
         description="Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den aktuellen Stand der Anmeldung."
       >
         <div className="grid grid-cols-3 gap-2">
-          <SidebarMetric label="Kinder" value={data.children.length} />
-          <SidebarMetric label="Offen" value={childStats.open} />
-          <SidebarMetric label="Bestätigt" value={childStats.approved} />
+          <StatCard
+            variant="inline"
+            label="Kinder"
+            value={data.children.length}
+          />
+          <StatCard variant="inline" label="Offen" value={childStats.open} />
+          <StatCard
+            variant="inline"
+            label="Bestätigt"
+            value={childStats.approved}
+          />
         </div>
         <div className="mt-4">
           <DataGrid>
@@ -824,21 +927,14 @@ function ReviewSidebar({
 
       {data.children.map((child) => {
         return (
-          <section
-            key={child.id}
-            className="moto-content-surface rounded-2xl border p-4"
-          >
+          <SectionCard key={child.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-gray-900">
                   {child.first_name} {child.last_name}
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  {child.target_school_class
-                    ? schoolClassLabel(child.target_school_class)
-                    : child.target_grade_level
-                      ? `${child.target_grade_level}. Klasse`
-                      : "Keine Klassenstufe"}
+                  {enrolledClassLabel(child) || "Keine Klassenstufe"}
                 </p>
               </div>
               <ChildStatusBadge status={child.status} />
@@ -848,30 +944,18 @@ function ReviewSidebar({
                 <ChildQuotaHeldBadge />
               </div>
             ) : null}
-            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
-              {TERMINAL.has(child.status)
+            <InsetPanel
+              framed
+              padding="compact"
+              className="mt-3 text-sm text-gray-600"
+            >
+              {isTerminalChildStatus(child.status)
                 ? "Entscheidung abgeschlossen"
                 : "Entscheidung ausstehend"}
-            </div>
-          </section>
+            </InsetPanel>
+          </SectionCard>
         );
       })}
-    </div>
-  );
-}
-
-function SidebarMetric({
-  label,
-  value,
-}: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2">
-      <span className="block text-lg leading-none font-semibold text-gray-900">
-        {value}
-      </span>
-      <span className="mt-1 block text-xs font-medium text-gray-500">
-        {label}
-      </span>
     </div>
   );
 }
@@ -896,7 +980,7 @@ function DecisionPanel({
   reason: string;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel framed padding="md">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
           <MotoConceptIcon concept={enrollmentsConcept} size={18} />
@@ -946,7 +1030,7 @@ function DecisionPanel({
           );
         })}
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -994,1336 +1078,19 @@ function summarizeChildren(children: AdminRequestChild[]) {
   let open = 0;
   let approved = 0;
   for (const child of children) {
-    if (!TERMINAL.has(child.status)) open += 1;
+    if (!isTerminalChildStatus(child.status)) open += 1;
     if (child.status === "approved") approved += 1;
   }
   return { open, approved };
 }
 
-export function formatDateTime(
-  value: string,
-  options?: Intl.DateTimeFormatOptions,
-): string {
-  return new Date(value).toLocaleString("de-DE", {
-    ...options,
-    timeZone: "Europe/Berlin",
-  });
-}
-
-export function formatPlainDate(value: string): string {
-  return formatCalendarDate(value, "de-DE");
-}
-
-const CONSENT_LABELS: Record<string, string> = {
-  agb: "AGB der Schule",
-  data_processing: "Datenverarbeitung (DSGVO)",
-  email_contact: "E-Mail-Kontakt",
-  photo: "Fotos bei Schulveranstaltungen",
-};
-
-export function RequestExtraSection({
-  request,
-}: Readonly<{ request: AdminRequestSummary }>) {
-  const guardianFields = (request.schema_fields ?? []).filter(
-    (f) => !f.applies_to_child,
-  );
-  const hasCustom = guardianFields.some(
-    (f) => formatCustomValue(request.custom_data?.[f.key], f) !== null,
-  );
-  const hasConsents = Object.keys(request.consent_flags ?? {}).length > 0;
-  // Titles from the pinned schema's legal blocks label custom consents
-  // (e.g. "Schwimmbad" instead of "custom_pool"); the static map covers
-  // the standard keys for legacy requests without a pinned schema.
-  const consentTitles = new Map(
-    (request.schema_legal_blocks ?? []).map((block) => [
-      block.key,
-      block.title,
-    ]),
-  );
-
-  if (!hasCustom && !hasConsents) return null;
-
-  return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">
-        Zusätzliche Angaben
-      </h2>
-
-      {hasConsents && (
-        <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zustimmungen
-          </h3>
-          <ul className="mt-1.5 space-y-1 text-sm">
-            {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
-              <li key={key} className="flex items-center gap-2">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{
-                    backgroundColor:
-                      val === true
-                        ? MOTO_COLOR_PALETTE.green.base
-                        : MOTO_COLOR_PALETTE.neutral.base,
-                  }}
-                />
-                <span className="text-gray-700">
-                  {consentTitles.get(key) ?? CONSENT_LABELS[key] ?? key}:
-                </span>
-                <span className="font-medium text-gray-900">
-                  {val === true ? "Ja" : val === false ? "Nein" : String(val)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {hasCustom && (
-        <InfoSection
-          title="Zusatzfragen (Eltern)"
-          icon={<MotoConceptIcon concept={parentsConcept} size={16} />}
-        >
-          <DataGrid>
-            {guardianFields.map((f) => {
-              const formatted = formatCustomValue(
-                request.custom_data?.[f.key],
-                f,
-              );
-              if (formatted === null) return null;
-              return (
-                <DataField
-                  key={f.key}
-                  label={f.label}
-                  fullWidth={f.type === "file"}
-                >
-                  {f.type === "file" ? (
-                    <EnrollmentRequestUploadList
-                      requestId={request.id}
-                      value={request.custom_data?.[f.key]}
-                      uploads={request.uploads}
-                      canView={request.can_view_uploads}
-                    />
-                  ) : (
-                    formatted
-                  )}
-                </DataField>
-              );
-            })}
-          </DataGrid>
-        </InfoSection>
-      )}
-    </section>
-  );
-}
-
-// ChildOfferings renders the per-child Betreuungsangebote selection.
-// For fixed offerings the day badge shows the offering's full
-// schedule (Mo, Di, …). For parent_choice offerings the badge marks
-// only the days the parent picked, prefixed with the picked count
-// so admins can spot half-week selections at a glance.
-const DAY_LABEL_DE: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
-export function ChildOfferings({
-  offerings,
-  upcomingOfferings,
-  unavailable,
-  phaseName,
-}: Readonly<{
-  offerings?: AdminRequestChildOffering[];
-  /** Rendered alongside the current selection, flagged "gilt ab …". */
-  upcomingOfferings?: AdminRequestChildOffering[];
-  /**
-   * The lookup failed. Rendered as a warning rather than nothing: staff
-   * decide on this screen, and an absent block reads as "the family booked
-   * nothing" — which is how the wrong decision gets made (#2185).
-   */
-  unavailable?: boolean;
-  phaseName?: string;
-}>) {
-  const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
-  if (unavailable) {
-    return (
-      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
-        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-          Betreuungsangebote
-        </h4>
-        <p className="text-moto-orange-strong mt-1.5 text-sm">
-          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
-          neu laden, bevor Sie über dieses Kind entscheiden.
-        </p>
-      </div>
-    );
+// Only classify a pending plan against the day its enrollment was fetched.
+// A mounted page must recheck the plan before reporting an overdue failure.
+function weeklyPlanMessage(on: string, today: string): string {
+  if (on < today) {
+    return `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab ${formatPlainDate(on)} gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.`;
   }
-  if (rows.length === 0) return null;
-  return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Betreuungsangebote
-      </h4>
-      <ul className="mt-1.5 space-y-2 text-sm">
-        {rows.map((o) => {
-          const parentChoice = o.days_of_week_mode === "parent_choice";
-          const dayDetails = parentChoice
-            ? formatAdminOfferingDaySource(o)
-            : formatAdminDays(o.available_days ?? []);
-          return (
-            <li key={`${o.offering_id}-${o.valid_from ?? "current"}`}>
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="font-medium text-gray-900">
-                  {o.offering_name || `Angebot #${o.offering_id}`}
-                </span>
-                {dayDetails ? (
-                  <span className="text-xs text-gray-600">
-                    {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
-                  </span>
-                ) : parentChoice ? (
-                  <span className="text-moto-red-strong text-xs italic">
-                    Keine Tage gewählt
-                  </span>
-                ) : null}
-              </div>
-              <OfferingAttributePills offering={o} />
-            </li>
-          );
-        })}
-      </ul>
-      {/* Where the attributes come from. The support case behind #2185 was a
-          coordinator who could not place the "mit Mittagessen" the parents app
-          showed — naming the phase turns the badges into something staff can
-          act on instead of another mystery. */}
-      <p className="mt-2 text-xs text-gray-500">
-        Angaben stammen aus der Angebots-Konfiguration
-        {phaseName
-          ? ` der Anmeldephase „${phaseName}“`
-          : " der Anmeldephase"}{" "}
-        (Anmeldungen → Betreuungsangebote).
-      </p>
-    </div>
-  );
-}
-
-// The offering's attributes and validity, phrased exactly as the parents app
-// phrases them for the same booking (#2185) — "mit Mittagessen", not
-// "Mittagessen" — so a guardian quoting their screen and the staff member
-// reading this row use the same words.
-function OfferingAttributePills({
-  offering,
-}: Readonly<{ offering: AdminRequestChildOffering }>) {
-  const price = formatOfferingPrice(offering.price_cents);
-  const pills: string[] = [];
-  if (offering.includes_lunch) pills.push("mit Mittagessen");
-  if (offering.includes_holiday_care) pills.push("mit Ferienbetreuung");
-  if (price) pills.push(`${price} pro Monat`);
-  if (offering.valid_until) {
-    // Already the inclusive last covered day on the wire.
-    pills.push(`bis ${formatPlainDate(offering.valid_until)}`);
-  }
-  const startsLater = offering.starts_later === true && !!offering.valid_from;
-  if (pills.length === 0 && !startsLater) return null;
-  return (
-    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-      {startsLater ? (
-        <StatusBadge
-          tone="blue"
-          label={`gilt ab ${formatPlainDate(offering.valid_from ?? "")}`}
-          title="Diese Buchung ist noch nicht wirksam, sie beginnt erst zum genannten Datum."
-        />
-      ) : null}
-      {pills.map((label) => (
-        <FeaturePill key={label} label={label} />
-      ))}
-    </div>
-  );
-}
-
-/**
- * One-line occupancy hint under an offering in the admin pickers. Renders
- * nothing when there is no stats entry, so a failed stats load degrades to
- * the previous UI instead of an empty placeholder (#2186).
- */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <span
-      className={`mt-1 block text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
-/**
- * An offering the child's grade level rules out. Parents never see these;
- * admins must, or a configured restriction reads as a missing feature
- * (#2186). A booking the child already holds stays removable — Bestandsschutz
- * means the rule does not revoke it, not that it can never be corrected — but
- * a blocked offering can never be newly added here. The documented workaround
- * is to relax the rule in the Angebots-Katalog first.
- *
- * `automaticDays` are days derived from a trigger offering. The backend
- * re-derives them on every save regardless of the availability rule, so the
- * row must show them as HELD even though there is no manual tick behind them
- * — an empty checkbox next to a booking the backend keeps is a lie (#2186
- * review). They are also not removable here: they disappear only with their
- * trigger.
- */
-function BlockedOfferingRow({
-  offering,
-  gradeLevel,
-  gradeLevelMax,
-  booked,
-  automaticDays,
-  stats,
-  onRemove,
-}: Readonly<{
-  offering: CareOffering;
-  gradeLevel: number | null | undefined;
-  gradeLevelMax: number | null;
-  booked: boolean;
-  automaticDays: readonly string[];
-  stats: CareOfferingBookingStats | undefined;
-  onRemove: () => void;
-}>) {
-  const reason = careOfferingAvailabilityReason(
-    offering,
-    gradeLevel,
-    gradeLevelMax ?? undefined,
-  );
-  const inputId = `blocked-offering-${offering.id}`;
-  const heldAutomatically = automaticDays.length > 0;
-  return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
-      {/* A real <label> is load-bearing, not decoration: the kit Checkbox
-          renders an sr-only input behind a pointer-events-none visual, so
-          without the label wrapping it a mouse click on the box does nothing
-          (#2186 review). */}
-      <label
-        htmlFor={inputId}
-        className={`flex items-start gap-3 ${booked ? "cursor-pointer" : "cursor-not-allowed"}`}
-      >
-        <Checkbox
-          id={inputId}
-          className="mt-0.5"
-          checked={booked || heldAutomatically}
-          disabled={!booked}
-          onChange={onRemove}
-          aria-label={`${offering.name} bleibt gebucht`}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-gray-500">
-              {offering.name}
-            </span>
-            {booked ? (
-              <StatusBadge
-                tone="orange"
-                label="bereits gebucht"
-                title="Diese Buchung bleibt bestehen. Sie kann hier entfernt, aber nicht erneut hinzugefügt werden."
-              />
-            ) : null}
-            {heldAutomatically ? (
-              <StatusBadge
-                tone="blue"
-                label={`automatisch mitgebucht: ${formatAdminDays(automaticDays)}`}
-                title="Diese Tage werden aus dem auslösenden Angebot abgeleitet und bleiben bestehen, solange dieses gebucht ist. Sie können hier nicht einzeln entfernt werden."
-              />
-            ) : null}
-          </div>
-          {reason ? (
-            <span className="mt-1 block text-xs text-gray-500">{reason}</span>
-          ) : null}
-          <OfferingOccupancyLine stats={stats} />
-        </div>
-      </label>
-    </OfferingRowShell>
-  );
-}
-
-export function ChildOfferingAdjustment({
-  child,
-  onSaved,
-  phaseId,
-  requestId,
-}: Readonly<{
-  child: AdminRequestChild;
-  requestId: string;
-  phaseId: string;
-  onSaved: () => void;
-}>) {
-  const careOfferingsEnabled = useCareOfferingsEnabled();
-  // The tenant's configured ceiling, so a blocked-offering reason names only
-  // grades this school actually has (#2186 review).
-  const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
-  // Der Bearbeiten-Zustand der Fläche (Bauart 2 Regel 3, #3119): die
-  // Auswahl erscheint an Ort und Stelle, kein Modal.
-  const [editing, setEditing] = useState(false);
-  const [catalog, setCatalog] = useState<CareOffering[]>([]);
-  // Offerings the child's grade level rules out. Kept separate from `catalog`
-  // so payload building and the auto-add preview keep operating on exactly
-  // the selectable set, while the UI can still SHOW the blocked ones with a
-  // reason instead of leaving a silent gap in the list (#2186).
-  const [blockedCatalog, setBlockedCatalog] = useState<CareOffering[]>([]);
-  const [rawCatalog, setRawCatalog] = useState<CareOffering[]>([]);
-  const [bookingStats, setBookingStats] = useState<
-    Record<string, CareOfferingBookingStats>
-  >({});
-  const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(() =>
-    initialManualOfferingIDs(child.offerings),
-  );
-  const [days, setDays] = useState<Record<string, string[]>>(() =>
-    initialManualOfferingDays(child.offerings),
-  );
-  const [reason, setReason] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [catalogLoaded, setCatalogLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  // Fehler stehen oben im Bearbeiten-Bereich (Bauart 2 Regel 5).
-  const errors = useApiFormError();
-  const catalogError = useApiLoadError();
-  const historyError = useApiLoadError();
-  const showHistoryError = historyError.show;
-  const clearHistoryError = historyError.clear;
-  // „Wiederholen“ ruft die aktuelle Fassung auf, nicht die vom Fehler.
-  const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
-  const latestOpenEditorRef = useRef<() => Promise<void>>(
-    async () => undefined,
-  );
-  const latestHistoryRef = useRef<() => Promise<void>>(async () => undefined);
-  const [withdrawalConfirmationOpen, setWithdrawalConfirmationOpen] =
-    useState(false);
-  const [pendingWithdrawalInput, setPendingWithdrawalInput] = useState<{
-    reason: string;
-    offerings: Array<{ offering_id: string; selected_days?: string[] }>;
-  } | null>(null);
-  const [withdrawalCreated, setWithdrawalCreated] = useState(false);
-  // Was die letzte Korrektur im Betreuungsplan bewirkt hat (#5102).
-  const [rosterImpact, setRosterImpact] = useState<RosterImpact | null>(null);
-  useEffect(() => {
-    if (!careOfferingsEnabled) setEditing(false);
-  }, [careOfferingsEnabled]);
-
-  const loadHistory = useCallback(async () => {
-    clearHistoryError();
-    try {
-      const rows = await listAdminChildOfferingAdjustments(requestId, child.id);
-      setHistory(rows);
-    } catch (err) {
-      logger.warn("offering_adjustment_history_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        child_id: child.id,
-      });
-      // Ohne Hinweis läse sich die fehlende Liste als "nie geändert".
-      await showHistoryError(err, {
-        object: "die Änderungshistorie",
-        retry: () => void latestHistoryRef.current(),
-      });
-    }
-  }, [child.id, requestId, clearHistoryError, showHistoryError]);
-  useLayoutEffect(() => {
-    latestHistoryRef.current = loadHistory;
-  });
-
-  useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
-
-  const resetEditorSelection = (offerings: CareOffering[]) => {
-    const available = availableCareOfferings(
-      offerings,
-      child.target_grade_level,
-    );
-    const availableIDs = new Set(available.map((offering) => offering.id));
-    // Bestandsschutz: a booking the child already holds survives a rule that
-    // was tightened after the fact. Dropping it here would silently delete
-    // the booking on the next save — the exact failure mode #2186 reports,
-    // in the flow meant to fix it. adjustmentPayloadOfferings carries such
-    // ids through via the child's existing offerings.
-    const nextSelected = new Set(initialManualOfferingIDs(child.offerings));
-    for (const offering of available) {
-      if (offering.is_active && offering.is_required) {
-        nextSelected.add(offering.id);
-      }
-    }
-    setCatalog(available);
-    setBlockedCatalog(
-      offerings.filter((offering) => !availableIDs.has(offering.id)),
-    );
-    setSelected(nextSelected);
-  };
-
-  const openEditor = async () => {
-    if (!careOfferingsEnabled) return;
-    setEditing(true);
-    setRosterImpact(null);
-    errors.clear();
-    catalogError.clear();
-    setDays(initialManualOfferingDays(child.offerings));
-    // Occupancy is advisory: without it a full offering only announces itself
-    // as an error after the whole correction is submitted (#2186). Loaded
-    // beside the catalog rather than awaited with it — a slow or failing
-    // stats call must never keep the editor in its loading state.
-    void fetchCareOfferingBookingStats(phaseId)
-      .then(setBookingStats)
-      .catch((statsErr: unknown) => {
-        setBookingStats({});
-        logger.warn("offering_adjustment_booking_stats_failed", {
-          error:
-            statsErr instanceof Error ? statsErr.message : String(statsErr),
-        });
-      });
-    if (catalogLoaded) {
-      resetEditorSelection(rawCatalog);
-      return;
-    }
-    setLoading(true);
-    try {
-      const offerings = await listCareOfferings(phaseId);
-      setRawCatalog(offerings);
-      resetEditorSelection(offerings);
-      setCatalogLoaded(true);
-    } catch (err) {
-      logger.warn("offering_adjustment_catalog_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        child_id: child.id,
-      });
-      setCatalog([]);
-      setBlockedCatalog([]);
-      setRawCatalog([]);
-      setCatalogLoaded(false);
-      await catalogError.show(err, {
-        object: "die Angebotsliste",
-        retry: () => void latestOpenEditorRef.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-  useLayoutEffect(() => {
-    latestOpenEditorRef.current = openEditor;
-  });
-
-  const preview = useMemo(
-    () => materializeClientOfferingPreview(catalog, selected, days, child),
-    [catalog, child, days, selected],
-  );
-
-  // Blocked offerings are excluded from `catalog`, so the client-side preview
-  // above never covers them. Their derived days therefore have to come from
-  // what is on file — otherwise a booking the backend keeps re-deriving reads
-  // as unbooked in the editor (#2186 review).
-  const automaticDaysOnFile = useMemo(
-    () => automaticOfferingDays(child.offerings),
-    [child.offerings],
-  );
-
-  const handleToggle = (offering: CareOffering) => {
-    if (offering.is_required) return;
-    const next = new Set(selected);
-    if (next.has(offering.id)) {
-      next.delete(offering.id);
-    } else {
-      next.add(offering.id);
-      if (
-        offering.days_of_week_mode === "parent_choice" &&
-        (days[offering.id]?.length ?? 0) === 0
-      ) {
-        setDays((current) => ({
-          ...current,
-          [offering.id]: [...offering.available_days],
-        }));
-      }
-    }
-    setSelected(next);
-  };
-
-  const handleDayToggle = (offering: CareOffering, day: string) => {
-    setDays((prev) => {
-      const current = new Set(prev[offering.id] ?? []);
-      if (current.has(day)) current.delete(day);
-      else current.add(day);
-      const ordered = offering.available_days.filter((d) => current.has(d));
-      return { ...prev, [offering.id]: ordered };
-    });
-  };
-
-  const removeAllCareDays = () => {
-    const careOfferingIDs = new Set(
-      rawCatalog
-        .filter((offering) => offering.counts_as_care)
-        .map((offering) => offering.id),
-    );
-    setSelected(
-      new Set([...selected].filter((id) => !careOfferingIDs.has(id))),
-    );
-  };
-
-  const hasSelectedCareDays = rawCatalog.some(
-    (offering) => offering.counts_as_care && selected.has(offering.id),
-  );
-
-  const finishSave = async () => {
-    setWithdrawalConfirmationOpen(false);
-    setPendingWithdrawalInput(null);
-    setEditing(false);
-    setReason("");
-    await loadHistory();
-    onSaved();
-  };
-
-  const saveAdjustment = async (
-    input: {
-      reason: string;
-      offerings: Array<{ offering_id: string; selected_days?: string[] }>;
-    },
-    completeWithdrawalConfirmed: boolean,
-  ) => {
-    const updated = await updateAdminChildOfferings(requestId, child.id, {
-      ...input,
-      completeWithdrawalConfirmed,
-    });
-    setRosterImpact(mapRosterImpact(updated?.roster_impact));
-    setWithdrawalCreated(completeWithdrawalConfirmed);
-    if (completeWithdrawalConfirmed) {
-      window.dispatchEvent(new Event("change-requests-refresh"));
-    }
-    await finishSave();
-  };
-
-  const handleSave = async () => {
-    const trimmedReason = reason.trim();
-    if (trimmedReason === "") {
-      errors.invalid("Bitte tragen Sie eine Begründung ein.", {
-        reason: "Die Begründung fehlt.",
-      });
-      return;
-    }
-    if (!catalogLoaded) return;
-    setSaving(true);
-    errors.clear();
-    const input = {
-      reason: trimmedReason,
-      offerings: adjustmentPayloadOfferings(
-        catalog,
-        selected,
-        days,
-        child.offerings,
-      ),
-    };
-    try {
-      await saveAdjustment(input, false);
-    } catch (err) {
-      if (
-        err instanceof ApiError &&
-        err.code === "enrollment.complete_withdrawal_confirmation_required"
-      ) {
-        setPendingWithdrawalInput(input);
-        setWithdrawalConfirmationOpen(true);
-      } else {
-        logger.warn("offering_adjustment_save_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          child_id: child.id,
-        });
-        await errors.show(err, {
-          object: "die Angebotsänderung",
-          retry: () => void latestSaveRef.current(),
-        });
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-  useLayoutEffect(() => {
-    latestSaveRef.current = handleSave;
-  });
-
-  const confirmCompleteWithdrawal = async () => {
-    if (!pendingWithdrawalInput) return;
-    setSaving(true);
-    errors.clear();
-    try {
-      await saveAdjustment(pendingWithdrawalInput, true);
-    } catch (err) {
-      setWithdrawalConfirmationOpen(false);
-      logger.warn("offering_adjustment_withdrawal_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        child_id: child.id,
-      });
-      // Der Dialog ist zu, der Entwurf steht noch im Bearbeiten-Bereich:
-      // „Wiederholen“ dort fragt wieder nach.
-      await errors.show(err, {
-        object: "die Angebotsänderung",
-        retry: () => void latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const cancelEditing = () => {
-    setEditing(false);
-    errors.clear();
-    catalogError.clear();
-  };
-
-  if (!careOfferingsEnabled && history.length === 0 && !historyError.error)
-    return null;
-
-  return (
-    <div className="rounded-lg border border-gray-100 bg-white p-3">
-      {withdrawalCreated ? (
-        <Alert
-          type="warning"
-          message="Abmeldung noch abschließen. Die Betreuungstage sind entfernt. Eine berechtigte Person muss die Betreuung jetzt beenden."
-        />
-      ) : null}
-      {careOfferingsEnabled ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Nachbearbeitung
-            </h4>
-            <p className="mt-1 text-sm text-gray-600">
-              {child.offerings_unavailable
-                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
-                : editing
-                  ? "Auswahl ändern und mit Begründung speichern. Automatisch verknüpfte Angebote werden beim Speichern neu berechnet."
-                  : "Angebote können für dieses bestätigte Kind korrigiert werden."}
-            </p>
-          </div>
-          {/* Correcting on top of an unknown selection would replace the
-              family's real bookings with whatever the empty editor holds
-              (#2185), so the entry point disappears until the data is back. */}
-          {child.offerings_unavailable || editing ? null : (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void openEditor()}
-              className="inline-flex items-center justify-center gap-2"
-            >
-              <Pencil className="h-4 w-4" aria-hidden />
-              Bearbeiten
-            </Button>
-          )}
-        </div>
-      ) : null}
-
-      {/* Der Bearbeiten-Zustand an Ort und Stelle (Bauart 2 Regel 3 und 4,
-          #3119): Auswahl, Begründung und ein `EditActions` unten. Die
-          Abmelde-Rückfrage ist der einzige Dialog und liegt über dieser
-          Fläche; Auswahl und Begründung bleiben darunter erhalten. */}
-      {careOfferingsEnabled && editing ? (
-        <div className="mt-3 space-y-4 border-t border-gray-100 pt-3">
-          <FormErrorAlert message={errors.error} />
-          <LoadErrorAlert error={catalogError.error} />
-          {loading ? (
-            <p className="text-sm text-gray-500">Angebote werden geladen…</p>
-          ) : (
-            <div className="space-y-2">
-              {catalog.map((offering) => {
-                const checked = selected.has(offering.id);
-                const autoDays = preview.automaticDays[offering.id] ?? [];
-                const inputId = `offering-adjustment-${child.id}-${offering.id}`;
-                return (
-                  <OfferingRowShell
-                    key={offering.id}
-                    tone={
-                      checked
-                        ? "border-moto-green/40 bg-moto-green/10"
-                        : "border-gray-200 bg-white"
-                    }
-                  >
-                    {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
-                        sr-only, erst das <label> mit htmlFor macht den Klick
-                        auf den Kasten wirksam. */}
-                    <label
-                      htmlFor={inputId}
-                      className={`flex items-start gap-3 ${
-                        offering.is_required
-                          ? "cursor-default"
-                          : "cursor-pointer"
-                      }`}
-                    >
-                      <Checkbox
-                        id={inputId}
-                        className="mt-0.5"
-                        checked={checked}
-                        disabled={offering.is_required}
-                        onChange={() => handleToggle(offering)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium text-gray-900">
-                            {offering.name}
-                          </span>
-                          {!offering.is_active ? (
-                            <StatusBadge tone="gray" label="Inaktiv" />
-                          ) : null}
-                          {offering.is_required ? (
-                            <StatusBadge tone="blue" label="Pflichtangebot" />
-                          ) : null}
-                          {autoDays.length > 0 ? (
-                            <StatusBadge
-                              tone="blue"
-                              label={`automatisch mitgebucht: ${formatAdminDays(autoDays)}`}
-                            />
-                          ) : null}
-                        </span>
-                        {offering.description ? (
-                          <span className="mt-1 block text-xs text-gray-500">
-                            {offering.description}
-                          </span>
-                        ) : null}
-                        <OfferingOccupancyLine
-                          stats={bookingStats[offering.id]}
-                        />
-                      </span>
-                    </label>
-
-                    {checked &&
-                    offering.days_of_week_mode === "parent_choice" ? (
-                      <div className="mt-3 flex flex-wrap gap-2 pl-8">
-                        {offering.available_days.map((day) => (
-                          <ToggleChip
-                            key={day}
-                            pressed={(days[offering.id] ?? []).includes(day)}
-                            onPressedChange={() =>
-                              handleDayToggle(offering, day)
-                            }
-                          >
-                            {DAY_LABEL_DE[day] ?? day}
-                          </ToggleChip>
-                        ))}
-                      </div>
-                    ) : null}
-                  </OfferingRowShell>
-                );
-              })}
-              {blockedCatalog.length > 0 ? (
-                <div className="space-y-2 pt-1">
-                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                    Für dieses Kind nicht wählbar
-                  </p>
-                  {blockedCatalog.map((offering) => (
-                    <BlockedOfferingRow
-                      key={offering.id}
-                      offering={offering}
-                      gradeLevel={child.target_grade_level}
-                      gradeLevelMax={gradeLevelMax}
-                      booked={selected.has(offering.id)}
-                      automaticDays={automaticDaysOnFile[offering.id] ?? []}
-                      stats={bookingStats[offering.id]}
-                      onRemove={() =>
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          next.delete(offering.id);
-                          return next;
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              ) : null}
-              {hasSelectedCareDays ? (
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  onClick={removeAllCareDays}
-                >
-                  Alle Betreuungstage entfernen
-                </Button>
-              ) : null}
-            </div>
-          )}
-
-          <Textarea
-            name="reason"
-            error={errors.fieldError("reason")}
-            label="Begründung"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            rows={3}
-            autoComplete="off"
-            placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
-          />
-          <EditActions
-            onCancel={cancelEditing}
-            onSave={() => void handleSave()}
-            saving={saving}
-            disabled={loading || !catalogLoaded}
-          />
-        </div>
-      ) : null}
-
-      {rosterImpact && !editing ? (
-        <div className="mt-3">
-          <CarePlanImpact
-            impact={rosterImpact}
-            studentId={child.created_student_id}
-          />
-        </div>
-      ) : null}
-
-      {historyError.error ? (
-        <LoadErrorAlert
-          error={historyError.error}
-          className={careOfferingsEnabled ? "mt-3" : undefined}
-        />
-      ) : null}
-      {history.length > 0 ? (
-        <div
-          className={
-            careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
-          }
-        >
-          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-            <MotoConceptIcon concept={changeHistoryConcept} size={14} />
-            Änderungshistorie
-          </div>
-          <ul className="mt-2 space-y-2">
-            {history.slice(0, 5).map((entry) => (
-              <li key={entry.id} className="text-xs leading-5 text-gray-600">
-                <span className="font-medium text-gray-900">
-                  {formatDateTime(entry.changed_at)}
-                </span>{" "}
-                von{" "}
-                <span className="font-medium text-gray-900">
-                  {entry.actor_name_snapshot ??
-                    entry.actor_email_snapshot ??
-                    `Account ${entry.actor_account_id}`}
-                </span>
-                : {entry.reason}
-                <ul className="mt-1 space-y-1">
-                  {describeOfferingAdjustmentChanges(
-                    entry.before,
-                    entry.after,
-                  ).map((line) => (
-                    <li
-                      key={`${line.days ?? ""}|${line.text}`}
-                      className="flex items-baseline gap-1.5 text-gray-500"
-                    >
-                      {line.days ? (
-                        <span className="shrink-0">
-                          <StatusBadge compact tone="gray" label={line.days} />
-                        </span>
-                      ) : null}
-                      <span className="min-w-0">{line.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <ConfirmationModal
-        isOpen={withdrawalConfirmationOpen}
-        onClose={() => setWithdrawalConfirmationOpen(false)}
-        onConfirm={() => void confirmCompleteWithdrawal()}
-        title="Alle Betreuungstage entfernen?"
-        confirmText="Änderung speichern"
-        cancelText="Zurück"
-        isConfirmLoading={saving}
-        isDismissDisabled={saving}
-      >
-        <p>
-          Danach ist für {child.first_name} kein Betreuungstag mehr gebucht. Die
-          Abmeldung muss anschließend abgeschlossen werden.
-        </p>
-      </ConfirmationModal>
-    </div>
-  );
-}
-
-function initialManualOfferingIDs(
-  offerings?: AdminRequestChildOffering[],
-): Set<string> {
-  const ids = new Set<string>();
-  for (const offering of offerings ?? []) {
-    const automaticOnly =
-      (offering.automatic_selected_days?.length ?? 0) > 0 &&
-      (offering.manual_selected_days?.length ?? 0) === 0;
-    if (!automaticOnly) ids.add(offering.offering_id);
-  }
-  return ids;
-}
-
-/**
- * The days each booking on file holds automatically, i.e. derived from a
- * trigger offering rather than ticked by anyone. Keyed by offering id, absent
- * when a booking has none.
- */
-function automaticOfferingDays(
-  offerings?: AdminRequestChildOffering[],
-): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-  for (const offering of offerings ?? []) {
-    const automatic = offering.automatic_selected_days ?? [];
-    if (automatic.length > 0) out[offering.offering_id] = [...automatic];
-  }
-  return out;
-}
-
-function initialManualOfferingDays(
-  offerings?: AdminRequestChildOffering[],
-): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-  for (const offering of offerings ?? []) {
-    const manual =
-      (offering.manual_selected_days?.length ?? 0) > 0
-        ? offering.manual_selected_days
-        : offering.automatic_selected_days?.length
-          ? []
-          : offering.selected_days;
-    if (manual && manual.length > 0) out[offering.offering_id] = [...manual];
-  }
-  return out;
-}
-
-function adjustmentPayloadOfferings(
-  catalog: CareOffering[],
-  selected: Set<string>,
-  days: Record<string, string[]>,
-  existingOfferings?: AdminRequestChildOffering[],
-): Array<{ offering_id: string; selected_days?: string[] }> {
-  const payload = catalog
-    .filter((offering) => selected.has(offering.id))
-    .map((offering) => ({
-      offering_id: offering.id,
-      selected_days:
-        offering.days_of_week_mode === "parent_choice"
-          ? (days[offering.id] ?? [])
-          : undefined,
-    }));
-  const catalogIDs = new Set(catalog.map((offering) => offering.id));
-  for (const offering of existingOfferings ?? []) {
-    if (
-      catalogIDs.has(offering.offering_id) ||
-      !selected.has(offering.offering_id)
-    ) {
-      continue;
-    }
-    payload.push({
-      offering_id: offering.offering_id,
-      selected_days:
-        offering.days_of_week_mode === "parent_choice"
-          ? (days[offering.offering_id] ?? offering.selected_days ?? [])
-          : undefined,
-    });
-  }
-  return payload;
-}
-
-function materializeClientOfferingPreview(
-  catalog: CareOffering[],
-  selected: Set<string>,
-  days: Record<string, string[]>,
-  child: AdminRequestChild,
-): { automaticDays: Record<string, string[]> } {
-  const byID = new Map(catalog.map((offering) => [offering.id, offering]));
-  const selectedDaysByOffering = new Map<string, string[]>();
-  for (const offering of catalog) {
-    if (!selected.has(offering.id)) continue;
-    selectedDaysByOffering.set(
-      offering.id,
-      offering.days_of_week_mode === "fixed"
-        ? offering.available_days
-        : (days[offering.id] ?? []),
-    );
-  }
-  const automaticDays: Record<string, string[]> = {};
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const target of catalog) {
-      if (
-        target.days_of_week_mode !== "parent_choice" ||
-        !autoAddAppliesToChild(target, child)
-      ) {
-        continue;
-      }
-      const daySet = new Set<string>();
-      for (const triggerID of target.auto_add_trigger_offering_ids ?? []) {
-        const trigger = byID.get(triggerID);
-        if (!trigger || !selectedDaysByOffering.has(triggerID)) continue;
-        for (const day of selectedDaysByOffering.get(triggerID) ?? []) {
-          if (target.available_days.includes(day)) daySet.add(day);
-        }
-      }
-      if (target.is_required && target.includes_lunch) {
-        for (const offering of catalog) {
-          if (offering.id === target.id || offering.counts_as_care === false) {
-            continue;
-          }
-          for (const day of selectedDaysByOffering.get(offering.id) ?? []) {
-            if (target.available_days.includes(day)) daySet.add(day);
-          }
-        }
-      }
-      const ordered = target.available_days.filter((day) => daySet.has(day));
-      if (ordered.length === 0) continue;
-      if (!sameStringArray(automaticDays[target.id] ?? [], ordered)) {
-        automaticDays[target.id] = ordered;
-        changed = true;
-      }
-      const merged = unionDaysInOrder(
-        target.available_days,
-        selectedDaysByOffering.get(target.id) ?? [],
-        ordered,
-      );
-      if (
-        !sameStringArray(selectedDaysByOffering.get(target.id) ?? [], merged)
-      ) {
-        selectedDaysByOffering.set(target.id, merged);
-        changed = true;
-      }
-    }
-  }
-  return { automaticDays };
-}
-
-function unionDaysInOrder(
-  order: readonly string[],
-  ...groups: readonly string[][]
-): string[] {
-  const selected = new Set(groups.flat());
-  return order.filter((day) => selected.has(day));
-}
-
-function sameStringArray(left: readonly string[], right: readonly string[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, idx) => value === right[idx])
-  );
-}
-
-function autoAddAppliesToChild(
-  offering: CareOffering,
-  child: AdminRequestChild,
-): boolean {
-  const levels = offering.auto_add_grade_levels ?? [];
-  if (
-    levels.length > 0 &&
-    (!child.target_grade_level || !levels.includes(child.target_grade_level))
-  ) {
-    return false;
-  }
-  return (
-    (offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ||
-    (offering.is_required && offering.includes_lunch)
-  );
-}
-
-type OfferingAdjustmentSnapshot = AdminOfferingAdjustment["before"][number];
-
-export interface OfferingAdjustmentChangeLine {
-  /** Formatted weekdays ("Di, Mi"), or null for a change without known days. */
-  readonly days: string | null;
-  readonly text: string;
-}
-
-const WEEKDAY_ORDER = Object.keys(DAY_LABEL_DE);
-const GERMAN_LIST = new Intl.ListFormat("de", { type: "conjunction" });
-
-// describeOfferingAdjustmentChanges turns the before/after audit snapshots of
-// one offering adjustment into one line per group of weekdays that changed the
-// same way (#3688). A snapshot row without determinable days does not enter the
-// weekday comparison; an offering that only such rows carry and that appears on
-// one side only is listed at the end as booked or cancelled.
-export function describeOfferingAdjustmentChanges(
-  before: readonly OfferingAdjustmentSnapshot[],
-  after: readonly OfferingAdjustmentSnapshot[],
-): OfferingAdjustmentChangeLine[] {
-  const beforeByDay = offeringsByDay(before);
-  const afterByDay = offeringsByDay(after);
-  // The after snapshot names an offering as it is called now.
-  const names = new Map<string, string>();
-  for (const row of [...before, ...after]) {
-    names.set(row.offering_id, snapshotName(row));
-  }
-
-  const groups = new Map<
-    string,
-    { days: string[]; removed: string[]; added: string[] }
-  >();
-  const allDays = new Set([...beforeByDay.keys(), ...afterByDay.keys()]);
-  for (const day of [...allDays].sort(compareWeekdays)) {
-    const was = beforeByDay.get(day) ?? [];
-    const is = afterByDay.get(day) ?? [];
-    const removed = was.filter((id) => !is.includes(id));
-    const added = is.filter((id) => !was.includes(id));
-    if (removed.length === 0 && added.length === 0) continue;
-    const key = JSON.stringify([removed, added]);
-    const group = groups.get(key) ?? { days: [], removed, added };
-    group.days.push(day);
-    groups.set(key, group);
-  }
-
-  const nameList = (ids: readonly string[]) =>
-    GERMAN_LIST.format(ids.map((id) => names.get(id) ?? `Angebot #${id}`));
-  const lines: OfferingAdjustmentChangeLine[] = [...groups.values()].map(
-    ({ days, removed, added }) => ({
-      days: formatAdminDays(days),
-      text: describeChange(nameList(removed), nameList(added)),
-    }),
-  );
-
-  const undatedRemoved = undatedOnlyIn(before, after);
-  const undatedAdded = undatedOnlyIn(after, before);
-  if (undatedRemoved.length > 0) {
-    lines.push({ days: null, text: `${nameList(undatedRemoved)} abgemeldet` });
-  }
-  if (undatedAdded.length > 0) {
-    lines.push({ days: null, text: `${nameList(undatedAdded)} gebucht` });
-  }
-
-  return lines.length > 0
-    ? lines
-    : [{ days: null, text: "Angebote unverändert" }];
-}
-
-function describeChange(removed: string, added: string): string {
-  if (removed && added) return `vorher ${removed}, nachher ${added}`;
-  if (added) return `${added} gebucht`;
-  return `${removed} abgemeldet`;
-}
-
-// snapshotDays mirrors the backend baseline rule: a fixed offering without an
-// explicit selection covers all its available days.
-function snapshotDays(row: OfferingAdjustmentSnapshot): readonly string[] {
-  if ((row.selected_days?.length ?? 0) > 0) return row.selected_days ?? [];
-  if (row.days_of_week_mode === "fixed") return row.available_days ?? [];
-  return [];
-}
-
-function offeringsByDay(
-  rows: readonly OfferingAdjustmentSnapshot[],
-): Map<string, string[]> {
-  const byDay = new Map<string, string[]>();
-  for (const row of rows) {
-    for (const day of snapshotDays(row)) {
-      const ids = byDay.get(day) ?? [];
-      if (!ids.includes(row.offering_id)) ids.push(row.offering_id);
-      byDay.set(day, ids);
-    }
-  }
-  return byDay;
-}
-
-// undatedOnlyIn returns the ids of offerings that `rows` carries only without
-// determinable days and that `other` does not carry at all.
-function undatedOnlyIn(
-  rows: readonly OfferingAdjustmentSnapshot[],
-  other: readonly OfferingAdjustmentSnapshot[],
-): string[] {
-  const otherIds = new Set(other.map((row) => row.offering_id));
-  const datedIds = new Set(
-    rows
-      .filter((row) => snapshotDays(row).length > 0)
-      .map((row) => row.offering_id),
-  );
-  const ids = rows
-    .map((row) => row.offering_id)
-    .filter((id) => !datedIds.has(id) && !otherIds.has(id));
-  return [...new Set(ids)];
-}
-
-function compareWeekdays(a: string, b: string): number {
-  const rank = (day: string) => {
-    const index = WEEKDAY_ORDER.indexOf(day);
-    return index === -1 ? WEEKDAY_ORDER.length : index;
-  };
-  return rank(a) - rank(b);
-}
-
-function snapshotName(row: OfferingAdjustmentSnapshot): string {
-  return row.offering_name || `Angebot #${row.offering_id}`;
-}
-
-function formatAdminOfferingDaySource(o: AdminRequestChildOffering): string {
-  const automatic = formatAdminDays(o.automatic_selected_days ?? []);
-  const manualDays =
-    (o.manual_selected_days?.length ?? 0) > 0 ||
-    (o.automatic_selected_days?.length ?? 0) > 0
-      ? (o.manual_selected_days ?? [])
-      : (o.selected_days ?? []);
-  const manual = formatAdminDays(manualDays);
-  if (automatic && manual) {
-    return `${automatic} automatisch mitgebucht; ${manual} von Eltern gewählt`;
-  }
-  if (automatic) return `${automatic} automatisch mitgebucht`;
-  if (manual) return `Von Eltern gewählt: ${manual}`;
-  return "";
-}
-
-function formatAdminDays(days: readonly string[]): string {
-  return days.map((d) => DAY_LABEL_DE[d] ?? d).join(", ");
-}
-
-// Reserved child custom-data key carrying the coupled "mit wem" note for the
-// accompanied departure mode (#1694). It rides alongside
-// student.allowed_departure_modes instead of being a standalone schema field,
-// so it is NOT in schema_fields and must be rendered explicitly here — the
-// backend persists it onto the student on approval, so staff must see it before
-// deciding. Matches DEPARTURE_COMPANION_KEY in enrollment-form.tsx and
-// TargetStudentDepartureCompanionNote in the backend.
-const DEPARTURE_COMPANION_KEY = "student.departure_companion_note";
-
-export function ChildExtraFields({
-  child,
-  schemaFields,
-}: Readonly<{
-  child: AdminRequestChild;
-  schemaFields?: AdminRequestSchemaField[];
-}>) {
-  const childFields = (schemaFields ?? []).filter((f) => f.applies_to_child);
-  const filled = childFields
-    .map((f) => ({
-      field: f,
-      value: formatCustomValue(child.custom_data?.[f.key], f),
-    }))
-    .filter((row) => row.value !== null);
-  const companionNote = (
-    child.custom_data?.[DEPARTURE_COMPANION_KEY] as string | undefined
-  )?.trim();
-  if (filled.length === 0 && !companionNote) return null;
-  return (
-    <div className="mt-3">
-      <InfoSection
-        title="Zusätzliche Angaben zum Kind"
-        icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
-      >
-        <DataGrid>
-          {filled.map(({ field, value }) => (
-            <DataField key={field.key} label={field.label}>
-              {value}
-            </DataField>
-          ))}
-          {companionNote && (
-            <DataField key={DEPARTURE_COMPANION_KEY} label="Mit welchem Kind?">
-              {companionNote}
-            </DataField>
-          )}
-        </DataGrid>
-      </InfoSection>
-    </div>
-  );
+  return on === today
+    ? "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages."
+    : `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(on)}. Bis dahin bleiben die bisherigen.`;
 }

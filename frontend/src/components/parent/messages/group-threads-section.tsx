@@ -1,16 +1,18 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
-import { CaretRightIcon } from "@phosphor-icons/react/ssr";
+import { useLocale } from "next-intl";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import NavigationLink from "~/components/ui/navigation-link";
+import { ListRowLink } from "~/components/ui/list-row-link";
+import { ChatTimestamp } from "~/components/parent/messages/chat-timestamp";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import type { GroupThreadSummary } from "~/lib/parent-api";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 /**
  * Gruppennachrichten der OGS (#4784): what the OGS wrote to the group, class
@@ -30,7 +32,7 @@ export function GroupThreadsSection({
   compact?: boolean;
   error?: FormErrorInput;
 }>) {
-  const t = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentGroupThreads");
   if (threads.length === 0 && !error) return null;
   return (
     <ParentSection
@@ -56,8 +58,9 @@ export function GroupThreadsSection({
 }
 
 function GroupThreadRow({ thread }: Readonly<{ thread: GroupThreadSummary }>) {
-  const t = useTranslations("parentGroupThreads");
-  const tm = useTranslations("parentMessages");
+  const t = useCareTermTranslations("parentGroupThreads");
+  const tm = useCareTermTranslations("parentMessages");
+  const { termOfSchool } = useParentCareTerms();
   const locale = useLocale();
   const timestamp = formatChatDateTime(thread.last_message_at, locale);
   const compactTimestamp = thread.last_message_at
@@ -65,60 +68,36 @@ function GroupThreadRow({ thread }: Readonly<{ thread: GroupThreadSummary }>) {
     : "";
   const unread = thread.unread > 0;
   const counterpart = thread.school_name
-    ? tm("ogsTeam", { school: thread.school_name })
+    ? tm("ogsTeam", {
+        school: thread.school_name,
+        careTerm: termOfSchool(thread.school_name),
+      })
     : thread.counterpart_name;
 
   return (
-    <NavigationLink
+    <ListRowLink
       href={parentPath(`/parents/messages/group/${thread.id}`)}
-      className="flex w-full items-center gap-3 rounded-lg py-3 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-100"
-    >
-      <span className="min-w-0 flex-1 space-y-0.5">
-        <span className="flex min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-xs font-medium text-gray-500">
-            {thread.target_label} · {counterpart}
-          </span>
-          {timestamp && (
-            <span
-              aria-label={timestamp}
-              className={`shrink-0 text-xs tabular-nums ${unread ? "text-moto-blue font-semibold" : "text-gray-500"}`}
-            >
-              <span aria-hidden="true" className="sm:hidden">
-                {compactTimestamp}
-              </span>
-              <span aria-hidden="true" className="hidden sm:inline">
-                {timestamp}
-              </span>
+      className="rounded-lg px-0 py-3"
+      overline={`${thread.target_label} · ${counterpart}`}
+      metaLabel={timestamp || undefined}
+      meta={
+        timestamp ? (
+          <ChatTimestamp full={timestamp} compact={compactTimestamp} />
+        ) : undefined
+      }
+      title={thread.title}
+      badge={
+        <>
+          {thread.closed && (
+            <span className="text-xs font-medium text-gray-500">
+              {t("closed")}
             </span>
           )}
-        </span>
-        <span className="flex min-w-0 items-center justify-between gap-2">
-          <span
-            className={`min-w-0 truncate text-base text-gray-900 ${unread ? "font-bold" : "font-semibold"}`}
-          >
-            {thread.title}
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {thread.closed && (
-              <span className="text-xs font-medium text-gray-500">
-                {t("closed")}
-              </span>
-            )}
-            <UnreadBadge count={thread.unread} />
-          </span>
-        </span>
-        <span
-          className={`block min-w-0 truncate text-sm ${unread ? "text-gray-700" : "text-gray-500"}`}
-        >
-          {thread.last_message_body}
-        </span>
-      </span>
-      <CaretRightIcon
-        size={20}
-        weight="bold"
-        className="shrink-0 text-gray-400"
-        aria-hidden="true"
-      />
-    </NavigationLink>
+          <UnreadBadge count={thread.unread} />
+        </>
+      }
+      unread={unread}
+      subtitle={thread.last_message_body}
+    />
   );
 }

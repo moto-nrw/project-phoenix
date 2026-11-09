@@ -67,7 +67,7 @@ describe("AccountsTable", () => {
       />,
     );
 
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("–").length).toBeGreaterThanOrEqual(2);
   });
 
   it("renders an empty state when no accounts are passed", () => {
@@ -76,6 +76,19 @@ describe("AccountsTable", () => {
     // AccountsTable does not pass a custom emptyState → DataTable falls
     // back to its default placeholder.
     expect(screen.getByText("Keine Einträge vorhanden.")).toBeInTheDocument();
+  });
+
+  it("falls back for inherited status-map keys", () => {
+    render(
+      <AccountsTable
+        accounts={[makeSchoolAccount({ status: "constructor" })]}
+      />,
+    );
+
+    expect(screen.getByText("constructor")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
   });
 
   it("sorts by Rolle when the header is clicked (covers roleName sortValue)", () => {

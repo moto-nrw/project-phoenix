@@ -4,7 +4,7 @@
   "marksShort": "Alerjenler: {letters}",
   "marksLabel": "İçerir: {names}",
   "noneThisWeek": "Bu hafta için alerjen bilgisi girilmedi.",
-  "source": "Bu bilgiler okuldan veya yemek firmasından gelir. Harfi olmayan bir yemek kesin olarak alerjensiz değildir. Sorularınız için OGS'ye başvurun.",
+  "source": "Bu bilgiler okuldan veya yemek firmasından gelir. Harfi olmayan bir yemek kesin olarak alerjensiz değildir. Sorularınız için {careTerm}'ye başvurun.",
   "names": {
     "gluten": "Gluten içeren tahıllar",
     "crustaceans": "Kabuklu deniz ürünleri",

@@ -144,6 +144,12 @@ describe("getParentHelpTopicForPath", () => {
     ["/anmeldung", HELP_TOPICS.parentEnroll],
     ["/anmeldung/demo-school/1", HELP_TOPICS.parentEnroll],
     ["/ferienanmeldung/link-key", HELP_TOPICS.parentHolidayRegistration],
+    // Unterschriftsseite aus den Dokumenten (#4679) und Nachweis eines
+    // Elternbriefs liegen unter ihrer Liste.
+    ["/documents/vertrag/7/12", HELP_TOPICS.parentDocuments],
+    ["/parents/documents/vertrag/7/12", HELP_TOPICS.parentDocuments],
+    ["/vertrag-unterschreiben", HELP_TOPICS.parentDocuments],
+    ["/news/5/nachweis", HELP_TOPICS.parentNews],
     // Auf der Eltern-Subdomain fehlt das Praefix, im Tenant-Kontext
     // steht es davor. Beide Formen fuehren zum selben Artikel.
     ["/parents/children", HELP_TOPICS.parentChildOverview],
@@ -603,7 +609,8 @@ describe("getParentHelpTopicForPath", () => {
     // 99 seit #4774: Soll und Ist vergleichen.
     // 100 seit #4769: das geteilte Wochenprotokoll.
     // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
-    expect(leadTopics).toHaveLength(101);
+    // 103 seit #4692: Dokumente vom Träger finden.
+    expect(leadTopics).toHaveLength(104);
     expect(
       leadTopics.every(
         (topic) =>
@@ -720,6 +727,8 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerDashboard,
+      HELP_TOPICS.traegerKeyDateCounts,
+      HELP_TOPICS.traegerOccupancy,
       HELP_TOPICS.traegerSchoolView,
       HELP_TOPICS.traegerSchoolSwitch,
       HELP_TOPICS.traegerTestSystem,
@@ -729,16 +738,29 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerCareContracts,
       HELP_TOPICS.traegerBillingRun,
+      HELP_TOPICS.traegerCareMonths,
+      HELP_TOPICS.traegerCareNotices,
+      HELP_TOPICS.traegerCareReductions,
+      HELP_TOPICS.traegerCareMeals,
+      HELP_TOPICS.traegerCareCostShares,
+      HELP_TOPICS.traegerBillingTerms,
+      HELP_TOPICS.traegerSepaMandates,
+      HELP_TOPICS.traegerSharedDocuments,
+      HELP_TOPICS.traegerCareTimeOverruns,
       HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.traegerBriefkopf,
       HELP_TOPICS.traegerDocumentTemplates,
+      HELP_TOPICS.traegerDocumentKinds,
       HELP_TOPICS.traegerSettings,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
+      // Dokumente für Eltern und Schulen (#4692).
+      "elternarbeit",
       "auswertung",
       "konfiguration",
       "probleme",

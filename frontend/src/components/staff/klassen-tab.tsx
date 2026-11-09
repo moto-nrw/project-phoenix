@@ -11,7 +11,7 @@
 // „Speichern“ schreibt das ganze Set einmal per PUT (#3112). Vorher schrieb
 // jeder Chip-Klick sofort, ohne Abbrechen und ohne Hinweis.
 
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -26,13 +26,15 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { RemovableChip } from "~/components/ui/removable-chip";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import { fetchSchoolClasses } from "~/lib/student-api";
 
 const logger = createLogger({ component: "StaffKlassenTab" });
 
@@ -64,13 +66,6 @@ async function saveAssignedClasses(
     { method: "PUT", body: { school_classes: classes } },
   );
   return response.data.school_classes ?? [];
-}
-
-async function fetchKnownClasses(): Promise<string[]> {
-  const response = await authFetch<{ success: boolean; data: string[] }>(
-    "/api/students/school-classes",
-  );
-  return response.data ?? [];
 }
 
 function sameClassSet(a: readonly string[], b: readonly string[]): boolean {
@@ -121,7 +116,7 @@ export function KlassenTab({
           retry: () => setLoadAttempt((attempt) => attempt + 1),
         });
       });
-    fetchKnownClasses()
+    fetchSchoolClasses()
       .then((classes) => {
         if (!cancelled) setKnown(classes);
       })
@@ -237,39 +232,30 @@ export function KlassenTab({
                 Noch keine Klasse zugewiesen.
               </p>
             )}
-            {shown.map((klass) => (
-              <span
-                key={klass}
-                // min-h-8 hält die Chip-Höhe konstant, egal ob der
-                // Entfernen-Button (h-8) daneben steht.
-                className={`inline-flex min-h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white pl-3 text-sm font-medium text-gray-900 shadow-sm ${editing ? "pr-1" : "pr-3"}`}
-              >
-                {schoolClassLabel(klass)}
-                {editing && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`${schoolClassLabel(klass)} entfernen`}
-                    title={`${schoolClassLabel(klass)} entfernen`}
-                    onClick={() => removeClass(klass)}
-                    disabled={saving}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                )}
-              </span>
-            ))}
+            {shown.map((klass) =>
+              editing ? (
+                <RemovableChip
+                  key={klass}
+                  label={schoolClassLabel(klass)}
+                  onRemove={() => removeClass(klass)}
+                  removeLabel={`${schoolClassLabel(klass)} entfernen`}
+                  disabled={saving}
+                />
+              ) : (
+                <RemovableChip key={klass} label={schoolClassLabel(klass)} />
+              ),
+            )}
           </div>
 
           {editing && (
             <>
               <div className="flex items-center gap-2">
                 <div className="w-40">
-                  <Input
-                    type="text"
+                  <SuggestInput
                     value={newClass}
-                    onChange={(event) => setNewClass(event.target.value)}
+                    onValueChange={setNewClass}
+                    suggestions={suggestions}
+                    listLabel="Vorschläge für die Klasse"
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -278,18 +264,12 @@ export function KlassenTab({
                     }}
                     name="school_classes"
                     error={formErrors.fieldError("school_classes")}
-                    list="staff-known-classes"
                     placeholder="z. B. 1a"
                     aria-label="Klassenname"
                     disabled={saving}
                     controlSize="compact"
                   />
                 </div>
-                <datalist id="staff-known-classes">
-                  {suggestions.map((klass) => (
-                    <option key={klass} value={klass} />
-                  ))}
-                </datalist>
                 <Button
                   type="button"
                   variant="surface"

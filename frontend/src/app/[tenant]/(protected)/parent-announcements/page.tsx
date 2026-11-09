@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
@@ -34,7 +35,6 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -51,6 +51,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Radio } from "~/components/ui/radio";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { TimeField } from "~/components/ui/time-field";
 import {
   DEFAULT_REMINDER_TIME,
@@ -90,6 +91,8 @@ import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { AttachmentList } from "~/components/ui/attachment-list";
+import { FileTypeIcon } from "~/components/ui/file-type-icon";
+import { Textarea } from "~/components/ui/textarea";
 import { formatBytes } from "~/lib/files-api";
 import {
   berlinClockFromISO,
@@ -109,7 +112,8 @@ import {
   insertPastedOptions,
 } from "~/lib/announcement-poll-options";
 import { useSWRAuth } from "~/lib/swr";
-import { studentService, type Group } from "~/lib/api";
+import { type Group } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
 import { fetchActivities } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-helpers";
 import {
@@ -133,6 +137,7 @@ import type {
   AnnouncementTarget,
   DeclarationSigners,
 } from "~/lib/parent-announcements-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ParentAnnouncementsPage" });
 
@@ -329,7 +334,7 @@ function ParentAnnouncementsContent() {
     mutate: reloadClasses,
   } = useSWRAuth<string[]>(
     isFormOpen ? "parent-announcements-classes" : null,
-    () => studentService.getSchoolClasses(),
+    () => fetchSchoolClasses(),
     { revalidateOnFocus: false },
   );
   // Ohne geladene Auswahllisten stünde in den Feldern „Keine Gruppen“, obwohl
@@ -557,9 +562,7 @@ function ParentAnnouncementsContent() {
             )}
             {row.priority === "important" &&
               row.system_kind !== "care_cancellation" && (
-                <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                  Wichtig
-                </span>
+                <StatusBadge label="Wichtig" tone="gray" compact />
               )}
           </div>
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
@@ -1485,28 +1488,25 @@ function AnnouncementFormModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[860px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {isPollForm
+      <SlideOverContent size="xl">
+        <SlideOverHeader>
+          <SlideOverTitle>
+            {isPollForm
+              ? isEdit
+                ? "Umfrage bearbeiten"
+                : "Neue Umfrage"
+              : isLetterForm
                 ? isEdit
-                  ? "Umfrage bearbeiten"
-                  : "Neue Umfrage"
-                : isLetterForm
+                  ? "Elternbrief bearbeiten"
+                  : "Neuer Elternbrief"
+                : isDeclarationForm
                   ? isEdit
-                    ? "Elternbrief bearbeiten"
-                    : "Neuer Elternbrief"
-                  : isDeclarationForm
-                    ? isEdit
-                      ? "Einverständnis bearbeiten"
-                      : "Neues Einverständnis"
-                    : isEdit
-                      ? "Elternmitteilung bearbeiten"
-                      : "Neue Elternmitteilung"}
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+                    ? "Einverständnis bearbeiten"
+                    : "Neues Einverständnis"
+                  : isEdit
+                    ? "Elternmitteilung bearbeiten"
+                    : "Neue Elternmitteilung"}
+          </SlideOverTitle>
         </SlideOverHeader>
         {/* Der Fehler des Formulars steht oben im Rumpf, nicht unten über
             dem Footer (Bauart 2 Regel 5, #3113). */}
@@ -1515,7 +1515,7 @@ function AnnouncementFormModal({
             <WizardStepper steps={WIZARD_STEPS} current={step} />
 
             {step === 0 ? (
-              // Sections with quiet uppercase headers, every control on the full
+              // Sections with quiet section labels, every control on the full
               // width — the same form language as the Vertretungsplan slide-over.
               // No nested cards and no per-option input rows: at this size they
               // read as clutter, not as structure.
@@ -1534,36 +1534,18 @@ function AnnouncementFormModal({
                     }
                   />
 
-                  <div>
-                    <label
-                      htmlFor="announcement-body"
-                      className="mb-2 block text-sm font-medium text-gray-700"
-                    >
-                      Text
-                    </label>
-                    <textarea
-                      id="announcement-body"
-                      name="body"
-                      aria-invalid={bodyError ? true : undefined}
-                      aria-describedby={
-                        bodyError ? "announcement-body-error" : undefined
-                      }
-                      value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      rows={5}
-                      maxLength={4000}
-                      placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
-                      className={`block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${bodyError ? "ring-moto-red" : "ring-gray-200"}`}
-                    />
-                    {bodyError ? (
-                      <p
-                        id="announcement-body-error"
-                        className="text-moto-red-strong mt-1 text-xs"
-                      >
-                        {bodyError}
-                      </p>
-                    ) : null}
-                  </div>
+                  <Textarea
+                    id="announcement-body"
+                    name="body"
+                    label="Text"
+                    error={bodyError ?? undefined}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={5}
+                    maxLength={4000}
+                    placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
+                    className="resize-y px-4 py-3 text-base"
+                  />
 
                   <Input
                     label="Link (optional)"
@@ -1578,9 +1560,7 @@ function AnnouncementFormModal({
 
                 {isPollForm && (
                   <section className="space-y-3">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Antwortmöglichkeiten
-                    </h3>
+                    <SectionLabel>Antwortmöglichkeiten</SectionLabel>
                     <div>
                       <ul className="space-y-2">
                         {optionRows.map((option, index) => (
@@ -1659,9 +1639,7 @@ function AnnouncementFormModal({
                 {isDeclarationForm && (
                   <section className="space-y-4">
                     <div>
-                      <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        Einverständnis
-                      </h3>
+                      <SectionLabel>Einverständnis</SectionLabel>
                       <p className="mt-1 text-sm text-gray-600">
                         Eltern stimmen im Eltern-Portal für jedes Kind einzeln
                         zu oder lehnen ab. Das ist eine einfache Erklärung per
@@ -1766,62 +1744,58 @@ function AnnouncementFormModal({
                 )}
 
                 <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Zeitraum
-                  </h3>
+                  <SectionLabel>Zeitraum</SectionLabel>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {hasDeadline && (
                       <div>
-                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <FieldLabel htmlFor="announcement-deadline">
                           {isDeclarationForm
                             ? "Frist (optional)"
                             : "Antwortfrist (optional)"}
-                        </span>
+                        </FieldLabel>
                         <DatePicker
+                          id="announcement-deadline"
                           value={deadline}
                           onChange={setDeadline}
                           placeholder="Keine Frist"
                           dropdownPlacement="down"
+                          hint={
+                            isDeclarationForm
+                              ? declarationRevocable
+                                ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
+                                : "Danach können Eltern nicht mehr antworten."
+                              : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."
+                          }
                         />
-                        <p className="mt-1.5 text-xs text-gray-500">
-                          {isDeclarationForm
-                            ? declarationRevocable
-                              ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
-                              : "Danach können Eltern nicht mehr antworten."
-                            : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
-                        </p>
                       </div>
                     )}
                     <div>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                      <FieldLabel htmlFor="announcement-expires-at">
                         Ablaufdatum (optional)
-                      </span>
+                      </FieldLabel>
                       <DatePicker
+                        id="announcement-expires-at"
                         value={expiresAt}
                         onChange={setExpiresAt}
                         placeholder="Kein Ablaufdatum"
                         dropdownPlacement="down"
+                        hint={`Danach wird ${
+                          isPollForm
+                            ? "die Umfrage"
+                            : isLetterForm
+                              ? "der Elternbrief"
+                              : isDeclarationForm
+                                ? "das Einverständnis"
+                                : "die Mitteilung"
+                        } für Eltern ausgeblendet.`}
                       />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        Danach wird{" "}
-                        {isPollForm
-                          ? "die Umfrage"
-                          : isLetterForm
-                            ? "der Elternbrief"
-                            : isDeclarationForm
-                              ? "das Einverständnis"
-                              : "die Mitteilung"}{" "}
-                        für Eltern ausgeblendet.
-                      </p>
                     </div>
                   </div>
                 </section>
 
                 {!isPollForm && (
                   <section className="space-y-3">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Erinnerung
-                    </h3>
+                    <SectionLabel>Erinnerung</SectionLabel>
                     <p className="text-sm text-gray-600">
                       Optional: moto schickt{" "}
                       {isLetterForm
@@ -1838,10 +1812,11 @@ function AnnouncementFormModal({
                     </p>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <FieldLabel htmlFor="announcement-reminder-day">
                           Erinnern am (optional)
-                        </span>
+                        </FieldLabel>
                         <DatePicker
+                          id="announcement-reminder-day"
                           value={reminderDay}
                           onChange={setReminderDay}
                           placeholder="Keine Erinnerung"
@@ -1859,41 +1834,30 @@ function AnnouncementFormModal({
                       )}
                     </div>
                     {reminderDay && (
-                      <div>
-                        <label
-                          htmlFor="announcement-reminder-text"
-                          className="mb-2 block text-sm font-medium text-gray-700"
-                        >
-                          Erinnerungstext (optional)
-                        </label>
-                        <textarea
-                          id="announcement-reminder-text"
-                          value={reminderText}
-                          onChange={(e) => setReminderText(e.target.value)}
-                          rows={2}
-                          maxLength={MAX_REMINDER_TEXT_LENGTH}
-                          placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
-                          className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-                        />
-                        <p className="mt-1.5 text-xs text-gray-500">
-                          {isLetterForm
+                      <Textarea
+                        id="announcement-reminder-text"
+                        label="Erinnerungstext (optional)"
+                        hint={
+                          isLetterForm
                             ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
-                            : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
-                        </p>
-                      </div>
+                            : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."
+                        }
+                        value={reminderText}
+                        onChange={(e) => setReminderText(e.target.value)}
+                        rows={2}
+                        maxLength={MAX_REMINDER_TEXT_LENGTH}
+                        placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
+                        className="resize-y px-4 py-3 text-base"
+                      />
                     )}
                   </section>
                 )}
 
                 <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Veröffentlichung
-                  </h3>
+                  <SectionLabel>Veröffentlichung</SectionLabel>
 
                   <div>
-                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Priorität
-                    </span>
+                    <FieldLabel>Priorität</FieldLabel>
                     <SegmentedControl
                       variant="pills"
                       ariaLabel="Priorität"
@@ -1907,7 +1871,7 @@ function AnnouncementFormModal({
                   they are stated as facts instead of offered as choices. Shown,
                   not hidden: the author must see what will happen. */}
                   {isLetterForm && (
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <InsetPanel framed padding="md">
                       <p className="text-sm font-medium text-gray-800">
                         Beim Veröffentlichen passiert automatisch:
                       </p>
@@ -1923,7 +1887,7 @@ function AnnouncementFormModal({
                           Bestätigung pro Kind genügt.
                         </li>
                       </ul>
-                    </div>
+                    </InsetPanel>
                   )}
 
                   {/* A poll answer already IS the confirmation — offering a second,
@@ -2041,14 +2005,14 @@ function AnnouncementFormModal({
                   {pendingFiles.length > 0 && (
                     <ul className="flex flex-col gap-2">
                       {pendingFiles.map((file, index) => (
-                        <li
+                        <InsetPanel
+                          as="li"
                           key={`${file.name}-${index}`}
-                          className="flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+                          dashed
+                          padding="compact"
+                          className="flex items-center gap-3"
                         >
-                          <Paperclip
-                            className="h-4 w-4 shrink-0 text-gray-400"
-                            aria-hidden
-                          />
+                          <FileTypeIcon contentType={file.type} />
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                             {file.name}
                           </span>
@@ -2063,7 +2027,7 @@ function AnnouncementFormModal({
                           >
                             Entfernen
                           </Button>
-                        </li>
+                        </InsetPanel>
                       ))}
                       <li className="text-xs text-gray-500">
                         Diese Dateien werden mit dem Speichern hochgeladen.
@@ -2141,9 +2105,7 @@ function AnnouncementFormModal({
             )}
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );

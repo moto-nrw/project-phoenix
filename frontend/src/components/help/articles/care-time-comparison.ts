@@ -40,9 +40,13 @@ export function careTimeComparisonTopic(): HelpTopic {
       },
     ],
     result:
-      "Überschreitungen sind orange markiert und tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`.",
+      "Überschreitungen tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`. Ihre `Abweichung` steht in Rot.",
     notes: [
+      "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
       "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
+      "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
+      "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",
+      "Bei einem Feriengast steht `Soll und Ist` unter `Feriengast`. Der Zeitraum beginnt mit seiner Ferienwoche.",
       "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
       "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
       "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -54,6 +58,7 @@ export function careTimeComparisonTopic(): HelpTopic {
     differences: [
       "Steht `Keine Zeiten hinterlegt`? Für das Kind ist kein Wochenplan eingetragen. Dann gibt es nichts zu vergleichen.",
       "Steht `Noch nicht abgemeldet`? Das Kind ist noch da, oder die Abmeldung fehlt.",
+      "Steht `Abholzeit fehlt`? Für diesen Tag ist keine Abholzeit gebucht, zum Beispiel ein Modul im Vertrag ohne Endzeit. Dann lässt sich das Gehen nicht vergleichen.",
     ],
     troubleshootingDetails: [
       "Fehlt `Soll und Ist` beim Kind? Ihr Konto darf die Kinderdaten nicht lesen.",

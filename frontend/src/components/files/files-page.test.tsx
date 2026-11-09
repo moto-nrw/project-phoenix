@@ -6,13 +6,21 @@ import {
   within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { FileFolder, FolderFiles, FolderOverview } from "~/lib/files-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { FilesPage } from "./files-page";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
+
+// DataTable renders only the layout for the window width (#6220).
+afterEach(() => setViewportWidth(DESKTOP_WIDTH));
 
 const mutate = vi.hoisted(() => vi.fn());
 const useSWRAuth = vi.hoisted(() => vi.fn());
@@ -55,9 +63,12 @@ const folder: FileFolder = {
   createdAt: "2026-08-29T10:00:00Z",
 };
 
-function renderPage(staffUploadEnabled: boolean) {
+function renderPage(
+  staffUploadEnabled: boolean,
+  folders: FileFolder[] = [folder],
+) {
   const overview: FolderOverview = {
-    folders: [folder],
+    folders,
     canManage: true,
     canUpload: true,
     staffUploadEnabled,
@@ -67,7 +78,14 @@ function renderPage(staffUploadEnabled: boolean) {
   const folderFiles: FolderFiles = { folder, files: [] };
 
   useSWRAuth.mockImplementation((key: string) => ({
-    data: key === "files-folders" ? overview : folderFiles,
+    // Die Karte „Vom Träger“ (#4692) lädt ihre Dokumente unter eigenem
+    // Schlüssel; dieser Träger hat keine freigegeben.
+    data:
+      key === "files-folders"
+        ? overview
+        : key === "traeger-documents-school"
+          ? []
+          : folderFiles,
     error: undefined,
     isLoading: false,
     mutate,
@@ -130,6 +148,34 @@ describe("FilesPage upload permission summary", () => {
     expect(
       screen.getByRole("link", { name: "Berechtigung ändern" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps a long desktop folder list inside its scrollable area", () => {
+    renderPage(
+      false,
+      Array.from({ length: 50 }, (_, index) => ({
+        ...folder,
+        id: String(index + 1),
+        name: `Ordner ${index + 1}`,
+      })),
+    );
+
+    const aside = screen
+      .getAllByText("Ordner")
+      .map((label) => label.closest("aside"))
+      .find((element) => element !== null);
+    if (!aside) throw new Error("Ordner-Seitenleiste fehlt");
+    const body = aside.parentElement;
+    if (!body) throw new Error("Ordner-Kartenrumpf fehlt");
+    const card = body.parentElement;
+    if (!card) throw new Error("Ordner-Karte fehlt");
+    const folderList = aside.querySelector(".overflow-y-auto");
+    if (!folderList) throw new Error("Ordnerliste fehlt");
+
+    expect(card).toHaveClass("h-full", "min-h-0", "flex-col", "lg:flex");
+    expect(body).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
+    expect(aside).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
+    expect(folderList).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
   });
 });
 
@@ -267,6 +313,7 @@ describe("FilesPage file list on narrow screens (#4975)", () => {
   });
 
   it("puts the menu with Herunterladen into the phone line of each file", async () => {
+    setViewportWidth(PHONE_WIDTH);
     renderWithToasts(<FilesPage />);
 
     const phone = screen.getByTestId("data-table-stacked");
@@ -286,5 +333,137 @@ describe("FilesPage file list on narrow screens (#4975)", () => {
     const name = within(table).getByRole("link", { name: longName });
     expect(name).toHaveAttribute("title", expect.stringContaining(longName));
     expect(name.closest("td")).toHaveClass("w-full", "max-w-0");
+  });
+});
+
+describe("FilesPage documents of the Träger (#4692)", () => {
+  it("shows the documents the Träger released for the school", async () => {
+    useSession.mockReturnValue({
+      data: { user: { permissions: ["files:manage"] } },
+    });
+    useSWRAuth.mockImplementation((key: string) => ({
+      data:
+        key === "traeger-documents-school"
+          ? [
+              {
+                id: "4",
+                title: "Hausordnung 2026/27",
+                fileName: "hausordnung.pdf",
+                contentType: "application/pdf",
+                sizeBytes: 2048,
+                releasedAt: "2026-09-02T10:00:00Z",
+                releases: [
+                  {
+                    id: "1",
+                    audience: "parents",
+                    schoolId: "7",
+                    groupId: null,
+                    groupName: "",
+                    releasedAt: "2026-09-02T10:00:00Z",
+                  },
+                ],
+              },
+            ]
+          : {
+              folders: [folder],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 1024,
+            },
+      error: undefined,
+      isLoading: false,
+      mutate,
+    }));
+
+    renderWithToasts(<FilesPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: /Vom Träger/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Hausordnung 2026/27")).toBeInTheDocument();
+    expect(screen.getByText("Eltern Ihrer Schule")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Herunterladen: Hausordnung 2026/27",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("wraps a long file name instead of cutting it off on a phone", async () => {
+    const fileName = `${"Elternbrief_Schuljahr_2026_27_Anmeldung_".repeat(4)}final.pdf`;
+    useSession.mockReturnValue({
+      data: { user: { permissions: ["files:manage"] } },
+    });
+    useSWRAuth.mockImplementation((key: string) => ({
+      data:
+        key === "traeger-documents-school"
+          ? [
+              {
+                id: "5",
+                title: "Elternbrief",
+                fileName,
+                contentType: "application/pdf",
+                sizeBytes: 2048,
+                releasedAt: "2026-09-02T10:00:00Z",
+                releases: [],
+              },
+            ]
+          : {
+              folders: [],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 1024,
+            },
+      error: undefined,
+      isLoading: false,
+      mutate,
+    }));
+
+    renderWithToasts(<FilesPage />);
+
+    // Ein Dateiname ohne Leerzeichen bricht überall um, sonst schneidet die
+    // Karte ihn bei 390 px ab (#4692 Review).
+    expect(await screen.findByText(fileName)).toHaveClass("wrap-anywhere");
+  });
+
+  it("keeps a failed load of the Träger documents visible without folders", async () => {
+    useSession.mockReturnValue({
+      data: { user: { permissions: ["files:manage"] } },
+    });
+    useSWRAuth.mockImplementation((key: string) =>
+      key === "traeger-documents-school"
+        ? {
+            data: undefined,
+            error: new ApiError("boom", 503, { code: "general.unavailable" }),
+            isLoading: false,
+            mutate,
+          }
+        : {
+            data: {
+              folders: [],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 1024,
+            },
+            error: undefined,
+            isLoading: false,
+            mutate,
+          },
+    );
+
+    renderWithToasts(<FilesPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Dokumente des Trägers"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Noch keine Ordner")).not.toBeInTheDocument();
   });
 });

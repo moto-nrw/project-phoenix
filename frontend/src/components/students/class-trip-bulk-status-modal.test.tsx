@@ -18,7 +18,7 @@ import {
   bulkCreateStudentStatusDays,
   StudentStatusDayConflictError,
 } from "~/lib/student-status-days-api";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 // The factory is hoisted above the imports, so the mock helper has to be
 // pulled in inside it rather than at the top of the file.

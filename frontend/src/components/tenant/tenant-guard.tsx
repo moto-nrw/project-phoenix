@@ -21,6 +21,7 @@ import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { isTenantSessionEnding } from "~/lib/tenant-session-end";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "TenantGuard" });
 
@@ -554,13 +555,13 @@ function GuardedTenant({
 
   if (refusal === "checking") {
     return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">
-          {accountRefused
+      <Loading
+        message={
+          accountRefused
             ? "Seite wird neu geladen..."
-            : "Schule wird gewechselt..."}
-        </div>
-      </div>
+            : "Schule wird gewechselt..."
+        }
+      />
     );
   }
 
@@ -586,21 +587,11 @@ function GuardedTenant({
       (isTenantSessionEnding() && !sessionHasAccess)) &&
     !onLoginEntry
   ) {
-    return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Sitzung wird erneuert...</div>
-      </div>
-    );
+    return <Loading message="Sitzung wird erneuert..." />;
   }
 
   if (isOperatorOnTenant) {
-    return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">
-          Operator-Sitzung wird beendet...
-        </div>
-      </div>
-    );
+    return <Loading message="Operator-Sitzung wird beendet..." />;
   }
 
   // Show switching state during mismatch auto-switch. Like its effect, only
@@ -683,11 +674,7 @@ function GuardedTenant({
         </div>
       );
     }
-    return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Schule wird gewechselt...</div>
-      </div>
-    );
+    return <Loading message="Schule wird gewechselt..." />;
   }
 
   return <>{children}</>;

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Store interface {
@@ -61,7 +62,11 @@ type Store interface {
 	SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error
 	ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)
 	DueClassSwitches(context.Context, enrollment.Date) ([]enrollment.DueClassSwitch, error)
+	SetChildWeeklyPlan(context.Context, int64, *enrollment.WeeklyPlan) error
+	ChildWeeklyPlan(context.Context, int64) (*enrollment.WeeklyPlan, error)
+	DueWeeklyPlans(context.Context, enrollment.Date) ([]enrollment.WeeklyPlan, error)
 	UpdateMatchedStudent(context.Context, int64, *int64) error
+	PinOfficeChosenStudent(context.Context, int64, int64) error
 	RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 	UpdateChildStatus(context.Context, int64, string, *string, int64) error
@@ -121,9 +126,10 @@ type Store interface {
 	DeleteSchemaLineage(ctx context.Context, name string) error
 	LockSchemaLineages(ctx context.Context) error
 	SchemaReferencesLegalDocument(ctx context.Context, storedURL, publicURL string) (bool, error)
-	CleanupExpired(context.Context) (int, error)
+	CleanupExpired(ctx context.Context, olderThan time.Duration) (int, error)
 	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
+	StudentExtraFieldSchemas(context.Context, []int64) ([]enrollment.SchemaVersionResult, error)
 	ActiveSchema(context.Context) (*enrollment.FormSchema, error)
 	SchemaVersions(context.Context) ([]*enrollment.FormSchema, error)
 	Schemas(context.Context, []int64) ([]*enrollment.FormSchema, error)
@@ -143,6 +149,9 @@ type DirectStore interface {
 	// AcquireExistingStudentMatchLock serializes matching across all
 	// guardians submitting to a phase, until the caller's transaction ends.
 	AcquireExistingStudentMatchLock(context.Context, int64) error
+	// AcquireChildIdentityLock serializes the approvals of one child identity
+	// of the school, until the caller's transaction ends (#6170).
+	AcquireChildIdentityLock(context.Context, string, string, calendar.Date) error
 	// OpenPhaseCandidates supplies the parent workflow's phase discovery
 	// candidates. Unlike the anonymous list, it includes restricted
 	// audiences for that workflow to authorize against guardian
@@ -175,7 +184,5 @@ func NewService(store Store, transactions OwnerTransactions, observers ...func(e
 	}
 	return service
 }
-
-const submissionRateLimitRetentionDays = 1
 
 var _ enrollment.Owner = (*Service)(nil)

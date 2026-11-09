@@ -240,7 +240,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s changeRequestService) Create(ctx context.Context, token string, input CreateChangeRequestInput) (*ChangeRequestAggregate, error) {\n\tsubmission, err := encodeSubmitRequest(input.Submission)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn changeRequestCase(s.owner.Propose(ctx, token, capability.CreateChangeRequestInput{Submission: submission, ParentNote: input.ParentNote, CreatedByAccountID: input.CreatedByAccountID}))\n}",
+      "evidence": "func (s changeRequestService) Create(ctx context.Context, token string, input CreateChangeRequestInput) (*ChangeRequestAggregate, error) {\n\treturn changeRequestCase(s.owner.Propose(ctx, token, input))\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/changeRequestService.Create",
       "owner": "modules/enrollment"
@@ -296,43 +296,43 @@
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error) {\n\tvalue, err := c.owner.Decide(ctx, input)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tchild, err := childValue(value.Child)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026DecideOutcome{Child: child, PendingInvite: value.PendingInvite}, nil\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (c decisionService) Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error) {\n\treturn c.owner.Decide(ctx, input)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/decisionService.Decide",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error) {\n\tvalue, err := c.owner.ExportPhase(ctx, phaseID, actorAccountID, actorRole, format, childStatusFilter)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := exportRows(value.Rows)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026PhaseExport{Phase: value.Phase, Schemas: value.Schemas, Rows: rows}, nil\n}",
+      "evidence": "func (c decisionService) ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error) {\n\tvalue, err := c.owner.ExportPhase(ctx, phaseID, actorAccountID, actorRole, format, childStatusFilter)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026PhaseExport{Phase: value.Phase, Schemas: value.Schemas, Rows: value.Rows}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/decisionService.ExportPhase",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error) {\n\tvalue, err := c.owner.ExportStudent(ctx, studentID, actorAccountID, actorRole, format)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := exportRows(value.Rows)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026StudentEnrollmentExport{StudentID: value.StudentID, Schemas: value.Schemas, Phases: value.Phases, Rows: rows}, nil\n}",
+      "evidence": "func (c decisionService) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error) {\n\tvalue, err := c.owner.ExportStudent(ctx, studentID, actorAccountID, actorRole, format)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026StudentEnrollmentExport{StudentID: value.StudentID, Schemas: value.Schemas, Phases: value.Phases, Rows: value.Rows}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/decisionService.ExportStudent",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) Get(ctx context.Context, requestID int64) (*RequestSummary, error) {\n\tvalue, err := c.owner.DecisionRequest(ctx, requestID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn decisionSummary(value)\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (c decisionService) Get(ctx context.Context, requestID int64) (*RequestSummary, error) {\n\treturn c.owner.DecisionRequest(ctx, requestID)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/decisionService.Get",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {\n\treturn decisionSummaries(c.owner.DecisionRequests(ctx, filters))\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (c decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {\n\treturn c.owner.DecisionRequests(ctx, filters)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/decisionService.List",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error) {\n\treturn decisionSummaries(c.owner.StudentDecisionRequests(ctx, studentID))\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (c decisionService) ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error) {\n\treturn c.owner.StudentDecisionRequests(ctx, studentID)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/decisionService.ListByStudent",
       "owner": "modules/enrollment"
     },
@@ -394,8 +394,8 @@
     },
     {
       "build": "production",
-      "evidence": "func (c decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error) {\n\tvalue, err := c.owner.UpdateChildOfferings(ctx, input)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tchild, err := childValue(value.Child)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026ChildOfferingsUpdate{Child: child, RosterImpact: value.RosterImpact}, nil\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (c decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error) {\n\treturn c.owner.UpdateChildOfferings(ctx, input)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/decisionService.UpdateChildOfferings",
       "owner": "modules/enrollment"
     },
@@ -415,16 +415,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) Edit(ctx context.Context, token string, patch EditPatch) error {\n\tconsentFlags, err := encodeJSONObject(patch.ConsentFlags)\n\tif err != nil {\n\t\treturn err\n\t}\n\tcustomData, err := encodeJSONObject(patch.CustomData)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.owner.Edit(ctx, token, capability.EditPatch{GuardianFirstName: patch.GuardianFirstName, GuardianLastName: patch.GuardianLastName, GuardianPhone: patch.GuardianPhone, ConsentFlags: consentFlags, CustomData: customData})\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (s intakeService) Edit(ctx context.Context, token string, patch EditPatch) error {\n\treturn s.owner.Edit(ctx, token, patch)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/intakeService.Edit",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) EditModeForStatus(ctx context.Context, req *Request, children []*RequestChild) (string, error) {\n\tif req == nil {\n\t\treturn capability.EditModeNone, nil\n\t}\n\tstatus, err := requestStatusInput(req, children)\n\tif err != nil {\n\t\treturn capability.EditModeNone, err\n\t}\n\treturn s.owner.EditModeForStatus(ctx, status)\n}",
+      "evidence": "func (s intakeService) GetByStatusToken(ctx context.Context, token string) (*capability.Request, []*capability.RequestChild, error) {\n\tstatus, err := s.owner.StatusByToken(ctx, token)\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\treturn status.Request, status.Children, nil\n}",
       "form": "unclassified-evidence",
-      "id": "modules/enrollment/http/intakeService.EditModeForStatus",
+      "id": "modules/enrollment/http/intakeService.GetByStatusToken",
       "owner": "modules/enrollment"
     },
     {
@@ -478,13 +478,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {\n\treturn bootstrapValue(s.owner.LoadPublicCareOfferings(ctx, phaseID, now, lateInviteToken))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/enrollment/http/intakeService.LoadPublicCareOfferings",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
       "evidence": "func (s intakeService) LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {\n\treturn bootstrapValue(s.owner.LoadPublicFormBootstrap(ctx, phaseID, now, lateInviteToken))\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/intakeService.LoadPublicFormBootstrap",
@@ -492,16 +485,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error) {\n\treturn s.owner.PublicActiveSchema(ctx, phaseID, now, lateInviteToken)\n}",
+      "evidence": "func (s intakeService) ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error) {\n\treturn s.owner.ReplaceEditable(ctx, token, req)\n}",
       "form": "unchanged-forward-evidence",
-      "id": "modules/enrollment/http/intakeService.PublicActiveSchema",
+      "id": "modules/enrollment/http/intakeService.ReplaceEditable",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error) {\n\tencoded, err := encodeSubmitRequest(req)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn submitResultValue(s.owner.ReplaceEditable(ctx, token, encoded))\n}",
+      "evidence": "func (s intakeService) StatusPage(ctx context.Context, req *capability.Request, children []*capability.RequestChild) (capability.StatusPage, error) {\n\tif req == nil {\n\t\treturn capability.StatusPage{EditMode: capability.EditModeNone}, nil\n\t}\n\treturn s.owner.StatusPage(ctx, \u0026capability.RequestStatus{Request: req, Children: children})\n}",
       "form": "unclassified-evidence",
-      "id": "modules/enrollment/http/intakeService.ReplaceEditable",
+      "id": "modules/enrollment/http/intakeService.StatusPage",
       "owner": "modules/enrollment"
     },
     {
@@ -513,8 +506,8 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {\n\tencoded, err := encodeSubmitRequest(req)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn submitResultValue(s.owner.Submit(ctx, encoded))\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (s intakeService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {\n\treturn s.owner.Submit(ctx, req)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/intakeService.Submit",
       "owner": "modules/enrollment"
     },
@@ -681,21 +674,21 @@
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]enrollment.AccountRequest, error) {\n\tif accountID \u003c= 0 {\n\t\treturn nil, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\treturn m.store.AccountRequests(ctx, accountID, strings.ToLower(strings.TrimSpace(accountEmail)))\n}",
+      "evidence": "func (m *Service) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]enrollment.AccountRequest, error) {\n\tif accountID \u003c= 0 {\n\t\treturn nil, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\treturn m.store.AccountRequests(ctx, accountID, guardianEmailKey(accountEmail))\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.AccountRequests",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {\n\tif accountID \u003c= 0 {\n\t\treturn 0, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\temail = strings.ToLower(strings.TrimSpace(email))\n\tif email == \"\" {\n\t\treturn 0, nil\n\t}\n\treturn m.store.BackfillGuardianAccountID(ctx, accountID, email)\n}",
+      "evidence": "func (m *Service) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {\n\tif accountID \u003c= 0 {\n\t\treturn 0, fmt.Errorf(\"parent: account_id must be positive\")\n\t}\n\temail = guardianEmailKey(email)\n\tif email == \"\" {\n\t\treturn 0, nil\n\t}\n\treturn m.store.BackfillGuardianAccountID(ctx, accountID, email)\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.BackfillGuardianAccountID",
       "owner": "modules/enrollment"
     },
     {
       "build": "production",
-      "evidence": "func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {\n\tdeleted, err := m.store.CleanupExpired(ctx)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, submissionRateLimitRetentionDays, nil\n}",
+      "evidence": "func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {\n\tdeleted, err := m.store.CleanupExpired(ctx, rateLimitRetention)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, submissionRateLimitRetentionDays, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/Service.DeleteExpiredSubmissionRateLimits",
       "owner": "modules/enrollment"

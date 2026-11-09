@@ -11,6 +11,7 @@ import { PickupTimesPanel } from "./pickup-times-panel";
 import { DisplayClock } from "./display-clock";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "DisplayDashboardView" });
 
@@ -95,7 +96,10 @@ export function DisplayDashboardView({ token }: DisplayDashboardViewProps) {
   if (state.kind === "loading") {
     return (
       <DisplayShell>
-        <p className="text-3xl text-gray-400">Dashboard wird geladen …</p>
+        <p className="flex items-center gap-4 text-3xl text-gray-400">
+          <SpinnerIcon className="h-8 w-8" />
+          Dashboard wird geladen …
+        </p>
       </DisplayShell>
     );
   }
@@ -127,6 +131,7 @@ export function DisplayDashboardView({ token }: DisplayDashboardViewProps) {
       </header>
 
       {isStale && lastSuccessAt && (
+        // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- Wandanzeige im Flur: Schrift text-2xl für Lesbarkeit aus Entfernung, Alert hat keine Größe dafür
         <div className="border-moto-orange bg-moto-orange/10 text-moto-orange mb-6 rounded-2xl border px-6 py-4 text-2xl">
           Keine Verbindung — Stand: vor {staleMinutes}{" "}
           {staleMinutes === 1 ? "Minute" : "Minuten"}

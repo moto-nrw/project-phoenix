@@ -30,6 +30,7 @@ const (
 // UploadService is the intake's upload and the staff open of an upload; the
 // root opens the tenant unit of each call.
 type UploadService interface {
+	CountUploadAttempt(ctx context.Context, tenantID int64, remoteIP string) error
 	PrepareUpload(ctx context.Context, input capability.UploadInput) (*capability.PreparedUpload, error)
 	DiscardUpload(ctx context.Context, tenantID, uploadID int64) error
 	OpenRequestUpload(ctx context.Context, access capability.UploadAccess) (*capability.RequestUpload, error)
@@ -71,11 +72,21 @@ type AdminRequestUpload struct {
 }
 
 // uploadEnrollmentFile stores one file for a file field of the public form.
+// The school and the IP's upload bucket are checked before the body is read.
 // The row commits before the bytes are written, so a crash in between leaves
 // an unclaimed row that expires, never bytes nobody points at.
 func (rs *Resource) uploadEnrollmentFile(w http.ResponseWriter, r *http.Request) {
 	if rs.Uploads == nil || rs.UploadFiles == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment uploads not configured")))
+		return
+	}
+	schoolID, err := rs.resolvePublicTenantID(r.Context(), strings.TrimSpace(chi.URLParam(r, "tenantSlug")))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentFormNotFound))
+		return
+	}
+	if err := rs.Uploads.CountUploadAttempt(r.Context(), schoolID, remoteIPFromRequest(r)); err != nil {
+		renderUploadFailure(w, r, err)
 		return
 	}
 	file, input, err := parseEnrollmentUpload(w, r)
@@ -84,11 +95,6 @@ func (rs *Resource) uploadEnrollmentFile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer common.CloseFile(file.File)
-	schoolID, err := rs.resolvePublicTenantID(r.Context(), strings.TrimSpace(chi.URLParam(r, "tenantSlug")))
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentFormNotFound))
-		return
-	}
 	input.TenantID = schoolID
 	files, err := rs.UploadFiles(capability.RequestUploadStorageKind)
 	if err != nil {
@@ -155,17 +161,14 @@ func parseEnrollmentUpload(w http.ResponseWriter, r *http.Request) (*common.Uplo
 	}, nil
 }
 
-// extensionMatchesContent reports whether the file name's extension names
-// the detected content. A PDF renamed to .png, or a file without a known
-// extension, is refused even though the bytes alone would pass.
+// extensionMatchesContent reports whether the upload is one the online
+// registration accepts (PDF, PNG, JPEG) and its extension names the
+// detected content. The shared parser already refuses a mismatch; this
+// narrows the accepted formats.
 func extensionMatchesContent(filename, contentType string) bool {
-	switch strings.ToLower(filepath.Ext(filename)) {
-	case ".pdf":
-		return contentType == "application/pdf"
-	case ".png":
-		return contentType == "image/png"
-	case ".jpg", ".jpeg":
-		return contentType == "image/jpeg" || contentType == "image/jpg"
+	switch contentType {
+	case "application/pdf", "image/png", "image/jpeg", "image/jpg":
+		return common.ExtensionMatchesContent(filename, contentType)
 	default:
 		return false
 	}
@@ -226,7 +229,7 @@ func renderUploadFailure(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, capability.ErrPhaseAudienceRestricted):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentFormNotFound))
 	case errors.Is(err, capability.ErrUploadRateLimited):
-		w.Header().Set("Retry-After", "3600")
+		setRateLimitRetryAfter(w)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

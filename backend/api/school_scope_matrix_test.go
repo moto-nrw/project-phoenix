@@ -1,6 +1,6 @@
 // School-scope negative matrix (#2207): a school-portal token must be
 // rejected on EVERY /api route — the acceptance criterion says "beliebige
-// /api-Route", not "every route that happens to sit behind TenantMiddleware".
+// /api-Route", not "every route that happens to sit behind TenantScopeMiddleware".
 // This sweep walks the fully-assembled production router (same constructor as
 // the route-table golden) and fires a school-scope JWT at each /api route.
 //
@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -30,12 +31,10 @@ func checkSchoolScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	schoolToken, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{
+	schoolToken, err := tokentest.CreateJWT(tokenAuth, sessiontoken.AppClaims{
 		ID:  42,
 		Sub: "lehrkraft@example.test",
-		// A deliberately over-privileged claim set: even WITH tenant-admin
-		// style roles and permissions in the token, the scope alone must
-		// keep every /api door shut.
+
 		Roles:       []string{"lehrkraft", "admin"},
 		Permissions: []string{"class_day:read", "users:read", "config:update", "admin:*"},
 		IsAdmin:     true,
@@ -43,6 +42,7 @@ func checkSchoolScopeMatrix(t *testing.T, apiInstance *goldenRuntime) {
 		TenantID:    testpkg.Tenant(t),
 		OrgID:       1,
 	})
+
 	require.NoError(t, err)
 
 	var apiRoutes []string

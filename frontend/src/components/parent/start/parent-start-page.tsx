@@ -44,6 +44,11 @@ import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { parentKeys } from "~/lib/swr/parent-keys";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import {
+  ParentChildCareTermScope,
+  useParentCareTerms,
+} from "~/lib/parent-care-term";
 import {
   useParentChildren,
   useParentFeatures,
@@ -160,7 +165,7 @@ const EMPTY_DATA: StartData = {
 };
 
 export function ParentStartPage() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
   const { profile } = useShellAuth();
   const childrenResource = useParentChildren();
   const featuresResource = useParentFeatures(childrenResource.data);
@@ -262,23 +267,25 @@ function StartChildCard({
     ) : undefined;
 
   return (
-    <ChildDayCard
-      child={{
-        studentId: child.student_id,
-        firstName: child.first_name,
-        lastName: child.last_name,
-        schoolClass: child.school_class,
-      }}
-      today={today}
-      features={features}
-      statusAside={pickupAside}
-      actionDisplay="compact"
-    />
+    <ParentChildCareTermScope studentId={child.student_id}>
+      <ChildDayCard
+        child={{
+          studentId: child.student_id,
+          firstName: child.first_name,
+          lastName: child.last_name,
+          schoolClass: child.school_class,
+        }}
+        today={today}
+        features={features}
+        statusAside={pickupAside}
+        actionDisplay="compact"
+      />
+    </ParentChildCareTermScope>
   );
 }
 
 function StartPickupSummary({ time }: Readonly<{ time: string }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
 
   return (
     <div className="flex min-w-0 items-start gap-3">
@@ -301,7 +308,7 @@ function StartPickupSummary({ time }: Readonly<{ time: string }>) {
 }
 
 function StartChildCardSkeleton() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
 
   return (
     <article
@@ -313,17 +320,17 @@ function StartChildCardSkeleton() {
       <div aria-hidden="true" className="space-y-5 p-5 sm:p-6">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <Skeleton className="size-11 shrink-0 rounded-xl" />
+            <Skeleton shape="inner" className="size-11 shrink-0" />
             <div className="min-w-0 flex-1">
               <Skeleton className="h-5 w-40 max-w-3/4" />
               <Skeleton className="mt-2 h-4 w-20" />
             </div>
           </div>
-          <Skeleton className="h-11 w-28 shrink-0 rounded-lg" />
+          <Skeleton shape="control" className="h-11 w-28 shrink-0" />
         </div>
 
         <div className="flex min-w-0 items-start gap-3 rounded-xl bg-gray-50 p-4">
-          <Skeleton className="size-8 shrink-0 rounded-lg" />
+          <Skeleton shape="control" className="size-8 shrink-0" />
           <div className="min-w-0 flex-1">
             <Skeleton className="h-3 w-12" />
             <Skeleton className="mt-2 h-7 w-44 max-w-4/5" />
@@ -352,7 +359,8 @@ const EMPTY_SOURCES: TodoSources = {
  * Neuigkeiten-Backend die Tageskarten nicht aufhaelt (#2308).
  */
 function StartTodoSection() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
+  const { termOf } = useParentCareTerms();
   const locale = useLocale();
   const invalidate = useInvalidateMatching();
   const load = useCallback(
@@ -418,8 +426,8 @@ function StartTodoSection() {
   );
 
   const items = useMemo(
-    () => buildTodoItems(sources, locale, t, setOpenAnnouncementId),
-    [sources, locale, t],
+    () => buildTodoItems(sources, locale, t, setOpenAnnouncementId, termOf),
+    [sources, locale, t, termOf],
   );
 
   const openAnnouncement =
@@ -451,7 +459,7 @@ function StartTodoSection() {
 }
 
 function StartTodoSkeleton() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
 
   return (
     <section
@@ -480,6 +488,7 @@ function buildTodoItems(
   locale: string,
   t: StartTranslator,
   openAnnouncement: (id: string) => void,
+  termOf: (studentId: string) => string,
 ): TodoItem[] {
   const openAnnouncements = sources.announcements.filter(
     (item) =>
@@ -519,7 +528,9 @@ function buildTodoItems(
       todoFromAnnouncement(item, locale, t, true, openAnnouncement),
     ),
     ...appointments.map((event) => todoFromAppointment(event, locale, t)),
-    ...threads.map((thread) => todoFromThread(thread, locale, t)),
+    ...threads.map((thread) =>
+      todoFromThread(thread, locale, t, termOf(thread.student_id)),
+    ),
     ...notices.map((item) =>
       todoFromAnnouncement(item, locale, t, false, openAnnouncement),
     ),
@@ -591,6 +602,7 @@ function todoFromThread(
   thread: ThreadSummary,
   locale: string,
   t: StartTranslator,
+  careTerm: string,
 ): TodoItem {
   return {
     key: `thread-${thread.thread_id}`,
@@ -599,7 +611,10 @@ function todoFromThread(
       thread.unread === 1
         ? t("todo.messageTitleOne")
         : t("todo.messageTitleMany", { count: thread.unread }),
-    context: t("todo.messageContext", { name: thread.student_name }),
+    context: t("todo.messageContext", {
+      name: thread.student_name,
+      careTerm,
+    }),
     meta: formatTodoTimestamp(thread.last_message_at, locale, t("todo.today")),
     unread: true,
     href: parentPath(childConversationPath(thread.student_id, thread.audience)),

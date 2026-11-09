@@ -6,13 +6,12 @@ import {
   BirthdayList,
   dayMonthLabel,
 } from "~/components/dashboard/birthday-list";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { useHomeCardRows } from "~/components/home/home-card-rows";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
-import { SectionCard } from "~/components/ui/section-card";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import {
   fetchBirthdayOverviewClient,
   type BirthdayCelebration,
@@ -118,11 +117,9 @@ export function BirthdaysBlock({
       : undefined;
 
   return (
-    <SectionCard
+    <HomeCard
       title="Geburtstage"
       leading={<HomeCardIcon concept={birthdaysConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
     >
       <div className="flex h-full flex-col gap-3">
         {(hasWeek || weekStart) && (
@@ -176,7 +173,7 @@ export function BirthdaysBlock({
           />
         </Modal>
       )}
-    </SectionCard>
+    </HomeCard>
   );
 }
 

@@ -2,7 +2,6 @@ package contracttest_test
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"sync"
 	"testing"
@@ -371,7 +370,7 @@ func composeDecisions(
 		Offerings:      enrollmentTest.NewCareOfferingRecords(repoFactoryCare.CarePlan()),
 		Notifications:  testNotifications(repoFactory.Enrollment(), settings, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repoFactoryPeople.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactoryPeople.Person, repoFactoryPeople.Staff, repoFactoryPeople.Student, repoFactoryPeople.StudentGuardian, repoFactoryPeople.GuardianProfile, repoFactoryPeople.GuardianPhoneNumber, students,
 		),
@@ -508,6 +507,12 @@ func (s notificationModeSettings) NotifyPerDecision(ctx context.Context) (string
 	return s.settings.ResolveString(ctx, enrollmentKeys.NotifyPerDecision)
 }
 
+// CareFacilityTerm leaves the mail header at its "OGS" stand-in: the care
+// plan contract does not read the header (#6042).
+func (notificationModeSettings) CareFacilityTerm(context.Context) (string, error) {
+	return "", nil
+}
+
 // testNotifications composes Enrollment's parent mails for a flow under
 // test: the owner pins the mode, the suite's settings choose it, and a
 // recording outbox takes the mails.
@@ -543,16 +548,14 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 
 // consentFlags are the four standard consent flags the env's legal texts
 // declare.
-func consentFlags(t *testing.T) json.RawMessage {
+func consentFlags(t *testing.T) enrollmentTest.FormValues {
 	t.Helper()
-	raw, err := json.Marshal(map[string]any{
+	return enrollmentTest.FormValuesOf(map[string]any{
 		"agb":             true,
 		"data_processing": true,
 		"email_contact":   true,
 		"photo":           true,
 	})
-	require.NoError(t, err)
-	return raw
 }
 
 // submitOneChild submits a single-child enrollment in the source phase and

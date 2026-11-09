@@ -28,13 +28,13 @@ vi.mock("~/lib/enrollment-phase-api", () => ({
   getPhaseResponseOverview: vi.fn(),
 }));
 
-vi.mock("~/lib/enrollment-export-api", () => ({
-  exportPhaseRegistrations: vi.fn(),
-}));
-
 vi.mock("~/lib/enrollment-report-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, getCareUsageReport: mocks.getCareUsageReport };
+  return {
+    ...actual,
+    exportPhaseRegistrations: vi.fn(),
+    getCareUsageReport: mocks.getCareUsageReport,
+  };
 });
 
 vi.mock("~/lib/swr", () => ({
@@ -74,8 +74,8 @@ vi.mock("~/lib/enrollment-public-url", () => ({
   useEnrollmentPublicUrl: () => "http://demo.localhost:3000/anmeldung/1",
 }));
 
-vi.mock("~/lib/api", () => ({
-  studentService: { getStudents: vi.fn() },
+vi.mock("~/lib/student-api", () => ({
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock("~/components/enrollment/phase-response-overview", () => ({

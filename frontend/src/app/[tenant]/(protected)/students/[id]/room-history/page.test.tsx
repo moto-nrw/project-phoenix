@@ -43,6 +43,17 @@ vi.mock("next-auth/react", () => ({
   })),
 }));
 
+// The session gate is passed; requests reach the stubbed fetch.
+vi.mock("~/lib/session-cache", async () => {
+  const { transportFetch } =
+    await vi.importActual<typeof import("~/lib/api-error")>("~/lib/api-error");
+  // The session gate is tested in session-cache; here only the transport.
+  return {
+    sessionFetch: (url: string, init?: RequestInit) =>
+      transportFetch(url, init),
+  };
+});
+
 vi.mock("~/lib/breadcrumb-context", () => ({
   useStudentHistoryBreadcrumb: vi.fn(),
   useSetBreadcrumb: vi.fn(),

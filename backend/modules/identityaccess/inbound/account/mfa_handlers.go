@@ -1,71 +1,28 @@
 package account
 
 import (
+	"context"
 	"errors"
-	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
-// trustedDeviceCookieName is the browser cookie that carries the HMAC-signed
-// trusted-device token. The path is "/" so the cookie is sent on every
-// auth-relevant request; SameSite=Lax keeps it usable across the redirect
-// chain that NextAuth uses on login while still blocking cross-site POSTs.
-const trustedDeviceCookieName = "mfa_trust_device"
-
 var errMFAServiceUnavailable = errors.New("mfa service is not configured for this deployment")
 
-// requireMFA returns true when the MFA service is wired in and writes a 503
-// response otherwise. Use as the first line of every MFA handler.
 func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 	return common.RequireDependency(w, r, rs.MFAService != nil, errMFAServiceUnavailable)
 }
 
-// mapMFAError translates known MFA-service errors into HTTP responses.
-// Anything unrecognised falls through to a 500.
 func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	// One code for a wrong code and an unusable challenge: the backend gives
-	// no oracle on which of them it was, and both are solved the same way.
-	case errors.Is(err, identityaccess.ErrMFAChallengeTokenInvalid):
-		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
-	case errors.Is(err, identityaccess.ErrMFACodeInvalid):
-		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
-	case errors.Is(err, identityaccess.ErrMFAUnsupportedScope):
-		// A challenge token from another portal presented here — same
-		// treatment as an invalid token, never a 500.
-		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
-	case errors.Is(err, identityaccess.ErrMFALocked):
-		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeIdentityMfaBlocked))
-	case errors.Is(err, identityaccess.ErrMFARateLimited):
-		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeIdentityMfaBlocked))
-	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
-		// The service fails closed when it cannot read the MFA status or the
-		// rate-limit counter — a transient database problem, not a client
-		// error. 503 tells the frontend to retry; the 500 this used to
-		// produce reads as "resend is broken, stop trying". Same mapping the
-		// login path already uses (session_handlers.go).
-		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
-	case errors.Is(err, identityaccess.ErrMFANotEnrolled):
-		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, identityaccess.ErrMFAPermissionDenied):
-		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, identityaccess.ErrMFAInvalidOverride):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-	}
+	portalauth.Render(w, r, err, portalauth.MFARules)
 }
 
 // ----- /mfa/verify -----
@@ -109,10 +66,9 @@ type MFAResendResponse = common.MFAResendResponse
 // Rate-limited inside the service. Returns the renewed challenge JWT —
 // see MFAResendResponse for why the previous 204-shape was unsafe.
 //
-// Scope-enforcing on purpose (mirrors the school endpoint): the unscoped
-// ResendChallenge accepts ANY challenge token, so this tenant surface would
-// otherwise happily send another code for a school-scope challenge and burn
-// that account's 3-codes-per-15-minutes budget from outside its own portal.
+// Scope-enforcing (mirrors the school endpoint): a challenge of another
+// portal is refused, so this surface cannot burn that account's
+// 3-codes-per-15-minutes budget from outside its own portal.
 func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -122,7 +78,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendMFAChallengeForScope(r.Context(), req.ChallengeToken, parseClientIP(r), identityaccess.MFAChallengeScopeTenant)
+	renewed, err := rs.MFAService.ResendMFAChallengeForScope(r.Context(), req.ChallengeToken, common.ParseClientIP(r), identityaccess.MFAChallengeScopeTenant)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -132,95 +88,58 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 
 // ----- /mfa/enroll/start -----
 
-// mfaEnrollStart triggers an email with a code that the user must echo back
-// at /mfa/enroll/confirm. No body — the enrollment-scoped JWT in the
-// Authorization header identifies the account. Authenticated by
-// MFAEnrollmentAuthenticator, which guarantees the token has
-// mfa_enrollment_pending=true.
-//
-// The authenticator accepts both tenant- and platform-scoped enrollment
-// tokens (operator routes share the same middleware). This handler must
-// additionally enforce that the presented token is *tenant*-scoped — a
-// platform-scoped token whose account_id happens to collide with a tenant
-// account_id would otherwise be accepted and mint a full tenant session.
-// (#1430 review item — tenant-enrollment scope mismatch.)
+// mfaEnrollStart mails the code the account echoes back at
+// /mfa/enroll/confirm and answers the challenge token naming it. The route
+// admits only a tenant enrollment token.
 func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
 	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
+	if !ok {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	_, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, parseClientIP(r))
+	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	render.JSON(w, r, portalauth.EnrollStartResponse{ChallengeToken: challengeToken})
 }
 
 // ----- /mfa/enroll/confirm -----
 
-// MFAEnrollConfirmRequest is the body for POST /auth/mfa/enroll/confirm.
-// Shared with the operator portal via api/common.
-type MFAEnrollConfirmRequest = common.MFAEnrollConfirmRequest
-
-// mfaEnrollConfirm verifies the just-emailed code, marks the account as
-// enrolled, and mints a full access/refresh token pair so the frontend can
-// seed a real session. Replaces the original 204 response that re-used the
-// pre-MFA access token — that path allowed bypassing MFA by skipping
-// enrollment entirely.
+// mfaEnrollConfirm redeems the challenge the start step minted, pinned to
+// the enrollment token's account and school before the code is compared,
+// records the factor and mints the tenant session.
 func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
 	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
-	// Same defense-in-depth as mfaEnrollStart — tenant endpoint rejects
-	// platform-scope enrollment tokens even when account_id matches.
-	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
+	if !ok {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	req := &MFAEnrollConfirmRequest{}
+	req := &common.MFAVerifyRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	accountID := claims.AccountID
-
-	// The enroll routes run under MFAEnrollmentAuthenticator, NOT
-	// TenantTxMiddleware, so tenant.FromContext is 0 here. Inject the
-	// tenant from the enrollment claims so the MFA audit events
-	// (mfa_verified / mfa_failed) that VerifyCodeForAccount emits land
-	// in audit.auth_events instead of being dropped as "no tenant
-	// context". (#1430 review round 3, finding ①)
+	// The enrollment route runs outside the tenant transaction; the claims'
+	// school carries the MFA audit events into audit.auth_events.
 	ctx := rs.withTenantID(r.Context(), claims.TenantID)
-
-	// Pin the lookup to THIS portal and school. The confirm has no challenge
-	// id to verify against, so without the scope the account's newest active
-	// code answers — and since #2207 that can be a school-portal login
-	// challenge, which would mint a tenant session off a school code.
-	verified, err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant)
+	verified, err := rs.MFAService.VerifyMFAChallengeForOwner(ctx, req.ChallengeToken, req.Code, identityaccess.MFAChallengeScopeTenant, claims.AccountID, claims.TenantID)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	if err := rs.MFAService.EnrollMFA(ctx, accountID); err != nil {
-		// Already enrolled is fine — a retried request must still produce a
-		// valid session. The pre-enrollment check at login means we should
-		// rarely hit this branch in practice.
-		if !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
-			mapMFAError(w, r, err)
-			return
-		}
+	// A retried confirm must still produce a session.
+	if err := rs.MFAService.EnrollMFA(ctx, claims.AccountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+		mapMFAError(w, r, err)
+		return
 	}
-
-	// Mint the real session now that the second factor is set up. Mirrors
-	// the verify-flow's completeMFAExchange so the frontend handles the
-	// response shape identically.
 	rs.completeMFAExchange(w, r, verified, req.RememberDevice)
 }
 
@@ -292,118 +211,22 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ----- shared helpers -----
-
-// completeMFAExchange runs once a challenge has been verified: mints the
-// access/refresh token pair, optionally issues a trusted-device cookie, and
-// writes the response. Both the email-code and recovery-code paths funnel
-// through here so cookie-handling stays in one place.
+// completeMFAExchange mints the tenant session of a proven second factor
+// and remembers the device when asked.
 func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, proof identityaccess.VerifiedMFAChallenge, rememberDevice bool) {
-	accountID, tenantID := proof.AccountID, proof.TenantID
-	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get(headerUserAgent)
-
-	if rs.Sessions == nil {
-		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session issuance unavailable")))
+	if !common.RequireDependency(w, r, rs.Sessions != nil, errSessionsUnavailable) {
 		return
 	}
-	// Resolve policy before session creation can evict an existing session.
-	// Device persistence and notification still wait for successful issuance.
-	issueTrustedDevice, err := rs.prepareTrustedDevice(r, accountID, tenantID, rememberDevice)
-	if err != nil {
-		// Remembering a device is optional. Match the school portal: fail
-		// closed for the device without discarding the verified login.
-		slog.Default().Warn("trusted-device policy unavailable; skipping cookie",
-			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()),
-		)
-		issueTrustedDevice = nil
-	}
-
-	accessToken, refreshToken, err := rs.Sessions.IssueTokensForVerifiedMFA(
-		r.Context(), proof, ipAddress, userAgent,
-	)
-	if err != nil {
-		renderMFAExchangeError(w, r, err)
-		return
-	}
-
-	if issueTrustedDevice != nil {
-		if err := rs.issueTrustedDeviceCookie(w, r, issueTrustedDevice); err != nil {
-			// Policy was resolved before session issuance. Storage failures
-			// issue no cookie but must not break the verified login.
-			slog.Default().Warn("failed to issue trusted-device cookie",
-				slog.Int64("account_id", accountID),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
-
-	render.JSON(w, r, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+	client := portalauth.ClientOf(r)
+	prepare := portalauth.RememberDevice(rememberDevice, func(ctx context.Context) (identityaccess.TrustedDeviceIssue, error) {
+		return rs.MFAService.PrepareTrustedDevice(ctx, proof.AccountID, proof.TenantID, client.UserAgent, common.ParseClientIP(r))
 	})
-}
-
-func (rs *Resource) prepareTrustedDevice(r *http.Request, accountID, tenantID int64, rememberDevice bool) (identityaccess.TrustedDeviceIssue, error) {
-	if !rememberDevice {
-		return nil, nil
-	}
-	return rs.MFAService.PrepareTrustedDevice(r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r))
-}
-
-// issueTrustedDeviceCookie persists the prepared device and sets its cookie.
-// A disabled feature has no prepared operation and never reaches this helper.
-func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, issue identityaccess.TrustedDeviceIssue) error {
-	cookieValue, expiresAt, err := issue(r.Context())
-	if err != nil {
-		return err
-	}
-	if cookieValue == "" {
-		return nil
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    trustedDeviceCookieName,
-		Value:   cookieValue,
-		Path:    "/",
-		Expires: expiresAt,
-		MaxAge:  int(time.Until(expiresAt).Seconds()),
-		// Always Secure — Chrome ≥89, Firefox and Safari accept Secure
-		// cookies on `localhost` (and `*.localhost`) over HTTP as a
-		// special-cased "secure context". Production serves HTTPS, so
-		// the literal `true` is correct in every supported environment.
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+	tokens, err := portalauth.Exchange(w, r, proof.AccountID, prepare, func(ctx context.Context) (string, string, error) {
+		return rs.Sessions.IssueTokensForVerifiedMFA(ctx, proof, client.IP, client.UserAgent)
 	})
-	return nil
-}
-
-// parseClientIP wraps getClientIP and parses the result as net.IP. Returns
-// nil when the header value is empty or unparseable.
-func parseClientIP(r *http.Request) net.IP {
-	return common.ParseClientIP(r)
-}
-
-func renderMFAExchangeError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, identityaccess.ErrInvalidToken) {
-		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid))
+	if err != nil {
+		portalauth.Render(w, r, err, portalauth.ExchangeRules)
 		return
 	}
-	var authErr *identityaccess.AuthenticationError
-	if errors.As(err, &authErr) {
-		switch {
-		case errors.Is(err, identityaccess.ErrAccountNotFound):
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
-		case errors.Is(err, identityaccess.ErrAccountInactive):
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
-		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
-	}
-	common.RenderError(w, r, common.ErrorInternalServer(err))
+	render.JSON(w, r, tokens)
 }

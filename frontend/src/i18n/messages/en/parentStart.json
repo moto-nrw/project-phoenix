@@ -20,7 +20,7 @@
     "emptyDescription": "There is nothing to do right now.",
     "messageTitleOne": "New message",
     "messageTitleMany": "{count} new messages",
-    "messageContext": "OGS · About {name}",
+    "messageContext": "{careTerm} · About {name}",
     "pollContext": "Survey · {school}",
     "declarationContext": "Consent · {school}",
     "newsContext": "Letter to parents · {school}",
@@ -34,6 +34,6 @@
     "errorObject": "the full to-do list"
   },
   "childrenLoading": "Loading children",
-  "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+  "noChildren": "No child is linked to your account yet. Your school's {careTerm} can set this up.",
   "errorObject": "the overview of your children"
 }

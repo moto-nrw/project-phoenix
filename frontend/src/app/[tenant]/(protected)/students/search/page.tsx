@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   buildStudentSearchFilters,
   fetchStudentSearch,
@@ -53,8 +54,9 @@ import type {
   FilterSection,
 } from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
-import { studentService } from "~/lib/api";
-import type { Student, Group, Room } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
+import type { Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
@@ -1506,7 +1508,7 @@ function SearchPageContent() {
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
     studentKeys.schoolClasses(),
-    async () => studentService.getSchoolClasses(),
+    fetchSchoolClasses,
     { revalidateOnFocus: false },
   );
   const schoolClassOptions = useMemo(
@@ -3718,7 +3720,7 @@ function SearchPageContent() {
                                 ? undefined
                                 : "Kommt nicht";
                               // Absence rows fill the arrival slot; a neutral
-                              // "Gehzeit: —" row (deliberately without the planned
+                              // "Gehzeit: –" row (deliberately without the planned
                               // time, so no overdue styling can fire for a child
                               // who is not coming) keeps absent and present cards
                               // at the same four-row height.
@@ -3821,9 +3823,11 @@ function SearchPageContent() {
                           <SectionCard
                             title={group.label}
                             action={
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                                {group.items.length}
-                              </span>
+                              <StatusBadge
+                                label={String(group.items.length)}
+                                tone="gray"
+                                compact
+                              />
                             }
                           >
                             <CollectionGrid>

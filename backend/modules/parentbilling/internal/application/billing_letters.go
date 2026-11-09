@@ -8,6 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -220,7 +221,34 @@ func (b *BillingLetters) material(ctx context.Context, reviewer parentbilling.Ho
 	if err := debtorNumbersForPaymentText(head, documents); err != nil {
 		return parentbilling.Letterhead{}, nil, err
 	}
+	invoice, _ := firstInvoice(documents)
+	if head, err = withDocumentTemplate(ctx, b.letterheads, reviewer.OrganizationID, head, invoice.DocumentKind, true); err != nil {
+		return parentbilling.Letterhead{}, nil, err
+	}
 	return head, documents, nil
+}
+
+// withDocumentTemplate puts the Träger's current template of the kind of
+// document the release froze on the letterhead (#4688); the confirmation
+// letter keeps the template the letterhead carries. A fee notice needs its
+// legal remedy when required, which only the letters of the invoices do: a
+// Storno or a Gutschrift lowers the fee and prints the remedy if there is
+// one.
+func withDocumentTemplate(ctx context.Context, source parentbilling.BillingDocumentTemplates, organizationID int64,
+	head parentbilling.Letterhead, documentKind string, required bool,
+) (parentbilling.Letterhead, error) {
+	if documentKind == "" || documentKind == parentbilling.DocumentKindConfirmation {
+		return head, nil
+	}
+	template, err := source.DocumentTemplate(ctx, organizationID, documentKind)
+	if err != nil {
+		return parentbilling.Letterhead{}, fmt.Errorf("parent billing: read the template of the document: %w", err)
+	}
+	if required && documentKind == parentbilling.DocumentKindFeeNotice && templates.LacksLegalRemedy(templates.KindFeeNotice, letterTemplate(template, templates.KindFeeNotice)) {
+		return parentbilling.Letterhead{}, parentbilling.ErrLegalRemedyMissing
+	}
+	head.Template = template
+	return head, nil
 }
 
 // debtorNumbersForPaymentText refuses letters whose payment text names the
@@ -244,22 +272,30 @@ func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []pare
 // debtor number while the invoice asks for payment without one. The billing
 // run counts these invoices before the release, which copies the number and
 // locks it (#5621, #5622). A cancellation or a credit asks for no payment
-// (#4690).
+// (#4690). A direct debit never prints the payment text (#4689), so it needs
+// no debtor number for it.
 func lacksDebtorNumberForPaymentText(paymentText string, document parentbilling.BillingDocument) bool {
 	return document.TotalCents > 0 && strings.TrimSpace(document.DebtorNumber) == "" &&
-		strings.Contains(paymentText, placeholderDebtorNumber)
+		!isDirectDebit(document.Payment) && strings.Contains(paymentText, placeholderDebtorNumber)
 }
 
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {
 	var letter Letter
-	prefix := "bestaetigung-"
+	notice := content.document.DocumentKind == parentbilling.DocumentKindFeeNotice
+	prefix := letterFilePrefix(content.document.DocumentKind)
 	switch content.document.Kind {
 	case parentbilling.DocumentCancellation:
 		letter, prefix = cancellationLetter(content), "storno-"
+		if notice {
+			prefix = "aufhebungsbescheid-"
+		}
 	case parentbilling.DocumentCredit:
 		letter, prefix = creditLetter(content), "gutschrift-"
+		if notice {
+			prefix = "aenderungsbescheid-"
+		}
 	default:
-		if missing := missingLetterValues(letterValues(content)); len(missing) > 0 {
+		if missing := missingLetterValuesOf(templateKindOf(content.document.DocumentKind), letterValues(content)); len(missing) > 0 {
 			return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: the letter writes no value for %s", strings.Join(missing, ", "))
 		}
 		letter = confirmationLetter(content)
@@ -269,6 +305,17 @@ func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLet
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: render letter: %w", err)
 	}
 	return file, nil
+}
+
+// letterFilePrefix starts the file name of the letter of an invoice.
+func letterFilePrefix(documentKind string) string {
+	switch documentKind {
+	case parentbilling.DocumentKindInvoice:
+		return "rechnung-"
+	case parentbilling.DocumentKindFeeNotice:
+		return "gebuehrenbescheid-"
+	}
+	return "bestaetigung-"
 }
 
 func (b *BillingLetters) recordRead(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID, documentID int64, letter string) error {

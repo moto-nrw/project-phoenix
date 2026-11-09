@@ -121,7 +121,7 @@ func childrenWithMaterializedOfferingSelections(children []SubmitChild, material
 // preservedOfferingSelections copies the stored links onto replacement child
 // rows while the catalog is disabled. The parent cannot see or change them,
 // but re-enabling the setting restores them intact.
-func preservedOfferingSelections(existingChildren []*RequestChild, incoming []SubmitChild, links []*enrollmentNative.RequestChildOfferingRecord) [][]selection.Selection {
+func preservedOfferingSelections(existingChildren []*enrollmentNative.RequestChild, incoming []SubmitChild, links []*enrollmentNative.RequestChildOfferingRecord) [][]selection.Selection {
 	byChild := make(map[int64][]selection.Selection, len(existingChildren))
 	for _, link := range links {
 		byChild[link.RequestChildID] = append(byChild[link.RequestChildID], selection.Selection{

@@ -1,5 +1,5 @@
 // Gemeinsamer Kern der shrink-only Ratchet-Baselines des ui-kit-Plugins
-// (Knöpfe #5531, Pillen #5584): zählt die Funde je Datei und Regel, zieht die
+// (Knöpfe #5531): zählt die Funde je Datei und Regel, zieht die
 // Allowlist ab und schreibt die Baseline neu; sie darf nur sinken. `--check`
 // schreibt nichts und meldet Abweichungen.
 import { spawnSync } from "node:child_process";
@@ -177,7 +177,12 @@ export function updateRatchetBaseline({
   const next = `${JSON.stringify(sorted, null, 2)}\n`;
   const current = JSON.parse(readFileSync(baselinePath, "utf8"));
   const increases = [];
+  // `--init` misst eine neue Regel zum ersten Mal: nur für eine Regel, die in
+  // der Baseline-Datei noch gar keinen Schlüssel hat. Eine auf null gesenkte
+  // Regel (`{}`) darf damit nicht wieder wachsen.
+  const init = process.argv.includes("--init");
   for (const rule of rules) {
+    if (init && !(rule in current)) continue;
     for (const [file, now] of Object.entries(sorted[rule])) {
       const was = current[rule]?.[file] ?? 0;
       if (now > was) {

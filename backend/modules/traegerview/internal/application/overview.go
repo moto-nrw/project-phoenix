@@ -32,6 +32,10 @@ type Overview struct {
 	present     traegerview.PresentStudents
 	sick        traegerview.SickStudents
 	onSite      traegerview.OnSiteStaff
+	keyDates    traegerview.KeyDateCountReads
+	enrollments traegerview.OpenEnrollments
+	alerts      traegerview.AlertSettings
+	occupancy   traegerview.OccupancyPorts
 	now         func() time.Time
 	withinAdmin func(context.Context, func(context.Context) error) error
 }
@@ -41,12 +45,14 @@ var _ traegerview.Overview = (*Overview)(nil)
 // New builds the overview. withinAdmin opens the administrative transaction
 // the projection reads in; it is the Träger-Portal's only one (ADR 0084).
 func New(ports traegerview.Ports, rows SchoolRows, withinAdmin func(context.Context, func(context.Context) error) error) (*Overview, error) {
-	if ports.SchoolIDs == nil || rows == nil || ports.Trail == nil || ports.Persons == nil || ports.Staff == nil || ports.Bureau == nil || ports.Recorder == nil || ports.Holiday == nil || ports.Rosters == nil || ports.Present == nil || ports.Sick == nil || ports.OnSite == nil || withinAdmin == nil {
-		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder, holiday trail, school figures and the administrative transaction are required")
+	if ports.SchoolIDs == nil || rows == nil || ports.Trail == nil || ports.Persons == nil || ports.Staff == nil || ports.Bureau == nil || ports.Recorder == nil || ports.Holiday == nil || ports.Rosters == nil || ports.Present == nil || ports.Sick == nil || ports.OnSite == nil || ports.KeyDates == nil ||
+		ports.Enrollments == nil || ports.Alerts == nil || !occupancyPortsBound(ports.Occupancy) || withinAdmin == nil {
+		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder, holiday trail, school figures, Stichtagszahlen, open enrollments, alert thresholds, occupancy reads and the administrative transaction are required")
 	}
 	return &Overview{
 		schoolIDs: ports.SchoolIDs, rows: rows, trail: ports.Trail, persons: ports.Persons, staff: ports.Staff, bureau: ports.Bureau,
-		recorder: ports.Recorder, holiday: ports.Holiday, rosters: ports.Rosters, present: ports.Present, sick: ports.Sick, onSite: ports.OnSite, now: time.Now, withinAdmin: withinAdmin,
+		recorder: ports.Recorder, holiday: ports.Holiday, rosters: ports.Rosters, present: ports.Present, sick: ports.Sick, onSite: ports.OnSite, keyDates: ports.KeyDates,
+		enrollments: ports.Enrollments, alerts: ports.Alerts, occupancy: ports.Occupancy, now: time.Now, withinAdmin: withinAdmin,
 	}, nil
 }
 
@@ -91,51 +97,6 @@ func (o *Overview) School(ctx context.Context, organizationID, schoolID int64) (
 		return traegerview.SchoolView{}, err
 	}
 	return view, nil
-}
-
-// SchoolsToday returns every school of the Träger with its figures and their
-// sum (#4674). The figures of all schools come from one read per owner, so the
-// overview costs the same statements for 3 and for 100 schools. Figures are
-// aggregated numbers, so the read is not written to the access log (ADR 0084
-// section 7).
-func (o *Overview) SchoolsToday(ctx context.Context, organizationID int64) (traegerview.SchoolsToday, error) {
-	if organizationID <= 0 {
-		return traegerview.SchoolsToday{}, traegerview.ErrTraegerRequired
-	}
-	var today traegerview.SchoolsToday
-	err := o.read(ctx, organizationID, func(adminCtx context.Context, ids []int64) error {
-		schools, err := o.rows.Schools(adminCtx, ids)
-		if err != nil {
-			return err
-		}
-		figures, err := o.schoolFigures(adminCtx, ids)
-		if err != nil {
-			return err
-		}
-		today = schoolsToday(schools, figures, o.now())
-		return nil
-	})
-	if err != nil {
-		return traegerview.SchoolsToday{}, err
-	}
-	return today, nil
-}
-
-// schoolsToday pairs each school with its figures and adds them up.
-func schoolsToday(schools []traegerview.School, figures map[int64]traegerview.SchoolFigures, now time.Time) traegerview.SchoolsToday {
-	today := traegerview.SchoolsToday{Schools: make([]traegerview.SchoolToday, 0, len(schools)), Total: traegerview.SchoolFigures{AsOf: now}}
-	for _, school := range schools {
-		row := traegerview.SchoolToday{School: school, Figures: figures[school.ID]}
-		row.Figures.AsOf = now
-		today.Schools = append(today.Schools, row)
-		today.Total.ChildrenTotal += row.Figures.ChildrenTotal
-		today.Total.ChildrenPresent += row.Figures.ChildrenPresent
-		today.Total.ChildrenSick += row.Figures.ChildrenSick
-		today.Total.StaffTotal += row.Figures.StaffTotal
-		today.Total.StaffPresent += row.Figures.StaffPresent
-	}
-	today.Total.CareRatio = careRatio(today.Total.ChildrenPresent, today.Total.StaffPresent)
-	return today
 }
 
 // schoolView reads one school the caller has checked against the Träger.

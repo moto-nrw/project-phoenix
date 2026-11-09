@@ -33,6 +33,7 @@ import { createLogger } from "~/lib/logger";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { rolesConcept } from "~/lib/concepts/roles";
 import { staffConcept } from "~/lib/concepts/staff";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "CaregiverCapabilityModal" });
 
@@ -392,7 +393,7 @@ export function CaregiverCapabilityModal({
           onConfirmationVisibilityChange={setBlockerConfirmationOpen}
         />
       ) : loading ? (
-        <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
+        <Loading message="Wird geladen …" />
       ) : state ? (
         <div ref={formRef} className="space-y-4">
           {/* Current role overview */}

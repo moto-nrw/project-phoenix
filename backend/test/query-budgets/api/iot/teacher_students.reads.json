@@ -1,6 +1,7 @@
 {
   "scenario": "api.iot.teacher_students.reads",
-  "max": 5,
+  "max": 0,
   "exact": false,
-  "description": "#2941: formerly one identity query per supervisor / teacher."
+  "description": "#2941: formerly one identity query per supervisor / teacher.",
+  "route": "GET /api/iot/students"
 }

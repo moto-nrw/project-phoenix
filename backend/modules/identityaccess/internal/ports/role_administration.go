@@ -86,8 +86,8 @@ type InvitationIdentity interface {
 // SessionRevocation revokes an account's sessions at the school on the
 // caller's transaction and queues the push cleanup once it committed.
 type SessionRevocation interface {
-	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]identityaccess.AccountSession, error)
-	QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string)
+	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]AccountSession, error)
+	QueuePushCleanup(ctx context.Context, accountID int64, sessions []AccountSession, reason string)
 }
 
 // CaregiverProfiles answers whether the account's identity at the tenant in
@@ -108,6 +108,9 @@ type PermissionStore interface {
 	DeletePermission(ctx context.Context, id int64) error
 	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
 	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
+	// ListVisibleRolePermissions reports found=false when the role is not
+	// visible with FindRole's scope, so a foreign custom role reads as missing.
+	ListVisibleRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, bool, error)
 	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
 	// AssignRolePermissions skips listed permissions the catalog no longer holds.
 	AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error

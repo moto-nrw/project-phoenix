@@ -9,9 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
@@ -26,6 +27,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -44,16 +46,16 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  ListSkeleton,
-  SkeletonRegion,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   errorAlertActions,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { Textarea } from "~/components/ui/textarea";
+import { RemovableChip } from "~/components/ui/removable-chip";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -92,6 +94,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -1055,14 +1058,13 @@ function StaffCalendarPageInner() {
               if (!open && !submitting) resetForm();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[860px]">
-              <SlideOverHeader className="flex-row items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <SlideOverTitle>
-                    {editingId ? "Termin ändern" : "Termin erstellen"}
-                  </SlideOverTitle>
-                </div>
-                <SlideOverCloseButton disabled={submitting} />
+            <SlideOverContent size="xl">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={submitting} />}
+              >
+                <SlideOverTitle>
+                  {editingId ? "Termin ändern" : "Termin erstellen"}
+                </SlideOverTitle>
               </SlideOverHeader>
               <SlideOverBody error={formErrors.error}>
                 <div ref={formRef}>
@@ -1182,83 +1184,62 @@ function StaffCalendarPageInner() {
                       </span>
                     </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-gray-700">
-                        Beschreibung
-                      </span>
-                      <textarea
-                        className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        disabled={submitting}
-                      />
-                    </label>
+                    <Textarea
+                      label="Beschreibung"
+                      className="min-h-24 resize-y px-4 py-3 text-base"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      disabled={submitting}
+                    />
 
                     <div
                       className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
                     >
                       {!editingId ? (
-                        <label
-                          htmlFor="calendar-delivery-mode"
-                          className="block"
-                        >
-                          <span className="mb-2 block text-sm font-medium text-gray-700">
-                            Antwortregel
-                          </span>
-                          <CustomSelect
-                            id="calendar-delivery-mode"
-                            ariaLabel="Antwortregel"
-                            value={deliveryMode}
-                            onChange={(next) =>
-                              setDeliveryMode(next as CalendarDeliveryMode)
-                            }
-                            disabled={submitting}
-                            options={[
-                              {
-                                value: "rsvp_required",
-                                label:
-                                  "Antwort erforderlich: Zusage oder Absage",
-                              },
-                              {
-                                value: "informational",
-                                label:
-                                  "Nur informieren: ohne Rückmeldung eintragen",
-                              },
-                            ]}
-                          />
-                        </label>
-                      ) : null}
-                      <label
-                        htmlFor="calendar-overview-visibility"
-                        className="block"
-                      >
-                        <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Teilnehmerübersicht
-                        </span>
                         <CustomSelect
-                          id="calendar-overview-visibility"
-                          ariaLabel="Teilnehmerübersicht"
-                          value={overviewVisibility}
+                          id="calendar-delivery-mode"
+                          label="Antwortregel"
+                          value={deliveryMode}
                           onChange={(next) =>
-                            setOverviewVisibility(
-                              next as CalendarOverviewVisibility,
-                            )
+                            setDeliveryMode(next as CalendarDeliveryMode)
                           }
                           disabled={submitting}
                           options={[
-                            { value: "organizer", label: "Nur ich" },
                             {
-                              value: "staff",
-                              label: "Mitarbeitende mit Termin",
+                              value: "rsvp_required",
+                              label: "Antwort erforderlich: Zusage oder Absage",
                             },
-                            { value: "all", label: "Alle Eingeladenen" },
+                            {
+                              value: "informational",
+                              label:
+                                "Nur informieren: ohne Rückmeldung eintragen",
+                            },
                           ]}
                         />
-                      </label>
+                      ) : null}
+                      <CustomSelect
+                        id="calendar-overview-visibility"
+                        label="Teilnehmerübersicht"
+                        value={overviewVisibility}
+                        onChange={(next) =>
+                          setOverviewVisibility(
+                            next as CalendarOverviewVisibility,
+                          )
+                        }
+                        disabled={submitting}
+                        options={[
+                          { value: "organizer", label: "Nur ich" },
+                          {
+                            value: "staff",
+                            label: "Mitarbeitende mit Termin",
+                          },
+                          { value: "all", label: "Alle Eingeladenen" },
+                        ]}
+                      />
                     </div>
 
                     {!editingId ? (
-                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <InsetPanel tone="white">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <h3 className="text-sm font-semibold text-gray-900">
                             Empfänger auswählen
@@ -1282,13 +1263,8 @@ function StaffCalendarPageInner() {
                         </div>
                         <div className="grid gap-3 lg:grid-cols-2">
                           {targetGroups.map((group) => (
-                            <section
-                              key={group.type}
-                              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                            >
-                              <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
-                                {group.label}
-                              </h4>
+                            <InsetPanel as="section" key={group.type} framed>
+                              <SectionLabel as="h4">{group.label}</SectionLabel>
                               <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
                                 {group.choices.length === 0 ? (
                                   <p className="py-2 text-xs text-gray-500">
@@ -1304,16 +1280,18 @@ function StaffCalendarPageInner() {
                                       (!selected && choice.covered);
                                     const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
                                     return (
-                                      <label
+                                      <ChoiceTile
                                         key={choice.key}
                                         htmlFor={checkboxId}
-                                        className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
-                                          selected
-                                            ? "border-gray-900 bg-white text-gray-950"
-                                            : choice.covered
-                                              ? "bg-moto-green-soft border-gray-200 text-gray-500"
-                                              : "border-transparent bg-white text-gray-700 hover:border-gray-200"
-                                        } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                                        selected={selected}
+                                        disabled={disabled}
+                                        className={`gap-2 px-2 py-1.5 font-normal ${
+                                          !selected && choice.covered
+                                            ? "bg-moto-green-soft"
+                                            : selected
+                                              ? ""
+                                              : "border-transparent"
+                                        }`}
                                       >
                                         <Checkbox
                                           id={checkboxId}
@@ -1329,61 +1307,48 @@ function StaffCalendarPageInner() {
                                             bereits enthalten
                                           </span>
                                         ) : null}
-                                      </label>
+                                      </ChoiceTile>
                                     );
                                   })
                                 )}
                               </div>
-                            </section>
+                            </InsetPanel>
                           ))}
                         </div>
-                      </div>
+                      </InsetPanel>
                     ) : null}
 
                     {targets.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {targets.map((target) => (
-                          <span
+                          <RemovableChip
                             key={target.key}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
-                          >
-                            {target.label}
-                            <button
-                              type="button"
-                              className="rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
-                              onClick={() => removeTarget(target.key)}
-                              disabled={submitting}
-                              aria-label={`${target.label} entfernen`}
-                            >
-                              <X className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                          </span>
+                            label={target.label}
+                            onRemove={() => removeTarget(target.key)}
+                            removeLabel={`${target.label} entfernen`}
+                            disabled={submitting}
+                          />
                         ))}
                       </div>
                     ) : null}
 
                     <div className="grid gap-4 md:grid-cols-3">
-                      <label htmlFor="calendar-frequency" className="block">
-                        <span className="mb-2 block text-sm font-medium text-gray-700">
-                          Wiederholung
-                        </span>
-                        <CustomSelect
-                          id="calendar-frequency"
-                          ariaLabel="Wiederholung"
-                          value={frequency}
-                          onChange={(next) =>
-                            setFrequency(next as RecurrenceFrequency)
-                          }
-                          disabled={submitting}
-                          options={[
-                            { value: "none", label: "Keine" },
-                            { value: "daily", label: "Täglich" },
-                            { value: "weekly", label: "Wöchentlich" },
-                            { value: "monthly", label: "Monatlich" },
-                            { value: "yearly", label: "Jährlich" },
-                          ]}
-                        />
-                      </label>
+                      <CustomSelect
+                        id="calendar-frequency"
+                        label="Wiederholung"
+                        value={frequency}
+                        onChange={(next) =>
+                          setFrequency(next as RecurrenceFrequency)
+                        }
+                        disabled={submitting}
+                        options={[
+                          { value: "none", label: "Keine" },
+                          { value: "daily", label: "Täglich" },
+                          { value: "weekly", label: "Wöchentlich" },
+                          { value: "monthly", label: "Monatlich" },
+                          { value: "yearly", label: "Jährlich" },
+                        ]}
+                      />
                       <Input
                         label="Intervall"
                         name="calendar-recurrence-interval"
@@ -1410,31 +1375,19 @@ function StaffCalendarPageInner() {
                     </div>
 
                     {frequency === "weekly" ? (
-                      <div className="flex flex-wrap gap-2">
-                        {weekdays.map((day) => (
-                          <label
-                            key={day.value}
-                            htmlFor={`calendar-weekday-${day.value}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
-                          >
-                            <Checkbox
-                              id={`calendar-weekday-${day.value}`}
-                              checked={weeklyDays.includes(day.value)}
-                              onChange={(event) => {
-                                setWeeklyDays((current) =>
-                                  event.target.checked
-                                    ? [...current, day.value]
-                                    : current.filter(
-                                        (value) => value !== day.value,
-                                      ),
-                                );
-                              }}
-                              disabled={submitting}
-                            />
-                            {day.label}
-                          </label>
-                        ))}
-                      </div>
+                      <WeekdayToggleGroup
+                        ariaLabel="Wochentage"
+                        days={weekdays}
+                        value={weeklyDays}
+                        onToggle={(day) =>
+                          setWeeklyDays((current) =>
+                            current.includes(day)
+                              ? current.filter((value) => value !== day)
+                              : [...current, day],
+                          )
+                        }
+                        disabled={submitting}
+                      />
                     ) : null}
 
                     <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">

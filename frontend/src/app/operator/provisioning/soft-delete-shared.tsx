@@ -3,12 +3,15 @@
 import { useCallback, useState } from "react";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "SoftDeleteShared" });
 
@@ -177,6 +180,11 @@ export function useSoftDeletable<T extends SoftDeletable>(
   };
 }
 
+/**
+ * Karte eines gelöschten Eintrags im Papierkorb. Die Aufrufer stellen die
+ * Karten in ein `grid`: sonst wächst die letzte Karte als letzte Fläche der
+ * Seite bis zur Unterkante (`.moto-tenant-body`, #6071).
+ */
 export function DeletedEntityCard({
   name,
   subtitle,
@@ -195,7 +203,7 @@ export function DeletedEntityCard({
   readonly restoreDisabledReason?: string;
 }) {
   return (
-    <div className="border-moto-red/10 bg-moto-red-soft/50 rounded-2xl border p-5 shadow-sm">
+    <SectionCard>
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-gray-900">{name}</h3>
@@ -209,9 +217,7 @@ export function DeletedEntityCard({
             )}
           </div>
         </div>
-        <span className="bg-moto-red/15 text-moto-red-strong rounded-full px-2 py-0.5 text-xs font-medium">
-          Gelöscht
-        </span>
+        <StatusBadge tone="red" compact label="Gelöscht" />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <p className="text-xs text-gray-400">
@@ -229,13 +235,13 @@ export function DeletedEntityCard({
             Wiederherstellen
           </Button>
           {restoreDisabled && restoreDisabledReason && (
-            <p className="max-w-[16rem] text-right text-[11px] text-gray-500">
+            <p className="max-w-[16rem] text-right text-xs text-gray-500">
               {restoreDisabledReason}
             </p>
           )}
         </div>
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -307,19 +313,27 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
       warningSlot={
         <div className="space-y-3">
           {warningBullets.length > 0 && (
-            <div className="bg-moto-amber-soft text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-              <p className="font-medium">{warningTitle}</p>
-              <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                {warningBullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            </div>
+            <Alert
+              type="warning"
+              announce="off"
+              message={
+                <>
+                  <p className="font-medium">{warningTitle}</p>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                    {warningBullets.map((bullet) => (
+                      <li key={bullet}>{bullet}</li>
+                    ))}
+                  </ul>
+                </>
+              }
+            />
           )}
           {confirmDisabled && confirmDisabledReason && (
-            <div className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm">
-              {confirmDisabledReason}
-            </div>
+            <Alert
+              type="warning"
+              announce="polite"
+              message={confirmDisabledReason}
+            />
           )}
         </div>
       }
@@ -381,9 +395,12 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
         <p className="mt-2 text-xs text-gray-500">{extraMessage}</p>
       )}
       {confirmDisabled && confirmDisabledReason && (
-        <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-          {confirmDisabledReason}
-        </div>
+        <Alert
+          type="warning"
+          announce="polite"
+          message={confirmDisabledReason}
+          className="mt-3"
+        />
       )}
       <FormErrorAlert message={errorMessage ?? null} className="mt-3" />
     </ConfirmationModal>

@@ -1,5 +1,7 @@
 "use client";
 
+import { ListRowLink } from "~/components/ui/list-row-link";
+import { FramedList } from "~/components/ui/framed-list";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
@@ -127,29 +129,26 @@ function DocumentDirectory({
       {failed ? (
         <LoadErrorAlert error={error} />
       ) : (
-        <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
+        <FramedList>
           {filteredEntries.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
-              className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-            >
-              {entry.name}
-              <span aria-hidden="true" className="text-gray-400">
-                ›
-              </span>
-            </button>
+            <li key={entry.id}>
+              <ListRowLink
+                title={entry.name}
+                onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
+              />
+            </li>
           ))}
           {filteredEntries.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              className="px-4 py-6"
-              title="Keine Personen gefunden."
-              description="Passen Sie die Suche an."
-            />
+            <li>
+              <EmptyState
+                variant="compact"
+                className="px-4 py-6"
+                title="Keine Personen gefunden."
+                description="Passen Sie die Suche an."
+              />
+            </li>
           ) : null}
-        </div>
+        </FramedList>
       )}
     </SectionCard>
   );
@@ -1182,12 +1181,13 @@ function StaffPageContent() {
                               {cardInfo.length > 0 && (
                                 <div className="flex flex-wrap gap-2">
                                   {cardInfo.map((info) => (
-                                    <span
+                                    <StatusBadge
                                       key={info}
-                                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700"
-                                    >
-                                      {info}
-                                    </span>
+                                      label={info}
+                                      tone="gray"
+                                      compact
+                                      wrap
+                                    />
                                   ))}
                                 </div>
                               )}

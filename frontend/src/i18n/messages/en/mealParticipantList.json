@@ -2,7 +2,7 @@
   "title": "Daily list for the kitchen",
   "description": "The list shows all children registered for lunch on this day.",
   "cutoff": "Order deadline for this day: {date}.",
-  "closedDay": "The OGS is closed on this day. There is no lunch.",
+  "closedDay": "The {careTerm} is closed on this day. There is no lunch.",
   "child": "Child",
   "class": "Class",
   "dateAria": "Date: {date}",

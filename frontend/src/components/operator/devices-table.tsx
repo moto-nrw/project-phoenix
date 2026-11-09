@@ -15,32 +15,33 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { ArrowRightLeft, KeyRound, Trash2 } from "lucide-react";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 function DeviceStatusBadge({
   status,
   isOnline,
 }: Readonly<{ status: string; isOnline: boolean }>) {
   if (isOnline) {
+    return <StatusBadge tone="green" compact label="Online" />;
+  }
+  const label = getDeviceStatusDisplayName(status);
+  if (status === "maintenance") {
     return (
-      <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-        <span className="bg-moto-green h-1.5 w-1.5 rounded-full" />
-        Online
-      </span>
+      <StatusColorBadge label={label} color={LOCATION_COLORS.WARNING} compact />
     );
   }
-  const styles: Record<string, string> = {
-    active: "bg-moto-green/15 text-moto-green-strong",
-    inactive: "bg-gray-100 text-gray-500",
-    maintenance: "bg-moto-amber/15 text-moto-amber-strong",
-    offline: "bg-moto-red/10 text-moto-red-strong",
+  const tones: Record<string, StatusBadgeTone> = {
+    active: "green",
+    inactive: "gray",
+    offline: "red",
   };
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-500"}`}
-    >
-      {getDeviceStatusDisplayName(status)}
-    </span>
-  );
+  const tone = Object.hasOwn(tones, status) ? tones[status]! : "gray";
+  return <StatusBadge tone={tone} compact label={label} />;
 }
 
 interface DevicesTableProps {
@@ -84,7 +85,7 @@ export function DevicesTable({
       {
         key: "name",
         header: "Name",
-        render: (row) => row.name || "—",
+        render: (row) => row.name || "–",
         sortValue: (row) => (row.name || "").toLowerCase(),
         className: "text-gray-600",
       },
@@ -92,9 +93,11 @@ export function DevicesTable({
         key: "deviceType",
         header: "Typ",
         render: (row) => (
-          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-            {getDeviceTypeDisplayName(row.deviceType)}
-          </span>
+          <StatusBadge
+            tone="gray"
+            compact
+            label={getDeviceTypeDisplayName(row.deviceType)}
+          />
         ),
         sortValue: (row) => row.deviceType.toLowerCase(),
       },
@@ -129,7 +132,7 @@ export function DevicesTable({
               {row.maskedApiKey}
             </span>
           ) : (
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-400">–</span>
           ),
         sortValue: (row) => row.maskedApiKey.toLowerCase(),
       },

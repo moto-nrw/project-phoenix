@@ -1,16 +1,20 @@
-package sessiontoken
+package sessiontoken_test
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
 
 // =============================================================================
@@ -20,7 +24,7 @@ import (
 func TestClaimsFromCtx_ValidClaims(t *testing.T) {
 	t.Parallel()
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          42,
 		Sub:         "user@example.com",
 		Username:    "johndoe",
@@ -29,9 +33,9 @@ func TestClaimsFromCtx_ValidClaims(t *testing.T) {
 		IsAdmin:     true,
 	}
 
-	ctx := context.WithValue(context.Background(), CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
-	result := ClaimsFromCtx(ctx)
+	result := sessiontoken.ClaimsFromCtx(ctx)
 	assert.Equal(t, 42, result.ID)
 	assert.Equal(t, "user@example.com", result.Sub)
 	assert.Equal(t, "johndoe", result.Username)
@@ -45,8 +49,8 @@ func TestClaimsFromCtx_NoClaims(t *testing.T) {
 
 	ctx := context.Background()
 
-	result := ClaimsFromCtx(ctx)
-	assert.Equal(t, AppClaims{}, result)
+	result := sessiontoken.ClaimsFromCtx(ctx)
+	assert.Equal(t, sessiontoken.AppClaims{}, result)
 	assert.Equal(t, 0, result.ID)
 	assert.Empty(t, result.Sub)
 }
@@ -54,27 +58,27 @@ func TestClaimsFromCtx_NoClaims(t *testing.T) {
 func TestClaimsFromCtx_WrongType(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxClaims, "not a claims struct")
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, "not a claims struct")
 
-	result := ClaimsFromCtx(ctx)
-	assert.Equal(t, AppClaims{}, result)
+	result := sessiontoken.ClaimsFromCtx(ctx)
+	assert.Equal(t, sessiontoken.AppClaims{}, result)
 }
 
 func TestActorAccountIDFromCtx(t *testing.T) {
 	t.Parallel()
 
 	t.Run("missing claims", func(t *testing.T) {
-		assert.Nil(t, ActorAccountIDFromCtx(context.Background()))
+		assert.Nil(t, sessiontoken.ActorAccountIDFromCtx(context.Background()))
 	})
 
 	t.Run("zero account id", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), CtxClaims, AppClaims{})
-		assert.Nil(t, ActorAccountIDFromCtx(ctx))
+		ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, sessiontoken.AppClaims{})
+		assert.Nil(t, sessiontoken.ActorAccountIDFromCtx(ctx))
 	})
 
 	t.Run("valid account id", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), CtxClaims, AppClaims{ID: 42})
-		accountID := ActorAccountIDFromCtx(ctx)
+		ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 42})
+		accountID := sessiontoken.ActorAccountIDFromCtx(ctx)
 		require.NotNil(t, accountID)
 		assert.Equal(t, int64(42), *accountID)
 	})
@@ -84,9 +88,9 @@ func TestPermissionsFromCtx_ValidPermissions(t *testing.T) {
 	t.Parallel()
 
 	permissions := []string{"read", "write", "delete"}
-	ctx := context.WithValue(context.Background(), CtxPermissions, permissions)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, permissions)
 
-	result := PermissionsFromCtx(ctx)
+	result := sessiontoken.PermissionsFromCtx(ctx)
 	assert.Equal(t, []string{"read", "write", "delete"}, result)
 }
 
@@ -95,34 +99,34 @@ func TestPermissionsFromCtx_NoPermissions(t *testing.T) {
 
 	ctx := context.Background()
 
-	result := PermissionsFromCtx(ctx)
+	result := sessiontoken.PermissionsFromCtx(ctx)
 	assert.Equal(t, []string{}, result)
 }
 
 func TestPermissionsFromCtx_WrongType(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxPermissions, "not a slice")
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, "not a slice")
 
-	result := PermissionsFromCtx(ctx)
+	result := sessiontoken.PermissionsFromCtx(ctx)
 	assert.Equal(t, []string{}, result)
 }
 
 func TestPermissionsFromCtx_EmptySlice(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxPermissions, []string{})
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{})
 
-	result := PermissionsFromCtx(ctx)
+	result := sessiontoken.PermissionsFromCtx(ctx)
 	assert.Equal(t, []string{}, result)
 }
 
 func TestRefreshTokenFromCtx_ValidToken(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxRefreshToken, "refresh-token-value")
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxRefreshToken, "refresh-token-value")
 
-	result := RefreshTokenFromCtx(ctx)
+	result := sessiontoken.RefreshTokenFromCtx(ctx)
 	assert.Equal(t, "refresh-token-value", result)
 }
 
@@ -131,80 +135,22 @@ func TestRefreshTokenFromCtx_NoToken(t *testing.T) {
 
 	ctx := context.Background()
 
-	result := RefreshTokenFromCtx(ctx)
+	result := sessiontoken.RefreshTokenFromCtx(ctx)
 	assert.Empty(t, result)
 }
 
 func TestRefreshTokenFromCtx_WrongType(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxRefreshToken, 12345)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxRefreshToken, 12345)
 
-	result := RefreshTokenFromCtx(ctx)
+	result := sessiontoken.RefreshTokenFromCtx(ctx)
 	assert.Empty(t, result)
 }
 
 // =============================================================================
 // extractBearerToken Tests
 // =============================================================================
-
-func TestExtractBearerToken_ValidToken(t *testing.T) {
-	t.Parallel()
-
-	// Using a clearly fake test token (not a real JWT)
-	result := extractBearerToken("Bearer test-token-value-for-unit-test")
-	assert.Equal(t, "test-token-value-for-unit-test", result)
-}
-
-func TestExtractBearerToken_EmptyHeader(t *testing.T) {
-	t.Parallel()
-
-	result := extractBearerToken("")
-	assert.Empty(t, result)
-}
-
-func TestExtractBearerToken_NoBearer(t *testing.T) {
-	t.Parallel()
-
-	// Token without "Bearer " prefix should return empty
-	result := extractBearerToken("some-token-without-bearer-prefix")
-	assert.Empty(t, result)
-}
-
-func TestExtractBearerToken_LowercaseBearer(t *testing.T) {
-	t.Parallel()
-
-	result := extractBearerToken("bearer token")
-	assert.Empty(t, result, "Should be case-sensitive")
-}
-
-func TestExtractBearerToken_BearerNoSpace(t *testing.T) {
-	t.Parallel()
-
-	result := extractBearerToken("Bearertoken")
-	assert.Empty(t, result)
-}
-
-func TestExtractBearerToken_BearerOnly(t *testing.T) {
-	t.Parallel()
-
-	result := extractBearerToken("Bearer ")
-	assert.Empty(t, result)
-}
-
-func TestExtractBearerToken_TooShort(t *testing.T) {
-	t.Parallel()
-
-	result := extractBearerToken("Bearer")
-	assert.Empty(t, result)
-}
-
-func TestExtractBearerToken_ExtraSpaces(t *testing.T) {
-	t.Parallel()
-
-	result := extractBearerToken("Bearer  token")
-	assert.Equal(t, " token", result, "Should preserve extra spaces in token")
-}
 
 // =============================================================================
 // Authenticator Middleware Tests
@@ -216,34 +162,32 @@ func TestAuthenticator_ValidToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	// Create a valid token
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          42,
 		Sub:         "user@example.com",
 		Roles:       []string{"user"},
 		Permissions: []string{"read"},
 	}
-	token, err := auth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(auth, claims)
 	require.NoError(t, err)
 
 	// Setup router with middleware
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		// Verify claims are in context
-		ctxClaims := ClaimsFromCtx(r.Context())
+		ctxClaims := sessiontoken.ClaimsFromCtx(r.Context())
 		assert.Equal(t, 42, ctxClaims.ID)
 		assert.Equal(t, "user@example.com", ctxClaims.Sub)
 
 		// Verify permissions are in context
-		perms := PermissionsFromCtx(r.Context())
+		perms := sessiontoken.PermissionsFromCtx(r.Context())
 		assert.Equal(t, []string{"read"}, perms)
 
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Make request
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
@@ -260,7 +204,7 @@ func TestAuthenticator_NoToken(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -281,7 +225,7 @@ func TestAuthenticator_InvalidToken(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -296,36 +240,35 @@ func TestAuthenticator_InvalidToken(t *testing.T) {
 
 func TestAuthenticator_ExpiredToken(t *testing.T) {
 	t.Parallel()
-	// Set very short expiry
+	synctest.Test(t, func(t *testing.T) {
+		auth, err := newTestTokenAuth(t, testSecret, time.Millisecond, 24*time.Hour)
+		require.NoError(t, err)
 
-	auth, err := newTestTokenAuth(t, testSecret, time.Millisecond, 24*time.Hour)
-	require.NoError(t, err)
+		claims := sessiontoken.AppClaims{
+			ID:    1,
+			Sub:   "test@test.com",
+			Roles: []string{"user"},
+		}
+		token, err := tokentest.CreateJWT(auth, claims)
+		require.NoError(t, err)
 
-	// Create token
-	claims := AppClaims{
-		ID:    1,
-		Sub:   "test@test.com",
-		Roles: []string{"user"},
-	}
-	token, err := auth.CreateJWT(claims)
-	require.NoError(t, err)
+		// The bubble's clock passes the expiry without waiting.
+		time.Sleep(10 * time.Millisecond)
 
-	// Wait for expiry
-	time.Sleep(10 * time.Millisecond)
+		r := chi.NewRouter()
+		r.Use(auth.Verifier())
+		r.Use(sessiontoken.Authenticator)
+		r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
 
-	r := chi.NewRouter()
-	r.Use(auth.Verifier())
-	r.Use(Authenticator)
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rr := httptest.NewRecorder()
+
+		r.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 func TestAuthenticator_WrongSignature(t *testing.T) {
@@ -335,12 +278,12 @@ func TestAuthenticator_WrongSignature(t *testing.T) {
 	auth1, err := newTestTokenAuth(t, "different-secret-32-chars!!!!!!!")
 	require.NoError(t, err)
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    1,
 		Sub:   "test@test.com",
 		Roles: []string{"user"},
 	}
-	token, err := auth1.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(auth1, claims)
 	require.NoError(t, err)
 
 	// Verify with different secret
@@ -349,7 +292,7 @@ func TestAuthenticator_WrongSignature(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth2.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -379,7 +322,7 @@ func TestAuthenticator_MalformedClaims(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -402,20 +345,19 @@ func TestAuthenticateRefreshJWT_ValidToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	// Create a valid refresh token
-	claims := RefreshClaims{
+	claims := tokentest.RefreshClaims{
 		ID:    42,
 		Token: "unique-token-id",
 	}
-	token, err := auth.CreateRefreshJWT(claims)
+	token, err := tokentest.CreateRefreshJWT(auth, claims)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		// Verify refresh token is in context
-		refreshToken := RefreshTokenFromCtx(r.Context())
+		refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
 		assert.Equal(t, token, refreshToken)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -436,7 +378,7 @@ func TestAuthenticateRefreshJWT_NoToken(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -456,7 +398,7 @@ func TestAuthenticateRefreshJWT_InvalidToken(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -485,7 +427,7 @@ func TestAuthenticateRefreshJWT_MalformedClaims(t *testing.T) {
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -506,9 +448,9 @@ func TestCtxKey_DistinctValues(t *testing.T) {
 	t.Parallel()
 
 	// Ensure context keys are distinct
-	assert.NotEqual(t, CtxClaims, CtxRefreshToken)
-	assert.NotEqual(t, CtxClaims, CtxPermissions)
-	assert.NotEqual(t, CtxRefreshToken, CtxPermissions)
+	assert.NotEqual(t, sessiontoken.CtxClaims, sessiontoken.CtxRefreshToken)
+	assert.NotEqual(t, sessiontoken.CtxClaims, sessiontoken.CtxPermissions)
+	assert.NotEqual(t, sessiontoken.CtxRefreshToken, sessiontoken.CtxPermissions)
 }
 
 // =============================================================================
@@ -521,8 +463,7 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	// Create claims
-	accessClaims := AppClaims{
+	accessClaims := sessiontoken.AppClaims{
 		ID:          123,
 		Sub:         "user@example.com",
 		Username:    "testuser",
@@ -533,13 +474,12 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 		IsAdmin:     true,
 	}
 
-	refreshClaims := RefreshClaims{
+	refreshClaims := tokentest.RefreshClaims{
 		ID:    123,
 		Token: "refresh-token-id",
 	}
 
-	// Generate tokens
-	accessToken, refreshToken, err := auth.GenTokenPair(accessClaims, refreshClaims)
+	accessToken, refreshToken, err := tokentest.GenTokenPair(auth, accessClaims, refreshClaims)
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken)
 	require.NotEmpty(t, refreshToken)
@@ -547,10 +487,10 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 	// Test access token
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/protected", func(w http.ResponseWriter, r *http.Request) {
-		claims := ClaimsFromCtx(r.Context())
-		perms := PermissionsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
+		perms := sessiontoken.PermissionsFromCtx(r.Context())
 
 		// Verify all claims are accessible
 		assert.Equal(t, 123, claims.ID)
@@ -577,17 +517,6 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 // renderUnauthorized Tests
 // =============================================================================
 
-func TestRenderUnauthorized_SuccessfulRender(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-
-	renderUnauthorized(rr, req, ErrTokenUnauthorized)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
 // =============================================================================
 // Error Types Tests
 // =============================================================================
@@ -595,9 +524,9 @@ func TestRenderUnauthorized_SuccessfulRender(t *testing.T) {
 func TestErrorTypes(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "token unauthorized", ErrTokenUnauthorized.Error())
-	assert.Equal(t, "token expired", ErrTokenExpired.Error())
-	assert.Equal(t, "invalid access token", ErrInvalidAccessToken.Error())
+	assert.Equal(t, "token unauthorized", sessiontoken.ErrTokenUnauthorized.Error())
+	assert.Equal(t, "token expired", sessiontoken.ErrTokenExpired.Error())
+	assert.Equal(t, "invalid access token", sessiontoken.ErrInvalidAccessToken.Error())
 }
 
 // =============================================================================
@@ -610,8 +539,8 @@ func TestErrResponse_Render(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
-	errResp := &ErrResponse{
-		Err:            ErrTokenExpired,
+	errResp := &sessiontoken.ErrResponse{
+		Err:            sessiontoken.ErrTokenExpired,
 		HTTPStatusCode: http.StatusUnauthorized,
 		Detail:         "token expired",
 	}
@@ -624,10 +553,10 @@ func TestErrResponse_Render(t *testing.T) {
 func TestErrUnauthorized(t *testing.T) {
 	t.Parallel()
 
-	renderer := ErrUnauthorized(ErrTokenExpired)
+	renderer := sessiontoken.ErrUnauthorized(sessiontoken.ErrTokenExpired)
 	assert.NotNil(t, renderer)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*sessiontoken.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
 	assert.Equal(t, "general.permission", errResp.Code)
@@ -642,19 +571,19 @@ func TestContextValueIsolation(t *testing.T) {
 	t.Parallel()
 
 	// Test that different context keys don't interfere with each other
-	claims := AppClaims{ID: 42}
+	claims := sessiontoken.AppClaims{ID: 42}
 	permissions := []string{"read"}
 	refreshToken := "refresh-token"
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, CtxClaims, claims)
-	ctx = context.WithValue(ctx, CtxPermissions, permissions)
-	ctx = context.WithValue(ctx, CtxRefreshToken, refreshToken)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, claims)
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, permissions)
+	ctx = context.WithValue(ctx, sessiontoken.CtxRefreshToken, refreshToken)
 
 	// All values should be independently retrievable
-	assert.Equal(t, 42, ClaimsFromCtx(ctx).ID)
-	assert.Equal(t, []string{"read"}, PermissionsFromCtx(ctx))
-	assert.Equal(t, "refresh-token", RefreshTokenFromCtx(ctx))
+	assert.Equal(t, 42, sessiontoken.ClaimsFromCtx(ctx).ID)
+	assert.Equal(t, []string{"read"}, sessiontoken.PermissionsFromCtx(ctx))
+	assert.Equal(t, "refresh-token", sessiontoken.RefreshTokenFromCtx(ctx))
 }
 
 // =============================================================================
@@ -667,20 +596,20 @@ func TestMiddlewareChain_VerifierThenAuthenticator(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	claims := AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          1,
 		Sub:         "test@test.com",
 		Roles:       []string{"user"},
 		Permissions: []string{"read"},
 	}
-	token, err := auth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(auth, claims)
 	require.NoError(t, err)
 
 	// Test that verifier and authenticator work together
 	handlerCalled := false
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		handlerCalled = true
 		// Verify jwtauth context is set by verifier
@@ -689,7 +618,7 @@ func TestMiddlewareChain_VerifierThenAuthenticator(t *testing.T) {
 		assert.NotNil(t, token)
 
 		// Verify our custom context is set by authenticator
-		ctxClaims := ClaimsFromCtx(r.Context())
+		ctxClaims := sessiontoken.ClaimsFromCtx(r.Context())
 		assert.Equal(t, 1, ctxClaims.ID)
 
 		w.WriteHeader(http.StatusOK)
@@ -710,35 +639,34 @@ func TestMiddlewareChain_VerifierThenAuthenticator(t *testing.T) {
 
 func TestAuthenticateRefreshJWT_ExpiredToken(t *testing.T) {
 	t.Parallel()
-	// Set very short expiry for refresh token
+	synctest.Test(t, func(t *testing.T) {
+		auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, time.Millisecond)
+		require.NoError(t, err)
 
-	auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, time.Millisecond)
-	require.NoError(t, err)
+		claims := tokentest.RefreshClaims{
+			ID:    1,
+			Token: "test-token",
+		}
+		token, err := tokentest.CreateRefreshJWT(auth, claims)
+		require.NoError(t, err)
 
-	// Create refresh token
-	claims := RefreshClaims{
-		ID:    1,
-		Token: "test-token",
-	}
-	token, err := auth.CreateRefreshJWT(claims)
-	require.NoError(t, err)
+		// The bubble's clock passes the expiry without waiting.
+		time.Sleep(10 * time.Millisecond)
 
-	// Wait for token to expire
-	time.Sleep(10 * time.Millisecond)
+		r := chi.NewRouter()
+		r.Use(auth.Verifier())
+		r.Use(sessiontoken.AuthenticateRefreshJWT)
+		r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
 
-	r := chi.NewRouter()
-	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
-	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rr := httptest.NewRecorder()
+
+		r.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
-
-	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 func TestAuthenticator_NilToken(t *testing.T) {
@@ -747,7 +675,7 @@ func TestAuthenticator_NilToken(t *testing.T) {
 	// Create router without Verifier middleware - this should result in nil token
 	r := chi.NewRouter()
 	// Intentionally not using Verifier() to get nil token
-	r.Use(Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -766,7 +694,7 @@ func TestAuthenticateRefreshJWT_NilToken(t *testing.T) {
 
 	// Test refresh JWT middleware without verifier - should result in nil token
 	r := chi.NewRouter()
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -775,6 +703,30 @@ func TestAuthenticateRefreshJWT_NilToken(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer some-token")
 	rr := httptest.NewRecorder()
 
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// A signed refresh token whose token claim is not a string is refused with
+// 401; it must not panic the middleware.
+func TestAuthenticateRefreshJWT_NonStringTokenClaimIsRefused(t *testing.T) {
+	t.Parallel()
+
+	auth, err := newTestTokenAuth(t, testSecret)
+	require.NoError(t, err)
+	_, token, err := auth.JwtAuth.Encode(map[string]any{
+		"id": 42, "token": 7, "exp": time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	r := chi.NewRouter()
+	r.Use(auth.Verifier())
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
+	r.Post("/refresh", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }

@@ -2,6 +2,9 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
@@ -10,6 +13,29 @@ import (
 // The existing directory store serves the native read facade itself. Each
 // operation retains its original query, tenant context, locks and errors.
 var _ directory.GuardianProfileReads = (*guardianProfileRepository)(nil)
+
+// FindByIDForUpdate retains the complete profile read and the existing
+// tenant-scoped row lock in one statement. It joins the caller's transaction.
+func (r *guardianProfileRepository) FindByIDForUpdate(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error) {
+	profile := new(users.GuardianProfile)
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := db.NewSelect().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".id = ?`, id).
+		For("UPDATE")
+	query = withTenantFilter(ctx, r.runtime, query, "guardian_profile")
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, users.ErrGuardianProfileNotFound
+		}
+		return nil, fmt.Errorf("failed to lock guardian profile: %w", err)
+	}
+	return NativeGuardianProfile(profile), nil
+}
 
 func (r *guardianProfileRepository) GuardianProfileByID(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error) {
 	value, err := r.FindByID(ctx, id)
@@ -59,6 +85,7 @@ func NativeGuardianProfile(row *users.GuardianProfile) *directory.GuardianProfil
 		return nil
 	}
 	out := &directory.GuardianProfileSnapshot{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email, AddressStreet: row.AddressStreet, AddressCity: row.AddressCity, AddressPostalCode: row.AddressPostalCode, AccountID: row.AccountID, HasAccount: row.HasAccount, PreferredContactMethod: row.PreferredContactMethod, LanguagePreference: row.LanguagePreference, PortalLocale: row.PortalLocale, Notes: row.Notes}
+	out.EmailsStoppedAt = row.EmailsStoppedAt
 	if row.PhoneNumbers != nil {
 		out.PhoneNumbers = make([]*directory.GuardianProfilePhoneSnapshot, len(row.PhoneNumbers))
 		for i, p := range row.PhoneNumbers {

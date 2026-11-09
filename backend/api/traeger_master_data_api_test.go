@@ -52,8 +52,14 @@ type masterDataLogo struct {
 	SizeBytes   int    `json:"size_bytes"`
 }
 
+type masterDataWithdrawal struct {
+	Phone string `json:"phone"`
+	Email string `json:"email"`
+}
+
 type masterDataProfile struct {
 	Contact      masterDataContact       `json:"contact"`
+	Withdrawal   masterDataWithdrawal    `json:"withdrawal"`
 	Logo         *masterDataLogo         `json:"logo"`
 	BankAccounts []masterDataBankAccount `json:"bank_accounts"`
 }
@@ -246,6 +252,44 @@ func TestTraegerMasterDataRefusesInvalidInput(t *testing.T) {
 		masterDataProfileOf(t, router, office).Contact)
 }
 
+// TestTraegerWithdrawalContactIsCheckedKeptAndLogged pins the withdrawal
+// contact of #6200: it is checked like the contact person's phone and
+// e-mail, kept trimmed with the e-mail in lower case, logged as a change of
+// its own, and an empty save clears it again.
+func TestTraegerWithdrawalContactIsCheckedKeptAndLogged(t *testing.T) {
+	t.Parallel()
+	db, router := newMasterDataPortal(t)
+	office := newMasterDataOffice(t, db, router, "Träger Widerrufskontakt", identityaccess.TraegerRoleAdministration)
+	const path = "/traeger/master-data/withdrawal-contact"
+
+	rec := traegerJSON(t, router, office.token, http.MethodPut, path, masterDataWithdrawal{Phone: "Büro", Email: "keine-adresse"})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	refusal := refusalOf(t, rec)
+	assert.Equal(t, "traeger.master_data_invalid", refusal.Code)
+	fields := []string{}
+	for _, field := range refusal.Errors {
+		fields = append(fields, field.Field)
+	}
+	assert.ElementsMatch(t, []string{"phone", "email"}, fields)
+
+	rec = traegerJSON(t, router, office.token, http.MethodPut, path, masterDataWithdrawal{Phone: " 0800 123 45 ", Email: "Widerruf@Traeger.example"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	saved := masterDataWithdrawal{Phone: "0800 123 45", Email: "widerruf@traeger.example"}
+	assert.Equal(t, saved, decodeSchoolPortalData[masterDataWithdrawal](t, rec.Body.Bytes()))
+	profile := masterDataProfileOf(t, router, office)
+	assert.Equal(t, saved, profile.Withdrawal)
+	assert.Equal(t, masterDataContact{}, profile.Contact, "the contact person stays as it was")
+
+	require.Equal(t, http.StatusOK, traegerJSON(t, router, office.token, http.MethodPut, path, masterDataWithdrawal{}).Code)
+	assert.Equal(t, masterDataWithdrawal{}, masterDataProfileOf(t, router, office).Withdrawal, "an empty save takes the contact person's again")
+	assert.Equal(t, []string{"withdrawal:set", "master_data:read", "withdrawal:set", "master_data:read"},
+		masterDataLog(t, db, office.organization))
+
+	reader := newMasterDataOffice(t, db, router, "Träger Widerrufskontakt Lesen", identityaccess.TraegerRoleReadOnly)
+	assert.Equal(t, http.StatusForbidden, traegerJSON(t, router, reader.token, http.MethodPut, path, saved).Code,
+		"only the right „Einstellungen“ changes it")
+}
+
 func TestTraegerLogoUploadChecksTypeSizeAndContent(t *testing.T) {
 	t.Parallel()
 	db, router := newMasterDataPortal(t)
@@ -399,19 +443,19 @@ func TestTraegerMasterDataQueryBudget(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	}
 	addAccount("Elternbeiträge", traegerTestIBAN)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/master-data/", nil)
 		req.Header.Set("Authorization", "Bearer "+office.token)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	one := read()
 	addAccount("Ferien", traegerOtherIBAN)
 	addAccount("Mensa", "GB82WEST12345698765432")
-	assert.Len(t, read(), len(one), "the master data reads the same statements for any number of bank accounts")
+	assert.Len(t, read().Statements, len(one.Statements), "the master data reads the same statements for any number of bank accounts")
 	querybudgets.AssertQueryBudget(t, "api.traeger.master_data", one)
 }
 

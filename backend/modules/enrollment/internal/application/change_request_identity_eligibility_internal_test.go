@@ -21,8 +21,8 @@ func newIdentityEligibilityService(exists bool) *ChangeRequests {
 	})
 }
 
-func identityEligibilityChild(id int64, firstName string) *RequestChild {
-	child := &RequestChild{
+func identityEligibilityChild(id int64, firstName string) *enrollment.RequestChild {
+	child := &enrollment.RequestChild{
 		FirstName:   firstName,
 		LastName:    "Müller",
 		DateOfBirth: "2019-04-12",
@@ -48,7 +48,7 @@ func TestValidateChangedChildIdentityEligibility_RejectsRetargetToEnrolledIdenti
 
 	svc := newIdentityEligibilityService(true)
 	phase := &enrollment.Phase{Audience: enrollment.PhaseAudienceNewStudents}
-	children := []*RequestChild{
+	children := []*enrollment.RequestChild{
 		identityEligibilityChild(11, "Anna"),
 		identityEligibilityChild(12, "Ben"),
 	}
@@ -74,7 +74,7 @@ func TestValidateChangedChildIdentityEligibility_SkipsUnchangedIdentities(t *tes
 
 	svc := newIdentityEligibilityService(true)
 	phase := &enrollment.Phase{Audience: enrollment.PhaseAudienceNewStudents}
-	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
+	children := []*enrollment.RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Anna")},
@@ -90,7 +90,7 @@ func TestValidateChangedChildIdentityEligibility_ExistingStudentsRejectsUnknownI
 
 	svc := newIdentityEligibilityService(false)
 	phase := &enrollment.Phase{Audience: enrollment.PhaseAudienceExistingStudents}
-	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
+	children := []*enrollment.RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Ben")},
@@ -106,7 +106,7 @@ func TestValidateChangedChildIdentityEligibility_OtherAudiencesPass(t *testing.T
 
 	svc := newIdentityEligibilityService(true)
 	phase := &enrollment.Phase{Audience: enrollment.PhaseAudienceOpen}
-	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
+	children := []*enrollment.RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Ben")},

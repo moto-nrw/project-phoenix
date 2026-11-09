@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -519,4 +520,81 @@ func renderWelcomeTemplate(t *testing.T, msg *testpkg.EmailMessage) string {
 	var buf bytes.Buffer
 	require.NoError(t, tmpl.ExecuteTemplate(&buf, msg.Template, msg.Content))
 	return buf.String()
+}
+
+// The list says what Delivery knows, and a delayed mail is not sent twice (#5934).
+func TestSchoolInvitationShowsItsMailAndRefusesAResendWhileDelayed(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(&retryingInvitationMailer{}),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "mail-state-creator")
+	role := testpkg.CreateTestRole(t, db, "mail-state-caregiver")
+	invitation, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("mail-state"), RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+
+	outcomeOf := func() string {
+		var outcome string
+		require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+			states, statesErr := module.Invitation.SchoolInvitationMailStates(txCtx, testpkg.Tenant(t), []int64{invitation.ID})
+			outcome = states[invitation.ID].Outcome
+			return statesErr
+		}))
+		return outcome
+	}
+	assert.NotEqual(t, "delivered", outcomeOf(), "no event, no delivery")
+
+	_, err = db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', delivery_state = 'delayed', delivery_state_at = NOW()
+		WHERE tenant_id = ? AND related_entity_type = 'invitation' AND related_entity_id = ?`, testpkg.Tenant(t), invitation.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "delayed", outcomeOf())
+
+	err = module.Invitation.ResendSchoolInvitation(ctx, invitation.ID, creator.ID)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationMailDelayed)
+}
+
+func TestSchoolInvitationMailStatesQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(&retryingInvitationMailer{}),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "mail-budget-creator")
+	role := testpkg.CreateTestRole(t, db, "mail-budget-caregiver")
+	var ids []int64
+	invite := func(seed string) {
+		invitation, inviteErr := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+			Email: inviteeAddress(seed), RoleID: role.ID, CreatedBy: creator.ID,
+			ActorPermissions: []string{usersManagePermission},
+		})
+		require.NoError(t, inviteErr)
+		ids = append(ids, invitation.ID)
+	}
+	invite("mail-budget-1")
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		countedCtx := counter.Context(txCtx)
+		read := func() []string {
+			counter.Reset()
+			_, readErr := module.Invitation.SchoolInvitationMailStates(countedCtx, testpkg.Tenant(t), ids)
+			require.NoError(t, readErr)
+			return counter.Operation("SELECT")
+		}
+		small := read()
+		querybudgets.AssertQueryBudget(t, "api.invitations.mail_states", counter.Measurement(small))
+		invite("mail-budget-2")
+		invite("mail-budget-3")
+		assert.Equal(t, len(small), len(read()), "a further invitation adds no statement")
+		return nil
+	}))
 }

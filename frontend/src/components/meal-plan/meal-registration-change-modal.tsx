@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -28,6 +28,7 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   clearChildMealDay,
   getChildMealSchedule,
@@ -70,7 +71,7 @@ export function MealRegistrationChangeModal({
   others: readonly DailyMealParticipant[];
   initialStudentId?: string;
 }>) {
-  const t = useTranslations("mealParticipantList");
+  const t = useCareTermTranslations("mealParticipantList");
   const locale = useLocale();
   const today = useBerlinToday();
   const datePicker = useLocalizedDatePicker();
@@ -251,21 +252,13 @@ export function MealRegistrationChangeModal({
     >
       <div className="space-y-5">
         <p className="text-sm text-gray-600">{t("changeHint")}</p>
-        <div>
-          <span
-            id="meal-change-child-label"
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            {t("child")}
-          </span>
-          <CustomSelect
-            value={studentId}
-            options={options}
-            onChange={chooseChild}
-            ariaLabelledBy="meal-change-child-label"
-            placeholder={t("childPlaceholder")}
-          />
-        </div>
+        <CustomSelect
+          label={t("child")}
+          value={studentId}
+          options={options}
+          onChange={chooseChild}
+          placeholder={t("childPlaceholder")}
+        />
         <SegmentedControl<ChangeScope>
           items={[
             {
@@ -308,7 +301,8 @@ export function MealRegistrationChangeModal({
                   {WEEKDAYS.map((weekday) => (
                     <Skeleton
                       key={weekday}
-                      className="h-11 rounded-lg"
+                      shape="control"
+                      className="h-11"
                       aria-hidden="true"
                     />
                   ))}

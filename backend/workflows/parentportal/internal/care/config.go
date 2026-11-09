@@ -75,10 +75,21 @@ type Config struct {
 	// in the Träger transaction, the Träger of a school, the address of an
 	// account, and the push that a document arrived.
 	BillingDocuments BillingDocuments
+	// ContractDocuments are the sent care contracts of the Träger in the
+	// same inbox (#4678, ADR 0153).
+	ContractDocuments ContractDocuments
+	// ContractNotices withdraw and terminate those contracts (#4682).
+	ContractNotices ContractNotices
+	// SharedDocuments are the documents a Träger released for parents in
+	// the same inbox (#4692).
+	SharedDocuments  TraegerSharedDocuments
 	TraegerRuntime   TraegerRuntime
 	SchoolTraeger    SchoolTraeger
 	ParentAccounts   ParentAccounts
 	DocumentNotifier BillingDocumentNotifier
+	// DocumentPushPorts serve the pushes of a sent contract and of a
+	// release for parents (#5941).
+	DocumentPushPorts
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory

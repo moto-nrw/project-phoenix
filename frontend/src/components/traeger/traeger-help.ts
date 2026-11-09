@@ -24,7 +24,12 @@ function onPage(page: string, path: string): boolean {
 export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   const page = pathname.replace(/^\/traeger(?=\/|$)/, "") || "/";
   if (onPage(page, "/uebersicht")) return HELP_TOPICS.traegerDashboard;
+  if (onPage(page, "/stichtagszahlen")) {
+    return HELP_TOPICS.traegerKeyDateCounts;
+  }
+  if (onPage(page, "/belegung")) return HELP_TOPICS.traegerOccupancy;
   if (onPage(page, "/schulen")) return HELP_TOPICS.traegerSchoolView;
+  if (onPage(page, "/dokumente")) return HELP_TOPICS.traegerSharedDocuments;
   if (onPage(page, "/einstellungen/mitglieder")) {
     return HELP_TOPICS.traegerAccounts;
   }
@@ -37,11 +42,40 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   if (onPage(page, "/einstellungen/briefkopf")) {
     return HELP_TOPICS.traegerBriefkopf;
   }
+  if (onPage(page, "/einstellungen/dokumentarten")) {
+    return HELP_TOPICS.traegerDocumentKinds;
+  }
   if (onPage(page, "/einstellungen/abrechnung")) {
     return HELP_TOPICS.traegerHolidayContribution;
   }
   if (onPage(page, "/einstellungen")) return HELP_TOPICS.traegerSettings;
+  if (onPage(page, "/abrechnung/jahresbescheide")) {
+    return HELP_TOPICS.traegerCareNotices;
+  }
+  if (
+    onPage(page, "/abrechnung/monatsbeitraege") ||
+    onPage(page, "/abrechnung/preise")
+  ) {
+    return HELP_TOPICS.traegerCareMonths;
+  }
+  if (onPage(page, "/abrechnung/mensa")) return HELP_TOPICS.traegerCareMeals;
+  if (
+    onPage(page, "/abrechnung/ermaessigungen") ||
+    onPage(page, "/abrechnung/nachweise") ||
+    onPage(page, "/abrechnung/kinderzahl")
+  ) {
+    return HELP_TOPICS.traegerCareReductions;
+  }
+  if (onPage(page, "/abrechnung/lastschrift")) {
+    return HELP_TOPICS.traegerSepaMandates;
+  }
+  if (onPage(page, "/abrechnung/kostentraeger")) {
+    return HELP_TOPICS.traegerCareCostShares;
+  }
   if (onPage(page, "/abrechnung")) return HELP_TOPICS.traegerBillingRun;
+  if (onPage(page, "/vertraege")) return HELP_TOPICS.traegerCareContracts;
+  if (onPage(page, "/zeitvergleich"))
+    return HELP_TOPICS.traegerCareTimeOverruns;
   if (HOLIDAY_FORM_PAGE.test(page)) return HELP_TOPICS.traegerHolidayForm;
   if (HOLIDAY_REGISTRATIONS_PAGE.test(page)) {
     return HELP_TOPICS.traegerHolidayRegistrationReview;

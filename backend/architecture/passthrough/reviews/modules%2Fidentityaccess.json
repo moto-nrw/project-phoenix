@@ -137,11 +137,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveChallengeInScope",
-      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -211,24 +206,19 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/AccountAdministration.FindManageableAccount",
-      "reason": "ADR 0104: removing the former org branch (ADR 0084) leaves the transaction wrapper of the manageable-account read."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/AccountAdministration.UpdateManageableAccount",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/AccountAuthentication.CountExpiredTokens",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountAuthentication.ListActiveSessions",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
       "decision": "0090",
@@ -246,13 +236,23 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/AccountLifecycle.HasLiveCaregiverProfile",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountLifecycle.RejectInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorDisableMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorSetMFAOverride",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -263,11 +263,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetTenantMFAOverride",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -457,6 +452,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "modules/identityaccess/internal/application/CapabilityGate.TrustedDeviceDays",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -548,11 +548,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -847,7 +842,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasEnrollment",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasOperatorMFAEnrollment",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -858,26 +853,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.HasEnrollment",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.StartChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.TrustedDeviceDays",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.VerifyTrustedDevice",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -916,9 +891,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/OperatorProvisioning.ValidateOperatorInvitation",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
       "decision": "0090",
@@ -1016,14 +991,14 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/PasswordReset.DeleteSpentPasswordResetTokens",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/PasswordReset.DeleteStalePasswordResetWindows",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
       "decision": "0090",
@@ -1066,9 +1041,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0177",
       "id": "modules/identityaccess/internal/application/RoleAdministration.ReplaceAccountRole",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
     },
     {
       "decision": "0090",
@@ -1157,7 +1132,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/Service.FindRolePermissions",
+      "id": "modules/identityaccess/internal/application/Service.FindRolePermissionsByRoleIDs",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -1262,16 +1237,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorDisableMFA",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorSetMFAOverride",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/ceremonyRejection.Error",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -1316,14 +1281,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
-      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateJWT",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateRefreshJWT",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "decision": "0132",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.ParseAccessJWT",
+      "reason": "B3: verifies the signature, reads the claims through the one wire decoder and refuses expiry; shortened by the shared decoder, not a forward."
     }
   ]
 }

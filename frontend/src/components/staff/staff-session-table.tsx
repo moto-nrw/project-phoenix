@@ -1,16 +1,16 @@
 "use client";
 
-import {
-  CalendarPlus,
-  ChevronRight,
-  SquarePen,
-  Thermometer,
-} from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarPlus, SquarePen, Thermometer } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInvalidateMatching } from "~/lib/swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableExtraRow,
+} from "~/components/ui/data-table";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
@@ -69,42 +69,6 @@ import {
 import { formatSignedDuration } from "./staff-time-views";
 
 const logger = createLogger({ component: "StaffSessionTable" });
-
-// Number of columns in the table — the inline edit-history row spans all
-// of them. Keep in sync with the <thead> below. Plan and action columns are
-// added on top where shown.
-const COLUMN_COUNT = 12;
-
-// Die Aktionsspalte haftet am rechten Rand der Tabelle (#4975): Die Tabelle
-// ist mindestens 1040 px breit, auf Tablet und Handy lag das Menü sonst
-// außerhalb des Bildes. Die Zelle braucht einen deckenden Hintergrund, der
-// die Tönung der Zeile nachbildet; ein Verlauf in der Zeilenfarbe über Weiß
-// ergibt dieselbe Farbe wie die durchscheinende Zeile.
-type RowTint = "expanded" | "today" | "weekend" | "none" | "block";
-
-const ROW_TINT_CLASS: Record<RowTint, string> = {
-  expanded: "bg-gray-50",
-  today: "bg-moto-orange/5",
-  weekend: "bg-gray-50/60",
-  none: "",
-  block: "bg-gray-50/40",
-};
-
-const PINNED_TINT_CLASS: Record<RowTint, string> = {
-  expanded: "bg-linear-to-r from-gray-50 to-gray-50",
-  today: "bg-linear-to-r from-moto-orange/5 to-moto-orange/5",
-  weekend: "bg-linear-to-r from-gray-50/60 to-gray-50/60",
-  none: "",
-  block: "bg-linear-to-r from-gray-50/40 to-gray-50/40",
-};
-
-function pinnedCellClass(tint: RowTint): string {
-  const hover =
-    tint === "block"
-      ? ""
-      : "group-hover:from-gray-50 group-hover:to-gray-50 group-hover:bg-linear-to-r";
-  return `sticky right-0 bg-white px-3 ${tint === "block" ? "py-2" : "py-3"} ${PINNED_TINT_CLASS[tint]} ${hover}`;
-}
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -447,7 +411,6 @@ export function StaffSessionTable({
     }
     return map;
   }, [plannedShifts]);
-  const columnCount = COLUMN_COUNT + (showPlan ? 1 : 0) + (isAdminView ? 1 : 0);
   const laborDaysByDate = useMemo(() => indexLaborDays(laborDays), [laborDays]);
   const weeklySummaryByKey = useMemo(
     () =>
@@ -604,12 +567,11 @@ export function StaffSessionTable({
     resolveDayTarget,
   ]);
 
-  // Inline-expandable row: clicking a row toggles an EditHistoryAccordion in
-  // a second <tr> directly below. Mirrors the MA-side /time-tracking page so
-  // the audit-trail UX is identical for both audiences. We deliberately avoid
-  // a modal here — all per-day numbers (Soll, Ist, Saldo, …) are already
-  // visible in the row, so a modal would only duplicate them.
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  // Clicking a row with audit history opens an EditHistoryAccordion directly
+  // below it. Mirrors the MA-side /time-tracking page so the audit-trail UX is
+  // identical for both audiences. We deliberately avoid a modal here — all
+  // per-day numbers (Soll, Ist, Saldo, …) are already visible in the row, so a
+  // modal would only duplicate them.
 
   // Edit/nachtragen modal state. Lifted into the table because both the
   // SquarePen action button and the "Weitere Änderung vornehmen" button
@@ -630,6 +592,597 @@ export function StaffSessionTable({
     void invalidate((key) => isStaleAfterSessionSave(key, staffId));
   };
 
+  // One entry per visible day, with everything the cells below read.
+  const rows = days.map((day, dayIndex) => {
+    const key = toDateKey(day);
+    const weekKey = isoWeekKey(day);
+    const nextDay = days[dayIndex + 1];
+    const weeklySummary = weeklySummaryByKey?.get(weekKey);
+    const closesWeek =
+      weeklySummary !== undefined &&
+      (nextDay === undefined || isoWeekKey(nextDay) !== weekKey);
+    const dow = toIsoDayOfWeek(day);
+    const daySessions = sessionsByDate.get(key) ?? [];
+    // Single-block days keep their familiar row; multi-block days (#2402)
+    // aggregate on the day row and list each block in a sub-row underneath.
+    const session = daySessions[0];
+    const originalSession = session?.id
+      ? (originalSessionsByID.get(session.id) ?? session)
+      : session;
+    const originalSessionDate = originalSession
+      ? parseISODate(originalSession.date)
+      : day;
+    const absence = absencesByDate.get(key);
+    const holidayName = holidays?.get(key);
+    const closingReason = closingDays?.get(key);
+    // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf NICHT auf
+    // den aktuellen Plan zurückfallen (#1842): der Tag bleibt ungelöst, damit
+    // die Tabelle keinen erfundenen Soll-/Saldo-Wert behauptet — weder
+    // dauerhaft (Fehler) noch kurzzeitig beim Zeitraumwechsel (pending, stale
+    // Map).
+    const { unresolved: targetUnresolved, displayed: target } =
+      resolveDayTarget(day);
+    const isFuture = day > today;
+    const ist = daySessions.reduce((sum, s) => sum + (s.net_minutes ?? 0), 0);
+    const pause = daySessions.reduce(
+      (sum, s) => sum + (s.break_minutes ?? 0),
+      0,
+    );
+    // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf einem
+    // geplanten freien Tag (#1967). Vor einem untermonatigen Stundenkonto-Start
+    // zählt die Monatskarte allerdings weder Soll noch Ist. GetDailyTargets
+    // liefert dort ebenfalls 0, kann diesen Fall also nicht allein von einem
+    // freien Tag unterscheiden; dafür braucht die Zeile zusätzlich den
+    // konfigurierten Starttag.
+    const isBeforeAccountStart =
+      accountStartDate !== null &&
+      accountStartDate !== "" &&
+      key.slice(0, 7) === accountStartDate.slice(0, 7) &&
+      key < accountStartDate;
+    const balanceUnresolved =
+      targetUnresolved || (target === 0 && accountStartDatePending);
+    // Gutschrift und Saldo kommen vom Server (#2443) — dieselbe Rechnung, die
+    // die Monatskarte summiert. Ohne Projektion (Storybook, Tests ohne
+    // Serverdaten) bleibt es beim alten Verhalten: nur Tage mit Session zeigen
+    // Ist minus Soll.
+    const projected = dailyProjection?.get(key);
+    const credit = projected?.creditMinutes ?? 0;
+    const delta = projected?.balanceMinutes ?? (session ? ist - target : 0);
+    // Ein Tag ohne Soll, ohne Gutschrift und ohne Session hat nichts zu
+    // verrechnen — dort bleibt die Spalte leer, statt ein „0min" zu behaupten.
+    // Fehlt die Projektion für diesen Tag ganz, bleibt es beim alten Verhalten:
+    // nur eine vorhandene Session trägt dann einen Saldo, denn ohne Serverwert
+    // wäre jede Zahl an einem session-losen Tag geraten.
+    const hasBalance =
+      projected != null
+        ? session != null || target > 0 || credit > 0
+        : session != null;
+    // Edit / nachtragen is available for past or present days, regardless of
+    // whether a session already exists. On an absence-only day, however, only
+    // a half-day boundary or a non-effective absence may receive additional
+    // work: effective full-day absences already credit the complete target in
+    // the monthly balance (#2361).
+    //
+    // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist nur
+    // sichtbar, wenn dort real gearbeitet oder geplant wurde, und genau die
+    // muss korrigierbar sein.
+    const absenceIsHalfDay = absence
+      ? isHalfAbsenceBoundary(
+          absence,
+          key,
+          absence.date_start.slice(0, 10),
+          absence.date_end.slice(0, 10),
+        )
+      : false;
+    const absenceBlocksBackfill =
+      absence != null &&
+      isEffectiveAbsenceStatus(absence.status) &&
+      !absenceIsHalfDay;
+    return {
+      key,
+      day,
+      dow,
+      closesWeek,
+      weeklySummary,
+      daySessions,
+      session,
+      originalSession,
+      originalSessionDate,
+      hasMultipleBlocks: daySessions.length > 1,
+      openSession: daySessions.find((s) => !s.check_out_time),
+      lastSession: daySessions[daySessions.length - 1],
+      absence,
+      // Die Gutschrift stammt vom Server; ihr Tooltip folgt deshalb der
+      // Server-Auswahl, nicht der Badge-Abwesenheit.
+      creditAbsence: creditAbsencesByDate.get(key),
+      holidayName,
+      closingReason,
+      targetUnresolved,
+      target,
+      isFuture,
+      isToday: sameDay(day, today),
+      isWeekend: dow >= 5,
+      ist,
+      pause,
+      isBeforeAccountStart,
+      balanceUnresolved,
+      projected,
+      credit,
+      delta,
+      hasBalance,
+      status: computeRowStatus(
+        daySessions,
+        absence,
+        key,
+        holidayName,
+        closingReason,
+        target,
+        isFuture,
+      ),
+      // Only rows with audit history are interactive — clicking an unchanged
+      // row should not toggle anything since there is nothing to reveal.
+      canExpand:
+        session != null && daySessions.some((s) => (s.audit_count ?? 0) > 0),
+      canEdit:
+        isAdminView &&
+        !isFuture &&
+        (session != null || (!absencesUnresolved && !absenceBlocksBackfill)),
+    };
+  });
+  type DayRow = (typeof rows)[number];
+
+  // Bearbeiten öffnet entweder den Dialog der aufrufenden Seite oder den
+  // mitgelieferten.
+  const editBlock = (block: StaffHistorySession, absence?: StaffAbsenceRow) => {
+    const originalBlock = block.id
+      ? (originalSessionsByID.get(block.id) ?? block)
+      : block;
+    const originalBlockDate = parseISODate(originalBlock.date);
+    if (onEditDay) {
+      onEditDay(originalBlockDate, originalBlock, absence ?? null);
+    } else {
+      setEditModal({
+        mode: "edit",
+        date: originalBlockDate,
+        session: originalBlock,
+      });
+    }
+  };
+
+  // Spalten nach dem Muster der Tagesansicht: Check-in, Check-out, Pause, Soll,
+  // Ist und Saldo.
+  const columns: DataTableColumn<DayRow>[] = [
+    {
+      key: "date",
+      header: "Datum",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="text-gray-700">{formatShortDate(row.day)}</span>
+      ),
+    },
+    {
+      key: "weekday",
+      header: "Tag",
+      render: (row) => (
+        <span className="text-gray-500">{dayLabels[row.dow]}</span>
+      ),
+    },
+    ...(showPlan
+      ? [
+          {
+            key: "plan",
+            header: "Plan (Schicht)",
+            headerClassName: "whitespace-nowrap",
+            className: "tabular-nums whitespace-nowrap",
+            render: (row: DayRow) => (
+              <PlannedShiftCell shifts={shiftsByDate.get(row.key)} />
+            ),
+          },
+        ]
+      : []),
+    // Auf einem Mehrblock-Tag sind diese beiden Zellen Tagesgrenzen, kein
+    // durchgehender Zeitraum: zwischen erstem Check-in und letztem Check-out
+    // liegen Lücken, die nicht als Arbeitszeit zählen. "ab"/"bis" sagt das an
+    // der Zelle selbst — die tatsächlich gearbeiteten Intervalle stehen in den
+    // Block-Unterzeilen.
+    {
+      key: "checkIn",
+      header: "Check-in",
+      headerClassName: "whitespace-nowrap",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="text-gray-700">
+          {row.session?.check_in_time ? (
+            row.hasMultipleBlocks ? (
+              <span title={multiBlockBoundsHint}>
+                <span className="mr-1 text-xs text-gray-400">ab</span>
+                <span>{formatTimeOnly(row.session.check_in_time)}</span>
+              </span>
+            ) : (
+              formatTimeOnly(row.session.check_in_time)
+            )
+          ) : (
+            "–"
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "checkOut",
+      header: "Check-out",
+      headerClassName: "whitespace-nowrap",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="text-gray-700">
+          {row.openSession ? (
+            <StatusBadge label="eingestempelt" tone="green" compact />
+          ) : row.lastSession?.check_out_time ? (
+            row.hasMultipleBlocks ? (
+              <span title={multiBlockBoundsHint}>
+                <span className="mr-1 text-xs text-gray-400">bis</span>
+                <span>{formatTimeOnly(row.lastSession.check_out_time)}</span>
+              </span>
+            ) : (
+              formatTimeOnly(row.lastSession.check_out_time)
+            )
+          ) : (
+            "–"
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "pause",
+      header: "Pause",
+      align: "right",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="text-gray-500">
+          {row.session ? formatDuration(row.pause) : "–"}
+        </span>
+      ),
+    },
+    {
+      key: "target",
+      header: "Soll",
+      align: "right",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="text-gray-500">
+          {row.targetUnresolved ? (
+            <span
+              title={
+                projectionFailed
+                  ? "Soll konnte nicht geladen werden"
+                  : "Soll wird geladen"
+              }
+            >
+              {projectionFailed ? "?" : "…"}
+            </span>
+          ) : row.target > 0 || row.projected?.isOverride ? (
+            formatDuration(row.target)
+          ) : (
+            "–"
+          )}
+          {!row.targetUnresolved && row.projected?.isOverride && (
+            <span className="block text-xs text-gray-400">
+              {row.closingReason
+                ? "Sonderarbeitszeit · Schließtag"
+                : "Sonderarbeitszeit"}
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "actual",
+      header: "Ist",
+      align: "right",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="font-medium text-gray-700">
+          {row.session ? formatDuration(row.ist) : "–"}
+        </span>
+      ),
+    },
+    {
+      key: "credit",
+      header: "Gutschrift",
+      headerTitle:
+        "Zeit, die eine Abwesenheit dem Tagessoll gutschreibt: Krank, Urlaub, Fortbildung und Sonstige. Freizeitausgleich schreibt nichts gut.",
+      align: "right",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) => (
+        <span className="text-gray-500">
+          {row.credit > 0 ? (
+            <span title={creditHint(row.creditAbsence)}>
+              {formatDuration(row.credit)}
+            </span>
+          ) : (
+            "–"
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "balance",
+      header: "Saldo",
+      align: "right",
+      className: "tabular-nums whitespace-nowrap",
+      render: (row) =>
+        row.hasBalance &&
+        !row.isFuture &&
+        !row.balanceUnresolved &&
+        !row.isBeforeAccountStart ? (
+          <span className={deltaClass(row.delta)}>
+            {formatSignedDuration(row.delta)}
+          </span>
+        ) : (
+          "–"
+        ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      // Die Tageszeile wiederholt keine Block-Details: gestapelte
+      // Status-/Quelle-Badges nebeneinander suggerieren falsche Paare (OGS
+      // neben App, obwohl der OGS-Block per NFC kam). Der Zähler verweist auf
+      // die Block-Unterzeilen, die die Fakten je Block korrekt gepaart tragen.
+      render: (row) =>
+        row.hasMultipleBlocks ? (
+          <StatusBadge label={`${row.daySessions.length} Blöcke`} tone="blue" />
+        ) : (
+          row.status && <RowStatusBadge status={row.status} />
+        ),
+    },
+    {
+      key: "source",
+      header: "Quelle",
+      render: (row) => <SourceBadges sessions={row.daySessions} />,
+    },
+    {
+      key: "hint",
+      header: "Hinweis",
+      render: (row) => (
+        <div className="flex items-center justify-between gap-3">
+          <HintBadges
+            sessions={row.daySessions}
+            holidayName={row.holidayName}
+            laborHints={dayLaborHints(laborDaysByDate.get(row.key))}
+          />
+        </div>
+      ),
+    },
+    ...(isAdminView
+      ? [
+          {
+            key: "actions",
+            header: "Aktionen",
+            headerSrOnly: true,
+            render: (row: DayRow) =>
+              row.canEdit && (
+                // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1
+                // Regel 4). stopPropagation hält den Menüklick vom Zeilenklick
+                // fern, der die Änderungshistorie auf- und zuklappt.
+                <div
+                  className="flex shrink-0 items-center"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  role="presentation"
+                >
+                  <OverflowMenu
+                    ariaLabel={`Aktionen für ${formatShortDate(row.day)}`}
+                    triggerSize="sm"
+                    items={[
+                      {
+                        label:
+                          row.session == null
+                            ? "Eintrag nachtragen"
+                            : row.hasMultipleBlocks
+                              ? "Block nachtragen"
+                              : "Eintrag bearbeiten",
+                        icon: <SquarePen className="h-4 w-4" aria-hidden />,
+                        onClick: () => {
+                          // On a multi-block day the entry adds a further
+                          // block; each existing block has its own menu in its
+                          // sub-row.
+                          const targetSession = row.hasMultipleBlocks
+                            ? null
+                            : (row.originalSession ?? null);
+                          const targetDate = targetSession
+                            ? row.originalSessionDate
+                            : row.day;
+                          if (onEditDay) {
+                            onEditDay(
+                              targetDate,
+                              targetSession,
+                              row.absence ?? null,
+                            );
+                          } else {
+                            setEditModal({
+                              mode:
+                                targetSession == null ? "nachtragen" : "edit",
+                              date: targetDate,
+                              session: targetSession,
+                            });
+                          }
+                        },
+                      },
+                      ...(row.session == null &&
+                      row.absence == null &&
+                      toISODate(row.day) < todayKey &&
+                      onBackfillAbsence
+                        ? [
+                            {
+                              label: "Abwesenheit nachtragen",
+                              icon: (
+                                <CalendarPlus className="h-4 w-4" aria-hidden />
+                              ),
+                              onClick: () =>
+                                onBackfillAbsence(row.day, "absence"),
+                            },
+                            {
+                              label: "Krankmeldung nachtragen",
+                              icon: (
+                                <Thermometer className="h-4 w-4" aria-hidden />
+                              ),
+                              onClick: () => onBackfillAbsence(row.day, "sick"),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                </div>
+              ),
+          },
+        ]
+      : []),
+  ];
+
+  const renderSubRows = (
+    row: DayRow,
+    expanded: boolean,
+  ): DataTableExtraRow[] => {
+    const blockRows: DataTableExtraRow[] = row.hasMultipleBlocks
+      ? row.daySessions.map((block, blockIndex) => ({
+          key: `${row.key}-block-${block.id ?? blockIndex}`,
+          // Gutschrift und Saldo gehören dem TAG, nicht dem einzelnen Block:
+          // die beiden Zellen bleiben leer.
+          cells: [
+            {
+              columnKey: "date",
+              content: (
+                <span className="whitespace-nowrap text-gray-400">
+                  Block {blockIndex + 1}
+                </span>
+              ),
+            },
+            {
+              columnKey: "checkIn",
+              content: (
+                <span className="text-gray-600 tabular-nums">
+                  {block.check_in_time
+                    ? formatTimeOnly(block.check_in_time)
+                    : "–"}
+                </span>
+              ),
+            },
+            {
+              columnKey: "checkOut",
+              content: block.check_out_time ? (
+                <span className="text-gray-600 tabular-nums">
+                  {formatTimeOnly(block.check_out_time)}
+                </span>
+              ) : (
+                <span className="text-moto-green-strong font-medium">
+                  eingestempelt
+                </span>
+              ),
+            },
+            {
+              columnKey: "pause",
+              content: (
+                <span className="tabular-nums">
+                  {formatDuration(block.break_minutes ?? 0)}
+                </span>
+              ),
+            },
+            {
+              columnKey: "actual",
+              content: (
+                <span className="whitespace-nowrap text-gray-600 tabular-nums">
+                  {formatDuration(block.net_minutes ?? 0)}
+                </span>
+              ),
+            },
+            {
+              columnKey: "status",
+              content: (
+                <RowStatusBadge
+                  status={
+                    block.status === "home_office"
+                      ? { kind: "home-office" }
+                      : { kind: "present" }
+                  }
+                />
+              ),
+            },
+            {
+              columnKey: "source",
+              content: <SourceBadges sessions={[block]} />,
+            },
+            {
+              columnKey: "hint",
+              content: (
+                <div className="flex items-center justify-between gap-3">
+                  <HintBadges sessions={[block]} holidayName={undefined} />
+                </div>
+              ),
+            },
+            ...(isAdminView && row.canEdit
+              ? [
+                  {
+                    columnKey: "actions",
+                    content: (
+                      <div className="flex shrink-0 items-center">
+                        <OverflowMenu
+                          ariaLabel={`Aktionen für Block ${blockIndex + 1}`}
+                          triggerSize="sm"
+                          items={[
+                            {
+                              label: `Block ${blockIndex + 1} bearbeiten`,
+                              icon: (
+                                <SquarePen className="h-4 w-4" aria-hidden />
+                              ),
+                              onClick: () => editBlock(block, row.absence),
+                            },
+                          ]}
+                        />
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
+          ],
+        }))
+      : [];
+    if (!expanded) return blockRows;
+    const auditRows: DataTableExtraRow[] = row.daySessions
+      .filter((block) => (block.audit_count ?? 0) > 0)
+      .map((block, blockIndex) => ({
+        key: `${row.key}-audit-${block.id ?? blockIndex}`,
+        content: (
+          // Auf dem Telefon ist die Tabelle breiter als der Bildschirm. Die
+          // Historie bleibt im sichtbaren Ausschnitt, sonst stehen Bearbeiter
+          // und Knopf rechts außerhalb.
+          <div className="max-md:sticky max-md:left-3 max-md:w-[calc(100vw-5.75rem)]">
+            {row.hasMultipleBlocks && (
+              <p className="mb-1 text-xs font-medium text-gray-500">
+                {`Block ${row.daySessions.indexOf(block) + 1}${
+                  block.check_in_time
+                    ? ` · ${formatTimeOnly(block.check_in_time)}${
+                        block.check_out_time
+                          ? `–${formatTimeOnly(block.check_out_time)}`
+                          : ""
+                      }`
+                    : ""
+                }`}
+              </p>
+            )}
+            <SessionEditHistory
+              staffId={staffId}
+              sessionId={block.id}
+              fetchEdits={fetchEdits}
+              onEdit={
+                isAdminView ? () => editBlock(block, row.absence) : undefined
+              }
+            />
+          </div>
+        ),
+      }));
+    return [...blockRows, ...auditRows];
+  };
+
   return (
     <div className="space-y-3">
       {projectionLoad.error ? (
@@ -647,645 +1200,50 @@ export function StaffSessionTable({
           </p>
         </div>
       ) : null}
-      {/* Radius, Rand und Ausschnitt bleiben auf der Fläche, gescrollt wird im
-          inneren Container. Sonst zeichnet der Browser die Scrollleiste quer
-          durch die abgerundeten Ecken und über den unteren Rand hinaus. */}
-      <div className="max-w-full overflow-hidden rounded-2xl border border-gray-100">
-        <div className="max-w-full overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-left text-sm">
-            <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              <tr>
-                <th className="px-3 py-3">Datum</th>
-                <th className="px-3 py-3">Tag</th>
-                {showPlan && (
-                  <th className="px-3 py-3 tabular-nums">Plan (Schicht)</th>
-                )}
-                <th className="px-3 py-3 tabular-nums">Check-in</th>
-                <th className="px-3 py-3 tabular-nums">Check-out</th>
-                <th className="px-3 py-3 text-right tabular-nums">Pause</th>
-                <th className="px-3 py-3 text-right tabular-nums">Soll</th>
-                <th className="px-3 py-3 text-right tabular-nums">Ist</th>
-                <th
-                  className="px-3 py-3 text-right tabular-nums"
-                  title="Zeit, die eine Abwesenheit dem Tagessoll gutschreibt: Krank, Urlaub, Fortbildung und Sonstige. Freizeitausgleich schreibt nichts gut."
-                >
-                  Gutschrift
-                </th>
-                <th className="px-3 py-3 text-right tabular-nums">Saldo</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Quelle</th>
-                <th className="px-3 py-3">Hinweis</th>
-                {isAdminView && (
-                  <th className="sticky right-0 bg-gray-50 px-3 py-3">
-                    <span className="sr-only">Aktionen</span>
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {days.map((day, dayIndex) => {
-                const key = toDateKey(day);
-                const weekKey = isoWeekKey(day);
-                const nextDay = days[dayIndex + 1];
-                const weeklySummary = weeklySummaryByKey?.get(weekKey);
-                const closesWeek =
-                  weeklySummary !== undefined &&
-                  (nextDay === undefined || isoWeekKey(nextDay) !== weekKey);
-                const dow = toIsoDayOfWeek(day);
-                const daySessions = sessionsByDate.get(key) ?? [];
-                // Single-block days keep their familiar row; multi-block days
-                // (#2402) aggregate on the day row and list each block in a
-                // sub-row underneath.
-                const session = daySessions[0];
-                const originalSession = session?.id
-                  ? (originalSessionsByID.get(session.id) ?? session)
-                  : session;
-                const originalSessionDate = originalSession
-                  ? parseISODate(originalSession.date)
-                  : day;
-                const hasMultipleBlocks = daySessions.length > 1;
-                const openSession = daySessions.find((s) => !s.check_out_time);
-                const lastSession = daySessions[daySessions.length - 1];
-                const absence = absencesByDate.get(key);
-                // Die Gutschrift stammt vom Server; ihr Tooltip folgt deshalb
-                // der Server-Auswahl, nicht der Badge-Abwesenheit.
-                const creditAbsence = creditAbsencesByDate.get(key);
-                const holidayName = holidays?.get(key);
-                const closingReason = closingDays?.get(key);
-                // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
-                // NICHT auf den aktuellen Plan zurückfallen (#1842): der Tag
-                // bleibt ungelöst, damit die Tabelle keinen erfundenen
-                // Soll-/Saldo-Wert behauptet — weder dauerhaft (Fehler) noch
-                // kurzzeitig beim Zeitraumwechsel (pending, stale Map).
-                const { unresolved: targetUnresolved, displayed: target } =
-                  resolveDayTarget(day);
-                const isFuture = day > today;
-                const isToday = sameDay(day, today);
-                const ist = daySessions.reduce(
-                  (sum, s) => sum + (s.net_minutes ?? 0),
-                  0,
-                );
-                const pause = daySessions.reduce(
-                  (sum, s) => sum + (s.break_minutes ?? 0),
-                  0,
-                );
-                // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf
-                // einem geplanten freien Tag (#1967). Vor einem untermonatigen
-                // Stundenkonto-Start zählt die Monatskarte allerdings weder
-                // Soll noch Ist. GetDailyTargets liefert dort ebenfalls 0, kann
-                // diesen Fall also nicht allein von einem freien Tag
-                // unterscheiden; dafür braucht die Zeile zusätzlich den
-                // konfigurierten Starttag.
-                const isBeforeAccountStart =
-                  accountStartDate !== null &&
-                  accountStartDate !== "" &&
-                  key.slice(0, 7) === accountStartDate.slice(0, 7) &&
-                  key < accountStartDate;
-                const balanceUnresolved =
-                  targetUnresolved || (target === 0 && accountStartDatePending);
-                // Gutschrift und Saldo kommen vom Server (#2443) — dieselbe
-                // Rechnung, die die Monatskarte summiert. Ohne Projektion
-                // (Storybook, Tests ohne Serverdaten) bleibt es beim alten
-                // Verhalten: nur Tage mit Session zeigen Ist minus Soll.
-                const projected = dailyProjection?.get(key);
-                const credit = projected?.creditMinutes ?? 0;
-                const delta =
-                  projected?.balanceMinutes ?? (session ? ist - target : 0);
-                // Ein Tag ohne Soll, ohne Gutschrift und ohne Session hat
-                // nichts zu verrechnen — dort bleibt die Spalte leer, statt
-                // ein „0min" zu behaupten. Fehlt die Projektion für diesen Tag
-                // ganz, bleibt es beim alten Verhalten: nur eine vorhandene
-                // Session trägt dann einen Saldo, denn ohne Serverwert wäre
-                // jede Zahl an einem session-losen Tag geraten.
-                const hasBalance =
-                  projected != null
-                    ? session != null || target > 0 || credit > 0
-                    : session != null;
-                const status = computeRowStatus(
-                  daySessions,
-                  absence,
-                  key,
-                  holidayName,
-                  closingReason,
-                  target,
-                  isFuture,
-                );
-                const isExpanded = expandedKey === key;
-                const hasAuditHistory = daySessions.some(
-                  (s) => (s.audit_count ?? 0) > 0,
-                );
-                // Only rows with audit history are interactive — clicking an
-                // unchanged row should not toggle anything since there is
-                // nothing to reveal.
-                const canExpand = hasAuditHistory && session != null;
-                // Edit / nachtragen is available for past or present days,
-                // regardless of whether a session already exists. On an
-                // absence-only day, however, only a half-day boundary or a
-                // non-effective absence may receive additional work: effective
-                // full-day absences already credit the complete target in the
-                // monthly balance (#2361).
-                //
-                // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
-                // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
-                // und genau die muss korrigierbar sein.
-                const isWeekend = dow >= 5;
-                const rowTint: RowTint = isExpanded
-                  ? "expanded"
-                  : isToday
-                    ? "today"
-                    : isWeekend
-                      ? "weekend"
-                      : "none";
-                const absenceIsHalfDay = absence
-                  ? isHalfAbsenceBoundary(
-                      absence,
-                      key,
-                      absence.date_start.slice(0, 10),
-                      absence.date_end.slice(0, 10),
-                    )
-                  : false;
-                const absenceBlocksBackfill =
-                  absence != null &&
-                  isEffectiveAbsenceStatus(absence.status) &&
-                  !absenceIsHalfDay;
-                const canEdit =
-                  isAdminView &&
-                  !isFuture &&
-                  (session != null ||
-                    (!absencesUnresolved && !absenceBlocksBackfill));
-                return (
-                  <Fragment key={key}>
-                    <tr
-                      onClick={() => {
-                        if (!canExpand) return;
-                        setExpandedKey((prev) => (prev === key ? null : key));
-                      }}
-                      onKeyDown={(event) => {
-                        if (
-                          !canExpand ||
-                          (event.key !== "Enter" && event.key !== " ")
-                        ) {
-                          return;
-                        }
-                        event.preventDefault();
-                        setExpandedKey((prev) => (prev === key ? null : key));
-                      }}
-                      tabIndex={canExpand ? 0 : undefined}
-                      aria-expanded={canExpand ? isExpanded : undefined}
-                      aria-label={
-                        canExpand
-                          ? `${formatShortDate(day)}: Änderungshistorie ${isExpanded ? "schließen" : "öffnen"}`
-                          : undefined
-                      }
-                      className={`group ${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${ROW_TINT_CLASS[rowTint]} ${isFuture ? "opacity-40" : ""}`}
-                    >
-                      <td className="px-3 py-3 text-gray-700 tabular-nums">
-                        <div className="flex items-center gap-1.5">
-                          {canExpand ? (
-                            <ChevronRight
-                              className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${
-                                isExpanded ? "rotate-90" : ""
-                              }`}
-                            />
-                          ) : (
-                            <span className="inline-block h-3.5 w-3.5 shrink-0" />
-                          )}
-                          {formatShortDate(day)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-500">
-                        {dayLabels[dow]}
-                      </td>
-                      {showPlan && (
-                        <td className="px-3 py-3 text-gray-500 tabular-nums">
-                          <PlannedShiftCell shifts={shiftsByDate.get(key)} />
-                        </td>
-                      )}
-                      {/* Auf einem Mehrblock-Tag sind diese beiden Zellen
-                          Tagesgrenzen, kein durchgehender Zeitraum: zwischen
-                          erstem Check-in und letztem Check-out liegen Lücken,
-                          die nicht als Arbeitszeit zählen. "ab"/"bis" sagt
-                          das an der Zelle selbst — die tatsächlich
-                          gearbeiteten Intervalle stehen in den
-                          Block-Unterzeilen. */}
-                      <td className="px-3 py-3 text-gray-700 tabular-nums">
-                        {session?.check_in_time ? (
-                          hasMultipleBlocks ? (
-                            <span title={multiBlockBoundsHint}>
-                              <span className="mr-1 text-xs text-gray-400">
-                                ab
-                              </span>
-                              <span>
-                                {formatTimeOnly(session.check_in_time)}
-                              </span>
-                            </span>
-                          ) : (
-                            formatTimeOnly(session.check_in_time)
-                          )
-                        ) : (
-                          "–"
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-gray-700 tabular-nums">
-                        {openSession ? (
-                          <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-                            <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
-                            eingestempelt
-                          </span>
-                        ) : lastSession?.check_out_time ? (
-                          hasMultipleBlocks ? (
-                            <span title={multiBlockBoundsHint}>
-                              <span className="mr-1 text-xs text-gray-400">
-                                bis
-                              </span>
-                              <span>
-                                {formatTimeOnly(lastSession.check_out_time)}
-                              </span>
-                            </span>
-                          ) : (
-                            formatTimeOnly(lastSession.check_out_time)
-                          )
-                        ) : (
-                          "–"
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-right text-gray-500 tabular-nums">
-                        {session ? formatDuration(pause) : "–"}
-                      </td>
-                      <td className="px-3 py-3 text-right text-gray-500 tabular-nums">
-                        {targetUnresolved ? (
-                          <span
-                            title={
-                              projectionFailed
-                                ? "Soll konnte nicht geladen werden"
-                                : "Soll wird geladen"
-                            }
-                          >
-                            {projectionFailed ? "?" : "…"}
-                          </span>
-                        ) : target > 0 || projected?.isOverride ? (
-                          formatDuration(target)
-                        ) : (
-                          "–"
-                        )}
-                        {!targetUnresolved && projected?.isOverride && (
-                          <div className="text-xs whitespace-nowrap text-gray-400">
-                            {closingReason
-                              ? "Sonderarbeitszeit · Schließtag"
-                              : "Sonderarbeitszeit"}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium whitespace-nowrap text-gray-700 tabular-nums">
-                        {session ? formatDuration(ist) : "–"}
-                      </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap text-gray-500 tabular-nums">
-                        {credit > 0 ? (
-                          <span title={creditHint(creditAbsence)}>
-                            {formatDuration(credit)}
-                          </span>
-                        ) : (
-                          "–"
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
-                        {hasBalance &&
-                        !isFuture &&
-                        !balanceUnresolved &&
-                        !isBeforeAccountStart ? (
-                          <span className={deltaClass(delta)}>
-                            {formatSignedDuration(delta)}
-                          </span>
-                        ) : (
-                          "–"
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        {/* Die Tageszeile wiederholt keine Block-Details:
-                            gestapelte Status-/Quelle-Badges nebeneinander
-                            suggerieren falsche Paare (OGS neben App, obwohl
-                            der OGS-Block per NFC kam). Der Zähler verweist
-                            auf die Block-Unterzeilen, die die Fakten je
-                            Block korrekt gepaart tragen. */}
-                        {hasMultipleBlocks ? (
-                          <StatusBadge
-                            label={`${daySessions.length} Blöcke`}
-                            tone="blue"
-                          />
-                        ) : (
-                          status && <RowStatusBadge status={status} />
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        <SourceBadges sessions={daySessions} />
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <HintBadges
-                            sessions={daySessions}
-                            holidayName={holidayName}
-                            laborHints={dayLaborHints(laborDaysByDate.get(key))}
-                          />
-                        </div>
-                      </td>
-                      {isAdminView && (
-                        <td className={pinnedCellClass(rowTint)}>
-                          {canEdit && (
-                            // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-
-                            // SPEC Bauart 1 Regel 4). stopPropagation hält
-                            // den Menüklick vom Zeilenklick fern, der die
-                            // Änderungshistorie auf- und zuklappt.
-                            <div
-                              className="flex shrink-0 items-center"
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                              role="presentation"
-                            >
-                              <OverflowMenu
-                                ariaLabel={`Aktionen für ${formatShortDate(day)}`}
-                                triggerSize="sm"
-                                items={[
-                                  {
-                                    label:
-                                      session == null
-                                        ? "Eintrag nachtragen"
-                                        : hasMultipleBlocks
-                                          ? "Block nachtragen"
-                                          : "Eintrag bearbeiten",
-                                    icon: (
-                                      <SquarePen
-                                        className="h-4 w-4"
-                                        aria-hidden
-                                      />
-                                    ),
-                                    onClick: () => {
-                                      // On a multi-block day the entry adds a
-                                      // further block; each existing block has
-                                      // its own menu in its sub-row.
-                                      const targetSession = hasMultipleBlocks
-                                        ? null
-                                        : (originalSession ?? null);
-                                      if (onEditDay) {
-                                        onEditDay(
-                                          targetSession
-                                            ? originalSessionDate
-                                            : day,
-                                          targetSession,
-                                          absence ?? null,
-                                        );
-                                      } else {
-                                        setEditModal({
-                                          mode:
-                                            targetSession == null
-                                              ? "nachtragen"
-                                              : "edit",
-                                          date: targetSession
-                                            ? originalSessionDate
-                                            : day,
-                                          session: targetSession,
-                                        });
-                                      }
-                                    },
-                                  },
-                                  ...(session == null &&
-                                  absence == null &&
-                                  toISODate(day) < todayKey &&
-                                  onBackfillAbsence
-                                    ? [
-                                        {
-                                          label: "Abwesenheit nachtragen",
-                                          icon: (
-                                            <CalendarPlus
-                                              className="h-4 w-4"
-                                              aria-hidden
-                                            />
-                                          ),
-                                          onClick: () =>
-                                            onBackfillAbsence(day, "absence"),
-                                        },
-                                        {
-                                          label: "Krankmeldung nachtragen",
-                                          icon: (
-                                            <Thermometer
-                                              className="h-4 w-4"
-                                              aria-hidden
-                                            />
-                                          ),
-                                          onClick: () =>
-                                            onBackfillAbsence(day, "sick"),
-                                        },
-                                      ]
-                                    : []),
-                                ]}
-                              />
-                            </div>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                    {hasMultipleBlocks &&
-                      daySessions.map((block, blockIndex) => (
-                        <tr
-                          key={`${key}-block-${block.id ?? blockIndex}`}
-                          className={`${ROW_TINT_CLASS.block} text-xs`}
-                        >
-                          <td className="py-2 pr-3 pl-8 text-gray-400">
-                            Block {blockIndex + 1}
-                          </td>
-                          <td className="px-3 py-2" />
-                          {showPlan && <td className="px-3 py-2" />}
-                          <td className="px-3 py-2 text-gray-600 tabular-nums">
-                            {block.check_in_time
-                              ? formatTimeOnly(block.check_in_time)
-                              : "–"}
-                          </td>
-                          <td className="px-3 py-2 text-gray-600 tabular-nums">
-                            {block.check_out_time ? (
-                              formatTimeOnly(block.check_out_time)
-                            ) : (
-                              <span className="text-moto-green-strong font-medium">
-                                eingestempelt
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right text-gray-500 tabular-nums">
-                            {formatDuration(block.break_minutes ?? 0)}
-                          </td>
-                          <td className="px-3 py-2" />
-                          <td className="px-3 py-2 text-right whitespace-nowrap text-gray-600 tabular-nums">
-                            {formatDuration(block.net_minutes ?? 0)}
-                          </td>
-                          {/* Gutschrift und Saldo gehören dem TAG, nicht dem
-                              einzelnen Block — die beiden Zellen bleiben leer,
-                              müssen aber da sein, sonst rutscht die ganze
-                              Blockzeile eine Spalte nach links. */}
-                          <td className="px-3 py-2" />
-                          <td className="px-3 py-2" />
-                          <td className="px-3 py-2">
-                            <RowStatusBadge
-                              status={
-                                block.status === "home_office"
-                                  ? { kind: "home-office" }
-                                  : { kind: "present" }
-                              }
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <SourceBadges sessions={[block]} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <HintBadges
-                                sessions={[block]}
-                                holidayName={undefined}
-                              />
-                            </div>
-                          </td>
-                          {isAdminView && (
-                            <td className={pinnedCellClass("block")}>
-                              {canEdit && (
-                                <div
-                                  className="flex shrink-0 items-center"
-                                  onClick={(e) => e.stopPropagation()}
-                                  onKeyDown={(e) => e.stopPropagation()}
-                                  role="presentation"
-                                >
-                                  <OverflowMenu
-                                    ariaLabel={`Aktionen für Block ${blockIndex + 1}`}
-                                    triggerSize="sm"
-                                    items={[
-                                      {
-                                        label: `Block ${blockIndex + 1} bearbeiten`,
-                                        icon: (
-                                          <SquarePen
-                                            className="h-4 w-4"
-                                            aria-hidden
-                                          />
-                                        ),
-                                        onClick: () => {
-                                          const originalBlock = block.id
-                                            ? (originalSessionsByID.get(
-                                                block.id,
-                                              ) ?? block)
-                                            : block;
-                                          const originalBlockDate =
-                                            parseISODate(originalBlock.date);
-                                          if (onEditDay) {
-                                            onEditDay(
-                                              originalBlockDate,
-                                              originalBlock,
-                                              absence ?? null,
-                                            );
-                                          } else {
-                                            setEditModal({
-                                              mode: "edit",
-                                              date: originalBlockDate,
-                                              session: originalBlock,
-                                            });
-                                          }
-                                        },
-                                      },
-                                    ]}
-                                  />
-                                </div>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    {isExpanded &&
-                      daySessions
-                        .filter((block) => (block.audit_count ?? 0) > 0)
-                        .map((block, blockIndex) => (
-                          <tr
-                            key={`${key}-audit-${block.id ?? blockIndex}`}
-                            className="border-b border-gray-100 bg-gray-50/50"
-                          >
-                            <td colSpan={columnCount} className="px-3 py-3">
-                              {hasMultipleBlocks && (
-                                <p className="mb-1 text-xs font-medium text-gray-500">
-                                  {`Block ${daySessions.indexOf(block) + 1}${
-                                    block.check_in_time
-                                      ? ` · ${formatTimeOnly(block.check_in_time)}${
-                                          block.check_out_time
-                                            ? `–${formatTimeOnly(block.check_out_time)}`
-                                            : ""
-                                        }`
-                                      : ""
-                                  }`}
-                                </p>
-                              )}
-                              <SessionEditHistory
-                                staffId={staffId}
-                                sessionId={block.id}
-                                fetchEdits={fetchEdits}
-                                onEdit={
-                                  isAdminView
-                                    ? () => {
-                                        const originalBlock = block.id
-                                          ? (originalSessionsByID.get(
-                                              block.id,
-                                            ) ?? block)
-                                          : block;
-                                        const originalBlockDate = parseISODate(
-                                          originalBlock.date,
-                                        );
-                                        if (onEditDay) {
-                                          onEditDay(
-                                            originalBlockDate,
-                                            originalBlock,
-                                            absence ?? null,
-                                          );
-                                        } else {
-                                          setEditModal({
-                                            mode: "edit",
-                                            date: originalBlockDate,
-                                            session: originalBlock,
-                                          });
-                                        }
-                                      }
-                                    : undefined
-                                }
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                    {closesWeek && (
-                      <WeekSummaryRow
-                        day={day}
-                        from={from}
-                        to={to}
-                        summary={weeklySummary}
-                        leadingColumns={showPlan ? 7 : 6}
-                        actionColumn={isAdminView}
-                      />
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {!isAdminView && (
-          <div className="border-t border-gray-100 bg-gray-50 p-3">
-            <Alert
-              type="info"
-              message="Eigene Arbeitszeiten können auf der Seite Zeiterfassung bearbeitet werden."
-            />
-          </div>
-        )}
-        {!onEditDay && editModal && (
-          <AdminSessionEditModal
-            isOpen
-            mode={editModal.mode}
-            staffId={staffId}
-            date={editModal.date}
-            session={editModal.session}
-            onClose={() => setEditModal(null)}
-            onSaved={handleSaved}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.key}
+        dense
+        expandable={{
+          canExpand: (row) => row.canExpand,
+          rowLabel: (row, expanded) =>
+            `${formatShortDate(row.day)}: Änderungshistorie ${expanded ? "schließen" : "öffnen"}`,
+        }}
+        renderSubRows={renderSubRows}
+        summaryRow={(row) =>
+          row.closesWeek
+            ? {
+                key: `${row.key}-week`,
+                cells: weekSummaryCells(row.day, from, to, row.weeklySummary, {
+                  leadingColumns: showPlan ? 7 : 6,
+                }),
+              }
+            : null
+        }
+        rowTone={(row) =>
+          row.isToday ? "today" : row.isWeekend ? "muted" : null
+        }
+        rowClassName={(row) => (row.isFuture ? "opacity-40" : "")}
+        emptyState="In diesem Zeitraum gibt es keine Tage."
+      />
+      {!isAdminView && (
+        <Alert
+          type="info"
+          message="Eigene Arbeitszeiten können auf der Seite Zeiterfassung bearbeitet werden."
+        />
+      )}
+      {!onEditDay && editModal && (
+        <AdminSessionEditModal
+          isOpen
+          mode={editModal.mode}
+          staffId={staffId}
+          date={editModal.date}
+          session={editModal.session}
+          onClose={() => setEditModal(null)}
+          onSaved={handleSaved}
+        />
+      )}
     </div>
   );
 }
@@ -1622,31 +1580,24 @@ function deltaClass(delta: number): string {
 // Server und gilt für die GANZE Woche: im Monatsblick reicht die erste oder
 // letzte Woche über den Monatsrand, und die 48-Std.-Grenze gilt je Woche,
 // nicht je sichtbarem Ausschnitt.
-function WeekSummaryRow({
-  day,
-  from,
-  to,
-  summary,
-  leadingColumns,
-  actionColumn,
-}: {
-  readonly day: Date;
-  readonly from: Date;
-  readonly to: Date;
-  readonly summary: WeeklySummary | undefined;
-  readonly leadingColumns: number;
-  readonly actionColumn: boolean;
-}) {
+function weekSummaryCells(
+  day: Date,
+  from: Date,
+  to: Date,
+  summary: WeeklySummary | undefined,
+  { leadingColumns }: { readonly leadingColumns: number },
+) {
   const monday = new Date(day);
   monday.setDate(monday.getDate() - toIsoDayOfWeek(day));
   const sunday = new Date(monday);
   sunday.setDate(sunday.getDate() + 6);
   const reachesBeyond =
     toDateKey(monday) < toDateKey(from) || toDateKey(sunday) > toDateKey(to);
-  const hints = weekLaborHints(summary);
-  return (
-    <tr className="bg-gray-50 text-xs font-medium text-gray-600">
-      <td colSpan={leadingColumns} className="px-3 py-2">
+  return [
+    {
+      columnKey: "date",
+      colSpan: leadingColumns,
+      content: (
         <span
           title={
             reachesBeyond
@@ -1657,19 +1608,25 @@ function WeekSummaryRow({
           {`Summe KW ${isoWeekNumber(toDateKey(day))}`}
           {reachesBeyond ? " (ganze Woche)" : ""}
         </span>
-      </td>
-      <td className="px-3 py-2 text-right whitespace-nowrap text-gray-700 tabular-nums">
-        {summary ? formatDuration(summary.totalNetMinutes) : "–"}
-      </td>
-      {/* Der Wochenhinweis steht direkt neben der Summe, über die freien
-          Tagesspalten, damit er nicht in der schmalen Hinweis-Spalte am
-          Rand abgeschnitten wird. */}
-      <td colSpan={5} className="px-3 py-2">
-        <LaborHintList hints={hints} />
-      </td>
-      {actionColumn && <td className="sticky right-0 bg-gray-50" />}
-    </tr>
-  );
+      ),
+    },
+    {
+      columnKey: "actual",
+      content: (
+        <span className="whitespace-nowrap text-gray-700 tabular-nums">
+          {summary ? formatDuration(summary.totalNetMinutes) : "–"}
+        </span>
+      ),
+    },
+    // Der Wochenhinweis steht direkt neben der Summe, über die freien
+    // Tagesspalten, damit er nicht in der schmalen Hinweis-Spalte am Rand
+    // abgeschnitten wird.
+    {
+      columnKey: "credit",
+      colSpan: 5,
+      content: <LaborHintList hints={weekLaborHints(summary)} />,
+    },
+  ];
 }
 
 // Hinweise zu Pausen und Höchstarbeitszeit (#4804): ein kurzes Badge und die

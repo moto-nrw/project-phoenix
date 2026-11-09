@@ -19,13 +19,9 @@ const UnclaimedUploadLifetime = 24 * time.Hour
 // SubmissionRateLimitKeyTypeUploadIP counts the uploads of one IP address.
 const SubmissionRateLimitKeyTypeUploadIP = "upload_ip"
 
-// Wire codes of the upload failures. The package may not import api/common.
-const (
-	CodeUploadInvalid     = "enrollment.upload_invalid"
-	CodeUploadExpired     = "enrollment.upload_expired"
-	CodeUploadRateLimited = "enrollment.upload_rate_limited"
-	CodeUploadNotFound    = "enrollment.upload_not_found"
-)
+// CodeUploadExpired is the wire code of an upload the token no longer claims.
+// The package may not import api/common.
+const CodeUploadExpired = "enrollment.upload_expired"
 
 var (
 	// ErrUploadFieldNotFound marks an upload for a phase or field that does
@@ -98,10 +94,12 @@ type UploadRejection struct {
 func (r *UploadRejection) Error() string { return "upload does not fit the file field" }
 
 // UploadIntake stores the uploads of the public form in the caller's tenant
-// transaction. PrepareUpload checks the field and the rate limit and stores
-// the row; once that commits the caller writes the bytes and, when that
-// fails, deletes the row again through RequestUploadRecords.
+// transaction. CountUploadAttempt counts the attempt in the IP's upload
+// bucket before the caller reads the body; PrepareUpload checks the field and
+// stores the row. Once that commits the caller writes the bytes and, when
+// that fails, deletes the row again through RequestUploadRecords.
 type UploadIntake interface {
+	CountUploadAttempt(ctx context.Context, tenantID int64, remoteIP string) error
 	PrepareUpload(ctx context.Context, input UploadInput) (*PreparedUpload, error)
 }
 

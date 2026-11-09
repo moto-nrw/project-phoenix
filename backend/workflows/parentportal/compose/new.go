@@ -1,5 +1,4 @@
-// Package compose binds the guardian portal workflow to the owners it
-// coordinates (#3420), including its read, command and pure policy ports.
+// Package compose binds guardian-portal read, command and policy ports (#3420).
 // It holds no database; every flow joins the request's tenant unit of work.
 package compose
 
@@ -15,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
-// Dependencies are the collaborators of the guardian portal. Runtime is
-// required; optional notifiers may be nil. Tests bind the ports their flows reach.
+// Dependencies requires Runtime; tests bind the ports their flows reach.
+// Optional notifiers may be nil.
 type Dependencies struct {
 	GuardianChanges auditlog.GuardianChangeLog
 	Signatures      parentportal.Signatures
@@ -75,6 +74,9 @@ type Dependencies struct {
 
 	// Document inbox (#4671, ADR 0126).
 	BillingDocuments    care.BillingDocuments
+	ContractDocuments   care.ContractDocuments
+	ContractNotices     care.ContractNotices
+	SharedDocuments     care.TraegerSharedDocuments
 	TraegerRuntime      care.TraegerRuntime
 	SchoolTraeger       care.SchoolTraeger
 	ParentAccounts      care.ParentAccounts
@@ -133,7 +135,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		BillingDocuments:    deps.BillingDocuments, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
+		BillingDocuments:    deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
 		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
@@ -162,7 +164,6 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 	}
 }
 
-// owners are native command ports, bound to the same owner capabilities at Root.
 type owners struct {
 	careExceptions   care.CareExceptions
 	guardianAbsences care.GuardianAbsenceReports
@@ -192,14 +193,16 @@ func bindOwners(deps Dependencies) owners {
 	return bound
 }
 
-// NewDocumentNotices builds the push of a new document (ADR 0126) for the
-// Delivery worker over the children, their Träger, the accounts, the
-// guardian's language and the notifier of deps; it needs no other flow.
-func NewDocumentNotices(deps Dependencies) parentportal.DocumentNotices {
+// NewDocumentNotices composes document pushes for Delivery (ADR 0126).
+func NewDocumentNotices(deps Dependencies, pushes care.DocumentPushPorts) parentportal.DocumentNotices {
 	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil || deps.Logger == nil {
 		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts, the notifier and a logger")
 	}
 	return &care.Service{Config: care.Config{Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier,
-		Logger: deps.Logger}}
+		TraegerRuntime: deps.TraegerRuntime, StudentRepo: deps.StudentRepo, DocumentPushPorts: pushes, Logger: deps.Logger}}
+}
+
+func NewDocumentPushAuthorization(deps parentportal.DocumentPushAuthorizationDependencies) parentportal.DocumentPushAuthorization {
+	return care.NewDocumentPushAuthorization(deps)
 }

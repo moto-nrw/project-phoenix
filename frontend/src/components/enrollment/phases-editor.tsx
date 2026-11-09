@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  enrollmentWindowIsOrdered,
+  phaseHasPublicForm,
+} from "~/lib/enrollment-phase-rules";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -8,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
   OverflowMenu,
@@ -21,8 +27,8 @@ import {
   Pencil,
   Power,
   Trash2,
-  X,
 } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
@@ -33,7 +39,6 @@ import {
   type PhaseInput,
   type PhaseKind,
   type PhaseCareOverflowMode,
-  type PhaseCareOfferingSelectionMode,
   type RolloverResult,
   createPhase,
   deletePhase,
@@ -42,6 +47,7 @@ import {
   phaseToInput,
   updatePhase,
 } from "~/lib/enrollment-phase-api";
+import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
@@ -58,7 +64,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -69,7 +75,7 @@ import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
@@ -78,6 +84,7 @@ import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
@@ -85,10 +92,12 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import {
+  berlinTodayISO,
   formatChatDateTime,
   formatDate,
+  fromDateTimeLocalValue,
   parseISODate,
-  berlinTodayISO,
+  toDateTimeLocalValue,
 } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -100,12 +109,17 @@ import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
 } from "~/components/enrollment/phase-enrollment-actions";
-import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
-import { useTenantMutate } from "~/lib/swr";
+import {
+  PhaseExpiryWarnings,
+  useRefreshPhaseExpiryWarnings,
+} from "~/components/enrollment/phase-expiry-warnings";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { RemovableChip } from "~/components/ui/removable-chip";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -121,7 +135,7 @@ const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
   allow: "Ohne Hinweis akzeptieren",
 };
 
-const CARE_SELECTION_LABELS: Record<PhaseCareOfferingSelectionMode, string> = {
+const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
   optional: "Optional",
   at_least_one: "Mindestens ein Angebot",
   exactly_one: "Genau ein Angebot",
@@ -232,24 +246,6 @@ function mergeOfferedClasses(
   return merged;
 }
 
-// RFC3339 to datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
-// datetime-local input always works in the browser's local zone,
-// which matches what an admin expects when they type "1. März 09:00".
-function toLocalInputValue(rfc?: string | null): string {
-  if (!rfc) return "";
-  const d = new Date(rfc);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function fromLocalInputValue(local: string): string | null {
-  if (!local) return null;
-  const d = new Date(local);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
 export function PhasesEditor() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -299,24 +295,10 @@ export function PhasesEditor() {
   const [highlightActions, setHighlightActions] = useState(false);
   const { tenantSlug, tenant } = useTenant();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
-  const tenantMutate = useTenantMutate();
-  const refreshPhaseExpiryWarnings = useCallback(() => {
-    // Bewusst still: die eigentliche Änderung ist gespeichert und bestätigt.
-    // Die Hinweise zu ablaufenden Phasen laden beim nächsten Öffnen neu; bis
-    // dahin bleibt nur dieser Hinweiskasten veraltet.
-    void tenantMutate("enrollment-phase-expiry-warnings").catch(
-      (err: unknown) => {
-        logger.error("phase_expiry_warning_refresh_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      },
-    );
-  }, [tenantMutate]);
+  const refreshPhaseExpiryWarnings = useRefreshPhaseExpiryWarnings();
   const assignFormId = searchParams.get("assignForm");
   const rolloverPhaseID = searchParams.get("rollover");
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -470,10 +452,10 @@ export function PhasesEditor() {
       return;
     }
     if (
-      payload.enrollment_open_at &&
-      payload.enrollment_close_at &&
-      new Date(payload.enrollment_close_at) <=
-        new Date(payload.enrollment_open_at)
+      !enrollmentWindowIsOrdered(
+        payload.enrollment_open_at,
+        payload.enrollment_close_at,
+      )
     ) {
       formErrors.invalid(
         "Die Schließung des Anmeldefensters muss nach der Öffnung liegen.",
@@ -766,14 +748,19 @@ export function PhasesEditor() {
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
               <span>{KIND_LABELS[phase.kind]}</span>
               {phase.audience && phase.audience !== "open" ? (
-                <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium">
-                  {AUDIENCE_BADGE_LABELS[phase.audience]}
-                </span>
+                <StatusBadge
+                  tone="blue"
+                  size="xs"
+                  label={AUDIENCE_BADGE_LABELS[phase.audience]}
+                />
               ) : null}
               {(phase.eligible_grade_levels ?? []).length > 0 ? (
-                <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium">
-                  {`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
-                </span>
+                <StatusBadge
+                  tone="blue"
+                  size="xs"
+                  wrap
+                  label={`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
+                />
               ) : null}
             </p>
           </div>
@@ -936,8 +923,10 @@ export function PhasesEditor() {
               cancelEdit();
             }}
           >
-            <SlideOverContent widthClass="sm:w-[760px]">
-              <SlideOverHeader>
+            <SlideOverContent size="lg">
+              <SlideOverHeader
+                close={<SlideOverCloseButton disabled={saving} />}
+              >
                 <SlideOverTitle>
                   {rolloverSource
                     ? "Anmeldephase übertragen"
@@ -988,44 +977,21 @@ export function PhasesEditor() {
               }
               warningSlot={
                 <div className="space-y-2">
-                  <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-                    <p className="font-medium">
-                      Diese Aktion kann nicht rückgängig gemacht werden:
-                    </p>
-                    {impactLoading ? (
-                      <p className="mt-1 text-xs">
-                        Löschvorschau wird geladen…
-                      </p>
-                    ) : impactLoad.error ? (
-                      <p className="mt-1 text-xs">
-                        Das Löschen ist erst möglich, sobald die Vorschau
-                        vorliegt.
-                      </p>
-                    ) : deleteImpact ? (
-                      <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                        <li>
-                          {deleteImpact.requests}{" "}
-                          {deleteImpact.requests === 1
-                            ? "Anmeldung"
-                            : "Anmeldungen"}{" "}
-                          werden endgültig gelöscht
-                        </li>
-                        <li>
-                          {deleteImpact.care_offerings}{" "}
-                          {deleteImpact.care_offerings === 1
-                            ? "Betreuungsangebot"
-                            : "Betreuungsangebote"}{" "}
-                          werden endgültig gelöscht
-                        </li>
-                      </ul>
-                    ) : null}
-                  </div>
+                  <PhaseDeleteImpactAlert
+                    loading={impactLoading}
+                    failed={Boolean(impactLoad.error)}
+                    impact={deleteImpact}
+                  />
                   {!impactLoading && deleteImpact && (
-                    <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
-                      {deleteImpact.students_kept === 1
-                        ? "1 bereits angelegter Kind bleibt erhalten."
-                        : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
-                    </div>
+                    <Alert
+                      type="success"
+                      announce="off"
+                      message={
+                        deleteImpact.students_kept === 1
+                          ? "1 bereits angelegtes Kind bleibt erhalten."
+                          : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`
+                      }
+                    />
                   )}
                 </div>
               }
@@ -1047,8 +1013,9 @@ export function PhasesEditor() {
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
         <div className="grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile
-            leading={
+          <StatCard
+            variant="inline"
+            icon={
               <MotoConceptIcon
                 concept={calendarPeriodsConcept}
                 colorMode="inherit"
@@ -1058,13 +1025,15 @@ export function PhasesEditor() {
             label="Anmeldephasen"
             value={phases.length}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={careTimesConcept} size={16} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={careTimesConcept} size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
-          <EnrollmentStatTile
-            leading={
+          <StatCard
+            variant="inline"
+            icon={
               <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
             }
             label="In Vorbereitung"
@@ -1102,6 +1071,59 @@ interface PhaseFormProps {
   readonly onCancel: () => void;
   /** Hint for a field the last save or local check rejected. */
   readonly fieldError: (name: string) => string | undefined;
+}
+
+// Warnung im Löschdialog: was beim Löschen der Phase endgültig wegfällt.
+// Orange über Alert wie jede Warnung (#5591). Lädt die Vorschau noch oder
+// fehlt sie, steht statt der Liste der passende Satz.
+function PhaseDeleteImpactAlert({
+  loading,
+  failed,
+  impact,
+}: Readonly<{
+  loading: boolean;
+  failed: boolean;
+  impact: PhaseDeleteImpact | null;
+}>) {
+  const title = "Diese Aktion kann nicht rückgängig gemacht werden:";
+  let details: ReactNode = null;
+  if (loading) {
+    details = (
+      <span className="flex items-center gap-2">
+        <SpinnerIcon className="h-3 w-3" />
+        Löschvorschau wird geladen…
+      </span>
+    );
+  } else if (failed) {
+    details = "Das Löschen ist erst möglich, sobald die Vorschau vorliegt.";
+  } else if (impact) {
+    details = (
+      <ul className="list-inside list-disc space-y-0.5">
+        <li>
+          {impact.requests === 1
+            ? "1 Anmeldung wird endgültig gelöscht"
+            : `${impact.requests} Anmeldungen werden endgültig gelöscht`}
+        </li>
+        <li>
+          {impact.care_offerings === 1
+            ? "1 Betreuungsangebot wird endgültig gelöscht"
+            : `${impact.care_offerings} Betreuungsangebote werden endgültig gelöscht`}
+        </li>
+      </ul>
+    );
+  }
+  if (details === null) {
+    return (
+      <Alert
+        type="warning"
+        announce="off"
+        message="Diese Aktion kann nicht rückgängig gemacht werden."
+      />
+    );
+  }
+  return (
+    <Alert type="warning" announce="off" title={title} message={details} />
+  );
 }
 
 function EnrollmentWindowCell({
@@ -1189,17 +1211,7 @@ function PhaseActions({
     }
   };
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
-  // Audience-restricted phases are never publicly reachable: the anonymous form
-  // gate refuses BOTH linked_parents and existing_students, so the plain
-  // /anmeldung/{id} URL 404s for either unless it carries a valid late-invite
-  // token. The untokenized public actions ("Formular ansehen", the copy-link
-  // button) would hand out a dead link, so hide them for both audiences while
-  // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
-  // accepted token (#1663). Those parents reach the form through the parents
-  // portal picker instead.
-  const hasNoPublicForm =
-    phase.audience === "linked_parents" ||
-    phase.audience === "existing_students";
+  const hasNoPublicForm = !phaseHasPublicForm(phase);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
@@ -1211,6 +1223,17 @@ function PhaseActions({
       icon: <Pencil className="h-4 w-4" aria-hidden />,
       disabled: saving,
       onClick: onEdit,
+    },
+    // Works for every phase, also inactive, closed or invitation-only ones
+    // whose public link shows nothing yet (#6044).
+    {
+      label: "Vorschau mit Angeboten",
+      icon: <ExternalLink className="h-4 w-4" aria-hidden />,
+      href: tenantPath(
+        `/anmeldung/preview?phaseId=${encodeURIComponent(phase.id)}`,
+      ),
+      external: true,
+      onClick: () => undefined,
     },
     ...(hasNoPublicForm
       ? []
@@ -1304,9 +1327,7 @@ function PhaseActions({
           ariaLabel={`Aktionen für ${phase.name}`}
           items={menuEntries}
           triggerClassName={
-            highlight
-              ? "bg-moto-green/10 shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
-              : ""
+            highlight ? "bg-moto-green/10 ring-4 ring-moto-green/18" : ""
           }
         />
       </div>
@@ -1370,15 +1391,10 @@ function PhaseForm(props: PhaseFormProps) {
   }, [highlightFormSection]);
 
   return (
-    <form
-      onSubmit={onSubmit}
-      noValidate
-      className="moto-content-surface space-y-5 rounded-2xl border p-6"
-    >
-      <h3 className="text-base font-semibold text-gray-900">
-        {editing ? "Anmeldephase bearbeiten" : "Neue Anmeldephase"}
-      </h3>
-
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* Keine eigene Karte und kein zweiter Titel: das Formular steht im
+          Slide-over, dessen Kopf den Titel trägt, wie beim Betreuungsangebot
+          (#6137). */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           id="phase-name"
@@ -1411,22 +1427,13 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
+      <FormFieldset legend="Betreuungszeitraum">
         {periods.length > 0 && (
-          <label
-            className="mb-3 block"
-            htmlFor="phase-calendar-period"
-            id="phase-calendar-period-label"
-          >
-            <span className="text-xs text-gray-600">
-              Kalenderzeitraum (optional)
-            </span>
+          <div className="mb-3">
             <CustomSelect
-              ariaLabelledBy="phase-calendar-period-label"
               id="phase-calendar-period"
+              label="Kalenderzeitraum (optional)"
+              hint="Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und übernimmt dessen Beginn und Ende."
               value={draft.calendar_period_id ?? ""}
               onChange={(value) => {
                 if (!value) {
@@ -1446,7 +1453,6 @@ function PhaseForm(props: PhaseFormProps) {
                     : {}),
                 });
               }}
-              className="mt-1"
               options={[
                 { value: "", label: "Kein Kalenderzeitraum" },
                 ...periods.map((period) => ({
@@ -1455,10 +1461,6 @@ function PhaseForm(props: PhaseFormProps) {
                 })),
               ]}
             />
-            <span className="mt-1 block text-xs text-gray-500">
-              Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und
-              übernimmt dessen Beginn und Ende.
-            </span>
             {!draft.calendar_period_id && (
               <span className="text-moto-orange mt-1 block text-xs">
                 Ohne Verknüpfung können Betreuungsplan und Dienstplan später
@@ -1484,23 +1486,17 @@ function PhaseForm(props: PhaseFormProps) {
                 </Button>
               </span>
             )}
-          </label>
+          </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="service_start_date"
-              className="text-xs text-gray-600"
-            >
-              Beginn
-            </label>
+          <div>
             <ISODatePicker
               id="service_start_date"
               controlSize="md"
+              label="Beginn"
               ariaLabel="Beginn"
               value={draft.service_start_date}
               error={fieldError("service_start_date")}
-              className="mt-1"
               calendarLayout="popover"
               hideClearButton
               required
@@ -1522,63 +1518,51 @@ function PhaseForm(props: PhaseFormProps) {
               }}
             />
           </div>
-          <div className="block">
-            <label htmlFor="service_end_date" className="text-xs text-gray-600">
-              Ende
-            </label>
+          <div>
             <ISODatePicker
               id="service_end_date"
               controlSize="md"
+              label="Ende"
               ariaLabel="Ende"
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(next) => update({ service_end_date: next })}
               error={fieldError("service_end_date")}
-              className="mt-1"
               calendarLayout="popover"
               hideClearButton
               required
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Anmeldefenster (optional)
-        </legend>
+      <FormFieldset legend="Anmeldefenster (optional)">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Lassen Sie beide Felder leer, wenn das Anmeldeformular jederzeit
           erreichbar sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum
           eingereicht werden.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="enrollment_open_at"
-              className="text-xs text-gray-600"
-            >
-              Öffnung
-            </label>
+          <div>
+            <FieldLabel htmlFor="enrollment_open_at">Öffnung</FieldLabel>
             <DateTimePicker
               id="enrollment_open_at"
-              controlSize="md"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
-              className="mt-1"
-              value={toLocalInputValue(draft.enrollment_open_at)}
+              value={toDateTimeLocalValue(draft.enrollment_open_at)}
               invalid={Boolean(fieldError("enrollment_open_at"))}
               onChange={(nextLocal) => {
-                const nextOpen = fromLocalInputValue(nextLocal);
+                const nextOpen = fromDateTimeLocalValue(nextLocal);
                 setDraft((prev) => {
                   if (!prev) return prev;
                   const patch: Partial<PhaseInput> = {
                     enrollment_open_at: nextOpen,
                   };
                   if (
-                    nextOpen &&
-                    prev.enrollment_close_at &&
-                    new Date(prev.enrollment_close_at) <= new Date(nextOpen)
+                    !enrollmentWindowIsOrdered(
+                      nextOpen,
+                      prev.enrollment_close_at,
+                    )
                   ) {
                     patch.enrollment_close_at = null;
                   }
@@ -1587,46 +1571,37 @@ function PhaseForm(props: PhaseFormProps) {
               }}
             />
           </div>
-          <div className="block">
-            <label
-              htmlFor="enrollment_close_at"
-              className="text-xs text-gray-600"
-            >
-              Schließung
-            </label>
+          <div>
+            <FieldLabel htmlFor="enrollment_close_at">Schließung</FieldLabel>
             <DateTimePicker
               id="enrollment_close_at"
-              controlSize="md"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
-              className="mt-1"
-              min={toLocalInputValue(draft.enrollment_open_at) || undefined}
-              value={toLocalInputValue(draft.enrollment_close_at)}
+              min={toDateTimeLocalValue(draft.enrollment_open_at) || undefined}
+              value={toDateTimeLocalValue(draft.enrollment_close_at)}
               invalid={Boolean(fieldError("enrollment_close_at"))}
               // A closing date picked without a time should end the day, not
               // start it — otherwise the window shuts at midnight.
               defaultTime="23:59"
               onChange={(nextLocal) =>
                 update({
-                  enrollment_close_at: fromLocalInputValue(nextLocal),
+                  enrollment_close_at: fromDateTimeLocalValue(nextLocal),
                 })
               }
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset
+      <FormFieldset
         ref={formSectionRef}
-        className={`rounded-xl border p-4 transition-colors duration-300 ${
+        legend="Formular"
+        className={`transition-colors duration-300 ${
           highlightFormSection
-            ? "border-moto-green bg-moto-green/8 shadow-[0_0_0_4px_rgba(131,205,45,0.12)]"
-            : "border-gray-200"
+            ? "border-moto-green bg-moto-green/8 ring-moto-green/12 ring-4"
+            : ""
         }`}
       >
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Formular
-        </legend>
         <div className="space-y-2 text-sm">
           <label
             htmlFor="schema-source-base"
@@ -1696,70 +1671,49 @@ function PhaseForm(props: PhaseFormProps) {
             </span>
           </label>
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label
-          className="block"
-          htmlFor="phase-care-selection-mode"
-          id="phase-care-selection-mode-label"
-        >
-          <span className="text-xs font-medium text-gray-700">
-            Betreuungsauswahl
-          </span>
-          <CustomSelect
-            ariaLabelledBy="phase-care-selection-mode-label"
-            id="phase-care-selection-mode"
-            value={draft.care_offering_selection_mode}
-            onChange={(value) =>
-              update({
-                care_offering_selection_mode:
-                  value as PhaseCareOfferingSelectionMode,
-              })
-            }
-            className="mt-1 py-2"
-            options={[
-              { value: "optional", label: CARE_SELECTION_LABELS.optional },
-              {
-                value: "at_least_one",
-                label: CARE_SELECTION_LABELS.at_least_one,
-              },
-              {
-                value: "exactly_one",
-                label: CARE_SELECTION_LABELS.exactly_one,
-              },
-            ]}
-          />
-          <span className="mt-1 block text-xs text-gray-500">
-            Pflichtangebote bleiben davon getrennt und sind immer vorausgewählt.
-          </span>
-        </label>
+        <CustomSelect
+          id="phase-care-selection-mode"
+          label="Betreuungsauswahl"
+          hint="Pflichtangebote bleiben davon getrennt und sind immer vorausgewählt."
+          value={draft.care_offering_selection_mode}
+          onChange={(value) =>
+            update({
+              care_offering_selection_mode: value as CareOfferingSelectionMode,
+            })
+          }
+          className="py-2"
+          options={[
+            { value: "optional", label: CARE_SELECTION_LABELS.optional },
+            {
+              value: "at_least_one",
+              label: CARE_SELECTION_LABELS.at_least_one,
+            },
+            {
+              value: "exactly_one",
+              label: CARE_SELECTION_LABELS.exactly_one,
+            },
+          ]}
+        />
 
-        <label
-          className="block"
-          htmlFor="phase-care-overflow-mode"
-          id="phase-care-overflow-mode-label"
-        >
-          <span className="text-xs font-medium text-gray-700">
-            Verhalten bei voller Betreuung
-          </span>
-          <CustomSelect
-            ariaLabelledBy="phase-care-overflow-mode-label"
-            id="phase-care-overflow-mode"
-            value={draft.care_overflow_mode}
-            onChange={(value) =>
-              update({
-                care_overflow_mode: value as PhaseCareOverflowMode,
-              })
-            }
-            className="mt-1 py-2"
-            options={[
-              { value: "waitlist", label: OVERFLOW_LABELS.waitlist },
-              { value: "reject", label: OVERFLOW_LABELS.reject },
-              { value: "allow", label: OVERFLOW_LABELS.allow },
-            ]}
-          />
-        </label>
+        <CustomSelect
+          id="phase-care-overflow-mode"
+          label="Verhalten bei voller Betreuung"
+          value={draft.care_overflow_mode}
+          onChange={(value) =>
+            update({
+              care_overflow_mode: value as PhaseCareOverflowMode,
+            })
+          }
+          className="py-2"
+          options={[
+            { value: "waitlist", label: OVERFLOW_LABELS.waitlist },
+            { value: "reject", label: OVERFLOW_LABELS.reject },
+            { value: "allow", label: OVERFLOW_LABELS.allow },
+          ]}
+        />
 
         <div className="flex flex-col gap-2 pt-5">
           <CheckboxCard
@@ -1779,10 +1733,7 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Zielgruppe
-        </legend>
+      <FormFieldset legend="Zielgruppe">
         <div className="space-y-2 text-sm">
           {AUDIENCE_OPTIONS.map((option) => (
             <label
@@ -1811,10 +1762,8 @@ function PhaseForm(props: PhaseFormProps) {
           ))}
         </div>
         <div className="mt-4">
-          <span className="text-xs font-medium text-gray-700">
-            Nur für Klassenstufen (optional)
-          </span>
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <FieldLabel>Nur für Klassenstufen (optional)</FieldLabel>
+          <p className="text-xs leading-5 text-gray-500">
             Leer lassen für keine Einschränkung. Kinder müssen eine dieser
             Klassenstufen angeben, zum Beispiel für eine Phase nur für den 3.
             Jahrgang. Dafür genügt die Klassenstufen-Abfrage, konkrete Klassen
@@ -1827,10 +1776,8 @@ function PhaseForm(props: PhaseFormProps) {
           />
         </div>
         <div className="mt-4">
-          <span className="text-xs font-medium text-gray-700">
-            Nur für Klassen (optional)
-          </span>
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <FieldLabel>Nur für Klassen (optional)</FieldLabel>
+          <p className="text-xs leading-5 text-gray-500">
             Leer lassen für keine Einschränkung. Kinder müssen eine dieser
             Klassen angeben. Diese Klassen werden automatisch als „Konkrete
             Klassen“ zur Auswahl angeboten und sind ab Klasse 2 bei aktiver
@@ -1859,12 +1806,9 @@ function PhaseForm(props: PhaseFormProps) {
             }
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Konkrete Klassen
-        </legend>
+      <FormFieldset legend="Konkrete Klassen">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
           dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
@@ -1906,7 +1850,7 @@ function PhaseForm(props: PhaseFormProps) {
             hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <TranslationsSection
         targets={
@@ -2041,19 +1985,12 @@ function SchoolClassListEditor({
       {value.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2">
           {value.map((cls) => (
-            <li
-              key={cls}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pr-1 pl-3 text-sm font-medium text-gray-700"
-            >
-              {cls}
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((c) => c !== cls))}
-                aria-label={`${schoolClassLabel(cls)} entfernen`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+            <li key={cls} className="max-w-full">
+              <RemovableChip
+                label={cls}
+                onRemove={() => onChange(value.filter((c) => c !== cls))}
+                removeLabel={`${schoolClassLabel(cls)} entfernen`}
+              />
             </li>
           ))}
         </ul>

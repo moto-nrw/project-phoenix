@@ -1,34 +1,40 @@
 package enrollment
 
 import (
-	"encoding/json"
+	"slices"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // RequestChild is the intake record, distinct from any materialized student.
 type RequestChild struct {
-	ID                    int64           `json:"id"`
-	TenantID              int64           `json:"tenant_id"`
-	CreatedAt             time.Time       `json:"created_at"`
-	UpdatedAt             time.Time       `json:"updated_at"`
-	RequestID             int64           `json:"request_id"`
-	FirstName             string          `json:"first_name"`
-	LastName              string          `json:"last_name"`
-	DateOfBirth           Date            `json:"date_of_birth"`
-	TargetGradeLevel      *int16          `json:"target_grade_level,omitempty"`
-	TargetSchoolClass     *string         `json:"target_school_class,omitempty"`
-	CustomData            json.RawMessage `json:"custom_data"`
-	Status                string          `json:"status"`
-	StatusReason          *string         `json:"status_reason,omitempty"`
-	ActivationMode        string          `json:"activation_mode"`
-	ActivateOn            *Date           `json:"activate_on,omitempty"`
-	ReviewedAt            *time.Time      `json:"reviewed_at,omitempty"`
-	ReviewedBy            *int64          `json:"reviewed_by,omitempty"`
-	CreatedStudentID      *int64          `json:"created_student_id,omitempty"`
-	MatchedStudentID      *int64          `json:"matched_student_id,omitempty"`
-	SortOrder             int             `json:"sort_order"`
-	RolloverSourceChildID *int64          `json:"rollover_source_child_id,omitempty"`
-	ReviewReason          *string         `json:"review_reason,omitempty"`
+	ID                    int64          `json:"id"`
+	TenantID              int64          `json:"tenant_id"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	RequestID             int64          `json:"request_id"`
+	FirstName             string         `json:"first_name"`
+	LastName              string         `json:"last_name"`
+	DateOfBirth           calendar.Date  `json:"date_of_birth"`
+	TargetGradeLevel      *int16         `json:"target_grade_level,omitempty"`
+	TargetSchoolClass     *string        `json:"target_school_class,omitempty"`
+	CustomData            FormValues     `json:"custom_data"`
+	Status                string         `json:"status"`
+	StatusReason          *string        `json:"status_reason,omitempty"`
+	ActivationMode        string         `json:"activation_mode"`
+	ActivateOn            *calendar.Date `json:"activate_on,omitempty"`
+	ReviewedAt            *time.Time     `json:"reviewed_at,omitempty"`
+	ReviewedBy            *int64         `json:"reviewed_by,omitempty"`
+	CreatedStudentID      *int64         `json:"created_student_id,omitempty"`
+	MatchedStudentID      *int64         `json:"matched_student_id,omitempty"`
+	MatchedByOffice       bool           `json:"matched_by_office,omitempty"` // office match or its rollover descendant: enrollment-only renewal (#6053)
+	SortOrder             int            `json:"sort_order"`
+	RolloverSourceChildID *int64         `json:"rollover_source_child_id,omitempty"`
+	ReviewReason          *string        `json:"review_reason,omitempty"`
+	// WeeklyPlanOn is the day an approved future renewal's weekly plan
+	// applies (#6043). Read-only: plans are written through WeeklyPlans.
+	WeeklyPlanOn *calendar.Date `json:"weekly_plan_on,omitempty"`
 }
 
 // PhaseResponseChild is a child selected for a phase response overview. A
@@ -85,14 +91,41 @@ const (
 // IsApproved reports whether the child's application was approved.
 func (c *RequestChild) IsApproved() bool { return c.Status == ChildStatusApproved }
 
+// ChildStatuses is every status a request child can have. It is the one list
+// filters validate against; display labels are not a status list.
+func ChildStatuses() []string {
+	return []string{
+		ChildStatusSubmitted, ChildStatusUnderReview, ChildStatusApproved,
+		ChildStatusWaitlisted, ChildStatusRejected, ChildStatusWithdrawn,
+		ChildStatusPendingRenewal, ChildStatusAutoRenewed, ChildStatusPendingAdminReview,
+	}
+}
+
+// TerminalChildStatuses are the decided statuses: approved, rejected and
+// withdrawn.
+func TerminalChildStatuses() []string {
+	return []string{ChildStatusApproved, ChildStatusRejected, ChildStatusWithdrawn}
+}
+
+// UnplacedChildStatuses are the decided statuses without a place: rejected
+// and withdrawn.
+func UnplacedChildStatuses() []string {
+	return []string{ChildStatusRejected, ChildStatusWithdrawn}
+}
+
+// AnnouncementPendingChildStatuses are the statuses whose guardians an
+// announcement to pending applicants reaches: every undecided status except
+// waitlisted.
+func AnnouncementPendingChildStatuses() []string {
+	return []string{
+		ChildStatusSubmitted, ChildStatusUnderReview, ChildStatusPendingRenewal,
+		ChildStatusAutoRenewed, ChildStatusPendingAdminReview,
+	}
+}
+
 // IsTerminal reports whether a child has an approved, rejected, or withdrawn status.
 func (c *RequestChild) IsTerminal() bool {
-	switch c.Status {
-	case ChildStatusApproved, ChildStatusRejected, ChildStatusWithdrawn:
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(TerminalChildStatuses(), c.Status)
 }
 
 // ClassSwitch is the class change an approved re-enrollment planned for an
@@ -104,6 +137,23 @@ type ClassSwitch struct {
 	From           string
 	To             string
 	On             Date
+}
+
+// WeeklyPlan is the weekly plan (pickup times, care days, Heimweg) an
+// approved re-enrollment applies on On, the start of its care (#6043).
+type WeeklyPlan struct {
+	RequestChildID int64
+	On             Date
+	// Replace: a confirmed replacing edit came in before the start, so the
+	// start applies the submission as the complete weekly plan and a field
+	// without a value clears its target. Otherwise the start applies it as
+	// the approval of a renewal whose care has started does.
+	Replace bool
+	// AuthorStaffID is the staff member the applied weekly rows name as their
+	// author: the approving reviewer, or the last confirmed edit's actor.
+	// Resolved when the plan is stored, so the start does not depend on that
+	// account still existing. 0 when it could not be resolved.
+	AuthorStaffID int64
 }
 
 // DueClassSwitch is a planned class switch whose day has come, with the

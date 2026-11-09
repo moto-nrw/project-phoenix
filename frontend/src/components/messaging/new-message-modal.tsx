@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -14,7 +15,6 @@ import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -38,6 +38,9 @@ import {
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { createLogger } from "~/lib/logger";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { Loading } from "~/components/ui/loading";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "NewMessageModal" });
 
@@ -267,17 +270,14 @@ export function NewMessageModal({
         if (!nextOpen) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>Neue Nachricht</SlideOverTitle>
-            <SlideOverDescription>
-              {student
-                ? "Wählen Sie die Eltern, die die Nachricht erhalten."
-                : "Wählen Sie zuerst das Kind, um das es geht."}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="md">
+        <SlideOverHeader>
+          <SlideOverTitle>Neue Nachricht</SlideOverTitle>
+          <SlideOverDescription>
+            {student
+              ? "Wählen Sie die Eltern, die die Nachricht erhalten."
+              : "Wählen Sie zuerst das Kind, um das es geht."}
+          </SlideOverDescription>
         </SlideOverHeader>
         {/* STEP 1 — pick a child (skipped when a preset child is given) */}
         {!student && (
@@ -308,7 +308,7 @@ export function NewMessageModal({
                 </p>
               ) : null}
             </SlideOverBody>
-            <SlideOverFooter className="flex-row justify-end">
+            <SlideOverFooter>
               <Button
                 type="submit"
                 variant="success"
@@ -336,14 +336,14 @@ export function NewMessageModal({
                   <ArrowLeft className="h-4 w-4" /> Anderes Kind wählen
                 </Button>
               )}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <InsetPanel framed>
                 <p className="text-sm font-semibold text-gray-900">
                   {student.name}
                 </p>
                 {student.detail ? (
                   <p className="text-xs text-gray-500">{student.detail}</p>
                 ) : null}
-              </div>
+              </InsetPanel>
               {leadershipChoice || audience === "leadership" ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">
@@ -366,15 +366,14 @@ export function NewMessageModal({
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
               {guardiansLoading || guardiansErrorPending ? (
-                <p className="py-3 text-center text-sm text-gray-500">
-                  Lädt...
-                </p>
+                <Loading message="Eltern werden geladen …" />
               ) : guardiansFailed ? (
                 <LoadErrorAlert error={guardiansError.error} />
               ) : guardians.length === 0 ? (
-                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-                  Für dieses Kind ist kein Eltern-Zugang hinterlegt.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  description="Für dieses Kind ist kein Eltern-Zugang hinterlegt."
+                />
               ) : (
                 <div className="space-y-1">
                   {guardians.map((g) => (
@@ -400,9 +399,7 @@ export function NewMessageModal({
                       </span>
                       <span className="ml-2 flex flex-shrink-0 items-center gap-2">
                         {g.is_primary && (
-                          <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                            primär
-                          </span>
+                          <StatusBadge label="primär" tone="green" compact />
                         )}
                         {openingId === g.account_id && (
                           <span className="text-xs text-gray-400">

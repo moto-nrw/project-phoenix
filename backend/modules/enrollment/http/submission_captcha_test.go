@@ -55,7 +55,7 @@ func TestPublicSubmissionRejectsProviderCaptchaBeforeIntake(t *testing.T) {
 	resource := enrollmentAPI.NewResource(
 		nil, nil, captchaBlockedSubmission{},
 		enrollmentTest.NewCaptcha(requiredCaptchaSettings{}, provider.URL),
-		nil, nil, nil, nil, nil, nil, enrollmentAPI.GuardianInvitationRuntime{}, nil,
+		nil, nil, nil, nil, nil, nil, nil,
 		captchaSchoolLookup{school: school},
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	router := resource.Router(rootAPI.TenantSessionChain)

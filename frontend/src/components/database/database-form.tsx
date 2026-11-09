@@ -1,0 +1,840 @@
+"use client";
+
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { SectionCard } from "~/components/ui/section-card";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import { Button } from "~/components/ui/button";
+import { RemovableChip } from "~/components/ui/removable-chip";
+import { createLogger } from "~/lib/logger";
+import { getDefaultMaxLength } from "~/lib/constants/input-limits";
+import { InsetPanel } from "~/components/ui/inset-panel";
+
+const logger = createLogger({ component: "DatabaseForm" });
+
+/** Gets default value for a form field based on its type */
+export function getDefaultValueForField(field: FormField): unknown {
+  switch (field.type) {
+    case "checkbox":
+      return false;
+    case "multiselect":
+      return [];
+    case "number":
+      return field.required ? 0 : "";
+    default:
+      return "";
+  }
+}
+
+/** Applies initial data values to form, converting types as needed */
+function applyInitialData<T>(
+  formData: Record<string, unknown>,
+  initialData: Partial<T>,
+  sections: FormSection[],
+): void {
+  const allFields = sections.flatMap((s) => s.fields);
+
+  for (const key of Object.keys(initialData)) {
+    const value = initialData[key as keyof T];
+    if (value === undefined) {
+      continue;
+    }
+
+    // Convert string to number if field type requires it
+    const field = allFields.find((f) => f.name === key);
+    if (value === null) {
+      formData[key] = null;
+    } else if (field?.type === "number" && typeof value === "string") {
+      formData[key] = Number(value) || 0;
+    } else {
+      formData[key] = value;
+    }
+  }
+}
+
+/** Checks if a value is empty (undefined, null, or empty string) */
+export function isEmptyValue(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/** Validates a number field against min constraint */
+export function validateNumberMin(
+  value: unknown,
+  min: number,
+  label: string,
+): string | null {
+  const numValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numValue) || numValue < min) {
+    return `${label} muss mindestens ${min} sein.`;
+  }
+  return null;
+}
+
+/** Validates a number field against max constraint */
+export function validateNumberMax(
+  value: unknown,
+  max: number,
+  label: string,
+): string | null {
+  const numValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numValue) || numValue > max) {
+    return `${label} darf höchstens ${max} sein.`;
+  }
+  return null;
+}
+
+/** Validates a single form field and returns error message or null */
+export function validateField(field: FormField, value: unknown): string | null {
+  // Check required fields
+  if (field.required && isEmptyValue(value)) {
+    return `${field.label} ist erforderlich.`;
+  }
+
+  // Optional number fields stay valid while empty, but their constraints apply
+  // as soon as the user enters a value.
+  if (field.type === "number" && !isEmptyValue(value)) {
+    const numericValue = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(numericValue)) {
+      return `${field.label} muss eine ganze Zahl sein.`;
+    }
+    if (field.min !== undefined) {
+      const minError = validateNumberMin(value, field.min, field.label);
+      if (minError) return minError;
+    }
+    if (field.max !== undefined) {
+      const maxError = validateNumberMax(value, field.max, field.label);
+      if (maxError) return maxError;
+    }
+  }
+
+  // Custom validation
+  if (field.validation) {
+    return field.validation(value) ?? null;
+  }
+
+  return null;
+}
+
+/** Validates all form fields and returns first error with field name, or null */
+export function validateFormFields(
+  sections: FormSection[],
+  formData: Record<string, unknown>,
+): { message: string; fieldName: string } | null {
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const error = validateField(field, formData[field.name]);
+      if (error) return { message: error, fieldName: field.name };
+    }
+  }
+  return null;
+}
+
+export interface FormField {
+  name: string;
+  label: string;
+  type:
+    | "text"
+    | "email"
+    | "select"
+    | "multiselect"
+    | "textarea"
+    | "password"
+    | "checkbox"
+    | "custom"
+    | "number"
+    | "date";
+  required?: boolean;
+  placeholder?: string;
+  options?:
+    | Array<{ value: string; label: string }>
+    | (() => Promise<Array<{ value: string; label: string }>>);
+  validation?: (value: unknown) => string | null;
+  component?: React.ComponentType<{
+    value: unknown;
+    onChange: (value: unknown) => void;
+    label: string;
+    required?: boolean;
+    includeEmpty?: boolean;
+    emptyLabel?: string;
+  }>;
+  /**
+   * Extra props handed to `component`, bound where the field is configured
+   * (e.g. a room-specific default colour). Lets one shared custom field be
+   * reused with different presets instead of wrapping it per call site.
+   * The form-owned props above always win over these.
+   */
+  componentProps?: Record<string, unknown>;
+  helperText?: string;
+  autoComplete?: string;
+  colSpan?: 1 | 2;
+  min?: number;
+  max?: number;
+  maxLength?: number;
+  /** When true, the field is rendered as read-only and cannot be edited. */
+  disabled?: boolean;
+}
+
+export interface FormSection {
+  title: string;
+  subtitle?: string;
+  fields: FormField[];
+  columns?: 1 | 2;
+  /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
+  concept?: MotoConcept;
+}
+
+/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie der SectionCard-Kopf. */
+function SectionTitle({
+  level,
+  className,
+  children,
+}: Readonly<{
+  level: 2 | 3 | 4;
+  className?: string;
+  children: React.ReactNode;
+}>) {
+  const Heading = `h${level}` as const;
+  return <Heading className={className}>{children}</Heading>;
+}
+
+/**
+ * The owner's shared API error path (`useApiFormError` from ToastContext),
+ * handed in because the kit may not import contexts (#2516). With it, a
+ * failed save shows the catalog text with retry and request ID, server field
+ * errors mark their field, and local checks run through `invalid()`.
+ */
+export interface DatabaseFormErrorPath {
+  readonly error: FormErrorInput;
+  readonly show: (
+    error: unknown,
+    options: { object: string; retry?: () => void },
+  ) => unknown;
+  readonly invalid: (
+    message: string,
+    fields?: Readonly<Record<string, string>>,
+  ) => void;
+  readonly fieldError: (name: string) => string | undefined;
+  readonly clear: () => void;
+}
+
+interface DatabaseFormProps<T = Record<string, unknown>> {
+  readonly sections: FormSection[];
+  readonly onSubmit: (data: T) => Promise<void>;
+  readonly onCancel: () => void;
+  readonly initialData?: Partial<T>;
+  readonly isLoading?: boolean;
+  readonly submitLabel: string;
+  readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
+  /**
+   * Ergänzt nachgeladene Felder mit ihren aktuellen Werten, ohne andere Werte
+   * eines offenen Entwurfs zu überschreiben.
+   */
+  readonly preserveDraftOnSectionsChange?: boolean;
+  /**
+   * Ueberschriftenebene der Abschnittstitel. Default 2 fuer die
+   * Master-Detail-Ansicht, wo das Formular direkt im Inhaltsbereich steht.
+   * DatabaseFormModal setzt 4, weil Modal seinen Titel als h3 rendert und die
+   * Abschnitte sonst ueber dem Dialog stehen, in dem sie liegen.
+   */
+  readonly sectionLevel?: 2 | 3 | 4;
+  /**
+   * Shared API error path, see `DatabaseFormErrorPath`. Every save error,
+   * local check and failed option load of the form goes through it.
+   */
+  readonly errorPath: DatabaseFormErrorPath;
+  /**
+   * `{object}` of the catalog text of a failed save: feminine or neuter
+   * singular („die Planungsspur“). Default „die Änderung“.
+   */
+  readonly errorObject?: string;
+}
+
+export function DatabaseForm<T = Record<string, unknown>>({
+  sections,
+  onSubmit,
+  onCancel,
+  initialData,
+  isLoading,
+  submitLabel,
+  stickyActions = false,
+  preserveDraftOnSectionsChange = false,
+  sectionLevel = 2,
+  errorPath,
+  errorObject = "die Änderung",
+}: DatabaseFormProps<T>) {
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  // „Wiederholen“ sendet den aktuellen Stand des Formulars.
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  // The option loader runs in an effect; it reads the owner's current path.
+  const errorPathRef = useRef(errorPath);
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => formRef.current?.requestSubmit();
+    errorPathRef.current = errorPath;
+  });
+  // Bumped by „Wiederholen“ after a failed option load.
+  const [optionsReload, setOptionsReload] = useState(0);
+  // Local submitting state to prevent double-clicks (set synchronously before async onSubmit)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [asyncOptions, setAsyncOptions] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+  const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>(
+    {},
+  );
+  const loadedFieldsRef = useRef<Set<string>>(new Set());
+  const hasInitializedFormRef = useRef(false);
+  const renderedFieldNamesRef = useRef<Set<string>>(new Set());
+  // Track mount state to avoid setState on unmounted component
+  const isMountedRef = useRef(true);
+
+  // Track unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Initialize form data from sections
+  useEffect(() => {
+    const initialFormData: Record<string, unknown> = {};
+
+    // Set defaults from sections using helper
+    for (const section of sections) {
+      for (const field of section.fields) {
+        initialFormData[field.name] = getDefaultValueForField(field);
+      }
+    }
+
+    if (initialData) {
+      applyInitialData(initialFormData, initialData, sections);
+    }
+
+    if (preserveDraftOnSectionsChange && hasInitializedFormRef.current) {
+      const fieldNames = new Set(
+        sections.flatMap((section) =>
+          section.fields.map((field) => field.name),
+        ),
+      );
+      const previousFieldNames = renderedFieldNamesRef.current;
+      setFormData((currentFormData) => {
+        const nextFormData = { ...currentFormData };
+        for (const [name, value] of Object.entries(initialFormData)) {
+          // Ein Feld, das vorher nicht sichtbar war, konnte noch nicht
+          // geändert werden. Sein frischer Anfangswert ist deshalb sicherer
+          // als ein eventuell schon im Hintergrund vorhandener Wert.
+          if (!previousFieldNames.has(name) || !(name in nextFormData)) {
+            nextFormData[name] = value;
+          }
+        }
+        return nextFormData;
+      });
+      renderedFieldNamesRef.current = fieldNames;
+      return;
+    }
+
+    setFormData(initialFormData);
+    hasInitializedFormRef.current = true;
+    renderedFieldNamesRef.current = new Set(
+      sections.flatMap((section) => section.fields.map((field) => field.name)),
+    );
+  }, [initialData, preserveDraftOnSectionsChange, sections]);
+
+  // Load async options for select fields
+  useEffect(() => {
+    const loadAsyncOptions = async () => {
+      for (const section of sections) {
+        for (const field of section.fields) {
+          if (
+            (field.type === "select" || field.type === "multiselect") &&
+            typeof field.options === "function"
+          ) {
+            // Skip if already loaded
+            if (loadedFieldsRef.current.has(field.name)) {
+              continue;
+            }
+
+            loadedFieldsRef.current.add(field.name);
+            setLoadingOptions((prev) => ({ ...prev, [field.name]: true }));
+            try {
+              const options = await field.options();
+              setAsyncOptions((prev) => ({ ...prev, [field.name]: options }));
+            } catch (error) {
+              logger.warn("failed to load field options", {
+                field: field.name,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              // Without options the select would look empty: the form names
+              // the failed choice with the catalog text and offers a retry.
+              const fieldName = field.name;
+              if (isMountedRef.current) {
+                void errorPathRef.current.show(error, {
+                  object: `die Auswahl „${field.label}“`,
+                  retry: () => {
+                    errorPathRef.current.clear();
+                    loadedFieldsRef.current.delete(fieldName);
+                    setOptionsReload((value) => value + 1);
+                  },
+                });
+              }
+            } finally {
+              setLoadingOptions((prev) => ({ ...prev, [field.name]: false }));
+            }
+          }
+        }
+      }
+    };
+
+    void loadAsyncOptions();
+  }, [sections, optionsReload]);
+
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { name, value, type } = e.target as HTMLInputElement;
+    if (type === "checkbox") {
+      const { checked } = e.target as HTMLInputElement;
+      setFormData((prev) => ({
+        ...prev,
+        [name]: checked,
+      }));
+    } else if (type === "number") {
+      // Allow empty string during editing for better UX
+      // Will be converted to number on submit
+      if (value === "") {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: "",
+        }));
+      } else {
+        const numValue = Number(value);
+        setFormData((prev) => ({
+          ...prev,
+          [name]: Number.isNaN(numValue) ? "" : numValue,
+        }));
+      }
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Prevent double-submit: check and set synchronously before any async work
+    if (isSubmitting || isLoading) {
+      return;
+    }
+    setIsSubmitting(true);
+    errorPath.clear();
+
+    // Validate all form fields
+    const validationResult = validateFormFields(sections, formData);
+    if (validationResult) {
+      errorPath.invalid(validationResult.message, {
+        [validationResult.fieldName]: validationResult.message,
+      });
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    try {
+      await onSubmit({ ...formData } as T);
+    } catch (err) {
+      logger.error("failed to submit form", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void errorPath.show(err, {
+        object: errorObject,
+        retry: () => latestSubmitRef.current(),
+      });
+    } finally {
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  // Handler for removing a value from a multiselect field
+  const handleMultiselectRemove = (
+    fieldName: string,
+    currentValues: string[],
+    valueToRemove: string,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [fieldName]: currentValues.filter((v) => v !== valueToRemove),
+    }));
+  };
+
+  const renderSelectField = (field: FormField, hasError: boolean) => {
+    const selectOptions = Array.isArray(field.options)
+      ? field.options
+      : (asyncOptions[field.name] ?? []);
+    const hasEmptyOption = selectOptions.some((option) => option.value === "");
+
+    return (
+      <div>
+        <FieldLabel
+          htmlFor={field.name}
+          required={field.required}
+          invalid={hasError}
+        >
+          {field.label}
+        </FieldLabel>
+        <CustomSelect
+          id={field.name}
+          name={field.name}
+          ariaLabel={field.label}
+          value={(formData[field.name] as string) ?? ""}
+          options={[
+            ...(!hasEmptyOption
+              ? [
+                  {
+                    value: "",
+                    label: loadingOptions[field.name]
+                      ? "Optionen werden geladen..."
+                      : (field.placeholder ?? "Bitte wählen"),
+                  },
+                ]
+              : []),
+            ...selectOptions,
+          ]}
+          onChange={(next) => {
+            setFormData((prev) => ({ ...prev, [field.name]: next }));
+          }}
+          required={field.required}
+          invalid={hasError}
+          disabled={loadingOptions[field.name]}
+        />
+        {field.helperText && (
+          <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderMultiselectField = (field: FormField, hasError: boolean) => {
+    const multiselectOptions = Array.isArray(field.options)
+      ? field.options
+      : (asyncOptions[field.name] ?? []);
+    const selectedValues = Array.isArray(formData[field.name])
+      ? (formData[field.name] as string[])
+      : [];
+
+    return (
+      <div>
+        <FieldLabel
+          htmlFor={field.name}
+          required={field.required}
+          invalid={hasError}
+        >
+          {field.label}
+        </FieldLabel>
+
+        {selectedValues.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {selectedValues.map((value) => {
+              const option = multiselectOptions.find(
+                (item) => item.value === value,
+              );
+              if (!option) return null;
+
+              return (
+                <RemovableChip
+                  key={value}
+                  label={option.label}
+                  onRemove={() =>
+                    handleMultiselectRemove(field.name, selectedValues, value)
+                  }
+                  removeLabel={`${option.label} entfernen`}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        <CustomSelect
+          id={field.name}
+          ariaLabel={field.label}
+          value=""
+          placeholder={
+            loadingOptions[field.name]
+              ? "Optionen werden geladen..."
+              : (field.placeholder ?? "Weitere hinzufügen...")
+          }
+          options={multiselectOptions
+            .filter((option) => !selectedValues.includes(option.value))
+            .map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          onChange={(next) => {
+            if (next && !selectedValues.includes(next)) {
+              setFormData((prev) => ({
+                ...prev,
+                [field.name]: [...selectedValues, next],
+              }));
+            }
+          }}
+          invalid={hasError}
+          disabled={loadingOptions[field.name]}
+        />
+
+        {field.helperText && (
+          <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+        )}
+      </div>
+    );
+  };
+
+  const renderField = (field: FormField) => {
+    const hasError = errorPath.fieldError(field.name) !== undefined;
+
+    switch (field.type) {
+      case "custom": {
+        if (!field.component) return null;
+        const Component = field.component;
+        return (
+          <Component
+            {...field.componentProps}
+            value={formData[field.name]}
+            onChange={(value: unknown) => {
+              setFormData((prev) => ({
+                ...prev,
+                [field.name]: value,
+              }));
+            }}
+            label={field.label}
+            required={field.required}
+            includeEmpty={true}
+            emptyLabel={field.placeholder}
+          />
+        );
+      }
+
+      case "checkbox":
+        return (
+          <div>
+            <label
+              htmlFor={field.name}
+              className="flex cursor-pointer items-center gap-2"
+            >
+              <Checkbox
+                id={field.name}
+                name={field.name}
+                checked={Boolean(formData[field.name])}
+                onChange={handleChange}
+              />
+              <span
+                className={`block text-xs md:text-sm ${hasError ? "text-moto-red" : "text-gray-700"}`}
+              >
+                {field.label}
+              </span>
+            </label>
+            {/* Below the row, like every other field's hint. Inline it ran into
+                the label as one long line and broke the form's own rhythm. */}
+            {field.helperText && (
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+            )}
+          </div>
+        );
+
+      case "textarea":
+        return (
+          <Textarea
+            id={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.helperText}
+            aria-invalid={hasError || undefined}
+            value={(formData[field.name] as string) ?? ""}
+            onChange={handleChange}
+            required={field.required}
+            placeholder={field.placeholder}
+            maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
+            rows={3}
+          />
+        );
+
+      case "select":
+        return renderSelectField(field, hasError);
+
+      case "multiselect":
+        return renderMultiselectField(field, hasError);
+
+      case "number": {
+        // Handle both number and empty string values
+        const numberValue = formData[field.name] as
+          string | number | undefined | null;
+        const displayValue =
+          numberValue === "" ||
+          numberValue === undefined ||
+          numberValue === null
+            ? ""
+            : String(numberValue);
+
+        return (
+          <Input
+            type="number"
+            id={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.helperText}
+            aria-invalid={hasError || undefined}
+            controlSize="compact"
+            value={displayValue}
+            onChange={handleChange}
+            required={field.required}
+            placeholder={field.placeholder}
+            min={field.min}
+            max={field.max}
+          />
+        );
+      }
+
+      default:
+        return (
+          <Input
+            type={field.type}
+            id={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.helperText}
+            aria-invalid={hasError || undefined}
+            controlSize="compact"
+            value={(formData[field.name] as string) ?? ""}
+            onChange={handleChange}
+            required={field.required}
+            placeholder={field.placeholder}
+            autoComplete={field.autoComplete}
+            maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
+            disabled={field.disabled}
+          />
+        );
+    }
+  };
+
+  return (
+    <>
+      <FormErrorAlert message={errorPath.error} className="mb-4 md:mb-6" />
+
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-6"
+      >
+        {sections.map((section) => {
+          return (
+            <InsetPanel
+              key={section.title}
+              padding="md"
+              className="mb-6 md:mb-8"
+            >
+              {section.concept ? (
+                // Nur der Kopf: der graue Abschnitt ist schon die Fläche.
+                <SectionCard
+                  bare
+                  className="mb-2.5 md:mb-3"
+                  headingLevel={sectionLevel}
+                  title={section.title}
+                  concept={section.concept}
+                  description={section.subtitle}
+                />
+              ) : (
+                <>
+                  <SectionTitle
+                    level={sectionLevel}
+                    className="mb-2.5 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm"
+                  >
+                    {section.title}
+                  </SectionTitle>
+                  {section.subtitle && (
+                    <p className="mb-2.5 text-xs text-gray-600 md:mb-3">
+                      {section.subtitle}
+                    </p>
+                  )}
+                </>
+              )}
+              <div
+                className={`grid grid-cols-1 gap-3 md:gap-4 ${section.columns === 2 ? "md:grid-cols-2" : ""}`}
+              >
+                {section.fields.map((field) => (
+                  <div
+                    key={field.name}
+                    className={
+                      field.colSpan === 2 && section.columns === 2
+                        ? "md:col-span-2"
+                        : ""
+                    }
+                  >
+                    {renderField(field)}
+                  </div>
+                ))}
+              </div>
+            </InsetPanel>
+          );
+        })}
+
+        {/* Form actions */}
+        {(() => {
+          // Combined busy state: parent loading OR local submitting
+          const isBusy = isLoading === true || isSubmitting;
+          return stickyActions ? (
+            <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:pt-4 md:pb-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onCancel}
+                className="flex-1"
+                disabled={isBusy}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="submit"
+                size="md"
+                data-setup-tour="form-submit"
+                className="flex-1"
+                disabled={isBusy}
+              >
+                {isBusy ? "Wird gespeichert..." : submitLabel}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2 pt-6 pb-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={onCancel}
+                disabled={isBusy}
+              >
+                Abbrechen
+              </Button>
+              <Button type="submit" size="md" disabled={isBusy}>
+                {isBusy ? "Wird gespeichert..." : submitLabel}
+              </Button>
+            </div>
+          );
+        })()}
+      </form>
+    </>
+  );
+}

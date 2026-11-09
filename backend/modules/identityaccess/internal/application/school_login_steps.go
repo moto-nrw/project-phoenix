@@ -56,7 +56,7 @@ func (s *AccountAuthentication) implicitSchoolLoginError(ctx context.Context, ac
 func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accountID, portalTenantID int64, permissions []string) (mfaRequired, enrolled bool, err error) {
 	// Same fail-closed MFA semantics as the tenant login. The verdict
 	// resolved here decides the branch only; the guard re-resolves the
-	// policy inside its own transaction (see schoolMintGuard).
+	// policy inside the mint transaction (see schoolEligibility).
 	mfaRequired = false
 	if s.mfa.Configured() {
 		policy, policyErr := s.mfa.ResolvePolicy(ctx, accountID, portalTenantID)
@@ -76,61 +76,48 @@ func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accou
 }
 
 func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account domain.LoginAccount, portalTenantID int64, mfaRequired, enrolled bool, email, ipAddress, userAgent, trustedDeviceCookie string) (*domain.LoginResult, error) {
-	// The guard re-checks school liveness, membership and portal role inside
-	// the transaction that writes the session and assembles the claims there.
-	// Where the gate concluded "no second factor needed", it also re-decides
-	// the MFA gate: a role granted or the school's mfa_mode switched on in
-	// the gap would otherwise hand out a session that never saw a challenge.
-	guardOpts := []schoolMintOption{}
-	if !mfaRequired && s.mfa.Configured() {
-		guardOpts = append(guardOpts, withMFAGateRecheck(s.freshSchoolMFAPolicy(account.ID, portalTenantID)))
-	}
-	var claims *domain.AccountClaimsPayload
-	guard := s.schoolMintGuard(account.ID, portalTenantID, &claims, guardOpts...)
+	var proof mintProof
 	if mfaRequired && enrolled {
-		guard = s.trustedDeviceMintGuard(account.ID, portalTenantID, trustedDeviceCookie, guard)
+		proof = mintProof{kind: proofTrustedDevice, trustedDeviceCookie: trustedDeviceCookie}
 	}
-	session, err := s.createRefreshSessionGuarded(ctx, account, portalTenantID, domain.ScopeSchool, guard, "", mfaRequired && enrolled)
+	minted, err := s.mintAccountSession(ctx, mintRequest{
+		portal: domain.PortalSchool, account: account, email: email, tenantID: portalTenantID, proof: proof,
+		// Where the gate concluded "no second factor needed", the mint decides
+		// it again: a role granted or the school's mfa_mode switched on in the
+		// gap would otherwise hand out a session that never saw a challenge.
+		recheckMFAGate: !mfaRequired && s.mfa.Configured(),
+		// The event belongs to the school the portal-role lookup resolved,
+		// not to the account's first mapping.
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: portalTenantID},
+	})
 	if errors.Is(err, errSchoolMFARequiredAtMint) {
 		// Nothing was written; send the login down the branch it would have
 		// taken had the requirement been there from the start.
 		if !enrolled {
-			return s.mfaEnrollmentResult(account, portalTenantID, domain.ScopeSchool)
+			return s.mfaEnrollmentResult(account, portalTenantID, domain.PortalSchool)
 		}
-		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.ScopeSchool, ipAddress)
+		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.PortalSchool, ipAddress)
 	}
 	if err != nil {
 		return nil, wrapSchoolMintError("school login", err)
 	}
-	if claims == nil {
-		return nil, failed("school login", errMissingSchoolClaimsPayload)
-	}
-	access, refresh := buildClaims(account, session, claims, email)
-	// The audit event belongs to the school the portal-role lookup resolved,
-	// not to the account's first mapping.
-	accessToken, refreshToken, err := s.generateAndLogTokens(s.runtime.WithTenantID(ctx, portalTenantID), account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
-	if err != nil {
-		return nil, err
-	}
-	return &domain.LoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: accessToken, RefreshToken: refreshToken}, nil
+	return &domain.LoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken}, nil
 }
 
-func (s *AccountAuthentication) requireSchoolMintMFAPolicy(ctx context.Context, accountID, tenantID int64, payload *domain.AccountClaimsPayload, checks schoolMintChecks) error {
-	if checks.resolveMFAPolicy != nil {
-		policy, policyErr := checks.resolveMFAPolicy(ctx)
-		if policyErr != nil {
-			s.logger.Warn("mfa policy re-read failed at school token mint; refusing to mint",
-				slog.Int64("account_id", accountID),
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", policyErr.Error()))
-			return identityaccess.ErrMFAStatusUnavailable
-		}
-		if policy.RequiredFor(payload.Permissions) {
-			s.logger.Info("mfa requirement appeared during school login; refusing to mint",
-				slog.Int64("account_id", accountID),
-				slog.Int64("tenant_id", tenantID))
-			return errSchoolMFARequiredAtMint
-		}
+func (s *AccountAuthentication) requireSchoolMintMFAPolicy(ctx context.Context, accountID, tenantID int64, payload *domain.AccountClaimsPayload) error {
+	policy, err := s.mfa.ResolvePolicyInTx(ctx, accountID, tenantID)
+	if err != nil {
+		s.logger.Warn("mfa policy re-read failed at school token mint; refusing to mint",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()))
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if policy.RequiredFor(payload.Permissions) {
+		s.logger.Info("mfa requirement appeared during school login; refusing to mint",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID))
+		return errSchoolMFARequiredAtMint
 	}
 	return nil
 }

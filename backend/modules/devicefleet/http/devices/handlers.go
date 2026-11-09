@@ -133,10 +133,16 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
-	if err != nil {
-		rs.renderError(w, r, err)
-		return
+	// Creation already replaces device with INSERT ... RETURNING *.
+	// Keep the read when room enrichment or live-row filtering is needed.
+	createdDevice := device
+	if device.RoomID != nil || device.ArchivedAt != nil {
+		var err error
+		createdDevice, err = rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+		if err != nil {
+			rs.renderError(w, r, err)
+			return
+		}
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
@@ -171,10 +177,9 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	device.DeviceType = req.DeviceType
 	device.Name = req.Name
 	device.RegisteredByID = req.RegisteredByID
-
-	if req.Status != "" {
-		device.Status = devicefleet.DeviceStatus(req.Status)
-	}
+	// An omitted status keeps the stored one; the edit then does not write
+	// the status this request read, which may already be outdated.
+	device.Status = devicefleet.DeviceStatus(req.Status)
 
 	// Update device
 	if err := rs.IoTService.UpdateDevice(r.Context(), device); err != nil {
@@ -182,7 +187,14 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+	// The owner write already returned the locked stored row. Refresh the
+	// room through the owner, but retain the original archived-row read path.
+	updatedDevice := device
+	if device.ArchivedAt != nil {
+		updatedDevice, err = rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+	} else if device.RoomID != nil {
+		updatedDevice.RoomName, err = rs.IoTService.GetPersistedDeviceRoomName(r.Context(), device)
+	}
 	if err != nil {
 		rs.renderError(w, r, err)
 		return

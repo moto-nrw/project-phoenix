@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ type RateLimiter struct {
 	keyFunc        func(*http.Request) string
 	bucketFunc     func(*http.Request) string
 	rejectObserver func(bucket string)
+	exemptPrefixes []string
 	exemptLoopback bool
 }
 
@@ -87,6 +89,20 @@ func (rl *RateLimiter) SetRejectObserver(observer func(bucket string)) {
 // seeds and ticks demo schools. Everything else keeps its limits.
 func (rl *RateLimiter) ExemptLoopback() {
 	rl.exemptLoopback = true
+}
+
+// ExemptPathPrefix lets a route that has its own limiter bypass this one.
+func (rl *RateLimiter) ExemptPathPrefix(prefix string) {
+	rl.exemptPrefixes = append(rl.exemptPrefixes, prefix)
+}
+
+func (rl *RateLimiter) exemptPath(r *http.Request) bool {
+	for _, prefix := range rl.exemptPrefixes {
+		if strings.HasPrefix(r.URL.Path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // isLoopbackPeer reports whether the request's TCP peer is a loopback address.
@@ -216,7 +232,7 @@ func (rl *RateLimiter) cleanupVisitors() {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if rl.exemptLoopback && isLoopbackPeer(r) {
+			if (rl.exemptLoopback && isLoopbackPeer(r)) || rl.exemptPath(r) {
 				next.ServeHTTP(w, r)
 				return
 			}

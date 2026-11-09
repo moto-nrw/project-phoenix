@@ -4,8 +4,11 @@
 // happen (per-class counts, Abgänge, unmapped classes) and requires an
 // explicit second confirmation before applying.
 
+import { Alert } from "~/components/ui/alert";
+import { FramedList } from "~/components/ui/framed-list";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import {
   FormErrorAlert,
@@ -15,7 +18,6 @@ import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -162,12 +164,9 @@ export function TransitionPreviewModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[760px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>{`Vorschau: Schuljahreswechsel ${transition.academicYear}`}</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton />
+        <SlideOverContent size="lg">
+          <SlideOverHeader>
+            <SlideOverTitle>{`Vorschau: Schuljahreswechsel ${transition.academicYear}`}</SlideOverTitle>
           </SlideOverHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {!preview && !loadError && (
@@ -180,27 +179,24 @@ export function TransitionPreviewModal({
             {preview && (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="moto-content-surface rounded-xl border p-3 text-center">
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {preview.totalStudents}
-                    </p>
-                    <p className="text-xs text-gray-500">Kinder gesamt</p>
-                  </div>
-                  <div className="moto-content-surface rounded-xl border p-3 text-center">
-                    <p className="text-moto-green text-2xl font-semibold">
-                      {preview.toPromote}
-                    </p>
-                    <p className="text-xs text-gray-500">werden versetzt</p>
-                  </div>
-                  <div className="moto-content-surface rounded-xl border p-3 text-center">
-                    <p className="text-moto-red text-2xl font-semibold">
-                      {preview.toGraduate}
-                    </p>
-                    <p className="text-xs text-gray-500">Abgänge</p>
-                  </div>
+                  <StatCard
+                    label="Kinder gesamt"
+                    value={preview.totalStudents}
+                    tone="neutral"
+                  />
+                  <StatCard
+                    label="werden versetzt"
+                    value={preview.toPromote}
+                    tone="green"
+                  />
+                  <StatCard
+                    label="Abgänge"
+                    value={preview.toGraduate}
+                    tone="red"
+                  />
                 </div>
 
-                <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+                <FramedList>
                   {preview.byMapping.map((m) => (
                     <li
                       key={m.fromClass}
@@ -217,43 +213,37 @@ export function TransitionPreviewModal({
                       </span>
                     </li>
                   ))}
-                </ul>
+                </FramedList>
 
                 {preview.toGraduate > 0 && (
-                  <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-3 text-sm text-gray-800">
-                    <p className="text-moto-red font-semibold">
-                      {preview.toGraduate}{" "}
-                      {preview.toGraduate === 1
+                  <Alert
+                    type="warning"
+                    announce="off"
+                    title={`${preview.toGraduate} ${
+                      preview.toGraduate === 1
                         ? "Kind verlässt die OGS"
-                        : "Kinder verlassen die OGS"}
-                    </p>
-                    <p className="mt-1">
-                      Diese Kinder werden nach dem Anwenden in der App nicht
-                      mehr angezeigt. Über Zurücksetzen lässt sich das
-                      wiederherstellen.
-                    </p>
-                  </div>
+                        : "Kinder verlassen die OGS"
+                    }`}
+                    message="Diese Kinder werden nach dem Anwenden in der App nicht mehr angezeigt. Über Zurücksetzen lässt sich das wiederherstellen."
+                  />
                 )}
 
                 {preview.unmappedClasses.length > 0 && (
-                  <div className="border-moto-orange/30 bg-moto-orange/5 rounded-xl border p-3 text-sm text-gray-800">
-                    <p className="text-moto-orange font-semibold">
-                      Nicht berücksichtigte Klassen
-                    </p>
-                    <p className="mt-1">
-                      {preview.unmappedClasses
-                        .map((u) => `${u.className} (${u.studentCount})`)
-                        .join(", ")}{" "}
-                      bleiben unverändert.
-                    </p>
-                  </div>
+                  <Alert
+                    type="warning"
+                    announce="off"
+                    title="Nicht berücksichtigte Klassen"
+                    message={`${preview.unmappedClasses
+                      .map((u) => `${u.className} (${u.studentCount})`)
+                      .join(", ")} bleiben unverändert.`}
+                  />
                 )}
 
                 <FormErrorAlert message={applyError} />
               </div>
             )}
           </div>
-          <SlideOverFooter className="flex-row justify-end gap-2">
+          <SlideOverFooter>
             {canEdit ? (
               <Button
                 type="button"

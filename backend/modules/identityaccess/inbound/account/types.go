@@ -156,6 +156,11 @@ type TenantResolveResponse struct {
 	// staff member's navigation follows it, also without config:read. A lookup
 	// error fails the shell request.
 	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
+	// CareFacilityTerm is the school's resolved enrollment.care_facility_term
+	// setting (#6042), "OGS" by default. The public enrollment form, its
+	// status page and the embedded parent form fill it into their fixed
+	// texts before anyone signs in. A lookup error fails the shell request.
+	CareFacilityTerm string `json:"care_facility_term"`
 	// TraegerName is the Träger the school portal shows (#4656). It is set
 	// only while the Träger runs more than one operational school; a Träger
 	// with a single OGS sees no Träger level, so the field is omitted.
@@ -189,6 +194,7 @@ type tenantShellSettings struct {
 	earlyCheckoutTolerance    int
 	weekendFollowsFriday      bool
 	childSearchOnlyNavigation bool
+	careFacilityTerm          string
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload
@@ -240,50 +246,6 @@ func (req *LoginRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.Password, validation.Required),
 	)
-}
-
-// TokenResponse represents the token response payload
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// LoginResponse is the discriminated response shape /auth/login returns now
-// that MFA can short-circuit the token pair. The `status` field tells the
-// client which fields to read:
-//
-//   - status == "authenticated"           → access_token + refresh_token
-//     populated; the frontend stores them as before.
-//   - status == "mfa_required"             → challenge_token + masked_email
-//     populated; the frontend renders the code-entry UI and POSTs to
-//     /auth/mfa/verify.
-//   - status == "mfa_enrollment_required"  → access_token carries a
-//     short-lived enrollment-scoped JWT (no refresh_token). The frontend
-//     uses it as the Authorization header for /auth/mfa/enroll/* and
-//     replaces it with the real token pair returned by
-//     /auth/mfa/enroll/confirm. The token is REJECTED by the regular
-//     Authenticator middleware, so it cannot be used to bypass MFA.
-//
-// mfa_enrollment_required is retained as a legacy hint for clients that key
-// off the boolean rather than the status discriminator; new code should
-// branch on `status`.
-type LoginResponse struct {
-	Status                string `json:"status"`
-	AccessToken           string `json:"access_token,omitempty"`
-	RefreshToken          string `json:"refresh_token,omitempty"`
-	ChallengeToken        string `json:"challenge_token,omitempty"`
-	MaskedEmail           string `json:"masked_email,omitempty"`
-	MFAEnrollmentRequired bool   `json:"mfa_enrollment_required,omitempty"`
-	// TrustedDeviceEnabled is sent on the mfa_required branch so the
-	// frontend can hide the "remember this device" checkbox when the
-	// tenant admin has disabled the feature. A missing field defaults to
-	// "enabled" on the client for backwards compatibility.
-	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
-	// TrustedDeviceDays mirrors security.mfa_trusted_device_days for the
-	// tenant. The frontend uses it to render the dynamic "Auf diesem
-	// Gerät N Tage merken" label so the checkbox always reflects the
-	// cookie lifetime the backend will actually issue.
-	TrustedDeviceDays *int `json:"trusted_device_days,omitempty"`
 }
 
 // RegisterRequest represents the register request payload
@@ -598,41 +560,6 @@ func (req *EnableCaregiverCapabilityRequest) Bind(_ *http.Request) error {
 	req.LastName = strings.TrimSpace(req.LastName)
 	req.Position = strings.TrimSpace(req.Position)
 	return nil
-}
-
-// PasswordResetRequest represents the password reset request payload
-type PasswordResetRequest struct {
-	Email string `json:"email"`
-}
-
-// Bind validates the password reset request
-func (req *PasswordResetRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-	)
-}
-
-// PasswordResetConfirmRequest represents the password reset confirm request payload
-type PasswordResetConfirmRequest struct {
-	Token           string `json:"token"`
-	NewPassword     string `json:"new_password"`
-	ConfirmPassword string `json:"confirm_password"`
-}
-
-// Bind validates the password reset confirm request
-func (req *PasswordResetConfirmRequest) Bind(_ *http.Request) error {
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Token, validation.Required),
-		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
-		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
-			if req.NewPassword != req.ConfirmPassword {
-				return errors.New(errPasswordsNotMatch)
-			}
-			return nil
-		})),
-	)
 }
 
 // Role Management Endpoints

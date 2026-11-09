@@ -13,22 +13,14 @@ import (
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// Upload thresholds per IP. A family uploads a handful of proofs, maybe
-// again after a typo; the public form's submission bucket (10 per hour)
-// would refuse a parent who replaces a blurred photo twice.
-const (
-	rateLimitWindowUploadIP      = time.Hour
-	rateLimitMaxAttemptsUploadIP = 30
-)
-
 // IntakeUploads stores the files parents attach to a request (#4783).
 type IntakeUploads = enrollmentNative.RequestUploadRecords
 
 var _ enrollmentNative.UploadIntake = (*Intake)(nil)
 
 // PrepareUpload checks that the phase's form takes the file in the named
-// field, counts the attempt and stores the unclaimed row with the hash of a
-// fresh token. It runs in the caller's tenant transaction, which the root
+// field and stores the unclaimed row with the hash of a fresh token. The
+// caller counts the attempt with CountUploadAttempt before it reads the body. It runs in the caller's tenant transaction, which the root
 // commits before the HTTP adapter writes the bytes: a crash in between leaves
 // an expiring row, never bytes no row points at.
 func (s *Intake) PrepareUpload(ctx context.Context, input enrollmentNative.UploadInput) (*enrollmentNative.PreparedUpload, error) {
@@ -46,9 +38,6 @@ func (s *Intake) prepareUpload(ctx context.Context, input enrollmentNative.Uploa
 	options := field.FileOptions
 	if input.SizeBytes <= 0 || input.SizeBytes > options.MaxBytes() || !options.AllowsContentType(input.ContentType) {
 		return nil, &enrollmentNative.UploadRejection{MaxMB: options.MaxSizeMB, AllowedTypes: options.AllowedTypes}
-	}
-	if err := s.enforceUploadRateLimit(ctx, input); err != nil {
-		return nil, err
 	}
 	token, err := s.newStatusToken()
 	if err != nil {
@@ -109,7 +98,7 @@ func (s *Intake) statusUploadField(ctx context.Context, input enrollmentNative.U
 	if req.TenantID != input.TenantID || req.PhaseID != input.PhaseID {
 		return nil, enrollmentNative.ErrUploadFieldNotFound
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, false)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, false)
 	if err != nil {
 		return nil, fmt.Errorf("upload: load request children: %w", err)
 	}
@@ -131,25 +120,16 @@ func (s *Intake) statusUploadField(ctx context.Context, input enrollmentNative.U
 	return field, nil
 }
 
-// enforceUploadRateLimit counts the upload in the IP's upload bucket through
-// the submission limiter's own transaction, so a refused upload still counts.
-func (s *Intake) enforceUploadRateLimit(ctx context.Context, input enrollmentNative.UploadInput) error {
-	if strings.TrimSpace(input.RemoteIP) == "" {
+// CountUploadAttempt counts the upload in the IP's upload bucket through the
+// submission limiter's own transaction, so a refused upload still counts. The
+// HTTP adapter calls it before it reads the body.
+func (s *Intake) CountUploadAttempt(ctx context.Context, tenantID int64, remoteIP string) error {
+	if strings.TrimSpace(remoteIP) == "" {
 		return nil
 	}
-	err := s.enforceRateLimit(ctx, SubmitRequest{uploadAttempt: true, TenantID: input.TenantID, RemoteIP: input.RemoteIP})
-	if errors.Is(err, enrollmentNative.ErrRateLimited) {
-		return enrollmentNative.ErrUploadRateLimited
-	}
-	return err
-}
-
-// countUploadAttempt is the upload bucket of enforceRateLimitBuckets.
-func (s *Intake) countUploadAttempt(ctx context.Context, req SubmitRequest) error {
-	return s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-		keyType: enrollmentNative.SubmissionRateLimitKeyTypeUploadIP, label: "upload IP",
-		window: rateLimitWindowUploadIP, maxAttempts: rateLimitMaxAttemptsUploadIP,
-	}, strings.TrimSpace(req.RemoteIP))
+	return s.enforceRateLimit(ctx, tenantID, func(ctx context.Context) error {
+		return s.countRateLimitAttempt(ctx, tenantID, uploadRateLimit, strings.TrimSpace(remoteIP))
+	})
 }
 
 // newUploadStoredName is a random object name with the detected extension.

@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
@@ -31,13 +30,13 @@ func normalizeCareUsageFilters(filters enrollmentNative.CareUsageFilters) enroll
 }
 
 func validateCareUsageFilters(filters enrollmentNative.CareUsageFilters) error {
-	if filters.Status != "all" && !validChildStatusFilters[filters.Status] {
+	if filters.Status != "all" && !slices.Contains(enrollmentNative.ChildStatuses(), filters.Status) {
 		return fmt.Errorf("%w: unsupported status %q", enrollmentNative.ErrReportInvalidFilter, filters.Status)
 	}
 	if filters.DayCount != nil && (*filters.DayCount < 0 || *filters.DayCount > 7) {
 		return fmt.Errorf("%w: day_count must be between 0 and 7", enrollmentNative.ErrReportInvalidFilter)
 	}
-	if filters.Weekday != "" && !enrollmentNative.ValidWeekdays[filters.Weekday] {
+	if filters.Weekday != "" && !offeringContract.IsSchoolDayCode(filters.Weekday) {
 		return fmt.Errorf("%w: weekday must be one of mon/tue/wed/thu/fri", enrollmentNative.ErrReportInvalidFilter)
 	}
 	if filters.PickupTime != "" {
@@ -46,18 +45,6 @@ func validateCareUsageFilters(filters enrollmentNative.CareUsageFilters) error {
 		}
 	}
 	return nil
-}
-
-var validChildStatusFilters = map[string]bool{
-	enrollmentNative.ChildStatusSubmitted:          true,
-	enrollmentNative.ChildStatusUnderReview:        true,
-	enrollmentNative.ChildStatusApproved:           true,
-	enrollmentNative.ChildStatusWaitlisted:         true,
-	enrollmentNative.ChildStatusRejected:           true,
-	enrollmentNative.ChildStatusWithdrawn:          true,
-	enrollmentNative.ChildStatusPendingRenewal:     true,
-	enrollmentNative.ChildStatusAutoRenewed:        true,
-	enrollmentNative.ChildStatusPendingAdminReview: true,
 }
 
 func careUsageAppliedFilters(filters enrollmentNative.CareUsageFilters) enrollmentNative.CareUsageAppliedFilters {
@@ -118,7 +105,7 @@ func dedupePositiveInt64(ids []int64) []int64 {
 	return out
 }
 
-func careUsageRow(req *Request, child *reportChild, links []*enrollmentNative.RequestChildOfferingRecord, offeringByID map[int64]*offeringContract.CareOfferingRecord, includedOfferingIDs map[int64]bool, pickupByDay map[string]string) enrollmentNative.CareUsageRow {
+func careUsageRow(req *enrollmentNative.Request, child *enrollmentNative.RequestChild, links []*enrollmentNative.RequestChildOfferingRecord, offeringByID map[int64]*offeringContract.CareOfferingRecord, includedOfferingIDs map[int64]bool, pickupByDay map[string]string) enrollmentNative.CareUsageRow {
 	daySet := map[string]bool{}
 	rowOfferings := make([]enrollmentNative.CareUsageRowOffering, 0, len(links))
 	for _, link := range links {
@@ -330,23 +317,11 @@ func initDayCountMap() map[string]int {
 }
 
 func initWeekdayPickupTimeMap() map[string]map[string]int {
-	return map[string]map[string]int{
-		"mon": {},
-		"tue": {},
-		"wed": {},
-		"thu": {},
-		"fri": {},
+	out := make(map[string]map[string]int, 5)
+	for _, day := range offeringContract.SchoolDayCodes() {
+		out[day] = map[string]int{}
 	}
-}
-
-var dayOrder = map[string]int{
-	"mon": 1,
-	"tue": 2,
-	"wed": 3,
-	"thu": 4,
-	"fri": 5,
-	"sat": 6,
-	"sun": 7,
+	return out
 }
 
 func sortedDayCodes(days []string) []string {
@@ -364,8 +339,8 @@ func sortedDayCodes(days []string) []string {
 		out = append(out, canonical)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		oi, okI := dayOrder[out[i]]
-		oj, okJ := dayOrder[out[j]]
+		oi, oj := offeringContract.DayNumber(out[i]), offeringContract.DayNumber(out[j])
+		okI, okJ := oi > 0, oj > 0
 		if okI && okJ {
 			return oi < oj
 		}

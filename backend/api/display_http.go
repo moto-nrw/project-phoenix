@@ -10,7 +10,6 @@ import (
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -44,10 +43,7 @@ func displayHTTPRuntime(displayEnabled func(context.Context) (bool, error)) disp
 // tenant-transaction middleware to the routes that need it.
 func displayProtectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middleware)) {
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(ReadOnlyPreviewMiddleware)
-		r.Use(TenantScopeMiddleware)
-		r.Use(SecurityPrincipalMiddleware)
+		TenantSessionChain(r)
 		register(r, apiCommon.TenantTxMiddleware)
 	})
 }

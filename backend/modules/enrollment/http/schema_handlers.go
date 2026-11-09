@@ -116,10 +116,10 @@ func (req *RenameSchemaRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// PublicFormSchemaResponse is the slim, parent-safe shape returned by
-// the public schema endpoint. We deliberately drop CreatedBy and
-// internal version metadata that parents don't need to render the
-// form. The fields array carries everything the dynamic renderer
+// PublicFormSchemaResponse is the slim, parent-safe schema shape that
+// the public form bootstrap and the status responses carry. We
+// deliberately drop CreatedBy and internal version metadata that parents
+// don't need to render the form. The fields array carries everything the dynamic renderer
 // consumes (label, type, options, validation).
 type PublicFormSchemaResponse struct {
 	ID               string                      `json:"id"`
@@ -129,9 +129,11 @@ type PublicFormSchemaResponse struct {
 }
 
 type SchemaPreviewBootstrapResponse struct {
-	Schema                   *FormSchemaResponse `json:"schema"`
-	AssignedPhaseCount       int                 `json:"assigned_phase_count"`
-	ActiveAssignedPhaseCount int                 `json:"active_assigned_phase_count"`
+	EnrollmentEnabled        *bool                        `json:"enrollment_enabled,omitempty"`
+	PhaseOfferings           *PublicCareOfferingsResponse `json:"phase_offerings,omitempty"`
+	Schema                   *FormSchemaResponse          `json:"schema"`
+	AssignedPhaseCount       int                          `json:"assigned_phase_count"`
+	ActiveAssignedPhaseCount int                          `json:"active_assigned_phase_count"`
 }
 
 func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Request) {
@@ -145,45 +147,116 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var (
-		schema *capability.FormSchema
-		phases []*capability.Phase
-	)
+	phaseID, ok := rs.parseSchemaPreviewPhaseID(w, r)
+	if !ok {
+		return
+	}
+
+	var loaded schemaPreviewData
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		if schemaID > 0 {
-			loaded, loadErr := rs.FormSchemaService.SchemaVersion(ctx, schemaID)
-			if loadErr != nil {
-				return loadErr
-			}
-			schema = loaded
-		}
-		list, listErr := rs.PhaseService.Phases(ctx)
-		phases = list
-		return listErr
+		return rs.loadSchemaPreview(ctx, schemaID, phaseID, &loaded)
 	})
 	if err != nil {
-		// A missing schema id is the caller's problem (404); everything
-		// else (phase listing, DB failures) is a genuine 500 — rendering
-		// those as 400 would hide internal failures behind client blame.
-		if errors.Is(err, capability.ErrFormSchemaNotFound) {
+		// Missing preview targets are 404; phase listing and DB failures
+		// remain 500 so internal failures are not blamed on the caller.
+		switch {
+		case errors.Is(err, capability.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSchemaNotFound))
-			return
+		case errors.Is(err, capability.ErrPhaseNotFound):
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	var schemaOut *FormSchemaResponse
-	if schema != nil {
-		out := toFormSchemaResponse(schema)
+	if loaded.schema != nil {
+		out := toFormSchemaResponse(loaded.schema)
 		schemaOut = &out
 	}
-	assigned, active := countAssignedPreviewPhases(phases, schema)
+	assigned, active := countAssignedPreviewPhases(loaded.phases, loaded.schema)
 	common.Respond(w, r, http.StatusOK, SchemaPreviewBootstrapResponse{
 		Schema:                   schemaOut,
+		EnrollmentEnabled:        loaded.enrollmentEnabled,
+		PhaseOfferings:           loaded.phaseOfferings,
 		AssignedPhaseCount:       assigned,
 		ActiveAssignedPhaseCount: active,
 	}, "Schema preview bootstrap retrieved")
+}
+
+type schemaPreviewData struct {
+	schema            *capability.FormSchema
+	phases            []*capability.Phase
+	enrollmentEnabled *bool
+	phaseOfferings    *PublicCareOfferingsResponse
+}
+
+// loadSchemaPreview reads the template, the optional phase configuration and
+// the phase list inside the caller's tenant transaction.
+func (rs *Resource) loadSchemaPreview(ctx context.Context, schemaID, phaseID int64, out *schemaPreviewData) error {
+	if schemaID > 0 {
+		loaded, err := rs.FormSchemaService.SchemaVersion(ctx, schemaID)
+		if err != nil {
+			return err
+		}
+		out.schema = loaded
+	}
+	if phaseID > 0 {
+		var err error
+		out.enrollmentEnabled, out.phaseOfferings, err = rs.loadPhasePreviewConfiguration(ctx, phaseID)
+		if err != nil {
+			return err
+		}
+	}
+	list, err := rs.PhaseService.Phases(ctx)
+	out.phases = list
+	return err
+}
+
+// parseSchemaPreviewPhaseID reads the optional phase of a phase preview
+// (#6044). Zero means no phase. On a bad request it renders the error and
+// returns ok=false.
+func (rs *Resource) parseSchemaPreviewPhaseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	raw := r.URL.Query().Get("phaseId")
+	if raw == "" {
+		return 0, true
+	}
+	phaseID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId must be a positive integer")))
+		return 0, false
+	}
+	if rs.RequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase preview endpoint not configured")))
+		return 0, false
+	}
+	return phaseID, true
+}
+
+// loadPhasePreviewConfiguration returns the school's online-enrollment switch
+// and the phase's parent-form configuration, without the public access gates.
+func (rs *Resource) loadPhasePreviewConfiguration(ctx context.Context, phaseID int64) (*bool, *PublicCareOfferingsResponse, error) {
+	data, err := bootstrapValue(rs.RequestService.LoadPhasePreviewCareOfferings(ctx, phaseID))
+	if err != nil {
+		return nil, nil, err
+	}
+	enabled := rs.RequestService.IsEnrollmentEnabled(ctx)
+	capabilities := data.EffectiveCapabilities
+	items := make([]CareOfferingResponse, 0, len(data.Offerings))
+	for _, offering := range data.Offerings {
+		items = append(items, toPublicCareOfferingResponse(offering))
+	}
+	mode := data.Phase.CareOfferingSelectionMode
+	return &enabled, &PublicCareOfferingsResponse{
+		Offerings:                 items,
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(mode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && mode != capability.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(data.Phase, capabilities.CollectSchoolClass),
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
+		EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
+	}, nil
 }
 
 // parseSchemaPreviewSchemaID reads the preview target from the query. A
@@ -229,87 +302,14 @@ func countAssignedPreviewPhases(phases []*capability.Phase, schema *capability.F
 	return assigned, active
 }
 
-// listPublicActiveSchema returns the form schema for a (tenant, phase)
-// pair. The phase's pinned form_schema_id wins; if the phase has none,
-// we fall back to the tenant's currently-active schema; if neither
-// exists, 404 → form falls back to core fields only.
-func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil || rs.SchoolService == nil || !rs.transactions {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public schema endpoint not wired")))
-		return
-	}
-
-	slug := chi.URLParam(r, "tenantSlug")
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
-	if !ok {
-		return
-	}
-
-	var schema *capability.FormSchema
-	lateInviteToken := lateInviteTokenFromRequest(r)
-	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
-	if resolveErr == nil {
-		resolveErr = withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
-			s, schemaErr := rs.RequestService.PublicActiveSchema(txCtx, phaseID, time.Now(), lateInviteToken)
-			schema = s
-			return schemaErr
-		})
-	}
-	if resolveErr != nil {
-		renderPublicEnrollmentError(w, r, resolveErr)
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, toPublicFormSchemaResponse(schema), "Public active form schema retrieved")
-}
-
 // PublicCaptchaConfigResponse carries the tenant-scoped Cloudflare
 // Turnstile site key + enabled flag so the public form can render
-// the widget. Returned by GET /enrollment/captcha-config/{tenantSlug}.
+// the widget. Returned inside the public form bootstrap.
 // SiteKey is intentionally surfaced — Turnstile site keys are public
 // by design (they appear in the rendered widget markup).
 type PublicCaptchaConfigResponse struct {
 	Enabled bool   `json:"enabled"`
 	SiteKey string `json:"site_key"`
-}
-
-// publicCaptchaConfig serves the captcha config for the parent form.
-// Slug-gated, no JWT.
-func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) {
-	if rs.CaptchaService == nil || rs.SchoolService == nil || !rs.transactions {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("captcha config endpoint not wired")))
-		return
-	}
-
-	slug := chi.URLParam(r, "tenantSlug")
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-
-	out := PublicCaptchaConfigResponse{}
-	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
-	if resolveErr == nil {
-		resolveErr = withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
-			var err error
-			out.Enabled, err = rs.CaptchaService.IsEnabled(txCtx)
-			if err != nil {
-				return err
-			}
-			out.SiteKey, err = rs.CaptchaService.SiteKey(txCtx)
-			return err
-		})
-	}
-	if resolveErr != nil {
-		renderPublicEnrollmentError(w, r, resolveErr)
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, out, "Captcha config retrieved")
 }
 
 // getActiveSchema returns the currently-active schema or 404 if none

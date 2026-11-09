@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { useEffect, useState, type ReactNode } from "react";
 import { Search, ArrowLeft, Check, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -178,14 +180,7 @@ export default function GuardianPickerPanel({
   const excluded = new Set(excludeProfileIds);
 
   return (
-    <div
-      data-testid="guardian-picker-panel"
-      className={
-        embedded
-          ? "space-y-3"
-          : "border-moto-blue/40 bg-moto-blue-soft/40 space-y-3 rounded-xl border p-3 md:p-4"
-      }
-    >
+    <PickerSurface embedded={embedded}>
       {/* Panel header; im Dialog trägt ihn der Dialog selbst. */}
       {!embedded && (
         <div className="flex items-center justify-between">
@@ -208,7 +203,7 @@ export default function GuardianPickerPanel({
       {selected ? (
         <div className="space-y-3">
           {/* Chosen person (read-only) */}
-          <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <InsetPanel tone="white">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-gray-900">
@@ -237,7 +232,7 @@ export default function GuardianPickerPanel({
                 Andere wählen
               </Button>
             </div>
-          </div>
+          </InsetPanel>
 
           {/* Relationship for THIS child only (shared with the guardian form) */}
           <RelationshipTypeSelect
@@ -303,9 +298,11 @@ export default function GuardianPickerPanel({
               query.trim().length >= MIN_QUERY_LENGTH &&
               results.length === 0 &&
               !searchFailed && (
-                <p className="px-1 py-4 text-center text-xs text-gray-500">
-                  Keine Erziehungsberechtigten gefunden.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  title="Keine Erziehungsberechtigten gefunden."
+                  className="px-1"
+                />
               )}
 
             {!loading && query.trim().length < MIN_QUERY_LENGTH && (
@@ -366,6 +363,32 @@ export default function GuardianPickerPanel({
           </div>
         </>
       )}
-    </div>
+    </PickerSurface>
+  );
+}
+
+/** Eigenständig eine Innenfläche; im Dialog trägt der Dialog die Fläche. */
+function PickerSurface({
+  embedded,
+  children,
+}: {
+  readonly embedded: boolean;
+  readonly children: ReactNode;
+}) {
+  if (embedded) {
+    return (
+      <div data-testid="guardian-picker-panel" className="space-y-3">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <InsetPanel
+      data-testid="guardian-picker-panel"
+      framed
+      className="space-y-3"
+    >
+      {children}
+    </InsetPanel>
   );
 }

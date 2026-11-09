@@ -86,14 +86,6 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>Loading...</div>,
 }));
 
-vi.mock("~/components/shared/password-toggle-button", () => ({
-  PasswordToggleButton: ({ onToggle }: { onToggle: () => void }) => (
-    <button onClick={onToggle} type="button">
-      Toggle
-    </button>
-  ),
-}));
-
 import OperatorLoginPage from "./page";
 
 describe("OperatorLoginPage", () => {
@@ -481,7 +473,9 @@ describe("OperatorLoginPage", () => {
     const passwordInput = screen.getByLabelText("Passwort");
     expect(passwordInput).toHaveAttribute("type", "password");
 
-    const toggleButton = screen.getByRole("button", { name: "Toggle" });
+    const toggleButton = screen.getByRole("button", {
+      name: "Passwort anzeigen",
+    });
     fireEvent.click(toggleButton);
 
     expect(passwordInput).toHaveAttribute("type", "text");

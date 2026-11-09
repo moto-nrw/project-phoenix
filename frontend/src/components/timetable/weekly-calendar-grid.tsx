@@ -26,9 +26,10 @@ import {
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
-import { CapacityStrip } from "~/components/ui/capacity-strip";
+import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
+import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   assignBlockLanes,
   buildDayColumnTemplate,
@@ -45,7 +46,8 @@ import {
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
-import { timetableSurface } from "./timetable-style";
+import { StatusDot } from "~/components/ui/status-dot";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
 // single day column via the day strip; ab sm bekommt JEDER übergebene Tag
@@ -344,8 +346,8 @@ export function WeeklyCalendarGrid({
   );
 
   return (
-    <div
-      className={`${timetableSurface} overflow-hidden`}
+    <SectionCard
+      padding="none"
       style={
         {
           "--day-grid-cols": smColumns.template,
@@ -385,48 +387,23 @@ export function WeeklyCalendarGrid({
           const closingReason = closingDays?.get(iso);
           const planningDisabled = planningDisabledDateISOs?.has(iso) ?? false;
           return (
-            <button
+            <PlanningDayChip
               key={iso}
-              type="button"
+              stacked
+              weekdayLabel={getGermanWeekdayShort(day)}
+              dateLabel={String(day.getDate()).padStart(2, "0")}
+              selected={isSelected}
               onClick={() => setSelectedDayIndex(index)}
-              aria-pressed={isSelected}
-              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                isSelected
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <span
-                className={`text-[10px] font-medium tracking-wide uppercase ${
-                  isSelected ? "text-white/80" : "text-gray-500"
-                }`}
-              >
-                {getGermanWeekdayShort(day)}
-              </span>
-              <span className="text-sm font-semibold tabular-nums">
-                {String(day.getDate()).padStart(2, "0")}
-              </span>
-              {closingReason !== undefined && (
-                // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
-                // Beschriftung und Grund bleiben im Tooltip.
-                <ClosingDayChip reason={closingReason} text="" />
-              )}
-              {planningDisabled && (
-                <span
-                  className={`text-[9px] leading-none font-medium ${
-                    isSelected ? "text-white/80" : "text-gray-500"
-                  }`}
-                >
-                  Nicht planbar
-                </span>
-              )}
-              {isToday && !isSelected && (
-                <span
-                  className="bg-moto-red h-1 w-1 rounded-full"
-                  aria-hidden
-                />
-              )}
-            </button>
+              today={isToday}
+              statusLabel={planningDisabled ? "Nicht planbar" : undefined}
+              marker={
+                closingReason === undefined ? undefined : (
+                  // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
+                  // Beschriftung und Grund bleiben im Tooltip.
+                  <ClosingDayChip reason={closingReason} text="" />
+                )
+              }
+            />
           );
         })}
       </div>
@@ -476,12 +453,12 @@ export function WeeklyCalendarGrid({
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
+                      <span className="text-xs font-medium text-gray-500">
                         {getGermanWeekdayShort(day)}
                       </span>
                       {isToday ? (
                         <span
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white tabular-nums sm:h-6 sm:w-6"
                           aria-label={formatDayHeader(day)}
                         >
                           {day.getDate()}
@@ -504,7 +481,7 @@ export function WeeklyCalendarGrid({
                         className="w-full justify-center text-center"
                       />
                     ) : planningDisabled ? (
-                      <span className="text-[10px] font-medium text-gray-500">
+                      <span className="text-xs font-medium text-gray-500">
                         Nicht planbar
                       </span>
                     ) : null}
@@ -539,7 +516,7 @@ export function WeeklyCalendarGrid({
                 {hours.slice(0, -1).map((hour) => (
                   <div
                     key={hour}
-                    className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-gray-400 sm:px-2 sm:text-[11px]"
+                    className="flex items-start justify-end px-1 pt-1 text-xs font-medium text-gray-400 sm:px-2"
                     style={{ height: `${hourHeightPx}px` }}
                   >
                     {String(hour).padStart(2, "0")}:00
@@ -664,9 +641,15 @@ export function WeeklyCalendarGrid({
                     {nowOffset !== null && (
                       <>
                         <div
-                          className="bg-moto-red pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full"
+                          className="pointer-events-none absolute -left-1 z-10 flex"
                           style={{ top: `${nowOffset - 4}px` }}
-                        />
+                        >
+                          <StatusDot
+                            className="bg-moto-red"
+                            size="md"
+                            decorative
+                          />
+                        </div>
                         <div
                           className="border-moto-red pointer-events-none absolute right-0 left-0 z-10 border-t-2"
                           style={{ top: `${nowOffset}px` }}
@@ -698,6 +681,7 @@ export function WeeklyCalendarGrid({
 
           {emptyState && (
             <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
+              {/* oxlint-disable-next-line ui-kit/no-hand-rolled-page-card -- schwebendes Hinweisschild über dem leeren Raster, keine Abschnittskarte */}
               <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-1">
                 <EmptyState
                   variant="compact"
@@ -728,6 +712,6 @@ export function WeeklyCalendarGrid({
           {legend}
         </div>
       ) : null}
-    </div>
+    </SectionCard>
   );
 }

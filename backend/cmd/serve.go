@@ -102,7 +102,7 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 	if event == nil {
 		return event
 	}
-	// Public calendar and request feeds authenticate purely by the token in the
+	// Public feeds and contract signing authenticate purely by the token in the
 	// URL. Sentry's HTTP integration captures that URL (and the derived
 	// transaction name / breadcrumbs), so a failing feed request would otherwise
 	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
@@ -127,11 +127,13 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 			}
 		}
 	}
+	scrubSentryContextsAndTags(event)
 	if event.Request != nil {
 		event.Request.URL = appmiddleware.RedactFeedToken(event.Request.URL)
 		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
 		event.Request.Data = ""
-		for key := range event.Request.Headers {
+		for key, value := range event.Request.Headers {
+			event.Request.Headers[key] = appmiddleware.RedactFeedToken(value)
 			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Auth-PIN", "X-Staff-Id", "X-Device-Key"} {
 				if strings.EqualFold(key, sensitive) {
 					event.Request.Headers[key] = "[filtered]"
@@ -145,6 +147,52 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 
 // sentryEmailAddress matches an e-mail address inside free text.
 var sentryEmailAddress = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
+
+// scrubSentryContextsAndTags scrubs the contexts and tags of an event: they
+// may carry an error text or a URL too, so a signing link's token never
+// reaches Sentry through them (#4679).
+func scrubSentryContextsAndTags(event *sentry.Event) {
+	for name, context := range event.Contexts {
+		for key, value := range context {
+			context[key] = scrubSentryValue(value)
+		}
+		event.Contexts[name] = context
+	}
+	for key, value := range event.Tags {
+		event.Tags[key] = scrubSentryText(value)
+	}
+}
+
+// scrubSentryValue scrubs every string inside a value of an event's
+// contexts, at any depth of maps and lists.
+func scrubSentryValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return scrubSentryText(v)
+	case map[string]any:
+		for key, nested := range v {
+			v[key] = scrubSentryValue(nested)
+		}
+		return v
+	case []any:
+		for i, nested := range v {
+			v[i] = scrubSentryValue(nested)
+		}
+		return v
+	case []string:
+		for i, nested := range v {
+			v[i] = scrubSentryText(nested)
+		}
+		return v
+	case map[string]string:
+		for key, nested := range v {
+			v[key] = scrubSentryText(nested)
+		}
+		return v
+	default:
+		return value
+	}
+}
 
 // scrubSentryText redacts feed tokens and e-mail addresses in free text.
 func scrubSentryText(s string) string {

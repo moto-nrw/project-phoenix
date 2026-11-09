@@ -20,15 +20,12 @@ import (
 // Either everything lands or nothing does. The phase carries the window, the
 // form schema and the overflow mode.
 func (s *Intake) Submit(ctx context.Context, req enrollmentNative.SubmitRequest) (*enrollmentNative.SubmitResult, error) {
-	decoded, err := decodeSubmitRequest(req)
-	if err != nil {
-		return nil, err
-	}
+	decoded := decodeSubmitRequest(req)
 	outcome, err := s.submit(ctx, decoded)
 	if err != nil {
 		return nil, publicError(err)
 	}
-	return outcome.public()
+	return outcome.public(), nil
 }
 
 // submissionPlan is everything a submission resolves before its write
@@ -51,11 +48,16 @@ type submissionPlan struct {
 	statusExpiresAt  time.Time
 	// signatureRequired: the parent signs this submission (#4786).
 	signatureRequired bool
+	// eligibility is the phase eligibility the payload passed; a trusted
+	// caller passes none.
+	eligibility eligibilityGate
 }
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
 	if !req.SkipRateLimit {
-		if err := s.enforceRateLimit(ctx, req); err != nil {
+		if err := s.enforceRateLimit(ctx, req.TenantID, func(ctx context.Context) error {
+			return s.countSubmissionAttempt(ctx, req)
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -165,25 +167,12 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 	if plan.legalBlocks, err = s.resolveSubmissionLegalBlocks(ctx, schema); err != nil {
 		return fmt.Errorf("submit: resolve legal blocks: %w", err)
 	}
-	if req.ExternalConsentConfirmed {
-		req.ConsentFlags = ensureRequiredConsentFlags(req.ConsentFlags, plan.legalBlocks)
-	}
-	if err := normalizeAdditionalGuardians(req); err != nil {
-		return err
-	}
-	if err := s.validateSubmission(ctx, *req, plan.legalBlocks, plan.capabilities); err != nil {
-		return err
-	}
-	if err := s.validateAndNormalizeSchoolClasses(ctx, plan.phase, req.Children); err != nil {
-		return err
-	}
-	// Eligibility runs after the class canonicalization, so it validates the
-	// stored class, not the raw client value (#1663).
-	if err := s.validatePhaseEligibility(ctx, plan.phase, *req); err != nil {
-		return err
-	}
-	req.ConsentFlags = filterConsentFlags(req.ConsentFlags, plan.legalBlocks)
-	if err := validateSubmittedFields(schema, *req, plan.openByID); err != nil {
+	plan.eligibility = submissionEligibility(*req)
+	if err := s.validateIntakePayload(ctx, req, intakePayload{
+		phase: plan.phase, schema: schema, legalBlocks: plan.legalBlocks,
+		capabilities: plan.capabilities, openByID: plan.openByID,
+		eligibility: plan.eligibility, consentConfirmed: req.ExternalConsentConfirmed,
+	}); err != nil {
 		return err
 	}
 	if schema != nil {
@@ -194,14 +183,14 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 
 // validateSubmittedFields runs the required-field, companion-note and
 // schedule checks of the form.
-func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren ...[]*RequestChild) error {
+func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*enrollmentNative.RequestChild) error {
 	if err := validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return err
 	}
 	if err := validateAccompaniedCompanionNote(schema, req, openByID); err != nil {
 		return err
 	}
-	return validateConstrainedSchedules(schema, req, openByID, existingChildren...)
+	return validateConstrainedSchedules(schema, req, openByID, existingChildren)
 }
 
 // sanitizeSubmittedAnswers drops the answers of hidden and undeclared fields
@@ -238,7 +227,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
 	// Serialize concurrent submits of one (phase, guardian email), so two
 	// parallel requests cannot both pass the duplicate check.
-	emailLC := lowerTrim(req.GuardianEmail)
+	emailLC := guardianEmailKey(req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("submit: acquire dedup lock: %w", err)
 	}
@@ -320,13 +309,13 @@ func (s *Intake) checkSubmissionDuplicates(ctx context.Context, phaseID int64, g
 	}
 }
 
-func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest, plan *submissionPlan, lateInvite *enrollmentNative.LateInvite) (*Request, error) {
+func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest, plan *submissionPlan, lateInvite *enrollmentNative.LateInvite) (*enrollmentNative.Request, error) {
 	var schemaID *int64
 	if plan.schema != nil {
 		id := plan.schema.ID
 		schemaID = &id
 	}
-	snapshotEntry, err := legalBlocksSnapshotEntry(plan.legalBlocks, req.ConsentFlags, time.Now())
+	snapshotEntry, err := legalBlocksSnapshotEntry(plan.legalBlocks, req.ConsentFlags, formsOf(plan.schema, req.DisplayedFormSchemaID), time.Now(), s.deps.Fingerprint)
 	if err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}
@@ -335,16 +324,16 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 		return nil, err
 	}
 	statusExpiresAt := plan.statusExpiresAt
-	request := &Request{
+	request := &enrollmentNative.Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
 		GuardianFirstName: textnorm.Name(req.GuardianFirstName), GuardianLastName: textnorm.Name(req.GuardianLastName),
-		GuardianEmail: lowerTrim(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
-		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
-		SubmissionSource: plan.submissionSource, SourceMetadata: plan.sourceMetadata,
+		GuardianEmail: guardianEmailKey(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
+		ConsentFlags: formValues(req.ConsentFlags), CustomData: formValues(req.CustomData),
+		SubmissionSource: plan.submissionSource, SourceMetadata: formValues(plan.sourceMetadata),
 		StatusToken: plan.statusToken, StatusTokenExpires: &statusExpiresAt, SubmittedAt: time.Now(),
-		LegalBlocksSnapshot: []LegalBlocksSnapshotEntry{snapshotEntry},
+		LegalBlocksSnapshot: []enrollmentNative.LegalBlocksSnapshotEntry{snapshotEntry},
 	}
-	if err := createDecodedRequest(ctx, s.deps.Requests, request); err != nil {
+	if err := s.deps.Requests.InsertRequest(ctx, request); err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}
 	if err := s.claimFileUploads(ctx, claims, request.ID); err != nil {
@@ -379,17 +368,17 @@ func createRequestGuardians(ctx context.Context, owner IntakeGuardians, requestI
 	return nil
 }
 
-func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*RequestChild, error) {
-	created := make([]*RequestChild, 0, len(req.Children))
+func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *enrollmentNative.Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*enrollmentNative.RequestChild, error) {
+	created := make([]*enrollmentNative.RequestChild, 0, len(req.Children))
 	for i, child := range req.Children {
 		row := newSubmittedChild(request.ID, i, child, overrides)
-		matchedStudentID, err := s.resolveMatchedStudentID(ctx, req.TenantID, plan.phase, i, child)
+		matchedStudentID, err := s.submittedChildPin(ctx, req.TenantID, plan.phase, i, child, submitter)
 		if err != nil {
 			return nil, err
 		}
-		// !AllowClosedPhase means the eligibility gate ran, so a vanished
-		// match is a race, not a fresh create (#1663).
-		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {
+		// After an eligibility gate a vanished match is a race, not a fresh
+		// create (#1663).
+		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
 		if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {
@@ -399,7 +388,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 			return nil, err
 		}
 		row.MatchedStudentID = matchedStudentID
-		if err := createDecodedChild(ctx, s.deps.Children, row); err != nil {
+		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("submit: create request child %d: %w", i, err)
 		}
 		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.phase.ServiceStartDate, plan.phase.ServiceEndDate); err != nil {
@@ -412,15 +401,15 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 
 // newSubmittedChild is the stored row of a submitted child; a capacity
 // override replaces the submitted status.
-func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides map[int]string) *RequestChild {
+func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides map[int]string) *enrollmentNative.RequestChild {
 	status := enrollmentNative.ChildStatusSubmitted
 	if override, ok := overrides[index]; ok {
 		status = override
 	}
-	return &RequestChild{
+	return &enrollmentNative.RequestChild{
 		RequestID: requestID, FirstName: textnorm.Name(child.FirstName), LastName: textnorm.Name(child.LastName),
 		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass,
-		CustomData: child.CustomData, Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
+		CustomData: formValues(child.CustomData), Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
 	}
 }
 

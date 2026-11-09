@@ -38,7 +38,10 @@ func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(c
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.listSchools)
-		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/today", rs.schoolsToday)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/key-date-counts", rs.keyDateCounts)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/alerts", rs.schoolsAlerts)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/occupancy", rs.occupancy)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/occupancy/export", rs.occupancyExport)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/{id}", rs.getSchool)
 	})
 	return r
@@ -126,23 +129,45 @@ func (rs *Resource) getSchool(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// schoolsToday answers GET /traeger/schools/today: every school of the Träger
-// of the session with its figures and their sum (#4674). Figures are
+// keyDateCounts answers GET /traeger/schools/key-date-counts: the captured
+// Stichtagszahlen of every school of the Träger of the session and the sum of
+// each month (#4673), the same rows as the operator billing report. They are
 // aggregated numbers, so the read is not written to the access log (ADR 0084
 // section 7).
-func (rs *Resource) schoolsToday(w http.ResponseWriter, r *http.Request) {
+func (rs *Resource) keyDateCounts(w http.ResponseWriter, r *http.Request) {
 	principal, err := common.CurrentPrincipal(r.Context())
 	if err != nil || principal.OrganizationID() <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	today, err := rs.overview.SchoolsToday(r.Context(), principal.OrganizationID())
+	counts, err := rs.overview.KeyDateCounts(r.Context(), principal.OrganizationID())
 	switch {
 	case errors.Is(err, traegerview.ErrTraegerUnavailable):
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 	case err != nil:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	default:
-		common.Respond(w, r, http.StatusOK, today, "School figures retrieved successfully")
+		common.Respond(w, r, http.StatusOK, counts, "Key-date counts retrieved successfully")
+	}
+}
+
+// schoolsAlerts answers GET /traeger/schools/alerts: the hints of every school
+// of the Träger of the session against the Träger's thresholds (#4675). They
+// are aggregated numbers, so the read is not written to the access log (ADR
+// 0084 section 7).
+func (rs *Resource) schoolsAlerts(w http.ResponseWriter, r *http.Request) {
+	principal, err := common.CurrentPrincipal(r.Context())
+	if err != nil || principal.OrganizationID() <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	alerts, err := rs.overview.SchoolsAlerts(r.Context(), principal.OrganizationID())
+	switch {
+	case errors.Is(err, traegerview.ErrTraegerUnavailable):
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+	case err != nil:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	default:
+		common.Respond(w, r, http.StatusOK, alerts, "School alerts retrieved successfully")
 	}
 }

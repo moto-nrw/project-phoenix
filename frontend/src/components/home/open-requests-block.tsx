@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "~/components/ui/navigation-link";
+import { ListRow } from "~/components/ui/list-row";
 import { EmptyState } from "~/components/ui/empty-state";
-import { SectionCard } from "~/components/ui/section-card";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
@@ -73,11 +72,9 @@ export function OpenRequestsBlock() {
   ].filter((row) => row.count > 0);
 
   return (
-    <SectionCard
+    <HomeCard
       title="Offene Anfragen"
       leading={<HomeCardIcon concept={requestsConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -98,9 +95,14 @@ export function OpenRequestsBlock() {
         <ul className="space-y-2">
           {rows.map((row) => (
             <li key={row.key}>
-              <Link
+              <ListRow
                 href={row.href}
-                className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                trailing={
+                  <StatusBadge
+                    tone="orange"
+                    label={`${row.count} ${row.badge ?? "offen"}`}
+                  />
+                }
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-gray-900">
@@ -110,15 +112,11 @@ export function OpenRequestsBlock() {
                     {row.hint}
                   </span>
                 </span>
-                <StatusBadge
-                  tone="orange"
-                  label={`${row.count} ${row.badge ?? "offen"}`}
-                />
-              </Link>
+              </ListRow>
             </li>
           ))}
         </ul>
       )}
-    </SectionCard>
+    </HomeCard>
   );
 }

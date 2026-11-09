@@ -90,6 +90,9 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Each case approves the same fixture child: in a shared tenant a
+			// later case would find the earlier one already enrolled (#6053).
+			testpkg.OwnTenant(t)
 			harness := setupOfferingGuardRouterTest(t, tt.mode, tt.link, tt.offeringsEnabled, false)
 			rec := executeApprovalDecision(t, harness)
 			require.Equal(t, tt.wantStatus, rec.Code)
@@ -145,7 +148,7 @@ func setupOfferingGuardRouterTest(
 	decision := newOfferingGuardDecisionService(repos, reposCare, reposTimetable, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	token := mintOfferingGuardReviewerToken(t, reviewer.ID, reviewer.Email)
 	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)), request.ID, child.ID, token, repos, ctx}
@@ -174,10 +177,7 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     fmt.Sprintf("offering-guard-%d@example.test", testpkg.Tenant(t)),
-		ConsentFlags:      []byte("{}"),
-		CustomData:        []byte("{}"),
 		SubmissionSource:  enrollmentNative.RequestSourcePublic,
-		SourceMetadata:    []byte("{}"),
 		StatusToken:       fmt.Sprintf("offering-guard-%d-%d", testpkg.Tenant(t), time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
@@ -187,9 +187,8 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 		RequestID:        request.ID,
 		FirstName:        "Lina",
 		LastName:         "Beispiel",
-		DateOfBirth:      enrollmentNative.Date("2018-04-15"),
+		DateOfBirth:      calendar.NewDate(2018, 4, 15),
 		TargetGradeLevel: &grade,
-		CustomData:       []byte("{}"),
 		Status:           enrollmentNative.ChildStatusSubmitted,
 		ActivationMode:   enrollmentNative.ChildActivationScheduled,
 	}
@@ -294,7 +293,7 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare o
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),

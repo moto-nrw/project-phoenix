@@ -1,27 +1,8 @@
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-interface DecideBody {
-  approve: boolean;
-  reason?: string;
-}
-
-interface BackendEnvelope<T> {
-  data: T;
-}
-
-/**
- * Proxy POST /api/students/master-data-change-requests/{requestId}/decide →
- * backend. Approves (and applies) or rejects one change request.
- */
-export const POST = createPostHandler<unknown, DecideBody>(
-  async (_request, body, token, params) => {
-    const requestId = String(params.requestId);
-    const response = await apiPost<BackendEnvelope<unknown>, DecideBody>(
-      `/api/students/master-data-change-requests/${encodeURIComponent(requestId)}/decide`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+// Approves (and applies) or rejects one master-data change request.
+export const POST = proxyPost(
+  (p) =>
+    `/api/students/master-data-change-requests/${requirePathSegmentParam(p, "requestId")}/decide`,
 );

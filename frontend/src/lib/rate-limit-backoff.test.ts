@@ -141,34 +141,37 @@ describe("rate-limit fetch guard", () => {
     expect(blocked.status).toBe(429);
   });
 
-  it("lets a log-route 429 pass without locking requests or toasting", async () => {
-    const backendFetch = vi
-      .fn()
-      .mockResolvedValueOnce(
+  it("lets a 429 of every portal's log route pass without locking requests or toasting", async () => {
+    const logPaths = [
+      "/api/logs",
+      "/api/operator/logs",
+      "/api/parent/logs",
+      "/api/school/logs",
+      "/api/caterer/logs",
+      "/api/traeger/logs",
+    ];
+    const backendFetch = vi.fn();
+    for (const _ of logPaths) {
+      backendFetch.mockResolvedValueOnce(
         new Response("rate limited", {
           status: 429,
           headers: { "Retry-After": "60" },
         }),
-      )
-      .mockResolvedValueOnce(
-        new Response("rate limited", {
-          status: 429,
-          headers: { "Retry-After": "60" },
-        }),
-      )
-      .mockResolvedValue(new Response(null));
+      );
+    }
+    backendFetch.mockResolvedValue(new Response(null));
     const notice = vi.fn();
     window.addEventListener("phoenix:rate-limited", notice);
     const rateLimit = await loadGuard(backendFetch);
 
-    const tenantLogs = await fetch("/api/logs", { method: "POST" });
-    const parentLogs = await fetch("/api/parent/logs", { method: "POST" });
+    for (const logPath of logPaths) {
+      const logs = await fetch(logPath, { method: "POST" });
+      expect(logs.status, logPath).toBe(429);
+    }
     const write = await fetch("/api/students/1", { method: "PATCH" });
 
-    expect(tenantLogs.status).toBe(429);
-    expect(parentLogs.status).toBe(429);
     expect(write.status).toBe(200);
-    expect(backendFetch).toHaveBeenCalledTimes(3);
+    expect(backendFetch).toHaveBeenCalledTimes(logPaths.length + 1);
     expect(rateLimit.remainingRateLimitMs("POST")).toBe(0);
     expect(notice).not.toHaveBeenCalled();
 

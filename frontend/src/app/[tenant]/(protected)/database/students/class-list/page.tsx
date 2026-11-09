@@ -9,7 +9,7 @@
 // schon erfasst sind und welche noch fehlen.
 //
 // Design follows the Anmeldungen/Planung surface language: calm content
-// section, uppercase kicker, gray-50 stats, no colored dashboards.
+// section without a kicker, gray-50 stats, no colored dashboards.
 
 import Link from "~/components/ui/navigation-link";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +26,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { Radio } from "~/components/ui/radio";
 import {
   OverflowMenu,
@@ -53,6 +54,8 @@ import { schoolClassName } from "~/lib/school-class-label";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { fetchSchoolClasses } from "~/lib/student-api";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
 
@@ -77,17 +80,7 @@ function errorMessage(err: unknown): string {
 // Bewusst still: die Klassen sind nur Vorschläge im Eingabefeld. Ohne sie
 // tippt man die Klasse selbst; Speichern und Liste hängen nicht daran.
 async function fetchClassSuggestions(): Promise<string[]> {
-  try {
-    const response = await fetch("/api/students/school-classes", {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!response.ok) return [];
-    const payload = (await response.json()) as { data?: string[] };
-    return payload.data ?? [];
-  } catch {
-    return [];
-  }
+  return fetchSchoolClasses().catch(() => []);
 }
 
 // Minimal projection of a regular student for the roster view: this page
@@ -582,22 +575,25 @@ export default function ClassListEntriesPage() {
       filters={filterConfigs}
       actions={
         canCreate ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <ButtonLink
-              href={tenantPath("/database/students/class-list/import")}
-              variant="outline"
-              size="md"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              Sammelimport
-            </ButtonLink>
+          <>
             <DatabaseCreateAction
               label="Eintrag"
               ariaLabel="Klassenlisteneintrag anlegen"
               onClick={openCreate}
             />
-          </div>
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={[
+                {
+                  label: "Sammelimport",
+                  icon: <Upload className="h-4 w-4" aria-hidden />,
+                  href: tenantPath("/database/students/class-list/import"),
+                  // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                  onClick: () => undefined,
+                },
+              ]}
+            />
+          </>
         ) : undefined
       }
       back
@@ -617,76 +613,47 @@ export default function ClassListEntriesPage() {
             <div ref={formRef} className="space-y-4">
               <FormErrorAlert message={formErrors.error} />
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="entry-first-name"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Vorname
-                  </label>
-                  <Input
-                    id="entry-first-name"
-                    name="first_name"
-                    error={formErrors.fieldError("first_name")}
-                    value={form.firstName}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        firstName: e.target.value,
-                      }))
-                    }
-                    placeholder="z.B. Lena"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="entry-last-name"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Nachname
-                  </label>
-                  <Input
-                    id="entry-last-name"
-                    name="last_name"
-                    error={formErrors.fieldError("last_name")}
-                    value={form.lastName}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, lastName: e.target.value }))
-                    }
-                    placeholder="z.B. Beispiel"
-                  />
-                </div>
-              </div>
-              <div>
-                <label
-                  htmlFor="entry-school-class"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Klasse
-                </label>
                 <Input
-                  id="entry-school-class"
-                  name="school_class"
-                  error={formErrors.fieldError("school_class")}
-                  value={form.schoolClass}
+                  id="entry-first-name"
+                  name="first_name"
+                  label="Vorname"
+                  error={formErrors.fieldError("first_name")}
+                  value={form.firstName}
                   onChange={(e) =>
                     setForm((prev) => ({
                       ...prev,
-                      schoolClass: e.target.value,
+                      firstName: e.target.value,
                     }))
                   }
-                  placeholder="z.B. 1a"
-                  list="class-list-class-suggestions"
+                  placeholder="z.B. Lena"
                 />
-                <datalist id="class-list-class-suggestions">
-                  {(classSuggestions ?? []).map((klass) => (
-                    <option key={klass} value={klass} />
-                  ))}
-                </datalist>
-                <p className="mt-1 text-xs text-gray-500">
-                  Genau wie bei den regulären Kindern geschrieben, damit der
-                  Eintrag in derselben Klassenliste landet.
-                </p>
+                <Input
+                  id="entry-last-name"
+                  name="last_name"
+                  label="Nachname"
+                  error={formErrors.fieldError("last_name")}
+                  value={form.lastName}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, lastName: e.target.value }))
+                  }
+                  placeholder="z.B. Beispiel"
+                />
+              </div>
+              <div>
+                <SuggestInput
+                  id="entry-school-class"
+                  name="school_class"
+                  label="Klasse"
+                  hint="Genau wie bei den regulären Kindern geschrieben, damit der Eintrag in derselben Klassenliste landet."
+                  error={formErrors.fieldError("school_class")}
+                  value={form.schoolClass}
+                  onValueChange={(schoolClass) =>
+                    setForm((prev) => ({ ...prev, schoolClass }))
+                  }
+                  suggestions={classSuggestions ?? []}
+                  listLabel="Vorschläge für die Klasse"
+                  placeholder="z.B. 1a"
+                />
               </div>
               <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
                 <Button
@@ -770,10 +737,11 @@ export default function ClassListEntriesPage() {
                       den richtigen Datensatz auswählen:
                     </legend>
                     {modal.entry.matchingStudentIds.map((studentId) => (
-                      <label
+                      <ChoiceTile
                         key={studentId}
                         htmlFor={`assign-target-${studentId}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                        selected={assignTarget === studentId}
+                        className="justify-between gap-2 py-2 font-normal"
                       >
                         <span className="flex items-center gap-2">
                           <Radio
@@ -791,7 +759,7 @@ export default function ClassListEntriesPage() {
                         >
                           Öffnen
                         </Link>
-                      </label>
+                      </ChoiceTile>
                     ))}
                   </fieldset>
                 ) : null}

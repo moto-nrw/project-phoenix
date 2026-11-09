@@ -1,0 +1,7 @@
+{
+  "scenario": "api.calendar.recipient_options.parents_8",
+  "max": 18,
+  "exact": true,
+  "description": "Same full recipient-options route at 8 active authorized parents. The portal visibility of all candidates comes from one shared portal-contact read (#5784), so the count is flat from 3 to 8 parents.",
+  "route": "GET /api/calendar/recipient-options"
+}

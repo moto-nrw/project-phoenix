@@ -1,0 +1,7 @@
+{
+  "scenario": "api.feedback.student.positive_growth",
+  "max": 5,
+  "exact": true,
+  "description": "Real composed Feedback HTTP resource, permissions and tenant session transaction, real enabled settings resolver and database. Positive ordered N=3/N=8 feedback entries, foreign-tenant exclusion, full route capture; fixtures/signing and outer live-session lookup excluded.",
+  "route": "GET /api/feedback/student/{id}"
+}

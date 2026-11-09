@@ -147,22 +147,10 @@ func ClaimsFromContext(ctx context.Context) Claims {
 // MFAEnrollmentClaims is the enrollment-only token's claims.
 type MFAEnrollmentClaims = sessiontoken.MFAEnrollmentClaims
 
-// Enrollment token scopes.
-const (
-	MFAEnrollmentScopeTenant   = sessiontoken.MFAEnrollmentScopeTenant
-	MFAEnrollmentScopePlatform = sessiontoken.MFAEnrollmentScopePlatform
-)
-
 // WithEnrollmentClaims puts enrollment-only claims on ctx the way the
 // enrollment authenticator does.
 func WithEnrollmentClaims(ctx context.Context, claims MFAEnrollmentClaims) context.Context {
 	return context.WithValue(ctx, sessiontoken.CtxEnrollmentClaims, claims)
-}
-
-// OpaqueCapabilityFingerprint returns the stored fingerprint of an opaque
-// capability token.
-func OpaqueCapabilityFingerprint(token string) string {
-	return sessiontoken.OpaqueCapabilityFingerprint(token)
 }
 
 // WithRefreshToken puts the raw refresh token on ctx the way the refresh

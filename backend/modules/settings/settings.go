@@ -27,11 +27,13 @@ const (
 	KeyCareDefaultArrivalTime                = configModel.KeyCareDefaultArrivalTime
 	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
 	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
+	KeyDeviceOnlineWindowMinutes             = configModel.KeyDeviceOnlineWindowMinutes
 	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
 	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
 	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes
 	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
 	KeyEnrollmentAutoInviteGuardianOnApprove = configModel.KeyEnrollmentAutoInviteGuardianOnApprove
+	KeyEnrollmentCareFacilityTerm            = configModel.KeyEnrollmentCareFacilityTerm
 	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
 	KeyEnrollmentCollectGradeLevel           = configModel.KeyEnrollmentCollectGradeLevel
 	KeyEnrollmentDuplicateHandling           = configModel.KeyEnrollmentDuplicateHandling
@@ -225,6 +227,13 @@ type OperatorSchoolSettings interface {
 // resolver. Writes must not prefetch the keys they change.
 func WithSettingsSnapshot(ctx context.Context, snapshot *Snapshot) context.Context {
 	return configModel.WithSettingsSnapshot(ctx, snapshot)
+}
+
+// HasSettingsSnapshot reports whether ctx already carries an explicit
+// snapshot. Its keys keep priority over any batch read, so a batch reader
+// that would replace it must leave the context as it is.
+func HasSettingsSnapshot(ctx context.Context) bool {
+	return configModel.HasExplicitSettingsSnapshot(ctx)
 }
 
 // WithSettingsRequestCache attaches the tenant-keyed memo used by the resolver.

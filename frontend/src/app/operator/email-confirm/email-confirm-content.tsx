@@ -1,11 +1,13 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Mail, Check, X } from "lucide-react";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
@@ -24,6 +26,16 @@ type ConfirmState = "loading" | "idle" | "confirming" | "success" | "error";
 function extractToken(): string | null {
   if (typeof window === "undefined") return null;
   return new URLSearchParams(window.location.search).get("token");
+}
+
+function ResultCard({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <SectionCard overflow="visible" className="w-full max-w-md text-center">
+        {children}
+      </SectionCard>
+    </div>
+  );
 }
 
 export function EmailConfirmContent() {
@@ -101,35 +113,32 @@ export function EmailConfirmContent() {
   if (state === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loading fullPage={false} />
+        <Loading />
       </div>
     );
   }
 
   if (state === "idle") {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
-            <Mail className="h-8 w-8 text-gray-600" aria-hidden="true" />
-          </div>
-          <h1 className="mb-2 text-xl font-semibold text-gray-900">
-            E-Mail-Adresse bestätigen
-          </h1>
-          <p className="mb-6 text-gray-600">
-            Klicke auf den Button, um deine neue E-Mail-Adresse zu bestätigen.
-          </p>
-          <Button
-            type="button"
-            variant="primary"
-            size="base"
-            ref={primaryRef as React.RefObject<HTMLButtonElement>}
-            onClick={() => void handleConfirm()}
-          >
-            Jetzt bestätigen
-          </Button>
-        </div>
-      </div>
+      <ResultCard>
+        <EmptyState
+          tone="neutral"
+          icon={<Mail aria-hidden="true" />}
+          titleAs="h1"
+          title="E-Mail-Adresse bestätigen"
+          description="Klicke auf den Button, um deine neue E-Mail-Adresse zu bestätigen."
+          className="py-0 pb-6"
+        />
+        <Button
+          type="button"
+          variant="primary"
+          size="base"
+          ref={primaryRef as React.RefObject<HTMLButtonElement>}
+          onClick={() => void handleConfirm()}
+        >
+          Jetzt bestätigen
+        </Button>
+      </ResultCard>
     );
   }
 
@@ -137,7 +146,7 @@ export function EmailConfirmContent() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loading fullPage={false} />
+          <Loading />
           <p className="mt-4 text-gray-600">E-Mail wird bestätigt...</p>
         </div>
       </div>
@@ -146,64 +155,56 @@ export function EmailConfirmContent() {
 
   if (state === "success") {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
-            <Check className="text-moto-green h-8 w-8" aria-hidden="true" />
-          </div>
-          <h1 className="mb-2 text-xl font-semibold text-gray-900">
-            E-Mail-Adresse geändert
-          </h1>
-          <p className="mb-2 text-gray-600">
-            Deine E-Mail-Adresse wurde erfolgreich geändert.
-          </p>
-          <p className="mb-6 text-sm text-gray-400">
-            Es kann einige Minuten dauern, bis die Änderung in deinem Profil
-            sichtbar ist. Eine erneute Anmeldung übernimmt die Änderung sofort.
-          </p>
-          <Link
-            href={operatorPath("/operator/settings?tab=profile")}
-            ref={primaryRef as React.RefObject<HTMLAnchorElement>}
-            className={buttonClassName({
-              variant: "primary",
-              size: "base",
-              className: "",
-            })}
-          >
-            Weiter
-          </Link>
-        </div>
-      </div>
+      <ResultCard>
+        <EmptyState
+          tone="success"
+          icon={<Check aria-hidden="true" />}
+          titleAs="h1"
+          title="E-Mail-Adresse geändert"
+          description="Deine E-Mail-Adresse wurde erfolgreich geändert. Es kann einige Minuten dauern, bis die Änderung in deinem Profil sichtbar ist. Eine erneute Anmeldung übernimmt die Änderung sofort."
+          className="py-0 pb-6"
+        />
+        <Link
+          href={operatorPath("/operator/settings?tab=profile")}
+          ref={primaryRef as React.RefObject<HTMLAnchorElement>}
+          className={buttonClassName({
+            variant: "primary",
+            size: "base",
+            className: "",
+          })}
+        >
+          Weiter
+        </Link>
+      </ResultCard>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
-          <X className="text-moto-red h-8 w-8" aria-hidden="true" />
-        </div>
-        <h1 className="mb-2 text-xl font-semibold text-gray-900">
-          Bestätigung fehlgeschlagen
-        </h1>
-        <FormErrorAlert
-          message={confirmErrors.error}
-          className="mb-6 text-left"
-        />
-        <div className="flex flex-col items-center gap-3">
-          <Link
-            href={operatorPath("/operator/settings")}
-            ref={primaryRef as React.RefObject<HTMLAnchorElement>}
-            className={buttonClassName({
-              variant: "primary",
-              size: "base",
-              className: "",
-            })}
-          >
-            Zu den Einstellungen
-          </Link>
-        </div>
+    <ResultCard>
+      <EmptyState
+        tone="error"
+        icon={<X aria-hidden="true" />}
+        titleAs="h1"
+        title="Bestätigung fehlgeschlagen"
+        className="py-0 pb-4"
+      />
+      <FormErrorAlert
+        message={confirmErrors.error}
+        className="mb-6 text-left"
+      />
+      <div className="flex flex-col items-center gap-3">
+        <Link
+          href={operatorPath("/operator/settings")}
+          ref={primaryRef as React.RefObject<HTMLAnchorElement>}
+          className={buttonClassName({
+            variant: "primary",
+            size: "base",
+            className: "",
+          })}
+        >
+          Zu den Einstellungen
+        </Link>
       </div>
-    </div>
+    </ResultCard>
   );
 }

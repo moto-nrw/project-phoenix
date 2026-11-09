@@ -6,6 +6,7 @@ import { useState, useEffect, useLayoutEffect, useRef, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -20,15 +21,10 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { trackTenantEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { TenantPasswordResetModal } from "~/components/auth/tenant-password-reset-modal";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -48,6 +44,8 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { Button } from "~/components/ui/button";
+import { Loading } from "~/components/ui/loading";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "TenantLoginPage" });
 
@@ -142,7 +140,6 @@ function LoginForm() {
   const latestPasskeyRef = useRef<() => void>(() => undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
@@ -430,8 +427,6 @@ function LoginForm() {
   return (
     <>
       <AuthShell
-        eyebrow="Ihr OGS Portal"
-        eyebrowClassName="text-moto-green"
         title={loginTitle}
         subtitle="Melden Sie sich mit Ihrem Konto an."
         variant="tenant"
@@ -453,29 +448,29 @@ function LoginForm() {
         }
       >
         {isCheckingAuth && (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
-            </div>
-          </div>
+          <output
+            aria-live="polite"
+            aria-busy="true"
+            className="flex items-center justify-center gap-3 py-12 text-gray-600"
+          >
+            <SpinnerIcon className="h-6 w-6" />
+            <span className="text-sm font-medium">
+              Sitzung wird überprüft...
+            </span>
+          </output>
         )}
 
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
           {isSmartRedirecting ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="flex flex-col items-center gap-4 text-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Sie sind bereits angemeldet.
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    moto öffnet Ihre OGS...
-                  </p>
-                </div>
+            <div className="flex flex-col items-center gap-4 py-12 text-center">
+              <SpinnerIcon className="h-6 w-6 text-gray-600" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-900">
+                  Sie sind bereits angemeldet.
+                </p>
+                <p className="text-sm text-gray-500">moto öffnet Ihre OGS...</p>
               </div>
             </div>
           ) : mfaStep ? (
@@ -578,32 +573,26 @@ function LoginForm() {
                   >
                     Passwort
                   </FieldLabel>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      controlSize="compact"
-                      data-testid="input-password"
-                      autoComplete="current-password"
-                      required
-                      disabled={isSubmitting}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      aria-invalid={Boolean(formErrors.fieldError("password"))}
-                      aria-describedby={
-                        formErrors.fieldError("password")
-                          ? "password-error"
-                          : undefined
-                      }
-                      className="pr-10"
-                    />
-                    <PasswordToggleButton
-                      showPassword={showPassword}
-                      onToggle={() => setShowPassword(!showPassword)}
-                    />
-                  </div>
-                  <AuthFieldError
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    controlSize="compact"
+                    data-testid="input-password"
+                    autoComplete="current-password"
+                    required
+                    disabled={isSubmitting}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    aria-invalid={Boolean(formErrors.fieldError("password"))}
+                    aria-describedby={
+                      formErrors.fieldError("password")
+                        ? "password-error"
+                        : undefined
+                    }
+                    revealable
+                  />
+                  <FieldErrorHint
                     id="password-error"
                     message={formErrors.fieldError("password")}
                   />
@@ -686,17 +675,12 @@ export default function HomePage() {
     <Suspense
       fallback={
         <AuthShell
-          eyebrow="Ihr OGS Portal"
-          eyebrowClassName="text-moto-green"
           title="Willkommen"
           subtitle="Melden Sie sich mit Ihrem Konto an."
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Laden...</p>
-          </div>
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

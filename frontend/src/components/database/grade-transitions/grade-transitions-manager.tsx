@@ -3,6 +3,7 @@
 // Jahrgangsstufenwechsel admin flow (#405): list of transitions, draft
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -49,6 +50,7 @@ import {
 import { GraduatesModal } from "./graduates-modal";
 import { TransitionEditor } from "./transition-editor";
 import { TransitionPreviewModal } from "./transition-preview-modal";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 const logger = createLogger({ component: "GradeTransitionsManager" });
 
@@ -64,17 +66,17 @@ const STATUS_COLORS: Record<TransitionStatus, string> = {
   reverted: LOCATION_COLORS.SCHOOLYARD,
 };
 
-function StatusBadge({ status }: { readonly status: TransitionStatus }) {
+function TransitionStatusBadge({
+  status,
+}: {
+  readonly status: TransitionStatus;
+}) {
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{
-        backgroundColor: `${STATUS_COLORS[status]}1A`,
-        color: STATUS_COLORS[status],
-      }}
-    >
-      {STATUS_LABELS[status]}
-    </span>
+    <StatusColorBadge
+      label={STATUS_LABELS[status]}
+      color={STATUS_COLORS[status]}
+      compact
+    />
   );
 }
 
@@ -418,7 +420,7 @@ export function GradeTransitionsManager({
       {
         key: "status",
         header: "Status",
-        render: (t) => <StatusBadge status={t.status} />,
+        render: (t) => <TransitionStatusBadge status={t.status} />,
       },
       {
         key: "mappings",
@@ -552,16 +554,10 @@ export function GradeTransitionsManager({
           defaultSortKey="createdAt"
           defaultSortDirection="desc"
           emptyState={
-            <div className="py-8 text-center text-sm text-gray-500">
-              <p className="font-medium text-gray-700">
-                Noch kein Schuljahreswechsel angelegt.
-              </p>
-              <p className="mt-1">
-                Mit einem neuen Schuljahreswechsel werden alle Klassen
-                automatisch vorgeschlagen (z. B. 1a in 2a) und lassen sich vor
-                dem Anwenden anpassen.
-              </p>
-            </div>
+            <EmptyState
+              title="Noch kein Schuljahreswechsel angelegt."
+              description="Mit einem neuen Schuljahreswechsel werden alle Klassen automatisch vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden anpassen."
+            />
           }
         />
       </SectionCard>

@@ -17,19 +17,19 @@ interface AvatarProps {
   readonly shape?: "circle" | "rounded";
   /** Use when the avatar repeats adjacent visible text. */
   readonly decorative?: boolean;
+  /** Fläche der Initialen: `green` für Kinder, `neutral` für Erwachsene. */
+  readonly tone?: "green" | "neutral";
   readonly className?: string;
 }
 
-// Soft brand-green fallback for the initials state paired with the stronger
-// green letter color, matching the child cards in the parent portal. The
-// background is the OPAQUE equivalent of LOCATION_COLORS.GROUP_ROOM (#83CD2D)
-// at 15% over white — kept opaque so a dotted/colored page background never
-// shows through the avatar.
+// Soft brand-green initials (child cards of the parent portal): the OPAQUE
+// equivalent of LOCATION_COLORS.GROUP_ROOM (#83CD2D) at 15% over white, so a
+// dotted/colored page background never shows through the avatar.
 const FALLBACK_BG = MOTO_COLOR_PALETTE.green.soft;
 const FALLBACK_TEXT = MOTO_COLOR_PALETTE.green.strong;
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
-  xs: "w-6 h-6 text-[10px]",
+  xs: "w-6 h-6 text-xs",
   sm: "w-8 h-8 text-sm",
   md: "w-11 h-11 text-base",
   lg: "w-16 h-16 text-xl",
@@ -50,6 +50,7 @@ export function Avatar({
   size = "sm",
   shape = "circle",
   decorative = false,
+  tone = "green",
   className,
 }: AvatarProps) {
   const initials = getInitials(name);
@@ -63,6 +64,10 @@ export function Avatar({
   }, [imageUrl]);
 
   const showImage = Boolean(imageUrl) && !failed;
+  const fallbackStyle =
+    tone === "neutral"
+      ? { background: "var(--color-gray-100)", color: "var(--color-gray-700)" }
+      : { background: FALLBACK_BG, color: FALLBACK_TEXT };
 
   return (
     <div
@@ -72,10 +77,7 @@ export function Avatar({
         shape === "circle" ? "rounded-full" : "rounded-xl",
         className,
       )}
-      style={{
-        background: showImage ? "transparent" : FALLBACK_BG,
-        color: showImage ? undefined : FALLBACK_TEXT,
-      }}
+      style={showImage ? { background: "transparent" } : fallbackStyle}
       aria-hidden={decorative || undefined}
       aria-label={decorative ? undefined : name}
     >

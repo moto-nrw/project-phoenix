@@ -93,7 +93,7 @@ export function WeekdayRosterSection({
   return (
     <SectionCard
       title={childrenFromSource ? "Personal" : "Personal und Kinder"}
-      titleClassName="text-sm"
+      titleSize="sm"
       description={description}
       headingLevel={3}
       actions={

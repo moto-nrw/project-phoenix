@@ -36,6 +36,10 @@ var ErrBillingDocumentNotFound = errors.New("parent: document not found in the i
 type BillingDocumentReader struct {
 	AccountID int64
 	Email     string
+	// Children contains only permitted student IDs, grouped by school.
+	Children map[int64][]int64
+	// SigningChildren contains only children the workflow permits signing for.
+	SigningChildren map[int64][]int64
 }
 
 // BillingDocument is one document of a Träger in the inbox.
@@ -52,6 +56,24 @@ type BillingDocument struct {
 	TotalCents     int64
 	ChildNames     []string
 	SentAt         time.Time
+	// ContractStatus and SignedAt tell whether a care contract waits for
+	// the parents' signature (#4679); empty for a letter.
+	ContractStatus string
+	CanSign        bool
+	SignedAt       *time.Time
+	// Replaced marks a sent contract version that a change on its own first
+	// day replaced (#4681); it holds on no day.
+	Replaced bool
+	// EndsOn is the last day of a terminated contract (#4682). CanEndContract
+	// tells that the contract is active and the account's relationship to
+	// its child grants parent_portal.enrollment.submit, the right a
+	// declaration needs; the inbox offers „Verträge hier kündigen“ only then.
+	EndsOn         *calendar.Date
+	CanEndContract bool
+	// CanWithdrawContract tells that CanEndContract holds and the withdrawal
+	// period may still run; the inbox then offers „Vertrag widerrufen“, the
+	// withdrawal function of § 356a BGB (#6105).
+	CanWithdrawContract bool
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -67,6 +89,27 @@ type BillingDocumentFile struct {
 type BillingDocuments interface {
 	ListBillingDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 	BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+	// The children of the family on a contract of the inbox (#5918).
+	FamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader) (FamilyChildren, error)
+	StateFamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader, children int) (FamilyChildren, error)
+}
+
+// DocumentKindContract is the kind of a care contract in the inbox.
+const DocumentKindContract = "care_contract"
+
+// ContractDocuments is the port to the Betreuungsvertrag's contracts in the
+// inbox of one Träger (#4678, ADR 0153). A contract lies there once it was
+// sent to the account's address, the party of ADR 0088 section 7. Both
+// operations join the caller's Träger transaction and record the read.
+type ContractDocuments interface {
+	// FamilyEmail resolves billing's recipient after inbox authorization.
+	FamilyEmail(ctx context.Context, organizationID, contractID int64) (string, error)
+	ListContractDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
+	ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+	// The signature of #4679 (contract_signing.go); reader holds only the
+	// children the account may sign for.
+	ContractSigningView(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (ContractSigningView, error)
+	SignContract(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader, input ContractSignatureInput) (ContractSigningView, error)
 }
 
 // Traeger is the Träger of a school with the name the inbox shows.
@@ -97,6 +140,9 @@ type ParentAccounts interface {
 // BillingDocumentPush is the push that a document is in the inbox, for one
 // account at one school, about the children the relationship covers.
 type BillingDocumentPush struct {
+	// Kind names the document: DocumentPushBilling for a letter, or a care
+	// contract or a release of a Träger (#5941).
+	Kind       string
 	TenantID   int64
 	AccountID  int64
 	StudentIDs []int64
@@ -110,18 +156,42 @@ type BillingDocumentNotifier interface {
 	NotifyBillingDocument(ctx context.Context, push BillingDocumentPush) error
 }
 
-// ListBillingDocuments lists the documents in the inbox of the account, the
-// newest first. An account whose relationships grant the inbox at no school
-// gets ErrGuardianPermissionDenied.
-func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64) ([]BillingDocument, error) {
-	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
+// DocumentInbox names one list of the inbox. The letters of the
+// Elternabrechnung and the care contracts (ADR 0153) are read separately,
+// so each keeps its own statement budget and one failing owner does not
+// hide the other's documents.
+type DocumentInbox string
+
+const (
+	DocumentInboxLetters   DocumentInbox = "letters"
+	DocumentInboxContracts DocumentInbox = "contracts"
+)
+
+// ListBillingDocuments lists one list of the inbox of the account, the
+// newest first. An account whose relationships grant the inbox at no
+// school gets ErrGuardianPermissionDenied.
+func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inbox DocumentInbox) ([]BillingDocument, error) {
+	switch inbox {
+	case DocumentInboxLetters:
+		return s.listInbox(ctx, accountID, s.BillingDocuments.ListBillingDocuments)
+	case DocumentInboxContracts:
+		return s.listInbox(ctx, accountID, s.ContractDocuments.ListContractDocuments)
+	default:
+		return nil, fmt.Errorf("parent: unknown document inbox %q", inbox)
+	}
+}
+
+type inboxRead func(txCtx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
+
+func (s *Service) listInbox(ctx context.Context, accountID int64, read inboxRead) ([]BillingDocument, error) {
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
 	documents := []BillingDocument{}
 	for _, organization := range traeger {
 		err := s.TraegerRuntime.WithinTraeger(ctx, organization.ID, func(txCtx context.Context) error {
-			found, listErr := s.BillingDocuments.ListBillingDocuments(txCtx, organization.ID, reader)
+			found, listErr := read(txCtx, organization.ID, reader)
 			for _, document := range found {
 				document.OrganizationID, document.TraegerName = organization.ID, organization.Name
 				documents = append(documents, document)
@@ -145,7 +215,7 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64) ([]
 // account. The document must belong to a Träger the account's relationships
 // open and be addressed to the account.
 func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organizationID, documentID int64) (BillingDocumentFile, error) {
-	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
 	if err != nil {
 		return BillingDocumentFile{}, err
 	}
@@ -164,19 +234,38 @@ func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organiza
 	return file, nil
 }
 
-// billingDocumentAccess resolves the Träger the account's relationships open
+// ContractDocumentFile reads the PDF of one care contract in the inbox of
+// the account, addressed to it and covered by the matching child permission.
+func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (BillingDocumentFile, error) {
+	traeger, reader, err := s.billingInboxAccess(ctx, accountID)
+	if err != nil {
+		return BillingDocumentFile{}, err
+	}
+	if !slices.ContainsFunc(traeger, func(t Traeger) bool { return t.ID == organizationID }) || contractID <= 0 {
+		return BillingDocumentFile{}, ErrBillingDocumentNotFound
+	}
+	var file BillingDocumentFile
+	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		var readErr error
+		file, readErr = s.ContractDocuments.ContractDocumentFile(txCtx, organizationID, contractID, reader)
+		return readErr
+	})
+	if err != nil {
+		return BillingDocumentFile{}, err
+	}
+	return file, nil
+}
+
+// billingInboxAccess resolves the Träger the account's relationships open
 // and the account's current address, in one administrative transaction.
-func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
-	if s.BillingDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
+func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
+	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
 	}
 	var access documentAccess
 	var email string
-	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		children, err := s.ListChildrenForAccount(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
+	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
+		var err error
 		if access, err = s.documentAccess(adminCtx, children); err != nil || len(access.traeger) == 0 {
 			return err
 		}
@@ -189,7 +278,28 @@ func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([
 	if len(access.traeger) == 0 {
 		return nil, BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
-	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email)}, nil
+	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email),
+		Children: access.permittedChildren(), SigningChildren: access.signingChildren()}, nil
+}
+
+// accountDocumentAccess runs visit with the account's children in one
+// administrative transaction: the one boundary every part of the document
+// inbox resolves its relationships in (letters, contracts and the documents
+// a Träger released for parents, #4692).
+func (s *Service) accountDocumentAccess(ctx context.Context, accountID int64, visit func(context.Context, []*ChildSummary) error) error {
+	return s.billingDocumentAccess(ctx, func(adminCtx context.Context) error {
+		children, err := s.ListChildrenForAccount(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		return visit(adminCtx, children)
+	})
+}
+
+// billingDocumentAccess is the shared document-read boundary: parent reads
+// resolve one account here; the delivery batch resolves its persisted recipients.
+func (s *Service) billingDocumentAccess(ctx context.Context, visit func(context.Context) error) error {
+	return s.Runtime.WithinAdmin(ctx, visit)
 }
 
 // documentAccess is what an account's relationships open for the inbox:
@@ -199,6 +309,31 @@ type documentAccess struct {
 	traeger  []Traeger
 	children map[int64][]*ChildSummary
 	schools  map[int64]Traeger
+}
+
+// permittedChildren retains the identities behind the relationship check;
+// organization access alone must never open another child's contract.
+func (a documentAccess) permittedChildren() map[int64][]int64 {
+	children := make(map[int64][]int64, len(a.children))
+	for school, permitted := range a.children {
+		for _, child := range permitted {
+			children[school] = append(children[school], child.StudentID)
+		}
+	}
+	return children
+}
+
+// signingChildren narrows the visible children to their explicit signing right.
+func (a documentAccess) signingChildren() map[int64][]int64 {
+	children := make(map[int64][]int64)
+	for school, permitted := range a.children {
+		for _, child := range permitted {
+			if childHasPermission(child, GuardianPermissionEnrollmentSubmit) {
+				children[school] = append(children[school], child.StudentID)
+			}
+		}
+	}
+	return children
 }
 
 // documentAccess keeps the children whose relationship grants the inbox and

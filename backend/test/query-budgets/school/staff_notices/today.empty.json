@@ -1,0 +1,7 @@
+{
+  "scenario": "school.staff_notices.today.empty",
+  "max": 4,
+  "exact": true,
+  "description": "Protected resource GET with zero own-tenant notices and an eligible foreign-tenant notice: BEGIN, combined role/tenant set_config, notice SELECT, COMMIT. Complete request capture; no outer server session-family liveness.",
+  "route": "GET /school/staff-notices/today"
+}

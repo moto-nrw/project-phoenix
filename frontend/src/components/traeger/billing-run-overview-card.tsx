@@ -46,6 +46,8 @@ import {
   isCredited,
 } from "./billing-format";
 import { formatEuro } from "./contribution-format";
+import { recipientKindLabel } from "./billing-payment-format";
+import { InvoicePaymentLine } from "./invoice-payment-line";
 
 const logger = createLogger({ component: "BillingRunOverviewCard" });
 
@@ -98,13 +100,13 @@ function invoicesDescription(released: boolean, canPreview: boolean) {
 /** The empty letter frame beside the list before a row is chosen. */
 function LetterPreviewPlaceholder() {
   return (
-    <div className="flex aspect-[210/297] w-full items-center justify-center rounded-xl border border-dashed border-gray-300 p-8">
-      <EmptyState
-        icon={<FileText className="h-10 w-10" aria-hidden="true" />}
-        title="Noch kein Schreiben gewählt"
-        description="Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit Nummer, Beträgen und Gestaltung."
-      />
-    </div>
+    <EmptyState
+      variant="dashed"
+      icon={<FileText className="h-10 w-10" aria-hidden="true" />}
+      title="Noch kein Schreiben gewählt"
+      description="Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit Nummer, Beträgen und Gestaltung."
+      className="aspect-[210/297] w-full justify-center p-8"
+    />
   );
 }
 
@@ -235,11 +237,31 @@ export function BillingRunOverviewCard({
       key: "recipient",
       header: "Empfänger",
       // Nachname zuerst, wie in der Übersicht für die Kämmerei.
-      render: (document) => (
-        <span className="font-medium text-gray-900">
-          {`${document.recipientLastName}, ${document.recipientFirstName}`}
-        </span>
-      ),
+      render: (document) => {
+        const kind = recipientKindLabel(document.recipientKind);
+        const second =
+          document.recipientKind === "both"
+            ? document.recipientSecondName?.trim()
+            : "";
+        return (
+          <span className="block min-w-0">
+            <span className="block font-medium text-gray-900">
+              {`${document.recipientLastName}, ${document.recipientFirstName}`}
+            </span>
+            {second ? (
+              <span className="block text-sm text-gray-600">und {second}</span>
+            ) : null}
+            {kind ? (
+              <span className="mt-1 block">
+                <StatusBadge label={kind} tone="blue" />
+              </span>
+            ) : null}
+            {document.kind === "invoice" && document.payment ? (
+              <InvoicePaymentLine payment={document.payment} />
+            ) : null}
+          </span>
+        );
+      },
       sortValue: (document) => document.recipientLastName,
       stacked: "title",
     },

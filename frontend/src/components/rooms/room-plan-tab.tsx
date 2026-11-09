@@ -8,12 +8,13 @@
 
 "use client";
 
+import { FramedList } from "~/components/ui/framed-list";
 import { useMemo } from "react";
 
 import { ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -220,7 +221,7 @@ function RoomPlanDay({
       {rows.length === 0 ? (
         <EmptyState variant="compact" title="Keine Planungszeit" />
       ) : (
-        <ul className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-xl border">
+        <FramedList>
           {rows.map((row) =>
             row.kind === "free" ? (
               <li
@@ -236,7 +237,7 @@ function RoomPlanDay({
               <RoomPlanBlockRow key={row.instance.id} instance={row.instance} />
             ),
           )}
-        </ul>
+        </FramedList>
       )}
     </section>
   );

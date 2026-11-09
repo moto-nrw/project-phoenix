@@ -7,6 +7,7 @@
 // Monatskarten-Kette ein. Dazu der einmalige Eröffnungssaldo (#2132), der den
 // Übernahme-Stand aus dem Altsystem setzt.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 
@@ -15,6 +16,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Modal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -166,10 +168,10 @@ export function StundenkontoPanel({
       }
     >
       {adjustments.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400">
-          Noch keine Buchungen — Auszahlungen, Freizeitausgleich, Resets und
-          Eröffnungssalden erscheinen hier.
-        </p>
+        <EmptyState
+          variant="dashed"
+          title="Noch keine Buchungen — Auszahlungen, Freizeitausgleich, Resets und Eröffnungssalden erscheinen hier."
+        />
       ) : (
         <ul className="divide-y divide-gray-100">
           {adjustments.map((adjustment) => (
@@ -396,45 +398,31 @@ function AdjustmentModal({
       <div className="space-y-4">
         <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-500">{copy.hint}</p>
-        <div>
-          <label
-            htmlFor="adjustment-hours"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            {copy.amountLabel}
-          </label>
-          <Input
-            id="adjustment-hours"
-            name="minutes_delta"
-            error={formErrors.fieldError("minutes_delta")}
-            type="number"
-            min="0.25"
-            max="1000"
-            step="0.25"
-            controlSize="compact"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            placeholder="z. B. 8"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="adjustment-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Wirksam am
-          </label>
-          <ISODatePicker
-            id="adjustment-date"
-            error={formErrors.fieldError("effective_date")}
-            min={accountStartKey}
-            max={maxEffectiveDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-        </div>
+        <Input
+          label={copy.amountLabel}
+          id="adjustment-hours"
+          name="minutes_delta"
+          error={formErrors.fieldError("minutes_delta")}
+          type="number"
+          min="0.25"
+          max="1000"
+          step="0.25"
+          controlSize="compact"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          placeholder="z. B. 8"
+        />
+        <ISODatePicker
+          label="Wirksam am"
+          id="adjustment-date"
+          error={formErrors.fieldError("effective_date")}
+          min={accountStartKey}
+          max={maxEffectiveDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
         <NoteField
           note={note}
           onChange={setNote}
@@ -536,7 +524,10 @@ function ResetModal({
           Kontostand zum Stichtag und bucht die Differenz als Reset.
         </p>
         {balanceMinutes !== null && (
-          <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            padding="compact"
+            className="space-y-1 text-sm text-gray-700"
+          >
             <p>
               Aktueller Stand:{" "}
               <span className="font-medium tabular-nums">
@@ -551,48 +542,32 @@ function ResetModal({
                 </span>
               </p>
             )}
-          </div>
+          </InsetPanel>
         )}
-        <div>
-          <label
-            htmlFor="reset-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Stichtag
-          </label>
-          <ISODatePicker
-            id="reset-date"
-            error={formErrors.fieldError("effective_date")}
-            min={accountStartKey}
-            max={lastClosedDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss vor dem heutigen Tag liegen.
-          </p>
-        </div>
-        <div>
-          <label
-            htmlFor="reset-carryover"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Verbleibender Übertrag (Stunden)
-          </label>
-          <Input
-            id="reset-carryover"
-            name="carryover_minutes"
-            error={formErrors.fieldError("carryover_minutes")}
-            type="number"
-            min="0"
-            step="0.25"
-            controlSize="compact"
-            value={carryoverHours}
-            onChange={(e) => setCarryoverHours(e.target.value)}
-          />
-        </div>
+        <ISODatePicker
+          label="Stichtag"
+          id="reset-date"
+          error={formErrors.fieldError("effective_date")}
+          hint="Der Stichtag muss vor dem heutigen Tag liegen."
+          min={accountStartKey}
+          max={lastClosedDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
+        <Input
+          label="Verbleibender Übertrag (Stunden)"
+          id="reset-carryover"
+          name="carryover_minutes"
+          error={formErrors.fieldError("carryover_minutes")}
+          type="number"
+          min="0"
+          step="0.25"
+          controlSize="compact"
+          value={carryoverHours}
+          onChange={(e) => setCarryoverHours(e.target.value)}
+        />
         <NoteField
           note={note}
           onChange={setNote}
@@ -698,7 +673,10 @@ function OpeningModal({
           Korrektur die bestehende Buchung löschen und neu anlegen.
         </p>
         {balanceMinutes !== null && (
-          <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            padding="compact"
+            className="space-y-1 text-sm text-gray-700"
+          >
             <p>
               Aktueller Stand:{" "}
               <span className="font-medium tabular-nums">
@@ -713,48 +691,32 @@ function OpeningModal({
                 </span>
               </p>
             )}
-          </div>
+          </InsetPanel>
         )}
-        <div>
-          <label
-            htmlFor="opening-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Stichtag
-          </label>
-          <ISODatePicker
-            id="opening-date"
-            error={formErrors.fieldError("effective_date")}
-            min={accountStartKey}
-            max={lastClosedDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss vor dem heutigen Tag liegen.
-          </p>
-        </div>
-        <div>
-          <label
-            htmlFor="opening-balance"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Übernommener Saldo (Stunden)
-          </label>
-          <Input
-            id="opening-balance"
-            name="balance_minutes"
-            error={formErrors.fieldError("balance_minutes")}
-            type="text"
-            inputMode="decimal"
-            controlSize="compact"
-            value={openingHours}
-            onChange={(e) => setOpeningHours(e.target.value)}
-            placeholder="z. B. 12,5 oder -3"
-          />
-        </div>
+        <ISODatePicker
+          label="Stichtag"
+          id="opening-date"
+          error={formErrors.fieldError("effective_date")}
+          hint="Der Stichtag muss vor dem heutigen Tag liegen."
+          min={accountStartKey}
+          max={lastClosedDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
+        <Input
+          label="Übernommener Saldo (Stunden)"
+          id="opening-balance"
+          name="balance_minutes"
+          error={formErrors.fieldError("balance_minutes")}
+          type="text"
+          inputMode="decimal"
+          controlSize="compact"
+          value={openingHours}
+          onChange={(e) => setOpeningHours(e.target.value)}
+          placeholder="z. B. 12,5 oder -3"
+        />
         <NoteField
           note={note}
           onChange={setNote}
@@ -818,23 +780,16 @@ function NoteField({
   readonly placeholder?: string;
 }) {
   return (
-    <div>
-      <label
-        htmlFor="adjustment-note"
-        className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-      >
-        Begründung (Pflicht)
-      </label>
-      <Textarea
-        id="adjustment-note"
-        name="note"
-        error={error}
-        value={note}
-        onChange={(e) => onChange(e.target.value)}
-        rows={2}
-        placeholder={placeholder}
-      />
-    </div>
+    <Textarea
+      label="Begründung (Pflicht)"
+      id="adjustment-note"
+      name="note"
+      error={error}
+      value={note}
+      onChange={(e) => onChange(e.target.value)}
+      rows={2}
+      placeholder={placeholder}
+    />
   );
 }
 

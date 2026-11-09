@@ -3,59 +3,47 @@ package schoolportal
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	errFakeInvalidCredentials = errors.New("fake: invalid credentials")
-	errFakeAccountInactive    = errors.New("fake: account inactive")
-	errFakeNoPortalRole       = errors.New("fake: no school portal role")
-	errFakeSchoolNotFound     = errors.New("fake: school not found")
-	errFakeSchoolAccessDenied = errors.New("fake: school access denied")
-	errFakeMFABlocked         = errors.New("fake: mfa blocked")
-	errFakeMFAUnavailable     = errors.New("fake: mfa unavailable")
-	errFakeInvalidSession     = errors.New("fake: missing mfa proof")
-	errFakePortalNotBooked    = errors.New("fake: unterricht_vormittag not booked")
-)
-
-// refusalRuntime classifies the fake sentinels like the owner's predicates
-// and refuses every token issue and school switch with err.
+// refusalRuntime refuses every login, token issue and school switch with
+// err, as the owner reports it.
 func refusalRuntime(err error) *Resource {
-	is := func(target error) func(error) bool {
-		return func(got error) bool { return errors.Is(got, target) }
-	}
 	return &Resource{AuthService: AuthRuntime{
+		Login: func(context.Context, string, string, string, string, string) (*identityaccess.LoginResult, error) {
+			return nil, err
+		},
+		LoginAtSchool: func(context.Context, string, string, string, string, string, string) (*identityaccess.LoginResult, error) {
+			return nil, err
+		},
 		IssueTokens: func(context.Context, VerifiedChallenge, string, string) (string, string, error) {
 			return "", "", err
 		},
 		SwitchSchool: func(context.Context, int64, string, string, string, string) (string, string, error) {
 			return "", "", err
 		},
-		Cause:              func(err error) error { return err },
-		InvalidCredentials: is(errFakeInvalidCredentials),
-		AccountInactive:    is(errFakeAccountInactive),
-		NoSchoolPortalRole: is(errFakeNoPortalRole),
-		SchoolNotFound:     is(errFakeSchoolNotFound),
-		SchoolAccessDenied: is(errFakeSchoolAccessDenied),
-		MFABlocked:         is(errFakeMFABlocked),
-		MFAUnavailable:     is(errFakeMFAUnavailable),
-		InvalidSession:     is(errFakeInvalidSession),
-		PortalNotBooked: func(got error) (string, string, bool) {
-			if errors.Is(got, errFakePortalNotBooked) {
-				return "unterricht_vormittag", "Unterricht am Vormittag", true
-			}
-			return "", "", false
-		},
 	}}
+}
+
+func owner(err error) error { return &identityaccess.AuthenticationError{Op: "school", Err: err} }
+
+var errPortalNotBooked = &identityaccess.PortalNotBookedError{Module: "unterricht_vormittag", ModuleLabel: "Unterricht am Vormittag"}
+
+func postLogin(rs *Resource) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"lehrkraft@example.com","password":"secret"}`))
+	request.Header.Set("Content-Type", "application/json")
+	rs.login(recorder, request)
+	return recorder
 }
 
 type refusalCase struct {
@@ -83,19 +71,19 @@ func TestSchoolLoginRefusalsCarryIdentityCodes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []refusalCase{
-		{errFakeInvalidCredentials, http.StatusUnauthorized, "identity.invalid_credentials"},
-		{errFakeAccountInactive, http.StatusUnauthorized, "identity.session_account_inactive"},
-		{errFakeNoPortalRole, http.StatusForbidden, "school.no_school_portal_role"},
-		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
-		{errFakeSchoolAccessDenied, http.StatusUnauthorized, "identity.invalid_credentials"},
-		{errFakeMFABlocked, http.StatusTooManyRequests, "identity.mfa_blocked"},
-		{errFakeMFAUnavailable, http.StatusServiceUnavailable, "general.unavailable"},
-		{errFakePortalNotBooked, http.StatusForbidden, "module.not_booked"},
+		{owner(identityaccess.ErrInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{owner(identityaccess.ErrAccountNotFound), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{owner(identityaccess.ErrAccountInactive), http.StatusUnauthorized, "identity.session_account_inactive"},
+		{owner(identityaccess.ErrAccountNoSchoolPortalRole), http.StatusForbidden, "school.no_school_portal_role"},
+		{owner(identityaccess.ErrTenantNotFound), http.StatusNotFound, "general.input"},
+		{owner(identityaccess.ErrTenantAccessDenied), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{owner(identityaccess.ErrMFALocked), http.StatusTooManyRequests, "identity.mfa_blocked"},
+		{owner(identityaccess.ErrMFAStatusUnavailable), http.StatusServiceUnavailable, "identity.mfa_status_unavailable"},
+		{owner(errPortalNotBooked), http.StatusForbidden, "module.not_booked"},
 	} {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
-			recorder := httptest.NewRecorder()
-			refusalRuntime(tc.err).handleLoginError(recorder, httptest.NewRequest(http.MethodPost, "/auth/login", nil), tc.err)
+			recorder := postLogin(refusalRuntime(tc.err))
 			status, code := decodeRefusal(t, recorder)
 			assert.Equal(t, tc.status, status)
 			assert.Equal(t, tc.code, code)
@@ -108,12 +96,13 @@ func TestSchoolExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []refusalCase{
-		{errFakeInvalidCredentials, http.StatusUnauthorized, "identity.invalid_credentials"},
-		{errFakeAccountInactive, http.StatusUnauthorized, "identity.session_account_inactive"},
-		{errFakeNoPortalRole, http.StatusForbidden, "school.no_school_portal_role"},
-		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
-		{errFakeSchoolAccessDenied, http.StatusUnauthorized, "identity.invalid_credentials"},
-		{errFakePortalNotBooked, http.StatusForbidden, "module.not_booked"},
+		{owner(identityaccess.ErrInvalidToken), http.StatusUnauthorized, "identity.mfa_code_invalid"},
+		{owner(identityaccess.ErrAccountNotFound), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{owner(identityaccess.ErrAccountInactive), http.StatusUnauthorized, "identity.session_account_inactive"},
+		{owner(identityaccess.ErrAccountNoSchoolPortalRole), http.StatusForbidden, "school.no_school_portal_role"},
+		{owner(identityaccess.ErrTenantNotFound), http.StatusNotFound, "general.input"},
+		{owner(identityaccess.ErrTenantAccessDenied), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{owner(errPortalNotBooked), http.StatusForbidden, "module.not_booked"},
 	} {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
@@ -131,14 +120,14 @@ func TestSchoolSwitchRefusalsCarryIdentityCodes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []refusalCase{
-		{errFakeInvalidSession, http.StatusUnauthorized, "identity.mfa_session_required"},
-		{errFakeMFAUnavailable, http.StatusServiceUnavailable, "identity.mfa_status_unavailable"},
-		{errFakeInvalidCredentials, http.StatusUnauthorized, "identity.account_not_found"},
-		{errFakeAccountInactive, http.StatusUnauthorized, "identity.session_account_inactive"},
-		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
-		{errFakeSchoolAccessDenied, http.StatusUnauthorized, "identity.tenant_access_denied"},
-		{errFakeNoPortalRole, http.StatusForbidden, "school.no_school_portal_role"},
-		{errFakePortalNotBooked, http.StatusForbidden, "module.not_booked"},
+		{owner(identityaccess.ErrInvalidToken), http.StatusUnauthorized, "identity.mfa_session_required"},
+		{owner(identityaccess.ErrMFAStatusUnavailable), http.StatusServiceUnavailable, "identity.mfa_status_unavailable"},
+		{owner(identityaccess.ErrAccountNotFound), http.StatusUnauthorized, "identity.account_not_found"},
+		{owner(identityaccess.ErrAccountInactive), http.StatusUnauthorized, "identity.session_account_inactive"},
+		{owner(identityaccess.ErrTenantNotFound), http.StatusNotFound, "general.input"},
+		{owner(identityaccess.ErrTenantAccessDenied), http.StatusUnauthorized, "identity.tenant_access_denied"},
+		{owner(identityaccess.ErrAccountNoSchoolPortalRole), http.StatusForbidden, "school.no_school_portal_role"},
+		{owner(errPortalNotBooked), http.StatusForbidden, "module.not_booked"},
 	} {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
@@ -175,8 +164,7 @@ func TestSchoolSwitchUsesFamilyFromAuthenticatedClaims(t *testing.T) {
 func TestSchoolLoginPortalNotBookedNamesTheModule(t *testing.T) {
 	t.Parallel()
 
-	recorder := httptest.NewRecorder()
-	refusalRuntime(errFakePortalNotBooked).handleLoginError(recorder, httptest.NewRequest(http.MethodPost, "/auth/login", nil), errFakePortalNotBooked)
+	recorder := postLogin(refusalRuntime(owner(errPortalNotBooked)))
 
 	var body struct {
 		Details map[string]string `json:"details"`

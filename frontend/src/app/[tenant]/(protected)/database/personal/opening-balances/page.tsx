@@ -11,18 +11,18 @@ import {
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { Input } from "~/components/ui/input";
-import {
-  FormSkeleton,
-  SkeletonRegion,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
@@ -171,8 +171,8 @@ function isSpreadsheet(file: File): boolean {
     file.type === "text/csv" ||
     file.type ===
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    file.name.endsWith(".csv") ||
-    file.name.endsWith(".xlsx")
+    file.name.toLowerCase().endsWith(".csv") ||
+    file.name.toLowerCase().endsWith(".xlsx")
   );
 }
 
@@ -225,25 +225,6 @@ function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
   );
 }
 
-function StatTile({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: number;
-}) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-      <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        {label}
-      </p>
-      <p className="mt-0.5 text-xl font-semibold text-gray-900 tabular-nums">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function OpeningBalanceImportPageContent() {
   const { data: session, status } = useSession({
     required: true,
@@ -263,7 +244,6 @@ function OpeningBalanceImportPageContent() {
   const [previewStale, setPreviewStale] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importInterrupted, setImportInterrupted] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   // Fehler der Datei und der Übernahme stehen im Kasten über den Schritten,
@@ -297,7 +277,6 @@ function OpeningBalanceImportPageContent() {
   const resetAll = useCallback(() => {
     setUploadedFile(null);
     resetPreview();
-    setIsDragging(false);
     clearImportErrors();
     setBatchNotice(null);
   }, [resetPreview, clearImportErrors]);
@@ -491,13 +470,10 @@ function OpeningBalanceImportPageContent() {
     latestImportRef.current = () => void handleImport();
   });
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (!file) return;
+  // Beim Ablegen greift der Filter des Dateidialogs nicht, deshalb die Prüfung
+  // hier für beide Wege.
+  const handleFileChosen = useCallback(
+    (file: File) => {
       if (!isSpreadsheet(file)) {
         importErrors.invalid(
           "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
@@ -585,26 +561,17 @@ function OpeningBalanceImportPageContent() {
         description="Spalten: Personalnummer (optional), Vorname, Nachname, Stundensaldo, Jahresanspruch, Vorjahresübertrag, Resturlaub. Eine leere Zelle lässt die jeweilige Seite unangetastet."
         icon={Download}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="sm:w-64">
-            <label
-              id="template-format-label"
-              htmlFor="template-format"
-              className="mb-1.5 block text-sm font-medium text-gray-700"
-            >
-              Format wählen
-            </label>
-            <CustomSelect
-              id="template-format"
-              ariaLabelledBy="template-format-label"
-              value={templateFormat}
-              options={[
-                { value: "csv", label: "CSV (Komma-getrennt)" },
-                { value: "xlsx", label: "Excel (.xlsx)" },
-              ]}
-              onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
-            />
-          </div>
+        <FormRow className="sm:max-w-md">
+          <CustomSelect
+            id="template-format"
+            label="Format wählen"
+            value={templateFormat}
+            options={[
+              { value: "csv", label: "CSV (Komma-getrennt)" },
+              { value: "xlsx", label: "Excel (.xlsx)" },
+            ]}
+            onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
+          />
           <Button
             type="button"
             variant="outline"
@@ -613,7 +580,7 @@ function OpeningBalanceImportPageContent() {
           >
             Vorlage herunterladen
           </Button>
-        </div>
+        </FormRow>
       </SectionCard>
 
       {/* Schritt 2: Stichtag und Begründung */}
@@ -656,25 +623,9 @@ function OpeningBalanceImportPageContent() {
       {/* Schritt 3: Datei */}
       <UploadSection
         title="Schritt 3: Datei hochladen"
-        isDragging={isDragging}
         isLoading={isLoading}
         uploadedFile={uploadedFile}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(true);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(false);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDrop={handleDrop}
-        onFileSelect={handleFileSelect}
+        onFileSelect={handleFileChosen}
       />
 
       {previewStale && uploadedFile !== null && (
@@ -698,10 +649,18 @@ function OpeningBalanceImportPageContent() {
       {showPreview && previewResult && (
         <SectionCard title="Vorschau prüfen" icon={ListChecks}>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <StatTile label="Zeilen" value={previewResult.TotalRows} />
-            <StatTile label="Übernehmbar" value={importable} />
-            <StatTile label="Hinweise" value={previewResult.WarningCount} />
-            <StatTile label="Fehler" value={previewErrors} />
+            <StatCard
+              label="Zeilen"
+              value={previewResult.TotalRows}
+              tone="neutral"
+            />
+            <StatCard label="Übernehmbar" value={importable} tone="neutral" />
+            <StatCard
+              label="Hinweise"
+              value={previewResult.WarningCount}
+              tone="neutral"
+            />
+            <StatCard label="Fehler" value={previewErrors} tone="neutral" />
           </div>
           {previewErrors > 0 && importable > 0 && (
             <p className="mt-3 text-sm text-gray-600">
@@ -745,10 +704,26 @@ function OpeningBalanceImportPageContent() {
           }
         >
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <StatTile label="Zeilen" value={importResult.TotalRows} />
-            <StatTile label="Übernommen" value={importResult.CreatedCount} />
-            <StatTile label="Hinweise" value={importResult.WarningCount ?? 0} />
-            <StatTile label="Fehler" value={importResult.ErrorCount} />
+            <StatCard
+              label="Zeilen"
+              value={importResult.TotalRows}
+              tone="neutral"
+            />
+            <StatCard
+              label="Übernommen"
+              value={importResult.CreatedCount}
+              tone="neutral"
+            />
+            <StatCard
+              label="Hinweise"
+              value={importResult.WarningCount ?? 0}
+              tone="neutral"
+            />
+            <StatCard
+              label="Fehler"
+              value={importResult.ErrorCount}
+              tone="neutral"
+            />
           </div>
           {previewRows.length > 0 && (
             <>
@@ -781,7 +756,7 @@ function OpeningBalanceImportPageContent() {
       )}
 
       {showPreview && previewRows.length > 0 && (
-        <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row">
+        <StickyActionBar>
           <Button
             type="button"
             variant="outline"
@@ -801,7 +776,7 @@ function OpeningBalanceImportPageContent() {
           >
             {importButtonLabel}
           </Button>
-        </div>
+        </StickyActionBar>
       )}
     </TenantPage>
   );

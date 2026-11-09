@@ -299,12 +299,16 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Announcements retrieved")
 }
 
-func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request) (*announcementService.ParentAnnouncement, bool) {
+func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request, hydrate bool) (*announcementService.ParentAnnouncement, bool) {
 	id, ok := parseAnnouncementID(w, r)
 	if !ok {
 		return nil, false
 	}
-	a, err := rs.Service.GetParentAnnouncement(r.Context(), id)
+	var read []announcementService.ParentAnnouncementRead
+	if !hydrate {
+		read = []announcementService.ParentAnnouncementRead{announcementService.ParentAnnouncementHeaderOnly}
+	}
+	a, err := rs.Service.GetParentAnnouncement(r.Context(), id, read...)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return nil, false
@@ -325,14 +329,14 @@ func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request)
 // same draft visibility rule as the announcement itself, inside the tenant transaction.
 func (rs *Resource) requireReadableAnnouncement(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := rs.readableAnnouncement(w, r); ok {
+		if _, ok := rs.readableAnnouncement(w, r, false); ok {
 			next.ServeHTTP(w, r)
 		}
 	})
 }
 
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
-	a, ok := rs.readableAnnouncement(w, r)
+	a, ok := rs.readableAnnouncement(w, r, true)
 	if !ok {
 		return
 	}
@@ -533,16 +537,22 @@ type pollChildResponse struct {
 // bestätigt" are different facts, and collapsing them into one status is exactly
 // what would let a school believe a letter arrived when it did not.
 //
-// email_status "sent" means handed to the mail server — the UI must label it
-// "Versendet", never "Zugestellt", until provider delivery events exist (#1937).
+// email_status "sent" means handed to the mail server. Only mail_outcome
+// "delivered" is a delivery, and it needs a provider's event (#5934).
 type letterRecipientResponse struct {
-	FirstName    string     `json:"first_name"`
-	LastName     string     `json:"last_name"`
-	Email        *string    `json:"email,omitempty"`
-	EmailStatus  string     `json:"email_status"`
-	Reachability string     `json:"reachability"`
-	LastError    *string    `json:"last_error,omitempty"`
-	SentAt       *time.Time `json:"sent_at,omitempty"`
+	FirstName     string     `json:"first_name"`
+	LastName      string     `json:"last_name"`
+	Email         *string    `json:"email,omitempty"`
+	EmailStatus   string     `json:"email_status"`
+	MailOutcome   string     `json:"mail_outcome,omitempty"`
+	AddressMark   string     `json:"address_mark,omitempty"`
+	Stopped       bool       `json:"stopped,omitempty"`
+	StopShared    bool       `json:"stop_shared,omitempty"`
+	MailedTo      *string    `json:"mailed_to,omitempty"`
+	ProviderBlock string     `json:"provider_block,omitempty"`
+	Reachability  string     `json:"reachability"`
+	LastError     *string    `json:"last_error,omitempty"`
+	SentAt        *time.Time `json:"sent_at,omitempty"`
 }
 
 // letterChildResponse is one reached child with the derived fulfilment.
@@ -580,13 +590,19 @@ func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, rcpt := range status.Recipients {
 		out.Recipients = append(out.Recipients, letterRecipientResponse{
-			FirstName:    rcpt.FirstName,
-			LastName:     rcpt.LastName,
-			Email:        rcpt.RecipientEmail,
-			EmailStatus:  rcpt.EmailStatus,
-			Reachability: rcpt.Reachability,
-			LastError:    rcpt.LastError,
-			SentAt:       rcpt.SentAt,
+			FirstName:     rcpt.FirstName,
+			LastName:      rcpt.LastName,
+			Email:         rcpt.RecipientEmail,
+			EmailStatus:   rcpt.EmailStatus,
+			MailOutcome:   rcpt.MailOutcome,
+			AddressMark:   rcpt.AddressMark,
+			Stopped:       rcpt.Stopped,
+			StopShared:    rcpt.StopShared,
+			MailedTo:      rcpt.MailedTo,
+			ProviderBlock: rcpt.ProviderBlock,
+			Reachability:  rcpt.Reachability,
+			LastError:     rcpt.LastError,
+			SentAt:        rcpt.SentAt,
 		})
 	}
 	for _, child := range status.Children {

@@ -1,7 +1,8 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Circle } from "lucide-react";
+import { AlertTriangle, Check, Circle } from "lucide-react";
 import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -13,7 +14,6 @@ import {
 } from "~/components/ui/form-error-alert";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 import {
   establishOperatorInvitationSession,
@@ -24,6 +24,7 @@ import type { OperatorInvitationValidation } from "~/lib/operator/operator-invit
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "OperatorInviteAcceptPage" });
 
@@ -50,8 +51,6 @@ export function InviteContent() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const {
@@ -191,14 +190,13 @@ export function InviteContent() {
   if (state === "loading") {
     return (
       <AuthShell
-        eyebrow="Operator"
         title="Einladung prüfen"
         subtitle="Wir laden die Einladung."
         variant="operator"
         brand={<OperatorBrand />}
         formMaxWidth="max-w-[31rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }
@@ -206,7 +204,6 @@ export function InviteContent() {
   if (state === "success") {
     return (
       <AuthShell
-        eyebrow="Operator"
         title="Konto erstellt"
         subtitle="Dein Operator-Konto wurde erfolgreich erstellt."
         variant="operator"
@@ -214,12 +211,11 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <Check
-              className="text-moto-green-strong h-9 w-9"
-              aria-hidden="true"
-            />
-          </div>
+          <EmptyState
+            tone="success"
+            icon={<Check aria-hidden="true" />}
+            className="py-0 pb-4"
+          />
           <ButtonLink
             href={operatorPath("/operator/login")}
             variant="primary"
@@ -236,7 +232,6 @@ export function InviteContent() {
   if (state === "error") {
     return (
       <AuthShell
-        eyebrow="Operator"
         title="Einladung nicht geöffnet"
         subtitle="Die Einladung konnte nicht geöffnet werden."
         variant="operator"
@@ -244,9 +239,11 @@ export function InviteContent() {
         formMaxWidth="max-w-[31rem]"
       >
         <div className="text-center">
-          <div className="bg-moto-red-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <span className="text-moto-red text-2xl font-semibold">!</span>
-          </div>
+          <EmptyState
+            tone="error"
+            icon={<AlertTriangle aria-hidden="true" />}
+            className="py-0 pb-4"
+          />
           <LoadErrorAlert
             error={invitationLoad.error}
             className="mb-4 text-left"
@@ -266,7 +263,6 @@ export function InviteContent() {
 
   return (
     <AuthShell
-      eyebrow="Operator"
       title="Operator-Konto erstellen"
       subtitle="Lege dein Operator-Konto an und melde dich danach im Operator-Portal an."
       variant="operator"
@@ -274,9 +270,8 @@ export function InviteContent() {
       formMaxWidth="max-w-[32rem]"
     >
       {invitation && (
-        <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm text-gray-600">
-          Einladung für{" "}
-          <strong className="text-gray-900">{invitation.email}</strong>
+        <div className="mb-5">
+          <InvitationSummary email={invitation.email} />
         </div>
       )}
 
@@ -304,30 +299,22 @@ export function InviteContent() {
           <FieldLabel htmlFor="accept-password" required>
             Passwort
           </FieldLabel>
-          <div className="relative">
-            <Input
-              id="accept-password"
-              name="password"
-              aria-invalid={
-                formErrors.fieldError("password") ? true : undefined
-              }
-              aria-describedby={
-                formErrors.fieldError("password")
-                  ? "accept-password-error"
-                  : undefined
-              }
-              type={showPassword ? "text" : "password"}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              controlSize="compact"
-              className="pr-10"
-            />
-            <PasswordToggleButton
-              showPassword={showPassword}
-              onToggle={() => setShowPassword(!showPassword)}
-            />
-          </div>
+          <Input
+            id="accept-password"
+            name="password"
+            aria-invalid={formErrors.fieldError("password") ? true : undefined}
+            aria-describedby={
+              formErrors.fieldError("password")
+                ? "accept-password-error"
+                : undefined
+            }
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            controlSize="compact"
+            revealable
+          />
           <FieldErrorHint
             id="accept-password-error"
             message={formErrors.fieldError("password")}
@@ -369,30 +356,24 @@ export function InviteContent() {
           <FieldLabel htmlFor="accept-confirm-password" required>
             Passwort bestätigen
           </FieldLabel>
-          <div className="relative">
-            <Input
-              id="accept-confirm-password"
-              name="confirm_password"
-              aria-invalid={
-                formErrors.fieldError("confirm_password") ? true : undefined
-              }
-              aria-describedby={
-                formErrors.fieldError("confirm_password")
-                  ? "accept-confirm-password-error"
-                  : undefined
-              }
-              type={showConfirmPassword ? "text" : "password"}
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              controlSize="compact"
-              className="pr-10"
-            />
-            <PasswordToggleButton
-              showPassword={showConfirmPassword}
-              onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-            />
-          </div>
+          <Input
+            id="accept-confirm-password"
+            name="confirm_password"
+            aria-invalid={
+              formErrors.fieldError("confirm_password") ? true : undefined
+            }
+            aria-describedby={
+              formErrors.fieldError("confirm_password")
+                ? "accept-confirm-password-error"
+                : undefined
+            }
+            type="password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            controlSize="compact"
+            revealable
+          />
           {formErrors.fieldError("confirm_password") ? (
             <FieldErrorHint
               id="accept-confirm-password-error"

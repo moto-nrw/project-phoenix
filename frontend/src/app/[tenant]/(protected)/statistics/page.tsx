@@ -9,8 +9,8 @@ import { studentKeys } from "~/lib/swr/portal-keys";
 // already record.
 //
 // Design follows the Anmeldungen/Planung surface language (same as the
-// Tagesauswertung): one calm content section with an uppercase kicker,
-// gray-50 stat blocks, plain tables, quiet white export buttons.
+// Tagesauswertung): one calm content section without a kicker, gray-50
+// stat blocks, plain tables, quiet white export buttons.
 
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
@@ -35,7 +35,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -771,7 +771,7 @@ export default function StatisticsPage() {
   // allein die halbe Kopfzeile füllten. Kind- und Raumtabelle sind
   // verschiedene Dokumente, deshalb bekommt jeder Bereich seinen eigenen
   // Menüeintrag.
-  const exportMenuItems = (
+  const exportActions = (
     section: StatisticsExportSection,
   ): OverflowMenuEntry[] => [
     { kind: "header", label: "Exportieren" },
@@ -919,14 +919,14 @@ export default function StatisticsPage() {
   ) {
     sectionActions = (
       <OverflowMenu
-        items={exportMenuItems("rooms")}
+        items={exportActions("rooms")}
         ariaLabel="Raumtabelle exportieren"
       />
     );
   } else if (view === "occupancy" && occupancy) {
     sectionActions = (
       <OverflowMenu
-        items={exportMenuItems("occupancy")}
+        items={exportActions("occupancy")}
         ariaLabel="Zahlen nach Uhrzeit exportieren"
       />
     );
@@ -941,7 +941,7 @@ export default function StatisticsPage() {
           ariaLabel="Kurs-Sicht wählen"
         />
         <OverflowMenu
-          items={exportMenuItems(
+          items={exportActions(
             courseView === "by-course" ? "courses" : "course-students",
           )}
           ariaLabel="Kurstabelle exportieren"
@@ -975,7 +975,7 @@ export default function StatisticsPage() {
       actions={
         view === "care-times" ? undefined : (
           <OverflowMenu
-            items={exportMenuItems("attendance")}
+            items={exportActions("attendance")}
             ariaLabel="Weitere Aktionen"
           />
         )
@@ -998,9 +998,8 @@ export default function StatisticsPage() {
               presets={presets}
               toMax={today}
               className="min-w-0"
-              // Zwischen den Pfeilen: Rahmen und Rundung kommen von der
-              // Gruppe, der Chip bringt nur Inhalt und Höhe mit.
-              triggerClassName="h-9 w-full justify-center rounded-none border-0 px-3"
+              // Zwischen den Pfeilen.
+              embedded
             />
           }
           onPrevious={shiftWindow ? () => shiftWindow(-1) : undefined}
@@ -1103,7 +1102,7 @@ export default function StatisticsPage() {
             {view === "occupancy" &&
               (occupancyLoading ||
               (occupancyLoad.error === null && !occupancy) ? (
-                <Skeleton className="h-64 w-full rounded-xl" />
+                <Skeleton shape="inner" className="h-64 w-full" />
               ) : occupancyLoad.error !== null ? (
                 <LoadErrorAlert error={occupancyLoad.error} />
               ) : occupancy && fromISO && toISO ? (

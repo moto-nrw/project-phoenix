@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentsPage from "./page";
 import { useSession } from "next-auth/react";
+import { useToast } from "~/contexts/ToastContext";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
@@ -17,6 +18,7 @@ vi.mock("next-auth/react", () => ({
 let currentSearch: URLSearchParams = new URLSearchParams();
 let suspendSearchParams = false;
 const pendingSearchParams = new Promise<never>(() => undefined);
+const mockPush = vi.fn();
 const mockReplace = vi.fn((url: string) => {
   const q = url.includes("?") ? (url.split("?")[1] ?? "") : "";
   currentSearch = new URLSearchParams(q);
@@ -24,7 +26,7 @@ const mockReplace = vi.fn((url: string) => {
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
+  useRouter: vi.fn(() => ({ push: mockPush, replace: mockReplace })),
   usePathname: vi.fn(() => "/tenant/database/students"),
   useSearchParams: () => {
     if (suspendSearchParams) throw pendingSearchParams;
@@ -410,6 +412,16 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("offers the import in the overflow menu for the setup tour", () => {
+    render(<StudentsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Importieren" }),
+    ).toHaveAttribute("data-setup-tour", "student-import");
+  });
+
   it("shows the Kinderkontingent in the page head, apart from the child count", () => {
     childQuota = { booked: 50, occupied: 48 };
 
@@ -743,6 +755,48 @@ describe("StudentsPage", () => {
     expect(payload.guardians).toEqual([
       { first_name: "Erika", relationship_type: "parent" },
     ]);
+  });
+
+  it("warns that the privacy consent was not saved when the create answer says so (#5970)", async () => {
+    const success = vi.fn();
+    const warning = vi.fn();
+    vi.mocked(useToast).mockReturnValue({
+      success,
+      warning,
+    } as unknown as ReturnType<typeof useToast>);
+    mockCreate.mockResolvedValueOnce({
+      id: "5",
+      first_name: "New",
+      second_name: "Student",
+      privacy_consent_saved: false,
+    });
+
+    render(<StudentsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Kind erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-create-modal")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(warning).toHaveBeenCalledOnce();
+    });
+    const [message, options] = warning.mock.calls[0] as [
+      string,
+      { duration: number; action: { label: string; onClick: () => void } },
+    ];
+    expect(message).toContain("„New Student“ ist angelegt.");
+    expect(message).toContain("Datenschutz");
+    // The person has to act on it, so the notice stays until closed and
+    // leads to the child's page, where the consent is corrected.
+    expect(options.duration).toBe(0);
+    expect(options.action.label).toBe("Öffnen");
+    options.action.onClick();
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.stringContaining("/students/5"),
+    );
+    expect(success).not.toHaveBeenCalled();
   });
 
   it("shows not found message when search has no matches", async () => {

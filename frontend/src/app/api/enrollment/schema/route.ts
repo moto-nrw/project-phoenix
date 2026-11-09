@@ -1,16 +1,13 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
 export const GET = createTenantJsonProxy({
   method: "GET",
   path: "/api/enrollment/schema",
-  contentTypeOnGet: false,
-  unauthorizedError: "Unauthenticated",
 });
 
 export const POST = createTenantJsonProxy({
   method: "POST",
   path: "/api/enrollment/schema",
-  unauthorizedError: "Unauthenticated",
   mapJsonBody: (value) => {
     const body = value as Record<string, unknown>;
     return {

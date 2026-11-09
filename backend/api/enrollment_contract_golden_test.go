@@ -167,7 +167,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	countedHandler := api.queryBudgetHandler(counter)
 	type queryRun struct {
 		total     []string
-		overview  []string
+		overview  testpkg.QueryMeasurement
 		settings  []string
 		responded int
 	}
@@ -195,7 +195,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		}
 		return queryRun{
 			total:     total,
-			overview:  overview,
+			overview:  counter.Measurement(overview),
 			settings:  counter.Selects("config.setting_values"),
 			responded: payload.Data.Responded,
 		}
@@ -211,10 +211,10 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.Equal(t, len(small.total), len(large.total), "response overview queries must not grow with the roster")
 	require.Equal(t, 1, small.responded, "the shallow rollover chain must resolve to its original child")
 	require.Equal(t, 2, large.responded, "the deeper rollover chain must resolve to its original child")
-	// withoutModuleLock already proved the module lock's single switch read;
-	// the route's own settings stay one read.
+	// The module lock stays in place; its settings read also fills the route's
+	// school snapshot, so both consumers share one query.
 	for _, run := range []queryRun{small, large} {
-		require.Len(t, run.settings, 2, "the module lock and the route must each resolve settings once")
+		require.Len(t, run.settings, 1, "the module lock and the route must share the school settings snapshot")
 	}
 	countRolloverSourceQueries := func(queries []string) int {
 		count := 0
@@ -225,8 +225,8 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		}
 		return count
 	}
-	require.Equal(t, 1, countRolloverSourceQueries(small.overview), "the shallow rollover chain must use one source query")
-	require.Equal(t, 1, countRolloverSourceQueries(large.overview), "a deeper rollover chain must not add source queries")
+	require.Equal(t, 1, countRolloverSourceQueries(small.overview.Statements), "the shallow rollover chain must use one source query")
+	require.Equal(t, 1, countRolloverSourceQueries(large.overview.Statements), "a deeper rollover chain must not add source queries")
 	querybudgets.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
 }
 
@@ -236,16 +236,16 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 // budget then measures the route alone, as before the lock.
 func withoutModuleLock(t *testing.T, queries []string) []string {
 	t.Helper()
-	for i := 3; i+1 < len(queries); i++ {
+	for i := 2; i+1 < len(queries); i++ {
 		if !strings.Contains(queries[i], "config.setting_values") || !strings.Contains(queries[i], "'module.") {
 			continue
 		}
-		block := queries[i-3 : i+2]
+		block := queries[i-2 : i+2]
 		require.Equal(t, "BEGIN", block[0], "the module lock reads in a transaction of its own")
-		require.Contains(t, block[1], "SET LOCAL ROLE phoenix_tenant", "the module lock reads as the tenant role")
-		require.Contains(t, block[2], "app.current_tenant_id", "the module lock reads inside the school's tenant scope")
-		require.Equal(t, "COMMIT", block[4], "the module lock reads nothing but its switch")
-		rest := append(append([]string{}, queries[:i-3]...), queries[i+2:]...)
+		require.Contains(t, block[1], "set_config('role', 'phoenix_tenant', true)", "the module lock reads as the tenant role")
+		require.Contains(t, block[1], "set_config('app.current_tenant_id',", "the module lock reads inside the school's tenant scope")
+		require.Equal(t, "COMMIT", block[3], "the module lock reads nothing but its switch")
+		rest := append(append([]string{}, queries[:i-2]...), queries[i+2:]...)
 		for _, query := range rest {
 			require.Falsef(t, strings.Contains(query, "'module."), "the module lock must read its switch once: %s", query)
 		}

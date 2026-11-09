@@ -1,19 +1,7 @@
-import type { NextRequest } from "next/server";
-import { apiDelete } from "~/lib/api-helpers.server";
-import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const DELETE = createDeleteHandler(
-  async (
-    _request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-    const statusDayId = params.statusDayId as string;
-    if (!id || !statusDayId) {
-      throw new Error("Student ID and status day ID are required");
-    }
-    await apiDelete(`/api/students/${id}/status-days/${statusDayId}`, token);
-    return { deleted: true };
-  },
+export const DELETE = proxyDelete(
+  (p) =>
+    `/api/students/${requirePathSegmentParam(p)}/status-days/${requirePathSegmentParam(p, "statusDayId")}`,
 );

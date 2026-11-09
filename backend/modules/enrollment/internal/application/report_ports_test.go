@@ -2,7 +2,7 @@ package application
 
 import (
 	"context"
-	"encoding/json"
+	"slices"
 	"strings"
 
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
@@ -72,7 +72,7 @@ func (r *fakeEducationGroupRepo) GroupNamesByID(_ context.Context, ids []int64) 
 }
 
 type fakeClassRosterRequestRepo struct {
-	requests    []*Request
+	requests    []*enrollmentNative.Request
 	seenFilters enrollmentNative.RequestListFilters
 }
 
@@ -83,28 +83,25 @@ func (r *fakeClassRosterRequestRepo) AdminRequests(_ context.Context, filters en
 	if len(filters.CreatedStudentIDs) == 0 {
 		return make([]*enrollmentNative.Request, maxExportRequests+1), nil
 	}
-	return reportRequestInputs(r.requests)
+	return reportRequestInputs(r.requests), nil
 }
 
 type fakeCareUsageRequestRepo struct {
-	requests []*Request
+	requests []*enrollmentNative.Request
 }
 
 func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, error) {
-	return reportRequestInputs(r.requests)
+	return reportRequestInputs(r.requests), nil
 }
 
 type fakeClassRosterChildRepo struct {
-	children []*reportChild
+	children []*enrollmentNative.RequestChild
 }
 
 func (r *fakeClassRosterChildRepo) ChildrenForRequests(_ context.Context, _ []int64) ([]*enrollmentNative.RequestChild, error) {
 	var values []*enrollmentNative.RequestChild
 	for _, child := range r.children {
-		value, err := reportChildInput(child)
-		if err != nil {
-			return nil, err
-		}
+		value := reportChildInput(child)
 		// These report fixtures do not exercise birthdays, but owner rows
 		// follow the database's required calendar-date contract.
 		if value.DateOfBirth == "" {
@@ -322,9 +319,9 @@ func (r *fakeExportAccessLog) RecordStudentExport(_ context.Context, _ int64, en
 	return nil
 }
 
-// reportRequestInputs hands request fixtures over the way the owner stores
-// them: answers as raw JSON.
-func reportRequestInputs(requests []*Request) ([]*enrollmentNative.Request, error) {
+// reportRequestInputs hands copies of the request fixtures over, as the
+// owner hands fresh values to every read.
+func reportRequestInputs(requests []*enrollmentNative.Request) []*enrollmentNative.Request {
 	var values []*enrollmentNative.Request
 	for _, r := range requests {
 		if r == nil {
@@ -338,40 +335,25 @@ func reportRequestInputs(requests []*Request) ([]*enrollmentNative.Request, erro
 			GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID,
 			SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires,
 			SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode,
-		}
-		var err error
-		if value.ConsentFlags, err = json.Marshal(r.ConsentFlags); err != nil {
-			return nil, err
-		}
-		if value.LegalBlocksSnapshot, err = json.Marshal(r.LegalBlocksSnapshot); err != nil {
-			return nil, err
-		}
-		if value.CustomData, err = json.Marshal(r.CustomData); err != nil {
-			return nil, err
-		}
-		if value.SourceMetadata, err = json.Marshal(r.SourceMetadata); err != nil {
-			return nil, err
+			ConsentFlags: r.ConsentFlags.Clone(), LegalBlocksSnapshot: slices.Clone(r.LegalBlocksSnapshot),
+			CustomData: r.CustomData.Clone(), SourceMetadata: r.SourceMetadata.Clone(),
 		}
 		values = append(values, value)
 	}
-	return values, nil
+	return values
 }
 
-// reportChildInput hands a child fixture over the way the owner stores it.
-func reportChildInput(r *reportChild) (*enrollmentNative.RequestChild, error) {
+// reportChildInput hands a copy of a child fixture over, as the owner hands
+// fresh values to every read.
+func reportChildInput(r *enrollmentNative.RequestChild) *enrollmentNative.RequestChild {
 	if r == nil {
-		return nil, nil
+		return nil
 	}
-	result := &enrollmentNative.RequestChild{
+	return &enrollmentNative.RequestChild{
 		ID: r.ID, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName,
-		DateOfBirth:      enrollmentNative.Date(r.DateOfBirth),
+		DateOfBirth:      r.DateOfBirth,
 		TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status,
 		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID,
+		CustomData: r.CustomData.Clone(),
 	}
-	data, err := json.Marshal(r.CustomData)
-	if err != nil {
-		return nil, err
-	}
-	result.CustomData = data
-	return result, nil
 }

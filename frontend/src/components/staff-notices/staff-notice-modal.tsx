@@ -6,9 +6,11 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { AUDIENCE_LABELS } from "~/lib/staff-notices-api";
@@ -224,112 +226,71 @@ export function StaffNoticeModal({
           onChange={(e) => setForm({ ...form, body: e.target.value })}
         />
 
-        <div>
-          <span className="mb-1 block text-sm font-medium text-gray-700">
-            Für wen
-          </span>
+        <CustomSelect
+          label="Für wen"
+          hint={AUDIENCE_HINTS[form.audience]}
+          value={form.audience}
+          options={AUDIENCE_OPTIONS}
+          onChange={(value) =>
+            setForm({ ...form, audience: value as StaffNoticeAudience })
+          }
+        />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <CustomSelect
-            value={form.audience}
-            options={AUDIENCE_OPTIONS}
-            ariaLabel="Für wen"
+            label="Wichtigkeit"
+            value={form.priority}
+            options={PRIORITY_OPTIONS}
             onChange={(value) =>
-              setForm({ ...form, audience: value as StaffNoticeAudience })
+              setForm({ ...form, priority: value as StaffNoticePriority })
             }
           />
-          <p className="mt-1 text-xs text-gray-500">
-            {AUDIENCE_HINTS[form.audience]}
-          </p>
+          <CustomSelect
+            label="Woche"
+            value={String(form.weekPattern)}
+            options={WEEK_PATTERN_OPTIONS}
+            onChange={(value) =>
+              setForm({
+                ...form,
+                weekPattern: Number(value) as StaffNoticeWeekPattern,
+              })
+            }
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Wichtigkeit
-            </span>
-            <CustomSelect
-              value={form.priority}
-              options={PRIORITY_OPTIONS}
-              ariaLabel="Wichtigkeit"
-              onChange={(value) =>
-                setForm({ ...form, priority: value as StaffNoticePriority })
-              }
-            />
-          </div>
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Woche
-            </span>
-            <CustomSelect
-              value={String(form.weekPattern)}
-              options={WEEK_PATTERN_OPTIONS}
-              ariaLabel="Woche"
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  weekPattern: Number(value) as StaffNoticeWeekPattern,
-                })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Gilt ab
-            </span>
-            <ISODatePicker
-              id="notice-valid-from"
-              name="valid_from"
-              value={form.validFrom}
-              hideClearButton
-              calendarLayout="popover"
-              error={formErrors.fieldError("valid_from")}
-              onChange={(value) => {
-                if (value) setForm({ ...form, validFrom: value });
-              }}
-            />
-          </div>
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Gilt bis (optional)
-            </span>
-            <ISODatePicker
-              id="notice-valid-until"
-              name="valid_until"
-              value={form.validUntil}
-              calendarLayout="popover"
-              error={formErrors.fieldError("valid_until")}
-              onChange={(value) => setForm({ ...form, validUntil: value })}
-            />
-          </div>
+          <ISODatePicker
+            id="notice-valid-from"
+            name="valid_from"
+            label="Gilt ab"
+            value={form.validFrom}
+            hideClearButton
+            calendarLayout="popover"
+            error={formErrors.fieldError("valid_from")}
+            onChange={(value) => {
+              if (value) setForm({ ...form, validFrom: value });
+            }}
+          />
+          <ISODatePicker
+            id="notice-valid-until"
+            name="valid_until"
+            label="Gilt bis (optional)"
+            value={form.validUntil}
+            calendarLayout="popover"
+            error={formErrors.fieldError("valid_until")}
+            onChange={(value) => setForm({ ...form, validUntil: value })}
+          />
         </div>
 
         <div>
-          <span className="mb-1 block text-sm font-medium text-gray-700">
-            Wochentage
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {WEEKDAYS.map((day) => {
-              const selected = form.weekdays.includes(day.value);
-              return (
-                <Button
-                  key={day.value}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => toggleWeekday(day.value)}
-                  variant={selected ? "primary" : "outline"}
-                  size="compact"
-                  className="w-11"
-                >
-                  {day.label}
-                </Button>
-              );
-            })}
-          </div>
-          <p className="mt-1 text-xs text-gray-500">
-            Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.
-          </p>
+          <FieldLabel>Wochentage</FieldLabel>
+          <WeekdayToggleGroup
+            ariaLabel="Wochentage"
+            days={WEEKDAYS}
+            value={form.weekdays}
+            onToggle={toggleWeekday}
+            hint="Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums."
+          />
         </div>
 
         <label

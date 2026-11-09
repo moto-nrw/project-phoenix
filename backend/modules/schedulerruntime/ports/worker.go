@@ -38,6 +38,9 @@ type WorkerDependencies struct {
 	// HolidayRegistrationRetention deletes ended holiday registrations of
 	// every Träger (#4661).
 	HolidayRegistrationRetention HolidayRegistrationRetention
+	// TraegerDocumentReadRetention deletes the expired reads of the shared
+	// Träger documents (#4692).
+	TraegerDocumentReadRetention TraegerDocumentReadRetention
 	WorkSessionCleanup           WorkSessionCleaner
 	BreakAutoEnder               BreakAutoEnder
 	AutoCheckouter               AutoCheckouter
@@ -61,11 +64,17 @@ type WorkerDependencies struct {
 	BookingConsistency      BookingConsistencyAudit
 	HolidayGuests           HolidayGuestReconciliation
 	PlannedStaffExits       PlannedStaffExits
+	// CareContractConclusion concludes the contracts at the acceptance
+	// (#4680); nil leaves the job out.
+	CareContractConclusion CareContractConclusion
 	// StaffQualificationReminders sends the Nachweis reminders (#4808).
 	StaffQualificationReminders StaffQualificationReminders
-	WeekProtocols               WeekProtocolEvenings
-	PayrollDispatch             PayrollDispatch
-	MealOrders                  MealOrderSettlement
+	// CareContractReminders reminds parents of unsigned care contracts
+	// (#4679); nil leaves the job out.
+	CareContractReminders CareContractReminders
+	WeekProtocols         WeekProtocolEvenings
+	PayrollDispatch       PayrollDispatch
+	MealOrders            MealOrderSettlement
 	// SchoolVacations renews the school vacations of every federal state
 	// (#5345); nil leaves the job out.
 	SchoolVacations           SchoolVacationSync
@@ -82,6 +91,7 @@ type WorkerDependencies struct {
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
+	EmailReconciliation       EmailDeliveryReconciler
 	// SettleExpiredTransfers terminalizes ambiguous manual uploads, never retries them.
 	SettleExpiredTransfers func(context.Context, int) (int, error)
 	RolloverDeadlineRunner RolloverDeadlineRunner

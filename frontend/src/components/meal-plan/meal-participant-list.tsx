@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Check, UserPen, Utensils } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -36,6 +36,7 @@ import {
   type WeeklyMealList,
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "MealParticipantList" });
 
@@ -99,7 +100,7 @@ export function MealParticipantList({
   canExport?: boolean;
   onRegistrationChanged?: () => void;
 }>) {
-  const t = useTranslations("mealParticipantList");
+  const t = useCareTermTranslations("mealParticipantList");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = useBerlinToday();

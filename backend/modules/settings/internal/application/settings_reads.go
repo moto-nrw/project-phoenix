@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -23,8 +25,9 @@ func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) 
 // context snapshot wins, which lets scheduler-invoked downstream services
 // share the minute snapshot without knowing about scheduler internals. Below
 // the explicit snapshot sits the request-scoped memo cache (issue #2065):
-// within one request every (tenant_id, key) pair is loaded from PostgreSQL at
-// most once; only cache-missing keys reach the repository.
+// the first school lookup fills its missing school-only keys together. Later
+// lookups reuse that observation until a write or lock barrier evicts it.
+// Träger-level keys remain demand-driven.
 func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (result *config.SettingsSnapshot, err error) {
 	started := time.Now()
 	cacheState := make(map[string]string, len(keys))
@@ -34,6 +37,10 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 	defer func() {
 		s.observeLookups(keys, cacheState, time.Since(started), err)
 	}()
+
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
 
 	tenantID := s.tenantID(ctx)
 	if snapshot := config.SnapshotFromContext(ctx, tenantID, keys); snapshot != nil {
@@ -78,6 +85,10 @@ func (s *settingsService) observeLookups(keys []string, cacheState map[string]st
 // query when a scheduler already prefetched the values, and a full
 // request-cache hit skips the tenant transaction entirely (issue #2065).
 func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error) {
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	if snapshot := config.SnapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		s.observeLookups(keys, lookupState(keys, "snapshot"), 0, nil)
 		return snapshot, nil
@@ -126,6 +137,10 @@ func lookupState(keys []string, state string) map[string]string {
 // owns the minute snapshot) and other admin-tx batch paths that already
 // coalesce their reads.
 func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error) {
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	uniqueTenantIDs, seenTenantIDs := uniqueSettingsTenants(tenantIDs)
 
 	result := make(map[int64]*config.SettingsSnapshot, len(uniqueTenantIDs))
@@ -232,6 +247,10 @@ func (s *settingsService) ResolveBoolForTenantInTx(ctx context.Context, tenantID
 }
 
 func (s *settingsService) resolveForTenantInTx(ctx context.Context, tenantID int64, key string) (*config.SettingsSnapshot, error) {
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	if tenantID <= 0 {
 		return nil, &config.SettingsError{
 			Op:  "resolve_in_tx",
@@ -368,6 +387,7 @@ func (s *settingsService) resolveCachedSettings(ctx context.Context, tenantID in
 		cacheState[key] = "miss"
 	}
 	if len(missing) > 0 {
+		missing = s.requestSnapshotKeys(ctx, tenantID, missing)
 		stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, missing)
 		if err != nil {
 			return nil, &config.SettingsError{Op: "resolve_many", Err: err}
@@ -377,9 +397,33 @@ func (s *settingsService) resolveCachedSettings(ctx context.Context, tenantID in
 			return nil, err
 		}
 		cache.StoreSnapshot(tenantID, loaded)
-		resolved = config.MergeSettingsSnapshots(resolved, loaded)
+		resolved, _ = cache.Lookup(tenantID, keys)
 	}
 	return resolved, nil
+}
+
+// Fill the existing request memo with school-only settings in one observation.
+// Träger settings remain demand-driven so school reads acquire no new foreign
+// dependency. Notification/reminder gates also stay demand-driven: sequential
+// first-use reads must observe public settings writes committed between them.
+// Writes and lock barriers keep using the memo's existing eviction.
+func (s *settingsService) requestSnapshotKeys(ctx context.Context, tenantID int64, requested []string) []string {
+	if config.HasExplicitSettingsSnapshot(ctx) {
+		return requested
+	}
+	definitions := s.registry.AllDefinitions()
+	keys := make([]string, 0, len(definitions)+len(requested))
+	keys = append(keys, requested...)
+	for key, definition := range definitions {
+		if definition.Levels.AtTraeger() || strings.HasPrefix(key, "notifications.") || strings.HasPrefix(key, "reminders.") ||
+			key == config.KeyParentNotesEnabled || key == config.KeyStaffMessagingEnabled {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	_, missing := config.RequestCacheFromContext(ctx).Lookup(tenantID, keys)
+	sort.Strings(missing)
+	return missing
 }
 
 func (s *settingsService) cachedTenantSnapshot(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error) {
@@ -425,4 +469,13 @@ func settingsRowsByTenant(stored []*config.SettingValue, seenTenantIDs map[int64
 		}
 	}
 	return storedByTenant
+}
+
+// Check before snapshots, request caches and defaults: none authorizes a school
+// read on the Träger transaction, whose RLS hides every school override.
+func (s *settingsService) checkSchoolReadContext(ctx context.Context) error {
+	if s.runtime != nil && s.runtime.IsTraegerTransaction(ctx) {
+		return &config.SettingsError{Op: "resolve_school_settings", Err: config.ErrSchoolReadInTraegerTransaction}
+	}
+	return nil
 }

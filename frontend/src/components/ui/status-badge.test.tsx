@@ -11,6 +11,18 @@ describe("StatusBadge", () => {
     expect(screen.getByText("Bestätigt")).toBeInTheDocument();
   });
 
+  it("applies layout classes to the rendered pill", () => {
+    render(
+      <StatusBadge label="Schließtag" tone="gray" className="mt-1 w-full" />,
+    );
+    expect(screen.getByText("Schließtag")).toHaveClass("mt-1", "w-full");
+  });
+
+  it("can hide a short visual label from assistive technology", () => {
+    render(<StatusBadge label="3" tone="gray" ariaHidden />);
+    expect(screen.getByText("3")).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("applies the tone colors via inline styles", () => {
     render(<StatusBadge label="Abgelehnt" tone="red" />);
     const label = screen.getByText("Abgelehnt");
@@ -103,5 +115,21 @@ describe("StatusBadge", () => {
     expect(screen.getByText("Geprüft")).toContainElement(
       screen.getByTestId("list-icon"),
     );
+  });
+
+  it("shortens a long label and keeps it whole in the tooltip", () => {
+    const label = "Kostenübernahme: Fachdienst Jugend des Landkreises";
+    render(<StatusBadge label={label} tone="blue" truncate />);
+    const text = screen.getByText(label);
+    expect(text).toHaveClass("truncate");
+    expect(text.parentElement).toHaveAttribute("title", label);
+  });
+
+  it("lets a long label break instead of overflowing", () => {
+    render(<StatusBadge label="Teilweise gutgeschrieben" tone="blue" wrap />);
+    const badge = screen.getByText("Teilweise gutgeschrieben");
+    expect(badge).toHaveClass("whitespace-normal");
+    expect(badge).toHaveClass("max-w-full", "min-w-0");
+    expect(badge).not.toHaveClass("whitespace-nowrap");
   });
 });

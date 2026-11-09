@@ -101,6 +101,15 @@ func (m *mockGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (
 	}, nil
 }
 
+func (m *mockGroupRepository) FindVisitTransferGroups(ctx context.Context, from, to int64) (*ports.ActiveGroup, *ports.ActiveGroup, error) {
+	source, err := m.FindByID(ctx, from)
+	if err != nil {
+		return nil, nil, err
+	}
+	target, err := m.FindByID(ctx, to)
+	return source, target, err
+}
+
 func (m *mockGroupRepository) Update(ctx context.Context, entity *ports.ActiveGroup) error {
 	return nil
 }
@@ -471,6 +480,14 @@ func (m *mockGroupSupervisorRepository) FindByActiveGroupIDForUpdate(ctx context
 
 func (m *mockGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*ports.GroupSupervisor, error) {
 	return nil, nil
+}
+
+func (m *mockGroupSupervisorRepository) FindActiveByGroupIDWithoutStaff(ctx context.Context, activeGroupID int64) ([]*ports.GroupSupervisor, error) {
+	return m.FindByActiveGroupID(ctx, activeGroupID, true)
+}
+
+func (m *mockGroupSupervisorRepository) AttachStaff(context.Context, []*ports.GroupSupervisor) error {
+	return nil
 }
 
 func (m *mockGroupSupervisorRepository) EndSupervision(ctx context.Context, id int64) error {

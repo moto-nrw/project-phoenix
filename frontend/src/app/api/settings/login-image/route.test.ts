@@ -15,10 +15,12 @@ const {
   mockRevalidateTag: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
@@ -162,6 +164,8 @@ describe("POST /api/settings/login-image", () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        text: async () => "",
+        headers: new Headers(),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -213,11 +217,8 @@ describe("DELETE /api/settings/login-image", () => {
   });
 
   it("successfully deletes login image", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => "",
-    });
+    // The backend answers the delete with 204 (settings/http/settings_api.go).
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = new NextRequest(
       "http://localhost:3000/api/settings/login-image",
@@ -249,11 +250,8 @@ describe("DELETE /api/settings/login-image", () => {
   });
 
   it("calls revalidateTag after successful delete", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => "",
-    });
+    // The backend answers the delete with 204 (settings/http/settings_api.go).
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = new NextRequest(
       "http://localhost:3000/api/settings/login-image",
@@ -324,6 +322,8 @@ describe("GET /api/settings/login-image", () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        text: async () => "",
+        headers: new Headers(),
       })
       .mockResolvedValueOnce({
         ok: true,

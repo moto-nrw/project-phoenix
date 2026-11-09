@@ -11,6 +11,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
   PickupTimeModal,
@@ -19,7 +20,10 @@ import {
   useChildCare,
 } from "~/components/parent/child-care";
 import { BookedCareSection } from "~/components/parent/child/booked-care-section";
-import { ParentSection } from "~/components/parent/shell/parent-section";
+import {
+  ParentSection,
+  ParentSubsection,
+} from "~/components/parent/shell/parent-section";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
 import { ChildConsentsSection } from "~/components/parent/child/child-consents-section";
 import { CoursesSection } from "~/components/parent/child/courses-section";
@@ -59,6 +63,8 @@ import { calendarConcept } from "~/lib/concepts/calendar";
 import { childrenConcept } from "~/lib/concepts/children";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { ParentChildCareTermScope } from "~/lib/parent-care-term";
 
 import {
   useParentChildren,
@@ -91,9 +97,9 @@ export function ChildPage({
   /** Aus der URL. Fehlt er, folgt je nach Anzahl Profil oder Auswahl. */
   studentId?: string;
 }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const navT = useTranslations("parentNav");
-  const backT = useTranslations("parentChildDetail");
+  const backT = useCareTermTranslations("parentChildDetail");
   const childResource = useParentChildren();
   const children = childResource.data ?? EMPTY_CHILDREN;
   const statuses = useParentToday(childResource.data);
@@ -133,12 +139,10 @@ export function ChildPage({
 
   if (children.length === 0) {
     return (
-      <ParentPage>
-        <ParentPageHeader title={t("sections.today")} />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("noChildren")}
-        </p>
-      </ParentPage>
+      <ParentPage
+        header={<ParentPageHeader title={t("sections.today")} />}
+        empty={{ title: t("noChildren") }}
+      />
     );
   }
 
@@ -159,16 +163,18 @@ export function ChildPage({
   // gehört. Der Weg zurück führt zur Übersicht der eigenen Kinder.
   if (!active) {
     return (
-      <ParentPage>
-        <ParentPageHeader
-          title={navT(children.length > 1 ? "childrenMultiple" : "childSingle")}
-          backHref={parentPath("/parents/children")}
-          backLabel={backT(children.length > 1 ? "back" : "backSingle")}
-        />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-          {t("notFound")}
-        </p>
-      </ParentPage>
+      <ParentPage
+        header={
+          <ParentPageHeader
+            title={navT(
+              children.length > 1 ? "childrenMultiple" : "childSingle",
+            )}
+            backHref={parentPath("/parents/children")}
+            backLabel={backT(children.length > 1 ? "back" : "backSingle")}
+          />
+        }
+        empty={{ title: t("notFound") }}
+      />
     );
   }
 
@@ -204,20 +210,24 @@ export function ChildPage({
       {/* Eine Freigabe-Liste pro Kind: alle Abschnitte teilen sich einen
           einzigen Abruf der möglichen Empfänger. Ebenso teilen sie laufende
           Abrufe der Schulschalter und des Wochenplans. */}
-      <SharedParentFeaturesProvider linkedChildren={children}>
-        <SharingOptionsProvider>
-          <ChildRequestsProvider>
-            <ChildSections
-              key={active.student_id}
-              child={active}
-              today={
-                selectionToday[active.student_id] ??
-                (statuses.error ? UNKNOWN_CHILD_TODAY : null)
-              }
-            />
-          </ChildRequestsProvider>
-        </SharingOptionsProvider>
-      </SharedParentFeaturesProvider>
+      {/* Alle Texte zum Kind nennen die Betreuung so, wie seine Schule sie
+          nennt (#6082). */}
+      <ParentChildCareTermScope studentId={active.student_id}>
+        <SharedParentFeaturesProvider linkedChildren={children}>
+          <SharingOptionsProvider>
+            <ChildRequestsProvider>
+              <ChildSections
+                key={active.student_id}
+                child={active}
+                today={
+                  selectionToday[active.student_id] ??
+                  (statuses.error ? UNKNOWN_CHILD_TODAY : null)
+                }
+              />
+            </ChildRequestsProvider>
+          </SharingOptionsProvider>
+        </SharedParentFeaturesProvider>
+      </ParentChildCareTermScope>
     </ParentPage>
   );
 }
@@ -228,7 +238,7 @@ function ChildSections({
 }: Readonly<{ child: Child; today: ChildToday | null }>) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const care = useChildCare(child.student_id);
   const {
     error: careLoadError,
@@ -305,12 +315,10 @@ function ChildSections({
     <>
       <LoadErrorAlert error={careLoadError} />
       {careEnded && !care.loading ? (
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-sm font-semibold text-gray-900">
-            {t("careEnded.title")}
-          </p>
-          <p className="mt-1 text-sm text-gray-600">{t("careEnded.body")}</p>
-        </div>
+        <ParentSubsection
+          title={t("careEnded.title")}
+          description={t("careEnded.body")}
+        />
       ) : null}
       <ChildDayCard
         child={{
@@ -425,7 +433,7 @@ function ChildAreaTabs({
   reasonRequired: boolean;
   onCareRefresh: () => void;
 }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const conferenceT = useTranslations("parentConference");
   const locale = useLocale();
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
@@ -508,7 +516,7 @@ function ChildAreaTabs({
           <TabsList
             aria-label={t("areas.label")}
             data-parent-tour="child-area-tabs"
-            className="flex h-auto w-full gap-1 rounded-xl bg-gray-100 p-1"
+            variant="icon"
           >
             <AreaTab
               value="betreuung"
@@ -625,12 +633,7 @@ function AreaTab({
   tourId?: string;
 }>) {
   return (
-    <TabsTrigger
-      value={value}
-      aria-label={label}
-      data-parent-tour={tourId}
-      className="min-h-16 min-w-0 flex-1 flex-col gap-1 rounded-lg px-1.5 py-2 text-base text-gray-600 shadow-none hover:bg-white/60 hover:text-gray-900 data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-gray-900 data-[state=active]:shadow-sm sm:min-h-12 sm:flex-row sm:gap-2 sm:px-4"
-    >
+    <TabsTrigger value={value} aria-label={label} data-parent-tour={tourId}>
       <Icon
         size={20}
         weight="regular"
@@ -645,7 +648,7 @@ function AreaTab({
 function PickupSummary({
   care,
 }: Readonly<{ care: ReturnType<typeof useChildCare> }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   return (
     <div className="flex min-w-0 items-start gap-3">
       <MotoConceptIcon
@@ -655,9 +658,7 @@ function PickupSummary({
         aria-hidden="true"
       />
       <div className="min-w-0">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("today.pickupLabel")}
-        </p>
+        <SectionLabel as="p">{t("today.pickupLabel")}</SectionLabel>
         <p className="mt-1 text-sm leading-6 font-medium text-gray-900">
           <PlannedPickup care={care} />
         </p>
@@ -670,7 +671,7 @@ function PickupSummary({
 function PlannedPickup({
   care,
 }: Readonly<{ care: ReturnType<typeof useChildCare> }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const pickup = care.todayPickup;
   switch (pickup.kind) {
     case "time":

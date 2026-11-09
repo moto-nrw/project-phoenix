@@ -1,0 +1,7 @@
+{
+  "scenario": "api.enrollment.growth.child_delete_impact",
+  "max": 10,
+  "exact": true,
+  "description": "Positive mounted handler and real persistence, all SQL including transaction envelope; N3/N8 children or enabled legal blocks.",
+  "route": "GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact"
+}

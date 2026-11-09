@@ -3,13 +3,13 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, Check } from "lucide-react";
 
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { Button } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { SectionCard } from "~/components/ui/section-card";
@@ -434,29 +434,21 @@ function InfoDisplaysPageContent() {
               </div>
             }
           >
-            <div className="space-y-2">
-              <label
-                htmlFor="display-name"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Name des Displays
-              </label>
-              <Input
-                id="display-name"
-                name="name"
-                error={nameErrors.fieldError("name")}
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                placeholder="z. B. Eingangsbereich"
-                maxLength={100}
-              />
-              {!renameTarget && (
-                <p className="text-sm text-gray-500">
-                  Nach dem Erstellen wird der Link zum Dashboard genau einmal
-                  angezeigt.
-                </p>
-              )}
-            </div>
+            <Input
+              id="display-name"
+              name="name"
+              label="Name des Displays"
+              hint={
+                renameTarget
+                  ? undefined
+                  : "Nach dem Erstellen wird der Link zum Dashboard genau einmal angezeigt."
+              }
+              error={nameErrors.fieldError("name")}
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="z. B. Eingangsbereich"
+              maxLength={100}
+            />
           </FormModal>
 
           {/* One-time token modal */}
@@ -520,17 +512,7 @@ function TokenModal({
   readonly state: TokenModalState;
   readonly onClose: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(state.url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access can fail (permissions); the URL stays selectable.
-    }
-  };
+  const { showMessage } = useApiErrorDisplay();
 
   return (
     <FormModal
@@ -551,24 +533,15 @@ function TokenModal({
           type="warning"
           message="Dieser Link wird nur einmal angezeigt. Kopieren Sie ihn jetzt oder scannen Sie den QR-Code am Zielgerät. Bei Verlust können Sie jederzeit einen neuen Link erstellen."
         />
-        <div className="flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {state.url}
-          </code>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => void handleCopy()}
-          >
-            {copied ? (
-              <Check className="text-moto-green h-4 w-4" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-            <span className="ml-2">{copied ? "Kopiert" : "Kopieren"}</span>
-          </Button>
-        </div>
+        <CopyField
+          value={state.url}
+          monospace
+          onCopyFailed={() =>
+            showMessage(
+              "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+            )
+          }
+        />
         <SectionCard className="flex justify-center">
           <QRCodeSVG value={state.url} size={192} />
         </SectionCard>

@@ -15,6 +15,7 @@ import (
 	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // studentExportPageSize caps how many child rows a single export document may
@@ -113,7 +114,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
@@ -571,11 +572,11 @@ func (rs *Resource) selectExportResponses(r *http.Request, req studentExportRequ
 // class-list-only entries into the document's rows.
 func (rs *Resource) buildExportSources(r *http.Request, req studentExportRequest, selection exportSelection) ([]exportRowSource, []lists.Column, render.Renderer) {
 	responses, planningDate, isToday := selection.responses, selection.planningDate, selection.isToday
-	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses), planningDate)
+	columns := lists.ResolveColumns(req.Columns, req.Preset)
+	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses), planningDate, columns)
 	if err != nil {
 		return nil, nil, common.ErrorInternalServer(err)
 	}
-	columns := lists.ResolveColumns(req.Columns, req.Preset)
 	if err := rs.enrichExportCompanions(r, responses, req.Preset, columns, selection.accessCtx); err != nil {
 		return nil, nil, common.ErrorInternalServer(err)
 	}

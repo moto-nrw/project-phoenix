@@ -2,66 +2,46 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { REQUEST_ID_HEADER } from "~/lib/request-id";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { normalizeHostname, tenantSlugFromHost } from "~/lib/tenant-host";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import {
   resolvePlanungRedirect,
   type PlanungRedirectTarget,
 } from "~/components/timetable/planung-redirect";
+import {
+  HOSTED_PORTAL_KEYS,
+  PORTAL_ROUTES,
+  type HostedPortalKey,
+} from "~/lib/portal-paths";
+import { PORTAL_PAGES } from "./proxy-pages.generated";
 
 /**
- * Combined proxy for:
- * 1. Operator subdomain separation (from development)
- * 2. Subdomain-based tenant routing (from multi-tenancy)
- * 3. CSP security headers
+ * Routes by host (portal hosts from PORTAL_HOSTS, `{slug}.TENANT_DOMAIN`,
+ * path mode on the bare domain) and sets the security headers.
  */
 
 const isDev = process.env.NODE_ENV === "development";
 
-// --- Fail-fast environment checks (no t3-env at proxy level) ---
-
-const OPERATOR_HOSTNAME = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
-if (!OPERATOR_HOSTNAME) {
-  throw new Error(
-    "NEXT_PUBLIC_OPERATOR_HOSTNAME is not set. " +
-      "Add it to your .env.local or docker-compose environment.",
-  );
-}
-
-const PARENTS_HOSTNAME = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-if (!PARENTS_HOSTNAME) {
-  throw new Error(
-    "NEXT_PUBLIC_PARENTS_HOSTNAME is not set. " +
-      "Add it to your .env.local or docker-compose environment.",
-  );
-}
-
-const SCHOOL_HOSTNAME = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
-if (!SCHOOL_HOSTNAME) {
-  throw new Error(
-    "NEXT_PUBLIC_SCHOOL_HOSTNAME is not set. " +
-      "Add it to your .env.local or docker-compose environment.",
-  );
-}
-
-const CATERER_HOSTNAME = process.env.NEXT_PUBLIC_CATERER_HOSTNAME;
-if (!CATERER_HOSTNAME) {
-  throw new Error(
-    "NEXT_PUBLIC_CATERER_HOSTNAME is not set. " +
-      "Add it to your .env.local or docker-compose environment.",
-  );
-}
-
-const TENANT_DOMAIN: string = (() => {
-  const val = process.env.TENANT_DOMAIN;
-  if (!val) {
+// The proxy runs without t3-env, so it checks its configuration itself. Static
+// property access: Next.js inlines NEXT_PUBLIC_* values only in that form.
+function requiredEnv(name: string, value: string | undefined): string {
+  if (!value) {
     throw new Error(
-      "TENANT_DOMAIN is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
+      `${name} is not set. Add it to your .env.local or docker-compose environment.`,
     );
   }
-  return val;
-})();
+  return value;
+}
+
+/** Every portal host, checked at start-up. */
+const HOSTNAMES = Object.fromEntries(
+  HOSTED_PORTAL_KEYS.map((key) => {
+    const portal = PORTAL_ROUTES[key];
+    return [key, requiredEnv(portal.hostEnv, portal.hostname())];
+  }),
+) as Record<HostedPortalKey, string>;
+const TENANT_DOMAIN = requiredEnv("TENANT_DOMAIN", process.env.TENANT_DOMAIN);
 
 // --- CSP Headers ---
 
@@ -199,7 +179,6 @@ function preserveOriginalRequestTarget(
   return headers;
 }
 
-/** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) to a response. */
 function withSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Content-Security-Policy", CSP_HEADER);
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -245,9 +224,10 @@ function sanitizedHeaders(request: NextRequest): Headers {
 
 /**
  * The sandbox of a file a person uploaded, as the backend sends it with an
- * inline file (#5275). The CSP set here replaces the route's own, so these
- * routes get it from the proxy: under the app CSP an embedded script of a PDF
- * would run on the app's origin.
+ * inline file (#5275): under the app CSP an embedded script of a PDF would
+ * run on the app's origin. Next sets the proxy's headers on the response
+ * before the route runs and keeps them over the route's own, so this list
+ * alone decides.
  */
 const SANDBOX_CSP_HEADER =
   "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
@@ -262,6 +242,18 @@ const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
   /^\/api\/files\/folders\/[^/]+\/files\/[^/]+\/download$/,
   /^\/api\/announcement-attachments\/[^/]+\/[^/]+\/download$/,
   /^\/api\/parent\/me\/news\/[^/]+\/attachments\/[^/]+\/download$/,
+  // Documents staff attach to a child (#777) or a staff member (#1424).
+  /^\/api\/(?:students|staff)\/[^/]+\/documents\/[^/]+\/download$/,
+  // The proof of a care schedule request a parent signed (#4780).
+  /^\/api\/students\/care-schedule-change-requests\/[^/]+\/proof$/,
+  // The paper-signed contract a Träger uploads (#4679).
+  /^\/api\/traeger\/contracts\/[^/]+\/paper-signature$/,
+  // Documents a Träger attaches to a holiday-period form, in the Träger
+  // portal and on the public registration link (#6179).
+  /^\/api\/traeger\/holiday-periods\/[^/]+\/form\/documents\/[^/]+$/,
+  /^\/api\/holiday-registrations\/[^/]+\/documents\/[^/]+$/,
+  // Träger documents, in the Träger portal and shared with a school (#4692).
+  /^\/api\/(?:traeger-documents|traeger\/documents)\/[^/]+\/file$/,
 ];
 
 /** Like NextResponse.next, but strips any client-forged localize header. */
@@ -285,501 +277,205 @@ function secureRewrite(request: NextRequest, url: URL): NextResponse {
   );
 }
 
-// --- Operator subdomain handling (from development) ---
+// --- Portal hosts ---
 
-/** Paths that the operator subdomain serves (without /operator prefix) */
-const OPERATOR_PUBLIC_PATHS = [
-  "/login",
-  "/email-confirm",
-  "/announcements",
-  "/settings",
-  "/provisioning",
-  "/organizations",
-  "/schools",
-  "/accounts",
-  "/devices",
-  "/persons",
-  "/unregistered-tags",
-  "/billing",
-  "/operators",
-  "/caterers",
-  "/invite",
-];
+/** A portal on its own host. The host serves the portal's pages without the
+ * path namespace (`/login` → `/operator/login`) and only the BFF routes its
+ * pages call: the tenant session cookie is domain-scoped and reaches every
+ * portal host, so a tenant route must not run there. */
+interface PortalHostRules {
+  /** BFF routes the host serves: a string ending in "/" is a prefix, any
+   * other string an exact path. Every other /api/ path answers 404. The
+   * portal's own prefix also carries its client log route (`portalLogPath`). */
+  readonly api: readonly (string | RegExp)[];
+  /** Parent-facing: the request may render in the parent's language. */
+  readonly localized: boolean;
+  /** Serves the public /help pages. */
+  readonly help: boolean;
+  /** Retired pages answered with 308 to their new place (#5685). */
+  readonly movedPaths?: ReadonlyArray<readonly [from: string, to: string]>;
+  /** An API namespace that runs on this host only; every other host answers
+   * 404, so it never runs beside another portal's cookies (ADR 0077). */
+  readonly exclusiveApi?: string;
+}
 
-function getHostname(request: NextRequest): string {
-  return (
-    request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? ""
+interface PortalHost extends PortalHostRules {
+  readonly hostname: string;
+  /** Path namespace of the portal's pages inside the App Router. */
+  readonly appPrefix: `/${string}`;
+  /** First segments of the pages under app/<portal>/ (generated). */
+  readonly pages: readonly string[];
+}
+
+const HOST_RULES: Record<HostedPortalKey, PortalHostRules> = {
+  operator: {
+    api: ["/api/operator/"],
+    localized: false,
+    help: true,
+  },
+  parent: {
+    api: [
+      "/api/parent/",
+      // Anonymous routes of the pages a link opens without a parent session:
+      // invitations, enrollment status and its uploads, holiday registration,
+      // contract signing, the demo entry and the school's login image.
+      "/api/public/",
+      "/api/tenant/resolve",
+      "/api/invitations/validate",
+      "/api/invitations/accept",
+      "/api/guardian-invitations/",
+      "/api/holiday-registrations/",
+      "/api/enrollment/requests/",
+      /^\/api\/enrollment\/[^/]+\/uploads$/,
+      "/api/demo/access/",
+    ],
+    localized: true,
+    help: true,
+  },
+  school: {
+    api: [
+      "/api/school/",
+      "/api/invitations/validate",
+      "/api/invitations/accept",
+    ],
+    localized: false,
+    help: true,
+  },
+  traeger: {
+    api: ["/api/traeger/"],
+    localized: false,
+    help: true,
+    // Bookmarks, help links and e-mails name these pages, also with /traeger.
+    movedPaths: [
+      ["/accounts", "/einstellungen/mitglieder"],
+      ["/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/briefkopf", "/einstellungen/briefkopf"],
+      ["/beitraege", "/einstellungen/abrechnung"],
+    ],
+  },
+  caterer: {
+    api: ["/api/caterer/"],
+    localized: false,
+    // The help has no caterer role and the portal links to no article.
+    help: false,
+    exclusiveApi: "/api/caterer",
+  },
+};
+
+const PORTAL_HOSTS: readonly PortalHost[] = HOSTED_PORTAL_KEYS.map((key) => {
+  const { appPrefix } = PORTAL_ROUTES[key];
+  const pages = (PORTAL_PAGES as Record<string, readonly string[]>)[
+    appPrefix.slice(1)
+  ];
+  // scripts/generate-portal-pages.mjs lists the same folders.
+  if (!pages) throw new Error(`No generated pages for app${appPrefix}`);
+  return { ...HOST_RULES[key], hostname: HOSTNAMES[key], appPrefix, pages };
+});
+
+function isUnder(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function servesApi(host: PortalHost, pathname: string): boolean {
+  return host.api.some((rule) => {
+    if (typeof rule !== "string") return rule.test(pathname);
+    return rule.endsWith("/") ? pathname.startsWith(rule) : pathname === rule;
+  });
+}
+
+/** Portal hosts serve only their own allow-list; this keeps an exclusive
+ * API off the tenant hosts and the bare domain too. */
+function isExclusivePortalApi(pathname: string): boolean {
+  return PORTAL_HOSTS.some(
+    (host) =>
+      host.exclusiveApi !== undefined && isUnder(pathname, host.exclusiveApi),
   );
 }
 
-function isOperatorHost(hostname: string): boolean {
-  return hostname === OPERATOR_HOSTNAME;
+function movedTarget(host: PortalHost, pathname: string): string | null {
+  if (!host.movedPaths) return null;
+  const page = (
+    isUnder(pathname, host.appPrefix)
+      ? pathname.slice(host.appPrefix.length)
+      : pathname
+  ).replace(/\/$/, "");
+  return host.movedPaths.find(([from]) => page === from)?.[1] ?? null;
 }
 
-function handleOperatorSubdomain(request: NextRequest): NextResponse {
+function notFound(): NextResponse {
+  return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+}
+
+function handlePortalHost(
+  request: NextRequest,
+  host: PortalHost,
+): NextResponse {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return secureNext(request);
+  if (host.help && isUnder(pathname, "/help")) return secureNext(request);
+  if (isUnder(pathname, "/monitoring")) return secureNext(request);
+  if (pathname.startsWith("/api/")) {
+    return servesApi(host, pathname) ? secureNext(request) : notFound();
   }
 
-  // Block tenant auth endpoints on the operator host. Tenant session cookies
-  // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
-  // would expose tenant session data on operator.moto-app.de.
-  if (pathname.startsWith("/api/auth/") || isCatererApiPath(pathname)) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
-
-  // Pass through: operator API routes, static assets, Sentry tunnel
-  // Note: favicon.ico, favicon.png, apple-touch-icon.png, manifests, sw.js
-  // (the Web Push service worker must be same-origin and redirect-free on
-  // every host), favicons/, icons/, and images/ are excluded from the proxy
-  // matcher entirely.
-  if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/monitoring")
-  ) {
-    return secureNext(request);
-  }
-
-  // Root → rewrite to /operator (which server-redirects to /operator/organizations)
+  const rewrite = host.localized ? rewriteLocalized : secureRewrite;
   if (pathname === "/") {
     const url = request.nextUrl.clone();
-    url.pathname = "/operator";
-    return secureRewrite(request, url);
+    url.pathname = host.appPrefix;
+    return rewrite(request, url);
   }
 
-  // Known operator paths → rewrite to /operator/* internally
-  if (
-    OPERATOR_PUBLIC_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`),
-    )
-  ) {
+  const moved = movedTarget(host, pathname);
+  if (moved) {
+    const url = new URL(request.url);
+    url.pathname = moved;
+    return withSecurityHeaders(NextResponse.redirect(url, 308));
+  }
+
+  if (host.pages.some((page) => isUnder(pathname, page))) {
     const url = request.nextUrl.clone();
-    url.pathname = `/operator${pathname}`;
-    return secureRewrite(request, url);
+    url.pathname = `${host.appPrefix}${pathname}`;
+    return rewrite(request, url);
   }
 
-  // Already prefixed with /operator → pass through (handles direct /operator/* access)
-  if (pathname.startsWith("/operator")) {
-    return secureNext(request);
+  if (isUnder(pathname, host.appPrefix)) {
+    return host.localized ? nextLocalized(request) : secureNext(request);
   }
 
-  // Everything else (e.g. /dashboard, /database/*) → redirect to root
+  // Anything else goes to the portal's start: a portal host serves no other
+  // portal's pages.
   const url = request.nextUrl.clone();
   url.pathname = "/";
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
-// --- Parents subdomain handling (cross-tenant guardian portal) ---
-
-/** Paths the parents subdomain serves (without /parents prefix).
- * Mirrors OPERATOR_PUBLIC_PATHS in shape. The proxy rewrites these to
- * /parents/* internally so the App Router routes them under app/parent/.
- *
- * The "/parents" prefix is the path namespace inside the App Router,
- * NOT the URL path the user sees. On the configured parents host the user
- * sees /login → internally rewritten to /parents/login.
- */
-const PARENTS_PUBLIC_PATHS = [
-  "/invite",
-  "/login",
-  "/reset-password",
-  "/email-confirm",
-  "/children",
-  "/messages",
-  "/news",
-  "/meal-plan",
-  // Dokumente des Trägers (#4671).
-  "/documents",
-  "/calendar",
-  "/settings",
-  "/anmeldung",
-  // Public holiday registration of a Träger (#4661), gated by its link.
-  "/ferienanmeldung",
-  "/accept-guardian-invite",
-  // Entry page of the public demo in the role parent (#3468).
-  "/demo",
-];
-
-function isParentsHost(hostname: string): boolean {
-  return hostname === PARENTS_HOSTNAME;
-}
-
-function hostnameWithoutPort(hostname: string): string {
-  const [host = ""] = hostname.split(":");
-  return host;
+/** A portal's pages on any other host go to the portal's own host. */
+function redirectToPortalHost(request: NextRequest): NextResponse | null {
+  const { pathname, protocol, search } = request.nextUrl;
+  const host = PORTAL_HOSTS.find((h) => isUnder(pathname, h.appPrefix));
+  if (!host) return null;
+  const page = pathname.slice(host.appPrefix.length) || "/";
+  return withSecurityHeaders(
+    NextResponse.redirect(`${protocol}//${host.hostname}${page}${search}`),
+  );
 }
 
 function isLegacyParentsHost(hostname: string): boolean {
-  if (!PARENTS_HOSTNAME) return false;
   const legacyParentsHost = `parents.${TENANT_DOMAIN}`;
   return (
-    hostnameWithoutPort(hostname) === legacyParentsHost &&
-    hostnameWithoutPort(PARENTS_HOSTNAME) !== legacyParentsHost
+    normalizeHostname(hostname) === legacyParentsHost &&
+    normalizeHostname(HOSTNAMES.parent) !== legacyParentsHost
   );
 }
 
 function redirectLegacyParentsHost(request: NextRequest): NextResponse {
-  if (!PARENTS_HOSTNAME) {
-    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
-  }
-  const url = new URL(`${originalProtocol(request)}://${PARENTS_HOSTNAME}`);
+  const url = new URL(`${originalProtocol(request)}://${HOSTNAMES.parent}`);
   url.pathname = request.nextUrl.pathname;
   url.search = request.nextUrl.search;
   return withSecurityHeaders(NextResponse.redirect(url, 302));
 }
 
-function handleParentsSubdomain(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
-
-  if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return secureNext(request);
-  }
-
-  // Block tenant + operator auth endpoints on the parents host. Tenant
-  // and operator session cookies are strictly host-only on their own
-  // subdomains, but we 404 here as defense-in-depth in case a misconfig
-  // ever leaked them.
-  if (
-    pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/operator/auth/") ||
-    isCatererApiPath(pathname)
-  ) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
-
-  // Pass through: parents API routes, static assets, Sentry tunnel.
-  if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/monitoring")
-  ) {
-    return secureNext(request);
-  }
-
-  // Root → /parents (which server-redirects to the dashboard).
-  if (pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/parents";
-    return rewriteLocalized(request, url);
-  }
-
-  // Known parents paths → rewrite to /parents/* internally.
-  if (
-    PARENTS_PUBLIC_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`),
-    )
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/parents${pathname}`;
-    return rewriteLocalized(request, url);
-  }
-
-  // Already prefixed with /parents → pass through (handles direct
-  // /parents/* access during dev).
-  if (pathname.startsWith("/parents")) {
-    return nextLocalized(request);
-  }
-
-  // Anything else → redirect to root. Keeps the parents host from
-  // leaking access to tenant or operator paths.
-  const url = request.nextUrl.clone();
-  url.pathname = "/";
-  return withSecurityHeaders(NextResponse.redirect(url));
-}
-
-// --- School subdomain handling ("moto schule" teacher portal, #2207) ---
-
-/** Paths the school subdomain serves (without /school prefix).
- * Mirrors PARENTS_PUBLIC_PATHS in shape: the proxy rewrites these to
- * /school/* internally so the App Router routes them under app/school/.
- * The Klassenansicht itself lives at the root ("/" → /school).
- */
-const SCHOOL_PUBLIC_PATHS = ["/login", "/invite", "/reset-password"];
-/** Angemeldete Portal-Bereiche neben der Klassenansicht an der Wurzel.
- * Gleiche Umschreibung wie die öffentlichen Pfade; die Anmeldung prüft
- * weiterhin der SchoolAuthGuard, nicht der Proxy. */
-const SCHOOL_PROTECTED_PATHS = [
-  "/aufsichten",
-  "/klasse",
-  "/nachrichten",
-  // Tagesinformationen der OGS-Leitung für Lehrkräfte (#2208).
-  "/tagesinformationen",
-  // Kalender der Lehrkraft mit Schulterminen (#4798).
-  "/kalender",
-  // Elternbriefe der Lehrkraft an ihre Klasse (#4800).
-  "/elternbriefe",
-  // Elternsprechtag der Lehrkraft für eine ihrer Klassen (#4801).
-  "/elternsprechtag",
-  // Fehlzeiten einer Klasse für Klassenbuch und Zeugnis (#4793).
-  "/fehlzeiten",
-  "/einstellungen",
-];
-const SCHOOL_INVITATION_API_PATHS = [
-  "/api/invitations/validate",
-  "/api/invitations/accept",
-];
-
-function isSchoolHost(hostname: string): boolean {
-  return hostname === SCHOOL_HOSTNAME;
-}
-
-function handleSchoolSubdomain(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
-
-  if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return secureNext(request);
-  }
-
-  // Block the other portals' auth endpoints on the school host. Their
-  // session cookies are host-only (tenant: domain-scoped), so this is
-  // defense-in-depth against a misconfig ever leaking them here.
-  if (
-    pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/operator/auth/") ||
-    pathname.startsWith("/api/parent/auth/")
-  ) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
-
-  // Only the school portal's BFF routes may run on this host. In particular,
-  // do not pass tenant API routes through: tenant session cookies are
-  // domain-scoped and would otherwise be sent to this subdomain as well.
-  if (
-    pathname.startsWith("/api/school/") ||
-    SCHOOL_INVITATION_API_PATHS.includes(pathname) ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/monitoring")
-  ) {
-    return secureNext(request);
-  }
-
-  if (pathname.startsWith("/api/")) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
-
-  // Root → /school (the Klassenansicht). The staff/school surfaces are
-  // German-only, so no localized rewrite here.
-  if (pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/school";
-    return secureRewrite(request, url);
-  }
-
-  // Known school paths → rewrite to /school/* internally.
-  if (
-    [...SCHOOL_PUBLIC_PATHS, ...SCHOOL_PROTECTED_PATHS].some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`),
-    )
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/school${pathname}`;
-    return secureRewrite(request, url);
-  }
-
-  // Already prefixed with /school → pass through (direct /school/* access
-  // during dev).
-  if (pathname === "/school" || pathname.startsWith("/school/")) {
-    return secureNext(request);
-  }
-
-  // Anything else → redirect to root. Keeps the school host from leaking
-  // access to tenant, operator, or parents paths.
-  const url = request.nextUrl.clone();
-  url.pathname = "/";
-  return withSecurityHeaders(NextResponse.redirect(url));
-}
-
-const TRAEGER_HOSTNAME = process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME;
-if (!TRAEGER_HOSTNAME) {
-  throw new Error(
-    "NEXT_PUBLIC_TRAEGER_HOSTNAME is not set. " +
-      "Add it to your .env.local or docker-compose environment.",
-  );
-}
-
-// --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
-
-/** Paths the Träger subdomain serves (without /traeger prefix): the login,
- * the reset link (#5149), the holiday periods (#4659), the invitation link,
- * which opens /invite (#4650), the settings area (#4652, #5685), the billing
- * runs (#4668), the view of one school (#5686) and the dashboard over all
- * schools at /uebersicht (#4674). The school list itself lives at the root ("/" →
- * /traeger). The client guard sends a visitor without a session to the
- * login. */
-const TRAEGER_PUBLIC_PATHS = [
-  "/login",
-  "/reset-password",
-  "/ferien",
-  "/invite",
-  "/einstellungen",
-  "/abrechnung",
-  "/schulen",
-  "/uebersicht",
-];
-
-/** Pages that moved into the settings area (#5685). Bookmarks, help links and
- * links in e-mails keep working, also in the /traeger-prefixed spelling. */
-const TRAEGER_MOVED_PATHS: ReadonlyArray<readonly [from: string, to: string]> =
-  [
-    ["/accounts", "/einstellungen/mitglieder"],
-    ["/access-log", "/einstellungen/zugriffsprotokoll"],
-    ["/briefkopf", "/einstellungen/briefkopf"],
-    ["/beitraege", "/einstellungen/abrechnung"],
-  ];
-
-function traegerMovedTarget(pathname: string): string | null {
-  const page = pathname.replace(/^\/traeger(?=\/|$)/, "").replace(/\/$/, "");
-  const moved = TRAEGER_MOVED_PATHS.find(([from]) => page === from);
-  return moved ? moved[1] : null;
-}
-
-function isTraegerHost(hostname: string): boolean {
-  return hostname === TRAEGER_HOSTNAME;
-}
-
-function handleTraegerSubdomain(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
-
-  if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return secureNext(request);
-  }
-
-  // Only the Träger portal's BFF routes may run on this host. The tenant
-  // session cookie is domain-scoped and would otherwise reach tenant API
-  // routes here; the other portals' auth endpoints are blocked as
-  // defense-in-depth against a misconfigured cookie.
-  if (
-    pathname.startsWith("/api/traeger/") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/monitoring")
-  ) {
-    return secureNext(request);
-  }
-
-  if (pathname.startsWith("/api/")) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
-
-  // Root → /traeger (the school list). German-only like the staff portals.
-  if (pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/traeger";
-    return secureRewrite(request, url);
-  }
-
-  const movedTarget = traegerMovedTarget(pathname);
-  if (movedTarget) {
-    const url = new URL(request.url);
-    url.pathname = movedTarget;
-    return withSecurityHeaders(NextResponse.redirect(url, 308));
-  }
-
-  if (
-    TRAEGER_PUBLIC_PATHS.some(
-      (p) => pathname === p || pathname.startsWith(`${p}/`),
-    )
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/traeger${pathname}`;
-    return secureRewrite(request, url);
-  }
-
-  // Already prefixed with /traeger → pass through (direct access in dev).
-  if (pathname === "/traeger" || pathname.startsWith("/traeger/")) {
-    return secureNext(request);
-  }
-
-  // Anything else → redirect to root. Keeps the Träger host from serving
-  // tenant, operator, parents, or school pages.
-  const url = request.nextUrl.clone();
-  url.pathname = "/";
-  return withSecurityHeaders(NextResponse.redirect(url));
-}
-
-// --- Caterer subdomain handling (caterer portal, ADR 0077) ---
-
-/** Paths the caterer host serves (without /caterer prefix); the overview
- * itself lives at the root ("/" → /caterer). */
-const CATERER_PATHS = ["/login", "/reset-password", "/einladung", "/konto"];
-
-/** The caterer portal's BFF routes. Only the caterer host serves them; every
- * other host answers 404, so a caterer route never runs beside another
- * portal's cookies (ADR 0077). */
-function isCatererApiPath(pathname: string): boolean {
-  return pathname === "/api/caterer" || pathname.startsWith("/api/caterer/");
-}
-
-function isCatererHost(hostname: string): boolean {
-  return hostname === CATERER_HOSTNAME;
-}
-
-function handleCatererSubdomain(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
-
-  // Only the caterer portal's BFF routes run on this host: every other
-  // portal's session and API stay out (defense-in-depth on top of the
-  // host-only cookies).
-  if (
-    pathname.startsWith("/api/caterer/") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/monitoring")
-  ) {
-    return secureNext(request);
-  }
-  if (pathname.startsWith("/api/")) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
-
-  // The caterer portal is German-only, like the school portal.
-  if (pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/caterer";
-    return secureRewrite(request, url);
-  }
-  if (
-    CATERER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/caterer${pathname}`;
-    return secureRewrite(request, url);
-  }
-  if (pathname === "/caterer" || pathname.startsWith("/caterer/")) {
-    return secureNext(request);
-  }
-
-  // Anything else → the overview: the caterer host leaks no other portal.
-  const url = request.nextUrl.clone();
-  url.pathname = "/";
-  return withSecurityHeaders(NextResponse.redirect(url));
-}
-
-// --- Tenant subdomain handling (from multi-tenancy) ---
-
-// Alias for use in subdomain extraction below.
-// Single source of truth: ~/lib/reserved-slugs.ts
-const RESERVED_SUBDOMAINS = RESERVED_SLUGS;
-
-function extractTenantSlug(host: string): string | null {
-  // Strip port (e.g., "school-a.localhost:3000" -> "school-a.localhost")
-  const hostname = host.split(":")[0] ?? "";
-
-  // Check if hostname has a subdomain under TENANT_DOMAIN
-  if (hostname !== TENANT_DOMAIN && hostname.endsWith(`.${TENANT_DOMAIN}`)) {
-    const slug = hostname.slice(0, -(TENANT_DOMAIN.length + 1));
-
-    // Block reserved subdomains from tenant resolution
-    if (RESERVED_SUBDOMAINS.has(slug)) {
-      return null;
-    }
-
-    return slug;
-  }
-
-  return null;
-}
+// --- Tenant hosts ---
 
 /** Public parent-enrollment surface. German path since #2829; the English
  * `/enroll` lives on only as the legacy redirect below, because it is
@@ -827,7 +523,7 @@ function legacyEnrollmentTarget(pathname: string): string | null {
   const match = /^\/([^/]+)(\/enroll(?:\/.*)?)$/.exec(pathname);
   const slug = match?.[1];
   const tail = match?.[2];
-  if (!slug || !tail || RESERVED_SUBDOMAINS.has(slug)) return null;
+  if (!slug || !tail || RESERVED_SLUGS.has(slug)) return null;
 
   return withEnrollmentPath(
     `/${slug}`,
@@ -850,7 +546,7 @@ function getBareTenantPrefixedPath(pathname: string): string | null {
   if (!match) return null;
 
   const slug = match[1];
-  if (!slug || RESERVED_SUBDOMAINS.has(slug)) return null;
+  if (!slug || RESERVED_SLUGS.has(slug)) return null;
 
   return match[2] ?? "/";
 }
@@ -1055,137 +751,53 @@ export function proxy(request: NextRequest): NextResponse {
 function routeRequest(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // /_next/*: Next.js internals; skip entirely (static assets).
   if (pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
 
-  const hostname = getHostname(request);
+  const hostname = originalHost(request);
 
-  // 0. Legacy English enrollment links (#2829). Parent letters and e-mails
-  // sent before the rename still point at /enroll; they must keep working on
-  // every host that serves the enrollment surface. Runs before host routing
-  // so the parents host, tenant subdomains and path mode share one rule.
+  // Parent letters and e-mails sent before the rename (#2829) still point at
+  // /enroll, on the parents host, tenant subdomains and in path mode alike.
   const legacyEnrollment = legacyEnrollmentTarget(pathname);
   if (legacyEnrollment) {
     return redirectLegacyEnrollment(request, legacyEnrollment);
   }
 
-  // 1a. Operator subdomain gets its own routing
-  if (isOperatorHost(hostname)) {
-    return handleOperatorSubdomain(request);
-  }
-
-  // 1b. Legacy deployed parents host redirects to the configured canonical
-  // parents portal host. Local dev stays on parents.localhost:3000 because it
-  // is already the canonical PARENTS_HOSTNAME there.
+  // Local dev already uses parents.localhost as the canonical parents host.
   if (isLegacyParentsHost(hostname)) {
     return redirectLegacyParentsHost(request);
   }
 
-  // 1c. Parents subdomain gets its own routing (mirrors operator)
-  if (isParentsHost(hostname)) {
-    return handleParentsSubdomain(request);
-  }
-
-  // 1d. School subdomain ("moto schule") gets its own routing (#2207)
-  if (isSchoolHost(hostname)) {
-    return handleSchoolSubdomain(request);
-  }
-
-  // 1e. Träger subdomain ("moto träger") gets its own routing (#4649)
-  if (isTraegerHost(hostname)) {
-    return handleTraegerSubdomain(request);
-  }
-
-  // 1e. Caterer subdomain gets its own routing (ADR 0077)
-  if (isCatererHost(hostname)) {
-    return handleCatererSubdomain(request);
-  }
+  const portalHost = PORTAL_HOSTS.find((host) => host.hostname === hostname);
+  if (portalHost) return handlePortalHost(request, portalHost);
 
   // Object links from panes that existed before #3115 need the whole
   // collection query nested in `from`, which static next.config redirects
-  // cannot express. Handle both tenant-subdomain and path-routing URLs here.
+  // cannot express.
   const legacySelection = redirectLegacySelection(request);
   if (legacySelection) return legacySelection;
 
-  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security
-  // headers. The caterer API runs on the caterer host only (ADR 0077).
-  if (isCatererApiPath(pathname)) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
-  }
+  if (isExclusivePortalApi(pathname)) return notFound();
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return secureNext(request);
   }
 
-  // Public documentation must stay host-agnostic. Without this exception,
-  // tenant subdomains rewrite /help to /{tenant}/help, where no
-  // App Router route exists.
-  if (pathname === "/help" || pathname.startsWith("/help/")) {
+  // Without this, a tenant subdomain would rewrite /help to /{tenant}/help,
+  // where no route exists.
+  if (isUnder(pathname, "/help")) {
     return secureNext(request);
   }
 
-  // 3a. Operator auth guard on non-operator hosts:
-  //    Protect all /operator/* routes except /operator/login by requiring the
-  //    operator session cookie. Redirect /operator/* to operator subdomain if possible.
-  if (pathname.startsWith("/operator")) {
-    const cleanPath = pathname.replace(/^\/operator/, "") || "/";
-    const protocol = request.nextUrl.protocol;
-    const search = request.nextUrl.search;
-    const redirectUrl = `${protocol}//${OPERATOR_HOSTNAME}${cleanPath}${search}`;
-    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
-  }
+  const portalRedirect = redirectToPortalHost(request);
+  if (portalRedirect) return portalRedirect;
 
-  // 3b. Parents auth guard on non-parents hosts: same pattern as
-  // operator. /parents/* hit on a tenant subdomain or the bare domain
-  // gets redirected to the configured parents host. Defense-in-depth so
-  // a stray link or bookmark can't accidentally serve parent UI from
-  // a tenant context.
-  if (pathname.startsWith("/parents")) {
-    const cleanPath = pathname.replace(/^\/parents/, "") || "/";
-    const protocol = request.nextUrl.protocol;
-    const search = request.nextUrl.search;
-    const redirectUrl = `${protocol}//${PARENTS_HOSTNAME}${cleanPath}${search}`;
-    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
-  }
-
-  // 3c. School guard on non-school hosts: /school/* hit on a tenant
-  // subdomain or the bare domain gets redirected to the configured school
-  // host. Exact-segment match — a tenant slug like "school-a" must NOT be
-  // hijacked here ("/school-a/dashboard" is a legitimate tenant path).
-  if (pathname === "/school" || pathname.startsWith("/school/")) {
-    const cleanPath = pathname.replace(/^\/school/, "") || "/";
-    const protocol = request.nextUrl.protocol;
-    const search = request.nextUrl.search;
-    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}${cleanPath}${search}`;
-    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
-  }
-
-  // 3d. Träger guard on non-Träger hosts: /traeger/* hit on a tenant
-  // subdomain or the bare domain goes to the configured Träger host.
-  // Exact-segment match, like the school guard above.
-  if (pathname === "/traeger" || pathname.startsWith("/traeger/")) {
-    const cleanPath = pathname.replace(/^\/traeger/, "") || "/";
-    const protocol = request.nextUrl.protocol;
-    const search = request.nextUrl.search;
-    const redirectUrl = `${protocol}//${TRAEGER_HOSTNAME}${cleanPath}${search}`;
-    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
-  }
-
-  // 3d. Caterer guard on non-caterer hosts: /caterer/* elsewhere goes to
-  // the caterer host. Exact-segment match, as for the school guard.
-  if (pathname === "/caterer" || pathname.startsWith("/caterer/")) {
-    const cleanPath = pathname.replace(/^\/caterer/, "") || "/";
-    const redirectUrl = `${request.nextUrl.protocol}//${CATERER_HOSTNAME}${cleanPath}${request.nextUrl.search}`;
-    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
-  }
-
-  // 3e. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
+  // Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
   // Until the cutover the view lived at {slug}.{TENANT_DOMAIN}/klassen; the
   // page is gone and a Lehrkraft-only account can no longer log in here at
   // all. A 404 would look like the school lost its access, so send the
   // bookmark to moto schule instead. Remove once the schools have settled in.
-  const tenantSlug = extractTenantSlug(hostname);
+  const tenantSlug = tenantSlugFromHost(hostname);
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const bareTenantPath = getBareTenantPrefixedPath(pathname);
   const bareTenantSlug =
@@ -1207,16 +819,14 @@ function routeRequest(request: NextRequest): NextResponse {
     const search = selectedTenantSlug
       ? `?from=staff&tenant=${encodeURIComponent(selectedTenantSlug)}`
       : "?from=staff";
-    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/login${search}`;
+    const redirectUrl = `${protocol}//${HOSTNAMES.school}/login${search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
   const retiredRoute = redirectRetiredTenantRoute(request, tenantSlug);
   if (retiredRoute) return retiredRoute;
 
-  // 4. Tenant subdomain routing
-  // No subdomain (bare domain): pass through without rewrite.
-  // The root app/page.tsx can handle tenant selection or redirect.
+  // The bare domain is path mode: the root page picks the school.
   if (!tenantSlug) {
     const appPath = getBareTenantPrefixedPath(pathname);
     return appPath && isEnrollmentPath(appPath)
@@ -1232,8 +842,8 @@ function routeRequest(request: NextRequest): NextResponse {
   const normalizedAppPath = appPath.startsWith("/") ? appPath : `/${appPath}`;
   const isEnroll = isEnrollmentPath(normalizedAppPath);
 
-  // Already has tenant prefix. useTenantRouter().push() adds the slug explicitly,
-  // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).
+  // useTenantRouter().push() adds the slug itself; a second prefix would
+  // make /school-a/school-a/dashboard.
   if (pathname.startsWith(`/${tenantSlug}/`) || pathname === `/${tenantSlug}`) {
     return isEnroll ? nextLocalized(request) : secureNext(request);
   }
@@ -1244,8 +854,6 @@ function routeRequest(request: NextRequest): NextResponse {
     return secureRewrite(request, url);
   }
 
-  // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard
-  // This lets the [tenant] dynamic segment in the App Router capture the slug.
   const url = request.nextUrl.clone();
   url.pathname = `/${tenantSlug}${pathname}`;
   return isEnroll

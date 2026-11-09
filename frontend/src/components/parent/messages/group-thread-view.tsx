@@ -1,6 +1,7 @@
 "use client";
 
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import {
   useCallback,
@@ -9,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import {
@@ -39,6 +40,8 @@ import {
   parentReadersLine,
 } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 const logger = createLogger({ component: "ParentGroupThreadView" });
 
@@ -62,10 +65,14 @@ function childName(child: GroupThreadChild): string {
 export function ParentGroupThreadView({
   groupThreadId,
 }: Readonly<{ groupThreadId: string }>) {
-  const t = useTranslations("parentGroupThreads");
-  const tm = useTranslations("parentMessages");
-  const locale = useLocale();
   const [thread, setThread] = useState<GroupThreadData | null>(null);
+  // Eine Gruppennachricht kommt von einer Schule: ihre Texte nennen die
+  // Betreuung so, wie diese Schule sie nennt (#6082).
+  const { termOfSchool } = useParentCareTerms();
+  const threadTerm = termOfSchool(thread?.school_name);
+  const t = useCareTermTranslations("parentGroupThreads", threadTerm);
+  const tm = useCareTermTranslations("parentMessages", threadTerm);
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   // Children of the thread the guardian may write for (notes.write).
   const [writable, setWritable] = useState<GroupThreadChild[] | null>(null);
@@ -202,14 +209,16 @@ export function ParentGroupThreadView({
 
   if (!thread) {
     return (
-      <ParentPage>
-        <ParentPageHeader
-          title={tm("title")}
-          backHref={parentPath("/parents/messages")}
-          backLabel={tm("back")}
-        />
-        <LoadErrorAlert error={loadError} />
-      </ParentPage>
+      <ParentPage
+        header={
+          <ParentPageHeader
+            title={tm("title")}
+            backHref={parentPath("/parents/messages")}
+            backLabel={tm("back")}
+          />
+        }
+        error={loadError}
+      />
     );
   }
 
@@ -278,11 +287,11 @@ export function ParentGroupThreadView({
             {chatLink}
           </div>
         ) : writable === null ? (
-          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton shape="control" className="h-16 w-full" />
         ) : writable.length === 0 ? (
-          <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <InsetPanel as="p" padding="md" className="text-sm text-gray-600">
             {t("writingDisabled")}
-          </p>
+          </InsetPanel>
         ) : (
           <div className="space-y-3">
             {writable.length > 1 && (

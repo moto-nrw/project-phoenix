@@ -5,7 +5,7 @@
 // two properties:
 //
 //  1. Authenticated routes require a parent-scope JWT (scope="parent")
-//     enforced by sessiontoken.ParentMiddleware. Tenant + operator tokens are
+//     enforced by ParentScopeMiddleware. Tenant + operator tokens are
 //     hard-rejected with 401 — this is the symmetric guard to the
 //     tenant middleware's ScopeParent rejection.
 //  2. Public routes (just /auth/login for now) issue parent-scope
@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -29,11 +30,11 @@ import (
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
 	// Auth is the login runtime the composition root binds to Identity &
-	// Access (#3364); the zero value leaves the login route answering 500.
+	// Access (#3364); the zero value answers 503.
 	Auth LoginRuntime
-	// Resets is the reset runtime the composition root binds to Identity &
-	// Access (#3332); the zero value leaves the reset routes answering 500.
-	Resets          PasswordResetRuntime
+	// Resets are the reset routes the composition root binds to Identity &
+	// Access with the parent scope (#3332); the zero value answers 500.
+	Resets          PasswordResetRoutes
 	ParentService   PortalService
 	RequestSharing  parentService.RequestSharingService
 	CalendarService calendarService.ParentCalendar
@@ -56,11 +57,16 @@ type Resource struct {
 // ResourceConfig lists the parent-portal collaborators. The composition root
 // supplies all of them at construction; tests set only the ones their routes
 // reach.
+// PasswordResetRoutes are the shared reset routes the composition root binds
+// to Identity & Access with the parent scope, so the link reaches only
+// guardians and lands on the parents host.
+type PasswordResetRoutes = common.PasswordResetRoutes
+
 type ResourceConfig struct {
 	// Auth is the login runtime the composition root binds (#3364).
 	Auth LoginRuntime
-	// Resets is the reset runtime the composition root binds (#3332).
-	Resets   PasswordResetRuntime
+	// Resets are the reset routes the composition root binds (#3332).
+	Resets   PasswordResetRoutes
 	Parent   PortalService
 	Calendar calendarService.ParentCalendar
 	// Conferences books the Elternsprechtag (#4801).
@@ -129,12 +135,12 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 			r.Use(authRateLimiter)
 		}
 		r.Post("/login", rs.login)
-		r.Post("/password-reset", rs.initiatePasswordReset)
-		r.Post("/password-reset/confirm", rs.resetPassword)
+		r.Post("/password-reset", rs.Resets.ServeInitiate)
+		r.Post("/password-reset/confirm", rs.Resets.ServeConfirm)
 	})
 
 	// Authenticated parent routes — all require scope=parent.
-	// sessiontoken.ParentMiddleware rejects tenant + operator tokens.
+	// ParentScopeMiddleware rejects tenant + operator tokens.
 	r.Group(func(r chi.Router) {
 		configureSession(r)
 

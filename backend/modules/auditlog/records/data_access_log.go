@@ -41,6 +41,12 @@ const (
 	// "Anzeigen"-toggle (#1423). StudentID stays NULL; metadata carries
 	// staff_id.
 	ResourceTypeStaffFinancialReveal = "staff_financial_reveal"
+	// ResourceTypeGuardianEmailStop and ResourceTypeGuardianEmailLift record a
+	// person of the school stopping a guardian's mail, taking the stop back, or
+	// lifting the block on the address (#5934). StudentID stays NULL; metadata
+	// carries guardian_profile_id and action, never the address.
+	ResourceTypeGuardianEmailStop = "guardian_email_stop"
+	ResourceTypeGuardianEmailLift = "guardian_email_lift"
 	// ResourceTypeGuardianFinancialView records serving the MASKED bank
 	// details of one guardian (#2608). StudentID stays NULL; metadata carries
 	// guardian_profile_id.
@@ -157,6 +163,35 @@ const (
 	// and answers to health questions. StudentID is SET; RangeStart and
 	// RangeEnd span the weeks; metadata carries week_ids.
 	ResourceTypeHolidayStudentHealth = "holiday_student_health"
+	// ResourceTypeCareContractApplications records the Träger-Büro reading
+	// the accepted applications of a school to create care contracts
+	// (#4678, ADR 0153): child, guardian and booked offering. StudentID is
+	// NULL; metadata carries the view and the row count.
+	ResourceTypeCareContractApplications = "care_contract_applications"
+	// ResourceTypeCareContracts records the Träger-Büro reading care
+	// contracts whose place of care is the school (#4678, ADR 0088 section
+	// 7): the list, one contract or its PDF, with child, parents, booked
+	// services and fee. StudentID is NULL; metadata carries the view, the
+	// row count and the contract IDs. One row per school and read.
+	ResourceTypeCareContracts = "care_contracts"
+	// ResourceTypeCareTimeOverruns records the Träger-Büro reading the
+	// children of a school with overruns of their booked care time by name
+	// (#4683, ADR 0156). StudentID is NULL; RangeStart and RangeEnd span the
+	// window; metadata carries the view, the row count and the student IDs.
+	// One row per school and read.
+	ResourceTypeCareTimeOverruns = "care_time_overruns"
+	// ResourceTypeCareContractChanges records the Träger-Büro reading or
+	// deciding the change of the booked care the parents of a contract's
+	// child asked for (#5979): the requested modules and days. StudentID is
+	// NULL; metadata carries the view (read, approve, reject), the row count,
+	// the contract IDs and the student IDs. One row per read or decision.
+	ResourceTypeCareContractChanges = "care_contract_changes"
+	// ResourceTypeTraegerDocumentDownload records the Träger-Büro
+	// downloading one of its shared documents (#4692, ADR 0084 section 7):
+	// written at each school the document reaches through an active release,
+	// at every school of the Träger while it reaches none. StudentID is NULL;
+	// metadata carries the channel, organization_id and document_id.
+	ResourceTypeTraegerDocumentDownload = "traeger_document_download"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

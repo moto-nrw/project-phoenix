@@ -455,7 +455,16 @@ type lifecycleAdmin struct {
 	deactivated []int64
 }
 
-func (a *lifecycleAdmin) RemoveRoleFromAccount(_ context.Context, accountID, roleID int64) error {
+func (a *lifecycleAdmin) RemoveRolesFromAccount(ctx context.Context, accountID int64, roleIDs []int64) error {
+	for _, roleID := range roleIDs {
+		if err := a.removeRole(ctx, accountID, roleID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *lifecycleAdmin) removeRole(_ context.Context, accountID, roleID int64) error {
 	a.removed = append(a.removed, roleID)
 	for key, roles := range a.store.roles {
 		if key.accountID != accountID {
@@ -754,9 +763,12 @@ func (s *lifecycleInvitations) InsertGuardianInvitation(_ context.Context, invit
 	return s.add(invitation), nil
 }
 
-func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invitation domain.GuardianInvitation) error {
+func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error {
 	if s.updateErr != nil {
 		return s.updateErr
+	}
+	if stored, ok := s.rows[invitation.ID]; !ok || stored.AcceptedAt != nil || stored.ApprovalStatus != expectedApprovalStatus {
+		return domain.ErrGuardianInvitationNotFound
 	}
 	s.rows[invitation.ID] = invitation
 	return nil
@@ -842,6 +854,7 @@ func (e *lifecycleEnrollments) ClaimGuardianEnrollments(_ context.Context, accou
 }
 
 type lifecycleDelivery struct {
+	mailBlocks    map[string]string
 	emails        []domain.GuardianInvitation
 	accessEmails  []domain.GuardianProfile
 	welcomeEmails []domain.GuardianProfile
@@ -856,6 +869,9 @@ func (lifecycleDelivery) InvitationExpiry(context.Context) (time.Duration, error
 	return 48 * time.Hour, nil
 }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string { return "OGS Musterschule" }
+func (d *lifecycleDelivery) GuardianMailBlocks(context.Context, int64, []string) (map[string]string, error) {
+	return d.mailBlocks, nil
+}
 func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, error) {
 	d.emails = append(d.emails, invitation)
 	if d.invitationMailErr != nil {

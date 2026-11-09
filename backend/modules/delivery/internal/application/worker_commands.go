@@ -17,6 +17,9 @@ type WorkerRecords interface {
 	ports.RealtimeNotificationStore
 	targetedEmailStore
 	targetedPushStore
+	ports.EmailDeliveryEventStore
+	ports.EmailReconciliationStore
+	ports.EmailOutcomeStore
 	DeleteExpiredSystemEmails(context.Context, time.Time, int) (int, error)
 }
 
@@ -27,18 +30,27 @@ func (run AdminUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Cont
 	return run(ctx, fn)
 }
 
-// WorkerCommands owns the cross-school worker units of work. Row adapters
+// TenantUnitOfWork runs what names its school in that school's transaction, under
+// row-level security.
+type TenantUnitOfWork func(context.Context, int64, func(context.Context) error) error
+
+func (run TenantUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	return run(ctx, tenantID, fn)
+}
+
+// WorkerCommands owns the worker's units of work, most of them across schools. Row adapters
 // receive existing transactions and cannot start or commit one themselves.
 type WorkerCommands struct {
 	WorkerRecords
 	transactions AdminUnitOfWork
+	schools      TenantUnitOfWork
 }
 
-func NewWorkerCommands(records WorkerRecords, withinAdmin func(context.Context, func(context.Context) error) error) *WorkerCommands {
-	if records == nil || withinAdmin == nil {
-		panic("delivery: worker records and unit of work are required")
+func NewWorkerCommands(records WorkerRecords, withinAdmin func(context.Context, func(context.Context) error) error, withinTenant func(context.Context, int64, func(context.Context) error) error) *WorkerCommands {
+	if records == nil || withinAdmin == nil || withinTenant == nil {
+		panic("delivery: worker records and units of work are required")
 	}
-	return &WorkerCommands{WorkerRecords: records, transactions: AdminUnitOfWork(withinAdmin)}
+	return &WorkerCommands{WorkerRecords: records, transactions: AdminUnitOfWork(withinAdmin), schools: TenantUnitOfWork(withinTenant)}
 }
 
 func (c *WorkerCommands) ClaimPush(ctx context.Context, tenantID, id int64, now, expires time.Time) (result0 domain.Intent, result1 bool, err error) {
@@ -143,4 +155,56 @@ func (c *WorkerCommands) DeleteExpiredSystemEmails(ctx context.Context, before t
 		return err
 	})
 	return
+}
+
+func (c *WorkerCommands) RecordEmailDeliveryEvent(ctx context.Context, event domain.EmailDeliveryEvent) (result0 domain.EmailDeliveryEventResult, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.WorkerRecords.RecordEmailDeliveryEvent(txCtx, event)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		listed, stopped, err = c.WorkerRecords.SchoolEmailHolds(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) TraegerEmailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		listed, stopped, err = c.WorkerRecords.TraegerEmailHolds(txCtx, organizationID, address)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) OpenProviderMails(ctx context.Context, query domain.ProviderMailQuery) (result0 []domain.ProviderMail, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.WorkerRecords.OpenProviderMails(txCtx, query)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error {
+	return c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		return c.WorkerRecords.MarkEmailDeliveryChecked(txCtx, id, at)
+	})
+}
+
+func (c *WorkerCommands) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (result0 domain.EmailSuppressionReason, result1 bool, err error) {
+	err = c.schools.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		result0, result1, err = c.WorkerRecords.EmailSuppressionReason(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
+	return c.schools.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return c.WorkerRecords.DeleteEmailSuppression(txCtx, tenantID, address)
+	})
 }

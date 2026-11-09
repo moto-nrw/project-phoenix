@@ -43,12 +43,8 @@ func analyticsConsent(consent identityaccess.AccountAnalyticsConsent) func(conte
 }
 
 func analyticsRequestActor(r *http.Request) (analytics.Actor, bool) {
-	raw, ok := analytics.VerifiedSessionClaims(r)
+	claims, ok := sessiontoken.VerifiedAccessClaims(r.Context())
 	if !ok {
-		return analytics.Actor{}, false
-	}
-	var claims sessiontoken.AppClaims
-	if claims.ParseClaims(raw) != nil {
 		return analytics.Actor{}, false
 	}
 	return analyticsActor(claims)

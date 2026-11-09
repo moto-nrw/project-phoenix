@@ -1,4 +1,5 @@
 "use client";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -34,6 +35,8 @@ import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { feedbackConcept } from "~/lib/concepts/feedback";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
@@ -378,17 +381,16 @@ function StudentFeedbackHistoryPageContent() {
 
                       return (
                         <div key={dateString}>
-                          <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
-                            <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                              {dateObj.toLocaleDateString("de-DE", {
-                                timeZone: "Europe/Berlin",
-                                weekday: "long",
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </h3>
-                          </div>
+                          <ListGroupHeader
+                            className="border-b border-gray-50 sm:px-6"
+                            title={dateObj.toLocaleDateString("de-DE", {
+                              timeZone: "Europe/Berlin",
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          />
                           <div className="divide-y divide-gray-50 px-4 sm:px-6">
                             {feedbackForDate.map((feedback) => (
                               <div
@@ -396,15 +398,6 @@ function StudentFeedbackHistoryPageContent() {
                                 className="flex items-center gap-3 py-2.5"
                                 data-testid={`feedback-indicator-${feedback.feedback_type}`}
                               >
-                                <span
-                                  className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      feedbackToneColors[
-                                        feedback.feedback_type
-                                      ],
-                                  }}
-                                />
                                 <span className="text-sm text-gray-900">
                                   {feedbackTypeLabels[feedback.feedback_type]}
                                 </span>
@@ -412,9 +405,11 @@ function StudentFeedbackHistoryPageContent() {
                                   {formatTime(feedback.timestamp)}
                                 </span>
                                 {feedback.is_mensa_feedback && (
-                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                    Mensa
-                                  </span>
+                                  <StatusBadge
+                                    label="Mensa"
+                                    tone="gray"
+                                    compact
+                                  />
                                 )}
                               </div>
                             ))}
@@ -461,38 +456,33 @@ function StudentFeedbackHistoryPageContent() {
             </div>
 
             {/* Inline stats */}
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: feedbackToneColors.positive }}
-                />
-                <span className="font-medium text-gray-900">
-                  {positiveFeedbackCount}
-                </span>
-                <span className="text-gray-500">Positiv</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: feedbackToneColors.neutral }}
-                />
-                <span className="font-medium text-gray-900">
-                  {neutralFeedbackCount}
-                </span>
-                <span className="text-gray-500">Neutral</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: feedbackToneColors.negative }}
-                />
-                <span className="font-medium text-gray-900">
-                  {negativeFeedbackCount}
-                </span>
-                <span className="text-gray-500">Negativ</span>
-              </span>
-            </div>
+            <PlanLegend
+              size="md"
+              className="mt-3"
+              entries={[
+                {
+                  key: "positive",
+                  label: "Positiv",
+                  value: positiveFeedbackCount,
+                  color: feedbackToneColors.positive,
+                  variant: "dot",
+                },
+                {
+                  key: "neutral",
+                  label: "Neutral",
+                  value: neutralFeedbackCount,
+                  color: feedbackToneColors.neutral,
+                  variant: "dot",
+                },
+                {
+                  key: "negative",
+                  label: "Negativ",
+                  value: negativeFeedbackCount,
+                  color: feedbackToneColors.negative,
+                  variant: "dot",
+                },
+              ]}
+            />
 
             {/* Stacked bar chart */}
             {chartData.length > 1 && (

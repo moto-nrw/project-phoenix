@@ -52,6 +52,10 @@ type StatusResponse struct {
 	// Signature describes the signature of the current version, without
 	// the image; the proof PDF carries it.
 	Signature *RequestSignatureResponse `json:"signature,omitempty"`
+	// CareFacilityTerm is the school's term for its care, filled into the
+	// page's fixed texts (#6042). The token page runs on the parents host
+	// without a school context, so it travels with the status.
+	CareFacilityTerm string `json:"care_facility_term"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -86,6 +90,7 @@ type EditBootstrapResponse struct {
 	CollectGradeLevel         bool                      `json:"collect_grade_level"`
 	CareOfferingsEnabled      bool                      `json:"care_offerings_enabled"`
 	GradeLevelMax             int                       `json:"grade_level_max"`
+	CareFacilityTerm          string                    `json:"care_facility_term"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -101,8 +106,8 @@ type EditDraftResponse struct {
 	GuardianLastName    string                      `json:"guardian_last_name"`
 	GuardianEmail       string                      `json:"guardian_email"`
 	GuardianPhone       *string                     `json:"guardian_phone,omitempty"`
-	ConsentFlags        map[string]any              `json:"consent_flags"`
-	CustomData          map[string]any              `json:"custom_data"`
+	ConsentFlags        capability.FormValues       `json:"consent_flags"`
+	CustomData          capability.FormValues       `json:"custom_data"`
 	AdditionalGuardians []EditDraftGuardianResponse `json:"additional_guardians,omitempty"`
 	Children            []EditDraftChildResponse    `json:"children"`
 }
@@ -121,7 +126,7 @@ type EditDraftChildResponse struct {
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
-	CustomData        map[string]any                 `json:"custom_data"`
+	CustomData        capability.FormValues          `json:"custom_data"`
 	OfferingIDs       []string                       `json:"offering_ids"`
 	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
 	// Locked marks a child that is already taken over into care: the change
@@ -197,10 +202,11 @@ func (rs *Resource) loadPublicStatusView(ctx context.Context, token string, proo
 
 // statusView is everything the status page and its proof show.
 type statusView struct {
-	req       *Request
-	children  []*RequestChild
+	req       *capability.Request
+	children  []*capability.RequestChild
 	guardians []*capability.RequestGuardian
 	editMode  string
+	careTerm  string
 	proof     *SignatureProof
 	signature *StatusSignature
 	// signatureUnavailable means the optional status read failed. The public
@@ -216,9 +222,11 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 	if lookupErr != nil {
 		return view, lookupErr, nil
 	}
-	if view.editMode, serverErr = rs.RequestService.EditModeForStatus(ctx, view.req, view.children); serverErr != nil {
-		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
+	page, serverErr := rs.RequestService.StatusPage(ctx, view.req, view.children)
+	if serverErr != nil {
+		return view, nil, fmt.Errorf("status: compute status page: %w", serverErr)
 	}
+	view.editMode, view.careTerm = page.EditMode, page.CareFacilityTerm
 	rs.loadStatusGuardians(ctx, token, &view)
 	return view, nil, nil
 }
@@ -273,6 +281,7 @@ func (rs *Resource) loadStatusSignatureProof(ctx context.Context, token string, 
 func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token string, view statusView) {
 	req := view.req
 	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
+	resp.CareFacilityTerm = view.careTerm
 	if view.signatureUnavailable {
 		resp.SignatureRequired = true
 	} else if view.signature != nil {
@@ -287,7 +296,7 @@ func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token 
 
 // newStatusResponse maps a request to the public status payload and reports
 // whether any child is taken over into care.
-func newStatusResponse(req *Request, editMode string, children []*RequestChild, guardians []*capability.RequestGuardian) (StatusResponse, bool) {
+func newStatusResponse(req *capability.Request, editMode string, children []*capability.RequestChild, guardians []*capability.RequestGuardian) (StatusResponse, bool) {
 	resp := StatusResponse{
 		RequestID:         strconv.FormatInt(req.ID, 10),
 		GuardianFirstName: req.GuardianFirstName,
@@ -382,6 +391,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		CollectGradeLevel:         draft.CollectGradeLevel,
 		CareOfferingsEnabled:      draft.CareOfferingsEnabled,
 		GradeLevelMax:             draft.GradeLevelMax,
+		CareFacilityTerm:          draft.CareFacilityTerm,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,
@@ -446,7 +456,7 @@ func toEditDraftChildResponses(draft *EditDraft) []EditDraftChildResponse {
 	return responses
 }
 
-func toEditDraftChildResponse(child *RequestChild, offeringLinks []*RequestChildOffering) EditDraftChildResponse {
+func toEditDraftChildResponse(child *capability.RequestChild, offeringLinks []*RequestChildOffering) EditDraftChildResponse {
 	response := EditDraftChildResponse{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -516,8 +526,8 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		GuardianFirstName: patchReq.GuardianFirstName,
 		GuardianLastName:  patchReq.GuardianLastName,
 		GuardianPhone:     patchReq.GuardianPhone,
-		ConsentFlags:      patchReq.ConsentFlags,
-		CustomData:        patchReq.CustomData,
+		ConsentFlags:      patchFormValues(patchReq.ConsentFlags),
+		CustomData:        patchFormValues(patchReq.CustomData),
 	}
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
 		return rs.RequestService.Edit(adminCtx, token, patch)

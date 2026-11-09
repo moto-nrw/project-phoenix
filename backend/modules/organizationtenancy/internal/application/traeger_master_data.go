@@ -48,19 +48,30 @@ func (m *TraegerMasterData) Profile(ctx context.Context, organizationID, account
 	if organizationID <= 0 {
 		return organizationtenancy.TraegerProfile{}, errTraegerRequired
 	}
-	contact, logo, err := m.store.FindProfile(ctx, organizationID)
+	profile, err := m.store.FindMasterData(ctx, organizationID)
 	if err != nil {
 		return organizationtenancy.TraegerProfile{}, err
 	}
-	accounts, err := m.store.ListBankAccounts(ctx, organizationID)
-	if err != nil {
-		return organizationtenancy.TraegerProfile{}, err
+	// The read log counts the bank accounts of the same snapshot the
+	// response shows (#5571).
+	read, _ := json.Marshal(map[string]int{"bank_accounts": len(profile.BankAccounts)})
+	if err := m.store.AppendAudit(ctx, domain.TraegerMasterDataAuditEntry{
+		OrganizationID: organizationID, Subject: domain.TraegerAuditSubjectMasterData,
+		Action: domain.TraegerAuditActionRead, NewValue: read, ActorAccountID: accountID,
+	}); err != nil {
+		return organizationtenancy.TraegerProfile{}, fmt.Errorf("organization tenancy: log Träger master data %s %s: %w",
+			domain.TraegerAuditSubjectMasterData, domain.TraegerAuditActionRead, err)
 	}
-	read, _ := json.Marshal(map[string]int{"bank_accounts": len(accounts)})
-	if err := m.audit(ctx, organizationID, accountID, domain.TraegerAuditSubjectMasterData, 0, domain.TraegerAuditActionRead, nil, read); err != nil {
-		return organizationtenancy.TraegerProfile{}, err
+	return profile, nil
+}
+
+// DocumentContact reads the contact person and the withdrawal contact a
+// document prints, without a log: no person reads them (#6200).
+func (m *TraegerMasterData) DocumentContact(ctx context.Context, organizationID int64) (organizationtenancy.TraegerDocumentContact, error) {
+	if organizationID <= 0 {
+		return organizationtenancy.TraegerDocumentContact{}, errTraegerRequired
 	}
-	return organizationtenancy.TraegerProfile{Contact: contact, Logo: logo, BankAccounts: accounts}, nil
+	return m.store.FindDocumentContact(ctx, organizationID)
 }
 
 // LogoImage reads the stored logo.
@@ -87,10 +98,11 @@ func (m *TraegerMasterData) ReplaceLogo(ctx context.Context, organizationID, acc
 	if !ok {
 		return organizationtenancy.TraegerLogo{}, organizationtenancy.ErrTraegerLogoInvalid
 	}
-	_, old, err := m.store.LockProfile(ctx, organizationID, true)
+	locked, err := m.store.LockProfile(ctx, organizationID, true)
 	if err != nil {
 		return organizationtenancy.TraegerLogo{}, err
 	}
+	old := locked.Logo
 	logo, err := m.store.SaveLogo(ctx, organizationID, accountID, domain.TraegerLogoWrite{
 		ContentType: checked.ContentType, Data: checked.Data, Width: checked.Width, Height: checked.Height,
 	})
@@ -108,10 +120,11 @@ func (m *TraegerMasterData) RemoveLogo(ctx context.Context, organizationID, acco
 	if organizationID <= 0 {
 		return errTraegerRequired
 	}
-	_, old, err := m.store.LockProfile(ctx, organizationID, false)
+	locked, err := m.store.LockProfile(ctx, organizationID, false)
 	if err != nil {
 		return err
 	}
+	old := locked.Logo
 	if old == nil {
 		return organizationtenancy.ErrTraegerLogoNotFound
 	}
@@ -132,15 +145,41 @@ func (m *TraegerMasterData) UpdateContact(ctx context.Context, organizationID, a
 	if err := validateContact(contact); err != nil {
 		return organizationtenancy.TraegerContact{}, err
 	}
-	old, _, err := m.store.LockProfile(ctx, organizationID, true)
+	locked, err := m.store.LockProfile(ctx, organizationID, true)
 	if err != nil {
 		return organizationtenancy.TraegerContact{}, err
 	}
 	if err := m.store.SaveContact(ctx, organizationID, accountID, contact); err != nil {
 		return organizationtenancy.TraegerContact{}, err
 	}
-	if err := m.audit(ctx, organizationID, accountID, domain.TraegerAuditSubjectContact, 0, domain.TraegerAuditActionSet, mustJSON(old), mustJSON(contact)); err != nil {
+	if err := m.audit(ctx, organizationID, accountID, domain.TraegerAuditSubjectContact, 0, domain.TraegerAuditActionSet, mustJSON(locked.Contact), mustJSON(contact)); err != nil {
 		return organizationtenancy.TraegerContact{}, err
+	}
+	return contact, nil
+}
+
+// UpdateWithdrawalContact stores the phone number and e-mail address the
+// withdrawal notice names (#6200); empty fields take the contact person's.
+func (m *TraegerMasterData) UpdateWithdrawalContact(ctx context.Context, organizationID, accountID int64, contact organizationtenancy.TraegerWithdrawalContact) (organizationtenancy.TraegerWithdrawalContact, error) {
+	if organizationID <= 0 {
+		return organizationtenancy.TraegerWithdrawalContact{}, errTraegerRequired
+	}
+	contact = organizationtenancy.TraegerWithdrawalContact{
+		Phone: strings.TrimSpace(contact.Phone), Email: strings.ToLower(strings.TrimSpace(contact.Email)),
+	}
+	if err := validateContact(organizationtenancy.TraegerContact{Phone: contact.Phone, Email: contact.Email}); err != nil {
+		return organizationtenancy.TraegerWithdrawalContact{}, err
+	}
+	locked, err := m.store.LockProfile(ctx, organizationID, true)
+	if err != nil {
+		return organizationtenancy.TraegerWithdrawalContact{}, err
+	}
+	if err := m.store.SaveWithdrawalContact(ctx, organizationID, accountID, contact); err != nil {
+		return organizationtenancy.TraegerWithdrawalContact{}, err
+	}
+	if err := m.audit(ctx, organizationID, accountID, domain.TraegerAuditSubjectWithdrawal, 0, domain.TraegerAuditActionSet,
+		mustJSON(locked.Withdrawal), mustJSON(contact)); err != nil {
+		return organizationtenancy.TraegerWithdrawalContact{}, err
 	}
 	return contact, nil
 }
@@ -289,7 +328,7 @@ func (m *TraegerMasterData) promoteOldestBankAccount(ctx context.Context, organi
 // accounts. A bank account exists only after its creation made the row, so
 // a change of an existing one finds the row to lock.
 func (m *TraegerMasterData) lockedBankAccounts(ctx context.Context, organizationID int64, create bool) ([]organizationtenancy.TraegerBankAccount, error) {
-	if _, _, err := m.store.LockProfile(ctx, organizationID, create); err != nil {
+	if _, err := m.store.LockProfile(ctx, organizationID, create); err != nil {
 		return nil, err
 	}
 	return m.store.ListBankAccounts(ctx, organizationID)

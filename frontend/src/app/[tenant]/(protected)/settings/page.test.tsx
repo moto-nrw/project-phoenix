@@ -14,9 +14,10 @@ vi.mock("next-auth/react", () => ({
 
 // Mock next/navigation
 const mockRedirect = vi.fn();
+let mockSearch = "";
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => mockRedirect(url),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(mockSearch),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/settings",
 }));
@@ -43,6 +44,7 @@ vi.mock("~/components/settings/settings-page", () => ({
 describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearch = "";
 
     mockUseSession.mockReturnValue({
       data: {
@@ -132,24 +134,54 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("should render the settings tabs when they are available", async () => {
+  it("names the first section and shows no tab bar without ?tab= (#5750)", async () => {
     mockUseSettingsTabs.mockReturnValue({
       tabs: [
         { id: "settings-operations", label: "Betrieb", icon: "settings" },
         { id: "settings-gdpr", label: "Datenschutz", icon: "settings" },
       ],
-      renderTab: () => <div>Tab content</div>,
+      renderTab: (tabId: string) => <div>Inhalt {tabId}</div>,
     });
 
     render(<SettingsPage />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Betrieb" })).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Datenschutz" }),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Tab content")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Betrieb", level: 1 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Inhalt settings-operations")).toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+
+  it("opens the section the address names (#5750)", async () => {
+    mockSearch = "tab=gdpr";
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [
+        { id: "settings-operations", label: "Betrieb", icon: "settings" },
+        { id: "settings-gdpr", label: "Datenschutz", icon: "settings" },
+      ],
+      renderTab: (tabId: string) => <div>Inhalt {tabId}</div>,
     });
+
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Datenschutz", level: 1 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Inhalt settings-gdpr")).toBeInTheDocument();
+  });
+
+  it("falls back to the first section for an unknown ?tab= (#5750)", async () => {
+    mockSearch = "tab=gibtsnicht";
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [{ id: "settings-operations", label: "Betrieb", icon: "settings" }],
+      renderTab: (tabId: string) => <div>Inhalt {tabId}</div>,
+    });
+
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByText("Inhalt settings-operations"),
+    ).toBeInTheDocument();
   });
 
   it("opens the tab that holds a deep-linked setting (#3735)", async () => {
@@ -189,7 +221,7 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Inhalt settings-operations")).toBeInTheDocument();
   });
 
-  it("counts overrides only in visible settings tabs", async () => {
+  it("counts the overrides of the open section only (#5750)", async () => {
     mockUseSettingsTabs.mockReturnValue({
       tabs: [{ id: "settings-operations", label: "Betrieb", icon: "settings" }],
       renderTab: () => <div>Tab content</div>,
@@ -223,5 +255,28 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/1 abweichend von der Vorgabe/)).toBeVisible();
     });
+  });
+
+  it("shows no override count for a hand-written section (#5750)", async () => {
+    mockSearch = "tab=personalisierung";
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [
+        {
+          id: "settings-personalisierung",
+          label: "Personalisierung",
+          icon: "settings",
+        },
+      ],
+      renderTab: () => <div>Tab content</div>,
+    });
+    mockUseSettingsSchema.mockReturnValue({
+      data: { tabs: [] },
+      isLoading: false,
+    });
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("Tab content")).toBeInTheDocument();
+    expect(screen.queryByText(/abweichend/)).not.toBeInTheDocument();
   });
 });

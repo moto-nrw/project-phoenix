@@ -39,6 +39,26 @@ describe("filenameFromDisposition", () => {
     expect(filenameFromDisposition(response)).toBe("Dienstplan 2026-07-27.pdf");
   });
 
+  it("prefers the UTF-8 name from filename* (#5791)", () => {
+    const response = new Response(null, {
+      headers: {
+        "content-disposition":
+          "attachment; filename=\"gruppe-ciric.pdf\"; filename*=UTF-8''gruppe-%C4%87iri%C4%87.pdf",
+      },
+    });
+    expect(filenameFromDisposition(response)).toBe("gruppe-ćirić.pdf");
+  });
+
+  it("falls back to filename when filename* is not valid UTF-8", () => {
+    const response = new Response(null, {
+      headers: {
+        "content-disposition":
+          "attachment; filename=\"liste.csv\"; filename*=UTF-8''liste-%E5.csv",
+      },
+    });
+    expect(filenameFromDisposition(response)).toBe("liste.csv");
+  });
+
   it("returns null when the header is absent or unquoted", () => {
     expect(filenameFromDisposition(new Response(null))).toBeNull();
     expect(

@@ -61,7 +61,7 @@ export function TraegerAuthGuard({
   if (status === "loading") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading message="Wird geladen …" />
+        <Loading fullPage message="Wird geladen …" />
       </div>
     );
   }

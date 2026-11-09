@@ -1,5 +1,5 @@
 // Package auth_test contains integration tests for tenant resolution during login.
-// These tests exercise LoginWithAudit with explicit tenant slugs (resolveAccountTenantBySlug)
+// These tests exercise TenantLogin with explicit tenant slugs (resolveAccountTenantBySlug)
 // and the empty-slug default path (resolveAccountTenantDefault).
 package behavior_test
 
@@ -17,13 +17,13 @@ import (
 )
 
 // =============================================================================
-// LoginWithAudit Tenant Resolution Tests
+// TenantLogin Tenant Resolution Tests
 // =============================================================================
 
-func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
+func TestTenantLogin_ValidTenantSlug(t *testing.T) {
 	t.Parallel()
 
-	// LoginWithAudit with a valid tenant slug should succeed when the account
+	// TenantLogin with a valid tenant slug should succeed when the account
 	// is mapped to that tenant. This covers the resolveAccountTenantBySlug
 	// success path, ensureAccountRolesLoadedForTenant, loadAccountPermissionsForTenant,
 	// and loadAccountMetadata.
@@ -46,20 +46,20 @@ func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	// ACT: Login with that tenant's explicit slug
-	accessToken, refreshToken, err := service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", fmt.Sprintf("t%d", tenantID),
+	accessToken, refreshToken, err := tenantPasswordLogin(service,
+		email, testPassword, "", "", fmt.Sprintf("t%d", tenantID),
 	)
 
 	// ASSERT: Should succeed and return valid tokens
-	require.NoError(t, err, "LoginWithAudit should succeed with valid tenant slug")
+	require.NoError(t, err, "TenantLogin should succeed with valid tenant slug")
 	assert.NotEmpty(t, accessToken, "access token must not be empty")
 	assert.NotEmpty(t, refreshToken, "refresh token must not be empty")
 }
 
-func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
+func TestTenantLogin_NonExistentTenantSlug(t *testing.T) {
 	t.Parallel()
 
-	// LoginWithAudit with a slug that does not match any school should return
+	// TenantLogin with a slug that does not match any school should return
 	// ErrTenantNotFound. Covers the resolveAccountTenantBySlug error path
 	// where the school lookup fails.
 	db := testpkg.SetupTestDB(t)
@@ -77,8 +77,8 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	// ACT: Login with a slug that matches no school
-	_, _, err = service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "nonexistent-school-xyz",
+	_, _, err = tenantPasswordLogin(service,
+		email, testPassword, "", "", "nonexistent-school-xyz",
 	)
 
 	// ASSERT: Should fail with ErrTenantNotFound
@@ -87,10 +87,10 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 		"expected ErrTenantNotFound, got: %v", err)
 }
 
-func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
+func TestTenantLogin_TenantSlugNoAccess(t *testing.T) {
 	t.Parallel()
 
-	// LoginWithAudit where the tenant slug resolves to a valid school but the
+	// TenantLogin where the tenant slug resolves to a valid school but the
 	// account has no account_tenants mapping to it. Covers the
 	// resolveAccountTenantBySlug "account does not have access" path.
 	db := testpkg.SetupTestDB(t)
@@ -114,8 +114,8 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 
 	// ACT: Login with the other tenant's slug — school exists but the account
 	// has no access
-	_, _, err = service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", fmt.Sprintf("t%d", otherTenantID),
+	_, _, err = tenantPasswordLogin(service,
+		email, testPassword, "", "", fmt.Sprintf("t%d", otherTenantID),
 	)
 
 	// ASSERT: Should fail with ErrTenantAccessDenied
@@ -124,10 +124,10 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 		"expected ErrTenantAccessDenied, got: %v", err)
 }
 
-func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
+func TestTenantLogin_EmptySlugDefaultResolution(t *testing.T) {
 	t.Parallel()
 
-	// LoginWithAudit with an empty slug falls back to resolveAccountTenantDefault,
+	// TenantLogin with an empty slug falls back to resolveAccountTenantDefault,
 	// which picks the first active account_tenants mapping. Covers the default
 	// resolution success path.
 	db := testpkg.SetupTestDB(t)
@@ -147,20 +147,20 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	// ACT: Login with empty slug — should resolve via default path
-	accessToken, refreshToken, err := service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "",
+	accessToken, refreshToken, err := tenantPasswordLogin(service,
+		email, testPassword, "", "", "",
 	)
 
 	// ASSERT: Should succeed
-	require.NoError(t, err, "LoginWithAudit with empty slug should succeed when mapping exists")
+	require.NoError(t, err, "TenantLogin with empty slug should succeed when mapping exists")
 	assert.NotEmpty(t, accessToken, "access token must not be empty")
 	assert.NotEmpty(t, refreshToken, "refresh token must not be empty")
 }
 
-func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
+func TestTenantLogin_EmptySlugNoTenantMapping(t *testing.T) {
 	t.Parallel()
 
-	// LoginWithAudit with an empty slug when the account has zero account_tenants
+	// TenantLogin with an empty slug when the account has zero account_tenants
 	// entries. resolveAccountTenantDefault returns ErrTenantNotFound because no
 	// active tenant mappings exist. This confirms that accounts without any tenant
 	// mapping cannot log in.
@@ -184,12 +184,12 @@ func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
 	require.NoError(t, err, "failed to remove account_tenants mapping")
 
 	// ACT: Login with empty slug and no mappings
-	_, _, err = service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "",
+	_, _, err = tenantPasswordLogin(service,
+		email, testPassword, "", "", "",
 	)
 
 	// ASSERT: Should fail — resolveAccountTenantDefault rejects accounts with no mappings
-	require.Error(t, err, "LoginWithAudit should fail when account has no tenant mapping")
+	require.Error(t, err, "TenantLogin should fail when account has no tenant mapping")
 	assert.ErrorIs(t, err, identityaccess.ErrTenantNotFound,
 		"error should indicate no valid tenant was found")
 }

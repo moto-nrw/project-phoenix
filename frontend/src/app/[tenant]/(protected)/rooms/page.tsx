@@ -107,11 +107,7 @@ function RoomTile({
                 </p>
               )}
             </div>
-            <RoomStatusBadge
-              isOccupied={room.isOccupied}
-              size="sm"
-              className="font-bold"
-            />
+            <RoomStatusBadge isOccupied={room.isOccupied} />
           </div>
           <div className="flex-1 space-y-2">
             {room.isOccupied && room.groupName && (
@@ -152,7 +148,6 @@ function RoomTile({
               </>
             )}
           </div>
-          <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
         </div>
       </div>
     </TileCard>

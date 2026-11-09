@@ -6,7 +6,7 @@
   "meals": "Yemek",
   "byClass": "Sınıfa göre",
   "changes": "Sonradan değişiklikler",
-  "closed": "OGS kapalı",
+  "closed": "{careTerm} kapalı",
   "open": "Açık",
   "deadline": "Son tarih",
   "ordered": "Sipariş edildi",

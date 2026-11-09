@@ -1,23 +1,9 @@
-import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-interface BackendEnvelope<T> {
-  data: T;
-}
-
-/**
- * Proxy GET /api/students/care-schedule-change-requests/{requestId} →
- * backend (#3135). One care-schedule request of any status, read from a
- * message-thread pill. The backend gates on users:update and the per-child
- * review scope; 403/404 pass through unchanged.
- */
-export const GET = createGetHandler<unknown>(
-  async (_request, token, params) => {
-    const requestId = String(params.requestId);
-    const response = await apiGet<BackendEnvelope<unknown>>(
-      `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}`,
-      token,
-    );
-    return response.data;
-  },
+// One care-schedule request of any status, read from a message-thread pill
+// (#3135). The backend checks users:update and the review scope of the child.
+export const GET = proxyGet(
+  (p) =>
+    `/api/students/care-schedule-change-requests/${requirePathSegmentParam(p, "requestId")}`,
 );

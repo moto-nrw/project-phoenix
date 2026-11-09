@@ -41,6 +41,7 @@ type enqueueInput struct {
 	Recipient      json.RawMessage
 	Payload        json.RawMessage
 	DeliverAfter   time.Time
+	Security       bool
 }
 
 func (s *Service) EnqueueEmail(ctx context.Context, intent deliveryContract.EmailIntent) (deliveryContract.Enqueued, error) {
@@ -86,7 +87,7 @@ func (s *Service) enqueueEmail(ctx context.Context, intent deliveryContract.Emai
 	return s.enqueue(ctx, enqueueInput{
 		TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: domain.TransportEmail, Template: intent.Template,
 		IdempotencyKey: intent.IdempotencyKey, Related: intent.Related,
-		Recipient: recipient, Payload: intent.Payload, DeliverAfter: intent.DeliverAfter,
+		Recipient: recipient, Payload: intent.Payload, DeliverAfter: intent.DeliverAfter, Security: intent.Security,
 	}, deliveryContract.TransportEmail)
 }
 
@@ -187,6 +188,7 @@ func (s *Service) record(ctx context.Context, input enqueueInput) (result domain
 	intent := domain.Intent{
 		TenantID: input.TenantID, OrganizationID: input.OrganizationID, Transport: input.Transport, Template: input.Template,
 		Recipient: input.Recipient, Payload: input.Payload, Status: string(domain.StatePending), NextRetryAt: nextRetryAt,
+		Security: input.Security,
 	}
 	if input.IdempotencyKey != "" {
 		intent.IdempotencyKey = &input.IdempotencyKey
@@ -282,9 +284,20 @@ func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) 
 			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
+			DeliveryState: row.DeliveryState, DeliveryStateAt: row.DeliveryStateAt,
+			Outcome: intentOutcome(transport, row),
 		})
 	}
 	return statuses, nil
+}
+
+// intentOutcome is the outcome of a mail. A Träger has no school list, so a mail
+// of a Träger never carries a mark.
+func intentOutcome(transport deliveryContract.Transport, row domain.Intent) deliveryContract.EmailOutcome {
+	if transport != deliveryContract.TransportEmail {
+		return ""
+	}
+	return deliveryContract.EmailOutcomeAt(deliveryContract.EmailOutcomeOf(row.Status, &row.DeliveryState, row.LastError, ""), row.DeliveryStateAt, time.Now())
 }
 
 // intents reads the intents of one related entity and observes the store's answer.

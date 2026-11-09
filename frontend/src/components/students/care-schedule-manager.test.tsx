@@ -260,38 +260,38 @@ vi.mock("~/components/ui/modal", () => ({
 const arrivalData: ArrivalData = {
   schedules: [
     {
-      id: 1,
-      student_id: 42,
+      id: "1",
+      studentId: "42",
       weekday: 1,
-      weekday_name: "Montag",
-      expected_arrival: "08:00",
+      weekdayName: "Montag",
+      expectedArrival: "08:00",
       notes: "Tor",
-      created_by: 1,
-      created_at: "2026-05-01T00:00:00Z",
-      updated_at: "2026-05-01T00:00:00Z",
+      createdBy: "1",
+      createdAt: "2026-05-01T00:00:00Z",
+      updatedAt: "2026-05-01T00:00:00Z",
     },
   ],
   exceptions: [
     {
-      id: 10,
-      student_id: 42,
-      exception_date: "2026-05-25",
-      expected_arrival: "10:10",
+      id: "10",
+      studentId: "42",
+      exceptionDate: "2026-05-25",
+      expectedArrival: "10:10",
       reason: "testnotizhg",
-      created_by: 1,
-      created_at: "2026-05-01T00:00:00Z",
-      updated_at: "2026-05-01T00:00:00Z",
+      createdBy: "1",
+      createdAt: "2026-05-01T00:00:00Z",
+      updatedAt: "2026-05-01T00:00:00Z",
     },
   ],
   notes: [
     {
-      id: 100,
-      student_id: 42,
-      note_date: "2026-05-25",
+      id: "100",
+      studentId: "42",
+      noteDate: "2026-05-25",
       content: "Kommt später",
-      created_by: 1,
-      created_at: "2026-05-01T00:00:00Z",
-      updated_at: "2026-05-01T00:00:00Z",
+      createdBy: "1",
+      createdAt: "2026-05-01T00:00:00Z",
+      updatedAt: "2026-05-01T00:00:00Z",
     },
   ],
 };
@@ -381,7 +381,7 @@ describe("CareScheduleManager", () => {
     vi.clearAllMocks();
     mockFetchArrivalData.mockResolvedValue(arrivalData);
     mockFetchArrivalSettings.mockResolvedValue({
-      care_days_source: "weekly_plan",
+      careDaysSource: "weekly_plan",
     });
     mockFetchStudentPickupData.mockResolvedValue(pickupData);
     mockUpdateArrivalSchedules.mockResolvedValue([]);
@@ -1015,7 +1015,7 @@ describe("CareScheduleManager", () => {
     const bookedArrivalData = { ...arrivalData, exceptions: [] };
     let savedArrivalData: ArrivalData | undefined;
     mockFetchArrivalSettings.mockResolvedValue({
-      care_days_source: "bookings",
+      careDaysSource: "bookings",
     });
     mockFetchArrivalData.mockImplementation(() =>
       Promise.resolve(savedArrivalData ?? bookedArrivalData),
@@ -1025,16 +1025,16 @@ describe("CareScheduleManager", () => {
         savedArrivalData = {
           ...bookedArrivalData,
           schedules: schedules.map((schedule, index) => ({
-            id: index + 1,
-            student_id: 42,
+            id: String(index + 1),
+            studentId: "42",
             weekday: schedule.weekday,
-            weekday_name: "Montag",
-            expected_arrival: schedule.expected_arrival,
+            weekdayName: "Montag",
+            expectedArrival: schedule.expected_arrival,
             notes: schedule.notes ?? null,
             source: "staff",
-            created_by: 1,
-            created_at: "2026-05-01T00:00:00Z",
-            updated_at: "2026-05-27T12:00:00Z",
+            createdBy: "1",
+            createdAt: "2026-05-01T00:00:00Z",
+            updatedAt: "2026-05-27T12:00:00Z",
           })),
         };
         return Promise.resolve(schedules);
@@ -1112,7 +1112,7 @@ describe("CareScheduleManager", () => {
 
   it("passes booking care days to the weekly editor", async () => {
     mockFetchArrivalSettings.mockResolvedValueOnce({
-      care_days_source: "bookings",
+      careDaysSource: "bookings",
     });
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
@@ -1133,7 +1133,7 @@ describe("CareScheduleManager", () => {
         {
           ...arrivalData.schedules[0]!,
           source: "class_schedule",
-          source_class: "Klasse 1b",
+          sourceClass: "Klasse 1b",
         },
       ],
     });
@@ -1154,7 +1154,7 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
 
     await waitFor(() => {
-      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", 10, {
+      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", "10", {
         exception_date: "2026-05-25",
         expected_arrival: "10:10",
         reason: "Arzt",
@@ -1179,7 +1179,7 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Kommt nicht im Test speichern"));
 
     await waitFor(() => {
-      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", 10, {
+      expect(mockUpdateArrivalException).toHaveBeenCalledWith("42", "10", {
         exception_date: "2026-05-25",
         expected_arrival: null,
         clear_expected_arrival: true,
@@ -1260,7 +1260,7 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Auf Regulär zurücksetzen"));
 
     await waitFor(() => {
-      expect(mockDeleteArrivalException).toHaveBeenCalledWith("42", 10);
+      expect(mockDeleteArrivalException).toHaveBeenCalledWith("42", "10");
       expect(mockDeleteStudentPickupException).toHaveBeenCalledWith("42", "20");
     });
     expect(mockCreateArrivalException).not.toHaveBeenCalled();

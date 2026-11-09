@@ -11,6 +11,7 @@ import {
   type BackendDevice,
   type Device,
 } from "./iot-helpers";
+import { LOCATION_COLORS } from "./location-helper";
 
 describe("iot-helpers", () => {
   describe("mapDeviceResponse", () => {
@@ -238,35 +239,35 @@ describe("iot-helpers", () => {
         "unknown_status",
       );
     });
+
+    it("should return original status for inherited status-map keys", () => {
+      expect(getDeviceStatusDisplayName("constructor")).toBe("constructor");
+    });
   });
 
   describe("getDeviceStatusColor", () => {
-    it("should return green classes for active status", () => {
-      expect(getDeviceStatusColor("active")).toBe(
-        "bg-moto-green-soft text-moto-green-strong",
-      );
+    it("should return the green colour for active status", () => {
+      expect(getDeviceStatusColor("active")).toBe(LOCATION_COLORS.GROUP_ROOM);
     });
 
-    it("should return gray classes for inactive status", () => {
-      expect(getDeviceStatusColor("inactive")).toBe(
-        "bg-gray-100 text-gray-800",
-      );
+    it("should return the neutral colour for inactive status", () => {
+      expect(getDeviceStatusColor("inactive")).toBe(LOCATION_COLORS.HOME);
     });
 
-    it("should return yellow classes for maintenance status", () => {
-      expect(getDeviceStatusColor("maintenance")).toBe(
-        "bg-moto-amber-soft text-moto-amber-strong",
-      );
+    it("should return the amber colour for maintenance status", () => {
+      expect(getDeviceStatusColor("maintenance")).toBe(LOCATION_COLORS.WARNING);
     });
 
-    it("should return red classes for offline status", () => {
-      expect(getDeviceStatusColor("offline")).toBe(
-        "bg-moto-red-soft text-moto-red-strong",
-      );
+    it("should return the red colour for offline status", () => {
+      expect(getDeviceStatusColor("offline")).toBe(LOCATION_COLORS.DANGER);
     });
 
-    it("should return default gray classes for unknown status", () => {
-      expect(getDeviceStatusColor("unknown")).toBe("bg-gray-100 text-gray-800");
+    it("should return the neutral colour for unknown status", () => {
+      expect(getDeviceStatusColor("unknown")).toBe(LOCATION_COLORS.HOME);
+    });
+
+    it("should return the neutral colour for inherited status-map keys", () => {
+      expect(getDeviceStatusColor("constructor")).toBe(LOCATION_COLORS.HOME);
     });
   });
 

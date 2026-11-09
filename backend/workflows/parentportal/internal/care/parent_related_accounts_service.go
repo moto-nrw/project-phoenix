@@ -82,18 +82,8 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
-		out = make([]*RelatedAccount, 0, len(links))
-		for _, link := range links {
-			account, err := s.relatedAccountForLink(txCtx, link, accountID, studentID)
-			if err != nil {
-				return err
-			}
-			if account == nil {
-				continue
-			}
-			out = append(out, account)
-		}
-		return nil
+		out, err = s.relatedAccountsForLinks(txCtx, links, accountID, studentID)
+		return err
 	})
 	if txErr != nil {
 		return nil, txErr
@@ -101,12 +91,39 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
-// relatedAccountForLink projects one guardian link into a RelatedAccount. It
-// returns nil when the link's guardian profile no longer exists.
-func (s *Service) relatedAccountForLink(txCtx context.Context, link *GuardianRelationship, accountID, studentID int64) (*RelatedAccount, error) {
-	profile, err := s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
+func (s *Service) relatedAccountsForLinks(txCtx context.Context, links []*GuardianRelationship, accountID, studentID int64) ([]*RelatedAccount, error) {
+	profileIDs := make([]int64, 0, len(links))
+	for _, link := range links {
+		profileIDs = append(profileIDs, link.GuardianProfileID)
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(txCtx, profileIDs)
 	if err != nil {
 		return nil, err
+	}
+	out := make([]*RelatedAccount, 0, len(links))
+	for _, link := range links {
+		account, err := s.relatedAccountForLink(txCtx, link, profiles[link.GuardianProfileID], accountID, studentID)
+		if err != nil {
+			return nil, err
+		}
+		if account != nil {
+			out = append(out, account)
+		}
+	}
+	return out, nil
+}
+
+// relatedAccountForLink projects one guardian link into a RelatedAccount. It
+// returns nil when the link's guardian profile no longer exists.
+func (s *Service) relatedAccountForLink(txCtx context.Context, link *GuardianRelationship, profile *GuardianProfile, accountID, studentID int64) (*RelatedAccount, error) {
+	if profile == nil {
+		// The batch omits missing rows. Retain the single reader's not-found
+		// error (or nil result) if a linked profile disappeared.
+		var err error
+		profile, err = s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if profile == nil {
 		return nil, nil
@@ -280,7 +297,8 @@ func (s *Service) inviteRequiresStaffApproval(ctx context.Context, tenantID int6
 // The caller needs parent_portal.related_accounts.manage on this child
 // (#4603), and the school gates it with guardians.parent_can_remove; the
 // primary guardian can never be removed by a parent (enforced in the
-// invitation service).
+// invitation service). A social worker's relationship is school-managed, as
+// in the contact, pickup and invite paths, so a parent cannot remove it.
 func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRelatedAccountsManage)
 	if err != nil {
@@ -313,10 +331,28 @@ func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
+		if err := s.refuseSchoolManagedRemoval(txCtx, studentID, guardianProfileID); err != nil {
+			return err
+		}
 		return s.GuardianInvites.RevokeAccess(txCtx, GuardianAccessRevocation{
 			StudentID:         studentID,
 			GuardianProfileID: guardianProfileID,
 			ActorAccountID:    accountID,
 		})
 	})
+}
+
+// refuseSchoolManagedRemoval locks the target relationship and refuses a
+// social-worker link: the school sets and removes it, never a parent. The row
+// lock keeps a concurrent staff role change from slipping between this check
+// and the delete.
+func (s *Service) refuseSchoolManagedRemoval(ctx context.Context, studentID, guardianProfileID int64) error {
+	link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, guardianProfileID)
+	if err != nil {
+		return err
+	}
+	if link.GuardianRole == GuardianRoleSocialWorker {
+		return ErrGuardianSocialWorkerManaged
+	}
+	return nil
 }

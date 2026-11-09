@@ -120,7 +120,6 @@ export function StaffExportButton({
         formats={TIME_TRACKING_FORMATS}
         run={run}
         blocked={!hasRange}
-        widthClass="sm:w-[640px]"
       >
         <section>
           <p className="text-sm font-medium text-gray-900">Zeitraum</p>

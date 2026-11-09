@@ -37,7 +37,7 @@ func (s *parentFormsRequestStub) Submit(ctx context.Context, req SubmitRequest) 
 	if s.submitErr != nil {
 		return nil, s.submitErr
 	}
-	return &SubmitResult{Request: &Request{ID: 99001, StatusToken: "status-token"}, StatusURL: "/status/status-token"}, nil
+	return &SubmitResult{Request: &capability.Request{ID: 99001, StatusToken: "status-token"}, StatusURL: "/status/status-token"}, nil
 }
 
 func (s *parentFormsRequestStub) LoadEnrolleeFormBootstrap(_ context.Context, _ int64, _ time.Time, _ string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error) {

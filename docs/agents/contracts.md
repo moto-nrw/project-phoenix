@@ -149,8 +149,9 @@ texts), `backend/api/iot_error_report_composition.go` (forwarding),
 | 502 | `error reporting service unavailable` | Sentry unreachable or answering 5xx; logged, never a Sentry event |
 | 503 | `error reporting is not configured` | The backend runs without Sentry (local development) |
 
-The 502 is the only 5xx that `ServerErrorReporting` does not report
-(`common.SkipServerErrorReport`); reporting it could only loop. PyrePortal's
+The 502 is one of two 5xx answers that `ServerErrorReporting` does not report
+(`common.SkipServerErrorReport`); reporting it could only loop. The other is the
+mail provider webhook's 503 without a secret, below. PyrePortal's
 SDK transport consumes these answers and shows no text, so they are not part
 of `iot_error_codes.golden`. Changing a status is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
 and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
@@ -348,9 +349,11 @@ that IP. The IP crosses four hops:
 3. Every server-side backend call of the frontend forwards
    `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
    fallback) through `frontend/src/lib/client-headers.server.ts`:
-   `clientIdentityHeaders(request.headers)` with a request at hand,
-   `incomingClientForwardHeaders()` without one. The shared proxy factories
-   and portal wrappers already do this.
+   `backendIdentityHeaders(request)` with a request at hand,
+   `incomingBackendIdentityHeaders()` (the same set from the request being
+   handled) without one. `sendBackend`
+   (`frontend/src/lib/backend-client.server.ts`), under every portal's route
+   handlers, sends this set, frontend origin included, on every call.
 4. The backend takes the rightmost entry
    (`ClientIPFromXFFTrustedProxies(1)` and `syncClientIPToRemoteAddr` in
    `backend/api/serve_middleware.go`). Trusting one hop is safe only while
@@ -364,6 +367,21 @@ out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
 
+## Mail provider webhook
+
+`POST /webhooks/email/delivery/{provider}` has no session: the HMAC over the raw
+body is the credential, and the school comes only from the mail an event matches.
+A provider retries 408, 429 and 5xx and drops other 4xx, so each answer decides
+that: 204 accepted, also for unknown events and mails; 400 unreadable name or
+known event; 401 signature or time window, all alike; 404 unknown provider; 413
+over 1 MiB; 500 store failure; 503 no secret.
+
+The 503 is a state of the deployment that anyone can ask about, so it stays out
+of Sentry (`common.SkipServerErrorReport`) and the ERROR log, including the access
+line, and writes one WARN. It still counts in
+`phoenix_backend_http_requests_total`. The webhook has a limiter of its own with
+`SetLogger`, so a rejection writes the `RATE_LIMIT_EXCEEDED` event above.
+
 ## Portal session isolation
 
 Each portal has its own NextAuth instance, cookie, and base path.
@@ -372,7 +390,7 @@ domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
 A switch on one school's subdomain replaces that shared cookie for every tab;
-tabs on other subdomains hear nothing of it. So `withTenantAuth` refuses a
+tabs on other subdomains hear nothing of it. So `tenantPortal.withAuth` refuses a
 session whose `tenantId` differs from the school of the request's subdomain
 with 409 `identity.session_tenant_mismatch` before the route runs
 (`frontend/src/server/auth/tenant-host-check.ts`, #5130). The host's school
@@ -380,7 +398,8 @@ comes from the cached `/auth/tenant/resolve` lookup of the tenant layout; a
 failed lookup refuses the request. Exempt are the routes that end the mismatch:
 `/api/auth/switch-tenant`, `/api/auth/token`, `/api/auth/logout`,
 `/api/auth/staff-preview/end`, plus the tab's `/api/logs` and
-`/api/invitations/accept`, which acts for the invitation's school. In the
+`/api/invitations/accept`, which acts for the invitation's school and runs
+inside the portal's `withAuth` (`withInvitationOwnerSession`). In the
 browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`,
 installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
 for clients that read only `response.ok`. The session cache drops its session
@@ -404,14 +423,18 @@ browser request to the tab's own `/api/` therefore names the account its
 `SessionAccountBinding` (mounted first in every portal's providers), the
 fetch observer and the Axios interceptor of `api-transport.ts`; another
 origin never gets it. Every portal's route wrapper
-(`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
+(`createResponseAwareAuth`, so `tenantPortal.withAuth` too) refuses a header that
 names another account than the cookie with 409
 `identity.session_account_mismatch` before the route runs
 (`frontend/src/server/auth/session-account-check.ts`). Account exemptions
 are independent of the school exemptions: only
 portal logout, `/api/auth/token` (cookie-only renewal, no token in the
-answer) and `/api/logs` pass. Tenant switching and preview-end must match
-the account; invitation acceptance does not use this wrapper. The refusal takes
+answer) and every portal's client log route pass. The browser logger posts to
+the log route of its host's portal (`/api/logs` for the tenant,
+`/api/<portal>/logs` otherwise; `portalLogPath`), which authenticates with
+that portal's session. Tenant switching and preview-end must match
+the account, and so must invitation acceptance, which runs inside this
+wrapper. The refusal takes
 the path of the school refusal: the session cache wakes the provider,
 `TenantGuard` hides the page, and the provider's new account resets the SWR
 scope and leaves the page (`PersonalStorageGuard`). A request without the
@@ -453,7 +476,13 @@ passes cannot confirm that the family is empty; deleting rows on the last
 pass alone is not confirmation. Every portal shell revokes through its BFF logout route
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
-the error with a retry, as does the tenant relogin action. Portal cookies
+the error with a retry, as does the tenant relogin action. All six routes
+come from one factory (`frontend/src/lib/logout-route.server.ts`); the
+token kind and backend path come from the portal table. A refused token may
+still belong to a live family (another tab rotated it), so each route renews
+the session once and repeats the logout: a revoked family ends in the
+renewal and its 401 stands, a renewal without a new token answers 503 and
+the browser offers the logout again. Portal cookies
 are host-only; a late response of the same portal may write one back only
 in the narrow cases [below](#late-responses-after-logout-5399), and the
 revoked family makes it worthless. Migration 1.15.707 gives every
@@ -502,12 +531,25 @@ A staff-view preview token carries the admin's
 family and ends with the admin's session.
 
 In the frontend a backend 401 for an unexpired token renews the session at
-once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
+once (`withForcedSessionRenewal` in `frontend/src/server/auth/token-refresh.ts`,
 used by `uncachedAuth` and by `withAuthResponse` for routes without their own
 retry). A revoked family fails that refresh; the response ends the session
 in its body but writes no cookie (#5399, below), and `/api/auth/token`
 answers 401 for a revoked family, so the browser signs out. A live family
 continues with fresh tokens.
+
+One table in `frontend/src/server/auth/portals.ts` holds these facts per
+portal; the Auth.js configs, entry modules, logout and login routes, layout
+snapshots and logout exemptions derive from it. Its browser- and edge-safe
+part, `PORTAL_ROUTES` in `frontend/src/lib/portal-paths.ts` (key, auth base
+path, host env name, App Router folder), is the only source of those facts
+for the proxy's host table, `portalOfHost`, the session cookie names and the
+sign-in pages and the browser's Credentials provider ids. Each entry module
+exports only its portal object (`tenantPortal`, `parentPortal`, …), whose one
+route wrapper `withAuth` carries every check of the portal (for the tenant
+the school-host check); route wrappers, login and logout routes take that
+one object, so a portal's session, wrapper and backend paths cannot be
+mixed up.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -521,7 +563,7 @@ continues with fresh tokens.
 The browser never receives a session's access token, refresh token or
 recovery proof (#5005). The client-importable `next-auth` types `Session` and
 `User` carry none; server code reads them through `ServerSession`, `AuthUser`
-and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/shared.ts`.
+and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/session-types.ts`.
 Each portal's `{basePath}/session` answer (GET and the `update()` POST)
 passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
 and the layout snapshots map the cookie without them. BFF routes authenticate
@@ -550,8 +592,10 @@ The browser may submit passwords, the Träger handoff's one-time proof, MFA
 challenge proofs and limited enrollment tokens. These are not completed session
 pairs. Public login routes that install cookies enforce Same-Origin before
 calling the backend; failed installation revokes the freshly minted family.
-The regular parent Credentials login and Träger handoff continue to redeem
-credentials/proofs server-side. The internal Next.js cookie adapter remains
+The parent Credentials login and Träger handoff continue to redeem
+credentials/proofs server-side. Only the parents' Credentials provider takes
+a password; every other portal signs in through its BFF login route, and a
+password posted to its Auth.js callback is refused without a backend call. The internal Next.js cookie adapter remains
 pinned and protected by the cookie-order/chunk-deletion integration tests.
 
 ### Late responses after logout (#5399)
@@ -604,7 +648,7 @@ old session back; the browser only saves requests.
    cookie: a superset of what any reader accepts and no other cookie
    (`parent-session-token`, `session-token` pass). The names have one source,
    `PORTAL_SESSION_COOKIE_NAMES` and `tenantSessionCookieName` in that module,
-   which the six portal configs use. The gate approves only names Auth.js
+   which the portal table (`frontend/src/server/auth/portals.ts`) uses. The gate approves only names Auth.js
    writes: a configured name (with Auth.js' `__Secure-`/`__Host-` prefix) and
    its chunks `.<n>`. A Set-Cookie line with a session cookie name
    leaves only approved, or as a deletion: an empty value with at most one `Max-Age` and one `Expires`
@@ -633,18 +677,49 @@ old session back; the browser only saves requests.
    refresh lifetime and moves with each rotation.
 2. **Read gate.** The session route asks the family on every call and reads
    a revoked family as ended (`RefreshTokenError`); the layout snapshots of
-   every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
-   only a live family. A family that cannot be read (503) and an expired
+   every portal (`readPortalSessionSnapshot`) hydrate
+   only a live family. A 403 `module.not_booked` counts as live for both
+   gates (`familyBacksSession`): the snapshot hydrates and carries
+   `notBooked`, and the parents and school guards show
+   `portalNotBookedExplanation` instead of the page. The refresh answers the
+   same 403 and keeps the presented refresh token valid: the JWT callback
+   keeps the session unchanged, marks it `notBooked` (the session route
+   carries the mark, the guards read it), asks again after a minute and
+   clears the mark with the next rotation or a live family answer
+   (`token-refresh.ts`). Every other 401/403 of the refresh ends the session
+   and is remembered per process (#2952); a snapshot of a session whose
+   refresh is remembered as refused does not hydrate, so the login page
+   cannot send the browser back to a portal whose requests end it. A family that cannot be
+   read (503) and an expired
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
 3. **Family check.** `POST /auth/session/validate` without a refresh token
-   reads the access token's family (`ValidateSessionTokens`,
-   `verifyAccessFamily` in
-   `backend/modules/identityaccess/internal/application/session_validation.go`):
-   `VerifyAccessSession` for account portals, the latest operator session of
-   the family for the operator. 401 means revoked, foreign or an expired
-   token, 503 means the family could not be read. The BFF calls it through
-   `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
+   reads the access token's family and asks whether the session would still
+   renew (`ValidateSessionTokens` in
+   `backend/modules/identityaccess/internal/application/session_validation.go`,
+   `sessionPolicy.check` in `session_policy.go`): the facts its refresh
+   decides (account, mapping, live school, portal role, guardian school,
+   caterer supply, Träger membership and right, and the second-factor
+   floor), read in one administrative transaction
+   through the same per-kind definitions the refresh's guard reads under its
+   locks, then the module booking. It writes nothing, so it takes no row lock
+   and builds no claims; its cost per kind is pinned in
+   `identity.session_validate.*`. The operator reads the latest operator
+   session of the family, or the presented operator session without a lock.
+   Validation and refresh answer one state alike
+   (`identityaccess.SessionOutcomeOf`, `portalauth.RenewalRules`): 401 means
+   the session ended (revoked, foreign or expired token, inactive account,
+   access to the school or Träger lost, the school inactive, the portal role
+   revoked, a second factor the session has no proof of); 403
+   `module.not_booked` means the school no longer books the portal's module
+   and the session stays, as at refresh; 503 means a read
+   could not run (`identity.mfa_status_unavailable` for the second-factor
+   state). Access loss therefore ends the session at the next page view, not
+   only at the next refresh. The BFF calls it through `sessionFamilyState`
+   (`frontend/src/server/auth/token-validation.ts`), which reads 401 as
+   ended, 403 `module.not_booked` as `notBooked` (the family is live, so the
+   session stays and the guard shows the explanation) and every other
+   refusal as unknown: the shown session stays and its own refresh decides.
 
 Invariants: no response sets a session cookie of a family Identity & Access
 answers as revoked while the response is built, whichever tab, subdomain or frozen
@@ -655,8 +730,8 @@ next session read or page load; delivered only after a new login, it replaces
 that login's cookie and asks for the login again. The same holds for a
 just-issued refresh token that lands while the family check had no answer. A
 session cookie the gate cannot decode counts as no session and passes; the
-gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
-environment sets `AUTH_SECRET`. A school switch that committed before the
+gate reads with `NEXTAUTH_SECRET`, which every portal's Auth.js config
+pins (`createPortalAuthConfig`), whatever `AUTH_SECRET` says. A school switch that committed before the
 logout mints a family of its own; it names the origin of its lineage
 (`switched_from_family_id`), so the logout revokes it too, even when the
 session cap already evicted the retired source (#5422).
@@ -684,19 +759,22 @@ Backend paths in this section are relative to `backend/`:
 
 - Tenant login rejects guardian-only accounts with `ErrParentMustUseParentPortal`
   (403) and school-portal-only accounts with `ErrMustUseSchoolPortal` (403,
-  `identity.use_school_portal`). Dual-role accounts remain eligible. The school-only
-  guard applies at all four tenant-session mint/renew sites, including refresh.
+  `identity.use_school_portal`). Dual-role accounts remain eligible. Both rules
+  live in the tenant portal's eligibility guard, which every tenant-session mint
+  (login, MFA/passkey exchange, demo, switch) and refresh runs under the account
+  lock. A refresh token from before the scope claim whose account is
+  guardian-only at its school renews as a parent session.
 - Parents login requires a guardian role on at least one tenant mapping
-  (`ErrAccountNoGuardianRole`, 403). `ParentMiddleware` accepts only `scope=parent`.
+  (`ErrAccountNoGuardianRole`, 403). `ParentScopeMiddleware` accepts only `scope=parent`.
 - School login requires a school-portal role (currently `lehrkraft`) on an
-  active mapping and pins that school's `tenant_id`. `SchoolMiddleware`
+  active mapping and pins that school's `tenant_id`. `SchoolScopeMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
   transactions. Unlike parent scope, school scope is tenant-bound.
 - Caterer login requires a caterer account (`auth.caterer_accounts`) that
   supplies at least one school; any other account answers like a wrong
   password. The session row is pinned to a supplied school; refresh re-pins
   it when that school ends the supply and fails once none is left. The token
-  carries no school: `CatererMiddleware` accepts only `scope=caterer`, and the
+  carries no school: `CatererScopeMiddleware` accepts only `scope=caterer`, and the
   caterer portal (`workflows/catererportal`) opens each supplied school's
   tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
   `TestFullProductionRouterGolden` checks both directions.
@@ -709,14 +787,14 @@ Backend paths in this section are relative to `backend/`:
   `mfa_verified`, and mint and refresh refuse a caterer session without it.
   A caterer challenge is refused by every other portal's verify. Switching
   the factor on (`/caterer/account/mfa/confirm`) answers with a new proven
-  session; older sessions end at their next refresh. Recovery is the
+  session; older sessions end at their next refresh or validation. Recovery is the
   operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
   audit, notice mail); school admins have none.
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one
   (`organization_selection_required`). Refresh and validation re-check the
-  membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
+  membership. `TraegerScopeMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
   transaction filtered on the Träger's schools. The Träger's own tables
@@ -730,7 +808,8 @@ Backend paths in this section are relative to `backend/`:
   `org`-scope challenges, and mint and refresh refuse a session without
   `mfa_verified`. No trusted device. The operator reset
   (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
-  revokes the proof, so the Träger session ends at its next refresh.
+  revokes the proof, so the Träger session ends at its next refresh or
+  validation.
 - Absprung into a school (ADR 0084 section 5, #4654): `POST
   /traeger/school-sessions` `{school_id}` needs the Träger right
   `traeger_school:switch` and answers `{handoff_token}`: the refresh token of a
@@ -754,18 +833,43 @@ Backend paths in this section are relative to `backend/`:
   and an Absprung whose Träger family is gone is refused (#5422). Only a
   session with `via_traeger` shows the link back to the Träger portal in the
   school's navigation (#5687); it changes neither session.
-- Every account session, in every portal, is minted after the mint
-  transaction stamped `last_login` on the live account under its row lock
-  (`prepareSessionMint`; refresh locks the live account first). An account the
+- Every account session, in every portal, is minted by one pipeline
+  (`mintAccountSession`, `internal/application/session_mint.go`); refresh runs
+  the same steps in its rotation. In the write transaction, in this order: the
+  school's MFA policy lock (portals that follow it), the account row FOR
+  UPDATE, the proof re-check (redeemed code, remembered device, Träger source
+  session), the portal's eligibility guard, which returns the claims (tenant:
+  mapping, not guardian-only, not school-only; school: live school, mapping,
+  school-portal role; parent: guardian role at a live school that books
+  Eltern-App; Träger: membership; Träger school: right and school of the
+  Träger; caterer: caterer account), then the `last_login` stamp on the live
+  account, the source family and the MFA floor. A demo access counts as an
+  e-mail proof: its link leaves by mail only. An account the
   hourly erasure anonymized after the caller's checks gets no session; the
   login routes answer it like wrong credentials (#5546). The erasure passes
   over an account a login holds; a login waits for an erasure holding the
   account only until that transaction ends.
-- `TenantMiddleware` rejects parent, school, caterer, and org scopes.
+- Every route group's scope gate (`sessiontoken.PortalGate`) admits only the
+  portals it names and answers every other scope, including one no portal
+  issues, with 401 `general.permission`. Tenant routes accept the tenant
+  portal (empty or legacy `tenant` claim) and `platform`. The portal facts
+  live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
+  pinned to each other by `TestPortalTableMatchesTheTokenGates`.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
+- Every account portal answers a refused sign-in, MFA step, exchange, switch,
+  refresh or passkey sign-in through the owner's rule tables in
+  `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
+  code in every portal; the parents login keeps `care.invalid_credentials`
+  (`ParentLoginRules`). The caterer portal may not import that package and keeps
+  its table in `workflows/catererportal/http/errors.go`; the operator keeps its
+  own bodies. Each enrollment route group mounts
+  `sessiontoken.EnrollmentAuthenticatorFor(portal)`, which admits only that
+  portal's enrollment token with the school its shape demands. An exchange
+  prepares the trusted device (policy and MFA reset generation), mints, then
+  stores the device and sets `common.TrustedDeviceCookie`.
 - MFA can insert a challenge between credentials and session. Inspect
-  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
-  the challenge/enrollment claims in `modules/identityaccess/sessiontoken/`, and trusted-device settings
+  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
+  the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
 #### Privileged MFA floor (#3841, slice 3841-f)
@@ -819,7 +923,15 @@ school-scoped live-family proof.
 Parent-scope sessions remain separate and carry no staff permissions.
 
 Enrollment uses the existing email-code flow in tenant and school portals;
-mail delivery/verification failures issue no completed session. Passkeys for
+mail delivery/verification failures issue no completed session. Every
+account portal's `…/auth/mfa/enroll/start` (tenant, school, Träger) answers
+200 `{challenge_token}`, and its `…/auth/mfa/enroll/confirm` takes
+`{challenge_token, code, remember_device?}` and redeems exactly that
+challenge, pinned to the enrollment token's account and school
+(`VerifyMFAChallengeForOwner`); a confirm without `challenge_token` answers
+400, a challenge of another account, school or portal 401. A failed read
+during verification answers 503 `identity.mfa_status_unavailable`, never a
+wrong code. The operator keeps its own enrollment bodies. Passkeys for
 school personnel already require verified email registration and WebAuthn user
 verification at login. Local seed tools complete the same email flow through
 local Mailpit, with no production bypass. Human rollout/recovery and count-only
@@ -832,8 +944,14 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 ### Routing and invitations
 
 `frontend/src/proxy.ts` rewrites tenant hosts to `/[tenant]/*`, operator to
-`/operator/*`, parents to `/parents/*`, school to `/school/*`, and Träger to
-`/traeger/*`.
+`/operator/*`, parents to `/parents/*`, school to `/school/*`, Träger to
+`/traeger/*`, and caterer to `/caterer/*`. One `PortalHost` entry per portal
+names its host, page namespace, API allow-list, localization, `/help` and
+moved pages. The page list comes from the `app/<portal>/` folders:
+`pnpm generate:portal-pages` writes `src/proxy-pages.generated.ts`, and
+`pnpm run check` fails when it is stale. A portal host answers 404 for every
+`/api/*` path outside its allow-list, because the domain-scoped tenant cookie
+reaches it too; a new BFF route that a portal page calls belongs in that list.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.

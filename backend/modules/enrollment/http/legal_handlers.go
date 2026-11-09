@@ -34,7 +34,7 @@ type PublicLegalTextsResponse struct {
 
 // publicLegalTexts serves the tenant's AGB + Datenschutz Markdown for
 // the parent form. Slug-gated, no JWT — same access shape as the
-// captcha-config endpoint. When phaseId is present, template-owned
+// public form bootstrap. When phaseId is present, template-owned
 // legal_blocks on that phase's selected form schema override the tenant
 // standard blocks.
 func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {

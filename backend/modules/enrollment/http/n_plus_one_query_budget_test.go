@@ -42,7 +42,7 @@ func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
 	small, large := run(smallID), run(largeID)
 	t.Logf("query budget: 3 children → %d reads, 8 children → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.enrollment.list_child_offerings.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.list_child_offerings.reads", counter.Measurement(large))
 }
 
 func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
@@ -73,7 +73,7 @@ func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 	large := run()
 	t.Logf("query budget: 3 offerings → %d reads, 8 offerings → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_source_options.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_source_options.reads", counter.Measurement(large))
 }
 
 func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
@@ -115,7 +115,7 @@ func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 templates → %d reads, 8 templates → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.enrollment.template_roster_maintenance_feeds.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.template_roster_maintenance_feeds.reads", counter.Measurement(large))
 }
 
 func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
@@ -141,7 +141,7 @@ func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
 	large := run()
 	t.Logf("query budget: 3 review rows → %d reads, 8 review rows → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.enrollment.rollover_review_queue.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.rollover_review_queue.reads", counter.Measurement(large))
 }
 
 func createBudgetRequest(
@@ -154,10 +154,10 @@ func createBudgetRequest(
 	sourceChildID *int64,
 ) int64 {
 	t.Helper()
-	request := &enrollmentAPI.Request{
+	request := &enrollmentNative.Request{
 		PhaseID: phaseID, GuardianFirstName: "Budget", GuardianLastName: "Test",
-		GuardianEmail: prefix + "@example.test", ConsentFlags: map[string]any{}, CustomData: map[string]any{},
-		SubmissionSource: enrollmentNative.RequestSourcePublic, SourceMetadata: map[string]any{}, StatusToken: prefix,
+		GuardianEmail: prefix + "@example.test", ConsentFlags: testFormValues(map[string]any{}), CustomData: testFormValues(map[string]any{}),
+		SubmissionSource: enrollmentNative.RequestSourcePublic, SourceMetadata: testFormValues(map[string]any{}), StatusToken: prefix,
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(testpkg.Ctx(t), env.repos.Enrollment(), request))
 	for i := range childCount {
@@ -176,9 +176,9 @@ func createBudgetRequestChild(
 	sourceChildID *int64,
 ) {
 	t.Helper()
-	child := &enrollmentAPI.RequestChild{
+	child := &enrollmentNative.RequestChild{
 		RequestID: requestID, FirstName: fmt.Sprintf("Child%d", sortOrder), LastName: prefix,
-		DateOfBirth: "2018-04-15", CustomData: map[string]any{}, Status: status,
+		DateOfBirth: "2018-04-15", CustomData: testFormValues(map[string]any{}), Status: status,
 		ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: sortOrder, RolloverSourceChildID: sourceChildID,
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerChildForTest(testpkg.Ctx(t), env.repos.Enrollment(), child))
@@ -363,5 +363,5 @@ func TestOfferingWeekdayBookingsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 children → %d reads, 8 children → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_weekday_bookings.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_weekday_bookings.reads", counter.Measurement(large))
 }

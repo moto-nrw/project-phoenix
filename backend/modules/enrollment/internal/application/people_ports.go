@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -243,6 +244,9 @@ type ReviewerStaff interface {
 // runtime's not-found error.
 type StudentRecords interface {
 	FindStudent(context.Context, int64) error
+	// EnrolledMatchCandidates lists the enrolled children of the school that
+	// may be the child an enrollment names (#6053).
+	EnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday calendar.Date) ([]enrollmentNative.ExistingChildCandidate, error)
 }
 
 // GuardianProfiles reads and writes the tenant's guardian profiles.
@@ -291,6 +295,11 @@ type GuardianPhones interface {
 	CreateGuardianPhone(context.Context, *GuardianPhone) error
 }
 
+// CompanionStrandings checks deferred removals against the final departure plans.
+type CompanionStrandings interface {
+	VerifyCompanionStrandingBatch(context.Context) error
+}
+
 // PeopleDirectory bundles the People Directory ports. A nil port skips the
 // work that needs it, the way the decision flow always treated an unwired
 // repository.
@@ -310,7 +319,8 @@ type PeopleDirectory struct {
 	ErrCompanionWouldLoseDeparture error
 	ErrCompanionLockBusy           error
 	// IsLockNotAvailable reports a NOWAIT row lock that lost the race.
-	IsLockNotAvailable func(error) bool
+	IsLockNotAvailable  func(error) bool
+	CompanionStrandings CompanionStrandings
 }
 
 // DepartureCompanions reads the "läuft mit" edges Care Plan keeps and

@@ -2,11 +2,7 @@
 // cutover removed the tenant-side class-day mount, an account whose only role
 // at a school is a school-portal role has nothing left to reach in the OGS
 // portal — so every path that mints or renews a TENANT session refuses it and
-// points at moto schule.
-//
-// The guard sits at four places on purpose: sealing only the password login
-// would leave the MFA hand-off and an already-issued refresh token as open
-// side doors.
+// points at moto schule: the password login, the switch and the refresh.
 package behavior_test
 
 import (
@@ -75,21 +71,6 @@ func registerAccountAtTenant(t *testing.T, db *bun.DB, service testAuthService, 
 	return email, account.ID, tenantID, fmt.Sprintf("t%d", tenantID)
 }
 
-func TestTenantLogin_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
-
-	email, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "school-only")
-	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
-
-	_, _, err := service.LoginWithAudit(context.Background(), email, testPassword, "", "", slug)
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal,
-		"a Lehrkraft-only account must be sent to moto schule, not into the OGS portal")
-}
-
 func TestTenantLoginWithMFAGate_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -98,8 +79,6 @@ func TestTenantLoginWithMFAGate_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	email, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "school-only-mfa")
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
 
-	// The MFA-aware login is what the HTTP handler actually calls; the
-	// password-only sibling above is the legacy path.
 	_, err := service.LoginWithMFAGate(context.Background(), email, testPassword, "", "", slug, "")
 
 	require.Error(t, err)
@@ -117,7 +96,7 @@ func TestTenantLogin_DualRoleLehrkraftPassesThrough(t *testing.T) {
 	// exactly this, and the cutover must not lock them out of the OGS portal.
 	assignSchoolSystemRole(t, db, accountID, tenantID, "user")
 
-	accessToken, refreshToken, err := service.LoginWithAudit(context.Background(), email, testPassword, "", "", slug)
+	accessToken, refreshToken, err := tenantPasswordLogin(service, email, testPassword, "", "", slug)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
@@ -132,10 +111,29 @@ func TestSwitchTenant_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	_, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "switch-school-only")
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
 
-	accessToken, refreshToken, err := service.SwitchTenant(context.Background(), accountID, slug, "")
+	accessToken, refreshToken, err := service.SwitchTenant(context.Background(), accountID, slug, "", "", "")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal)
+	assert.Empty(t, accessToken)
+	assert.Empty(t, refreshToken)
+}
+
+// A school where the account is only a guardian has no tenant-portal surface
+// either: the switch refuses it like the tenant login does, instead of minting
+// a tenant session that carries only the guardian role.
+func TestSwitchTenant_GuardianOnlyAccountIsRefused(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+
+	_, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "switch-guardian-only")
+	assignSchoolSystemRole(t, db, accountID, tenantID, "guardian")
+
+	accessToken, refreshToken, err := service.SwitchTenant(context.Background(), accountID, slug, "", "", "")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, identityaccess.ErrParentMustUseParentPortal)
 	assert.Empty(t, accessToken)
 	assert.Empty(t, refreshToken)
 }
@@ -149,7 +147,7 @@ func TestRefreshToken_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
 	assignSchoolSystemRole(t, db, accountID, tenantID, "user")
 
-	_, refreshToken, err := service.LoginWithAudit(context.Background(), email, testPassword, "", "", slug)
+	_, refreshToken, err := tenantPasswordLogin(service, email, testPassword, "", "", slug)
 	require.NoError(t, err)
 
 	// The caregiver role is withdrawn while the session is still open. A
@@ -231,7 +229,7 @@ func TestRefreshToken_SchulverwaltungOnlyAccountIsRefused(t *testing.T) {
 	assignSchoolSystemRole(t, db, accountID, tenantID, "schulverwaltung")
 	assignSchoolSystemRole(t, db, accountID, tenantID, "user")
 
-	_, refreshToken, err := service.LoginWithAudit(context.Background(), email, testPassword, "", "", slug)
+	_, refreshToken, err := tenantPasswordLogin(service, email, testPassword, "", "", slug)
 	require.NoError(t, err)
 
 	removeSchoolSystemRole(t, db, accountID, tenantID, "user")

@@ -1,15 +1,17 @@
 "use client";
 
 // Eine buchbare Woche eines Ferienzeitraums (#4659): Tage, ausrichtende OGS
-// und die Zeitmodelle mit ihrem Preis.
+// und die Zeitmodelle mit ihrem Preis. Ein gebuchtes Zeitmodell lässt sich
+// nicht entfernen, nur archivieren (#5994).
 
-import { Plus, X } from "lucide-react";
+import { Archive, Plus, X } from "lucide-react";
 import { useCallback } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODateInput } from "~/components/ui/date-picker";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Input } from "~/components/ui/input";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
 import type { TraegerSchool } from "~/lib/traeger-api";
@@ -27,6 +29,25 @@ function weekTitle(index: number, week: WeekDraft): string {
   return `Woche ${index + 1}: ${formatDate(week.startsOn)} bis ${formatDate(week.endsOn)}`;
 }
 
+/**
+ * An archived time model: shown, but no longer changed or offered. The days
+ * booked on it keep its times.
+ */
+function ArchivedTimeModelRow({ model }: Readonly<{ model: TimeModelDraft }>) {
+  return (
+    <div className="flex flex-col gap-1 border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-gray-900">{model.name}</span>
+        <StatusBadge tone="gray" size="xs" label="Archiviert" />
+      </div>
+      <p className="text-sm text-gray-600">
+        {model.startsAt} bis {model.endsAt} Uhr, {model.price} Euro. Neu buchen
+        kann es niemand mehr. Gebuchte Tage behalten es.
+      </p>
+    </div>
+  );
+}
+
 function TimeModelRow({
   model,
   field,
@@ -40,10 +61,11 @@ function TimeModelRow({
   onChange: (model: TimeModelDraft) => void;
   onRemove: () => void;
 }>) {
+  if (model.archived) return <ArchivedTimeModelRow model={model} />;
   const startsError = fieldError(`${field}.starts_at`);
   const endsError = fieldError(`${field}.ends_at`);
   return (
-    <div className="grid grid-cols-1 gap-3 border-t border-gray-100 pt-3 first:border-t-0 first:pt-0 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start">
+    <div className="grid grid-cols-1 gap-3 border-t border-gray-100 pt-3 first:border-t-0 first:pt-0 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_7rem] sm:items-start">
       <Input
         name={`${field}.name`}
         label="Name"
@@ -90,19 +112,36 @@ function TimeModelRow({
         error={fieldError(`${field}.price_cents`) ?? undefined}
         onChange={(event) => onChange({ ...model, price: event.target.value })}
       />
-      <div className="flex sm:pt-8">
-        {/* Icon only next to the row on wide screens; on a phone the row
-            stacks, so the button names what it removes. */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
-          onClick={onRemove}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-          <span className="sm:hidden">Zeitmodell entfernen</span>
-        </Button>
+      {/* A fixed column, so rows with "Archivieren" and rows with the X
+          keep their fields in line. */}
+      <div className="flex sm:justify-end sm:pt-8">
+        {model.protected ? (
+          // Bookings name it: it stays for their days and leaves the offer.
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            className="gap-1.5"
+            aria-label={`Zeitmodell ${model.name || "ohne Namen"} archivieren`}
+            onClick={() => onChange({ ...model, archived: true })}
+          >
+            <Archive className="h-4 w-4" aria-hidden="true" />
+            Archivieren
+          </Button>
+        ) : (
+          // Icon only next to the row on wide screens; on a phone the row
+          // stacks, so the button names what it removes.
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
+            onClick={onRemove}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+            <span className="sm:hidden">Zeitmodell entfernen</span>
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -188,33 +227,19 @@ export function HolidayWeekEditor({
               onChange={(endsOn) => onChange({ ...week, endsOn })}
             />
           </div>
-          <div>
-            <span
-              id={`${prefix}.host_school_id-label`}
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Ausrichtende OGS
-            </span>
-            <CustomSelect
-              name={`${prefix}.host_school_id`}
-              ariaLabelledBy={`${prefix}.host_school_id-label`}
-              ariaDescribedBy={
-                hostError ? `${prefix}.host_school_id-error` : undefined
-              }
-              invalid={Boolean(hostError)}
-              placeholder="Schule wählen"
-              value={week.hostSchoolId}
-              options={schools.map((school) => ({
-                value: school.id,
-                label: school.name,
-              }))}
-              onChange={(hostSchoolId) => onChange({ ...week, hostSchoolId })}
-            />
-            <FieldErrorHint
-              id={`${prefix}.host_school_id-error`}
-              message={hostError}
-            />
-          </div>
+          <CustomSelect
+            id={`${prefix}.host_school_id`}
+            name={`${prefix}.host_school_id`}
+            label="Ausrichtende OGS"
+            error={hostError}
+            placeholder="Schule wählen"
+            value={week.hostSchoolId}
+            options={schools.map((school) => ({
+              value: school.id,
+              label: school.name,
+            }))}
+            onChange={(hostSchoolId) => onChange({ ...week, hostSchoolId })}
+          />
         </div>
 
         <div className="space-y-3">
@@ -225,30 +250,29 @@ export function HolidayWeekEditor({
               Preis.
             </p>
           </div>
-          {week.timeModels.length === 0 ? (
+          {week.timeModels.every((model) => model.archived) ? (
             <p className="text-sm text-gray-600">
-              Diese Woche hat noch kein Zeitmodell. Zum Veröffentlichen braucht
-              jede Woche mindestens eins.
+              Diese Woche hat noch kein buchbares Zeitmodell. Zum
+              Veröffentlichen braucht jede Woche mindestens eins.
             </p>
-          ) : (
-            week.timeModels.map((model, modelIndex) => (
-              <TimeModelRow
-                key={model.key}
-                model={model}
-                field={`${prefix}.time_models.${modelIndex}`}
-                fieldError={fieldError}
-                onChange={(next) => setTimeModel(modelIndex, next)}
-                onRemove={() =>
-                  onChange({
-                    ...week,
-                    timeModels: week.timeModels.filter(
-                      (_, i) => i !== modelIndex,
-                    ),
-                  })
-                }
-              />
-            ))
-          )}
+          ) : null}
+          {week.timeModels.map((model, modelIndex) => (
+            <TimeModelRow
+              key={model.key}
+              model={model}
+              field={`${prefix}.time_models.${modelIndex}`}
+              fieldError={fieldError}
+              onChange={(next) => setTimeModel(modelIndex, next)}
+              onRemove={() =>
+                onChange({
+                  ...week,
+                  timeModels: week.timeModels.filter(
+                    (_, i) => i !== modelIndex,
+                  ),
+                })
+              }
+            />
+          ))}
           {week.timeModels.length < MAX_TIME_MODELS_PER_WEEK ? (
             <Button
               type="button"

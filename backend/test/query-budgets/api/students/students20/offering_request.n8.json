@@ -1,0 +1,7 @@
+{
+  "scenario": "api.students.students20.offering_request.n8",
+  "max": 17,
+  "exact": true,
+  "description": "Resource HTTP seam, real owner SQL, N8 positive collection fixture. Transaction frame included; production live-session authentication excluded. Measured count, not a minimum. ",
+  "route": "POST /api/students/offering-change-requests/{requestId}/preview"
+}

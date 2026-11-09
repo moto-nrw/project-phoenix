@@ -11,11 +11,8 @@
 
 import type React from "react";
 
-import { DataTableSkeleton } from "~/components/ui/data-table";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Skeleton } from "~/components/ui/skeleton";
-
-export { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 
 // Deterministic width cycle — varied line lengths read as real text without
 // Math.random() (which would break SSR hydration and test snapshots).
@@ -56,15 +53,6 @@ export function SkeletonRegion({
 }
 
 /**
- * Loading table for call sites without column definitions. Thin alias of
- * the colocated `DataTableSkeleton` in data-table.tsx, which shares its
- * class constants with the real DataTable — zero drift by construction.
- * Prefer `<DataTable isLoading>` whenever the columns exist: that renders
- * the real header labels.
- */
-export { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
-
-/**
  * Die Kopfkarte von `TenantPage` als Platzhalter: dieselbe Fläche, dieselben
  * Ränder, dieselbe Zeilenfolge (Titel, Statuszeile, optional Bedienzeile).
  * Jede Seite, die während des Ladens ihren Kopf zeigt, nimmt diese hier —
@@ -95,21 +83,21 @@ export function TenantPageHeaderSkeleton({
     <header className="moto-content-surface rounded-2xl border p-5">
       {back}
       <div className="flex min-w-0 items-center gap-3">
-        {leading && <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
+        {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <Skeleton className="h-7 w-52 max-w-3/4 rounded-full" />
-            {info && <Skeleton className="h-8 w-8 shrink-0 rounded-md" />}
+            <Skeleton shape="round" className="h-7 w-52 max-w-3/4" />
+            {info && <Skeleton className="h-8 w-8 shrink-0" />}
           </div>
           {stats && (
-            <Skeleton className="mt-2 h-4 w-64 max-w-full rounded-full" />
+            <Skeleton shape="round" className="mt-2 h-4 w-64 max-w-full" />
           )}
         </div>
       </div>
       {controls && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Skeleton className="h-9 w-48 rounded-lg" />
-          <Skeleton className="h-9 w-32 rounded-lg" />
+          <Skeleton shape="control" className="h-9 w-48" />
+          <Skeleton shape="control" className="h-9 w-32" />
         </div>
       )}
     </header>
@@ -121,14 +109,17 @@ export function CardSkeleton({ rows = 3 }: Readonly<{ rows?: number }>) {
   return (
     <div className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-3">
-        <Skeleton className="h-9 w-9 flex-shrink-0 rounded-xl sm:h-10 sm:w-10" />
-        <Skeleton className="h-5 w-36 rounded" />
+        <Skeleton
+          shape="inner"
+          className="h-9 w-9 flex-shrink-0 sm:h-10 sm:w-10"
+        />
+        <Skeleton className="h-5 w-36" />
       </div>
       <div className="flex flex-1 flex-col space-y-3">
         {Array.from({ length: rows }, (_, i) => (
           <div key={i} className="space-y-1">
-            <Skeleton className="h-3 w-20 rounded" />
-            <Skeleton className={`h-4 rounded ${lineWidth(i)}`} />
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className={`h-4 ${lineWidth(i)}`} />
           </div>
         ))}
       </div>
@@ -160,12 +151,12 @@ export function DetailSectionSkeleton({
 }: Readonly<{ fields?: number }>) {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-      <Skeleton className="mb-4 h-5 w-40 rounded" />
+      <Skeleton className="mb-4 h-5 w-40" />
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         {Array.from({ length: fields }, (_, i) => (
           <div key={i} className="space-y-1.5">
-            <Skeleton className="h-3 w-24 rounded" />
-            <Skeleton className={`h-4 rounded ${lineWidth(i)}`} />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className={`h-4 ${lineWidth(i)}`} />
           </div>
         ))}
       </div>
@@ -194,14 +185,14 @@ export function FormSkeleton({ fields = 5 }: Readonly<{ fields?: number }>) {
       <div className="space-y-5">
         {Array.from({ length: fields }, (_, i) => (
           <div key={i} className="space-y-1.5">
-            <Skeleton className="h-4 w-28 rounded" />
-            <Skeleton className="h-11 w-full rounded-md" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-11 w-full" />
           </div>
         ))}
       </div>
       <div className="mt-6 flex justify-end gap-2">
-        <Skeleton className="h-9 w-24 rounded-md" />
-        <Skeleton className="h-9 w-32 rounded-md" />
+        <Skeleton className="h-9 w-24" />
+        <Skeleton className="h-9 w-32" />
       </div>
     </div>
   );
@@ -220,13 +211,13 @@ export function ListSkeleton({
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
           {avatar && (
-            <Skeleton className="h-9 w-9 flex-shrink-0 rounded-full" />
+            <Skeleton shape="round" className="h-9 w-9 flex-shrink-0" />
           )}
           <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className={`h-4 rounded ${lineWidth(i)}`} />
-            <Skeleton className={`h-3 rounded ${lineWidth(i + 3)}`} />
+            <Skeleton className={`h-4 ${lineWidth(i)}`} />
+            <Skeleton className={`h-3 ${lineWidth(i + 3)}`} />
           </div>
-          <Skeleton className="h-6 w-16 flex-shrink-0 rounded-full" />
+          <Skeleton shape="round" className="h-6 w-16 flex-shrink-0" />
         </div>
       ))}
     </div>
@@ -234,26 +225,66 @@ export function ListSkeleton({
 }
 
 /**
- * Full generic list page: header + table. The right default when a page's
- * loaded state is a PageHeaderWithSearch over a DataTable.
+ * Getrennte Auswahlzeilen mit Kompaktkarte und Aktionsplatz. Für Listen, die
+ * aus `ChoiceTile` und einer Profil- oder Detailaktion bestehen, nicht für
+ * durchgehende Listen mit Trennlinien.
  */
-export function ListPageSkeleton({
-  label,
-  chips = 0,
-  rows = 8,
-  columns = 5,
-  testId,
-}: Readonly<{
-  label: string;
-  chips?: number;
-  rows?: number;
-  columns?: number;
-  testId?: string;
-}>) {
+export function ChoiceTileListSkeleton({
+  rows = 3,
+  avatar = false,
+}: Readonly<{ rows?: number; avatar?: boolean }>) {
   return (
-    <SkeletonRegion label={label} testId={testId}>
-      <PageHeaderSkeleton chips={chips} />
-      <DataTableSkeleton rows={rows} columns={columns} />
-    </SkeletonRegion>
+    <div className="flex flex-col gap-2">
+      {Array.from({ length: rows }, (_, index) => (
+        <ChoiceTile key={index} as="div" className="gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {avatar ? (
+              <Skeleton shape="round" className="h-8 w-8 shrink-0" />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <Skeleton className={index % 2 === 0 ? "h-5 w-40" : "h-5 w-32"} />
+              <Skeleton className="mt-0.5 h-4 w-24" />
+            </div>
+          </div>
+          <Skeleton shape="control" className="h-8 w-16 shrink-0" />
+        </ChoiceTile>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Gruppierte Verlaufskarten: Datum, Titel mit Dauer, zwei Fakten und eine
+ * Zeitzeile. Entspricht einer Historie mit einzelnen Inhaltskarten, nicht
+ * einer durchgehenden Liste.
+ */
+export function HistorySkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="mb-3 h-5 w-32" />
+        <div className="space-y-3">
+          {Array.from({ length: 2 }, (_, index) => (
+            <div
+              key={index}
+              className="moto-content-surface rounded-xl border p-4"
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <Skeleton className={index === 0 ? "h-5 w-40" : "h-5 w-32"} />
+                <Skeleton className="h-3 w-12" />
+              </div>
+              <div className="space-y-1">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <div className="mt-3 flex justify-between border-t border-gray-100 pt-3">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

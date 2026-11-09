@@ -146,7 +146,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	liveEducation := NewActiveTestEducation(db, unit, clocks...)
 	livePresence := NewActiveTestPresence(db, unit, clocks...)
 	liveTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
-	care, careAudit, err := NewCareLifecycleTestModule(db, unit)
+	care, careAudit, err := NewCareLifecycleTestModule(db, unit, clocks...)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
@@ -271,7 +271,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(students.CarePlan),
 		Notifications:  owners.NewEnrollmentNotifications(repos.Enrollment(), settingsService, owners.OutboxEnqueuer{Outbox: emailOutboxService}, owners.EnrollmentSchoolDirectory{Schools: reposSchools.School}),
 		Bookings:       careBookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, persons,
 		),

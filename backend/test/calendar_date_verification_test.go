@@ -39,6 +39,29 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// #4686: the attendance retention binds its cutoff and scans the mark
+	// through raw SQL in Student Presence as calendar.Date (ports.Date); no
+	// time.Time ever reaches the column.
+	"active.attendance_retention_marks.deleted_before": "#4686: Student Presence binds and scans calendar.Date, never time.Time",
+	// The trail of the children of a family (#5918) is written in one
+	// INSERT ... SELECT FROM unnest with *calendar.Date parameters and never
+	// read back into a model; no time.Time reaches the columns.
+	"parent_billing.family_child_count_events.valid_from":  "family trail binds *calendar.Date in raw SQL, never time.Time",
+	"parent_billing.family_child_count_events.valid_until": "family trail binds *calendar.Date in raw SQL, never time.Time",
+	// The Betreuungsvertrag (ADR 0153) binds the last day of a booked module
+	// as "YYYY-MM-DD" text cast to DATE and reads it back with to_char inside
+	// a JSON aggregate; carecontract.Service.LastDay is *calendar.Date and no
+	// time.Time ever reaches the column.
+	"care_contract.contract_version_services.last_day": "Betreuungsvertrag binds and reads calendar.Date text, never time.Time",
+	// Withdrawal and termination (ADR 0159) bind and scan the last day of a
+	// terminated contract and the day a declaration arrived through raw SQL
+	// with adapter-local calendar.Date fields; no time.Time reaches them.
+	"care_contract.contracts.ends_on": "Betreuungsvertrag binds and reads calendar.Date, never time.Time (ADR 0159)",
+	// ADR 0155: the day a paper contract was signed is written and scanned
+	// by raw SQL in the care contract adapter as calendar.Date
+	// (ports.NewSignature.SignedOn, the row's SignedOn); no time.Time ever
+	// reaches the column.
+	"care_contract.contract_signatures.signed_on": "ADR 0155: the signature adapter binds and scans calendar.Date, never time.Time",
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
 	// must replace this classification with a calendar.Date owner row field.
 	// People Directory uses explicit joined projections, not a table-bound
@@ -46,6 +69,13 @@ var unmappedDateColumns = map[string]string{
 	// adapters/postgres/store_test.go checks the persistence field types.
 	"users.student_school_memberships.enrolled_from":  "People Directory explicit projection uses *calendar.Date",
 	"users.student_school_memberships.enrolled_until": "People Directory explicit projection uses *calendar.Date",
+	// ADR 0166: School Membership writes the first-care bound in raw SQL
+	// from calendar.Date values; People Directory's projection row reads it
+	// as *calendar.Date. No table-bound model maps the column.
+	"users.student_school_memberships.first_care_from": "ADR 0166: written from calendar.Date, read by the People Directory projection as *calendar.Date",
+	// ADR 0180: the care gap of a returning child, kept the same way.
+	"users.student_school_memberships.care_paused_after": "ADR 0180: written from calendar.Date, read by the People Directory projection as *calendar.Date",
+	"users.student_school_memberships.care_resumed_from": "ADR 0180: written from calendar.Date, read by the People Directory projection as *calendar.Date",
 	// The child note card (#3632) has no table-bound model either: the day an
 	// entry describes is carried by the adapter-local studentNoteRow as a
 	// *calendar.Date and travels through the capability as the same type.

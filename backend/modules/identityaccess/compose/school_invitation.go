@@ -19,6 +19,7 @@ func newSchoolInvitation(
 	sessions *identityPorts.SessionDependencies,
 	lifecycleDeps *LifecycleDependencies,
 	deps *identityPorts.SchoolInvitationDependencies,
+	runtime tenantRuntime,
 ) (*application.SchoolInvitation, error) {
 	if deps == nil {
 		return nil, nil
@@ -29,7 +30,7 @@ func newSchoolInvitation(
 	attach := sessions.TenantRuntime
 	var delivery identityPorts.SchoolInvitationDelivery
 	if deps.DeliveryFor != nil {
-		delivery = deps.DeliveryFor(application.NewSchoolInvitationDeliveryRecords(store, attach, tenantRuntime{attach: attach, runner: application.NewTransactionRunner()}))
+		delivery = deps.DeliveryFor(application.NewSchoolInvitationDeliveryRecords(store, attach, runtime))
 	}
 	if deps.Grants == nil || deps.Owners == nil || delivery == nil || deps.Passwords == nil {
 		return nil, errors.New("identity access compose: every invitation dependency is required")
@@ -42,10 +43,10 @@ func newSchoolInvitation(
 		Schools:   application.SchoolDirectory{SchoolDirectory: sessions.Schools},
 		Owners:    deps.Owners,
 		Passwords: deps.Passwords,
-		Delivery:  application.SchoolInvitationDelivery{Source: delivery},
-		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
-		Attach:    attach,
-		Expiry:    deps.Expiry,
-		Logger:    deps.Logger,
+		Delivery:  application.SchoolInvitationDelivery{Source: delivery}, MailStates: delivery.InvitationMailStates,
+		Runtime: runtime,
+		Attach:  attach,
+		Expiry:  deps.Expiry,
+		Logger:  deps.Logger,
 	})
 }

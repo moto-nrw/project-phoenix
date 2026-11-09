@@ -73,15 +73,23 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// The outbox delivers what a producer already enqueued; a producer of a
 	// module that is not booked enqueues nothing.
 	"email-outbox": jobScopeBasis,
+	// Compares the mail states of all schools with the provider's record (#5933).
+	"email-delivery-reconciliation": jobScopeBasis,
 	// The holiday guests of a hosted week belong to moto Basis like its
 	// participant list (ADR 0116, ADR 0120).
 	"holiday-guest-reconciliation": jobScopeBasis,
 	// A planned staff exit is the staff administration of moto Basis
 	// (#4809).
 	"planned-staff-exits": jobScopeBasis,
+	// The care contract of an accepted application belongs to the Träger
+	// portal of moto Basis (#4680); it runs across all Träger, not per school.
+	"care-contract-conclusion": jobScopeBasis,
 	// The Nachweise of the staff are the personnel record of moto Basis
 	// (#4808).
 	"staff-qualification-reminders": jobScopeBasis,
+	// The care contracts (#4679) belong to the Träger, not to a booked
+	// module of a school; the job runs per Träger.
+	"care-contract-reminders": jobScopeBasis,
 	// The weekly protocol of a group (#4769) is the group's planning of
 	// moto Basis, like the timetable it records.
 	"week-protocols": jobScopeBasis,

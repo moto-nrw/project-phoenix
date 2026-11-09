@@ -4,7 +4,7 @@ import { problemResponse } from "~/lib/api-response-error.server";
 import { createLogger } from "~/lib/logger";
 import { SESSION_ACCOUNT_HEADER } from "~/lib/session-account";
 import type { SentryPortal } from "~/lib/sentry-context";
-import type { ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
 import { ACCOUNT_CHECK_EXEMPT_PATHS } from "./session-check-exempt-paths";
 
 const logger = createLogger({ component: "SessionAccountCheck" });

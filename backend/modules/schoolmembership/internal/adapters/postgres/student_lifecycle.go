@@ -7,10 +7,83 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) TransitionStudentStatus(ctx context.Context, id int64, expected, next string) (bool, domain.OperationStats, error) {
+// firstCareFromNext is the first-care bound after a write that moves a child's
+// status or start (#6041, ADR 0166): the earliest day the child can have been
+// cared for at this school, NULL when unknown. ?0 is the application's today,
+// ?1 the next status, ?2 the next start (SET reads the row before the write).
+//
+//   - Unknown stays unknown: a returning child keeps its past.
+//   - A bound already reached may have seen care, so it only moves earlier.
+//   - A bound still ahead saw no care: it follows the start, or becomes today
+//     for an activation before the start or a child without a start.
+const firstCareFromNext = `first_care_from = CASE
+	WHEN "student".first_care_from IS NULL THEN NULL
+	WHEN "student".first_care_from <= ?0::date THEN LEAST("student".first_care_from, ?2::date)
+	WHEN ?1::text = 'active' OR ?2::date IS NULL THEN LEAST(?2::date, ?0::date)
+	ELSE ?2::date END`
+
+// careRestart is true when a write restarts an ended care (#6073, ADR 0180):
+// the row's end has passed, and the next interval reaches today or later. ?0
+// is the application's today, ?1 the next end. Correcting an end to another
+// past day is no restart.
+const careRestart = `("student".enrolled_until IS NOT NULL AND "student".enrolled_until < ?0::date
+	AND (?1::date IS NULL OR ?1::date >= ?0::date))`
+
+// carePausedAfterNext records the last care day before a restart; every
+// other write keeps it. ?0 is the restart condition.
+const carePausedAfterNext = `care_paused_after = CASE WHEN ?0 THEN "student".enrolled_until
+	ELSE "student".care_paused_after END`
+
+// careResumedFromNext is the end of the care gap. A restart sets it to the
+// earliest day the child can be cared for again: a start after the earlier
+// end (today for an activation before it), otherwise today, as care that
+// keeps its earlier start only resumes with this write. Every other write
+// keeps it like firstCareFromNext keeps the first-care bound, except that a
+// reached end moves earlier only when the start itself changes: a restart
+// that kept an earlier start would otherwise lose its gap on the next save.
+// ?0 to ?2 as there, ?3 the restart condition.
+const careResumedFromNext = `care_resumed_from = CASE
+	WHEN ?3 THEN CASE
+		WHEN ?2::date IS NULL OR ?2::date <= "student".enrolled_until THEN ?0::date
+		WHEN ?1::text = 'active' THEN LEAST(?2::date, ?0::date)
+		ELSE ?2::date END
+	WHEN "student".care_resumed_from IS NULL THEN NULL
+	WHEN "student".care_resumed_from <= ?0::date THEN CASE
+		WHEN "student".enrolled_from IS NULL OR ?2::date <> "student".enrolled_from THEN LEAST("student".care_resumed_from, ?2::date)
+		ELSE "student".care_resumed_from END
+	WHEN ?1::text = 'active' OR ?2::date IS NULL THEN LEAST(?2::date, ?0::date)
+	ELSE ?2::date END`
+
+// noCareRestart is the restart condition of writes that keep the start.
+const noCareRestart = bun.Safe("FALSE")
+
+// firstCareFromOnInsert is the bound of a new membership: its start, when the
+// child is inserted pending with a start and has no other (also soft-deleted)
+// membership at this school. ?0 is the status, ?1 the start, ?2 the tenant,
+// ?3 the child.
+const firstCareFromOnInsert = `CASE WHEN ?0::text = 'pending' AND NOT EXISTS (
+	SELECT 1 FROM users.student_school_memberships AS other
+	WHERE other.tenant_id = ?2 AND other.student_profile_id = ?3
+) THEN ?1::date END`
+
+// currentDay parses the application's today the first-care bound is kept on;
+// without it the bound cannot be decided.
+func currentDay(today string) (calendar.Date, error) {
+	if today == "" {
+		return "", errors.New("school membership postgres: current day is required")
+	}
+	day, err := optionalDate(today, "current day")
+	if err != nil {
+		return "", err
+	}
+	return *day, nil
+}
+
+func (s *Store) TransitionStudentStatus(ctx context.Context, id int64, expected, next, today string) (bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
@@ -18,8 +91,14 @@ func (s *Store) TransitionStudentStatus(ctx context.Context, id int64, expected,
 	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return false, domain.OperationStats{}, err
 	}
+	day, err := currentDay(today)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
 	query := withStudentTenant(studentUpdate(db), scope).
-		Set("status = ?", next).Where("student.student_profile_id = ?", id).
+		Set("status = ?", next).Set(firstCareFromNext, day, next, bun.Safe(`"student".enrolled_from`)).
+		Set(careResumedFromNext, day, next, bun.Safe(`"student".enrolled_from`), noCareRestart).
+		Where("student.student_profile_id = ?", id).
 		Where("student.status <> 'alumnus'")
 	if expected != "" {
 		query = query.Where("student.status = ?", expected)
@@ -43,7 +122,7 @@ func (s *Store) GraduateStudents(ctx context.Context, ids []int64) (int64, domai
 	return execStudents(ctx, query, "graduate students by id")
 }
 
-func (s *Store) ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, domain.OperationStats, error) {
+func (s *Store) ReactivateStudents(ctx context.Context, ids []int64, status, today string) ([]int64, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -51,12 +130,17 @@ func (s *Store) ReactivateStudents(ctx context.Context, ids []int64, status stri
 	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	day, err := currentDay(today)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
 	type idRow struct {
 		ID int64 `bun:"id"`
 	}
 	var rows []idRow
 	query := withStudentTenant(studentUpdate(db).
-		Set(`status = ?`, status).
+		Set(`status = ?`, status).Set(firstCareFromNext, day, status, bun.Safe(`"student".enrolled_from`)).
+		Set(careResumedFromNext, day, status, bun.Safe(`"student".enrolled_from`), noCareRestart).
 		Where(`"student".student_profile_id IN (?)`, bun.List(ids)).
 		Where(`"student".status = ?`, "alumnus"), scope).
 		Returning(`"student".student_profile_id AS id`)
@@ -130,8 +214,11 @@ func (s *Store) ResumeStudentCare(ctx context.Context, id int64, from, status, o
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
+	restart := bun.SafeQuery(careRestart, today, bun.Safe("NULL"))
 	query := withStudentTenant(studentUpdate(db), scope).
 		Set("enrolled_from = ?", start).Set("enrolled_until = NULL").Set("status = ?", status).
+		Set(firstCareFromNext, today, status, start).
+		Set(carePausedAfterNext, restart).Set(careResumedFromNext, today, status, start, restart).
 		Where("student.student_profile_id = ?", id).
 		Where("student.status <> 'alumnus'").
 		Where("student.enrolled_until < ?", today)

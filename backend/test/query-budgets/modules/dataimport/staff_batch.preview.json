@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.staff_batch.preview",
+  "max": 12,
+  "exact": true,
+  "description": "Ten-row staff preview with role, personnel number, weekly hours and one qualification, without e-mail. The validation reads the school's roles once with the reference preload and the permissions of the roles the file names once (SAVEPOINT, read, RELEASE) at the first row that checks its role (#5887). Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

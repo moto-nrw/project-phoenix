@@ -38,24 +38,61 @@ The same applies to `auth` and any other server-only import in mixed files.
 
 ### Route Handlers (Next.js 16)
 
-Backend-proxy handlers use the affected portal's wrapper for consistent auth
-and error handling (operator/parent/school wrappers live under `lib/operator/`,
-`lib/parent/`, and `lib/school/`). Transparent raw-response routes use
-`lib/backend-proxy-route.server.ts` for tenant, public, or operator auth plus
-fetch/error handling; helper-backed success adapters use its tenant adapter.
-Do not move a route across portal auth boundaries to share code. Streaming SSE
-uses its documented exception in [the SSE contract](realtime.md).
+Every portal's route handlers come from one factory,
+`makePortalHandlers(portal)` (`lib/portal-handlers.server.ts`), bound once per
+portal in `lib/route-wrapper.server.ts` (tenant) and
+`lib/{operator,parent,school,caterer,traeger}/route-wrapper.server.ts` from the
+portal object its entry module exports (`tenantPortal`, `parentPortal`, …).
+It builds handlers (`get`, `post`, …, `del`), pure proxies (`proxyGet`, …),
+the verbatim `jsonProxy`, `proxyFile`/`downloadFile` and `proxyUpload`, all
+inside the portal's response wrapper. The helpers that read the session
+(`backendFetch`, `downloadFile`, `forwardToBackend`, `runWithRenewal`) throw
+outside that wrapper; `src/app/api/route-session-coverage.test.ts` runs every
+route and fails on a session read outside it. One response contract: data answers
+`{ success, message, data }`, a DELETE without a result answers 204, the
+envelope's `data` is unwrapped in one place, a handler may return a Response
+as it is. Public JSON routes use `createPublicJsonProxy`
+(`lib/backend-proxy-route.server.ts`), login steps before a session
+`authStepProxy` (`lib/auth-proxy.server.ts`). Do not move a route across
+portal auth boundaries to share code. Streaming SSE uses its documented
+exception in [the SSE contract](realtime.md).
 
-Every server-side backend call forwards the browser's client IP; the shared
-factories and wrappers do. A direct fetch adds
-`clientIdentityHeaders(request.headers)` or `incomingClientForwardHeaders()`.
-Why and the full chain: [Client IP and rate limits](contracts.md#client-ip-and-rate-limits).
+Every backend call goes through `sendBackend` (`lib/backend-client.server.ts`):
+base URL, bearer, one client identity set (`backendIdentityHeaders`: client
+IP, User-Agent, analytics session, Vorgangskennung, frontend origin),
+`cache: "no-store"`, Idempotency-Key, a header timeout from
+`BACKEND_TIMEOUTS_MS` (90 s by default; login, logout, session upkeep and
+public assets shorter), a refused `.`/`..` path segment, one log line and
+metric. Without a session (`bearer` null: public routes, login steps,
+refresh, token checks) the same path applies. The portal's `backendFetch`
+binds it to the request's session: a backend 401 repeats once with the
+renewed session. No session answers 401 "Unauthorized"; a renewal the backend
+refused (revoked or foreign family, invalid refresh token) answers 401
+"Token expired", so the browser signs out (#5194); a renewal that could not
+be decided (refresh unreachable, timeout, 5xx) answers 503
+`general.unavailable` and leaves the session as it is; a second 401 for the
+renewed token is the backend's own answer and passes through. An unreachable
+backend or a header timeout answers 503 `general.unavailable` everywhere.
+Retry is on by default; every
+route that carries the current password or a code (password change, e-mail
+change, MFA off, confirm code, a declaration with the account password)
+passes `retry: { off: "<reason>" }`, whichever helper sends it;
+`src/app/api/credential-retry.test.ts` proves each sends it once after a 401.
+The JSON of a call goes through `backendJson`: the portal handlers' `api`
+and the tenant's `apiGet`/`apiPost`/… in `lib/api-helpers.server.ts` are
+projections of it and run inside a portal route handler, whose retry policy
+applies. Only the SSE stream
+and the cached tenant resolve fetch the backend themselves; they add
+`clientIdentityHeaders(request.headers)` or the headers handed in. A route
+param in a backend path is encoded (`requirePathSegmentParam`,
+`encodeURIComponent`); a query key never replaces a route param. Why and
+the full chain:
+[Client IP and rate limits](contracts.md#client-ip-and-rate-limits).
 
-Backend error responses have one wire contract: the shared route wrappers
-(`route-wrapper.server.ts` and the operator, parent, and school wrappers) propagate
-`ApiResponseError` through `handleApiError`; raw-response factories and the
-audited direct-fetch exceptions use `forwardBackendResponse` or
-`backendResponseError`. These paths retain the
+Backend error responses have one wire contract: the portal handlers
+(`makePortalHandlers`) propagate `ApiResponseError` through `handleApiError`;
+the JSON proxies, file responses and the audited direct-fetch exceptions use
+`forwardBackendResponse`. These paths retain the
 backend status, body bytes, `Content-Type`, and `Retry-After`. Do not parse and
 rebuild an error body, infer status from an error string, or substitute a
 message when the backend returned an empty body. Locally generated errors
@@ -136,7 +173,7 @@ inventory is `NON_DOWNLOAD_RESOURCES` in `route-cache-policy.test.ts`:
 The routes below still call `fetch` directly
 because they stream non-JSON content, use the shared file-upload wrapper, or
 perform a route-specific business/session adaptation. Client-visible backend
-errors use `forwardBackendResponse` or `backendResponseError`; the demo
+errors use `forwardBackendResponse`; the demo
 readiness probe and optional profile prefetch are intentionally consumed by
 their surrounding BFF flow.
 A direct fetch outside this inventory needs a reason and a shared proxy path.
@@ -193,14 +230,21 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 | `staff/[id]/time-tracking/export` | Streams one staff member’s time-tracking export. |
 | `staff/time-tracking/export` | Streams staff time-tracking export bytes. |
 | `statistics/export` | Streams statistics export bytes with no-store caching. |
-| `students/[id]/attendance-history/export` | Streams attendance-history export bytes with no-store caching. |
-| `students/[id]/documents` | Multipart student-document upload uses the shared file-upload validator. |
-| `students/[id]/documents/[documentId]/download` | Streams a student document with MIME and disposition. |
-| `students/[id]/photo` | Validates photo bytes and consent; DELETE also refreshes an expired session. |
-| `students/[id]/photo/[filename]` | Serves student photo bytes with MIME and cache headers. |
-| `students/day-log/export` | Streams day-log export bytes with no-store caching. |
-| `students/export` | Streams the student export file and backend disposition. |
+| `students/[id]/photo/[filename]` | Serves student photo bytes with MIME, cache headers and the 304 revalidation path. |
 | `traeger/auth/logout` | Uses the Träger refresh token, not the access token, to revoke the `org` session. |
+
+File routes of every portal answer through one builder, `fileResponse`
+(`lib/file-response.server.ts`: streaming, the backend's file headers,
+`nosniff` by default, `no-store` unless the route names a cache policy, a
+backend error as its problem body). Routes without route-specific logic use
+the factory instead of a direct fetch: downloads `proxyFile` (client
+identity, one refreshed retry; the route wraps it in
+`withPrivateDownloadNoStore`), uploads `proxyFileUpload`
+(`lib/file-upload-wrapper.server.ts`: file validation, listed form fields,
+client identity, one refreshed retry). Under `students/` these are the six
+downloads (accident-report PDF, attendance-history and day-log exports,
+document download, care-request proof, student export) and the three uploads
+(documents, photo, accident-report paper copy).
 
 The three SSE routes (`sse/events`, `parent/sse/events`, and
 `school/sse/events`) use `proxySSEStream` separately: each must keep its own
@@ -208,9 +252,10 @@ portal credential and abortable event stream, which a JSON factory would buffer.
 
 Helper-backed custom handlers without a direct `fetch` have narrower reasons:
 `rooms/[id]/history` applies the documented empty/disabled BFF mapping;
-`students/day-log`, `students/[id]/attendance-history`, and
-`statistics/report` whitelist audit-sensitive queries, retry refreshed tenant
-sessions, and keep their established no-store success envelope;
+`statistics/report` whitelists audit-sensitive queries, retries refreshed
+tenant sessions, and keeps its established no-store success envelope
+(`students/day-log` and `students/[id]/attendance-history` forward only their
+audit-sensitive query keys through `proxyGet` with `forwardQuery`);
 `auth/password` validates and renames password fields before `apiPost`;
 `auth/token` renews the tenant session and answers 204 without a token;
 `auth/staff-preview/end` takes the running preview's token from the session
@@ -226,9 +271,9 @@ wrappers; they are not handwritten auth/fetch/error loops.
 
 Business adapters are not transparent proxies: room history maps the
 documented 404 and `feature_disabled` 403 to an empty/disabled view;
-student privacy-consent GET maps an absent consent to its default model, and
 student PUT marks a consent write that succeeded before a later student write
-failed. Demo handoff produces a redirect after checking readiness. An exhausted
+failed. The student routes own the backend wire shape (`lib/student-wire.ts`);
+the browser client `lib/student-api.ts` receives mapped `Student` objects. Demo handoff produces a redirect after checking readiness. An exhausted
 auth refresh/retry answers 401 with `general.permission`. All other
 backend errors in those routes retain the shared error contract. Logout
 forwards backend errors unchanged even though the browser always clears its

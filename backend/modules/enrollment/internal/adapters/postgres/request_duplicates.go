@@ -43,7 +43,7 @@ func (r *Store) ActiveDuplicateChildren(ctx context.Context, phaseID int64, guar
 		Where(`req.tenant_id = ?`, tenantID).
 		Where(`req.phase_id = ?`, phaseID).
 		Where(`LOWER(TRIM(req.guardian_email)) = ?`, email).
-		Where(`rc.status NOT IN (?, ?)`, "rejected", "withdrawn")
+		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn)
 	if excludedRequestID > 0 {
 		q = q.Where(`req.id <> ?`, excludedRequestID)
 	}
@@ -102,8 +102,8 @@ func (r *Store) HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, 
 		Join(`JOIN enrollment.requests AS req ON req.id = rc.request_id AND req.tenant_id = rc.tenant_id`).
 		Where(`req.tenant_id = ?`, tenantID).
 		Where(`req.phase_id = ?`, phaseID).
-		Where(`rc.matched_student_id = ?`, studentID).
-		Where(`rc.status NOT IN (?, ?)`, "rejected", "withdrawn")
+		Where(`(rc.matched_student_id = ? OR rc.created_student_id = ?)`, studentID, studentID).
+		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn)
 	if excludeRequestChildID > 0 {
 		q = q.Where(`rc.id <> ?`, excludeRequestChildID)
 	}

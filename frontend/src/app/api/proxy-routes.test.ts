@@ -8,9 +8,10 @@ import { PROXY_ROUTES } from "~/test/proxy-routes.table";
  * Table test for every pure proxy route: a `route.ts` whose only top-level
  * code is `export const METHOD = proxyX(endpoint, options?)`. The proxy
  * factories, auth and error handling are tested once in
- * `src/lib/route-proxy.server.test.ts`, `src/lib/route-wrapper.test.ts` and the
+ * `src/lib/route-wrapper-proxy.test.ts`, `src/lib/route-wrapper.test.ts` and the
  * portal wrapper tests; per route only the portal, the backend path (with the
- * route params encoded) and the `raw` flag can differ. Those live in
+ * route params encoded) and the options (`raw`, `forwardQuery`, `maxBodyBytes`)
+ * can differ. Those live in
  * capability-local JSON files under `src/test/proxy-routes/` fragments. The loader
  * rejects duplicate identities; a new pure proxy route without an expectation fails.
  */
@@ -23,13 +24,19 @@ interface ProxyDescriptor {
   portal: Portal;
   factory: Factory;
   endpoint: string | ((params: Record<string, unknown>) => string);
-  options?: { raw?: boolean };
+  options?: ProxyOptions;
+}
+
+interface ProxyOptions {
+  raw?: boolean;
+  forwardQuery?: readonly string[];
+  maxBodyBytes?: number;
 }
 
 const proxyFactories = (portal: Portal) => {
   const make =
     (factory: Factory) =>
-    (endpoint: ProxyDescriptor["endpoint"], options?: { raw?: boolean }) =>
+    (endpoint: ProxyDescriptor["endpoint"], options?: ProxyOptions) =>
       ({ portal, factory, endpoint, options }) satisfies ProxyDescriptor;
   return {
     proxyGet: make("get"),
@@ -40,7 +47,7 @@ const proxyFactories = (portal: Portal) => {
   };
 };
 
-vi.mock("~/lib/route-proxy.server", () => proxyFactories("tenant"));
+vi.mock("~/lib/route-wrapper.server", () => proxyFactories("tenant"));
 vi.mock("~/lib/operator/route-wrapper.server", () =>
   proxyFactories("operator"),
 );
@@ -113,8 +120,13 @@ function describeExport(route: string, method: string, value: unknown) {
     typeof proxy.endpoint === "function"
       ? proxy.endpoint(sampleParams(route))
       : proxy.endpoint;
-  const raw = proxy.options?.raw ? " raw" : "";
-  return `${method} ${proxy.portal} ${endpoint}${raw}`;
+  const options = proxy.options ?? {};
+  const flags = [
+    options.raw ? "raw" : "",
+    options.forwardQuery ? `query=${options.forwardQuery.join(",")}` : "",
+    options.maxBodyBytes === undefined ? "" : `max=${options.maxBodyBytes}`,
+  ].filter(Boolean);
+  return [`${method} ${proxy.portal} ${endpoint}`, ...flags].join(" ");
 }
 
 const pureRoutes = readdirSync(appDir, { recursive: true, encoding: "utf8" })

@@ -100,11 +100,17 @@ func (p *GuardianDirectory) SearchGuardians(ctx context.Context, text string, li
 }
 
 func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {
-	impact, err := p.guardians.GetGuardianDeleteImpact(ctx, id)
-	if err != nil {
+	if _, err := p.guardians.GuardianProfiles().FindByID(ctx, id); err != nil {
 		return peopledirectory.GuardianDeleteImpact{}, mapGuardianError(err)
 	}
-	return peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil
+	result := peopledirectory.GuardianDeleteImpact{GuardianFound: true}
+	impact, err := p.guardians.GetGuardianDeletePreviewImpact(ctx, id)
+	if err != nil {
+		return result, mapGuardianError(err)
+	}
+	result.LinkIDs = impact.LinkIDs
+	result.StudentNames = impact.StudentNames
+	return result, nil
 }
 
 func (p *GuardianDirectory) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {
@@ -188,15 +194,22 @@ func (p *GuardianDirectory) ListPaymentExportRows(ctx context.Context, actor peo
 
 func (p *GuardianDirectory) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {
 	var profile *peopledirectory.GuardianProfileSnapshot
+	created := true
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		profile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
+		if input.ReuseExistingByEmail {
+			profile, created, txErr = p.guardians.FindOrCreateGuardian(txCtx, toGuardianCreateRequest(input))
+		} else {
+			profile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
+		}
 		return txErr
 	})
 	if err != nil {
 		return peopledirectory.Guardian{}, mapGuardianError(err)
 	}
-	return toDirectoryGuardian(profile), nil
+	guardian := toDirectoryGuardian(profile)
+	guardian.ReusedExisting = !created
+	return guardian, nil
 }
 
 func (p *GuardianDirectory) UpdateGuardian(ctx context.Context, id int64, input peopledirectory.GuardianInput) error {
@@ -220,11 +233,15 @@ func (p *GuardianDirectory) DeleteGuardian(ctx context.Context, input peopledire
 }
 
 func (p *GuardianDirectory) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {
+	if !(RepositoryRuntime{}).InTransaction(ctx) {
+		input.CreatedGuardian = nil
+	}
 	var phone *peopledirectory.GuardianProfilePhoneSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		phone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peoplePorts.PhoneNumberCreateRequest{
-			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
+			CreatedGuardian: input.CreatedGuardian,
+			PhoneNumber:     input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
 		})
 		return txErr
 	})
@@ -255,11 +272,16 @@ func (p *GuardianDirectory) SetPrimaryGuardianPhone(ctx context.Context, phoneID
 }
 
 func (p *GuardianDirectory) LinkGuardianToStudent(ctx context.Context, input peopledirectory.LinkGuardian) (peopledirectory.GuardianLink, error) {
+	if !(RepositoryRuntime{}).InTransaction(ctx) {
+		input.CreatedStudent, input.CreatedGuardian = nil, nil
+	}
 	var link *peopledirectory.GuardianRelationshipSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		link, txErr = p.guardians.LinkGuardianToStudent(txCtx, peoplePorts.StudentGuardianCreateRequest{
-			StudentID: input.StudentID, GuardianProfileID: input.GuardianProfileID,
+			CreatedGuardian: input.CreatedGuardian,
+			CreatedStudent:  input.CreatedStudent,
+			StudentID:       input.StudentID, GuardianProfileID: input.GuardianProfileID,
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
 			PickupNotes: input.PickupNotes, EmergencyPriority: input.EmergencyPriority,
@@ -490,7 +512,7 @@ func toDirectoryGuardian(profile *peopledirectory.GuardianProfileSnapshot) peopl
 		AddressStreet: profile.AddressStreet, AddressCity: profile.AddressCity, AddressPostalCode: profile.AddressPostalCode,
 		PreferredContactMethod: profile.PreferredContactMethod, LanguagePreference: profile.LanguagePreference,
 		Notes: profile.Notes, HasAccount: profile.HasAccount, AccountID: profile.AccountID,
-		PhoneNumbers: toDirectoryPhones(profile.PhoneNumbers),
+		PhoneNumbers: toDirectoryPhones(profile.PhoneNumbers), EmailsStopped: profile.EmailsStoppedAt != nil,
 	}
 }
 

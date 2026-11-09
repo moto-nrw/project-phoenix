@@ -1,0 +1,7 @@
+{
+  "scenario": "communication18.school_recipients.n3",
+  "max": 7,
+  "exact": true,
+  "description": "Literal protected school class-letter school_recipients route. N3/N8 real parent/child audience memberships. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /school/parent-letters/{announcementId}/recipients"
+}

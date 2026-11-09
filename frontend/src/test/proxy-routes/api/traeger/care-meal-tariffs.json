@@ -1,0 +1,9 @@
+{
+  "api/traeger/care-meal-tariffs": [
+    "GET traeger /traeger/care-meal-tariffs",
+    "PUT traeger /traeger/care-meal-tariffs"
+  ],
+  "api/traeger/care-meal-tariffs/[schoolId]/[validFrom]": [
+    "DELETE traeger /traeger/care-meal-tariffs/schoolId%2F1/validFrom%2F1"
+  ]
+}

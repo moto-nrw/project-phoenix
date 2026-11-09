@@ -1,0 +1,7 @@
+{
+  "scenario": "api.auth.roles.list.platform_denied",
+  "max": 3,
+  "exact": true,
+  "description": "GET /auth/roles/: real production-issued operator/platform token without tenant or permissions is denied with 403 before any catalogue SELECT, at 0/3/8 additional school roles. Complete protected resource admin frame and unchanged public state; no DML. Successful platform catalogue reads and Serve-host/session liveness are NOT covered.",
+  "route": "GET /auth/roles/"
+}

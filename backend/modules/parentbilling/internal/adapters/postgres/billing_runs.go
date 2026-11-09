@@ -120,11 +120,27 @@ type documentRow struct {
 	ServiceUntil          calendar.Date `bun:"service_until,type:date"`
 	TotalCents            int64         `bun:"total_cents"`
 	Kind                  string        `bun:"kind"`
+	DocumentKind          string        `bun:"document_kind"`
 	ReferenceDocumentID   *int64        `bun:"reference_document_id"`
 	Reason                string        `bun:"reason"`
 	// ReferenceNumber is the number of the referenced document, read with
 	// the row (#4690).
 	ReferenceNumber string `bun:"reference_number,scanonly"`
+	// The recipient and the payment the release copied (#4689); NULL on
+	// invoices issued before.
+	FamilyEmail         *string        `bun:"family_email"`
+	RecipientKind       *string        `bun:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	DueSource           *string        `bun:"due_source"`
+	MandateID           *int64         `bun:"mandate_id"`
+	MandateReference    *string        `bun:"mandate_reference"`
+	MandateSignedOn     *calendar.Date `bun:"mandate_signed_on,type:date"`
+	CreditorID          *string        `bun:"creditor_id"`
+	DebtorIBANMasked    *string        `bun:"debtor_iban_masked"`
+	SequenceType        *string        `bun:"sequence_type"`
+	DebitGap            *string        `bun:"debit_gap"`
 }
 
 type documentPositionRow struct {
@@ -445,9 +461,9 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 	if len(documents) == 0 {
 		return nil, nil
 	}
-	rows := make([]documentRow, len(documents))
-	for i, document := range documents {
-		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
+	rows, err := claimedDocumentRows(ctx, db, organizationID, run, year, first, documents)
+	if err != nil {
+		return nil, err
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -487,6 +503,24 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 		return nil, err
 	}
 	return ids, nil
+}
+
+// claimedDocumentRows builds the rows of the numbered documents and claims
+// their numbers: a monthly invoice of the same pattern must not carry one
+// of them (#4684).
+func claimedDocumentRows(ctx context.Context, db bun.IDB, organizationID int64, run parentbilling.BillingRun, year int, first int64,
+	documents []parentbilling.BillingDocument,
+) ([]documentRow, error) {
+	rows := make([]documentRow, len(documents))
+	numbers := make([]string, len(documents))
+	for i, document := range documents {
+		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
+		numbers[i] = rows[i].Number
+	}
+	if err := claimInvoiceNumbers(ctx, db, organizationID, numbers, careNumbersTable); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // MarkRunReleased closes a calculated run with its issue date and sums.
@@ -562,11 +596,14 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 			RecipientFirstName: row.RecipientFirstName, RecipientLastName: row.RecipientLastName, RecipientEmail: row.RecipientEmail,
 			ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, Children: issuedChildren(byDocument[row.ID]),
 			TotalCents: row.TotalCents, RecipientAddress: row.recipientAddress(),
-			Kind: row.Kind, ReferenceDocumentID: row.ReferenceDocumentID, ReferenceNumber: row.ReferenceNumber, Reason: row.Reason,
+			Kind: row.Kind, DocumentKind: row.DocumentKind, ReferenceDocumentID: row.ReferenceDocumentID, ReferenceNumber: row.ReferenceNumber, Reason: row.Reason,
 		}
 		if row.DebtorNumber != nil {
 			documents[i].DebtorNumber = *row.DebtorNumber
 		}
+		documents[i].FamilyEmail = textOf(row.FamilyEmail)
+		documents[i].RecipientKind, documents[i].RecipientSecondName = textOf(row.RecipientKind), textOf(row.RecipientSecondName)
+		documents[i].Payment = row.snapshot().payment()
 	}
 	return documents, nil
 }
@@ -586,12 +623,20 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 	if row.Kind == "" {
 		row.Kind = parentbilling.DocumentInvoice
 	}
+	// A document without a kind of document is issued as before #4688.
+	row.DocumentKind = document.DocumentKind
+	if row.DocumentKind == "" {
+		row.DocumentKind = parentbilling.DocumentKindConfirmation
+	}
 	if address := document.RecipientAddress; address != nil {
 		row.RecipientStreet, row.RecipientPostalCode, row.RecipientCity = &address.Street, &address.PostalCode, &address.City
 	}
 	if document.DebtorNumber != "" {
 		row.DebtorNumber = &document.DebtorNumber
 	}
+	row.FamilyEmail, row.RecipientKind = textRef(document.FamilyEmail), textRef(document.RecipientKind)
+	row.RecipientSecondName = textRef(document.RecipientSecondName)
+	row.setPayment(snapshotOf(document.Payment))
 	return row
 }
 
@@ -657,4 +702,18 @@ func constraintOf(err error) string {
 		return pgErr.Field('n')
 	}
 	return ""
+}
+
+// snapshot is the copied payment of the row (#4689, #4695).
+func (r documentRow) snapshot() paymentSnapshot {
+	return paymentSnapshot{PaymentMethod: r.PaymentMethod, DueOn: r.DueOn, DueSource: r.DueSource, MandateID: r.MandateID,
+		MandateReference: r.MandateReference, MandateSignedOn: r.MandateSignedOn, CreditorID: r.CreditorID,
+		DebtorIBANMasked: r.DebtorIBANMasked, SequenceType: r.SequenceType, DebitGap: r.DebitGap}
+}
+
+// setPayment copies a payment onto the row.
+func (r *documentRow) setPayment(s paymentSnapshot) {
+	r.PaymentMethod, r.DueOn, r.DueSource, r.MandateID = s.PaymentMethod, s.DueOn, s.DueSource, s.MandateID
+	r.MandateReference, r.MandateSignedOn, r.CreditorID = s.MandateReference, s.MandateSignedOn, s.CreditorID
+	r.DebtorIBANMasked, r.SequenceType, r.DebitGap = s.DebtorIBANMasked, s.SequenceType, s.DebitGap
 }

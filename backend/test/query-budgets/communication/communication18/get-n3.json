@@ -1,0 +1,7 @@
+{
+  "scenario": "communication18.get.n3",
+  "max": 6,
+  "exact": true,
+  "description": "Literal protected staff parent-announcement get route. N3/N8 ordered student targets and poll options. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /api/parent-announcements/{announcementId}"
+}

@@ -6,6 +6,8 @@
  */
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -55,10 +57,10 @@ export default function RootPage() {
     window.location.href = `${window.location.protocol}//${host}/`;
   };
 
+  const placeholder = loading ? "Laden..." : "Bitte auswählen...";
+
   return (
     <AuthShell
-      eyebrow="Einrichtung auswählen"
-      eyebrowClassName="tracking-[0.08em] text-moto-green"
       title="Willkommen"
       subtitle="Wählen Sie Ihre Einrichtung aus."
       variant="tenant-select"
@@ -77,34 +79,26 @@ export default function RootPage() {
     >
       <div className="space-y-6">
         {!loading && listStatus === "error" ? (
-          <p className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border px-4 py-3 text-sm">
-            Backend nicht erreichbar. Bitte versuchen Sie es später erneut.
-          </p>
+          <LoadErrorAlert error="Backend nicht erreichbar. Bitte versuchen Sie es später erneut." />
         ) : !loading && tenants.length === 0 ? (
-          <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Aktuell sind keine Einrichtungen verfügbar.
-          </p>
+          <EmptyState
+            variant="compact"
+            description="Aktuell sind keine Einrichtungen verfügbar."
+          />
         ) : (
           <>
             <div className="text-left">
-              <label
-                id="tenant-select-label"
-                htmlFor="tenant-select"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Einrichtung
-              </label>
               <CustomSelect
                 id="tenant-select"
-                ariaLabelledBy="tenant-select-label"
+                label="Einrichtung"
                 value={selectedSlug}
                 disabled={loading || isNavigating}
                 onChange={setSelectedSlug}
-                placeholder={loading ? "Laden..." : "Bitte auswählen..."}
+                placeholder={placeholder}
                 options={[
                   {
                     value: "",
-                    label: loading ? "Laden..." : "Bitte auswählen...",
+                    label: placeholder,
                   },
                   ...tenants.map((tenant) => ({
                     value: tenant.slug,
@@ -117,12 +111,14 @@ export default function RootPage() {
             <Button
               type="button"
               disabled={!selectedSlug || isNavigating}
+              isLoading={isNavigating}
+              loadingText="OGS wird geladen..."
               onClick={handleNavigate}
               variant="primary"
               size="field"
               className="w-full gap-2"
             >
-              {isNavigating ? "OGS wird geladen..." : "Weiter"}
+              Weiter
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </>

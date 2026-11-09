@@ -126,26 +126,17 @@ function HandOverFields({
       />
     );
   return (
-    <div>
-      <label
-        id="hand-over-supervisor-label"
-        htmlFor="hand-over-supervisor"
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        An wen übergeben Sie?
-      </label>
-      <CustomSelect
-        id="hand-over-supervisor"
-        ariaLabelledBy="hand-over-supervisor-label"
-        value={selectedStaffId}
-        onChange={setSelectedStaffId}
-        placeholder="Person auswählen..."
-        options={targets.map((target) => ({
-          value: target.id,
-          label: supervisionTargetLabel(target),
-        }))}
-      />
-    </div>
+    <CustomSelect
+      id="hand-over-supervisor"
+      label="An wen übergeben Sie?"
+      value={selectedStaffId}
+      onChange={setSelectedStaffId}
+      placeholder="Person auswählen..."
+      options={targets.map((target) => ({
+        value: target.id,
+        label: supervisionTargetLabel(target),
+      }))}
+    />
   );
 }
 

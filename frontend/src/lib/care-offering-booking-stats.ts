@@ -5,9 +5,12 @@
 //
 // Aggregate-only by design: counts per grade level, never child identities.
 
-import { unavailableApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
+import {
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
 import type { CareOfferingBookingGradeCounts } from "~/lib/care-offering-availability";
 
 const logger = createLogger({ component: "CareOfferingBookingStatsAPI" });
@@ -24,20 +27,6 @@ export interface CareOfferingBookingStats extends CareOfferingBookingGradeCounts
   booked: number;
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-}
-
-/** A request that never reached the API counts as unavailable (#2515). */
-async function send(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (cause) {
-    throw unavailableApiError(cause);
-  }
-}
-
 /**
  * Loads booking stats for every offering of a phase. Returns them keyed by
  * offering id, which is how every consumer looks them up.
@@ -45,7 +34,7 @@ async function send(input: string, init?: RequestInit): Promise<Response> {
 export async function fetchCareOfferingBookingStats(
   phaseId: string,
 ): Promise<Record<string, CareOfferingBookingStats>> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/care-offerings/booking-stats?phase_id=${encodeURIComponent(phaseId)}`,
     { cache: "no-store" },
   );
@@ -57,9 +46,8 @@ export async function fetchCareOfferingBookingStats(
       "care_offering_booking_stats_failed",
     );
   }
-  const raw = (await response.json()) as
-    BackendEnvelope<CareOfferingBookingStats[]> | CareOfferingBookingStats[];
-  const list = Array.isArray(raw) ? raw : (raw.data ?? []);
+  const raw = await readEnrollmentJSON<CareOfferingBookingStats[]>(response);
+  const list = Array.isArray(raw) ? raw : [];
   const byID: Record<string, CareOfferingBookingStats> = {};
   for (const entry of list) {
     byID[entry.offering_id] = entry;
@@ -109,7 +97,8 @@ export interface OfferingOccupancy {
 
 /** Occupancy of one offering; null while its stats are not loaded. */
 export function offeringOccupancy(
-  stats: CareOfferingBookingStats | null | undefined,
+  stats:
+    Pick<CareOfferingBookingStats, "booked" | "capacity"> | null | undefined,
 ): OfferingOccupancy | null {
   if (!stats) return null;
   const capacity = stats.capacity ?? null;

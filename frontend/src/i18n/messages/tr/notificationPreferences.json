@@ -18,8 +18,8 @@
       "description": "Okul veli portalında yeni bir duyuru yayınladığında."
     },
     "parent_message": {
-      "label": "OGS'den yeni mesaj",
-      "description": "OGS size bir çocuğunuzla ilgili yazdığında."
+      "label": "{careTerm}'den yeni mesaj",
+      "description": "{careTerm} size bir çocuğunuzla ilgili yazdığında."
     },
     "parent_appointment": {
       "label": "Yeni veya değiştirilen randevu",
@@ -31,15 +31,15 @@
     },
     "parent_request_decided": {
       "label": "Talebiniz hakkında karar",
-      "description": "OGS taleplerinizden biri hakkında karar verdiğinde."
+      "description": "{careTerm} taleplerinizden biri hakkında karar verdiğinde."
     },
     "parent_care_cancelled": {
       "label": "Bakım iptal edildi",
-      "description": "OGS çocuğunuzun bir bakım gününü iptal ettiğinde."
+      "description": "{careTerm} çocuğunuzun bir bakım gününü iptal ettiğinde."
     },
     "parent_billing_document": {
       "label": "Kurumdan yeni belge",
-      "description": "Kurum size bir belge gönderdiğinde, örneğin bir onay yazısı."
+      "description": "Kurum size bir belge gönderdiğinde veya paylaştığında, örneğin bir sözleşme."
     }
   },
   "errorObjectList": "bildirim listesi",

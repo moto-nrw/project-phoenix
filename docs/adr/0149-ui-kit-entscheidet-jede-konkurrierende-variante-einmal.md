@@ -66,7 +66,11 @@ Kinderkarten, Notfallseite und Startseite des Elternportals bleiben unberührt.
    `SectionCard`.
 10. **Navigation.** Untere Leiste und Sidebar gibt es nur einmal im Kit.
     Tenant- und Elternportal setzen darauf auf; die Optik bleibt gleich, im
-    Elternportal pixelgleich mit Screenshot belegt.
+    Elternportal pixelgleich mit Screenshot belegt. Nachtrag #5975: Die Zeile
+    gibt es ebenfalls nur einmal (`ui/sidebar-*`), im festen 40-px-Raster der
+    Tenant-Leiste. Eltern, Schule und Träger ändern dafür bewusst ihre Optik
+    (bei 1024 bis 1279 px kleinere Zeilen, Gruppenköpfe ohne Versalien);
+    Vorher/Nachher-Paare im PR.
 11. **Radius.** Der Code gilt: Bedienelemente `rounded-lg` (12 px), innere
     Flächen `rounded-xl` (16 px), Karten `rounded-2xl` (24 px). Kleine
     Bedienelemente des Kits (32-px-Buttons, Checkbox-Kästchen) bleiben
@@ -108,7 +112,7 @@ Teil-PR, und jeder Teil-PR senkt die Baseline.
 
 - `frontend-ui-kit.md` nennt jede Entscheidung, deren Baustein existiert, als
   „Need X → use Y“. Bausteine, die erst später entstehen (`SectionLabel`,
-  `StatusDot`, `StatCard inline`, neue `StatusBadge`-Töne, gemeinsamer
+  `StatCard inline`, neue `StatusBadge`-Töne, gemeinsamer
   Kalenderstil, Kit-Navigation), stehen nur hier, bis ihr Issue sie liefert.
 - Optik prüfen Vorher/Nachher-Paare, keine Snapshot-Tests. Neue Kit-Props
   bekommen Testing-Library-Tests über Rolle, Text und `aria`; jede neue

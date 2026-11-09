@@ -3,23 +3,42 @@ import type { JWT } from "next-auth/jwt";
 import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { env } from "~/env";
-import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/shared";
+import { tenantSessionCookieName } from "~/lib/session-cookie-exit.server";
+import { toBrowserSession } from "~/server/auth/browser-session";
 import {
-  portalOfScope,
+  PORTALS,
+  type PortalDescriptor,
+  type PortalKey,
+} from "~/server/auth/portals";
+import { serverSessionFromJwt } from "~/server/auth/session-callbacks";
+import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/session-lifetime";
+import { refreshAlreadyRefused } from "~/server/auth/token-refresh";
+import {
+  familyBacksSession,
   sessionFamilyState,
 } from "~/server/auth/token-validation";
 
+export type { PortalKey };
+
 /**
- * A decoded, fresh portal JWT. It still holds the access and refresh tokens:
- * each portal reader maps it through portalSessionSnapshot() before it
- * becomes a client prop (#5005).
+ * A portal layout's read of its session cookie. `session` is serialized into
+ * the HTML and RSC payload and carries no token (#5005); `accessToken` stays
+ * on the server, for the tenant shell's preload.
  */
-export type FreshPortalToken = JWT & {
-  id: string;
-  token: string;
-  scope: string;
-  tokenExpiry: number;
-};
+export interface PortalSessionSnapshot {
+  session: Session;
+  accessToken: string;
+  /** The school has not booked the portal's module; the session stays. */
+  notBooked: boolean;
+}
+
+/** Auth.js' own name when the portal configures none (tenant on localhost). */
+function sessionCookieName(key: PortalKey): string {
+  const configured = PORTALS[key].cookieNames?.session;
+  if (configured) return configured;
+  const secure = new URL(env.NEXTAUTH_URL).protocol === "https:";
+  return `${secure ? "__Secure-" : ""}${tenantSessionCookieName(undefined)}`;
+}
 
 /**
  * Decodes one portal's Auth.js session cookie without running its refresh
@@ -27,21 +46,21 @@ export type FreshPortalToken = JWT & {
  * calling the portal's auth() in a layout could consume the refresh token and
  * strand the browser on the old cookie (#1938).
  *
- * Only the named cookie is read, decrypted with its own salt: another
+ * Only the portal's own cookie is read, decrypted with its own salt: another
  * portal's cookie on the same request (the domain-wide tenant cookie, for
- * example) neither decrypts nor counts. The token must carry the portal's
- * scope, be outside the refresh window and belong to a family Identity &
- * Access confirms live (#5399); otherwise the caller returns no snapshot and
- * SessionProvider fetches the session through the portal's response-aware
- * route as before.
+ * example) neither decrypts nor counts. The token must carry one of the
+ * portal's scopes and its snapshot claims, be outside the refresh window and
+ * belong to a family Identity & Access confirms live (#5399), also when it
+ * refuses the portal's module as not booked; otherwise the
+ * layout renders without a snapshot and SessionProvider fetches the session
+ * through the portal's response-aware route.
  */
-export async function readFreshPortalToken(
-  cookieName: string,
-  scope: string,
-): Promise<FreshPortalToken | null> {
+async function readFreshPortalToken(
+  key: PortalKey,
+): Promise<{ token: JWT; notBooked: boolean } | null> {
   const cookie = (await headers()).get("cookie");
   if (!cookie) return null;
-
+  const cookieName = sessionCookieName(key);
   const token = await getToken({
     // The cookie header alone: getToken would otherwise fall back to an
     // Authorization bearer value, which is no portal cookie.
@@ -51,9 +70,12 @@ export async function readFreshPortalToken(
     salt: cookieName,
   });
 
+  const portal: PortalDescriptor = PORTALS[key];
   const now = Date.now();
   if (
-    token?.scope !== scope ||
+    !token ||
+    !portal.scopes.includes(token.scope) ||
+    (portal.snapshotClaims && !portal.snapshotClaims(token)) ||
     typeof token.id !== "string" ||
     typeof token.token !== "string" ||
     token.token === "" ||
@@ -61,47 +83,46 @@ export async function readFreshPortalToken(
     token.tokenExpiry <= now + ACCESS_TOKEN_REFRESH_BUFFER_MS ||
     (typeof token.refreshTokenExpiry === "number" &&
       token.refreshTokenExpiry <= now) ||
-    token.error
+    token.error ||
+    // The session route and every BFF route end a session whose refresh the
+    // backend refused, also while its access token is still valid. A
+    // snapshot that showed it signed in sent the login page back to the
+    // portal and the portal's first request back to the login, in a loop.
+    refreshAlreadyRefused(token)
   ) {
     return null;
   }
-  // A cookie a late answer wrote back after its logout must not hydrate a
-  // signed-in page (#5399): only a family Identity & Access confirms live
-  // makes a snapshot; otherwise the provider asks the session route.
-  if (
-    (await sessionFamilyState(token.token, portalOfScope(token.scope))) !==
-    "live"
-  ) {
-    return null;
-  }
-
-  return token as FreshPortalToken;
+  // The read gate: a cookie a late answer wrote back after its logout must
+  // not hydrate a signed-in page (#5399).
+  const state = await sessionFamilyState(token.token, portal.validation);
+  if (!familyBacksSession(state)) return null;
+  return { token, notBooked: state === "notBooked" };
 }
 
 /**
- * Maps a fresh portal token to the Session a portal layout hands its
- * SessionProvider. The result is serialized into the HTML and RSC payload,
- * so it carries only what the portal renders from: no access token, refresh
- * token or recovery proof, and no part of one (#5005). API calls go through
- * BFF routes that read the cookie themselves; code that needs the token
- * calls getSession(). The poll after four minutes replaces the snapshot with
- * the session route's answer as before.
+ * The layout snapshot of a portal: the same projection the session route
+ * answers with (serverSessionFromJwt, then toBrowserSession), so the first
+ * render shows what the provider's poll later confirms.
  */
-export function portalSessionSnapshot(token: FreshPortalToken): Session {
-  return {
+export async function readPortalSessionSnapshot(
+  key: PortalKey,
+): Promise<PortalSessionSnapshot | null> {
+  const fresh = await readFreshPortalToken(key);
+  if (!fresh?.token.token) return null;
+  const { token, notBooked } = fresh;
+  const accessToken = fresh.token.token;
+  const session = serverSessionFromJwt(token, {
     expires: new Date((token.exp ?? 0) * 1000).toISOString(),
     user: {
-      id: token.id,
+      id: token.id ?? "",
       name: token.name,
-      email: token.email ?? "",
-      roles: Array.isArray(token.roles) ? token.roles : [],
-      permissions: Array.isArray(token.permissions) ? token.permissions : [],
-      firstName:
-        typeof token.firstName === "string" ? token.firstName : undefined,
-      isAdmin: token.isAdmin === true,
-      tenantId: typeof token.tenantId === "number" ? token.tenantId : undefined,
-      orgId: typeof token.orgId === "number" ? token.orgId : undefined,
-      scope: token.scope,
+      email: token.email,
+      image: token.picture,
     },
+  });
+  return {
+    session: toBrowserSession(session),
+    accessToken,
+    notBooked,
   };
 }

@@ -24,7 +24,7 @@ type PasswordResetDependencies struct {
 	Logger           *slog.Logger
 }
 
-func newPasswordReset(auth *application.AccountAuthentication, store *postgres.Store, sessions *identityPorts.SessionDependencies, deps *PasswordResetDependencies) (*application.PasswordReset, error) {
+func newPasswordReset(auth *application.AccountAuthentication, store *postgres.Store, sessions *identityPorts.SessionDependencies, deps *PasswordResetDependencies, runtime tenantRuntime) (*application.PasswordReset, error) {
 	if deps == nil {
 		return nil, nil
 	}
@@ -34,7 +34,7 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 	attach := sessions.TenantRuntime
 	var delivery identityPorts.PasswordResetDelivery
 	if deps.DeliveryFor != nil {
-		delivery = deps.DeliveryFor(application.NewPasswordResetDeliveryRecords(store, attach, tenantRuntime{attach: attach, runner: application.NewTransactionRunner()}))
+		delivery = deps.DeliveryFor(application.NewPasswordResetDeliveryRecords(store, attach, runtime))
 	}
 	if delivery == nil || deps.Passwords == nil {
 		return nil, errors.New("identity access compose: every password reset dependency is required")
@@ -42,7 +42,7 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 	return application.NewPasswordReset(auth, application.PasswordResetDependencies{
 		Store: store, Logins: store, Passwords: deps.Passwords,
 		Delivery:         application.PasswordResetDelivery{Source: delivery},
-		Runtime:          tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
+		Runtime:          runtime,
 		Expiry:           deps.Expiry,
 		RateLimitEnabled: deps.RateLimitEnabled,
 		Logger:           deps.Logger,

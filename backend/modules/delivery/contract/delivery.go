@@ -61,6 +61,9 @@ type EmailIntent struct {
 	IdempotencyKey string
 	Related        RelatedEntity
 	DeliverAfter   time.Time
+	// Security marks a sign-in code, password reset or staff invitation: it is
+	// sent before other mail and the suppression list never holds it back.
+	Security bool
 }
 
 type EmailDelivery struct {
@@ -86,6 +89,21 @@ type EmailDeliveryStatus struct {
 	LastError         *string    `json:"last_error,omitempty"`
 	SentAt            *time.Time `json:"sent_at,omitempty"`
 	Attempts          int        `json:"attempts"`
+	// Outcome is empty before a mail exists; AddressMark and Stopped can be set
+	// without one. RecipientEmail is the person's current address, where another
+	// mail goes, and AddressMark belongs to it. MailedTo is where this mail went:
+	// Outcome belongs to that address and to no other.
+	Outcome     EmailOutcome     `json:"outcome,omitempty"`
+	MailedTo    *string          `json:"mailed_to,omitempty"`
+	AddressMark EmailAddressMark `json:"address_mark,omitempty"`
+	Stopped     bool             `json:"stopped,omitempty"`
+	// StopShared says another holder of the address carries no stop, so mail to the
+	// address still goes out.
+	StopShared bool `json:"stop_shared,omitempty"`
+	// CurrentAddressRefused says an earlier mail of this entity to RecipientEmail
+	// ended in an unsubscribe or a complaint. Only the provider's current block then
+	// says whether a new mail may go there, whatever the last mail's result is.
+	CurrentAddressRefused bool `json:"-"`
 }
 
 type GuardianDisplay struct {
@@ -184,9 +202,38 @@ var (
 	ErrDeferred  = errors.New("delivery: provider deferred the intent")
 	// ErrPermanent marks a rejection that no retry can change. The intent
 	// dead-letters on this attempt, so the failure is still reported.
-	ErrPermanent           = errors.New("delivery: provider rejected the intent permanently")
+	ErrPermanent = errors.New("delivery: provider rejected the intent permanently")
+	// ErrRecipientRejected refines ErrPermanent: the server refused this
+	// address, so it goes on the school's suppression list.
+	ErrRecipientRejected   = errors.New("delivery: provider rejected the recipient permanently")
 	ErrIdempotencyConflict = errors.New("delivery: idempotency key reused with different intent")
 )
+
+// What a webhook delivery can fail on. Each decides the sender's next step: a
+// refusal is final, ErrEmailWebhookNotConfigured and a store failure are worth
+// a retry.
+var (
+	ErrEmailWebhookUnknownProvider = errors.New("delivery: unknown email webhook provider")
+	ErrEmailWebhookNotConfigured   = errors.New("delivery: email webhook has no signing secret")
+	ErrEmailWebhookSignature       = errors.New("delivery: email webhook signature rejected")
+	ErrEmailWebhookPayload         = errors.New("delivery: email webhook payload rejected")
+)
+
+// ErrEmailSuppressionNeedsReview reports the block of a complaint: it stays
+// until the provider's support reviewed it, and nobody at moto lifts it.
+var ErrEmailSuppressionNeedsReview = errors.New("delivery: suppression after a complaint needs a review")
+
+// ErrEmailSuppressionNotFound reports an address with no connection to the
+// school: it is not on the school's list, and with a provider the school has no
+// mail to it either. Nothing changed, also at the provider, whose block applies
+// to the whole team. A caller that only wants the address free can treat it as
+// done.
+var ErrEmailSuppressionNotFound = errors.New("delivery: the school has no suppression for this address")
+
+// ErrEmailSuppressionStaysAtProvider reports a manual or unsubscribe block at
+// the provider. It is someone's decision, so the address stays blocked and
+// nothing changed, neither at the provider nor on the school's list.
+var ErrEmailSuppressionStaysAtProvider = errors.New("delivery: the provider keeps a manual or unsubscribe block")
 
 type Status struct {
 	IdempotencyKey *string
@@ -200,7 +247,26 @@ type Status struct {
 	SentAt         *time.Time
 	DeadLetterAt   *time.Time
 	CancelledAt    *time.Time
+	// DeliveryState is what the mail provider reported after it accepted
+	// the mail (#5932): one of the DeliveryState values, empty while
+	// nothing was reported. A sent mail can still bounce.
+	DeliveryStateAt *time.Time
+	DeliveryState   string
+	// Outcome is set for a mail; a push has none.
+	Outcome EmailOutcome
 }
+
+// The provider outcomes of a sent mail (#5932). DeliveryFailed is a bounce
+// for good, DeliverySuppressed a mail the provider withheld for a known bad
+// address; neither reached the recipient.
+const (
+	DeliveryDelayed      = "delayed"
+	DeliveryDelivered    = "delivered"
+	DeliverySuppressed   = "suppressed"
+	DeliveryUnsubscribed = "unsubscribed"
+	DeliveryFailed       = "failed"
+	DeliveryComplained   = "complained"
+)
 
 type Observation struct {
 	Operation string
@@ -210,3 +276,33 @@ type Observation struct {
 	Count     int
 	Err       error
 }
+
+// parentMailTemplates are the mails to parents, the only mail the suppression list
+// and a school's stop hold back (#5932, #5934). A Träger's care contract counts:
+// it goes to a family of one of its schools. A Träger's billing letter does not,
+// and neither does mail to staff. An unlisted template goes out.
+var parentMailTemplates = map[string]bool{
+	"guardian_invitation":                true,
+	"guardian_welcome":                   true,
+	"parent_announcement":                true,
+	"parent_message":                     true,
+	"enrollment_submitted":               true,
+	"enrollment_approved":                true,
+	"enrollment_waitlisted":              true,
+	"enrollment_rejected":                true,
+	"enrollment_rollover_opt_in":         true,
+	"enrollment_rollover_opt_out":        true,
+	"enrollment_change_request_question": true,
+	"enrollment_change_request_approved": true,
+	"enrollment_change_request_rejected": true,
+	"holiday_registration_received":      true,
+	"appointment_published":              true,
+	"appointment_updated":                true,
+	"appointment_cancelled":              true,
+	"appointment_reminder":               true,
+	"care_contract":                      true,
+	"care_contract_notice":               true,
+}
+
+// IsParentMail reports whether a mail template goes to parents.
+func IsParentMail(template string) bool { return parentMailTemplates[template] }

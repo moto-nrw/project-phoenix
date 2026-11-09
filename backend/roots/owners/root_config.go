@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -9,6 +10,27 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
+
+// EmailProviderSettings are the configuration values of the mail provider. Plain
+// values, so the root's configuration holds no owner's type.
+type EmailProviderSettings struct {
+	Provider         string
+	SMTPHost         string
+	SMTPUser         string
+	SMTPPassword     string
+	SecurityFrom     string
+	NoticeFrom       string
+	WebhookSecrets   string
+	TeamToken        string
+	WebhookID        string
+	FallbackHost     string
+	FallbackPort     int
+	FallbackUser     string
+	FallbackPassword string
+	FallbackFrom     string
+	// Logger is set by the root that builds the provider.
+	Logger *slog.Logger
+}
 
 // ServiceConfig is the process configuration snapshot consumed by one service
 // graph. Capturing it at the composition root keeps service construction pure
@@ -20,6 +42,7 @@ type ServiceConfig struct {
 	EmailSMTPPassword          string
 	EmailFromName              string
 	EmailFromAddress           string
+	EmailProvider              EmailProviderSettings
 	FrontendURL                string
 	PublicAPIURL               string
 	ParentsURL                 string

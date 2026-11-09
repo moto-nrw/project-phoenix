@@ -28,6 +28,7 @@ export function teacherParentLettersTopic(): HelpTopic {
       "Wählen Sie den Brief in der Liste. Dort sehen Sie, wer gelesen, bestätigt oder zugestimmt hat.",
       "Ein gesendeter Brief lässt sich nicht mehr ändern. Sie können ihn über `Zurückziehen` zurücknehmen.",
       "Die OGS sieht Ihre Briefe in ihrer Übersicht. Ändern kann sie nur Sie.",
+      "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, sagen Sie der OGS Bescheid. Sie korrigiert die Adresse.",
     ],
     differences: [
       "Sie sehen nur Ihre eigenen Briefe. Briefe anderer Lehrkräfte stehen nicht in Ihrer Liste.",

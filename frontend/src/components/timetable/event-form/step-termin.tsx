@@ -3,15 +3,16 @@
 import { Repeat } from "lucide-react";
 
 import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
+import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { categorySelectProps } from "./category-option";
 import type { PlanningTrack } from "~/lib/planning-track-api";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getActivityColor } from "~/lib/timetable-helpers";
-import { timetableTextAreaClass } from "../timetable-style";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
@@ -19,6 +20,7 @@ import type { CategoryOption, RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
 import { PlanningTrackSelect } from "../planning-track-select";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -109,6 +111,15 @@ export function StepTermin({
   canManagePlanningTracks = false,
 }: Readonly<StepTerminProps>) {
   const isDuty = form.type === "duty";
+  let dateHint: string | undefined;
+  if (isEditingSeries) {
+    dateHint = seriesStartEdit
+      ? "Den Serienbeginn ändern Sie unten im Feld „Serienbeginn“."
+      : "Der Serienbeginn bleibt unverändert.";
+  } else if (isSeriesFlow) {
+    dateHint =
+      "Die Serie beginnt an diesem Datum. Frühere Termine werden nicht angelegt.";
+  }
   const weekendOpen = useWeekendFollowsFriday();
   return (
     <>
@@ -137,15 +148,13 @@ export function StepTermin({
                 const isActive = form.type === option.value;
                 const color = getActivityColor(option.value);
                 return (
-                  <button
+                  <ChoiceTile
                     key={option.value}
-                    type="button"
+                    as="button"
+                    selected={isActive}
+                    aria-pressed={isActive}
                     onClick={() => update("type", option.value)}
-                    className={`flex flex-col items-start gap-0.5 rounded-lg border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                      isActive
-                        ? "border-gray-300 bg-white"
-                        : "border-gray-200 bg-white hover:bg-gray-50"
-                    }`}
+                    className="flex-col items-start gap-0.5 border-l-[3px] py-2 font-normal shadow-sm"
                     style={{ borderLeftColor: color }}
                   >
                     <span
@@ -158,10 +167,8 @@ export function StepTermin({
                     >
                       {option.label}
                     </span>
-                    <span className="text-[10px] text-gray-500">
-                      {option.hint}
-                    </span>
-                  </button>
+                    <span className="text-xs text-gray-500">{option.hint}</span>
+                  </ChoiceTile>
                 );
               })}
             </div>
@@ -213,6 +220,7 @@ export function StepTermin({
           <Field
             label="Planungsspur"
             htmlFor="event_planning_track"
+            hint="Optional. Farbe und Reihenfolge gelten im Betreuungsplan."
             action={
               canManagePlanningTracks ? (
                 <CatalogManageLink
@@ -227,10 +235,8 @@ export function StepTermin({
               tracks={planningTracks}
               onChange={(next) => update("planningTrackId", next)}
               disabled={loadingRefs}
+              ariaDescribedBy="event_planning_track_hint"
             />
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Optional. Farbe und Reihenfolge gelten im Betreuungsplan.
-            </p>
           </Field>
         </>
       )}
@@ -244,10 +250,15 @@ export function StepTermin({
           spontaneous/one-off slots could not be classified nor an occurrence
           override cleared (#1565 review pass 1 P2). */}
       {(!isSeriesFlow || expanded) && !isDuty && (
-        <Field label="Listenart" htmlFor="event_list_kind">
+        <Field
+          label="Listenart"
+          htmlFor="event_list_kind"
+          hint="Ordnet den Termin einer druckbaren Tagesliste zu (Planung → Tageslisten)."
+        >
           <CustomSelect
             id="event_list_kind"
             ariaLabel="Listenart"
+            ariaDescribedBy="event_list_kind_hint"
             value={form.listKind}
             options={[
               { value: "", label: "Keine" },
@@ -261,10 +272,6 @@ export function StepTermin({
               update("listKind", next as EventFormState["listKind"]);
             }}
           />
-          <p className="mt-1 text-[11px] leading-4 text-gray-500">
-            Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
-            Tageslisten).
-          </p>
         </Field>
       )}
 
@@ -315,9 +322,10 @@ export function StepTermin({
       </Field>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Field label="Datum" htmlFor="event_date" required>
+        <Field label="Datum" htmlFor="event_date" required hint={dateHint}>
           <ISODatePicker
             id="event_date"
+            ariaDescribedBy={dateHint ? "event_date_hint" : undefined}
             name="date"
             controlSize="md"
             value={form.date}
@@ -337,19 +345,6 @@ export function StepTermin({
               }
             }}
           />
-          {isSeriesFlow && !isEditingSeries && (
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Die Serie beginnt an diesem Datum. Frühere Termine werden nicht
-              angelegt.
-            </p>
-          )}
-          {isEditingSeries && (
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              {seriesStartEdit
-                ? "Den Serienbeginn ändern Sie unten im Feld „Serienbeginn“."
-                : "Der Serienbeginn bleibt unverändert."}
-            </p>
-          )}
         </Field>
         <Field label="Start" htmlFor="event_start" required>
           <Input
@@ -380,9 +375,15 @@ export function StepTermin({
           label="Serienbeginn"
           htmlFor="event_series_start"
           error={fieldErrors.seriesStartDate}
+          hint="Zieht den Beginn der noch nicht gestarteten Serie auf ein früheres Datum vor; ein späterer Beginn ist nicht möglich."
         >
           <ISODatePicker
             id="event_series_start"
+            ariaDescribedBy={
+              fieldErrors.seriesStartDate
+                ? "event_series_start_hint event_series_start_error"
+                : "event_series_start_hint"
+            }
             controlSize="md"
             value={form.seriesStartDate}
             min={seriesStartEdit.min}
@@ -392,51 +393,46 @@ export function StepTermin({
             disabledDay={weekendOpen ? undefined : isWeekendDay}
             onChange={(next) => update("seriesStartDate", next)}
           />
-          <p className="mt-1 text-[11px] leading-4 text-gray-500">
-            Zieht den Beginn der noch nicht gestarteten Serie auf ein früheres
-            Datum vor; ein späterer Beginn ist nicht möglich.
-          </p>
         </Field>
       )}
 
       {isSeriesFlow ? (
         <Field label="Wochennotiz" htmlFor="event_series_notes">
-          <textarea
+          <Textarea
             id="event_series_notes"
+            hint="Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem Termin. Bleibt bei Re-Plan und Serienänderungen erhalten."
             value={form.seriesNotes}
             onChange={(event) => update("seriesNotes", event.target.value)}
             rows={3}
-            className={timetableTextAreaClass}
+            className="resize-y"
             placeholder="z. B. Raum erst ab 14 Uhr offen"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem
-            Termin. Bleibt bei Re-Plan und Serienänderungen erhalten.
-          </p>
         </Field>
       ) : (
         <>
           {form.seriesNotes.trim() !== "" && (
-            <div className="border-moto-blue/30 bg-moto-blue/10 rounded-lg border p-3">
-              <div className="text-moto-blue flex items-center gap-1.5 text-xs font-medium">
-                <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
-                Wochennotiz der Terminreihe
-              </div>
-              <p className="mt-1 text-sm whitespace-pre-wrap text-gray-700">
-                {form.seriesNotes}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Wird über den Regeltermin gepflegt und gilt für alle Termine.
-              </p>
-            </div>
+            <Alert
+              type="info"
+              announce="off"
+              icon={<Repeat className="h-4 w-4" />}
+              title="Wochennotiz der Terminreihe"
+              message={
+                <span className="whitespace-pre-wrap">{form.seriesNotes}</span>
+              }
+              details={
+                <p className="mt-1 text-xs">
+                  Wird über den Regeltermin gepflegt und gilt für alle Termine.
+                </p>
+              }
+            />
           )}
           <Field label="Tagesnotiz" htmlFor="event_notes">
-            <textarea
+            <Textarea
               id="event_notes"
               value={form.notes}
               onChange={(event) => update("notes", event.target.value)}
               rows={3}
-              className={timetableTextAreaClass}
+              className="resize-y"
               placeholder="Nur für diesen einen Termin"
             />
           </Field>

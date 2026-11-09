@@ -72,13 +72,13 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assign := requests["/operator/organizations/12/traeger-members"]
 	assert.Equal(t, "Bearer operator-token", assign.authorization)
 	assert.Equal(t, []map[string]any{
-		{"email": "admin@example.test", "roles": []any{"administration", "leadership", "school_access", "billing"}},
-	}, assignments, "the admin holds Verwaltung, Leitung, Schulzugang and Abrechnung, granted in one assignment")
+		{"email": "admin@example.test", "roles": []any{"administration", "documents", "leadership", "school_access", "billing"}},
+	}, assignments, "the admin holds Verwaltung, Dokumente, Leitung, Schulzugang and Abrechnung, granted in one assignment")
 	operatorInvite := requests["/operator/organizations/12/traeger-members/invitations"]
 	assert.Equal(t, "Bearer operator-token", operatorInvite.authorization, "the moto team invites with the operator session")
 	assert.Equal(t, []map[string]any{
-		{"email": "petra.hoffmann@ganztag-nord.example", "roles": []any{"administration", "billing"}},
-	}, operatorInvitations, "the operator invites a person without a moto account, with two roles at once")
+		{"email": "petra.hoffmann@ganztag-nord.example", "roles": []any{"administration", "documents", "billing"}},
+	}, operatorInvitations, "the operator invites a person without a moto account, with several roles at once")
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
@@ -87,6 +87,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assert.Equal(t, []map[string]any{
 		{"email": "jana.krause@ganztag-nord.example", "roles": []any{"billing"}},
 		{"email": "tobias.engel@ganztag-nord.example", "roles": []any{"personnel"}},
+		{"email": "lena.vogt@ganztag-nord.example", "roles": []any{"documents"}},
 	}, invitations, "one colleague per role besides the Verwaltung and the Leitung, with personal addresses")
 	assert.Equal(t, tenantAuth, client.auth, "the step restores the client's own session")
 }
@@ -206,6 +207,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-contributions/5/sibling-groups Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/12/cancel Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
+		// The Abrechnung chooses the kind of document (#4688).
+		"PUT /traeger/billing-document-kinds/holiday Bearer traeger-token",
 		"POST /traeger/billing-runs/ Bearer traeger-token",
 		"GET /traeger/billing-runs/9 Bearer traeger-token",
 		"POST /traeger/billing-runs/9/corrections Bearer traeger-token",

@@ -214,6 +214,21 @@ describe("settings values tenant cache busting", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/school-a", "layout");
   });
 
+  it("revalidates tenant metadata after changing the care-facility term (#6042)", async () => {
+    // The public form reads the term from the cached tenant lookup; without
+    // the purge it would name the old term for five more minutes.
+    await (PUT as Function)(
+      reqWithHost("school-a.moto-app.de"),
+      { value: "GTS" },
+      "test-token",
+      { key: "enrollment.care_facility_term" },
+    );
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-a", {
+      expire: 0,
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/school-a", "layout");
+  });
+
   it("does NOT revalidate when key is not tenant-resolve-affecting", async () => {
     await (PUT as Function)(
       reqWithHost("school-a.moto-app.de"),

@@ -25,8 +25,6 @@ func TestRolesBaseRoleBackfillMatchesWildcardPermissions(t *testing.T) {
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	testpkg.OwnTenantRows(t, db, tenantID)
-
 	wildcardResource := ensureBackfillPermission(t, db, "users:*", "users", "*")
 	wildcardAction := ensureBackfillPermission(t, db, "*:manage", "*", "manage")
 	literal := ensureBackfillPermission(t, db, "users:manage", "users", "manage")

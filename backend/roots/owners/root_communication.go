@@ -41,15 +41,15 @@ func BuildParentEventEmitter(
 // (#2601), together with the surveys (#4781) whose parent edition rides on a
 // system announcement. File Storage hands it the attachment side at construction (#2890).
 func BuildParentAnnouncements(
-	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module deliveryModule.Capability,
+	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module deliveryModule.Capability, outcomes deliveryModule.EmailOutcomes,
 	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
 	attachments communication.ParentAnnouncementAttachmentPurger,
 ) (communication.ParentAnnouncementCapability, error) {
 	return communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
 		Repo: messaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(module), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
-		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
-		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,
+		Series: BindCommunicationNotificationSeries(notifications.Notifier), Preferences: notifications.Preferences,
+		Deliveries: announcementDeliveryAdapter{module: module, outcomes: outcomes}, ParentsURL: env.Links.ParentsURL,
 		Fingerprints: SecurityFingerprints{}, Signatures: CommunicationSignatures{Ledger: SignatureLedger()},
 		Logger: env.Logger.With("service", "announcement"),
 		// The surveys (#4781) ask the colleagues of the team chat.

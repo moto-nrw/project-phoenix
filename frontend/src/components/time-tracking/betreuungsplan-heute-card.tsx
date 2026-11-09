@@ -1,5 +1,6 @@
 "use client";
 
+import { ListRow } from "~/components/ui/list-row";
 import { useEffect } from "react";
 
 import {
@@ -281,9 +282,8 @@ function AssignmentRow({
   // dem Raum unter der Aufgabe. Auf der Startseite hat die Karte eine feste
   // Höhe — zweizeilige Einträge lassen dort nur einen ganz hineinpassen, und
   // ein einzelner Einsatz ist kein Tag.
-  const rowClass = dense
-    ? "flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-    : "flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4";
+  const rowClass =
+    "flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4";
   const secondary = [
     block.roomName,
     block.groupName !== block.title ? block.groupName : "",
@@ -388,6 +388,18 @@ function AssignmentRow({
 
   // Mit Ziel ist die Zeile ein Link und sieht auch so aus; ohne Ziel bleibt
   // sie eine Anzeige — nichts, was sich anfassen lässt, ohne etwas zu tun.
+  if (dense) {
+    return (
+      <li>
+        <ListRow
+          href={href}
+          aria-label={href ? `${block.title}: unter Heute öffnen` : undefined}
+        >
+          {content}
+        </ListRow>
+      </li>
+    );
+  }
   return (
     <li className={href ? undefined : rowClass}>
       {href ? (

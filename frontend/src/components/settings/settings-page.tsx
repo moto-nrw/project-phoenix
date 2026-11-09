@@ -16,18 +16,20 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import {
-  TAB_LABELS,
   displayTabLabel,
   normalizeQuery,
   searchTabs,
   visibleCategoryItems,
 } from "./settings-filter";
-import { useSession } from "next-auth/react";
-
-import { hasPermission } from "~/lib/auth-utils";
+import {
+  schemaTabsForPage,
+  useSettingsSections,
+  type SettingsSection,
+} from "./settings-nav-items";
 
 import { HomeBlocksTab } from "./home-blocks-tab";
 import { PersonalizationTab } from "./personalization-tab";
@@ -37,13 +39,6 @@ import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import type { MotoConcept } from "~/lib/moto-concepts";
-import { devicesConcept } from "~/lib/concepts/devices";
-import { enrollmentsConcept } from "~/lib/concepts/enrollments";
-import { mealPlanConcept } from "~/lib/concepts/mealPlan";
-import { notificationsConcept } from "~/lib/concepts/notifications";
-import { permissionsConcept } from "~/lib/concepts/permissions";
-import { settingsConcept } from "~/lib/concepts/settings";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -53,55 +48,6 @@ const SUPERVISION_AFFECTING_KEYS = new Set<string>([
 ]);
 
 const logger = createLogger({ component: "SettingsPage" });
-
-function tabLabel(tab: SchemaTab): string {
-  return displayTabLabel(tab);
-}
-
-// Payroll settings (#1417) have their own maintenance page under /payroll —
-// rendering the auto-generated tab here would create a second, worse surface
-// for the same values. The birthday switches (#3737) live on the hand-written
-// "Startseite für alle" tab next to the birthday card. The holiday settings
-// of the Träger (#5621) concern only the Träger-Büro and live in the
-// Träger-Portal. Search skips all three.
-const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite", "ferien"]);
-
-// Every field on "Geräte" configures the NFC tablets (#3735). A school without
-// NFC does not see the tab at all instead of an empty one.
-const NFC_ONLY_TABS = new Set(["devices"]);
-
-// A tab whose settings are all hidden (DependsOn, access) would open onto the
-// search box and nothing else (#3925). It is left out like the NFC tabs.
-function hasVisibleSetting(tab: SchemaTab): boolean {
-  return tab.categories.some(
-    (category) => visibleCategoryItems(category).length > 0,
-  );
-}
-
-function schemaTabsForPage(
-  schema: SettingsSchema | null | undefined,
-  nfcEnabled: boolean,
-) {
-  return (schema?.tabs ?? []).filter(
-    (tab) =>
-      !TABS_RENDERED_ELSEWHERE.has(tab.key) &&
-      (nfcEnabled || !NFC_ONLY_TABS.has(tab.key)) &&
-      hasVisibleSetting(tab),
-  );
-}
-
-/** The tab of the schema that holds a setting key, if any. */
-function schemaTabKeyOf(
-  schema: SettingsSchema | null | undefined,
-  settingKey: string,
-): string | null {
-  const owner = (schema?.tabs ?? []).find((tab) =>
-    tab.categories.some((category) =>
-      category.items.some((item) => item.key === settingKey),
-    ),
-  );
-  return owner?.key ?? null;
-}
 
 interface SettingsTabContentProps {
   readonly tab: SchemaTab;
@@ -242,20 +188,20 @@ function SettingsTabContent({
 
       {isFiltering ? (
         hits.length === 0 ? (
-          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+          <SectionCard>
             <EmptyState
               variant="compact"
               icon={<SearchX className="h-5 w-5" aria-hidden="true" />}
               title={`Keine Einstellung passt zu „${query.trim()}“.`}
               description="Versuchen Sie ein anderes Wort, zum Beispiel „Abholung“ oder „Eltern“."
             />
-          </div>
+          </SectionCard>
         ) : (
           hits.map((hit) => (
             <SettingsCategory
               key={expansionKey(hit.tab.key, hit.category.key)}
               category={hit.category}
-              tabLabel={tabLabel(hit.tab)}
+              tabLabel={displayTabLabel(hit.tab)}
               filterQuery={normalizedQuery}
               onSave={onSave}
               onReset={onReset}
@@ -292,19 +238,19 @@ function SettingsSkeleton() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Skeleton className="h-10 w-full rounded-lg sm:max-w-sm" />
-        <Skeleton className="h-8 w-32 rounded-md" />
+        <Skeleton shape="control" className="h-10 w-full sm:max-w-sm" />
+        <Skeleton className="h-8 w-32" />
       </div>
       {Array.from({ length: 5 }).map((_, idx) => (
-        <div key={idx} className="moto-content-surface rounded-2xl border p-5">
+        <SectionCard key={idx}>
           <div className="flex items-start gap-3">
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-5 w-40 rounded" />
-              <Skeleton className="h-4 w-full max-w-md rounded" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-full max-w-md" />
             </div>
-            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8" />
           </div>
-        </div>
+        </SectionCard>
       ))}
     </div>
   );
@@ -448,119 +394,22 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
 }
 
 /**
- * Returns the tab definitions for injecting into SettingsLayout's extraTabs.
- * Each tab renders a SettingsContent component for its key.
+ * The sections of the settings page with the content of each. The section list
+ * itself lives in `settings-nav-items.ts`, which the navigation shares.
  * Returns null silently if user has no access or schema is empty.
- *
- * `highlightTabId` is the tab that holds the `?highlight=` setting, so a deep
- * link opens the right tab even without `?tab=`. `highlightNeedsNfc` is set
- * when that setting sits on a tab this school does not see because it has no
- * NFC tablets (#3735), so the page can say why instead of landing nowhere.
  */
 export function useSettingsTabs(): {
-  tabs: { id: string; label: string; icon: MotoConcept }[];
+  tabs: readonly SettingsSection[];
   renderTab: (tabId: string) => React.ReactNode;
   highlightTabId: string | null;
   highlightNeedsNfc: boolean;
 } | null {
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
-  const { data: schema, error: schemaError, isLoading } = useSettingsSchema();
-  const nfcEnabled = useNFCEnabled();
-  const canManageHomeBlocks = hasPermission(session, "config:update");
-
-  if (isLoading) {
+  const sections = useSettingsSections();
+  if (!sections) {
     return null;
   }
-
-  // Tab icon mapping (MOTO-Konzepte statt SVG-Pfaden)
-  const defaultTabConcept: MotoConcept = settingsConcept;
-  const tabConcepts: Record<string, MotoConcept> = {
-    operations: settingsConcept,
-    meals: mealPlanConcept,
-    reminders: notificationsConcept,
-    notifications: notificationsConcept,
-    gdpr: permissionsConcept,
-    devices: devicesConcept,
-    enrollment: enrollmentsConcept,
-    system: settingsConcept,
-    general: settingsConcept,
-    security: permissionsConcept,
-  };
-
-  // When the schema fetch failed, render placeholder tabs so SettingsContent
-  // mounts and can show its own retry UI instead of silently dropping all
-  // schema tabs.
-  const fallbackTabKeys = ["operations", "gdpr", "devices", "system"].filter(
-    (key) => nfcEnabled || !NFC_ONLY_TABS.has(key),
-  );
-  const schemaTabs = schemaError
-    ? fallbackTabKeys.map((key) => ({
-        id: `settings-${key}`,
-        label: TAB_LABELS[key] ?? key,
-        icon: tabConcepts[key] ?? defaultTabConcept,
-      }))
-    : schemaTabsForPage(schema, nfcEnabled).map((tab) => ({
-        id: `settings-${tab.key}`,
-        label: tabLabel(tab),
-        icon: tabConcepts[tab.key] ?? defaultTabConcept,
-      }));
-
-  // Personalisierung is always available (permission-gated inside the component)
-  const personalizationTab: {
-    id: string;
-    label: string;
-    icon: MotoConcept;
-  } = {
-    id: "settings-personalisierung",
-    label: "Personalisierung",
-    icon: settingsConcept,
-  };
-
-  // "Startseite für alle" is what the school prescribes for everybody (#2875).
-  // The name carries the "für alle" on purpose: the start page also has a
-  // personal "Startseite anpassen" dialog, and two labels sharing a word stem
-  // are read as two names for the same thing unless the screen itself says
-  // otherwise. It is a hand-written tab rather than a registry entry: the
-  // choice is one of three states per start page block, and the block
-  // catalogue lives in the frontend.
-  //
-  // Unlike Personalisierung the tab only exists for whoever may actually write
-  // the prescription. A tab that opens onto "you are not allowed to change
-  // this" is a dead end; everybody else adjusts their own start page from the
-  // start page itself.
-  const homeBlocksTab: {
-    id: string;
-    label: string;
-    icon: MotoConcept;
-  } = {
-    id: "settings-startseite",
-    label: "Startseite für alle",
-    icon: settingsConcept,
-  };
-
-  const tabs = [
-    ...schemaTabs,
-    ...(canManageHomeBlocks ? [homeBlocksTab] : []),
-    personalizationTab,
-  ];
   const highlightKey = searchParams.get("highlight");
-  const highlightSchemaTab = highlightKey
-    ? schemaTabKeyOf(schema, highlightKey)
-    : null;
-  let highlightTabId: string | null = null;
-  if (highlightSchemaTab === "startseite") {
-    highlightTabId = canManageHomeBlocks ? homeBlocksTab.id : null;
-  } else if (highlightSchemaTab) {
-    const candidate = `settings-${highlightSchemaTab}`;
-    highlightTabId = tabs.some((tab) => tab.id === candidate)
-      ? candidate
-      : null;
-  }
-  const highlightNeedsNfc =
-    highlightSchemaTab !== null &&
-    NFC_ONLY_TABS.has(highlightSchemaTab) &&
-    !nfcEnabled;
 
   const renderTab = (tabId: string) => {
     if (tabId === "settings-personalisierung") {
@@ -573,5 +422,5 @@ export function useSettingsTabs(): {
     return <SettingsContent tabKey={settingsKey} highlightKey={highlightKey} />;
   };
 
-  return { tabs, renderTab, highlightTabId, highlightNeedsNfc };
+  return { ...sections, renderTab };
 }

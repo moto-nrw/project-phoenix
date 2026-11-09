@@ -5,6 +5,7 @@
 // caterer sets its password, a caterer with an account confirms with its
 // password and adds the school. Afterwards the caterer is signed in.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   useCallback,
   useEffect,
@@ -14,11 +15,8 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { Check } from "lucide-react";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -27,7 +25,6 @@ import {
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordRequirements } from "~/components/auth/password-requirements";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import {
   FormErrorAlert,
@@ -46,7 +43,7 @@ import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { IconTile } from "~/components/ui/icon-tile";
+import { InvitationSummary } from "~/components/auth/invitation-summary";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -90,15 +87,13 @@ export default function CatererInvitationPage() {
   if (loading) {
     return (
       <AuthShell
-        eyebrow="Einladung"
-        eyebrowClassName="text-moto-green"
         title="Konto einrichten"
         subtitle="Wir prüfen Ihre Einladung."
         variant="tenant"
         brand={<MotoBrand />}
         formMaxWidth="max-w-[32rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }
@@ -107,8 +102,6 @@ export default function CatererInvitationPage() {
 
   return (
     <AuthShell
-      eyebrow="Einladung"
-      eyebrowClassName="text-moto-green"
       title={existing ? "Schule hinzufügen" : "Konto einrichten"}
       subtitle={
         invitation
@@ -188,8 +181,6 @@ function AcceptForm({
 }>) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [mfaStep, setMfaStep] = useState<Extract<
@@ -276,26 +267,16 @@ function AcceptForm({
 
   if (accepted) {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex flex-col items-center py-12"
-      >
-        <IconTile
-          size="page"
-          shape="round"
-          tone="inverse"
-          className="mb-6"
-          icon={<Check className="text-white" aria-hidden="true" />}
-        />
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          {existing ? "Schule hinzugefügt" : "Konto erstellt"}
-        </h3>
+      <div role="status" aria-live="polite">
         {/* „weitergeleitet“, nicht „angemeldet“: scheitert die automatische
             Anmeldung, geht es zur Anmeldeseite. */}
-        <p className="text-sm text-gray-500">
-          Sie werden gleich weitergeleitet.
-        </p>
+        <EmptyState
+          tone="success"
+          icon={<Check aria-hidden="true" />}
+          titleAs="h3"
+          title={existing ? "Schule hinzugefügt" : "Konto erstellt"}
+          description="Sie werden gleich weitergeleitet."
+        />
       </div>
     );
   }
@@ -312,14 +293,7 @@ function AcceptForm({
     >
       <FormErrorAlert message={formErrors.error} />
 
-      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
-        <p className="font-medium text-gray-700">
-          Einladung für{" "}
-          <span className="font-semibold text-gray-900">
-            {invitation.email}
-          </span>
-        </p>
-      </section>
+      <InvitationSummary email={invitation.email} />
 
       <div>
         <FieldLabel
@@ -329,27 +303,21 @@ function AcceptForm({
         >
           Passwort
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            controlSize="compact"
-            autoComplete={existing ? "current-password" : "new-password"}
-            value={password}
-            disabled={submitting}
-            onChange={(event) => setPassword(event.target.value)}
-            aria-invalid={Boolean(passwordError)}
-            aria-describedby={passwordError ? "password-error" : undefined}
-            required
-            className="pr-10"
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-          />
-        </div>
-        <AuthFieldError id="password-error" message={passwordError} />
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          controlSize="compact"
+          autoComplete={existing ? "current-password" : "new-password"}
+          value={password}
+          disabled={submitting}
+          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={Boolean(passwordError)}
+          aria-describedby={passwordError ? "password-error" : undefined}
+          required
+          revealable
+        />
+        <FieldErrorHint id="password-error" message={passwordError} />
       </div>
 
       {existing ? null : (
@@ -362,29 +330,23 @@ function AcceptForm({
             >
               Passwort bestätigen
             </FieldLabel>
-            <div className="relative">
-              <Input
-                id="confirmPassword"
-                name="confirm_password"
-                type={showConfirmPassword ? "text" : "password"}
-                controlSize="compact"
-                autoComplete="new-password"
-                value={confirmPassword}
-                disabled={submitting}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                aria-invalid={Boolean(confirmError)}
-                aria-describedby={
-                  confirmError ? "confirmPassword-error" : undefined
-                }
-                required
-                className="pr-10"
-              />
-              <PasswordToggleButton
-                showPassword={showConfirmPassword}
-                onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-              />
-            </div>
-            <AuthFieldError id="confirmPassword-error" message={confirmError} />
+            <Input
+              id="confirmPassword"
+              name="confirm_password"
+              type="password"
+              controlSize="compact"
+              autoComplete="new-password"
+              value={confirmPassword}
+              disabled={submitting}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              aria-invalid={Boolean(confirmError)}
+              aria-describedby={
+                confirmError ? "confirmPassword-error" : undefined
+              }
+              required
+              revealable
+            />
+            <FieldErrorHint id="confirmPassword-error" message={confirmError} />
           </div>
 
           <PasswordRequirements

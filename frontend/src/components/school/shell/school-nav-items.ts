@@ -19,6 +19,9 @@ import { helpConcept } from "~/lib/concepts/help";
 import { messagesConcept } from "~/lib/concepts/messages";
 import { newsConcept } from "~/lib/concepts/news";
 import { presentConcept } from "~/lib/concepts/present";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { privacyConcept } from "~/lib/concepts/privacy";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 export interface SchoolNavItem {
   /** Stabiler Schlüssel für Listen und Tests. */
@@ -134,3 +137,39 @@ export const SCHOOL_SECONDARY_NAV: readonly SchoolNavItem[] = [
     newTab: true,
   },
 ];
+
+/** Der Einstieg in die Einstellungen, unten in der Seitenleiste (#5750). */
+export const SCHOOL_SETTINGS_ENTRY: SchoolNavItem = {
+  key: "settings",
+  href: "/school/einstellungen",
+  label: "Einstellungen",
+  concept: settingsConcept,
+  portalPath: true,
+};
+
+export interface SchoolSettingsSection {
+  /** Der Wert von `?tab=` in der Adresse. */
+  readonly key: "notifications" | "privacy";
+  readonly label: string;
+  readonly concept: MotoConcept;
+}
+
+/** Die Bereiche der Einstellungen; der erste öffnet ohne `?tab=`. */
+export const SCHOOL_SETTINGS_SECTIONS: readonly SchoolSettingsSection[] = [
+  {
+    key: "notifications",
+    label: "Benachrichtigungen",
+    concept: notificationsConcept,
+  },
+  { key: "privacy", label: "Datenschutz", concept: privacyConcept },
+];
+
+/** Der Bereich, den `?tab=` nennt; ein unbekannter Wert öffnet den ersten. */
+export function activeSchoolSettingsSection(
+  requestedTab: string | null | undefined,
+): SchoolSettingsSection {
+  return (
+    SCHOOL_SETTINGS_SECTIONS.find((section) => section.key === requestedTab) ??
+    (SCHOOL_SETTINGS_SECTIONS[0] as SchoolSettingsSection)
+  );
+}

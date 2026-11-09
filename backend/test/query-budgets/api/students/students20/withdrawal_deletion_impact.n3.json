@@ -1,0 +1,7 @@
+{
+  "scenario": "api.students.students20.withdrawal_deletion_impact.n3",
+  "max": 26,
+  "exact": true,
+  "description": "Resource HTTP seam, real owner SQL, N3 positive collection fixture. Transaction frame included; production live-session authentication excluded. Measured count, not a minimum. ",
+  "route": "GET /api/students/care-withdrawals/{completionId}/deletion-impact"
+}

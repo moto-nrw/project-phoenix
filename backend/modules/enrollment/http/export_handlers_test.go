@@ -93,28 +93,28 @@ func sampleExport() *PhaseExport {
 	sid := schema.ID
 
 	phone := "0151-123"
-	req := &Request{
+	req := &capability.Request{
 		SchemaID:          &sid,
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Muster",
 		GuardianEmail:     "anna@example.test",
 		GuardianPhone:     &phone,
-		ConsentFlags: map[string]any{
+		ConsentFlags: formValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": false,
-		},
-		CustomData:  map[string]any{"notes": "Bitte Hintereingang"},
+		}),
+		CustomData:  formValues(map[string]any{"notes": "Bitte Hintereingang"}),
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
 	}
 
 	grade := int16(1)
-	child := &RequestChild{
+	child := &capability.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
 		DateOfBirth:      "2018-05-12",
 		TargetGradeLevel: &grade,
 		Status:           capability.ChildStatusApproved,
 		ActivationMode:   capability.ChildActivationScheduled,
-		CustomData:       map[string]any{"bus": true, "meal": "veg"},
+		CustomData:       formValues(map[string]any{"bus": true, "meal": "veg"}),
 	}
 
 	offerings := []ChildOfferingRow{
@@ -216,7 +216,7 @@ func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
 	t.Parallel()
 
 	data := sampleExport()
-	data.Rows[0].Children[0].Child.CustomData[capability.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
+	data.Rows[0].Children[0].Child.CustomData.Set(capability.TargetStudentDepartureCompanionNote, "Geschwisterkind Mia")
 
 	doc := buildPhaseExportTable(data, "Anmeldungen – Test", "")
 
@@ -426,17 +426,17 @@ func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
 }
 
 func statusExportSample() *PhaseExport {
-	mkReq := func(first, last string) *Request {
-		return &Request{
+	mkReq := func(first, last string) *capability.Request {
+		return &capability.Request{
 			GuardianFirstName: first,
 			GuardianLastName:  last,
 			GuardianEmail:     strings.ToLower(first) + "." + strings.ToLower(last) + "@example.test",
 			SubmittedAt:       time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
-			ConsentFlags:      map[string]any{},
+			ConsentFlags:      formValues(map[string]any{}),
 		}
 	}
 	mkChild := func(first, last, status string) ExportChildRow {
-		return ExportChildRow{Child: &RequestChild{
+		return ExportChildRow{Child: &capability.RequestChild{
 			FirstName:   first,
 			LastName:    last,
 			DateOfBirth: "2018-01-01",
@@ -527,14 +527,14 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	t.Parallel()
 
 	mk := func(first, last string) ExportChildRow {
-		return ExportChildRow{Child: &RequestChild{
+		return ExportChildRow{Child: &capability.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      capability.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
 		}}
 	}
-	reqA := &Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
-	reqB := &Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
+	reqA := &capability.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
+	reqB := &capability.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
 	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
 		Rows: []ExportRequestRow{
@@ -562,14 +562,14 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	t.Parallel()
 
 	mk := func(first, last string) ExportChildRow {
-		return ExportChildRow{Child: &RequestChild{
+		return ExportChildRow{Child: &capability.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      capability.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
 		}}
 	}
-	reqA := &Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
-	reqB := &Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
+	reqA := &capability.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
+	reqB := &capability.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
 	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
 		Rows: []ExportRequestRow{
@@ -609,10 +609,10 @@ func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T
 	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
 		Rows: []ExportRequestRow{
-			{Request: &Request{
+			{Request: &capability.Request{
 				GuardianFirstName: "Solo", GuardianLastName: "Parent",
 				GuardianEmail: "solo@example.test", SubmittedAt: time.Now(),
-				ConsentFlags: map[string]any{},
+				ConsentFlags: formValues(map[string]any{}),
 			}},
 		},
 	}

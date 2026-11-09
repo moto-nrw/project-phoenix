@@ -9,7 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -19,7 +21,6 @@ const (
 	permUsersManage = "users:manage"
 	permUsersList   = "users:list"
 	permRolesRead   = "roles:read"
-	permUsersUpdate = "users:update"
 	permRolesManage = "roles:manage"
 	pathPermissions = "/permissions"
 )
@@ -152,6 +153,7 @@ func (rs *Resource) tenantID(ctx context.Context) int64 {
 // owner serves both, so the resource takes them as one dependency (#3332).
 type Invitations interface {
 	identityaccess.SchoolInvitations
+	identityaccess.SchoolInvitationMailStates
 	identityaccess.GuardianInvitations
 }
 
@@ -195,8 +197,9 @@ func (rs *Resource) mountPublicRoutes(r chi.Router, authRateLimiter func(http.Ha
 			r.Use(authRateLimiter)
 		}
 		r.Post("/login", rs.login)
-		r.Post("/password-reset", rs.initiatePasswordReset)
-		r.Post("/password-reset/confirm", rs.resetPassword)
+		resets := portalauth.PasswordResetRoutes(rs.Sessions, identityaccess.PasswordResetScopeStaff)
+		r.Post("/password-reset", resets.ServeInitiate)
+		r.Post("/password-reset/confirm", resets.ServeConfirm)
 
 		// MFA challenge → token-pair exchange (issue #1308). These endpoints
 		// take the short-lived challenge JWT in the request body, NOT in the
@@ -236,14 +239,11 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 		r.Post("/logout", rs.logout)
 	})
 
-	// Enrollment-only routes (issue #1308): accept the narrow enrollment
-	// JWT that login mints for accounts on an mfa-required tenant that
-	// have no credential yet. Lives in its own group with a dedicated
-	// authenticator so the enrollment token NEVER reaches a fully
-	// authenticated handler. The full session is minted by
+	// Enrollment-only routes (issue #1308): only a tenant enrollment token
+	// enters, and it enters nothing else. The full session is minted by
 	// mfaEnrollConfirm after successful enrollment.
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.MFAEnrollmentAuthenticator)
+		r.Use(sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.TenantClaims))
 		r.Route("/mfa/enroll", func(r chi.Router) {
 			r.Post("/start", rs.mfaEnrollStart)
 			r.Post("/confirm", rs.mfaEnrollConfirm)
@@ -330,7 +330,10 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 
 	rs.mountRoleAndPermissionRoutes(r)
 
-	// Role permission assignments
+	// Role permission assignments. This route serves both
+	// /auth/roles/{roleId}/permissions and .../permissions/; chi prefers it
+	// over the /roles/{id} subrouter, so a second GET there would never run
+	// (#5549).
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 		r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 		r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
@@ -360,7 +363,6 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 			r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 			r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)
 			r.With(common.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-			r.With(common.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
 		})
 	})
 
@@ -382,7 +384,12 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
 	// This single-command handler lets the capability select its unit before
 	// any transaction starts, including cross-school organization updates.
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+	//
+	// It rewrites the login address and name, so it needs users:manage like
+	// register and link-to-tenant: under users:update, which the "user" role
+	// holds, a Betreuer could move an admin's address to their own mailbox
+	// and take the account over through a password reset.
+	r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.updateAccount)
 	r.Group(rs.mountTransactionalAccountRoutes)
 }
 

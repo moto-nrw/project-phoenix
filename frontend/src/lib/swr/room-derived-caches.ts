@@ -1,3 +1,6 @@
+import { groupKeys } from "./groups-keys";
+import { SEARCH_STUDENTS_KEY_PREFIX } from "./search-students-key";
+
 /**
  * Single source of truth for SWR cache keys that hold room-stamped data.
  *
@@ -49,6 +52,6 @@
  */
 export const ROOM_DERIVED_CACHE_KEY_FRAGMENTS: readonly string[] = [
   "active-supervision-dashboard-",
-  "ogs-students-",
-  "search-students-",
+  groupKeys.liveFamily,
+  SEARCH_STUDENTS_KEY_PREFIX,
 ] as const;

@@ -28,6 +28,16 @@ func TestPassthroughPredicateFixtures(t *testing.T) {
 		{"blank receiver", "func (_ *Service) Find() { s.store.Find() }", false},
 		{"nested field", "func (s *Service) Find() { s.deps.clock.Now() }", true},
 		{"closure", "func (s *Service) Find() { s.run(func() { s.store.Find() }) }", true},
+		// ADR 0177: a flow helper takes over the nil guard, the runtime
+		// binding and the deferred translation; condition 3 counts their
+		// three net lines back, so eleven lines through it measure fourteen.
+		{"flow helper at eleven lines", unitFlowFixture("runFlow", 11), true},
+		{"flow helper at twelve lines", unitFlowFixture("runFlow", 12), false},
+		{"error flow helper at twelve lines", unitFlowFixture("runFlowErr", 12), false},
+		{"two-value flow helper at twelve lines", unitFlowFixture("runFlow2", 12), false},
+		{"flow helper counted once", "func (s *Service) Find() {\n" + strings.Repeat("\n", 6) + "runFlow(ctx, s.flow(), func() { s.store.Find() })\nrunFlow(ctx, s.flow(), func() {})\n}", true},
+		{"other free function at twelve lines", unitFlowFixture("run", 12), true},
+		{"flow helper as method at twelve lines", strings.Replace(unitFlowFixture("runFlow", 12), "runFlow(", "s.runFlow(", 1), true},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			t.Parallel()
@@ -42,4 +52,10 @@ func TestPassthroughPredicateFixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// unitFlowFixture is a method of the given body span whose one field call
+// sits in a literal handed to helper.
+func unitFlowFixture(helper string, span int) string {
+	return "func (s *Service) Find() {\n" + strings.Repeat("\n", span-5) + "return " + helper + "(ctx, s.flow(), func(ctx context.Context) error {\nreturn s.store.Find(ctx)\n})\n}"
 }

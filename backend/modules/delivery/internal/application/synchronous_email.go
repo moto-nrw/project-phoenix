@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -53,6 +54,20 @@ func (w *Worker) DispatchEmail(ctx context.Context, tenantID, id int64) error {
 }
 
 func (w *Worker) deliverEmail(ctx context.Context, store targetedEmailStore, intent domain.Intent) error {
+	// Before the dispatch fence, as in the worker. A failed read leaves the lease
+	// to expire, and the worker then recovers the mail.
+	hold, err := w.mailHold(ctx, intent)
+	if err != nil {
+		return err
+	}
+	if hold != nil {
+		done, err := w.store.FinalizeCancelled(ctx, intent.Transport, intent.ID, leaseToken(intent), hold.Error(), time.Now())
+		if err == nil && !done {
+			err = errors.New("delivery: cancelled email lost its lease")
+		}
+		w.recordHeldSend(ctx, intent, hold)
+		return errors.Join(fmt.Errorf("%w: %w", domain.ErrCancelled, hold), err)
+	}
 	token, active, err := w.store.StartDelivery(ctx, intent.Transport, intent.ID, leaseToken(intent), synchronousPushLease(ctx, w.leaseDuration))
 	if err != nil {
 		return err
@@ -91,6 +106,10 @@ func (w *Worker) sendEmailAttempts(ctx context.Context, store targetedEmailStore
 	for {
 		result, sendErr := w.provider.Send(ctx, intent)
 		attempts := intent.Attempts + 1
+		if errors.Is(sendErr, domain.ErrPermanent) {
+			w.recordRecipientRejection(ctx, intent, sendErr)
+			return result, attempts, sendErr
+		}
 		if sendErr == nil || errors.Is(sendErr, domain.ErrCancelled) || attempts >= policy.MaxAttempts {
 			return result, attempts, sendErr
 		}

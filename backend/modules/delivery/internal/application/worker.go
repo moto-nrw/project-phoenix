@@ -87,9 +87,19 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 		return fmt.Errorf("delivery worker: claim %s: %w", transport, err)
 	}
 	stats.Claimed += len(rows)
+	if batch, ok := w.provider.(interface {
+		PrepareBatch(context.Context, []domain.Intent) context.Context
+	}); ok && transport == domain.TransportPush {
+		ctx = batch.PrepareBatch(ctx, rows)
+	}
 	for index := range rows {
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		// Before the dispatch fence: a mail behind the fence with an unknown
+		// outcome is never retried, and this one has not been sent.
+		if w.heldBackBySuppression(ctx, rows[index], stats) {
+			continue
 		}
 		w.process(ctx, rows[index], maxAttempts, stats)
 	}
@@ -129,6 +139,7 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	if errors.Is(sendErr, domain.ErrPermanent) {
 		// No retry can change the answer: dead-letter on this attempt.
 		maxAttempts = intent.Attempts + 1
+		w.recordRecipientRejection(ctx, intent, sendErr)
 	}
 	if sendErr != nil {
 		w.finalizeFailure(ctx, intent, dispatchToken, sendErr, maxAttempts, stats)
@@ -151,6 +162,21 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	}
 	stats.Sent++
 	w.observe(domain.Observation{Operation: "sent", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
+}
+
+// heldBackBySuppression ends a mail that stays back before it is sent. A failed
+// read keeps the mail for a later attempt: the holds decide, so they must be known.
+func (w *Worker) heldBackBySuppression(ctx context.Context, intent domain.Intent, stats *deliveryContract.WorkerStats) bool {
+	hold, err := w.mailHold(ctx, intent)
+	if err != nil {
+		w.finalizeDeferred(ctx, intent, leaseToken(intent), err, stats)
+		return true
+	}
+	if hold != nil {
+		w.finalizeCancelled(ctx, intent, leaseToken(intent), hold, stats)
+		w.recordHeldSend(ctx, intent, hold)
+	}
+	return hold != nil
 }
 
 func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, token string, reason error, stats *deliveryContract.WorkerStats) {

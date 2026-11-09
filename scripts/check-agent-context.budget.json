@@ -1,10 +1,10 @@
 {
   ".claude/rules/backend-conventions.md": 35054,
   ".claude/rules/calendar-dates.md": 9185,
-  ".claude/rules/ci-test-performance.md": 3774,
+  ".claude/rules/ci-test-performance.md": 3584,
   ".claude/rules/env-docker-sync.md": 7455,
   ".claude/rules/error-path.md": 3670,
-  ".claude/rules/frontend-ui-kit.md": 42483,
+  ".claude/rules/frontend-ui-kit.md": 43238,
   ".claude/rules/guardian-parent-permissions.md": 5883,
   ".claude/rules/help-guide-sync.md": 10932,
   ".claude/rules/information-flow.md": 3093,
@@ -20,5 +20,5 @@
   "CLAUDE.md": 12045,
   "frontend/AGENTS.md": 2087,
   "frontend/CLAUDE.md": 8441,
-  "skill-catalog": 17020
+  "skill-catalog": 18186
 }

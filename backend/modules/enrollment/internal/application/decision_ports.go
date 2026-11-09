@@ -24,6 +24,9 @@ type (
 		SetRequestWithdrawal(context.Context, int64, *time.Time) error
 		AcquireSubmissionDedupLock(context.Context, int64, uint64) error
 		AcquireExistingStudentMatchLock(context.Context, int64) error
+		// AcquireChildIdentityLock serializes the enrolled-child check and
+		// the creation of one child of the school (#6170).
+		AcquireChildIdentityLock(context.Context, string, string, calendar.Date) error
 		ActiveDuplicateChildren(context.Context, int64, string, []enrollmentNative.DuplicateChildKey, int64) ([]enrollmentNative.DuplicateChildKey, error)
 		HasActiveRequestForMatchedStudent(context.Context, int64, int64, int64) (bool, error)
 	}
@@ -41,10 +44,19 @@ type (
 		UpdateChildStatus(context.Context, int64, string, *string, int64) error
 		UpdateChildActivationPlan(context.Context, int64, string, *enrollmentNative.Date) error
 		LinkCreatedStudent(context.Context, int64, int64) error
+		// PinOfficeChosenStudent pins the student the office chose (#6053).
+		PinOfficeChosenStudent(context.Context, int64, int64) error
+		// UpdateMatchedStudent drops a parent pin whose authority lapsed
+		// when the office creates the child anew (#6053).
+		UpdateMatchedStudent(context.Context, int64, *int64) error
 		// The planned class switch of an approved re-enrollment (#3917).
 		SetChildClassSwitch(context.Context, int64, *enrollmentNative.ClassSwitch) error
 		ChildClassSwitch(context.Context, int64) (*enrollmentNative.ClassSwitch, error)
 		DueClassSwitches(context.Context, enrollmentNative.Date) ([]enrollmentNative.DueClassSwitch, error)
+		// The planned weekly plan of an approved future re-enrollment (#6043).
+		SetChildWeeklyPlan(context.Context, int64, *enrollmentNative.WeeklyPlan) error
+		ChildWeeklyPlan(context.Context, int64) (*enrollmentNative.WeeklyPlan, error)
+		DueWeeklyPlans(context.Context, enrollmentNative.Date) ([]enrollmentNative.WeeklyPlan, error)
 	}
 	// DecisionGuardians reads the co-guardians of a request and stamps the
 	// guardian profile an approval resolved for one of them.
@@ -97,6 +109,14 @@ type DecisionGuardianAccess interface {
 	GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error)
 }
 
+// DecisionGuardianInvitations is the Identity & Access seam through which
+// an approval invites a guardian who has no portal account yet (#6093). The
+// invitation and its mail join the decision's transaction, so a failure
+// rolls the approval back with them.
+type DecisionGuardianInvitations interface {
+	CreateGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest) (identityaccess.GuardianInvitation, error)
+}
+
 // DecisionStudentEnrollment is the bounded People Directory student seam used
 // by approval, renewal and accepted form changes. It cannot update
 // attendance.
@@ -133,6 +153,7 @@ type (
 	// StudentAudit records tracked profile changes made while approving or
 	// synchronizing enrollment data for an existing student.
 	StudentAudit interface {
+		RecordSystemChanges(ctx context.Context, before, after *Student) error
 		RecordChangesForActor(ctx context.Context, before, after *Student, editedBy int64) error
 		RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 	}
@@ -193,37 +214,47 @@ type WeeklyPickupHooks struct {
 type DecisionDependencies struct {
 	Requests DecisionRequests
 	// Reads is the per-account read state of the admin queue (#3778).
-	Reads             enrollmentNative.RequestReads
-	Children          DecisionChildren
-	Guardians         DecisionGuardians
-	LateInvites       DecisionLateInvites
-	Phases            DecisionPhases
-	Schemas           DecisionSchemas
-	Offerings         CareOfferingCatalog
-	Notifications     enrollmentNative.Notifications
-	Bookings          DecisionBookings
-	GuardianAccess    DecisionGuardianAccess
-	StudentEnrollment DecisionStudentEnrollment
-	People            PeopleDirectory
-	Companions        DepartureCompanions
-	PickupSchedules   WeeklyPickupSchedules
-	ArrivalSchedules  WeeklyArrivalSchedules
-	AccessLog         ExportAccessLog
-	Adjustments       OfferingAdjustmentTrail
-	Restorations      RestorationAudit
-	Payers            PayerAudit
-	StudentAudit      StudentAudit
-	StudentConsents   StudentConsents
-	CareWithdrawal    CareWithdrawalReconciler
-	Broadcasts        StudentPlanBroadcasts
-	Settings          DecisionSettings
+	Reads          enrollmentNative.RequestReads
+	Children       DecisionChildren
+	Guardians      DecisionGuardians
+	LateInvites    DecisionLateInvites
+	Phases         DecisionPhases
+	Schemas        DecisionSchemas
+	Offerings      CareOfferingCatalog
+	Notifications  enrollmentNative.Notifications
+	Bookings       DecisionBookings
+	GuardianAccess DecisionGuardianAccess
+	// GuardianInvitations creates the invitation an approval owes. Nil
+	// leaves it uncreated (focused tests).
+	GuardianInvitations DecisionGuardianInvitations
+	StudentEnrollment   DecisionStudentEnrollment
+	People              PeopleDirectory
+	Companions          DepartureCompanions
+	PickupSchedules     WeeklyPickupSchedules
+	ArrivalSchedules    WeeklyArrivalSchedules
+	AccessLog           ExportAccessLog
+	Adjustments         OfferingAdjustmentTrail
+	Restorations        RestorationAudit
+	Payers              PayerAudit
+	StudentAudit        StudentAudit
+	StudentConsents     StudentConsents
+	CareWithdrawal      CareWithdrawalReconciler
+	Broadcasts          StudentPlanBroadcasts
+	Settings            DecisionSettings
 	// LockTemplateRecurrence takes the tenant recurrence gate before an
 	// approval rewrites an existing student's class, the same gate Care
 	// Plan's booking materialization serializes its roster writes with.
 	LockTemplateRecurrence func(context.Context) error
-	Pickups                WeeklyPickupHooks
-	Runtime                Runtime
-	ParentsURL             string
-	Logger                 *slog.Logger
-	Today                  func() calendar.Date
+	// GuardianAuthorizer re-checks a parent's pin against the current
+	// relationship before an approval or a later edit acts on it (#6053).
+	// Without it such a pin authorizes nothing.
+	GuardianAuthorizer GuardianStudentAuthorizer
+	Pickups            WeeklyPickupHooks
+	Runtime            Runtime
+	// IsTransient reports a database failure worth one more attempt of a
+	// decision that opened its own unit. Nil never retries.
+	IsTransient func(error) bool
+	ParentsURL  string
+	Logger      *slog.Logger
+	Today       func() calendar.Date
 }

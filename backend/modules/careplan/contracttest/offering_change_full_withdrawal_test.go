@@ -334,8 +334,10 @@ func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfThe
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "KeepsOther")
 	// A second child that holds both offerings, so dropping one leaves one.
+	// Its own name: the fixture's child with the same name and birthday would
+	// be the already enrolled child (#6053).
 	_, _, studentID := submitApprovedAdjustmentChild(
-		t, env, "offer-change-keeps-other@example.com", "OfferChangeKeepsOther",
+		t, env, "offer-change-keeps-other@example.com", "OfferChangeKeepsOtherSecond",
 		[]*offeringContract.CareOfferingRecord{fx.oldOffering, fx.newOffering},
 	)
 

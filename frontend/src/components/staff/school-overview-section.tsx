@@ -39,6 +39,7 @@ import {
   staffOverviewService,
   type DashboardPeriod,
 } from "~/lib/staff-overview-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const periodLabels: Record<DashboardPeriod, string> = {
   week: "Diese Woche",
@@ -145,7 +146,7 @@ export function SchoolOverviewSection() {
       )}
 
       {!summary && error ? null : isLoading && !summary ? (
-        <Skeleton className="h-44 rounded-2xl sm:h-36" />
+        <Skeleton shape="card" className="h-44 sm:h-36" />
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
@@ -216,7 +217,10 @@ export function SchoolOverviewSection() {
             // Kontostand, kein Zeitraumwert: für Woche und Monat identisch und
             // deshalb aus der Zeitraum-Reihe herausgenommen. Als ruhiger
             // Streifen unter den Kacheln, nicht als siebte Kachel.
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl bg-gray-50 px-4 py-3">
+            <InsetPanel
+              padding="md"
+              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+            >
               <div>
                 <p className="text-sm font-semibold text-gray-900">
                   Stundenkonto der Einrichtung
@@ -235,7 +239,7 @@ export function SchoolOverviewSection() {
               >
                 {formatSignedDuration(summary.saldoSchoolTotalMinutes)}
               </p>
-            </div>
+            </InsetPanel>
           )}
         </div>
       )}

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 const (
@@ -159,7 +159,7 @@ func (rs *Resource) serveContent(w http.ResponseWriter, r *http.Request, content
 		disposition = "inline"
 		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
 	}
-	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": content.Filename}))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition(disposition, content.Filename))
 	w.Header().Set("Content-Type", content.ContentType)
 	// no-store: a revoked permission or a deleted document must not be
 	// served from a cache the application no longer controls.

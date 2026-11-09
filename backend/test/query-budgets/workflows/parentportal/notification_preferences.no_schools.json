@@ -1,0 +1,7 @@
+{
+  "scenario": "parent.me.notification_preferences.no_schools",
+  "max": 4,
+  "exact": true,
+  "description": "Protected parent JWT GET with no guardian-school mapping returns the complete ordered catalogue with all switches unavailable/off and tenant_enabled=false, without reading consent rows or issuing DML. Real owner stores; admin BEGIN/role/mapping read/COMMIT included; outer host session-liveness and module-booking middleware excluded.",
+  "route": "GET /parent/me/notification-preferences/"
+}

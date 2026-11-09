@@ -1,263 +1,121 @@
-// app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import { isApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPostHandler,
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
+import type { Student, StudentPage } from "~/lib/student-helpers";
+import {
+  mapStudentListRow,
+  mapStudentResponse,
+  type BackendNameStudent,
+  type BackendStudent,
+  type StudentView,
+} from "~/lib/student-wire";
+import {
+  buildStudentCreateRequest,
+  type StudentCreateBody,
+} from "~/lib/student-request.server";
+import {
+  readConsentAfterWrite,
+  sentConsentPair,
+  writeConsent,
+} from "~/lib/student-privacy-consent.server";
 
 const logger = createLogger({ component: "StudentsRoute" });
-import type {
-  BackendNameStudent,
-  BackendSlimStudent,
-  Student,
-} from "~/lib/student-helpers";
-import {
-  mapNameStudentResponse,
-  mapSlimStudentResponse,
-  mapStudentResponse,
-} from "~/lib/student-helpers";
-import {
-  shouldCreatePrivacyConsent,
-  updatePrivacyConsent,
-  fetchPrivacyConsent,
-} from "~/lib/student-privacy-helpers";
-import {
-  validateStudentFields,
-  buildBackendStudentRequest,
-  handlePrivacyConsentCreation,
-  buildStudentResponse,
-} from "~/lib/student-request-helpers";
-import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
-import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
-import type { BackendPickupScheduleRequest } from "~/lib/pickup-schedule-helpers";
 
-/**
- * Type definition for student response from backend
- */
-interface StudentResponseFromBackend {
-  id: number;
-  person_id: number;
-  first_name: string;
-  last_name: string;
-  tag_id?: string;
-  school_class: string;
-  current_location?: string | null;
-  // Hex of the student's current room when set (Issue #1324). The proxy
-  // forwards it untouched; mapStudentResponse threads it into the Student
-  // type that powers LocationBadge.
-  current_room_color?: string | null;
-  bus: boolean;
-  group_id?: number;
-  day_planning_status?: "comes_today" | "not_coming_today";
-  day_planning_reason?: string;
-  day_planning_label?: string;
-  // Parent's note for a still-pending "entschuldigt" request covering today;
-  // forwarded untouched and threaded into Student by mapStudentResponse.
-  pending_excused_note?: string;
-  created_at: string;
-  updated_at: string;
+// Callers that don't paginate (Kindersuche, database list views) get every row
+// in one trip; an explicit page_size is honored up to the cap, so an
+// authenticated caller can't force an arbitrarily large query. The room-detail
+// modal sends 200 and drives its own overflow notice from it (#1374).
+const MAX_PAGE_SIZE = 1000;
+
+function pageSize(raw: string | null): number {
+  const parsed = raw === null ? Number.NaN : Number(raw);
+  return Number.isInteger(parsed) && parsed > 0
+    ? Math.min(parsed, MAX_PAGE_SIZE)
+    : MAX_PAGE_SIZE;
 }
 
-/**
- * Type definition for API response format from backend
- */
-interface ApiStudentsResponse {
-  status: string;
-  data: Array<
-    StudentResponseFromBackend | BackendSlimStudent | BackendNameStudent
-  >;
-  pagination: {
-    current_page: number;
-    page_size: number;
-    total_pages: number;
-    total_records: number;
-  };
-  message: string;
+function studentView(raw: string | null): StudentView {
+  return raw === "slim" || raw === "names" ? raw : "full";
 }
 
-/**
- * Type definition for paginated response
- */
-interface PaginatedStudentsResponse {
-  data: Student[];
-  pagination: {
-    current_page: number;
-    page_size: number;
-    total_pages: number;
-    total_records: number;
-  };
-}
-
-/**
- * Handler for GET /api/students
- * Returns a paginated list of students, optionally filtered by query parameters
- */
 export const GET = createGetHandler(
-  async (
-    request: NextRequest,
-    token: string,
-  ): Promise<PaginatedStudentsResponse> => {
-    // Build URL with any query parameters
-    const queryParams = new URLSearchParams();
-    request.nextUrl.searchParams.forEach((value, key) => {
-      queryParams.append(key, value);
-    });
-
-    // Default page_size to 1000 so callers that don't paginate (Kindersuche,
-    // database list views) still get every row in one trip, but honor an
-    // explicit page_size from the client. The room-detail modal sends 200
-    // and relies on a smaller payload to drive its own truncation/overflow
-    // notice (#1374) — overwriting it here would render up to 1000 cards
-    // and silently disable the cap the UX depends on. Cap any client-
-    // supplied value at MAX_PAGE_SIZE so an authenticated caller can't
-    // force an arbitrarily large query (e.g. ?page_size=1000000).
-    const MAX_PAGE_SIZE = 1000;
-    const DEFAULT_PAGE_SIZE = 1000;
-    const rawPageSize = queryParams.get("page_size");
-    const parsedPageSize = rawPageSize !== null ? Number(rawPageSize) : NaN;
-    const pageSize =
-      Number.isInteger(parsedPageSize) && parsedPageSize > 0
-        ? Math.min(parsedPageSize, MAX_PAGE_SIZE)
-        : DEFAULT_PAGE_SIZE;
-    queryParams.set("page_size", String(pageSize));
-    const view = queryParams.get("view");
-
-    const endpoint = `/api/students${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+  async (request: NextRequest, token: string): Promise<StudentPage> => {
+    const query = new URLSearchParams(request.nextUrl.searchParams);
+    query.set("page_size", String(pageSize(query.get("page_size"))));
+    const view = studentView(query.get("view"));
 
     try {
-      // Fetch students from backend API
-      const response = await apiGet<ApiStudentsResponse>(endpoint, token);
-
-      // Handle null or undefined response
-      if (!response) {
-        logger.warn("API returned null response for students");
-        return {
-          data: [],
-          pagination: {
-            current_page: 1,
-            page_size: 50,
-            total_pages: 0,
-            total_records: 0,
-          },
-        };
-      }
-
-      // Check for the paginated response structure from backend
-      if ("data" in response && Array.isArray(response.data)) {
-        // Map the backend response format to the frontend format using the consistent mapping function
-        const mappedStudents = response.data.map((student) => {
-          if (view === "slim") {
-            return mapSlimStudentResponse(student as BackendSlimStudent);
-          }
-          if (view === "names") {
-            return mapNameStudentResponse(student as BackendNameStudent);
-          }
-          return mapStudentResponse(student as StudentResponseFromBackend);
-        });
-
-        return {
-          data: mappedStudents,
-          pagination: response.pagination,
-        };
-      }
-
-      // If the response doesn't have the expected structure, return empty paginated response
-      logger.warn("students API response has unexpected structure");
+      const response = await apiGet<{
+        data: BackendNameStudent[];
+        pagination: StudentPage["pagination"];
+      }>(`/api/students?${query.toString()}`, token);
       return {
-        data: [],
-        pagination: {
-          current_page: 1,
-          page_size: 50,
-          total_pages: 0,
-          total_records: 0,
-        },
+        data: response.data.map((row) => mapStudentListRow(row, view)),
+        pagination: response.pagination,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const logContext = {
-        error: errorMessage,
-        ...(isApiResponseError(error, 429) && {
-          rate_limited: true,
-        }),
+      const context = {
+        error: error instanceof Error ? error.message : String(error),
       };
-      if (logContext.rate_limited) {
-        logger.warn("students fetch failed", logContext);
+      // A rate-limited list is expected under load and stays a warning.
+      if (isApiResponseError(error, 429)) {
+        logger.warn("students fetch failed", {
+          ...context,
+          rate_limited: true,
+        });
       } else {
-        logger.error("students fetch failed", logContext);
+        logger.error("students fetch failed", context);
       }
-      throw error; // Re-throw to let the error handler deal with it
+      throw error;
     }
   },
 );
 
 /**
- * Handler for POST /api/students
- * Creates a new student with associated person record
+ * Creates the student (with guardians and weekly schedules in the same
+ * backend transaction), then the privacy consent the form changed. The consent
+ * lives at another backend endpoint, so it cannot join that transaction: when
+ * it fails, the child exists anyway and the answer carries the consent that is
+ * actually stored and `privacy_consent_saved: false`, so the form can say that
+ * the input was lost and the person can correct it on the child's page (#5970).
+ * The marker is absent whenever nothing was lost.
  */
-export const POST = createPostHandler<
-  Student,
-  Omit<Student, "id"> & {
-    privacy_consent_accepted?: boolean;
-    data_retention_days?: number;
-    guardians?: StudentGuardianPayload[];
-    arrival_schedules?: ArrivalScheduleFormEntry[];
-    pickup_schedules?: BackendPickupScheduleRequest[];
-  }
->(
-  async (
-    _request: NextRequest,
-    body: Omit<Student, "id"> & {
-      privacy_consent_accepted?: boolean;
-      data_retention_days?: number;
-      guardians?: StudentGuardianPayload[];
-      arrival_schedules?: ArrivalScheduleFormEntry[];
-      pickup_schedules?: BackendPickupScheduleRequest[];
-    },
-    token: string,
-  ) => {
-    // Extract privacy consent fields
-    const { privacy_consent_accepted, data_retention_days } = body;
+export const POST = createPostHandler<Student, StudentCreateBody>(
+  async (_request, body, token) => {
+    const backendRequest = buildStudentCreateRequest(body);
+    const consent = sentConsentPair(body);
+    const response = await apiPost<{ data: BackendStudent }>(
+      "/api/students",
+      token,
+      backendRequest,
+    );
+    const student = response.data;
 
-    // Validate required fields
-    const validated = validateStudentFields(body);
-
-    const backendRequest = buildBackendStudentRequest(validated, body);
-
-    // A backend failure keeps its envelope and status.
-    // Create the student via the simplified API endpoint
-    const rawResponse = await apiPost<{
-      status: string;
-      data: StudentResponseFromBackend;
-      message: string;
-    }>("/api/students", token, backendRequest as StudentResponseFromBackend);
-
-    const response = rawResponse.data;
-
-    // Handle privacy consent (non-critical, errors are logged but not thrown)
-    if (response?.id) {
-      await handlePrivacyConsentCreation(
-        response.id,
-        privacy_consent_accepted,
-        data_retention_days,
-        apiPut,
-        token,
-        shouldCreatePrivacyConsent,
-        updatePrivacyConsent,
-      );
+    let written = consent;
+    if (consent) {
+      try {
+        await writeConsent(student.id, token, consent);
+      } catch (consentError) {
+        written = null;
+        logger.error("privacy consent write failed after student create", {
+          student_id: student.id,
+          error:
+            consentError instanceof Error
+              ? consentError.message
+              : String(consentError),
+        });
+      }
     }
 
-    // Map response and fetch privacy consent data
-    const mappedStudent = mapStudentResponse(response);
-    return await buildStudentResponse(
-      mappedStudent,
-      response?.id,
-      apiGet,
-      token,
-      fetchPrivacyConsent,
-    );
+    return {
+      ...mapStudentResponse(student),
+      ...(await readConsentAfterWrite(student.id, token, written)),
+      ...(consent && !written && { privacy_consent_saved: false }),
+    };
   },
 );

@@ -74,11 +74,11 @@ type AccessTokenCodec interface {
 }
 
 // AccountAdministration is the consumer-owned port over the retained role
-// and account management flows staff offboarding drives (#2721): a role
+// and account management flows staff offboarding drives (#2721): a role-set
 // removal revokes the sessions it must, a deactivation records the durable
 // account-wide revocation intent. Both join the caller's transaction.
 type AccountAdministration interface {
-	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
+	RemoveRolesFromAccount(ctx context.Context, accountID int64, roleIDs []int64) error
 	DeactivateAccount(ctx context.Context, accountID int64) error
 }
 
@@ -147,7 +147,10 @@ type GuardianInvitationStore interface {
 	// school in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context, now time.Time) ([]domain.GuardianInvitation, error)
 	InsertGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianInvitation, error)
-	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error
+	// UpdateGuardianInvitation writes the invitation only while it is still
+	// unaccepted and carries expectedApprovalStatus, the status the caller
+	// read; otherwise it reports ErrGuardianInvitationNotFound.
+	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error
 	// AcceptGuardianInvitation stamps the acceptance and reports whether the
 	// invitation was still unaccepted, so a token is spent exactly once.
 	AcceptGuardianInvitation(ctx context.Context, id int64, acceptedAt time.Time) (bool, error)
@@ -172,6 +175,9 @@ type GuardianEnrollments interface {
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) (time.Duration, error)
 	SchoolName(ctx context.Context, tenantID int64) string
+	// GuardianMailBlocks reports the addresses a new invitation would not reach,
+	// keyed by the address in lower case.
+	GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]string, error)
 	// EnqueueInvitationEmail returns the enqueue failure of the primary
 	// access mail; the invitation rolls back with it (#4602).
 	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (outboxID int64, err error)

@@ -8,19 +8,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -36,6 +32,7 @@ import { login as loginApi } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "SchoolLoginPage" });
 
@@ -83,7 +80,6 @@ function LoginForm() {
   const [portalNotBooked, setPortalNotBooked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
@@ -249,21 +245,12 @@ function LoginForm() {
   return (
     <>
       <AuthShell
-        eyebrow="Schulportal"
-        eyebrowClassName="text-moto-blue"
         title="Willkommen im Schulportal"
         subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
         variant="tenant"
         brand={<MotoBrand />}
       >
-        {isCheckingAuth && (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
-            </div>
-          </div>
-        )}
+        {isCheckingAuth && <Loading message="Sitzung wird überprüft..." />}
 
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
@@ -349,32 +336,26 @@ function LoginForm() {
                   >
                     Passwort
                   </FieldLabel>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      controlSize="compact"
-                      data-testid="input-password"
-                      autoComplete="current-password"
-                      required
-                      disabled={isSubmitting}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      aria-invalid={Boolean(formErrors.fieldError("password"))}
-                      aria-describedby={
-                        formErrors.fieldError("password")
-                          ? "password-error"
-                          : undefined
-                      }
-                      className="pr-10"
-                    />
-                    <PasswordToggleButton
-                      showPassword={showPassword}
-                      onToggle={() => setShowPassword(!showPassword)}
-                    />
-                  </div>
-                  <AuthFieldError
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    controlSize="compact"
+                    data-testid="input-password"
+                    autoComplete="current-password"
+                    required
+                    disabled={isSubmitting}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    aria-invalid={Boolean(formErrors.fieldError("password"))}
+                    aria-describedby={
+                      formErrors.fieldError("password")
+                        ? "password-error"
+                        : undefined
+                    }
+                    revealable
+                  />
+                  <FieldErrorHint
                     id="password-error"
                     message={formErrors.fieldError("password")}
                   />
@@ -427,17 +408,12 @@ export default function SchoolLoginPage() {
     <Suspense
       fallback={
         <AuthShell
-          eyebrow="Schulportal"
-          eyebrowClassName="text-moto-blue"
           title="Willkommen im Schulportal"
           subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Laden...</p>
-          </div>
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

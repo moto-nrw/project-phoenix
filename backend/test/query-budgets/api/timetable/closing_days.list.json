@@ -1,0 +1,7 @@
+{
+  "scenario": "api.timetable.closing_days.list",
+  "max": 4,
+  "exact": true,
+  "description": "Real School Calendar closing-day route: populated N3/N8 including the HTTP tenant transaction, excluding outer server/session liveness.",
+  "route": "GET /api/timetable/closing-days/"
+}

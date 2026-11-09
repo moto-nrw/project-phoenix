@@ -76,6 +76,8 @@ type CareScheduleRequestDecision struct {
 type StudentDataChangeRequest = masterdatarequests.Request
 
 type StudentDataRequestFilter struct {
+	// IDs restricts the listing to exact rows. Nil means no ID filter.
+	IDs           []int64
 	StudentID     int64
 	Statuses      []string
 	ParentVisible bool

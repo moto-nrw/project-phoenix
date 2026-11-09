@@ -29,6 +29,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/delivery/http/webhooks",
+      "owner": "delivery-platform",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/delivery/internal/adapters/postgres",
       "owner": "delivery-platform",
       "role": "postgres",
@@ -222,6 +229,26 @@
       "write_owner": "delivery-platform"
     },
     {
+      "name": "platform.email_delivery_events",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.email_suppressions",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.delivery_guardian_contacts",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.delivery_traeger_schools",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.delivery_known_email_addresses",
+      "write_owner": "delivery-platform"
+    },
+    {
       "name": "platform.push_outbox",
       "write_owner": "delivery-platform"
     },
@@ -345,7 +372,7 @@
     },
     {
       "id": "delivery.application.http-router",
-      "description": "The synchronous Web Push exception uses a bounded HTTP client.",
+      "description": "The synchronous Web Push exception and the Lettermint Team API client use bounded HTTP clients.",
       "scopes": [
         "production"
       ],
@@ -355,7 +382,7 @@
     },
     {
       "id": "delivery.application.crypto",
-      "description": "Web Push validates VAPID keys with the standard crypto package.",
+      "description": "Web Push validates VAPID keys and the Lettermint webhook verifies its HMAC signature with the standard crypto package.",
       "scopes": [
         "production"
       ],

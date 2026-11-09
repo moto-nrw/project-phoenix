@@ -26,7 +26,8 @@ import {
   resolveStudentReferrer,
   studentReferrerBackLabel,
 } from "./student-referrer";
-import { groupService, studentService } from "~/lib/api";
+import { groupService } from "~/lib/api";
+import { updateStudent } from "~/lib/student-api";
 import {
   schoolCheckinStudent,
   type SchoolCheckoutReason,
@@ -35,24 +36,21 @@ import {
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
-import {
-  useStudentData,
-  type ExtendedStudent,
-} from "~/lib/hooks/use-student-data";
+import { useStudentData } from "~/lib/hooks/use-student-data";
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
 import { useSWRAuth, useTenantMutate, useSWRSeedFrom } from "~/lib/swr";
 import { studentKeys } from "~/lib/swr/portal-keys";
-import type { SupervisorContact } from "~/lib/student-helpers";
+import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import {
   allowedDepartureModesFromDeparture,
   allowedDepartureToDepartureDays,
   departureDaysFromLegacy,
   normalizeBusDays,
   normalizeAllowedDepartureModes,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   StudentHeaderAvatar,
   StudentHeaderLocation,
@@ -109,13 +107,10 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
-import {
-  formatDate as formatCalendarDate,
-  parseISODate,
-  berlinTodayISO,
-} from "~/lib/date-helpers";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { careWithdrawalNotice } from "~/lib/care-withdrawal-notice";
 import {
   fetchStudentCareWithdrawal,
   type CareWithdrawalCompletion,
@@ -131,6 +126,10 @@ import {
   useEarlyCheckoutCheck,
 } from "~/components/students/early-checkout-note";
 import { StudentDetailLoadingPage } from "./page-skeleton";
+import {
+  announceChangeRequestsChanged,
+  CHANGE_REQUESTS_REFRESH_EVENT,
+} from "~/lib/change-requests-refresh";
 
 type TodayArrival = {
   time?: string;
@@ -686,12 +685,7 @@ function StudentDetailPageContent() {
   // Sick toggle state
   const [showConfirmSick, setShowConfirmSick] = useState(false);
   const [sickLoading, setSickLoading] = useState(false);
-  const [sickReason, setSickReason] = useState("");
-  const sickConfirmText = sickLoading
-    ? "Wird gespeichert…"
-    : student?.sick
-      ? "Gesundmelden"
-      : "Krankmelden";
+  const sickConfirmText = sickLoading ? "Wird gespeichert…" : "Gesundmelden";
 
   // Excused toggle state
   const [showConfirmExcused, setShowConfirmExcused] = useState(false);
@@ -766,7 +760,11 @@ function StudentDetailPageContent() {
     hasPermission(session, "users:update");
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
     (shouldFetchChildDetails || canReadStatusDays) && studentId
-      ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
+      ? studentKeys.statusDays(
+          studentId,
+          statusDayRange.from,
+          statusDayRange.to,
+        )
       : null,
     async () =>
       fetchStudentStatusDays(studentId, statusDayRange.from, statusDayRange.to),
@@ -775,7 +773,11 @@ function StudentDetailPageContent() {
   const { data: partialAbsences = [], mutate: mutatePartialAbsences } =
     useSWRAuth(
       shouldFetchChildDetails && studentId
-        ? `student-partial-absences-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
+        ? studentKeys.partialAbsences(
+            studentId,
+            statusDayRange.from,
+            statusDayRange.to,
+          )
         : null,
       async () =>
         fetchStudentPartialAbsences(
@@ -830,7 +832,6 @@ function StudentDetailPageContent() {
   const excusedFromParents = todayStatusSource("excused") === "parent";
   const openPlannedStatusFromLift = (status: "sick" | "excused") => {
     setShowConfirmSick(false);
-    setSickReason("");
     setShowConfirmExcused(false);
     dialogErrors.clear();
     setPlannedStatusModal(status);
@@ -963,10 +964,10 @@ function StudentDetailPageContent() {
         });
     };
     load();
-    window.addEventListener("change-requests-refresh", load);
+    window.addEventListener(CHANGE_REQUESTS_REFRESH_EVENT, load);
     return () => {
       cancelled = true;
-      window.removeEventListener("change-requests-refresh", load);
+      window.removeEventListener(CHANGE_REQUESTS_REFRESH_EVENT, load);
     };
   }, [
     canCompleteCareWithdrawal,
@@ -1032,7 +1033,7 @@ function StudentDetailPageContent() {
             ),
         ),
     );
-    await studentService.updateStudent(studentId, {
+    await updateStudent(studentId, {
       first_name: editedStudent.first_name,
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
@@ -1166,30 +1167,19 @@ function StudentDetailPageContent() {
     setSickLoading(true);
     dialogErrors.clear();
     try {
-      const newSickStatus = !(student.sick ?? false);
-      const trimmedReason = sickReason.trim();
-      const updated = await studentService.updateStudent(studentId, {
-        sick: newSickStatus,
-        // Only send a reason when marking sick; clearing carries none.
-        ...(newSickStatus && trimmedReason
-          ? { sick_reason: trimmedReason }
-          : {}),
-      });
+      // The dialog only opens for a child reported sick today; reporting
+      // runs through the planned-status modal.
+      const updated = await updateStudent(studentId, { sick: false });
       refreshData();
       await mutateStatusDays();
       // The response carries today's effective status. A lift that left it
       // in place is no success (#3854).
-      if (!newSickStatus && updated.sick) {
+      if (updated.sick) {
         dialogErrors.invalid(SICK_STILL_ACTIVE);
         return;
       }
       setShowConfirmSick(false);
-      setSickReason("");
-      toast.success(
-        newSickStatus
-          ? `${student.name} ist krankgemeldet.`
-          : `Die Krankmeldung für ${student.name} ist aufgehoben.`,
-      );
+      toast.success(`Die Krankmeldung für ${student.name} ist aufgehoben.`);
     } catch (err) {
       logger.error("sick_status_toggle_failed", {
         student_id: studentId,
@@ -1210,7 +1200,7 @@ function StudentDetailPageContent() {
     dialogErrors.clear();
     try {
       const newExcusedStatus = !isQuickExcused;
-      const updated = await studentService.updateStudent(studentId, {
+      const updated = await updateStudent(studentId, {
         excused: newExcusedStatus,
       });
       refreshData();
@@ -1273,7 +1263,7 @@ function StudentDetailPageContent() {
     try {
       // Send both flags in one request so the backend's mutual-exclusion guard
       // sees only the final state (one true, the other explicitly false).
-      await studentService.updateStudent(studentId, {
+      await updateStudent(studentId, {
         sick: switchTarget === "sick",
         excused: switchTarget === "excused",
       });
@@ -1618,62 +1608,32 @@ function StudentDetailPageContent() {
             isOpen={showConfirmSick && hasSickExcusedWriteAccess}
             onClose={() => {
               setShowConfirmSick(false);
-              setSickReason("");
               dialogErrors.clear();
             }}
             onConfirm={handleConfirmSickToggle}
-            title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
+            title="Krankmeldung aufheben"
             confirmText={sickConfirmText}
             cancelText="Abbrechen"
             isConfirmLoading={sickLoading}
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
-              {student.sick ? (
-                <>
-                  {sickFromParents && (
-                    <>Die Krankmeldung für heute kam von den Eltern. </>
-                  )}
-                  Möchten Sie die Krankmeldung für{" "}
-                  <strong>{student.name}</strong> für heute aufheben? Geplante
-                  Kranktage in der Zukunft bleiben bestehen.
-                </>
-              ) : (
-                <>
-                  Möchten Sie <strong>{student.name}</strong> als krank melden?
-                </>
+              {sickFromParents && (
+                <>Die Krankmeldung für heute kam von den Eltern. </>
               )}
+              Möchten Sie die Krankmeldung für <strong>{student.name}</strong>{" "}
+              für heute aufheben? Geplante Kranktage in der Zukunft bleiben
+              bestehen.
             </p>
-            {student.sick && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="mt-4"
-                onClick={() => openPlannedStatusFromLift("sick")}
-              >
-                Alle Kranktage ansehen
-              </Button>
-            )}
-            {!student.sick && (
-              <div className="mt-4">
-                <label
-                  htmlFor="sick-reason"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Grund (optional)
-                </label>
-                <textarea
-                  id="sick-reason"
-                  value={sickReason}
-                  onChange={(e) => setSickReason(e.target.value)}
-                  rows={2}
-                  maxLength={2000}
-                  placeholder="z. B. Fieber, beim Arzt"
-                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                />
-              </div>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="mt-4"
+              onClick={() => openPlannedStatusFromLift("sick")}
+            >
+              Alle Kranktage ansehen
+            </Button>
           </ConfirmationModal>
 
           {/* Excused Confirmation Modal */}
@@ -1794,7 +1754,7 @@ function StudentDetailPageContent() {
         <div>
           <Alert
             type="warning"
-            message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
+            message={`Abmeldung noch abschließen. ${careWithdrawalNotice(careWithdrawal)}`}
             action={
               <Button
                 type="button"
@@ -1815,7 +1775,7 @@ function StudentDetailPageContent() {
             onFinished={() => {
               setCareWithdrawalModalOpen(false);
               setCareWithdrawal(null);
-              window.dispatchEvent(new Event("change-requests-refresh"));
+              announceChangeRequestsChanged();
             }}
           />
         </div>
@@ -1908,7 +1868,7 @@ function StudentQuickActions({
   onClassTripClick,
   plannedStatusLoading,
 }: Readonly<{
-  student: ExtendedStudent;
+  student: Student;
   showCheckout: boolean;
   showCheckin: boolean;
   hasAbsenceWriteAccess: boolean;
@@ -1977,7 +1937,7 @@ function StudentQuickActions({
 // =============================================================================
 
 interface LimitedAccessViewProps {
-  student: ExtendedStudent;
+  student: Student;
   studentId: string;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
@@ -2127,7 +2087,7 @@ function LimitedAccessView({
 // =============================================================================
 
 interface FullAccessViewProps {
-  student: ExtendedStudent;
+  student: Student;
   studentId: string;
   hasWriteAccess: boolean;
   weekendFollowsFriday: boolean;

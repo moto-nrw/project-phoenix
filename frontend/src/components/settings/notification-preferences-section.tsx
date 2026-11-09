@@ -7,14 +7,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Check } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -26,6 +26,7 @@ import {
   type PreferencePortal,
 } from "~/lib/notification-preferences-api";
 import { notificationsConcept } from "~/lib/concepts/notifications";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "NotificationPreferencesSection" });
 
@@ -59,6 +60,7 @@ const PARENT_TYPES = new Set([
 
 interface NotificationPreferencesSectionProps {
   readonly portal?: PreferencePortal;
+  readonly description?: string;
 }
 
 /**
@@ -70,18 +72,22 @@ interface NotificationPreferencesSectionProps {
  */
 export function NotificationPreferencesSection({
   portal = "tenant",
+  description,
 }: NotificationPreferencesSectionProps) {
   return portal === "parent" ? (
     <ParentNotificationPreferencesSection />
   ) : (
     // Staff-catalogue portals (OGS and, since #2208, the school portal) share
     // the German copy; only the proxy base path differs.
-    <NotificationPreferencesSectionContent portal={portal} />
+    <NotificationPreferencesSectionContent
+      portal={portal}
+      description={description}
+    />
   );
 }
 
 function ParentNotificationPreferencesSection() {
-  const t = useTranslations("notificationPreferences");
+  const t = useCareTermTranslations("notificationPreferences");
   return (
     <NotificationPreferencesSectionContent
       portal="parent"
@@ -93,9 +99,11 @@ function ParentNotificationPreferencesSection() {
 function NotificationPreferencesSectionContent({
   portal,
   parentText,
+  description,
 }: Readonly<{
   portal: PreferencePortal;
   parentText?: (key: string, values?: Record<string, string>) => string;
+  description?: string;
 }>) {
   const isParentPortal = portal === "parent";
   const t = useCallback(
@@ -296,11 +304,11 @@ function NotificationPreferencesSectionContent({
       description={
         isParentPortal
           ? t("description")
-          : "Wählen Sie, worüber moto Sie informieren soll."
+          : (description ?? "Wählen Sie, worüber moto Sie informieren soll.")
       }
       actions={
         isParentPortal && loading ? (
-          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton shape="control" className="h-9 w-28" />
         ) : isParentPortal && types.length > 0 ? (
           allEnabled ? (
             <span
@@ -377,7 +385,7 @@ function NotificationPreferencesSectionContent({
                       <Skeleton className="h-4 w-40 max-w-2/3" />
                       <Skeleton className="h-3 w-64 max-w-full" />
                     </div>
-                    <Skeleton className="h-6 w-11 shrink-0 rounded-full" />
+                    <Skeleton shape="round" className="h-6 w-11 shrink-0" />
                   </div>
                 ))}
               </div>
@@ -388,9 +396,9 @@ function NotificationPreferencesSectionContent({
         <div className="space-y-5">
           {groups.map(({ group, label, items }) => (
             <div key={group}>
-              <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <SectionLabel as="h4" className="mb-2">
                 {label}
-              </h4>
+              </SectionLabel>
               <div className="divide-y divide-gray-100">
                 {items.map((type) => (
                   <div
@@ -419,9 +427,9 @@ function NotificationPreferencesSectionContent({
                         </p>
                       )}
                     </div>
-                    <BooleanField
-                      value={type.enabled}
-                      onChange={(next) => void toggle(type, next)}
+                    <Switch
+                      checked={type.enabled}
+                      onCheckedChange={(next) => void toggle(type, next)}
                       disabled={busy}
                       ariaLabel={
                         isParentPortal && PARENT_TYPES.has(type.key)

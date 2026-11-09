@@ -16,6 +16,7 @@ import type {
   StatisticsOccupancy,
   StatisticsOccupancySlot,
 } from "~/lib/statistics-api";
+import { ProgressBar } from "~/components/ui/progress-bar";
 
 const WEEKDAY_LABELS: Readonly<Record<number, string>> = {
   1: "Montag",
@@ -60,19 +61,12 @@ function CountBar({
   color: string;
 }>) {
   if (value === null) return <span>–</span>;
-  const width = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-center justify-end gap-3">
       <span className="tabular-nums">{label}</span>
-      <span
-        aria-hidden
-        className="hidden h-2 w-24 overflow-hidden rounded-full bg-gray-100 sm:block"
-      >
-        <span
-          className="block h-full rounded-full"
-          style={{ width: `${width}%`, backgroundColor: color }}
-        />
-      </span>
+      <div aria-hidden="true" className="hidden w-24 sm:block">
+        <ProgressBar value={value} max={max} label={label} color={color} />
+      </div>
     </div>
   );
 }

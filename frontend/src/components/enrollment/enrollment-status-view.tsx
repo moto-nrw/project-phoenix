@@ -1,6 +1,14 @@
 "use client";
 
 import {
+  isOpenChangeRequestStatus,
+  isTerminalChildStatus,
+} from "~/lib/enrollment-status";
+import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -11,10 +19,11 @@ import {
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
+  getEnrollmentFormLabels,
   listEnrollmentChangeRequests,
   patchStatus,
   replyEnrollmentChangeRequest,
@@ -42,109 +51,31 @@ import { Textarea } from "~/components/ui/textarea";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
-import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import type {
+  EnrollmentChangeRequestDiffCopy,
+  EnrollmentFormLabels,
+} from "~/lib/enrollment-change-request-diff";
+import {
+  localizeFormFields,
+  translatedText,
+} from "~/lib/enrollment-translations";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
 import { childrenConcept } from "~/lib/concepts/children";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { IconTile } from "~/components/ui/icon-tile";
+import {
+  CareFacilityTermScope,
+  useCareTermTranslations,
+  useProvideCareFacilityTerm,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
-
-const STATUS_STYLES: Record<
-  StatusChild["status"],
-  { dot: string; text: string; bg: string }
-> = {
-  submitted: {
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  under_review: {
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  approved: {
-    dot: MOTO_COLOR_PALETTE.green.base,
-    text: MOTO_COLOR_PALETTE.green.strong,
-    bg: MOTO_COLOR_PALETTE.green.soft,
-  },
-  waitlisted: {
-    dot: MOTO_COLOR_PALETTE.orange.base,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-  },
-  rejected: {
-    dot: MOTO_COLOR_PALETTE.red.base,
-    text: MOTO_COLOR_PALETTE.red.strong,
-    bg: MOTO_COLOR_PALETTE.red.soft,
-  },
-  withdrawn: {
-    dot: MOTO_COLOR_PALETTE.neutral.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  pending_renewal: {
-    dot: MOTO_COLOR_PALETTE.orange.base,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-  },
-  auto_renewed: {
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  pending_admin_review: {
-    dot: MOTO_COLOR_PALETTE.neutral.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-};
-
-const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
-  "approved",
-  "rejected",
-  "withdrawn",
-]);
-
-const CHANGE_REQUEST_STYLES: Record<
-  EnrollmentChangeRequest["status"],
-  { bg: string; dot: string; text: string }
-> = {
-  pending_review: {
-    bg: MOTO_COLOR_PALETTE.blue.soft,
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.blue.strong,
-  },
-  needs_parent_response: {
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-    dot: MOTO_COLOR_PALETTE.orange.base,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-  },
-  approved: {
-    bg: MOTO_COLOR_PALETTE.green.soft,
-    dot: MOTO_COLOR_PALETTE.green.base,
-    text: MOTO_COLOR_PALETTE.green.strong,
-  },
-  rejected: {
-    bg: MOTO_COLOR_PALETTE.red.soft,
-    dot: MOTO_COLOR_PALETTE.red.base,
-    text: MOTO_COLOR_PALETTE.red.strong,
-  },
-  cancelled: {
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-    dot: MOTO_COLOR_PALETTE.neutral.light,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-  },
-};
-
-const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
-  ["pending_review", "needs_parent_response"],
-);
 
 interface Props {
   readonly token: string;
@@ -157,15 +88,32 @@ interface Props {
   readonly parentAppHref?: string;
 }
 
-export function EnrollmentStatusView({
+/**
+ * The status page of one enrollment. Its school comes from the status itself
+ * (#6042): on the parents host the page has no school context, so the fixed
+ * texts take the care-facility term the status names.
+ */
+export function EnrollmentStatusView(props: Props) {
+  return (
+    <CareFacilityTermScope>
+      <EnrollmentStatusViewContent {...props} />
+    </CareFacilityTermScope>
+  );
+}
+
+function EnrollmentStatusViewContent({
   token,
   justSubmitted = false,
   duplicateWarning = false,
   parentAppHref,
 }: Props) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
+  // Loading depends on these texts, not on the asynchronously loaded care term.
+  const loadErrorObject = t("errorObject");
+  const requestsLoadErrorObject = t("errorObjectChangeRequests");
   const toast = useToast();
   const [status, setStatus] = useState<StatusResponse | null>(null);
+  useProvideCareFacilityTerm(status?.care_facility_term);
   const [changeRequests, setChangeRequests] = useState<
     EnrollmentChangeRequest[]
   >([]);
@@ -221,7 +169,7 @@ export function EnrollmentStatusView({
             error: err instanceof Error ? err.message : String(err),
           });
           void showRequestsLoadError(err, {
-            object: t("errorObjectChangeRequests"),
+            object: requestsLoadErrorObject,
             retry: () => void loadRef.current(),
           });
           return null;
@@ -242,7 +190,7 @@ export function EnrollmentStatusView({
         error: err instanceof Error ? err.message : String(err),
       });
       void showLoadError(err, {
-        object: t("errorObject"),
+        object: loadErrorObject,
         retry: () => void loadRef.current(),
       });
     } finally {
@@ -250,7 +198,8 @@ export function EnrollmentStatusView({
     }
   }, [
     token,
-    t,
+    loadErrorObject,
+    requestsLoadErrorObject,
     clearLoadError,
     clearRequestsLoadError,
     showLoadError,
@@ -410,14 +359,16 @@ export function EnrollmentStatusView({
 
   if (notFound) {
     return (
-      <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-5 text-center shadow-sm sm:p-6">
-        <h1 className="text-moto-red-strong text-xl font-semibold">
-          {t("invalidTitle")}
-        </h1>
-        <p className="text-moto-red-strong mt-2 text-sm">
-          {t("invalidDescription")}
-        </p>
-      </div>
+      <SectionCard>
+        <EmptyState
+          tone="error"
+          icon={<AlertTriangle aria-hidden="true" />}
+          titleAs="h1"
+          title={t("invalidTitle")}
+          description={t("invalidDescription")}
+          className="py-4"
+        />
+      </SectionCard>
     );
   }
 
@@ -561,7 +512,7 @@ function EnrollmentStatusContent({
   setEditing,
   setReplyDrafts,
 }: EnrollmentStatusContentProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
   const pathname = usePathname();
   const submittedDate = new Date(status.submitted_at).toLocaleDateString(
@@ -579,7 +530,7 @@ function EnrollmentStatusContent({
     status.children.every((child) => child.status === "withdrawn");
   const hasMultipleChildren = status.children.length > 1;
   const hasOpenChangeRequest = changeRequests.some((request) =>
-    OPEN_CHANGE_REQUEST_STATUSES.has(request.status),
+    isOpenChangeRequestStatus(request.status),
   );
   const canRequestChange =
     status.edit_mode === "change_request" && !hasOpenChangeRequest;
@@ -615,9 +566,7 @@ function EnrollmentStatusContent({
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       {duplicateWarning ? (
-        <div className="border-moto-orange/30 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm leading-6">
-          {t("duplicateWarning")}
-        </div>
+        <Alert type="warning" message={t("duplicateWarning")} />
       ) : null}
       <EnrollmentStatusHero
         // Back to the parents app only for families who can use it: without
@@ -640,10 +589,7 @@ function EnrollmentStatusContent({
       <LoadErrorAlert error={errors.load} />
 
       {allLocked ? (
-        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("lockedAllTitle")}
-          </h2>
+        <SectionCard title={t("lockedAllTitle")} bodyClassName="mt-2 space-y-2">
           <p className="text-sm leading-6 text-gray-600">
             {status.children.length > 1
               ? t("lockedAllBodyMany")
@@ -665,7 +611,7 @@ function EnrollmentStatusContent({
               </ButtonLink>
             </>
           )}
-        </section>
+        </SectionCard>
       ) : null}
       {!allLocked &&
       anyLocked &&
@@ -688,6 +634,7 @@ function EnrollmentStatusContent({
 
       {canRequestChange || changeRequests.length > 0 || errors.requests ? (
         <ChangeRequestsPanel
+          token={token}
           canCreate={canRequestChange}
           editHref={editHref}
           requests={changeRequests}
@@ -780,13 +727,13 @@ function EnrollmentStatusHero({
   justSubmitted,
   submittedDate,
 }: EnrollmentStatusHeroProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const statusIconTone = justSubmitted ? "green" : "neutral";
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="p-5 sm:p-8 lg:p-10">
+        <div className="p-5 max-sm:p-4">
           {backHref ? (
             <BackLink
               href={backHref}
@@ -805,10 +752,7 @@ function EnrollmentStatusHero({
               )
             }
           />
-          <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-            {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
-          </p>
-          <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+          <h1 className="mt-6 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
             {justSubmitted ? t("submittedTitle") : t("statusTitle")}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
@@ -830,7 +774,7 @@ function EnrollmentStatusHero({
             </div>
           ) : null}
         </div>
-        <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
+        <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
           <h2 className="text-lg font-semibold text-gray-900">
             {justSubmitted ? t("nextTitle") : t("currentTitle")}
           </h2>
@@ -852,7 +796,7 @@ function EnrollmentStatusHero({
           </ol>
         </aside>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -860,25 +804,32 @@ function EnrollmentStatusSummary({
   status,
   submittedDate,
 }: Readonly<{ status: StatusResponse; submittedDate: string }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <section className="grid gap-3 sm:grid-cols-3">
-      <StatusSummaryCard
-        icon={<Clock className="h-5 w-5" aria-hidden="true" />}
+      <StatCard
+        variant="inline"
+        icon={<Clock aria-hidden="true" />}
         label={t("receivedLabel")}
         value={submittedDate}
       />
-      <StatusSummaryCard
-        icon={<MotoConceptIcon concept={childrenConcept} size={22} />}
+      <StatCard
+        variant="inline"
+        icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
         label={t("childrenLabel")}
-        value={String(status.children.length)}
+        value={status.children.length}
       />
-      <StatusSummaryCard
+      <StatCard
+        variant="inline"
         icon={
-          <MotoConceptIcon concept={parentConversationsConcept} size={20} />
+          <MotoConceptIcon concept={parentConversationsConcept} size={18} />
         }
         label={t("contactLabel")}
-        value={status.guardian_email}
+        value={
+          <span className="block truncate" title={status.guardian_email}>
+            {status.guardian_email}
+          </span>
+        }
       />
     </section>
   );
@@ -904,7 +855,7 @@ function RenewalBanners({
   onConfirmRenewal,
   onWithdraw,
 }: RenewalBannersProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const handleConfirmRenewal = async () => {
     await onConfirmRenewal();
   };
@@ -1004,7 +955,7 @@ function parentAppAccess(
  * the page points at the invitation instead (#3742).
  */
 function NoParentAccountSteps({ withTitle = false }: { withTitle?: boolean }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <div className="space-y-2 text-sm leading-6 text-gray-600">
       {withTitle ? (
@@ -1028,7 +979,7 @@ function ParentAppUnavailableHelp({
 }: {
   withTitle?: boolean;
 }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <div className="space-y-2 text-sm leading-6 text-gray-600">
       {withTitle ? (
@@ -1066,7 +1017,7 @@ function EnrollmentChildRow({
   onWithdraw,
   parentsHref,
 }: EnrollmentChildRowProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const handleWithdraw = () => {
     onWithdraw(child.id);
   };
@@ -1099,7 +1050,10 @@ function EnrollmentChildRow({
             ) : null}
           </div>
         </div>
-        <StatusPill status={child.status} label={t(`status.${child.status}`)} />
+        <ChildStatusBadge
+          status={child.status}
+          label={t(`status.${child.status}`)}
+        />
       </div>
       <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-500">
@@ -1137,25 +1091,18 @@ function EnrollmentChildrenSection({
   onWithdraw: (childId?: string) => void;
   parentsHref: string | null;
 }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("enrollmentsEyebrow")}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-gray-900">
-            {t("childrenLabel")}
-          </h2>
-        </div>
-      </div>
+      <h2 className="text-xl font-semibold text-gray-900">
+        {t("childrenLabel")}
+      </h2>
       <ul className="space-y-3">
         {enrollments.map((child) => {
           const canWithdraw =
             hasMultipleChildren &&
             !justSubmitted &&
-            !TERMINAL_STATUSES.has(child.status);
+            !isTerminalChildStatus(child.status);
           return (
             <EnrollmentChildRow
               key={child.id}
@@ -1212,7 +1159,7 @@ function GuardianSection({
   setEditing,
   editHref,
 }: GuardianSectionProps) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const handleCancel = () => {
     onCancelEdit();
     setEditFirstName(status.guardian_first_name);
@@ -1223,14 +1170,9 @@ function GuardianSection({
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("contactLabel")}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-gray-900">
-            {t("guardianTitle")}
-          </h2>
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900">
+          {t("guardianTitle")}
+        </h2>
         {allEditable && !editing && status.signature_required ? (
           <ButtonLink
             href={editHref}
@@ -1320,7 +1262,7 @@ function GuardianSection({
 }
 
 function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
     <DataGrid>
       <DataField label={t("nameLabel")}>
@@ -1376,7 +1318,7 @@ function WithdrawAllSection({
   withdrawingAll: boolean;
   onWithdraw: (childId?: string) => void;
 }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   if (allWithdrawn || justSubmitted) return null;
   const handleWithdraw = () => {
     onWithdraw();
@@ -1388,10 +1330,7 @@ function WithdrawAllSection({
         <div className="flex gap-3">
           <IconTile tone="red" icon={<AlertTriangle aria-hidden="true" />} />
           <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("manageEyebrow")}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-gray-900">
               {hasMultipleChildren ? t("withdrawAllTitle") : t("withdrawTitle")}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1415,6 +1354,7 @@ function WithdrawAllSection({
 }
 
 function ChangeRequestsPanel({
+  token,
   canCreate,
   editHref,
   onReply,
@@ -1426,6 +1366,7 @@ function ChangeRequestsPanel({
   replyError,
   replyErrorId,
 }: {
+  readonly token: string;
   readonly canCreate: boolean;
   readonly editHref: string;
   readonly requests: EnrollmentChangeRequest[];
@@ -1437,8 +1378,9 @@ function ChangeRequestsPanel({
   readonly onReplyDraftChange: (id: string, value: string) => void;
   readonly onReply: (id: string) => void;
 }) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
+  const formLabels = useLocalizedFormLabels(token, requests.length > 0, locale);
   const diffCopy = useMemo<EnrollmentChangeRequestDiffCopy>(
     () => ({
       snapshotLabels: {
@@ -1451,6 +1393,12 @@ function ChangeRequestsPanel({
         guardian_last_name: t("diff.snapshot.guardian_last_name"),
         guardian_phone: t("diff.snapshot.guardian_phone"),
         phase_id: t("diff.snapshot.phase_id"),
+      },
+      consentLabels: {
+        agb: t("diff.consent.agb"),
+        data_processing: t("diff.consent.data_processing"),
+        email_contact: t("diff.consent.email_contact"),
+        photo: t("diff.consent.photo"),
       },
       childSnapshotLabels: {
         custom_data: t("diff.child.custom_data"),
@@ -1507,10 +1455,7 @@ function ChangeRequestsPanel({
             <MotoConceptIcon concept={parentConversationsConcept} size={20} />
           </span>
           <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("changeRequestsEyebrow")}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-gray-900">
               {t("changeRequestsTitle")}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1571,10 +1516,7 @@ function ChangeRequestsPanel({
                 {messages.length > 0 ? (
                   <ol className="mt-4 space-y-2 border-t border-gray-100 pt-3">
                     {messages.map((message) => (
-                      <li
-                        key={message.id}
-                        className="rounded-lg bg-gray-50 px-3 py-2"
-                      >
+                      <InsetPanel as="li" padding="compact" key={message.id}>
                         <p className="text-xs font-semibold text-gray-500">
                           {t(`changeRequestAuthor.${message.author_type}`)} ·{" "}
                           {formatDateTime(message.created_at, locale)}
@@ -1582,7 +1524,7 @@ function ChangeRequestsPanel({
                         <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
                           {message.body}
                         </p>
-                      </li>
+                      </InsetPanel>
                     ))}
                   </ol>
                 ) : null}
@@ -1597,19 +1539,22 @@ function ChangeRequestsPanel({
                     diff={request.diff}
                     beforeLabel={t("changeRequestBefore")}
                     afterLabel={t("changeRequestRequested")}
-                    emptyLabel={t("notProvided")}
                     emptyMessage={t("changeRequestDiffEmpty")}
                     copy={diffCopy}
+                    formLabels={formLabels}
                   />
                 </div>
 
                 {request.admin_decision_note ? (
-                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-700">
+                  <InsetPanel
+                    padding="compact"
+                    className="mt-3 text-sm leading-6 text-gray-700"
+                  >
                     <span className="font-semibold">
                       {t("changeRequestDecisionNote")}{" "}
                     </span>
                     {request.admin_decision_note}
-                  </div>
+                  </InsetPanel>
                 ) : null}
 
                 {request.status === "needs_parent_response" ? (
@@ -1654,27 +1599,61 @@ function ChangeRequestsPanel({
   );
 }
 
+// The questions of the form behind the status link name the rows of a change
+// request (#6142), in the reader's language where the school translated them.
+function useLocalizedFormLabels(
+  token: string,
+  enabled: boolean,
+  locale: string,
+): EnrollmentFormLabels | null {
+  const [labels, setLabels] = useState<EnrollmentFormLabels | null>(null);
+  useLayoutEffect(() => {
+    setLabels(null);
+  }, [token, enabled]);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    getEnrollmentFormLabels(token)
+      .then((loaded) => {
+        if (!cancelled) setLabels(loaded);
+      })
+      .catch((err: unknown) => {
+        // Stays silent on purpose: every changed value is still shown, only
+        // named by its stored key, and the family has nothing to do.
+        logger.warn("enrollment_form_labels_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, enabled]);
+  return useMemo(
+    () =>
+      labels
+        ? {
+            fields: localizeFormFields(labels.fields, locale),
+            legal_blocks: labels.legal_blocks.map((block) => ({
+              ...block,
+              title: translatedText(block, "title", block.title, locale),
+            })),
+          }
+        : null,
+    [labels, locale],
+  );
+}
+
 function ChangeRequestPill({
   status,
 }: {
   readonly status: EnrollmentChangeRequest["status"];
 }) {
-  const t = useTranslations("enrollmentStatus");
-  const styles = CHANGE_REQUEST_STYLES[status];
+  const t = useCareTermTranslations("enrollmentStatus");
   return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-      style={{
-        backgroundColor: styles.bg,
-        color: styles.text,
-      }}
-    >
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-      />
-      {t(`changeRequestStatus.${status}`)}
-    </span>
+    <StatusBadge
+      tone={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].tone}
+      label={t(`changeRequestStatus.${status}`)}
+    />
   );
 }
 
@@ -1694,58 +1673,5 @@ function StepNumber({ children }: { readonly children: React.ReactNode }) {
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
       {children}
     </span>
-  );
-}
-
-function StatusPill({
-  status,
-  label,
-}: {
-  readonly status: StatusChild["status"];
-  readonly label: string;
-}) {
-  const styles = STATUS_STYLES[status];
-  return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-      style={{
-        backgroundColor: styles.bg,
-        color: styles.text,
-      }}
-    >
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-      />
-      {label}
-    </span>
-  );
-}
-
-function StatusSummaryCard({
-  icon,
-  label,
-  value,
-}: {
-  readonly icon: React.ReactNode;
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div className="moto-content-surface rounded-xl border p-4">
-      <div className="flex items-center gap-3">
-        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600">
-          {icon}
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {label}
-          </p>
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {value}
-          </p>
-        </div>
-      </div>
-    </div>
   );
 }

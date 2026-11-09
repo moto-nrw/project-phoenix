@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // renderedCode renders r and returns the status and wire code.
@@ -53,10 +54,10 @@ func TestOperatorIdentityErrorsAnswerWithCodes(t *testing.T) {
 	t.Parallel()
 
 	// The cases below never reach the access fallback.
-	rs := NewResource(nil, OperatorResponses(func(error) render.Renderer { return nil }))
+	rs := NewResource(nil, func(error) render.Renderer { return nil })
 	assertCodes(t, []codeCase{
-		{"login invalid", rs.authError(identityaccess.ErrOperatorInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
-		{"login inactive", rs.authError(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
+		{"login invalid", AuthErrorRenderer(identityaccess.ErrOperatorInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"login inactive", AuthErrorRenderer(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
 		{"profile password", rs.profileError(identityaccess.ErrOperatorPasswordMismatch), http.StatusBadRequest, "identity.current_password_wrong"},
 		{"profile missing", rs.profileError(identityaccess.ErrOperatorNotFound), http.StatusNotFound, "identity.account_not_found"},
 		{"profile inactive", rs.profileError(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
@@ -67,19 +68,19 @@ func TestOperatorIdentityErrorsAnswerWithCodes(t *testing.T) {
 		{"access school", rs.accessError(identityaccess.ErrSchoolNotFound), http.StatusNotFound, "provisioning.school_not_found"},
 		{"access school deleted", rs.accessError(identityaccess.ErrSchoolDeleted), http.StatusConflict, "provisioning.school_already_deleted"},
 		{"access lehrkraft", rs.accessError(&identityaccess.InvalidInputError{Err: identityaccess.ErrLehrkraftRoleImmutable}), http.StatusBadRequest, "identity.lehrkraft_role_immutable"},
-		{"auth mfa locked", AuthErrorRenderer(ErrMFALocked), http.StatusTooManyRequests, "identity.mfa_blocked"},
-		{"auth mfa code", AuthErrorRenderer(ErrMFACodeInvalid), http.StatusUnauthorized, "identity.mfa_code_invalid"},
-		{"auth inactive", AuthErrorRenderer(ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
-		{"invitation missing", invitationErrorRenderer(ErrOperatorInvitationNotFound), http.StatusNotFound, "identity.invitation_not_found"},
-		{"invitation operator exists", invitationErrorRenderer(ErrOperatorEmailExists), http.StatusConflict, "identity.email_already_exists"},
-		{"invitation rate", invitationErrorRenderer(ErrOperatorInvitationRateLimited), http.StatusTooManyRequests, "identity.invitation_rate_limited"},
-		{"public invitation", publicInvitationErrorRenderer(ErrOperatorInvitationNotFound), http.StatusBadRequest, "identity.operator_invitation_invalid"},
-		{"email in use", ProfileErrorRenderer(ErrOperatorEmailInUse), http.StatusConflict, "identity.email_already_exists"},
-		{"legacy profile missing", ProfileErrorRenderer(ErrOperatorNotFound), http.StatusNotFound, "identity.account_not_found"},
-		{"email rate", ProfileErrorRenderer(ErrOperatorEmailChangeRateLimited), http.StatusTooManyRequests, "identity.email_change_rate_limited"},
-		{"email same", ProfileErrorRenderer(ErrOperatorEmailChangeSameEmail), http.StatusBadRequest, "identity.email_change_same_email"},
-		{"email link", ProfileErrorRenderer(ErrOperatorEmailChangeNotFound), http.StatusBadRequest, "identity.email_change_link_invalid"},
-		{"email confirm link", confirmEmailChangeErrorRenderer(ErrOperatorEmailChangeNotFound), http.StatusBadRequest, "identity.email_change_link_invalid"},
+		{"auth mfa locked", AuthErrorRenderer(identityaccess.ErrMFALocked), http.StatusTooManyRequests, "identity.mfa_blocked"},
+		{"auth mfa code", AuthErrorRenderer(identityaccess.ErrMFACodeInvalid), http.StatusUnauthorized, "identity.mfa_code_invalid"},
+		{"auth inactive", AuthErrorRenderer(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
+		{"invitation missing", invitationErrorRenderer(identityaccess.ErrOperatorInvitationNotFound), http.StatusNotFound, "identity.invitation_not_found"},
+		{"invitation operator exists", invitationErrorRenderer(identityaccess.ErrOperatorEmailExists), http.StatusConflict, "identity.email_already_exists"},
+		{"invitation rate", invitationErrorRenderer(identityaccess.ErrOperatorInvitationRateLimited), http.StatusTooManyRequests, "identity.invitation_rate_limited"},
+		{"public invitation", publicInvitationErrorRenderer(identityaccess.ErrOperatorInvitationNotFound), http.StatusBadRequest, "identity.operator_invitation_invalid"},
+		{"email in use", ProfileErrorRenderer(identityaccess.ErrOperatorEmailInUse), http.StatusConflict, "identity.email_already_exists"},
+		{"legacy profile missing", ProfileErrorRenderer(identityaccess.ErrOperatorNotFound), http.StatusNotFound, "identity.account_not_found"},
+		{"email rate", ProfileErrorRenderer(identityaccess.ErrOperatorEmailChangeRateLimited), http.StatusTooManyRequests, "identity.email_change_rate_limited"},
+		{"email same", ProfileErrorRenderer(identityaccess.ErrOperatorEmailChangeSameEmail), http.StatusBadRequest, "identity.email_change_same_email"},
+		{"email link", ProfileErrorRenderer(identityaccess.ErrOperatorEmailChangeNotFound), http.StatusBadRequest, "identity.email_change_link_invalid"},
+		{"email confirm link", confirmEmailChangeErrorRenderer(identityaccess.ErrOperatorEmailChangeNotFound), http.StatusBadRequest, "identity.email_change_link_invalid"},
 	})
 }
 
@@ -111,12 +112,24 @@ func TestOperatorMFAAndPasskeyErrorsAnswerWithCodes(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"mfa not enrolled", func(w http.ResponseWriter, r *http.Request) { mapOperatorMFAError(w, r, ErrMFANotEnrolled) }, http.StatusForbidden, "identity.mfa_not_enrolled"},
-		{"mfa enrolled", func(w http.ResponseWriter, r *http.Request) { mapOperatorMFAError(w, r, ErrMFAAlreadyEnrolled) }, http.StatusConflict, "identity.mfa_already_enrolled"},
-		{"passkey failed", func(w http.ResponseWriter, r *http.Request) { mapOperatorPasskeyError(w, r, ErrPasskeySessionInvalid) }, http.StatusUnauthorized, "identity.passkey_login_failed"},
-		{"passkey origin", func(w http.ResponseWriter, r *http.Request) { mapOperatorPasskeyError(w, r, ErrPasskeyOriginInvalid) }, http.StatusForbidden, "identity.passkey_login_failed"},
-		{"passkey blocked", func(w http.ResponseWriter, r *http.Request) { mapOperatorPasskeyError(w, r, ErrMFALocked) }, http.StatusTooManyRequests, "identity.mfa_blocked"},
-		{"passkey missing", func(w http.ResponseWriter, r *http.Request) { mapOperatorPasskeyError(w, r, ErrPasskeyNotFound) }, http.StatusNotFound, "identity.passkey_not_found"},
+		{"mfa not enrolled", func(w http.ResponseWriter, r *http.Request) {
+			mapOperatorMFAError(w, r, identityaccess.ErrMFANotEnrolled)
+		}, http.StatusForbidden, "identity.mfa_not_enrolled"},
+		{"mfa enrolled", func(w http.ResponseWriter, r *http.Request) {
+			mapOperatorMFAError(w, r, identityaccess.ErrMFAAlreadyEnrolled)
+		}, http.StatusConflict, "identity.mfa_already_enrolled"},
+		{"passkey failed", func(w http.ResponseWriter, r *http.Request) {
+			mapOperatorPasskeyError(w, r, identityaccess.ErrPasskeySessionInvalid)
+		}, http.StatusUnauthorized, "identity.passkey_login_failed"},
+		{"passkey origin", func(w http.ResponseWriter, r *http.Request) {
+			mapOperatorPasskeyError(w, r, identityaccess.ErrPasskeyOriginInvalid)
+		}, http.StatusForbidden, "identity.passkey_login_failed"},
+		{"passkey blocked", func(w http.ResponseWriter, r *http.Request) {
+			mapOperatorPasskeyError(w, r, identityaccess.ErrMFALocked)
+		}, http.StatusTooManyRequests, "identity.mfa_blocked"},
+		{"passkey missing", func(w http.ResponseWriter, r *http.Request) {
+			mapOperatorPasskeyError(w, r, identityaccess.ErrPasskeyNotFound)
+		}, http.StatusNotFound, "identity.passkey_not_found"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,6 +138,34 @@ func TestOperatorMFAAndPasskeyErrorsAnswerWithCodes(t *testing.T) {
 			tc.write(w, httptest.NewRequest(http.MethodPost, "/", nil))
 			assert.Equal(t, tc.status, w.Code)
 			assert.Equal(t, tc.code, wireCode(t, w))
+		})
+	}
+}
+
+// The operator UI shows these details; a package rename once rewrote them to
+// "identityaccess.Operator …".
+func TestOperatorErrorDetailsNameTheOperator(t *testing.T) {
+	t.Parallel()
+
+	rs := NewResource(nil, func(error) render.Renderer { return nil })
+	for _, tc := range []struct {
+		name   string
+		render render.Renderer
+		detail string
+	}{
+		{"invitation email exists", invitationErrorRenderer(identityaccess.ErrOperatorEmailExists), "Ein Operator mit dieser E-Mail existiert bereits"},
+		{"status operator missing", operatorStatusErrorRenderer(identityaccess.ErrOperatorNotFound), "Operator not found"},
+		{"profile operator missing", rs.profileError(identityaccess.ErrOperatorNotFound), "Operator not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			w := httptest.NewRecorder()
+			require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPost, "/", nil), tc.render))
+			var body struct {
+				Detail string `json:"detail"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tc.detail, body.Detail)
 		})
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -372,20 +373,21 @@ func testOperatorRouter(identity operatorIdentity, provisioning organizationtena
 
 // operatorTestSessions binds the operator session chains to the seeded test
 // signer and the given active-operator lookup.
-func operatorTestSessions(t *testing.T, operators identityoperator.OperatorLookup) identityoperator.Sessions {
+func operatorTestSessions(t *testing.T, operators identityaccess.OperatorSessionLiveness) identityoperator.Sessions {
 	t.Helper()
 	return identityoperator.NewSessions(routetest.TestTokenAuth(t), operators)
 }
 
 func operatorRouteAccessToken(t *testing.T, operatorID int) string {
 	t.Helper()
-	token, err := routetest.TestTokenAuth(t).CreateJWT(routetest.Claims{
+	token, err := tokentest.CreateJWT(routetest.TestTokenAuth(t), routetest.Claims{
 		ID:       operatorID,
 		Sub:      "operator-route-test",
 		Roles:    []string{"operator"},
 		Scope:    "platform",
 		FamilyID: "operator-route-test-family",
 	})
+
 	require.NoError(t, err)
 	return token
 }

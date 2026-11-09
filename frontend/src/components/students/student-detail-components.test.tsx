@@ -39,7 +39,7 @@ import {
 import { SectionCard } from "~/components/ui/section-card";
 import { ApiError } from "~/lib/api-error";
 import { fetchStudentCompanions } from "~/lib/student-companion-api";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import type { AttendanceActor } from "~/lib/attendance-actor";
@@ -133,7 +133,7 @@ describe("WarningIcon", () => {
  */
 function StudentDetailHeader(
   props: Readonly<{
-    student: ExtendedStudent;
+    student: Student;
     myGroups: never[];
     myGroupRooms: never[];
     mySupervisedRooms: never[];
@@ -190,7 +190,7 @@ function StudentDetailHeader(
 }
 
 describe("Kopf der Kindakte", () => {
-  const mockStudent: ExtendedStudent = {
+  const mockStudent: Student = {
     id: "1",
     first_name: "Max",
     second_name: "Mustermann",
@@ -199,7 +199,6 @@ describe("Kopf der Kindakte", () => {
     school_class: "3a",
     group_id: "g1",
     group_name: "Gruppe 1",
-    buskind: false,
     pickup_status: "selbst",
     health_info: undefined,
     extra_info: undefined,
@@ -286,7 +285,7 @@ describe("Kopf der Kindakte", () => {
     afterEach(() => cleanup());
 
     it("forwards current_room_color to the LocationBadge", () => {
-      const studentInRoom: ExtendedStudent = {
+      const studentInRoom: Student = {
         ...mockStudent,
         // contextAware mode only paints the per-room hex when the viewer has
         // detailed access. has_full_access bypasses the OGS-group check and
@@ -318,7 +317,7 @@ describe("Kopf der Kindakte", () => {
     });
 
     it("falls back to the default room color when current_room_color is null", () => {
-      const studentInRoom: ExtendedStudent = {
+      const studentInRoom: Student = {
         ...mockStudent,
         has_full_access: true,
         current_location: "Anwesend - Bibliothek",
@@ -460,25 +459,25 @@ describe("Kopf der Kindakte", () => {
       expect(pickup.getByText(/geplant: 15:30, \+12 min/)).toBeInTheDocument();
     });
 
-    it("renders the exception dot in the affected row only", () => {
+    it("names the exception in the affected row only", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         isPickupException: true,
       });
 
-      // The dot uses the German tooltip "Ausnahme" via title= attribute —
-      // assert via title rather than class so we're not coupled to styling.
-      expect(rowFor("pickup").getByTitle("Ausnahme")).toBeInTheDocument();
-      expect(rowFor("arrival").queryByTitle("Ausnahme")).toBeNull();
+      expect(rowFor("pickup").getByText("Ausnahme")).toBeInTheDocument();
+      expect(rowFor("arrival").queryByText("Ausnahme")).toBeNull();
     });
 
-    it("does not render the exception dot when isPickupException is false", () => {
+    it("does not render the exception badge when isPickupException is false", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         isPickupException: false,
       });
 
-      expect(rowFor("pickup").queryByTitle("Ausnahme")).toBeNull();
+      const pickup = rowFor("pickup");
+      expect(pickup.getByText("15:30")).toBeInTheDocument();
+      expect(pickup.queryByText("Ausnahme")).toBeNull();
     });
 
     it("renders an optional pickup note inline in parentheses", () => {
@@ -743,7 +742,7 @@ describe("SupervisorsCard", () => {
 // =============================================================================
 
 describe("PersonalInfoReadOnly", () => {
-  const mockStudent: ExtendedStudent = {
+  const mockStudent: Student = {
     id: "1",
     first_name: "Max",
     second_name: "Mustermann",
@@ -752,7 +751,6 @@ describe("PersonalInfoReadOnly", () => {
     school_class: "3a",
     group_id: "g1",
     group_name: "Gruppe 1",
-    buskind: true,
     pickup_status: "selbst",
     health_info: "Allergien: Erdnüsse",
     address_street: "Musterstraße 12",
@@ -858,7 +856,6 @@ describe("PersonalInfoReadOnly", () => {
   it("renders 'Geht immer alleine' when no bus/pickup days are set", () => {
     const goesAlone = {
       ...mockStudent,
-      buskind: false,
       bus: false,
       bus_days: {},
       pickup_days: {},
@@ -870,7 +867,6 @@ describe("PersonalInfoReadOnly", () => {
   it("keeps the parent-visible marker with the departure value", () => {
     const goesAlone = {
       ...mockStudent,
-      buskind: false,
       bus: false,
       bus_days: {},
       pickup_days: {},
@@ -1088,7 +1084,7 @@ describe("PersonalInfoReadOnly", () => {
 // =============================================================================
 
 describe("PersonalInfoReadOnly with showEditButton", () => {
-  const mockStudent: ExtendedStudent = {
+  const mockStudent: Student = {
     id: "1",
     first_name: "Max",
     second_name: "Mustermann",
@@ -1097,7 +1093,6 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     school_class: "3a",
     group_id: "g1",
     group_name: "Gruppe 1",
-    buskind: false,
     pickup_status: "selbst",
     health_info: "Allergien: Erdnüsse",
     extra_info: "Elternnotiz hier",

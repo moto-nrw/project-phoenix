@@ -1,6 +1,6 @@
 import { SchoolProviders } from "./providers";
 import { SchoolAuthGuard } from "./auth-guard";
-import { readSchoolSessionSnapshot } from "~/lib/school-session-snapshot.server";
+import { readPortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 
 /**
  * Server layout for school routes ("moto schule", #2207).
@@ -20,10 +20,12 @@ export default async function SchoolLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = await readSchoolSessionSnapshot();
+  const snapshot = await readPortalSessionSnapshot("school");
   return (
-    <SchoolProviders session={session}>
-      <SchoolAuthGuard>{children}</SchoolAuthGuard>
+    <SchoolProviders session={snapshot?.session ?? null}>
+      <SchoolAuthGuard notBooked={snapshot?.notBooked ?? false}>
+        {children}
+      </SchoolAuthGuard>
     </SchoolProviders>
   );
 }

@@ -2,16 +2,12 @@
 
 import type { ReactNode } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { cn } from "~/lib/utils";
 
 /**
- * Eine Auswahlzeile mit Fläche: Kästchen links, Beschriftung und optionaler
- * Hinweis rechts, die ganze Zeile klickbar.
- *
- * Drei Stellen im Anmeldungs-Modul haben sich diese Zeile jeweils selbst
- * gebaut — mit unterschiedlichem Radius, unterschiedlicher Höhe und einmal
- * mit grüner statt dunkler Füllung. Das Kästchen kommt jetzt aus `Checkbox`,
- * die Fläche von hier.
+ * Eine Auswahlzeile mit Fläche: `ChoiceTile` mit `Checkbox` links, Beschriftung
+ * und optionalem Hinweis rechts, die ganze Zeile klickbar.
  */
 export function CheckboxCard({
   checked,
@@ -29,17 +25,10 @@ export function CheckboxCard({
   className?: string;
 }>) {
   return (
-    <label
-      className={cn(
-        "flex min-h-11 items-start gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors",
-        "focus-within:ring-2 focus-within:ring-gray-300",
-        disabled
-          ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-          : checked
-            ? "cursor-pointer border-gray-300 bg-gray-50"
-            : "cursor-pointer border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50",
-        className,
-      )}
+    <ChoiceTile
+      selected={checked}
+      disabled={disabled}
+      className={cn("min-h-11 items-start", className)}
     >
       <Checkbox
         checked={checked}
@@ -55,6 +44,6 @@ export function CheckboxCard({
           </span>
         ) : null}
       </span>
-    </label>
+    </ChoiceTile>
   );
 }

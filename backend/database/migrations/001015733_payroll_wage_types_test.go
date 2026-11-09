@@ -45,6 +45,9 @@ func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 		return found
 	}
 
+	// The delivery events (1.15.758, #5932) extend the erasure functions of
+	// 1.15.733; they go first.
+	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesUp(ctx, db), "the migration is idempotent")
 	require.NoError(t, payrollWageTypesDown(ctx, db))
 	assert.False(t, exists("active.payroll_wage_types"))
@@ -87,7 +90,6 @@ func TestPayrollWageTypesStayInsideTheirSchool(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, school)
 	other := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, other)
-	testpkg.OwnTenantRows(t, db, school, other)
 	foreign := insertPayrollWageTypes(t, db, other)
 
 	_, err := db.ExecContext(ctx, `INSERT INTO active.payroll_surcharge_rules

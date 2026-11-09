@@ -1,102 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { describe, expect, it, vi } from "vitest";
+import { createMockContext, defaultSession } from "~/test/route-test-helpers";
 
-import { ApiResponseError } from "~/lib/api-helpers.server";
+const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn<typeof fetch>() }));
+
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: async () => defaultSession,
+  }),
+);
+vi.mock("~/lib/server-api-url", () => ({
+  getServerApiUrl: () => "http://backend:8080",
+}));
+vi.stubGlobal("fetch", mockFetch);
+
 import { DELETE } from "./route";
-import type { ExtendedSession } from "~/test/route-test-helpers";
-
-const { mockAuth, mockApiDelete } = vi.hoisted(() => ({
-  mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiDelete: vi.fn(),
-}));
-
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockAuth,
-}));
-
-vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/lib/api-helpers.server")>();
-  return {
-    ...actual,
-    apiDelete: mockApiDelete,
-  };
-});
-
-const session: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 describe("DELETE /api/students/care-withdrawals/[completionId]", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth.mockResolvedValue(session);
-  });
-
-  it("forwards the guarded deletion confirmation body", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
-    const body = {
-      expected_fingerprint: "abc123",
-      confirmation_name: "Mia Muster",
-      reason: "test_data",
-      acknowledged: true,
-    };
+  it("forwards the confirmation body to the encoded withdrawal and answers 204", async () => {
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const confirmation = { fingerprint: "f1", name: "Mia", reason: "Umzug" };
 
     const response = await DELETE(
       new NextRequest(
-        "http://localhost:3000/api/students/care-withdrawals/73",
+        "http://localhost:3000/api/students/care-withdrawals/7%2F1",
         {
           method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(confirmation),
+          headers: { "content-type": "application/json" },
         },
       ),
-      { params: Promise.resolve({ completionId: "73" }) },
+      createMockContext({ completionId: "7/1" }),
     );
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/students/care-withdrawals/73",
-      "test-token",
-      body,
-    );
     expect(response.status).toBe(204);
-  });
-
-  it("preserves the backend error code as a structured proxy field", async () => {
-    mockApiDelete.mockRejectedValueOnce(
-      new ApiResponseError(
-        409,
-        JSON.stringify({
-          type: "about:blank",
-          title: "Conflict",
-          status: 409,
-          detail: "Vorschau veraltet",
-          code: "students.deletion_preview_changed",
-        }),
-      ),
-    );
-
-    const response = await DELETE(
-      new NextRequest(
-        "http://localhost:3000/api/students/care-withdrawals/73",
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        },
-      ),
-      { params: Promise.resolve({ completionId: "73" }) },
-    );
-
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      type: "about:blank",
-      title: "Conflict",
-      status: 409,
-      detail: "Vorschau veraltet",
-      code: "students.deletion_preview_changed",
-    });
+    const [url, init] = mockFetch.mock.calls[0]!;
+    expect(url).toBe("http://backend:8080/api/students/care-withdrawals/7%2F1");
+    expect(init?.method).toBe("DELETE");
+    expect(JSON.parse(String(init?.body))).toEqual(confirmation);
   });
 });

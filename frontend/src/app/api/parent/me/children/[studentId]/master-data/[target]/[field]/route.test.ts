@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { PATCH } from "./route";
-import { parentApiPatch } from "~/lib/parent/route-wrapper.server";
+import { parent } from "~/lib/parent/route-wrapper.server";
 
 vi.mock("~/lib/parent/route-wrapper.server", () => ({
   createParentPatchHandler:
@@ -18,12 +18,12 @@ vi.mock("~/lib/parent/route-wrapper.server", () => ({
       context: { params: Record<string, unknown>; body: { value: unknown } },
     ) =>
       handler(request, context.body, "parent-token", context.params),
-  parentApiPatch: vi.fn(),
+  parent: { api: vi.fn() },
 }));
 
 describe("parent child master-data field route", () => {
   it("forwards PATCH bodies to the encoded backend field endpoint", async () => {
-    vi.mocked(parentApiPatch).mockResolvedValue({ ok: true });
+    vi.mocked(parent.api).mockResolvedValue({ data: { ok: true } });
 
     const out = await PATCH(
       new Request("http://test.local") as never,
@@ -38,7 +38,8 @@ describe("parent child master-data field route", () => {
     );
 
     expect(out).toEqual({ ok: true });
-    expect(parentApiPatch).toHaveBeenCalledWith(
+    expect(parent.api).toHaveBeenCalledWith(
+      "PATCH",
       "/parent/me/children/42%2Funsafe/master-data/guardian%2Fprofile/email%20address",
       "parent-token",
       { value: "new@example.test" },

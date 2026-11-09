@@ -36,6 +36,11 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID 
 	if _, err := client.PutWithAuth(auth, "/traeger/number-ranges/holiday", map[string]any{"pattern": seedBillingNumberPattern}); err != nil {
 		return 0, fmt.Errorf("keep the number range: %w", err)
 	}
+	// The Abrechnung chooses the kind of document of the holiday care
+	// (#4688): the confirmation letter as invoice, as the demo letters show.
+	if _, err := client.PutWithAuth(auth, "/traeger/billing-document-kinds/holiday", map[string]any{"document_kind": "confirmation"}); err != nil {
+		return 0, fmt.Errorf("choose the kind of document: %w", err)
+	}
 	raw, err := client.PostWithAuth(auth, "/traeger/billing-runs/", map[string]any{"holiday_period_id": periodID})
 	if err != nil {
 		return 0, fmt.Errorf("start the billing run: %w", err)

@@ -1,6 +1,7 @@
 "use client";
 
 import { FileUp, Plus } from "lucide-react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -25,7 +26,6 @@ import {
 /**
  * Editor pieces of the `file` field type (#4783): the options block, the
  * rules a file field follows on save, and the Einkommenserklärung preset.
- * Kept out of enrollment-form-editor.tsx, which is already very long.
  */
 
 /**
@@ -118,7 +118,7 @@ export function FileFieldOptionsEditor({
   const sizeLabelId = `field-${index}-file-size-label`;
 
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3">
+    <InsetPanel framed className="space-y-3">
       <fieldset
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? hintId : undefined}
@@ -132,7 +132,6 @@ export function FileFieldOptionsEditor({
               key={type}
               selected={options.allowed_types.includes(type)}
               disabled={disabled}
-              className="bg-white"
             >
               <Checkbox
                 name={
@@ -169,7 +168,7 @@ export function FileFieldOptionsEditor({
         <ChoiceTile
           selected={options.multiple}
           disabled={disabled}
-          className="items-start self-end bg-white"
+          className="items-start self-end"
         >
           <Checkbox
             checked={options.multiple}
@@ -190,7 +189,7 @@ export function FileFieldOptionsEditor({
         Die Frage gilt für die ganze Anmeldung, nicht pro Kind. Wer die Dateien
         öffnen darf, regelt das Recht „Nachweise aus Anmeldungen ansehen“.
       </p>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -201,13 +200,17 @@ export function FilePreviewInput({ field }: Readonly<{ field: FormField }>) {
     .map((type) => FILE_TYPE_LABEL[type])
     .join(", ");
   return (
-    <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+    <InsetPanel
+      dashed
+      padding="compact"
+      className="mt-3 flex items-center gap-2 text-xs text-gray-500"
+    >
       <FileUp className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
       <span className="min-w-0">
         {types || "Keine Dateiart gewählt"} · höchstens {options.max_size_mb} MB
         {options.multiple ? ` · bis zu ${MAX_FILES_PER_FIELD} Dateien` : ""}
       </span>
-    </div>
+    </InsetPanel>
   );
 }
 

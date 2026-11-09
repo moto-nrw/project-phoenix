@@ -16,7 +16,52 @@ import (
 const (
 	letterMailTemplate     = "billing-letter.html"
 	correctionMailTemplate = "billing-correction-letter.html"
+	// careLetterMailTemplate carries the letter of a monthly invoice (#4684).
+	careLetterMailTemplate = "billing-care-letter.html"
+	// invoiceLetterMailTemplate carries a holiday invoice that is no
+	// confirmation letter, noticeLetterMailTemplate a fee notice and
+	// noticeCorrectionMailTemplate its Aufhebungs- or Änderungsbescheid
+	// (#4688).
+	invoiceLetterMailTemplate    = "billing-invoice-letter.html"
+	noticeLetterMailTemplate     = "billing-notice-letter.html"
+	noticeCorrectionMailTemplate = "billing-notice-correction-letter.html"
 )
+
+// letterKindOf is the kind of document a mail names: empty for the kinds
+// issued before #4688, so their payload stays as it was.
+func letterKindOf(documentKind string) string {
+	if documentKind == parentbilling.DocumentKindInvoice || documentKind == parentbilling.DocumentKindFeeNotice {
+		return documentKind
+	}
+	return ""
+}
+
+// letterMailOf is the subject and the template of a letter mail.
+func letterMailOf(mail parentbilling.BillingLetterMail) (string, string) {
+	correction := mail.DocumentKind == parentbilling.DocumentCancellation || mail.DocumentKind == parentbilling.MailDocumentCareCancellation
+	switch {
+	case mail.LetterKind == parentbilling.DocumentKindFeeNotice && correction:
+		return "Aufhebung Ihres Gebührenbescheids", noticeCorrectionMailTemplate
+	case mail.LetterKind == parentbilling.DocumentKindFeeNotice && mail.DocumentKind == parentbilling.DocumentCredit:
+		return "Änderung Ihres Gebührenbescheids", noticeCorrectionMailTemplate
+	case mail.LetterKind == parentbilling.DocumentKindFeeNotice:
+		return "Ihr Gebührenbescheid", noticeLetterMailTemplate
+	}
+	switch mail.DocumentKind {
+	case parentbilling.DocumentCancellation:
+		return "Storno Ihrer Rechnung", correctionMailTemplate
+	case parentbilling.DocumentCredit:
+		return "Gutschrift zu Ihrer Rechnung", correctionMailTemplate
+	case parentbilling.MailDocumentCareInvoice:
+		return "Ihre Rechnung", careLetterMailTemplate
+	case parentbilling.MailDocumentCareCancellation:
+		return "Storno Ihrer Rechnung", correctionMailTemplate
+	}
+	if mail.LetterKind == parentbilling.DocumentKindInvoice {
+		return "Ihre Rechnung", invoiceLetterMailTemplate
+	}
+	return "Bestätigung und Rechnung", letterMailTemplate
+}
 
 // RenderLetterMail turns the payload of a claimed letter mail into the mail
 // the worker sends: the Träger is the sender and the stored PDF the
@@ -29,13 +74,7 @@ func RenderLetterMail(_ context.Context, payload json.RawMessage) (parentbilling
 	if len(mail.PDF) == 0 || strings.TrimSpace(mail.Filename) == "" {
 		return parentbilling.RenderedLetterMail{}, errors.New(parentbilling.MailKindBillingLetter + " payload has no letter")
 	}
-	subject, template := "Bestätigung und Rechnung", letterMailTemplate
-	switch mail.DocumentKind {
-	case parentbilling.DocumentCancellation:
-		subject, template = "Storno Ihrer Rechnung", correctionMailTemplate
-	case parentbilling.DocumentCredit:
-		subject, template = "Gutschrift zu Ihrer Rechnung", correctionMailTemplate
-	}
+	subject, template := letterMailOf(mail)
 	if mail.PeriodName != "" {
 		subject += ": " + mail.PeriodName
 	}

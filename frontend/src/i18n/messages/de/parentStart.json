@@ -20,7 +20,7 @@
     "emptyDescription": "Es gibt gerade nichts zu tun.",
     "messageTitleOne": "Neue Nachricht",
     "messageTitleMany": "{count} neue Nachrichten",
-    "messageContext": "OGS · Zu {name}",
+    "messageContext": "{careTerm} · Zu {name}",
     "pollContext": "Umfrage · {school}",
     "declarationContext": "Einverständnis · {school}",
     "newsContext": "Elternbrief · {school}",
@@ -34,6 +34,6 @@
     "errorObject": "die vollständige Liste „Zu erledigen“"
   },
   "childrenLoading": "Kinder werden geladen",
-  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die {careTerm} Ihrer Schule kann das einrichten.",
   "errorObject": "die Übersicht Ihrer Kinder"
 }

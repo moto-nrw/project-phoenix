@@ -5,7 +5,7 @@ import { ParentAuthGuard } from "./auth-guard";
 import { getLocale } from "next-intl/server";
 import { getParentAppMetadata } from "~/i18n/parent-app-metadata";
 import type { AppLocale } from "~/i18n/locales";
-import { readParentSessionSnapshot } from "~/lib/parent-session-snapshot.server";
+import { readPortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -52,7 +52,7 @@ export async function generateMetadata(): Promise<Metadata> {
  *
  * A valid parent cookie hydrates SessionProvider through a read-only snapshot
  * (#4990), so the guard renders the page without first fetching the session.
- * Never call parentAuth() here: its refresh callback could rotate the token
+ * Never call parentPortal.auth() here: its refresh callback could rotate the token
  * in a Server Component that cannot persist the new cookie (#1938).
  *
  * The whole parents subtree is localized, so it carries the full
@@ -67,11 +67,13 @@ export default async function ParentLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = await readParentSessionSnapshot();
+  const snapshot = await readPortalSessionSnapshot("parent");
   return (
     <NextIntlClientProvider>
-      <ParentProviders session={session}>
-        <ParentAuthGuard>{children}</ParentAuthGuard>
+      <ParentProviders session={snapshot?.session ?? null}>
+        <ParentAuthGuard notBooked={snapshot?.notBooked ?? false}>
+          {children}
+        </ParentAuthGuard>
       </ParentProviders>
     </NextIntlClientProvider>
   );

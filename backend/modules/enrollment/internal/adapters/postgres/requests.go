@@ -33,7 +33,10 @@ func (r *Store) InsertRequest(ctx context.Context, req *enrollment.Request) erro
 			return fmt.Errorf("find request schema: %w", err)
 		}
 	}
-	row := requestStorage(req)
+	row, err := requestStorage(req)
+	if err != nil {
+		return err
+	}
 	row.TenantID = tenantID
 
 	_, err = db.NewInsert().
@@ -44,7 +47,11 @@ func (r *Store) InsertRequest(ctx context.Context, req *enrollment.Request) erro
 	if err != nil {
 		return fmt.Errorf("failed to create enrollment request: %w", err)
 	}
-	*req = *row.value()
+	stored, err := row.value()
+	if err != nil {
+		return err
+	}
+	*req = *stored
 	return nil
 }
 
@@ -70,11 +77,7 @@ func (r *Store) RequestsByID(ctx context.Context, ids []int64) ([]*enrollment.Re
 		Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to list enrollment requests by ids: %w", err)
 	}
-	var result []*enrollment.Request
-	for _, row := range rows {
-		result = append(result, row.value())
-	}
-	return result, nil
+	return requestValues(rows)
 }
 
 func (r *Store) RequestByID(ctx context.Context, id int64, forUpdate bool) (*enrollment.Request, error) {
@@ -106,7 +109,7 @@ func (r *Store) RequestByID(ctx context.Context, id int64, forUpdate bool) (*enr
 		}
 		return nil, fmt.Errorf("failed to find enrollment request: %w", err)
 	}
-	return req.value(), nil
+	return req.value()
 }
 
 func (r *Store) AdminRequests(ctx context.Context, filters enrollment.RequestListFilters) ([]*enrollment.Request, error) {
@@ -142,11 +145,7 @@ func (r *Store) AdminRequests(ctx context.Context, filters enrollment.RequestLis
 	if err = q.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to list admin requests: %w", err)
 	}
-	var result []*enrollment.Request
-	for _, row := range rows {
-		result = append(result, row.value())
-	}
-	return result, nil
+	return requestValues(rows)
 }
 
 func (r *Store) RequestByToken(ctx context.Context, token string, forUpdate bool) (*enrollment.Request, error) {
@@ -169,7 +168,7 @@ func (r *Store) RequestByToken(ctx context.Context, token string, forUpdate bool
 		}
 		return nil, fmt.Errorf("failed to find enrollment request by token: %w", err)
 	}
-	return req.value(), nil
+	return req.value()
 }
 
 func (r *Store) UpdateRequestGuardian(ctx context.Context, req *enrollment.Request, includeEmail bool) error {
@@ -182,16 +181,20 @@ func (r *Store) UpdateRequestGuardian(ctx context.Context, req *enrollment.Reque
 	if err != nil {
 		return err
 	}
+	row, err := requestStorage(req)
+	if err != nil {
+		return err
+	}
 	q := db.NewUpdate().
-		Model(requestStorage(req)).
+		Model(row).
 		ModelTableExpr(requestTableExpr).
 		Where(`"request".tenant_id = ?`, tenantID).
 		Set("guardian_first_name = ?", req.GuardianFirstName).
 		Set("guardian_last_name = ?", req.GuardianLastName).
 		Set("guardian_phone = ?", req.GuardianPhone).
-		Set("consent_flags = ?", req.ConsentFlags).
-		Set("legal_blocks_snapshot = ?", req.LegalBlocksSnapshot).
-		Set("custom_data = ?", req.CustomData).
+		Set("consent_flags = ?", row.ConsentFlags).
+		Set("legal_blocks_snapshot = ?", row.LegalBlocksSnapshot).
+		Set("custom_data = ?", row.CustomData).
 		Set("updated_at = NOW()").
 		Where(`"request".id = ?`, req.ID)
 	if includeEmail {

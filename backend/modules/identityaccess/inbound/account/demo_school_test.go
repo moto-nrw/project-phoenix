@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -35,7 +35,7 @@ func (e demoEnv) requestOwnSchool(t *testing.T, address string) (token, slug str
 	t.Helper()
 	token = e.requestTokenWith(t, e.requestBodyFor(t, address))
 	require.NotEmpty(t, token)
-	require.NoError(t, e.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
+	require.NoError(t, e.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &slug))
 	return token, slug
 }
 
@@ -62,7 +62,7 @@ func sessionClaims(t *testing.T, e demoEnv, token string) testutil.Claims {
 	t.Helper()
 	rr := e.post(t, "/demo/access/sessions", map[string]string{"token": token})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var tokens authAPI.TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
 	segments := strings.Split(tokens.AccessToken, ".")
 	require.Len(t, segments, 3)
@@ -87,8 +87,8 @@ func TestDemoAccessRequestQueuesTheVisitorsNamesUnchanged(t *testing.T) {
 		LastName   string `bun:"last_name"`
 		SchoolSlug string `bun:"school_slug"`
 	}
-	require.NoError(t, env.db.NewRaw(`SELECT first_name, last_name, school_slug FROM auth.demo_accesses WHERE token_hash = ?`,
-		fingerprint(token)).Scan(context.Background(), &access))
+	require.NoError(t, env.db.NewRaw(`SELECT first_name, last_name, school_slug FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`,
+		token).Scan(context.Background(), &access))
 	assert.Equal(t, []string{"Anna Lena", "von Berg"}, []string{access.FirstName, access.LastName}, "whitespace is collapsed, nothing else")
 	var order struct {
 		FirstName string `bun:"first_name"`
@@ -148,12 +148,24 @@ func TestDemoSchoolOrderCarriesNoAddress(t *testing.T) {
 // second school: the new link leads into the school it already has.
 func TestDemoAccessOfAnActiveAddressGetsNoSecondSchool(t *testing.T) {
 	t.Parallel()
-	env := newOwnSchoolDemoEnv(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	env := mountDemoEnv(t, db, "")
 	address := env.address()
 	first, slug := env.requestOwnSchool(t, address)
 	env.endCooldown(t)
 
+	counter := testpkg.CaptureQueries(t, db)
 	second, again := env.requestOwnSchool(t, strings.ToUpper(address))
+	counter.Stop()
+	locks := counter.Matching(func(q string) bool {
+		return strings.Contains(q, "pg_advisory_xact_lock") && strings.Contains(q, "auth.demo_accesses:")
+	})
+	reads := counter.Matching(func(q string) bool {
+		return strings.Contains(q, "where email =") && strings.Contains(q, "order by id desc limit 1")
+	})
+	t.Logf("known_address address_locks=%d fresh_reads=%d", len(locks), len(reads))
+	require.Len(t, locks, 1, "retain the address lock for the whole transaction")
+	require.Len(t, reads, 2, "retain the fresh lookup after the school lock")
 	assert.NotEqual(t, first, second, "every request stores its own access")
 	assert.Equal(t, slug, again, "an active address gets no second school")
 	var accesses, orders int
@@ -202,7 +214,7 @@ func TestDemoVisitorsDoNotSeeEachOthersSchool(t *testing.T) {
 	testpkg.MapAccountToTenant(t, env.db, firstVisitor.ID, secondSchool)
 	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": firstToken})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var tokens authAPI.TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
 	req := testutil.NewJSONRequest(t, http.MethodPost, "/auth/switch-tenant", map[string]string{"tenant_slug": secondSlug})
 	req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)

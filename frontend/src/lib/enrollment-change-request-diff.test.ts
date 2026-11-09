@@ -307,7 +307,7 @@ describe("buildEnrollmentChangeRequestDiffGroups", () => {
         rows: [
           {
             id: "photo",
-            label: "photo",
+            label: "Fotos bei Schulveranstaltungen",
             before: true,
             after: false,
           },
@@ -350,7 +350,7 @@ describe("buildEnrollmentChangeRequestDiffGroups", () => {
     ]);
   });
 
-  it("suppresses child custom-data rows that only touch metadata", () => {
+  it("keeps child custom-data fields named like metadata", () => {
     const groups = buildEnrollmentChangeRequestDiffGroups({
       baseSnapshot: {
         children: [
@@ -371,7 +371,20 @@ describe("buildEnrollmentChangeRequestDiffGroups", () => {
       diff: { changed: ["children"] },
     });
 
-    expect(groups).toEqual([]);
+    expect(groups[0]?.rows).toEqual([
+      {
+        id: "Kind 1 · Zusatzangaben · id",
+        label: "Kind 1 · Zusatzangaben · id",
+        before: "internal",
+        after: "changed",
+      },
+      {
+        id: "Kind 1 · Zusatzangaben · status",
+        label: "Kind 1 · Zusatzangaben · status",
+        before: "approved",
+        after: "pending",
+      },
+    ]);
   });
 });
 
@@ -454,5 +467,118 @@ describe("formatEnrollmentChangeRequestValue", () => {
     expect(formatEnrollmentChangeRequestValue({ mon: false })).toBe(
       "mon: Nein",
     );
+  });
+});
+
+describe("form labels (#6142)", () => {
+  const formLabels = {
+    fields: [
+      {
+        key: "allergies",
+        label: "Allergien",
+        applies_to_child: true,
+      },
+      {
+        key: "lunch",
+        label: "Mittagessen",
+        options: [
+          { label: "Vegetarisch", value: "veg" },
+          { label: "Mit Fleisch", value: "meat" },
+        ],
+      },
+      {
+        key: "clubs",
+        label: "AGs",
+        applies_to_child: true,
+        options: [
+          { label: "Fußball", value: "football" },
+          { label: "Chor", value: "choir" },
+        ],
+      },
+    ],
+    legal_blocks: [{ key: "custom_pool", title: "Schwimmbad" }],
+  };
+
+  it("names child custom data with the form question and maps option values", () => {
+    const groups = buildEnrollmentChangeRequestDiffGroups({
+      baseSnapshot: {
+        children: [
+          { custom_data: { allergies: "keine", clubs: ["football"] } },
+        ],
+      },
+      proposedSnapshot: {
+        children: [
+          { custom_data: { allergies: "Nüsse", clubs: ["football", "choir"] } },
+        ],
+      },
+      diff: { changed: ["children"] },
+      formLabels,
+    });
+
+    expect(groups[0]?.rows).toEqual([
+      {
+        id: "Kind 1 · Zusatzangaben · allergies",
+        label: "Kind 1 · Allergien",
+        before: "keine",
+        after: "Nüsse",
+      },
+      {
+        id: "Kind 1 · Zusatzangaben · clubs",
+        label: "Kind 1 · AGs",
+        before: ["Fußball"],
+        after: ["Fußball", "Chor"],
+      },
+    ]);
+  });
+
+  it("names request custom data and consents with their form titles", () => {
+    const groups = buildEnrollmentChangeRequestDiffGroups({
+      baseSnapshot: {
+        custom_data: { lunch: "veg" },
+        consent_flags: { custom_pool: true, photo: true, newsletter: true },
+      },
+      proposedSnapshot: {
+        custom_data: { lunch: "meat" },
+        consent_flags: { custom_pool: false, photo: false, newsletter: false },
+      },
+      diff: { changed: ["custom_data", "consent_flags"] },
+      formLabels,
+    });
+
+    expect(groups.map((group) => group.rows)).toEqual([
+      [
+        {
+          id: "lunch",
+          label: "Mittagessen",
+          before: "Vegetarisch",
+          after: "Mit Fleisch",
+        },
+      ],
+      [
+        { id: "custom_pool", label: "Schwimmbad", before: true, after: false },
+        { id: "newsletter", label: "newsletter", before: true, after: false },
+        {
+          id: "photo",
+          label: "Fotos bei Schulveranstaltungen",
+          before: true,
+          after: false,
+        },
+      ],
+    ]);
+  });
+
+  it("keeps an unknown option value as stored", () => {
+    const groups = buildEnrollmentChangeRequestDiffGroups({
+      baseSnapshot: { custom_data: { lunch: "veg" } },
+      proposedSnapshot: { custom_data: { lunch: "fish" } },
+      diff: { changed: ["custom_data"] },
+      formLabels,
+    });
+
+    expect(groups[0]?.rows[0]).toMatchObject({
+      label: "Mittagessen",
+      before: "Vegetarisch",
+      after: "fish",
+    });
   });
 });

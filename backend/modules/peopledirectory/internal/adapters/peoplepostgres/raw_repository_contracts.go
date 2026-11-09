@@ -46,6 +46,8 @@ type rawStudentRepository interface {
 	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday calendar.Date) (*int64, error)
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 	FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error)
+	FindBornOn(ctx context.Context, dates []calendar.Date) ([]directory.StudentBorn, error)
+	FindEnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday calendar.Date) ([]directory.StudentMatchCandidate, error)
 	ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*models.Student, error)
 	ListClassRoster(ctx context.Context, schoolClass string) ([]*models.Student, error)
 	CountEnrolled(ctx context.Context) (int, error)
@@ -66,9 +68,11 @@ type rawStudentRepository interface {
 	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
 }
 type rawGuardianProfileRepository interface {
+	SetEmailsStopped(ctx context.Context, id int64, stopped bool) error
 	directory.GuardianProfileReads
 	Create(ctx context.Context, profile *models.GuardianProfile) error
 	FindByID(ctx context.Context, id int64) (*models.GuardianProfile, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error)
 	LockByIDForUpdate(ctx context.Context, id int64) error
 	FindByEmail(ctx context.Context, email string) (*models.GuardianProfile, error)
 	FindByAccountID(ctx context.Context, accountID int64) (*models.GuardianProfile, error)
@@ -96,6 +100,7 @@ type rawStudentGuardianRepository interface {
 	FindByStudentID(ctx context.Context, studentID int64) ([]*models.StudentGuardian, error)
 	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*models.StudentGuardian, error)
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*models.StudentGuardian, error)
+	FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*models.StudentGuardian, error)
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 	FilterAccountsWithStudentAccess(ctx context.Context, guardianAccountIDs, studentIDs []int64, tenantID int64, permission string) ([]int64, error)
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
@@ -118,5 +123,6 @@ type rawGuardianPhoneNumberRepository interface {
 	SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error
 	UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+	CountAndNextPriority(ctx context.Context, guardianProfileID int64) (int, int, error)
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)
 }

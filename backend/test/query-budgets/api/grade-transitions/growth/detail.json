@@ -1,0 +1,7 @@
+{
+  "scenario": "api.grade_transitions.growth.detail",
+  "max": 5,
+  "exact": true,
+  "description": "Positive mounted HTTP route including authentication and tenant transaction; N3/N8 transitions, classes, mappings, history children or preview mappings respectively.",
+  "route": "GET /api/admin/grade-transitions/{id}/"
+}

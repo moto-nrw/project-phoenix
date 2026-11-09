@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -13,6 +14,7 @@ import type { EventFormState, RepeatMode } from "./form-model";
 import { WEEKDAYS } from "./use-event-form";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { RequiredMark } from "~/components/ui/field-label";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
@@ -101,11 +103,9 @@ export function StepWiederholung({
         invalid={Boolean(fieldErrors.seriesEndDate)}
         calendarLayout="popover"
         placeholder="Bis zum Ende des Zeitraums"
+        hint="Danach gibt es keine Termine mehr."
         onChange={(next) => update("seriesEndDate", next)}
       />
-      <p className="mt-1 text-xs text-gray-500">
-        Danach gibt es keine Termine mehr.
-      </p>
     </Field>
   );
   const legacyWeekendWeekdays = form.weekdays.filter((iso) => iso > 5);
@@ -214,22 +214,15 @@ export function StepWiederholung({
               Wochentage <RequiredMark />
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {WEEKDAYS.map((iso) => {
-                const isActive = form.weekdays.includes(iso);
-                return (
-                  <Button
-                    key={iso}
-                    type="button"
-                    variant={isActive ? "primary" : "outline"}
-                    size="compact"
-                    className="min-w-[44px]"
-                    onClick={() => toggleWeekday(iso)}
-                    aria-pressed={isActive}
-                  >
-                    {weekdayLabel(iso)}
-                  </Button>
-                );
-              })}
+              <WeekdayToggleGroup
+                ariaLabel="Wochentage"
+                days={WEEKDAYS.map((iso) => ({
+                  value: iso,
+                  label: weekdayLabel(iso),
+                }))}
+                value={form.weekdays}
+                onToggle={toggleWeekday}
+              />
               {legacyWeekendWeekdays.map((iso) => (
                 <Button
                   key={iso}
@@ -292,7 +285,11 @@ export function StepWiederholung({
                 <span className="text-xs font-semibold text-gray-700">
                   Planungszeitraum
                 </span>
-                <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                <InsetPanel
+                  framed
+                  padding="compact"
+                  className="flex h-10 items-center text-sm text-gray-600"
+                >
                   <span className="truncate">
                     Gilt in{" "}
                     <span className="font-semibold text-gray-800">
@@ -301,7 +298,7 @@ export function StepWiederholung({
                       )?.name ?? "dem aktuellen Planungszeitraum"}
                     </span>
                   </span>
-                </div>
+                </InsetPanel>
                 <FieldErrorHint
                   id="event-calendar-period-error"
                   message={fieldErrors.calendarPeriodId}

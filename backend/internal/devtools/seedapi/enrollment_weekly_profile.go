@@ -78,20 +78,40 @@ func (s seedEnrollmentWeeklyProfileStep) Run(ctx context.Context, primary *Runti
 	return nil
 }
 
+// seedWeeklyProfileSchoolSettings writes the school settings the weekly
+// profile's flows below depend on.
+func seedWeeklyProfileSchoolSettings(rt *Runtime) error {
+	values := []struct {
+		key   string
+		value any
+	}{
+		// This school names its care "GTS" in the fixed parent texts (#6042),
+		// so every dev stack shows the term next to the default school's "OGS".
+		{"enrollment.care_facility_term", "GTS"},
+		// Immediate activation makes bookings visible without waiting for the
+		// scheduler.
+		{"enrollment.default_activation_mode", "immediate"},
+		// The explicit invitation flow below exposes its seed token. Do not
+		// also send an automatic invitation during approval, which would leave
+		// a pending invitation and prevent that flow. Restore automatic
+		// invitations afterwards.
+		{"enrollment.auto_invite_guardian_on_approval", false},
+	}
+	for _, setting := range values {
+		if _, err := rt.Client.Put("/api/settings/values/"+setting.key, map[string]any{"value": setting.value}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func seedWeeklyProfileContents(ctx context.Context, rt *Runtime, child *Seeder) (*SeedState, error) {
 	step := parentEnrollmentSeedStep{seeder: child}
 	settings, err := step.seedSettings(rt, rt.TenantAuth)
 	if err != nil {
 		return nil, err
 	}
-	// Immediate activation makes bookings visible without waiting for the scheduler.
-	if _, err := rt.Client.Put("/api/settings/values/enrollment.default_activation_mode", map[string]any{"value": "immediate"}); err != nil {
-		return nil, err
-	}
-	// The explicit invitation flow below exposes its seed token. Do not also
-	// send an automatic invitation during approval, which would leave a pending
-	// invitation and prevent that flow. Restore automatic invitations afterwards.
-	if _, err := rt.Client.Put("/api/settings/values/enrollment.auto_invite_guardian_on_approval", map[string]any{"value": false}); err != nil {
+	if err := seedWeeklyProfileSchoolSettings(rt); err != nil {
 		return nil, err
 	}
 	schemaID, err := step.createEnrollmentSchema(rt, rt.TenantAuth)
@@ -105,7 +125,7 @@ func seedWeeklyProfileContents(ctx context.Context, rt *Runtime, child *Seeder) 
 	if err := verifyWeeklyProfilePhase(rt, phaseID, schemaID); err != nil {
 		return nil, err
 	}
-	offering := seedCareOffering{key: "wochenangebot", name: "Nachmittagsbetreuung", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, countsAsCare: true, pickupTime: "16:00", sort: 10}
+	offering := seedCareOffering{key: "wochenangebot", name: "Nachmittagsbetreuung", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, countsAsCare: true, pickupTime: "16:00", capacity: intPtr(20), sort: 10}
 	raw, err := rt.Client.Post("/api/enrollment/care-offerings", careOfferingSeedBody(offering, phaseID))
 	if err != nil {
 		return nil, err

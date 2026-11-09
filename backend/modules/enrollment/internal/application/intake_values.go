@@ -1,27 +1,27 @@
 package application
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The intake works on the decoded submission: answers, consent flags and
-// source metadata are maps. The public contract carries them as raw JSON;
-// the values below decode them on the way in and encode them on the way out.
+// The intake validates and sanitizes a submission on working maps of its
+// answers, consent flags and source metadata. The public contract carries
+// them as FormValues (ADR 0173); the values below copy them into maps on the
+// way in, and the stored request carries FormValues again.
 
-// SubmitRequest is a decoded submission.
+// SubmitRequest is a submission with working maps of its documents.
 type SubmitRequest struct {
-	// uploadAttempt counts an upload of the public form (#4783) in the IP's
-	// upload bucket instead of the submission buckets.
-	uploadAttempt            bool
-	TenantID                 int64
-	PhaseID                  int64
-	RemoteIP                 string
-	LateInviteToken          string
+	// DisplayedFormSchemaID is the form version the parent's form showed
+	// (#4680). Versions never change, so the snapshot proves the shown legal
+	// texts are the stored ones only when it equals the version in force.
+	DisplayedFormSchemaID int64
+	TenantID              int64
+	PhaseID               int64
+	RemoteIP              string
+	LateInviteToken       string
+	// The trust of a submission. Only the intake sets these: the staff
+	// manual enrollment all four, a late invite AllowClosedPhase (#6113).
 	SkipRateLimit            bool
 	AllowClosedPhase         bool
 	SuppressSubmissionEmails bool
@@ -41,13 +41,13 @@ type SubmitRequest struct {
 	Signature                *enrollment.SubmitSignature
 }
 
-// SubmitGuardian is one decoded co-guardian.
+// SubmitGuardian is one co-guardian.
 type SubmitGuardian = enrollment.SubmitGuardian
 
 // SubmitOfferingDays is the day selection of one parent_choice offering.
 type SubmitOfferingDays = enrollment.SubmitOfferingDays
 
-// SubmitChild is one decoded child of a submission.
+// SubmitChild is one child of a submission with a working map of its answers.
 type SubmitChild struct {
 	ID                       int64
 	FirstName                string
@@ -61,205 +61,61 @@ type SubmitChild struct {
 	ExcludedAutoAddTargetIDs map[int64]bool
 }
 
-// decodeJSONMap decodes an optional JSON object; an absent document is nil.
-func decodeJSONMap(raw json.RawMessage, what string) (map[string]any, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var out map[string]any
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("decode %s: %w", what, err)
-	}
-	return out, nil
-}
-
-func decodeSubmitRequest(in enrollment.SubmitRequest) (SubmitRequest, error) {
+func decodeSubmitRequest(in enrollment.SubmitRequest) SubmitRequest {
 	out := SubmitRequest{
 		TenantID: in.TenantID, PhaseID: in.PhaseID, RemoteIP: in.RemoteIP, LateInviteToken: in.LateInviteToken,
-		SkipRateLimit: in.SkipRateLimit, AllowClosedPhase: in.AllowClosedPhase,
-		SuppressSubmissionEmails: in.SuppressSubmissionEmails, ExternalConsentConfirmed: in.ExternalConsentConfirmed,
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
-		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature,
+		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature, DisplayedFormSchemaID: in.DisplayedFormSchemaID,
 	}
-	var err error
-	if out.SourceMetadata, err = decodeJSONMap(in.SourceMetadata, "source metadata"); err != nil {
-		return out, err
-	}
-	if out.ConsentFlags, err = decodeJSONMap(in.ConsentFlags, "consent flags"); err != nil {
-		return out, err
-	}
-	if out.CustomData, err = decodeJSONMap(in.CustomData, "custom data"); err != nil {
-		return out, err
-	}
+	out.SourceMetadata = submittedMap(in.SourceMetadata)
+	out.ConsentFlags = submittedMap(in.ConsentFlags)
+	out.CustomData = submittedMap(in.CustomData)
 	if in.Children != nil {
 		out.Children = make([]SubmitChild, 0, len(in.Children))
 	}
 	for _, child := range in.Children {
-		decoded, err := decodeSubmitChild(child)
-		if err != nil {
-			return out, err
-		}
-		out.Children = append(out.Children, decoded)
+		out.Children = append(out.Children, SubmitChild{
+			ID: child.ID, FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
+			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, CustomData: submittedMap(child.CustomData),
+			OfferingIDs: child.OfferingIDs, OfferingDays: child.OfferingDays, ExcludedAutoAddTargetIDs: child.ExcludedAutoAddTargetIDs,
+		})
 	}
-	return out, nil
+	return out
 }
 
-func decodeSubmitChild(in enrollment.SubmitChild) (SubmitChild, error) {
-	customData, err := decodeJSONMap(in.CustomData, "child custom data")
-	if err != nil {
-		return SubmitChild{}, err
+// submittedMap is the working map of a submitted document; an empty one is
+// nil, as an absent document was before ADR 0173.
+func submittedMap(values enrollment.FormValues) map[string]any {
+	if values.IsZero() {
+		return nil
 	}
-	return SubmitChild{
-		ID: in.ID, FirstName: in.FirstName, LastName: in.LastName, DateOfBirth: in.DateOfBirth,
-		TargetGradeLevel: in.TargetGradeLevel, TargetSchoolClass: in.TargetSchoolClass, CustomData: customData,
-		OfferingIDs: in.OfferingIDs, OfferingDays: in.OfferingDays, ExcludedAutoAddTargetIDs: in.ExcludedAutoAddTargetIDs,
-	}, nil
+	return formMap(values)
 }
 
-// submitOutcome is what a stored submission or edit produced, decoded.
+// submitOutcome is what a stored submission or edit produced.
 type submitOutcome struct {
-	Request   *Request
-	Children  []*RequestChild
+	Request   *enrollment.Request
+	Children  []*enrollment.RequestChild
 	StatusURL string
 	Warnings  []enrollment.SubmissionWarning
 }
 
-func (o *submitOutcome) public() (*enrollment.SubmitResult, error) {
-	request, err := requestInput(o.Request)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childInputs(o.Children)
-	if err != nil {
-		return nil, err
-	}
-	return &enrollment.SubmitResult{Request: request, Children: children, StatusURL: o.StatusURL, Warnings: o.Warnings}, nil
-}
-
-func childInputs(values []*RequestChild) ([]*enrollment.RequestChild, error) {
-	if values == nil {
-		return nil, nil
-	}
-	out := make([]*enrollment.RequestChild, 0, len(values))
-	for _, value := range values {
-		converted, err := childInput(value)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, converted)
-	}
-	return out, nil
-}
-
-// createDecodedRequest stores a decoded request and refreshes it with the
-// generated metadata.
-func createDecodedRequest(ctx context.Context, owner interface {
-	InsertRequest(context.Context, *enrollment.Request) error
-}, req *Request) error {
-	value, err := requestInput(req)
-	if err != nil {
-		return err
-	}
-	if err := owner.InsertRequest(ctx, value); err != nil {
-		return err
-	}
-	stored, err := requestValue(value)
-	if err != nil {
-		return err
-	}
-	*req = *stored
-	return nil
-}
-
-// updateDecodedRequest writes the guardian fields of a decoded request.
-func updateDecodedRequest(ctx context.Context, owner interface {
-	UpdateRequestGuardian(context.Context, *enrollment.Request, bool) error
-}, req *Request, includeEmail bool) error {
-	value, err := requestInput(req)
-	if err != nil {
-		return err
-	}
-	return owner.UpdateRequestGuardian(ctx, value, includeEmail)
-}
-
-// decodedRequestByToken reads and decodes the request behind a status
-// token, optionally locked.
-func decodedRequestByToken(ctx context.Context, owner interface {
-	RequestByToken(context.Context, string, bool) (*enrollment.Request, error)
-}, token string, lock bool) (*Request, error) {
-	value, err := owner.RequestByToken(ctx, token, lock)
-	if err != nil {
-		return nil, err
-	}
-	return requestValue(value)
-}
-
-// decodedRequestsByID reads and decodes a batch of requests.
-func decodedRequestsByID(ctx context.Context, owner interface {
-	RequestsByID(context.Context, []int64) ([]*enrollment.Request, error)
-}, ids []int64) ([]*Request, error) {
-	values, err := owner.RequestsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return requestValues(values)
-}
-
-// createDecodedChild stores a decoded child and refreshes it with the
-// generated metadata.
-func createDecodedChild(ctx context.Context, owner interface {
-	InsertChild(context.Context, *enrollment.RequestChild) error
-}, child *RequestChild) error {
-	value, err := childInput(child)
-	if err != nil {
-		return err
-	}
-	if err := owner.InsertChild(ctx, value); err != nil {
-		return err
-	}
-	stored, err := childValue(value)
-	if err != nil {
-		return err
-	}
-	*child = *stored
-	return nil
-}
-
-// updateDecodedChild writes the data of a decoded child.
-func updateDecodedChild(ctx context.Context, owner interface {
-	UpdateChildData(context.Context, *enrollment.RequestChild) error
-}, child *RequestChild) error {
-	value, err := childInput(child)
-	if err != nil {
-		return err
-	}
-	return owner.UpdateChildData(ctx, value)
-}
-
-// decodedChildrenOfRequests reads and decodes the children of a batch of
-// requests.
-func decodedChildrenOfRequests(ctx context.Context, owner interface {
-	ChildrenForRequests(context.Context, []int64) ([]*enrollment.RequestChild, error)
-}, requestIDs []int64) ([]*RequestChild, error) {
-	values, err := owner.ChildrenForRequests(ctx, requestIDs)
-	if err != nil {
-		return nil, err
-	}
-	return childValues(values)
+func (o *submitOutcome) public() *enrollment.SubmitResult {
+	return &enrollment.SubmitResult{Request: o.Request, Children: o.Children, StatusURL: o.StatusURL, Warnings: o.Warnings}
 }
 
 // childTakenOver reports whether an enrollment child has already been taken
 // over into care: an approval materialized it into a student. From then on
 // change wishes for the child run through the parent app, so the status link
 // keeps it readable but locks it in the change form (ADR 0003).
-func childTakenOver(child *RequestChild) bool {
+func childTakenOver(child *enrollment.RequestChild) bool {
 	return child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID > 0
 }
 
 // allChildrenTakenOver reports whether every child is past the takeover.
-func allChildrenTakenOver(children []*RequestChild) bool {
+func allChildrenTakenOver(children []*enrollment.RequestChild) bool {
 	if len(children) == 0 {
 		return false
 	}
@@ -274,7 +130,7 @@ func allChildrenTakenOver(children []*RequestChild) bool {
 // childrenParentResolved reports whether every child of a request has a
 // final status the parents hear about. A request without children, or with
 // a missing child, is not resolved.
-func childrenParentResolved(children []*RequestChild) bool {
+func childrenParentResolved(children []*enrollment.RequestChild) bool {
 	if len(children) == 0 {
 		return false
 	}
@@ -286,7 +142,7 @@ func childrenParentResolved(children []*RequestChild) bool {
 	return true
 }
 
-func childIDsForStatus(children []*RequestChild, status string) map[int64]struct{} {
+func childIDsForStatus(children []*enrollment.RequestChild, status string) map[int64]struct{} {
 	ids := make(map[int64]struct{})
 	for _, child := range children {
 		if child != nil && child.Status == status {

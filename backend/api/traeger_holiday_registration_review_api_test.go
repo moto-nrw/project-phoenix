@@ -423,19 +423,19 @@ func TestTraegerHolidayRegistrationReviewNeedsTheRightAndStaysWithItsTraeger(t *
 func TestTraegerHolidayRegistrationListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Anmeldungen")
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, f.path(""), nil)
 		req.Header.Set("Authorization", "Bearer "+f.office.token)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	one := list()
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), siblingsRegistration(f.offer, "budget@example.org"))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	assert.Len(t, list(), len(one), "the list reads the same statements for any number of registrations")
+	assert.Len(t, list().Statements, len(one.Statements), "the list reads the same statements for any number of registrations")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_registrations", one)
 }
 
@@ -469,4 +469,45 @@ func TestHolidayRegistrationAuditGoesWithItsPeriod(t *testing.T) {
 	}
 	assert.Zero(t, count(ended.ID), "the audit trail of the ended period is gone")
 	assert.Equal(t, 2, count(f.period.ID), "the audit trail of the running period stays")
+}
+
+// TestTimeModelOfAPastBookingIsNotRemoved pins the guard of migration
+// 1.15.796 (#5994): after a rebooking no booking points at the old time
+// model any more, but its trail does, and the days booked on it keep their
+// Soll from it. The Träger-Büro cannot remove it; it gets the 409 of a
+// booked time model, and the model stays.
+func TestTimeModelOfAPastBookingIsNotRemoved(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Zeitmodell Spur")
+	ben := f.list(t, "").Registrations[0].Children[1]
+	f.detail(t, f.act(t, f.siblings, "confirm"))
+	// Ben moves from "bis 13 Uhr" of both weeks to "bis 16 Uhr" of the first.
+	old := f.offer.Weeks[0].TimeModels[0].ID
+	rebook := map[string]any{"bookings": []map[string]any{{"week_id": f.offer.Weeks[0].ID, "time_model_id": f.offer.Weeks[0].TimeModels[1].ID}}}
+	f.detail(t, traegerJSON(t, f.traeger, f.office.token, http.MethodPut,
+		f.registrationPath(f.siblings, fmt.Sprintf("/children/%d/bookings", ben.ID)), rebook))
+	var booked int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_registration_bookings WHERE holiday_week_time_model_id = ?`, old).
+		Scan(context.Background(), &booked))
+	require.Zero(t, booked, "no booking points at the old time model any more")
+
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, holidayPeriodPath(f.period.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	current := decodeSchoolPortalData[holidayPeriodBody](t, rec.Body.Bytes())
+	without := current
+	without.Weeks = append([]holidayWeekBody(nil), current.Weeks...)
+	var kept []holidayTimeModelBody
+	for _, model := range current.Weeks[0].TimeModels {
+		if model.ID != old {
+			kept = append(kept, model)
+		}
+	}
+	without.Weeks[0].TimeModels = kept
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayPeriodPath(f.period.ID), without)
+	require.Equal(t, http.StatusConflict, rec.Code, "the time model of past booked days stays: %s", rec.Body.String())
+	code, _ := registrationRefusalOf(t, rec)
+	assert.Equal(t, "enrollment.holiday_week_booked", code)
+	var models int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_week_time_models WHERE id = ?`, old).Scan(context.Background(), &models))
+	assert.Equal(t, 1, models)
 }

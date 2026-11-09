@@ -1,0 +1,7 @@
+{
+  "scenario": "api.enrollment.growth.student_history",
+  "max": 48,
+  "exact": true,
+  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows. Pinned schema display metadata uses one ID-set read; phases, children and guardians of all rows come from one shared read each (#5778); per-row offering guards stay live. Ceiling pins N8, not a constant bound.",
+  "route": "GET /api/enrollment/admin/students/{studentId}/requests/"
+}

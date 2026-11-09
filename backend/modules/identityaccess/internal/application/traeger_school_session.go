@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -29,132 +28,44 @@ import (
 // returns its refresh token. The Träger session of the request supplies the
 // second-factor proof; the Absprung is filed in the school's authentication
 // ledger in the same transaction.
-func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, request identityaccess.TraegerSchoolSessionRequest) (_ string, err error) {
-	if s == nil {
-		return "", errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	if s.traeger == nil {
-		return "", failed("Träger school session", errTraegerMembershipsUnavailable)
-	}
-	if request.AccountID <= 0 || request.OrganizationID <= 0 || request.TraegerFamilyID == "" {
-		return "", failed("Träger school session", identityaccess.ErrInvalidToken)
-	}
-	if request.SchoolID <= 0 {
-		return "", failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
-	}
-	account, err := s.authenticatedAccount(ctx, "Träger school session", request.AccountID)
-	if err != nil {
-		return "", err
-	}
-	// The proof is read first to stamp the session; the guard checks it
-	// again under the account lock MFA reset and logout take. Source
-	// lineage and its legacy deadline are inherited under that same lock.
-	var proof bool
-	if err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
-		var readErr error
-		proof, readErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
-		return readErr
-	}); err != nil {
-		return "", err
-	}
-	var metadata *domain.AccountClaimsPayload
-	session := s.newRefreshSession(account.ID, domain.ScopeTenant)
-	session.OrganizationID = request.OrganizationID
-	session.Expiry = time.Now().Add(domain.TraegerSchoolHandoffTTL)
-	session.MFAVerified = proof
-	guard := s.traegerSchoolMintGuard(request.OrganizationID, request.SchoolID, &metadata)
-	session, err = s.persistNewSession(ctx, account, session, request.SchoolID, s.traegerSchoolHandoffGuard(request, proof, guard), request.TraegerFamilyID, "")
-	if err != nil {
-		return "", err
-	}
-	access, refresh := buildClaims(account, session, metadata, account.Email)
-	_, refreshToken, err := s.codec.IssueTokenPair(access, refresh)
-	if err != nil {
-		return "", failed("generate tokens", err)
-	}
-	return refreshToken, nil
-}
-
-// traegerSchoolHandoffGuard adds to the school guard what only the Absprung
-// needs: the second-factor proof of the Träger session must still hold under
-// the account lock. The Absprung enters the school's audit in the mint
-// transaction, so no session exists without its audit entry.
-func (s *AccountAuthentication) traegerSchoolHandoffGuard(request identityaccess.TraegerSchoolSessionRequest, proof bool, next mintGuard) mintGuard {
-	proven := func(ctx context.Context, account domain.LoginAccount) error {
-		// next takes the account lock MFA reset and logout share.
-		if err := next(ctx, account); err != nil {
-			return err
-		}
-		// A Träger session logged out since the request opens nothing,
-		// whether or not a second factor is configured (#5422).
-		if _, err := s.liveSourceLineage(ctx, account.ID, request.TraegerFamilyID, time.Now()); err != nil {
-			return err
-		}
-		current, err := s.traegerSessionMFAProof(ctx, account.ID, request.OrganizationID, request.TraegerFamilyID)
-		if err != nil {
-			return err
-		}
-		if proof && !current {
-			return failed("Träger school session", identityaccess.ErrInvalidToken)
-		}
-		return nil
-	}
-	return s.traegerSchoolAuditGuard(request.OrganizationID, request.SchoolID, request.IPAddress, request.UserAgent, proven)
-}
-
-// traegerSchoolAuditGuard runs next and files traeger_school_switch with the
-// Träger in the school's authentication ledger, on the mint transaction:
-// every school a Träger session reaches, by Absprung or by a tab switch
-// within the Träger, has its entry or no session.
-func (s *AccountAuthentication) traegerSchoolAuditGuard(organizationID, schoolID int64, ipAddress, userAgent string, next mintGuard) mintGuard {
-	if ipAddress == "" {
-		ipAddress = domain.AccessAuditIP
-	}
-	return func(ctx context.Context, account domain.LoginAccount) error {
-		if err := next(ctx, account); err != nil {
-			return err
-		}
-		return s.audit.RecordAuthEvent(ctx, domain.AuthEvent{
-			AccountID: account.ID, TenantID: schoolID, Type: domain.AuthEventTraegerSchoolSwitch, Success: true,
-			IPAddress: ipAddress, UserAgent: userAgent, OrganizationID: organizationID,
-		})
-	}
-}
-
-// traegerSchoolMintGuard re-authorizes a Träger school session inside its
-// mint or refresh transaction, under the account lock, and assembles its
-// claims: an active membership at an active Träger, the Träger right "In OGS
-// wechseln", and a live, active school of that Träger. A school that left the
-// Träger ends the session at its next refresh; a school the Träger gained is
-// reachable without a grant of its own.
-func (s *AccountAuthentication) traegerSchoolMintGuard(organizationID, schoolID int64, out **domain.AccountClaimsPayload) mintGuard {
-	return func(ctx context.Context, presented domain.LoginAccount) error {
+func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, request identityaccess.TraegerSchoolSessionRequest) (string, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (string, error) {
 		if s.traeger == nil {
-			return errTraegerMembershipsUnavailable
+			return "", failed("Träger school session", errTraegerMembershipsUnavailable)
 		}
-		account, err := s.lockLiveTraegerAccount(ctx, presented.ID)
+		if request.AccountID <= 0 || request.OrganizationID <= 0 || request.TraegerFamilyID == "" {
+			return "", failed("Träger school session", identityaccess.ErrInvalidToken)
+		}
+		if request.SchoolID <= 0 {
+			return "", failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
+		}
+		account, err := s.authenticatedAccount(ctx, "Träger school session", request.AccountID)
 		if err != nil {
-			return err
+			return "", err
 		}
-		if err := s.requireTraegerSchoolSwitch(ctx, account.ID, organizationID); err != nil {
-			return err
+		// The proof is read first to stamp the session; the mint checks it
+		// again under the account lock MFA reset and logout take. Source
+		// lineage and its legacy deadline are inherited under that same lock.
+		var proof bool
+		if err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+			var readErr error
+			proof, readErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
+			return readErr
+		}); err != nil {
+			return "", err
 		}
-		school, found, err := s.schools.FindSchool(ctx, schoolID)
+		minted, err := s.mintAccountSession(ctx, mintRequest{
+			portal: domain.PortalTenant, account: account, tenantID: request.SchoolID, orgID: request.OrganizationID,
+			proof:              mintProof{kind: proofTraegerSession, traegerFamilyID: request.TraegerFamilyID, traegerVerified: proof},
+			sourceFamilyID:     request.TraegerFamilyID,
+			lifetime:           domain.TraegerSchoolHandoffTTL,
+			traegerSchoolAudit: &mintAudit{ipAddress: request.IPAddress, userAgent: request.UserAgent, schoolID: request.SchoolID},
+		})
 		if err != nil {
-			return fmt.Errorf("look up school %d of a Träger school session: %w", schoolID, err)
+			return "", err
 		}
-		if !found || school.Deleted || !school.Active || school.OrganizationID != organizationID {
-			return failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
-		}
-		metadata, err := s.traegerSchoolClaims(ctx, account, schoolID, organizationID)
-		if err != nil {
-			return err
-		}
-		*out = metadata
-		return nil
-	}
+		return minted.refreshToken, nil
+	})
 }
 
 // requireTraegerSchoolSwitch checks the active membership and the right "In
@@ -203,7 +114,7 @@ func (s *AccountAuthentication) traegerSchoolClaims(ctx context.Context, account
 		IsAdmin:     domain.IsAdmin(roleNames),
 		TenantID:    schoolID,
 		OrgID:       organizationID,
-		Scope:       domain.ScopeTenant,
+		Scope:       domain.PortalTenant.Claim,
 		ViaTraeger:  true,
 	}, nil
 }
@@ -215,7 +126,7 @@ func (s *AccountAuthentication) traegerSessionMFAProof(ctx context.Context, acco
 	if familyID == "" {
 		return false, nil
 	}
-	verified, err := s.switchMFAProof(ctx, accountID, familyID, domain.PortalScopeOrg)
+	verified, err := s.switchMFAProof(ctx, accountID, familyID, domain.PortalOrg.Name)
 	if err != nil || !verified {
 		return false, err
 	}
@@ -232,7 +143,7 @@ func (s *AccountAuthentication) traegerSessionMFAProof(ctx context.Context, acco
 // portal requires the second factor of every member (ADR 0084 section 3).
 // Other sessions pass.
 func (s *AccountAuthentication) requireTraegerSchoolMFA(session domain.AccountSession) error {
-	if !domain.IsTraegerSchoolSession(session) || !s.mfa.Configured() || session.MFAVerified {
+	if session.SessionKind() != domain.SessionKindTraegerSchool || !s.mfa.Configured() || session.MFAVerified {
 		return nil
 	}
 	return identityaccess.ErrInvalidToken
@@ -253,7 +164,7 @@ func (s *AccountAuthentication) traegerSchoolFamily(ctx context.Context, account
 			}
 			return err
 		}
-		if source.AccountID == accountID && domain.IsTraegerSchoolSession(domain.AccountSession(source)) {
+		if source.AccountID == accountID && domain.AccountSession(source).SessionKind() == domain.SessionKindTraegerSchool {
 			organizationID = source.OrganizationID
 		}
 		return nil
@@ -291,15 +202,11 @@ func (s *AccountAuthentication) traegerSwitchTarget(ctx context.Context, account
 // same Träger, the switch a second tab triggers (#4654). The presented family
 // is retired like any switch and supplies the second-factor proof; the target
 // school files the switch like an Absprung.
-func (s *AccountAuthentication) switchTraegerSchool(ctx context.Context, account domain.LoginAccount, school domain.School, presentedFamilyID string) (string, string, error) {
-	var metadata *domain.AccountClaimsPayload
-	session := s.newRefreshSession(account.ID, domain.ScopeTenant)
-	session.OrganizationID = school.OrganizationID
-	guard := s.traegerSchoolAuditGuard(school.OrganizationID, school.ID, "", "", s.traegerSchoolMintGuard(school.OrganizationID, school.ID, &metadata))
-	session, err := s.persistNewSession(ctx, account, session, school.ID, guard, presentedFamilyID, presentedFamilyID)
-	if err != nil {
-		return "", "", err
-	}
-	access, refresh := buildClaims(account, session, metadata, account.Email)
-	return s.generateAndLogTokens(s.runtime.WithTenantID(ctx, school.ID), account.ID, access, refresh, "", "", domain.AuthEventTenantSwitch)
+func (s *AccountAuthentication) switchTraegerSchool(ctx context.Context, account domain.LoginAccount, school domain.School, presentedFamilyID, ipAddress, userAgent string) (string, string, error) {
+	minted, err := s.mintAccountSession(ctx, mintRequest{
+		portal: domain.PortalTenant, account: account, tenantID: school.ID, orgID: school.OrganizationID,
+		sourceFamilyID: presentedFamilyID, retireFamilyID: presentedFamilyID,
+		traegerSchoolAudit: &mintAudit{ipAddress: ipAddress, userAgent: userAgent, schoolID: school.ID},
+	})
+	return minted.accessToken, minted.refreshToken, err
 }

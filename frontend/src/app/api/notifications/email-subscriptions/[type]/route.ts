@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 /** Bounds the path segment before it reaches the backend. */
@@ -12,14 +12,13 @@ function emailSubscriptionPath(
   if (typeof type !== "string" || !VALID_TYPE_PATTERN.test(type)) {
     return problemResponse(400, "Invalid notification type format", _request);
   }
-  return `/api/notifications/email-subscriptions/${type}`;
+  return `/api/notifications/email-subscriptions/${encodeURIComponent(type)}`;
 }
 
 /** Eigene Entscheidung für eine E-Mail-Benachrichtigung lesen (#3780). */
 export const GET = createTenantJsonProxy({
   method: "GET",
   path: emailSubscriptionPath,
-  cache: "no-store",
 });
 
 /** Eigene Entscheidung für eine E-Mail-Benachrichtigung setzen (#3780). */

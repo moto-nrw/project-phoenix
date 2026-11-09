@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { useSWRAuth } from "~/lib/swr";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { SwitchRow } from "~/components/ui/switch";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -109,6 +109,30 @@ type ChangeRules = (
   run: () => Promise<void>,
   queueKey?: string,
 ) => Promise<boolean>;
+
+// The responsive table remounts its cells when the layout changes. Keep
+// their unsaved drafts in the owning card, not in the discarded cell tree.
+// A changed server value still replaces the draft, as it did in each editor.
+type PayrollDrafts = Map<string, { current: string; value: string }>;
+
+function usePayrollDraft(drafts: PayrollDrafts, key: string, current: string) {
+  const [value, setValue] = useState(() => {
+    const draft = drafts.get(key);
+    return draft?.current === current ? draft.value : current;
+  });
+  useEffect(() => {
+    if (drafts.get(key)?.current !== current) {
+      drafts.delete(key);
+      setValue(current);
+    }
+  }, [drafts, key, current]);
+
+  const update = (next: string) => {
+    drafts.set(key, { current, value: next });
+    setValue(next);
+  };
+  return [value, update] as const;
+}
 
 const UNIT_OPTIONS = [
   { value: "", label: "Nicht festgelegt" },
@@ -404,16 +428,20 @@ function ReadinessCard({
     >
       <ul className="space-y-2">
         {items.map((item) => (
-          <li key={item.label} className="flex items-start gap-2 text-sm">
-            <span
-              aria-hidden
-              className={`mt-0.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
-                item.ok ? "bg-moto-green" : "bg-moto-orange"
-              }`}
-            />
-            <span>
+          <li
+            key={item.label}
+            className="flex items-start justify-between gap-3 text-sm"
+          >
+            <span className="min-w-0 break-words">
               <span className="font-medium text-gray-800">{item.label}:</span>{" "}
               <span className="text-gray-600">{item.detail}</span>
+            </span>
+            <span className="shrink-0">
+              <StatusBadge
+                size="xs"
+                tone={item.ok ? "green" : "orange"}
+                label={item.ok ? "Erledigt" : "Fehlt"}
+              />
             </span>
           </li>
         ))}
@@ -429,6 +457,7 @@ function LohnartenCard({
   readonly status: PayrollStatus;
   readonly onSave: SaveSetting;
 }) {
+  const [drafts] = useState<PayrollDrafts>(() => new Map());
   return (
     <SectionCard
       title="Feste Lohnarten"
@@ -440,7 +469,7 @@ function LohnartenCard({
         // über dem Feld, alle Felder gleich breit (#4807).
         stackedOnMobile
         stackedLayout="form"
-        columns={lohnartColumns(onSave)}
+        columns={lohnartColumns(onSave, drafts)}
         rows={status.categories}
         getRowKey={(cat) => cat.id}
         rowHasInteractiveControls
@@ -453,6 +482,7 @@ type LohnartCategory = PayrollStatus["categories"][number];
 
 function lohnartColumns(
   onSave: SaveSetting,
+  drafts: PayrollDrafts,
 ): DataTableColumn<LohnartCategory>[] {
   return [
     {
@@ -465,7 +495,9 @@ function lohnartColumns(
     {
       key: "number",
       header: "Lohnartnummer",
-      render: (cat) => <LohnartNumberCell cat={cat} onSave={onSave} />,
+      render: (cat) => (
+        <LohnartNumberCell cat={cat} onSave={onSave} drafts={drafts} />
+      ),
     },
     {
       key: "unit",
@@ -494,12 +526,13 @@ function lohnartColumns(
 function LohnartNumberCell({
   cat,
   onSave,
+  drafts,
 }: {
   readonly cat: LohnartCategory;
+  readonly drafts: PayrollDrafts;
   readonly onSave: SaveSetting;
 }) {
-  const [number, setNumber] = useState(cat.number);
-  useEffect(() => setNumber(cat.number), [cat.number]);
+  const [number, setNumber] = usePayrollDraft(drafts, cat.id, cat.number);
 
   const valid = number.trim() === "" || /^\d{1,4}$/.test(number.trim());
 
@@ -517,7 +550,8 @@ function LohnartNumberCell({
         }}
         placeholder="Nicht konfiguriert"
         inputMode="numeric"
-        className="h-9 py-1 text-sm tabular-nums"
+        controlSize="compact"
+        className="tabular-nums"
         error={valid ? undefined : "1 bis 4 Ziffern."}
       />
     </div>
@@ -590,7 +624,8 @@ function DatevNumberField({
       }}
       placeholder="Nicht konfiguriert"
       inputMode="numeric"
-      className="h-9 py-1 text-sm tabular-nums"
+      controlSize="compact"
+      className="tabular-nums"
       error={valid ? undefined : `1 bis ${maxDigits} Ziffern.`}
     />
   );
@@ -692,22 +727,13 @@ function LohnbueroCard({
       description="Nach dem Monatsabschluss schickt moto die Monatsdatei aller Mitarbeitenden an das Lohnbüro. Änderungen werden sofort gespeichert."
     >
       <div className="space-y-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="block text-sm font-medium text-gray-800">
-              Automatisch nach dem Monatsabschluss senden
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Schließen Sie einen Monat nach dem Wiederöffnen erneut ab, geht
-              die Datei noch einmal raus. Ihr Name enthält dann „korrektur“.
-            </p>
-          </div>
-          <BooleanField
-            ariaLabel="Automatisch nach dem Monatsabschluss senden"
-            value={current.auto}
-            onChange={(next) => change("auto", next)}
-          />
-        </div>
+        <SwitchRow
+          framed={false}
+          label="Automatisch nach dem Monatsabschluss senden"
+          description="Schließen Sie einen Monat nach dem Wiederöffnen erneut ab, geht die Datei noch einmal raus. Ihr Name enthält dann „korrektur“."
+          checked={current.auto}
+          onCheckedChange={(next) => change("auto", next)}
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -751,7 +777,7 @@ function LohnbueroCard({
               }}
               placeholder="lohn@beispiel.de"
               autoComplete="off"
-              className="h-9 py-1 text-sm"
+              controlSize="compact"
               error={
                 emailValid
                   ? undefined
@@ -1037,6 +1063,7 @@ function WageTypesCard({
   readonly onCreate: () => void;
   readonly onArchive: (wageType: PayrollWageType) => void;
 }) {
+  const [drafts] = useState<PayrollDrafts>(() => new Map());
   // The API accepts the full wage-type object. Keep the last confirmed object
   // per row so a queued field save builds on the preceding successful save,
   // rather than on a stale render of another field.
@@ -1074,6 +1101,7 @@ function WageTypesCard({
           wageType={wageType}
           field="name"
           onSave={saveWageType}
+          drafts={drafts}
         />
       ),
     },
@@ -1085,6 +1113,7 @@ function WageTypesCard({
           wageType={wageType}
           field="number"
           onSave={saveWageType}
+          drafts={drafts}
         />
       ),
     },
@@ -1159,16 +1188,21 @@ function WageTypeTextCell({
   wageType,
   field,
   onSave,
+  drafts,
 }: {
   readonly wageType: PayrollWageType;
   readonly field: "name" | "number";
+  readonly drafts: PayrollDrafts;
   readonly onSave: (
     wageType: PayrollWageType,
     changes: Partial<PayrollWageType>,
   ) => void;
 }) {
-  const [value, setValue] = useState(wageType[field]);
-  useEffect(() => setValue(wageType[field]), [wageType, field]);
+  const [value, setValue] = usePayrollDraft(
+    drafts,
+    `${wageType.id}:${field}`,
+    wageType[field],
+  );
 
   const trimmed = value.trim();
   const error =
@@ -1207,7 +1241,7 @@ function WageTypeTextCell({
         placeholder={field === "number" ? "Noch keine Nummer" : undefined}
         inputMode={field === "number" ? "numeric" : undefined}
         maxLength={field === "name" ? 100 : undefined}
-        className="h-9 py-1 text-sm"
+        controlSize="compact"
         error={error}
       />
     </div>
@@ -1225,6 +1259,7 @@ function SurchargeRulesCard({
   readonly onCreate: () => void;
   readonly onArchive: (rule: PayrollSurchargeRule) => void;
 }) {
+  const [drafts] = useState<PayrollDrafts>(() => new Map());
   // The API replaces the complete rule. Keep each row's last confirmed value
   // so a queued field save builds on the preceding successful save, instead
   // of a stale render of another field.
@@ -1264,7 +1299,11 @@ function SurchargeRulesCard({
       header: "Zeitraum",
       render: (rule) =>
         rule.kind === "nacht" ? (
-          <NightWindowCell rule={rule} onSave={saveSurchargeRule} />
+          <NightWindowCell
+            rule={rule}
+            onSave={saveSurchargeRule}
+            drafts={drafts}
+          />
         ) : (
           <span className="text-sm text-gray-600">ganzer Tag</span>
         ),
@@ -1272,7 +1311,9 @@ function SurchargeRulesCard({
     {
       key: "rate",
       header: "Höhe",
-      render: (rule) => <RateCell rule={rule} onSave={saveSurchargeRule} />,
+      render: (rule) => (
+        <RateCell rule={rule} onSave={saveSurchargeRule} drafts={drafts} />
+      ),
     },
     {
       key: "wageType",
@@ -1362,16 +1403,22 @@ type SaveSurchargeRule = (
 function NightWindowCell({
   rule,
   onSave,
+  drafts,
 }: {
   readonly rule: PayrollSurchargeRule;
+  readonly drafts: PayrollDrafts;
   readonly onSave: SaveSurchargeRule;
 }) {
-  const [from, setFrom] = useState(minutesToClock(rule.windowStartMinute ?? 0));
-  const [until, setUntil] = useState(minutesToClock(rule.windowEndMinute ?? 0));
-  useEffect(() => {
-    setFrom(minutesToClock(rule.windowStartMinute ?? 0));
-    setUntil(minutesToClock(rule.windowEndMinute ?? 0));
-  }, [rule.windowStartMinute, rule.windowEndMinute]);
+  const [from, setFrom] = usePayrollDraft(
+    drafts,
+    `${rule.id}:from`,
+    minutesToClock(rule.windowStartMinute ?? 0),
+  );
+  const [until, setUntil] = usePayrollDraft(
+    drafts,
+    `${rule.id}:until`,
+    minutesToClock(rule.windowEndMinute ?? 0),
+  );
 
   const fromMinute = clockToMinutes(from);
   const untilMinute = clockToMinutes(until);
@@ -1400,16 +1447,18 @@ function NightWindowCell({
         value={from}
         onChange={(event) => setFrom(event.target.value)}
         onBlur={commit}
-        className="h-9 w-full py-1 text-sm md:w-28"
+        controlSize="compact"
+        className="w-full md:w-28"
       />
-      <span className="pt-2 text-sm text-gray-600">bis</span>
+      <span className="pt-2.5 text-sm text-gray-600">bis</span>
       <Input
         aria-label="Nachtarbeit bis"
         type="time"
         value={until}
         onChange={(event) => setUntil(event.target.value)}
         onBlur={commit}
-        className="h-9 w-full py-1 text-sm md:w-28"
+        controlSize="compact"
+        className="w-full md:w-28"
         error={valid ? undefined : "Zwei verschiedene Uhrzeiten."}
       />
     </div>
@@ -1419,16 +1468,16 @@ function NightWindowCell({
 function RateCell({
   rule,
   onSave,
+  drafts,
 }: {
   readonly rule: PayrollSurchargeRule;
+  readonly drafts: PayrollDrafts;
   readonly onSave: SaveSurchargeRule;
 }) {
-  const [text, setText] = useState(
+  const [text, setText] = usePayrollDraft(
+    drafts,
+    `${rule.id}:rate`,
     formatRate(rule.rateType, rule.rateHundredths),
-  );
-  useEffect(
-    () => setText(formatRate(rule.rateType, rule.rateHundredths)),
-    [rule.rateType, rule.rateHundredths],
   );
   const value = parseRate(text);
 
@@ -1446,13 +1495,14 @@ function RateCell({
             }
           }}
           inputMode="decimal"
-          className={`h-9 py-1 text-sm tabular-nums ${rule.rateType === "prozent" ? "pr-8" : "pr-28"}`}
+          controlSize="compact"
+          className={`tabular-nums ${rule.rateType === "prozent" ? "pr-8" : "pr-28"}`}
           error={value === null ? "Eine Zahl größer als 0." : undefined}
         />
       </div>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-0 right-4 flex h-9 items-center text-sm whitespace-nowrap text-gray-500"
+        className="pointer-events-none absolute top-0 right-4 flex h-10 items-center text-sm whitespace-nowrap text-gray-500"
       >
         {rule.rateType === "prozent" ? "%" : "€ je Stunde"}
       </span>

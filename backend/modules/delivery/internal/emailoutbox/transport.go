@@ -24,7 +24,7 @@ type Transport struct {
 	Logger       *slog.Logger
 }
 
-func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, recipient email.Email) error {
+func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, recipient email.Email) (email.Receipt, error) {
 	var message *email.Message
 	err := p.withinIntent(ctx, intent, func(tenantCtx context.Context) error {
 		var renderErr error
@@ -35,9 +35,14 @@ func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, 
 		return renderErr
 	})
 	if err != nil {
-		return err
+		return email.Receipt{}, err
 	}
-	sendErr := sendRenderedEmail(ctx, p.Mailer, recipient, message)
+	if message != nil {
+		message.DeliveryToken = intent.DeliveryToken
+		message.Security = intent.Security
+		message.UseFallback = intent.UseFallback
+	}
+	receipt, sendErr := sendRenderedEmail(ctx, p.Mailer, recipient, message)
 	if reporter, ok := renderer.(interface {
 		RecordDelivery(context.Context, *Intent, error) error
 	}); ok {
@@ -54,24 +59,27 @@ func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, 
 		}
 	}
 	if sendErr != nil {
-		return fmt.Errorf("delivery provider: send email: %w", sendErr)
+		return email.Receipt{}, fmt.Errorf("delivery provider: send email: %w", sendErr)
 	}
-	return nil
+	return receipt, nil
 }
 
-func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient email.Email, message *email.Message) error {
+func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient email.Email, message *email.Message) (email.Receipt, error) {
 	if message == nil {
-		return errors.New("renderer returned no email message")
+		return email.Receipt{}, errors.New("renderer returned no email message")
 	}
 	message.To = email.NewEmail(recipient.Name, recipient.Address)
+	if receiptMailer, ok := mailer.(email.ReceiptMailer); ok {
+		return receiptMailer.SendWithReceipt(ctx, *message)
+	}
 	contextMailer, ok := mailer.(email.ContextMailer)
 	if ok {
-		return contextMailer.SendContext(ctx, *message)
+		return email.Receipt{}, contextMailer.SendContext(ctx, *message)
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return email.Receipt{}, err
 	}
-	return mailer.Send(*message)
+	return email.Receipt{}, mailer.Send(*message)
 }
 
 func (p *Transport) applyReplyTo(ctx context.Context, intent *Intent, message *email.Message) {

@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.workforce20.staff_schedule_targets",
+  "max": 12,
+  "exact": true,
+  "description": "Full protected Resource HTTP request with positive N=3/N=8 sessions and edits, exact observed count; fixtures outside capture. Not a SQL minimum.",
+  "route": "GET /api/staff/{id}/time-tracking/schedule-targets"
+}

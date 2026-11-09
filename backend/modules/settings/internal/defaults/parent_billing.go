@@ -11,7 +11,12 @@ import (
 // with fixed placeholders (#5622, ADR 0121 addendum); empty keeps the
 // built-in sentence. How the holiday contribution ranks siblings and when a
 // cost bearer takes over are choices of the Träger too (#5664, ADR 0115
-// addendum); the defaults keep the fixed chain from before. The values are
+// addendum); the defaults keep the fixed chain from before. How a monthly
+// run bills a month in which a contract changes is open with the customer
+// (#4684); the default bills the full month by the version on the first.
+// Which changes of a single invoice the review of a monthly run allows is
+// open with the customer too (#6197, SJR item 2); all four are on by
+// default. The values are
 // the constants of the Elternabrechnung, which refuses any other.
 func init() {
 	registerDefinitions(parentBillingDefinitions)
@@ -88,5 +93,50 @@ var parentBillingDefinitions = []config.Definition{
 				{Label: "Vollen Preis", Value: "before_discount"},
 			},
 		},
+	}, {
+		Key:             config.KeyParentBillingCareMonthChange,
+		Levels:          config.LevelTraeger,
+		Label:           "Wenn sich der Vertrag im Monat ändert",
+		Description:     "Gilt für den Monatsbeitrag, wenn ein Vertrag im Monat beginnt, endet oder sich ändert. Voller Monat: Es zählt der Vertrag am 1. des Monats. Beginnt die Betreuung erst im Monat, zählt der erste Vertrag den ganzen Monat. Anteilig: Jede Fassung zählt für ihre Tage. Ausgestellte Rechnungen bleiben, wie sie sind.",
+		Type:            config.FieldSelect,
+		Default:         "version_on_first",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "monatsbeitrag",
+		Category:        "monatsbeitrag-lauf",
+		SortOrder:       50,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Voller Monat nach dem Vertrag am 1.", Value: "version_on_first"},
+				{Label: "Anteilig nach Kalendertagen", Value: "pro_rata"},
+			},
+		},
 	},
+	careReviewSwitch(config.KeyParentBillingCareReviewAmount, 60, "Betrag einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen den Betrag einer einzelnen Rechnung ändern. Die Rechnung bekommt dann eine Korrektur-Zeile mit Ihrem Grund."),
+	careReviewSwitch(config.KeyParentBillingCareReviewRecipient, 70, "Empfänger einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen Name und E-Mail des Empfängers einer einzelnen Rechnung ändern. Das gilt nur für diese Rechnung, nicht für die Familie."),
+	careReviewSwitch(config.KeyParentBillingCareReviewAddress, 80, "Anschrift einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen die Anschrift einer einzelnen Rechnung ändern. Das gilt nur für diese Rechnung, nicht für die Familie."),
+	careReviewSwitch(config.KeyParentBillingCareReviewPositions, 90, "Positionen einer Rechnung ändern",
+		"Ist das an, können Sie vor dem Ausstellen Positionen einer einzelnen Rechnung hinzufügen oder entfernen, jeweils mit Grund."),
+}
+
+// careReviewSwitch is one change of a single invoice the review of a
+// monthly run allows (#6197); every switch is on until the Träger turns it
+// off.
+func careReviewSwitch(key string, order int, label, description string) config.Definition {
+	return config.Definition{
+		Key:             key,
+		Levels:          config.LevelTraeger,
+		Label:           label,
+		Description:     description,
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "monatsbeitrag",
+		Category:        "monatsbeitrag-pruefung",
+		SortOrder:       order,
+	}
 }

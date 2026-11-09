@@ -103,6 +103,55 @@ describe("ParentMealPlanPage", () => {
     mocks.getChildMealPlan.mockResolvedValue([]);
   });
 
+  // A child at a school with another care term (#6082) names its own term
+  // and stays selected: the term switch must not reload the school list.
+  it("keeps the chosen child of a school with another care term", async () => {
+    mocks.listMyChildren.mockResolvedValue([
+      {
+        student_id: "child-1",
+        tenant_id: "school-1",
+        first_name: "Mia",
+        last_name: "Muster",
+        school_name: "OGS Am Berg",
+      },
+      {
+        student_id: "child-2",
+        tenant_id: "school-2",
+        first_name: "Noah",
+        last_name: "Beispiel",
+        school_name: "Grundschule Barnstorf",
+      },
+    ]);
+    mocks.getChildFeatures.mockImplementation((studentId: string) =>
+      Promise.resolve({
+        meal_plan_enabled: true,
+        meal_registration_enabled: false,
+        care_facility_term: studentId === "child-2" ? "GTS" : "OGS",
+      }),
+    );
+    render(<ParentMealPlanPage />);
+    expect(await screen.findByText("Essen in der OGS")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox", { name: "Kind" }));
+    fireEvent.click(
+      await screen.findByRole("option", {
+        name: "Noah Beispiel · Grundschule Barnstorf",
+      }),
+    );
+    expect(await screen.findByText("Essen in der GTS")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+        "child-2",
+        expect.any(String),
+      ),
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.getByText("Essen in der GTS")).toBeInTheDocument();
+    expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+      "child-2",
+      expect.any(String),
+    );
+  });
+
   it("keeps the final page geometry while the meal plan is loading", () => {
     mocks.listMyChildren.mockReturnValue(new Promise(() => {}));
 
@@ -115,12 +164,11 @@ describe("ParentMealPlanPage", () => {
       name: "Speiseplan wird geladen",
     });
     const skeleton = screen.getByTestId("meal-plan-week-skeleton");
-    const desktopGrid = skeleton.querySelector(".grid-cols-5");
     const animatedParts = skeleton.querySelectorAll(".animate-pulse");
 
     expect(loadingStatus).toBeInTheDocument();
-    expect(desktopGrid?.children).toHaveLength(5);
-    expect(animatedParts.length).toBeGreaterThan(10);
+    expect(loadingStatus).toContainElement(skeleton);
+    expect(animatedParts).toHaveLength(10);
     for (const part of animatedParts) {
       expect(part).toHaveClass("motion-reduce:animate-none");
     }

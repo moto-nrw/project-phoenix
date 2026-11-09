@@ -5,24 +5,17 @@ import { duplicateIds } from "~/test/helpers/duplicate-ids";
 
 import { AttendanceCorrectionModal } from "./attendance-correction-modal";
 
-const { mockGetCachedSession } = vi.hoisted(() => ({
-  mockGetCachedSession: vi.fn(),
-}));
-
+// The session gate is passed; the request itself reaches the stubbed fetch.
 vi.mock("~/lib/session-cache", () => ({
-  getCachedSession: mockGetCachedSession,
+  sessionFetch: (url: string, init?: RequestInit) => fetch(url, init),
 }));
 
 describe("AttendanceCorrectionModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetCachedSession.mockResolvedValue({ user: { token: "test-token" } });
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: { corrections: [] } }),
-      }),
+      vi.fn(async () => Response.json({ data: { corrections: [] } })),
     );
   });
 

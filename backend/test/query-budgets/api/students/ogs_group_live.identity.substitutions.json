@@ -1,6 +1,7 @@
 {
   "scenario": "api.students.ogs_group_live.identity.substitutions",
-  "max": 2,
+  "max": 1,
   "exact": true,
-  "description": "api/students — #2099: identity chain resolved once per request."
+  "description": "api/students — #2099: identity chain resolved once per request.",
+  "route": "GET /api/students/ogs-group-live"
 }

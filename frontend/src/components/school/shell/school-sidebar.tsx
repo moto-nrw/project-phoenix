@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   PortalSidebar,
   PortalSidebarLink,
@@ -9,11 +8,13 @@ import {
 import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
-import { isSchoolNavActive } from "./school-nav-active";
+import { isSchoolNavActive, isSchoolSettingsPath } from "./school-nav-active";
+import { SchoolSettingsSidebar } from "./school-settings-nav";
 import { schoolNavBadge } from "./school-nav-badge";
 import {
   SCHOOL_PRIMARY_NAV,
   SCHOOL_SECONDARY_NAV,
+  SCHOOL_SETTINGS_ENTRY,
   type SchoolNavItem,
 } from "./school-nav-items";
 
@@ -32,7 +33,12 @@ export function SchoolSidebar({
   /** Offene Tagesinformationen (#2208); ohne Wert steht keine Zahl. */
   readonly notices?: SchoolStaffNoticesPending;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
+
+  // In den Einstellungen wechselt der Inhalt derselben Leiste (#5750).
+  if (isSchoolSettingsPath(pathname)) {
+    return <SchoolSettingsSidebar />;
+  }
 
   const renderItem = (item: SchoolNavItem) => {
     // Der Team-Chat ist standardmäßig an (#3254), die Schule kann ihn
@@ -52,21 +58,23 @@ export function SchoolSidebar({
         newTab={item.newTab}
         data-school-nav-item={item.key}
         badge={
-          badge && (
-            <NotificationBadge
-              count={badge.count}
-              tone="staff"
-              ariaLabel={badge.ariaLabel}
-              className="ml-2"
-            />
-          )
+          badge && {
+            count: badge.count,
+            tone: "staff",
+            ariaLabel: badge.ariaLabel,
+          }
         }
       />
     );
   };
 
   return (
-    <PortalSidebar secondary={SCHOOL_SECONDARY_NAV.map(renderItem)}>
+    <PortalSidebar
+      secondaryLabel="Hilfe und Einstellungen"
+      secondary={[...SCHOOL_SECONDARY_NAV, SCHOOL_SETTINGS_ENTRY].map(
+        renderItem,
+      )}
+    >
       {SCHOOL_PRIMARY_NAV.map(renderItem)}
     </PortalSidebar>
   );

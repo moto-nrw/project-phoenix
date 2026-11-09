@@ -1,27 +1,14 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { IconTile } from "~/components/ui/icon-tile";
-
-/** The hint under a refused auth field, linked by `aria-describedby`. */
-export function AuthFieldError({
-  id,
-  message,
-}: {
-  readonly id: string;
-  readonly message: string | undefined;
-}) {
-  if (!message) return null;
-  return (
-    <p id={id} className="text-moto-red-strong mt-1 text-xs">
-      {message}
-    </p>
-  );
-}
+import { StatusBadge } from "~/components/ui/status-badge";
 
 type AuthShellVariant =
   "tenant" | "parents" | "tenant-select" | "reset" | "operator";
@@ -139,13 +126,16 @@ const parentTestimonialPanelCopy: AuthTestimonialPanelCopy = {
 };
 
 interface AuthShellProps {
-  readonly eyebrow: string;
+  /**
+   * Kopfzeile über dem Titel. Nur das Elternportal setzt sie (ADR 0149);
+   * alle anderen Portale tragen keinen Kicker (#5607).
+   */
+  readonly eyebrow?: string;
   readonly title: string;
   readonly subtitle: string;
   readonly children: ReactNode;
   readonly variant: AuthShellVariant;
   readonly brand?: ReactNode;
-  readonly eyebrowClassName?: string;
   readonly titleClassName?: string;
   readonly footer?: ReactNode;
   readonly formMaxWidth?: string;
@@ -175,21 +165,23 @@ export function AuthShellSkeleton() {
       aria-hidden="true"
     >
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-        <div className="moto-content-surface w-full max-w-[29rem] rounded-2xl border px-6 py-10 sm:p-8">
-          <Skeleton className="mx-auto h-10 w-28 rounded-lg" />
-          <Skeleton className="mx-auto mt-8 h-3 w-24" />
-          <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
-          <Skeleton className="mx-auto mt-3 h-4 w-72 max-w-full" />
-          <div className="mt-9 space-y-5">
-            {[0, 1].map((item) => (
-              <div key={item} className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-10 w-full rounded-lg" />
-              </div>
-            ))}
-            <Skeleton className="h-10 w-full rounded-lg" />
+        <SectionCard padding="none" className="w-full max-w-[29rem]">
+          <div className="px-6 py-10 sm:p-8">
+            <Skeleton shape="control" className="mx-auto h-10 w-28" />
+            <Skeleton className="mx-auto mt-8 h-3 w-24" />
+            <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
+            <Skeleton className="mx-auto mt-3 h-4 w-72 max-w-full" />
+            <div className="mt-9 space-y-5">
+              {[0, 1].map((item) => (
+                <div key={item} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton shape="control" className="h-10 w-full" />
+                </div>
+              ))}
+              <Skeleton shape="control" className="h-10 w-full" />
+            </div>
           </div>
-        </div>
+        </SectionCard>
       </section>
       <section className="hidden min-h-screen items-center justify-center bg-gray-900 p-12 lg:flex">
         <div className="w-full max-w-xl space-y-5">
@@ -245,7 +237,6 @@ export function AuthShell({
   children,
   variant,
   brand = null,
-  eyebrowClassName,
   titleClassName,
   footer,
   formMaxWidth = "max-w-[29rem]",
@@ -256,17 +247,14 @@ export function AuthShell({
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
       <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
         <div className={cn("w-full", formMaxWidth)}>
-          <div className="moto-content-surface rounded-2xl border px-6 py-10 sm:p-8">
+          <SectionCard overflow="visible">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
-              <p
-                className={cn(
-                  "text-moto-blue mb-3 text-xs font-semibold tracking-[0.16em] uppercase",
-                  eyebrowClassName,
-                )}
-              >
-                {eyebrow}
-              </p>
+              {eyebrow ? (
+                <SectionLabel as="p" className="mb-3">
+                  {eyebrow}
+                </SectionLabel>
+              ) : null}
               <h1
                 className={cn(
                   "text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl",
@@ -278,7 +266,7 @@ export function AuthShell({
               <p className="mt-3 text-sm leading-6 text-gray-600">{subtitle}</p>
             </div>
             {children}
-          </div>
+          </SectionCard>
           {showMotoAttribution ? <MotoAttribution /> : null}
           {footer && <div className="mt-5 text-center">{footer}</div>}
         </div>
@@ -417,6 +405,7 @@ function TestimonialCard({
   }[state];
 
   return (
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- dekorative 3D-Karte des Zitat-Wechslers: eigene Transparenz, Schatten und Drehung, keine Inhaltsfläche
     <article
       aria-hidden={state !== "active"}
       className={cn(
@@ -446,9 +435,7 @@ function TestimonialCard({
             tone="inverse"
             icon={<Quote aria-hidden="true" />}
           />
-          <span className="bg-moto-green-soft text-moto-green-strong rounded-full px-3 py-1 text-xs font-semibold">
-            {testimonial.metric}
-          </span>
+          <StatusBadge tone="green" label={testimonial.metric} />
         </div>
         <p className="text-xl leading-8 font-medium text-gray-950">
           "{testimonial.quote}"

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 
@@ -11,6 +12,7 @@ export function OrgSchoolFilter({
   selectedSchool,
   onOrgChange,
   onSchoolChange,
+  children,
 }: {
   readonly idPrefix: string;
   readonly organizations: Organization[] | undefined;
@@ -19,6 +21,8 @@ export function OrgSchoolFilter({
   readonly selectedSchool: School | null;
   readonly onOrgChange: (orgId: string) => void;
   readonly onSchoolChange: (schoolId: string) => void;
+  /** Ein weiteres Feld derselben Zeile (Status der RFID-Scans). */
+  readonly children?: ReactNode;
 }) {
   const orgOptions = [
     { value: "", label: "Alle Träger" },
@@ -36,39 +40,26 @@ export function OrgSchoolFilter({
   ];
 
   return (
-    <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="flex-1">
-        <label
-          id={`filter-${idPrefix}-org-label`}
-          htmlFor={`filter-${idPrefix}-org`}
-          className="mb-1 block text-xs font-medium text-gray-500"
-        >
-          Träger
-        </label>
         <CustomSelect
           id={`filter-${idPrefix}-org`}
-          ariaLabelledBy={`filter-${idPrefix}-org-label`}
+          label="Träger"
           value={filterOrgId}
           options={orgOptions}
           onChange={onOrgChange}
         />
       </div>
       <div className="flex-1">
-        <label
-          id={`filter-${idPrefix}-school-label`}
-          htmlFor={`filter-${idPrefix}-school`}
-          className="mb-1 block text-xs font-medium text-gray-500"
-        >
-          Schule
-        </label>
         <CustomSelect
           id={`filter-${idPrefix}-school`}
-          ariaLabelledBy={`filter-${idPrefix}-school-label`}
+          label="Schule"
           value={selectedSchool?.id ?? ""}
           options={schoolOptions}
           onChange={onSchoolChange}
         />
       </div>
+      {children}
     </div>
   );
 }

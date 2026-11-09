@@ -27,8 +27,9 @@ func studentRowRead(sql string) bool {
 // on the locked path, holds student-row locks for the subject and every linked
 // child while it reads each owner count twice (#3411). These budgets turn that
 // cost into numbers: Preview takes no lock and must not grow with companions;
-// Execute (deleteConfirmed -> lockedSnapshot) pays 2(K+1) student-row reads,
-// one lock round trip per locked read, and the doubled owner-count block. The
+// Execute (deleteConfirmed -> lockedSnapshot) pays 2K+1 student-row reads:
+// the graph locks the subject once and passes its record to the snapshot.
+// Companion plan reads and the doubled owner-count block remain fresh. The
 // scenario uses the owner composition of the production root; the Feedback
 // counter, the authorization and the verified-staff check are test doubles,
 // so their statements are not counted.
@@ -70,10 +71,10 @@ func TestStudentDeletionWorkflow_QueryBudget(t *testing.T) {
 	one := run(1)
 	four := run(4)
 	assert.Len(t, four.preview, len(one.preview), "the unlocked preview must not grow with linked children")
-	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_1", one.preview)
-	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_4", four.preview)
-	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1", one.execute)
-	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4", four.execute)
-	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1.student_rows", one.executeStudentRows)
-	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4.student_rows", four.executeStudentRows)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_1", counter.Measurement(one.preview))
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_4", counter.Measurement(four.preview))
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1", counter.Measurement(one.execute))
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4", counter.Measurement(four.execute))
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1.student_rows", counter.Measurement(one.executeStudentRows))
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4.student_rows", counter.Measurement(four.executeStudentRows))
 }

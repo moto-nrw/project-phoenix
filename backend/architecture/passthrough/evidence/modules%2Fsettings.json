@@ -37,6 +37,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) CareFacilityTerm(ctx context.Context) (string, error) {\n\treturn v.source.ResolveString(ctx, configModel.KeyEnrollmentCareFacilityTerm)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.CareFacilityTerm",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
       "evidence": "func (v EnrollmentIntakeValues) CareOfferingsEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/EnrollmentIntakeValues.CareOfferingsEnabled",
@@ -411,6 +418,13 @@
       "evidence": "func (v parentMessageRetentionValues) ParentMessageRetentionDays(ctx context.Context) (int, error) {\n\treturn v.source.ResolveInt(ctx, configModel.KeyGDPRParentMessageRetentionDays)\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/parentMessageRetentionValues.ParentMessageRetentionDays",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentMessagingValues) CareFacilityTerm(ctx context.Context) (string, error) {\n\treturn v.source.ResolveString(ctx, configModel.KeyEnrollmentCareFacilityTerm)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentMessagingValues.CareFacilityTerm",
       "owner": "modules/settings"
     },
     {

@@ -7,23 +7,29 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// scheduleWeekdays maps the form's weekday keys onto the ISO weekday numbers
-// of the weekly schedules.
-var scheduleWeekdays = map[string]int{
-	"mon": 1,
-	"tue": 2,
-	"wed": 3,
-	"thu": 4,
-	"fri": 5,
+// scheduleAuthor is the author of the weekly rows a dispatch writes: a staff
+// member resolved earlier, or else the staff membership of the reviewing
+// account.
+type scheduleAuthor struct {
+	staffID           int64
+	reviewerAccountID int64
+}
+
+func (d *Decisions) resolveScheduleAuthor(ctx context.Context, author scheduleAuthor) (int64, error) {
+	if author.staffID > 0 {
+		return author.staffID, nil
+	}
+	return d.resolveReviewerStaffID(ctx, author.reviewerAccountID)
 }
 
 // dispatchWeekdaySchedule inserts one pickup or arrival schedule row per
 // non-empty weekday entry. isPickup=true targets the pickup schedules,
 // false the arrival schedules; an unbound schedule port is a no-op.
-func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, reviewedBy int64, isPickup bool) error {
+func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, author scheduleAuthor, isPickup bool) error {
 	if (isPickup && d.deps.PickupSchedules == nil) || (!isPickup && d.deps.ArrivalSchedules == nil) {
 		return nil
 	}
@@ -34,7 +40,7 @@ func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studen
 	if err := sched.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", enrollment.ErrDecisionInvalidData, err)
 	}
-	createdBy, err := d.resolveReviewerStaffID(ctx, reviewedBy)
+	createdBy, err := d.resolveScheduleAuthor(ctx, author)
 	if err != nil {
 		return err
 	}
@@ -52,7 +58,7 @@ func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studen
 
 func (d *Decisions) writeWeekdaySchedule(ctx context.Context, studentID int64, day, hhmm string, createdBy int64, isPickup bool) error {
 	if !isPickup {
-		if err := d.deps.ArrivalSchedules.CreateArrivalSchedule(ctx, studentID, scheduleWeekdays[day], createdBy); err != nil {
+		if err := d.deps.ArrivalSchedules.CreateArrivalSchedule(ctx, studentID, offeringContract.DayNumber(day), createdBy); err != nil {
 			return fmt.Errorf("create arrival %s: %w", day, err)
 		}
 		return nil
@@ -61,7 +67,7 @@ func (d *Decisions) writeWeekdaySchedule(ctx context.Context, studentID int64, d
 	if err != nil {
 		return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 	}
-	if err := d.deps.PickupSchedules.UpsertPickupSchedule(ctx, studentID, scheduleWeekdays[day], calendar.NormalizeWallClock(t), createdBy); err != nil {
+	if err := d.deps.PickupSchedules.UpsertPickupSchedule(ctx, studentID, offeringContract.DayNumber(day), calendar.NormalizeWallClock(t), createdBy); err != nil {
 		return fmt.Errorf("upsert pickup %s: %w", day, err)
 	}
 	return nil

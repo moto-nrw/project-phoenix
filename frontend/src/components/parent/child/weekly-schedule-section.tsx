@@ -1,6 +1,7 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
+import { DataField, DataGrid } from "~/components/ui/data-field";
+import { useLocale } from "next-intl";
 import { useState } from "react";
 import { CareScheduleRequestModal } from "~/components/parent/care-schedule-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
@@ -17,6 +18,7 @@ import {
   type ChildCareSchedule,
 } from "~/lib/parent-api";
 import { calendarConcept } from "~/lib/concepts/calendar";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
@@ -37,8 +39,8 @@ interface ScheduleProps {
 }
 
 export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
-  const t = useTranslations("parentMasterData.careSchedule");
-  const tc = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
+  const tc = useCareTermTranslations("parentChild");
   const [requestOpen, setRequestOpen] = useState(false);
   const { schedule, studentId, childFirstName, careEnded } = props;
   const showAction =
@@ -114,7 +116,7 @@ function ScheduleDays({
 }>) {
   const days = new Map(schedule.weekdays.map((day) => [day.weekday, day]));
   return (
-    <dl
+    <ul
       data-parent-tour="child-care-times"
       className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5"
     >
@@ -126,7 +128,7 @@ function ScheduleDays({
           childFirstName={childFirstName}
         />
       ))}
-    </dl>
+    </ul>
   );
 }
 
@@ -139,7 +141,7 @@ function ScheduleDay({
   day?: ChildCareSchedule["weekdays"][number];
   childFirstName: string;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const scheduled = day?.status === "scheduled";
   const status = scheduled
     ? t("careSchedule.inCare", { firstName: childFirstName })
@@ -151,14 +153,14 @@ function ScheduleDay({
       ? day.modes.map((mode) => t(`departureModes.${mode}`)).join(", ")
       : t("careSchedule.notSet");
   return (
-    <div className="moto-content-surface rounded-xl border p-4">
-      <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
+    <li className="moto-content-surface rounded-xl border p-4">
+      <div className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
         <span>{t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`)}</span>
         <StatusBadge label={status} tone={scheduled ? "green" : "gray"} />
-      </dt>
-      <dd className="mt-4 space-y-4">
+      </div>
+      <div className="mt-4">
         {scheduled && (
-          <>
+          <DataGrid columns={1}>
             <CareFact
               label={t("careSchedule.pickup")}
               value={
@@ -173,10 +175,10 @@ function ScheduleDay({
               value={modes}
               emptyLabel={t("careSchedule.notSet")}
             />
-          </>
+          </DataGrid>
         )}
-      </dd>
-    </div>
+      </div>
+    </li>
   );
 }
 
@@ -187,7 +189,7 @@ function PendingRequestPanel({
   studentId: string;
   pending: PendingRequest;
 }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   const locale = useLocale();
   return (
     <ParentSubsection
@@ -200,11 +202,11 @@ function PendingRequestPanel({
         })}
       </p>
       {pending.diff.length > 0 && (
-        <dl className="space-y-2">
+        <DataGrid columns={1}>
           {pending.diff.map((entry, index) => (
             <CareScheduleDiff key={`${entry.label}-${index}`} entry={entry} />
           ))}
-        </dl>
+        </DataGrid>
       )}
       <p className="text-sm text-gray-500">{t("pendingNotice")}</p>
       <RequestSharingControl
@@ -218,7 +220,7 @@ function PendingRequestPanel({
 }
 
 function CareScheduleDiff({ entry }: Readonly<{ entry: RequestDiffEntry }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const day = entry.weekday ? DAY_KEYS[entry.weekday] : undefined;
   const kind =
     entry.care_kind === "pickup"
@@ -239,12 +241,9 @@ function CareScheduleDiff({ entry }: Readonly<{ entry: RequestDiffEntry }>) {
     ? t(`departureModes.${entry.new_mode}`)
     : entry.new;
   return (
-    <div className="text-sm">
-      <dt className="font-medium text-gray-900">{label}</dt>
-      <dd className="text-gray-600">
-        {oldValue} → {newValue}
-      </dd>
-    </div>
+    <DataField label={label}>
+      {oldValue} → {newValue}
+    </DataField>
   );
 }
 
@@ -257,12 +256,5 @@ function CareFact({
   value?: string;
   emptyLabel: string;
 }>) {
-  return (
-    <div>
-      <span className="block text-sm text-gray-500">{label}</span>
-      <span className="block text-sm font-medium text-gray-900">
-        {value || emptyLabel}
-      </span>
-    </div>
-  );
+  return <DataField label={label}>{value || emptyLabel}</DataField>;
 }

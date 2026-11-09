@@ -36,7 +36,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
@@ -81,6 +81,8 @@ import {
   type SlotListTarget,
 } from "~/lib/slot-lists-api";
 import { IconTile } from "~/components/ui/icon-tile";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 const logger = createLogger({ component: "SlotListsPage" });
 
@@ -259,12 +261,12 @@ function statusColor(row: SlotListRow, source: SlotListSource): string {
   return LOCATION_COLORS.OTHER_ROOM;
 }
 
-// CounterChips surfaces result.counters so users can verify the summary the
+// CounterLegend surfaces result.counters so users can verify the summary the
 // help guide points them to (geplant / anwesend / fehlt / abgemeldet /
 // ungeplant) without counting table rows. The backend zeroes the counters
 // that are meaningless for the source (plan and Ist carry only their own
 // number; the merge counters exist only in the Abgleich).
-function CounterChips({
+function CounterLegend({
   counters,
   source,
 }: Readonly<{
@@ -316,41 +318,29 @@ function CounterChips({
             },
           ];
   return (
-    <div className="flex flex-wrap items-center gap-2" aria-label="Zähler">
-      {chips.map((chip) => (
-        <span
-          key={chip.label}
-          className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600"
-        >
-          <span
-            aria-hidden
-            className="inline-block h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: chip.color }}
-          />
-          {chip.label}
-          <span className="font-semibold text-gray-900 tabular-nums">
-            {chip.value}
-          </span>
-        </span>
-      ))}
-    </div>
+    <PlanLegend
+      size="md"
+      aria-label="Zähler"
+      entries={chips.map((chip) => ({
+        key: chip.label,
+        label: chip.label,
+        value: chip.value,
+        color: chip.color,
+        variant: "dot" as const,
+      }))}
+    />
   );
 }
 
-function StatusBadge({
+function SlotRowStatusBadge({
   row,
   source,
 }: Readonly<{ row: SlotListRow; source: SlotListSource }>) {
-  const color = statusColor(row, source);
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      <span style={{ color }}>{row.status_label}</span>
-    </span>
+    <StatusColorBadge
+      label={row.status_label}
+      color={statusColor(row, source)}
+    />
   );
 }
 
@@ -2060,7 +2050,7 @@ export default function SlotListsPage() {
     cols.push({
       key: "status",
       header: "Status",
-      render: (r) => <StatusBadge row={r} source={source} />,
+      render: (r) => <SlotRowStatusBadge row={r} source={source} />,
       sortValue: (r) => r.status_label,
     });
     return cols;
@@ -2070,7 +2060,7 @@ export default function SlotListsPage() {
   // wie in Dienstplan und Betreuungsplan. Gesperrt, solange keine Liste
   // geladen ist — es gäbe nichts mitzunehmen.
   const exportBlocked = isExporting || isLoading || !result;
-  const exportMenuItems: OverflowMenuEntry[] = [
+  const exportActions: OverflowMenuEntry[] = [
     { kind: "header", label: "Drucken oder exportieren" },
     {
       label: isExporting ? "Erstelle PDF…" : "Drucken",
@@ -2162,7 +2152,7 @@ export default function SlotListsPage() {
       // Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
       // Kopfkarte, nicht als Knopfreihe in einer Inhaltskarte.
       actions={
-        <OverflowMenu items={exportMenuItems} ariaLabel="Weitere Aktionen" />
+        <OverflowMenu items={exportActions} ariaLabel="Weitere Aktionen" />
       }
       // Bauart 3, Regel 1: die Tageswahl sitzt im Bedienband der Kopfkarte,
       // an derselben Stelle wie die Zeitnavigation der Planungsflächen.
@@ -2435,7 +2425,7 @@ export default function SlotListsPage() {
             ) : null}
           </div>
           {result && !isLoading ? (
-            <CounterChips counters={result.counters} source={source} />
+            <CounterLegend counters={result.counters} source={source} />
           ) : null}
         </div>
 

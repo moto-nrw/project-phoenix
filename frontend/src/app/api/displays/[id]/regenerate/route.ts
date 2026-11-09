@@ -12,6 +12,9 @@ export const POST = createPostHandler<RegenerateResponse, undefined>(
     if (typeof id !== "string" || !/^\d+$/.test(id)) {
       throw new Error("invalid display id");
     }
-    return apiPost<RegenerateResponse>(`/api/display/${id}/regenerate`, token);
+    return apiPost<RegenerateResponse>(
+      `/api/display/${encodeURIComponent(id)}/regenerate`,
+      token,
+    );
   },
 );

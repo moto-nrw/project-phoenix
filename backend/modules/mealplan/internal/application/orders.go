@@ -30,6 +30,7 @@ type changeAuthor struct {
 // dayRegistration is a day's candidates and their registration, with the
 // absence changes up to the instant it was read at.
 type dayRegistration struct {
+	roster     []domain.DailyCandidate // prepared by the date-set read, before participation
 	candidates []domain.DailyCandidate
 	states     map[int64]domain.DailyParticipation
 	until      time.Time
@@ -51,13 +52,13 @@ func (s *Service) childrenOn(ctx context.Context, rules domain.OrderingRules, da
 	}
 	registration, known := seen[date]
 	var stats domain.OperationStats
-	if !known || registration.until.Before(cutoff) {
+	if !known || registration.candidates == nil || registration.until.Before(cutoff) {
 		until := cutoff
 		if seen != nil && rules.AbsenceCutoff(date).After(until) {
 			until = rules.AbsenceCutoff(date)
 		}
 		var err error
-		registration, stats, err = s.registrationOn(ctx, date, until)
+		registration, stats, err = s.registrationOn(ctx, date, until, seen)
 		if err != nil {
 			return result, stats, err
 		}
@@ -78,8 +79,8 @@ func (s *Service) childrenOn(ctx context.Context, rules domain.OrderingRules, da
 
 // registrationOn reads the day's candidates and their registration with the
 // absence changes up to until.
-func (s *Service) registrationOn(ctx context.Context, date domain.Date, until time.Time) (dayRegistration, domain.OperationStats, error) {
-	candidates, stats, err := s.directory.FindDailyCandidates(ctx, date)
+func (s *Service) registrationOn(ctx context.Context, date domain.Date, until time.Time, seen registrations) (dayRegistration, domain.OperationStats, error) {
+	candidates, stats, err := s.orderCandidates(ctx, date, seen)
 	if err != nil {
 		return dayRegistration{}, stats, err
 	}
@@ -87,7 +88,7 @@ func (s *Service) registrationOn(ctx context.Context, date domain.Date, until ti
 	for _, candidate := range candidates {
 		ids = append(ids, candidate.StudentID)
 	}
-	states, participationStats, err := s.store.FindDailyParticipation(ctx, ids, date, until)
+	states, participationStats, err := s.orderParticipation(ctx, ids, date, until, seen)
 	return dayRegistration{candidates: candidates, states: states, until: until}, addStats(stats, participationStats), err
 }
 
@@ -119,9 +120,11 @@ func (s *Service) dueOrders(ctx context.Context, rules domain.OrderingRules, sta
 }
 
 // fixDueOrders stores the due orders of [from, to]. The caller holds the
-// order lock.
+// order lock, so the due days' children and registrations are read after it,
+// together for all due days (#5839); each day still counts only the absences
+// reported by its order's deadline.
 func (s *Service) fixDueOrders(ctx context.Context, rules domain.OrderingRules, state domain.OrderState, days domain.CalendarDays, from, to domain.Date, now time.Time) (int, domain.OperationStats, error) {
-	due, stats, err := s.dueOrders(ctx, rules, state, days, from, to, now, nil)
+	due, stats, err := s.dueOrders(ctx, rules, state, days, from, to, now, dueRegistrations(rules, state, days, from, to, now))
 	if err != nil {
 		return 0, stats, err
 	}
@@ -133,6 +136,28 @@ func (s *Service) fixDueOrders(ctx context.Context, rules domain.OrderingRules, 
 		}
 	}
 	return len(due), stats, nil
+}
+
+// dueRegistrations prepares the date-set read of the open days of every
+// order dueOrders will lay out: no other day is read, and a closed day is
+// not read at all. Each day is read up to its absence cutoff, never before
+// its order's deadline.
+func dueRegistrations(rules domain.OrderingRules, state domain.OrderState, days domain.CalendarDays, from, to domain.Date, now time.Time) registrations {
+	seen := registrations{}
+	today := domain.DateFromInstant(now)
+	for start := from; !start.After(to); {
+		periodStart, periodEnd := domain.OrderPeriod(rules.Rhythm, start)
+		open, deadline := openDays(rules, state, periodStart, periodEnd, today)
+		if len(open) > 0 && !now.Before(deadline) {
+			for _, date := range open {
+				if !days.Closed[date] {
+					seen[date] = dayRegistration{until: rules.AbsenceCutoff(date)}
+				}
+			}
+		}
+		start = nextPeriod(rules.Rhythm, periodStart, periodEnd)
+	}
+	return seen
 }
 
 // nextPeriod is the first day after a period: the next day, or the next

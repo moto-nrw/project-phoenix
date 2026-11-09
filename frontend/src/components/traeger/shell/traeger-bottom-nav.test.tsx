@@ -80,7 +80,7 @@ describe("TraegerBottomNav", () => {
       bar()
         .getAllByRole("link")
         .map((link) => link.getAttribute("aria-label")),
-    ).toEqual(["Dashboard", "Schulen", "Ferienbetreuung", "Abrechnung"]);
+    ).toEqual(["Dashboard", "Schulen", "Stichtagszahlen", "Belegung"]);
     expect(bar().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/uebersicht",
@@ -88,6 +88,10 @@ describe("TraegerBottomNav", () => {
 
     fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
     const drawer = within(await screen.findByRole("dialog"));
+    expect(drawer.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
+      "href",
+      "/abrechnung",
+    );
     expect(drawer.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
       "/help?role=traeger",

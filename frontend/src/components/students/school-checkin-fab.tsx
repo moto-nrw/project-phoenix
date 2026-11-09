@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, CheckSquare, Loader2 } from "lucide-react";
-import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { Check, CheckSquare } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useFloatingFabOffset } from "~/lib/hooks/use-floating-fab-offset";
+import { Button } from "~/components/ui/button";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 interface SchoolCheckinFabBaseProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -48,10 +49,11 @@ type SchoolCheckinFabProps = SchoolCheckinFabBaseProps &
  *   primaryAction slot. Default at ≥1024px so desktop reads as a native
  *   page-level action instead of a mobile-style floating button.
  *
- * OFF state uses a subtle ghost style (white surface, brand-green border +
- * text) so it doesn't dominate the page. ON state flips to solid brand-green
- * to give an unambiguous "mode is active" cue. Icon morphs in place via
- * framer-motion + AnimatePresence.
+ * Kit button (#5608): OFF is `surface` (opaque white) so it doesn't dominate
+ * the page and stays readable while floating over cards (`surface_success`
+ * is translucent); ON is `success` (solid green) to give an unambiguous
+ * "mode is active" cue. Icon morphs in place via framer-motion +
+ * AnimatePresence.
  */
 export function SchoolCheckinFab({
   isActive,
@@ -91,43 +93,6 @@ export function SchoolCheckinFab({
         "fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40"
       : "relative z-0";
 
-  // OFF = subtle ghost (white pill, brand-green border + text). Reads as
-  // available-but-not-dominating. ON = solid brand-green so the active state
-  // is unmistakable.
-  const surfaceStyle: React.CSSProperties = isActive
-    ? {
-        // Füllton, nicht base: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
-        backgroundColor: GROUP_ROOM_SHADES.fill,
-        color: "var(--color-white)",
-        boxShadow:
-          resolved === "floating"
-            ? `0 12px 28px ${GROUP_ROOM_SHADES.fill}66, 0 4px 10px rgb(0 0 0 / 0.10)`
-            : `0 1px 3px rgb(0 0 0 / 0.08)`,
-      }
-    : {
-        backgroundColor: "var(--color-white)",
-        color: GROUP_ROOM_SHADES.text,
-        boxShadow:
-          resolved === "floating"
-            ? // Layered: a soft brand-tinted glow + a faint black drop for
-              // depth. Subtle enough that the white pill doesn't shout.
-              `inset 0 0 0 1.5px ${GROUP_ROOM_SHADES.base}, 0 8px 24px ${GROUP_ROOM_SHADES.base}33, 0 2px 6px rgb(0 0 0 / 0.06)`
-            : `inset 0 0 0 1.5px ${GROUP_ROOM_SHADES.base}, 0 1px 2px rgb(0 0 0 / 0.04)`,
-      };
-
-  const sizeClasses =
-    resolved === "floating" ? "h-14 px-5 text-base" : "h-10 px-4 text-sm";
-
-  const iconBubbleStyle: React.CSSProperties = isActive
-    ? { backgroundColor: "rgb(255 255 255 / 0.20)" }
-    : { backgroundColor: `${GROUP_ROOM_SHADES.base}1a` };
-
-  const buttonStyle: React.CSSProperties = {
-    ...surfaceStyle,
-    // @ts-expect-error CSS custom property for focus ring colour
-    "--tw-ring-color": `${GROUP_ROOM_SHADES.base}80`,
-  };
-
   const animationProps = reduceMotion
     ? {}
     : {
@@ -139,7 +104,7 @@ export function SchoolCheckinFab({
 
   return (
     <div className={positionClasses}>
-      <button
+      <Button
         type="button"
         onClick={onToggle}
         disabled={disabled}
@@ -147,35 +112,21 @@ export function SchoolCheckinFab({
         aria-label={label}
         data-checkin-fab-variant={resolved}
         data-checkin-fab-active={isActive || undefined}
-        className={`group relative inline-flex items-center gap-2.5 rounded-full font-semibold transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${sizeClasses}`}
-        style={buttonStyle}
+        variant={isActive ? "success" : "surface"}
+        size={resolved === "floating" ? "base" : "md"}
+        className="relative gap-2"
       >
-        <span
-          className={`flex flex-shrink-0 items-center justify-center rounded-full ${
-            resolved === "floating" ? "size-6" : "size-5"
-          }`}
-          style={iconBubbleStyle}
-        >
-          <AnimatePresence mode="wait" initial={false}>
-            {isActive ? (
-              <motion.span key="check" {...animationProps} className="flex">
-                <Check
-                  className={resolved === "floating" ? "size-4" : "size-3.5"}
-                  strokeWidth={3}
-                  aria-hidden
-                />
-              </motion.span>
-            ) : (
-              <motion.span key="checkbox" {...animationProps} className="flex">
-                <CheckSquare
-                  className={resolved === "floating" ? "size-4" : "size-3.5"}
-                  strokeWidth={2.5}
-                  aria-hidden
-                />
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </span>
+        <AnimatePresence mode="wait" initial={false}>
+          {isActive ? (
+            <motion.span key="check" {...animationProps} className="flex">
+              <Check className="size-4" strokeWidth={3} aria-hidden />
+            </motion.span>
+          ) : (
+            <motion.span key="checkbox" {...animationProps} className="flex">
+              <CheckSquare className="size-4" strokeWidth={2.5} aria-hidden />
+            </motion.span>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence mode="wait" initial={false}>
           {isActive ? (
@@ -196,14 +147,13 @@ export function SchoolCheckinFab({
 
         {pendingCount > 0 ? (
           <span
-            className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-bold tabular-nums shadow-sm"
-            style={{ color: GROUP_ROOM_SHADES.text }}
+            className="text-moto-green-strong absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-white shadow-sm"
             aria-label={`${pendingCount} Aktionen laufen`}
           >
-            <Loader2 className="size-3 animate-spin" aria-hidden />
+            <SpinnerIcon className="size-3" />
           </span>
         ) : null}
-      </button>
+      </Button>
     </div>
   );
 }

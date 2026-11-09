@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_notice_runs",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-notice-runs (#6219):\nthe Träger binding of the Träger transaction, then the notice runs of\nthe Träger. Flat in the number of runs.",
+  "route": "GET /traeger/care-notice-runs/"
+}

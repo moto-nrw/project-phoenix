@@ -40,6 +40,12 @@ func (r *Retention) DeleteExpiredDeliveries(ctx context.Context) (int, int, erro
 	}
 	before := r.now().Add(-domain.RetentionWindow)
 	var result domain.RetentionResult
+	if result.DeliveryEvents, err = r.store.DeleteExpiredEmailDeliveryEvents(ctx, tenantID, before); err != nil {
+		return 0, 0, err
+	}
+	if result.Suppressions, err = r.store.DeleteUnheldEmailSuppressions(ctx, tenantID); err != nil {
+		return 0, 0, err
+	}
 	if result.DeliveryLogs, err = r.store.DeleteExpiredEmailDeliveryLogs(ctx, tenantID, before); err != nil {
 		return 0, 0, err
 	}

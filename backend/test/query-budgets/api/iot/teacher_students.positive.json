@@ -1,0 +1,7 @@
+{
+  "scenario": "api.iot.teacher_students.positive",
+  "max": 9,
+  "exact": true,
+  "description": "Positive teacher-filtered kiosk roster at3/8 teachers, including full tenant transaction and isolated holiday-guest school hints added upstream. User-authorized upstream rebaseline6→9 on2026-11-06; own optimizations remain shrink-only.",
+  "route": "GET /api/iot/students"
+}

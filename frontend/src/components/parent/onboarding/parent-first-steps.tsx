@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ProgressBar } from "~/components/ui/progress-bar";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   buildHelpHref,
   HELP_TOPICS,
@@ -61,7 +61,7 @@ export function ParentFirstSteps({
   childCount: number;
   newsEnabled: boolean;
 }>) {
-  const t = useTranslations("parentFirstSteps");
+  const t = useCareTermTranslations("parentFirstSteps");
   const pathname = usePathname();
   const [state, setState] = useState<ParentFirstStepsState | null>(null);
   const [view, setView] = useState<View>("beacon");
@@ -313,7 +313,7 @@ export function ParentFirstSteps({
           size="md"
           onClick={() => setView("checklist")}
           aria-label={t("open", { count: steps.length - finished })}
-          className="gap-2 rounded-full py-2.5 pr-3 pl-4 shadow-lg hover:shadow-xl"
+          className="gap-2"
         >
           <span>{t("shortTitle")}</span>
           <span
@@ -337,6 +337,7 @@ export function ParentFirstSteps({
     <>
       <section
         aria-label={t("title")}
+        // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- feste Leiste am Bildschirmrand, an keinem Auslöser verankert
         className="moto-popover-surface fixed right-2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-2 z-40 flex max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-xl border sm:right-4 sm:left-4 lg:right-6 lg:bottom-6 lg:left-auto lg:w-96"
       >
         <header className="flex flex-col gap-2 border-b border-gray-100 p-4">

@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const INITIAL_TODO_COUNT = 5;
 
@@ -40,7 +41,7 @@ export interface TodoItem {
 }
 
 export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
   const [expanded, setExpanded] = useState(false);
 
   if (items.length === 0) {
@@ -82,8 +83,11 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
             {t("todo.description")}
           </p>
         </div>
-        <span className="bg-moto-blue/10 text-moto-blue-strong inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap tabular-nums">
-          {t("todo.openCount", { count: items.length })}
+        <span className="shrink-0">
+          <StatusBadge
+            tone="blue"
+            label={t("todo.openCount", { count: items.length })}
+          />
         </span>
       </div>
       <ul id="parent-todo-items" className="mt-4 divide-y divide-gray-100">
@@ -124,7 +128,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
 
 /** Eine Zeile, mindestens 64 px hoch und auf ganzer Breite anklickbar. */
 function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
   const inner = (
     <>
       <span className="relative flex size-7 shrink-0 items-center justify-center">

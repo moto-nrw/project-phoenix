@@ -38,6 +38,12 @@ the developer's filesystem or change that workflow.
 Optional SMTP authentication, analytics, Sentry and VAPID values use
 `${KEY?KEY is required}`: a deliberate empty value remains valid, but an
 absent key is an error. Existing application validation checks dependent values.
+
+The mail provider group (`EMAIL_PROVIDER`, `EMAIL_FROM_SECURITY_ADDRESS`,
+`EMAIL_FROM_NOTICES_ADDRESS`, `EMAIL_WEBHOOK_SECRETS`, `LETTERMINT_*`,
+`EMAIL_FALLBACK_*`, #5933) uses `${KEY-}` until #5935: an environment deploys
+without these keys and keeps plain SMTP. `EMAIL_PROVIDER=lettermint` makes the
+backend refuse to start while one of them is empty.
 There are no invented configuration defaults.
 
 `DB_DEBUG`, `MAILPIT_URL`, `SKIP_ENV_VALIDATION`, and bootstrap account

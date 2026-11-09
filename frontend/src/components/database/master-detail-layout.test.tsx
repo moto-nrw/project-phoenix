@@ -91,7 +91,7 @@ class MockResizeObserver {
 vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { ModalProvider, useModal } from "../dashboard/modal-context";
+import { ModalProvider, useModal } from "~/components/ui/modal-context";
 import { MasterDetailLayout } from "./master-detail-layout";
 
 function ModalSwitch({ open }: { open: boolean }) {
@@ -164,8 +164,14 @@ describe("MasterDetailLayout", () => {
           listWidth={500}
         />,
       );
-      const listPane = container.querySelector('[style*="width: 500px"]');
-      expect(listPane).toBeInTheDocument();
+      const root = container.firstElementChild;
+      expect(root).toHaveStyle({ "--master-detail-list-width": "500px" });
+
+      const listPane = screen.getByText("List").closest("section");
+      expect(listPane).toHaveClass(
+        "w-(--master-detail-list-width)",
+        "shrink-0",
+      );
     });
 
     it("applies className to root", () => {

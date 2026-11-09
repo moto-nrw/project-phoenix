@@ -1,3 +1,4 @@
+import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -5,14 +6,12 @@ import { useMemo, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { getSchoolYear } from "~/lib/student-helpers";
 
-import {
-  timetableMutedSurface,
-  timetableNestedSurface,
-} from "../timetable-style";
 import type { PersonOption } from "./form-model";
 import { foldForSearch } from "~/lib/search-fold";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const EMPTY_PROTECTED_VALUES: readonly string[] = [];
 
@@ -142,12 +141,10 @@ export function MultiSelectField({
   ).length;
 
   return (
-    <div className={`${timetableMutedSurface} flex flex-col gap-2 p-3`}>
+    <InsetPanel framed className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
-        <span className="text-[11px] text-gray-500">
-          {value.length} ausgewählt
-        </span>
+        <span className="text-xs text-gray-500">{value.length} ausgewählt</span>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
@@ -267,15 +264,19 @@ export function MultiSelectField({
         )}
       </div>
 
-      <div className={`${timetableNestedSurface} max-h-72 overflow-y-auto p-2`}>
+      <InsetPanel tone="white" className="max-h-72 overflow-y-auto">
         {options.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-gray-500">
-            Keine Einträge gefunden
-          </div>
+          <EmptyState
+            variant="compact"
+            title="Keine Einträge gefunden"
+            className="px-2"
+          />
         ) : filteredOptions.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-gray-500">
-            Keine passenden Einträge gefunden
-          </div>
+          <EmptyState
+            variant="compact"
+            title="Keine passenden Einträge gefunden"
+            className="px-2"
+          />
         ) : (
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredOptions.map((option) => {
@@ -298,13 +299,15 @@ export function MultiSelectField({
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate">{option.name}</span>
                       {isProtected && (
-                        <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
-                          aus Anmeldung
-                        </span>
+                        <StatusBadge
+                          label="aus Anmeldung"
+                          tone="gray"
+                          size="xs"
+                        />
                       )}
                     </span>
                     {(option.schoolClass || option.groupName) && (
-                      <span className="block truncate text-[11px] text-gray-400">
+                      <span className="block truncate text-xs text-gray-400">
                         {[option.schoolClass, option.groupName]
                           .filter(Boolean)
                           .join(" · ")}
@@ -316,7 +319,7 @@ export function MultiSelectField({
             })}
           </div>
         )}
-      </div>
-    </div>
+      </InsetPanel>
+    </InsetPanel>
   );
 }

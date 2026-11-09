@@ -287,7 +287,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Kalender und Speiseplan',
-    pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan'], parents: ['/calendar', '/meal-plan'], school: ['/kalender', '/elternsprechtag'] },
+    pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan', '/meal-plan/freigabe'], parents: ['/calendar', '/meal-plan'], school: ['/kalender', '/elternsprechtag'] },
   },
   {
     name: 'Personal und Dienstplan',
@@ -306,7 +306,7 @@ export const FEATURES = Object.freeze([
   },
   { name: 'Stammdaten und Export', pages: { ogs: ['/database/**', '/eltern/bankverbindungen'] }, events: ['data_exported'] },
   { name: 'Einstellungen', pages: { ogs: ['/settings', '/profile'], parents: ['/settings'], school: ['/einstellungen'] }, events: ['settings_changed'] },
-  { name: 'Weitere Werkzeuge', pages: { ogs: ['/lists', '/reminders', '/emergency', '/info-displays', '/dateien', '/statistics'], parents: ['/documents'] } },
+  { name: 'Weitere Werkzeuge', pages: { ogs: ['/lists', '/reminders', '/emergency', '/info-displays', '/dateien', '/statistics'], parents: ['/documents', '/documents/**', '/vertrag-unterschreiben/**'] } },
 ]);
 
 /** Login, invitation, and demo entry pages: getting in, not using a feature. */

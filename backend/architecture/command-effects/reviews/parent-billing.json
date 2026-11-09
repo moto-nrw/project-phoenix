@@ -71,6 +71,66 @@
       "target_owner": "document-rendering"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayHealthCipher.Open. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayHealthCipher.Seal. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingDocumentTemplates.DocumentTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the Träger's template of the kind of document a billing run issues (invoice, fee notice or confirmation letter), or its standard template, read in the Träger transaction under the Träger policy of platform.traeger_document_templates; the template names no person. The release reads the legal remedy of the fee notice, the letters its text (#4688).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.DocumentTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingDocumentTemplates.DocumentTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the Träger's template of the kind of document a billing run issues (invoice, fee notice or confirmation letter), or its standard template, read in the Träger transaction under the Träger policy of platform.traeger_document_templates; the template names no person. The release reads the legal remedy of the fee notice, the letters its text (#4688).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueDocumentNotice",
       "classification": "platform",
@@ -93,11 +153,31 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailBlocks",
+      "reason": "In-memory limit of the provider's block read (#5957): counts reads and waiting time, shared across one request where the caller asks for it. The read it wraps is the reviewed ProviderEmailBlocks entry. No persistent, lock or scope effect.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/contract.ProviderBlockBudget.Attempt",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailBlocks",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailStates",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailStates",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: the state of the mails of a billing run of the session's Träger, read in its Träger transaction under the Träger policy of platform.email_outbox (ADR 0110, ADR 0123).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: the state of the mails of a billing run of the session's Träger, read in its Träger transaction under the Träger policy of platform.email_outbox (ADR 0110, ADR 0123). Since #5934 it also passes on what became of the mail, read in the same statement.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
       "target_owner": "delivery-platform"
@@ -111,6 +191,16 @@
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.DocumentTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the Träger's template of the kind of document a billing run issues (invoice, fee notice or confirmation letter), or its standard template, read in the Träger transaction under the Träger policy of platform.traeger_document_templates; the template names no person. The release reads the legal remedy of the fee notice, the letters its text (#4688).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
@@ -151,6 +241,158 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: Organisation \u0026 Tenancy reads the contact person and the bank accounts of the session's Träger and appends the read to platform.traeger_master_data_audit (ADR 0112 point 6) in the caller's Träger transaction before the Elternabrechnung renders the confirmation letters; the route rolls back on any later refusal, including a payment text that names a missing debtor number (ADR 0121, #5622). The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152). Reviewed again for #5691: the binding also copies the layout of the table of amounts from the template version it read; no read or write changes.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareAmendable",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.CareAmendable",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: which changes of a single invoice the review of a monthly run allows for the session's Träger (its values of parent_billing.care_review_amount, _recipient, _address and _positions or the registry defaults), read in its Träger transaction for the review and every change of an invoice (#6197).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareMonthRule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.CareMonthRule",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the month rule of the session's Träger (its value of parent_billing.care_month_change or the registry default), read in its Träger transaction for the preview and the release of a monthly run (#4684).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.Recipients",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.BillingRecipients: the party each monthly invoice of the given contracts of the session's Träger goes to, read in its Träger transaction; the monthly run copies it and records the read in its own trail (#4684).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.VersionsInForce",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.VersionsInForce",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.VersionsInForce: the effective versions of the Träger's active and ended contracts in force within the billed month, one per contract and day, with the child record and date of birth that tell two contracts of one child apart, read in the caller's Träger transaction (#4681, #4684).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.VersionsInForce",
+      "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.CareLetterMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareLetterPost.CareLetterMailStates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: the state of the mails of a monthly run of the session's Träger, read in its Träger transaction under the Träger policy of platform.email_outbox (ADR 0110, ADR 0123, ADR 0165).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueCareLetterMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareLetterPost.EnqueueCareLetterMail",
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.parentBillingLetterPost.EnqueueCareLetterMail. The mail of the letter of a monthly invoice or its Storno is a mail of the Träger with the stored PDF in its payload, enqueued in the caller's Träger transaction with the record of the send in parent_billing.care_letter_mailings (ADR 0110, ADR 0123, ADR 0165); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: read the retention days from the resolved settings snapshot of a school; no database access, write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: resolve the attendance retention of the Träger's Mensa schools in one administrative read of its own (tenant.ContextWithoutTransaction): the Träger transaction of the monthly run hides school settings by row security and shares nothing with it (ADR 0105); no write, lock or change of the run's scope.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: Student Presence's first complete attendance day of the school under its retention window, counting what the retention already deleted (active.attendance_retention_marks, #4686, ADR 0168); read in the caller's school transaction so a Mensa month whose attendance may be gone is not counted; no write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: how far Student Presence's retention deleted the school's attendance (active.attendance_retention_marks, #4686), read in the caller's school transaction to keep a Mensa month whose attendance may be gone from being counted; no write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Platform protocol participation (scope): parent-billing reaches tenant.WithinTenant (tenant-runtime) through api.parentBillingCareMeals.MealAttendanceFrom, which reads how far the retention deleted each Mensa school's attendance in a school transaction of its own (tenant.ContextWithoutTransaction); it shares nothing with the Träger transaction of the run (ADR 0105). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
+      "reason": "Reviewed read: the released Mensa months of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
+      "target_owner": "meal-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization: lists the schools of the Träger the price list names and checks a price list against (#4684).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization: lists the schools of the Träger the price list names and checks a price list against (#4684).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted: skips a deleted school.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
     },
     {
@@ -310,6 +552,16 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
       "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application.CareLetterRecipients.Recipients",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.BillingRecipients: the party each monthly invoice of the given contracts of the session's Träger goes to now, read in its Träger transaction before a letter is sent, so a letter only goes to the address that is still the contract's billing party (#4684, ADR 0165).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
     }
   ]
 }

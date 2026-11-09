@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_time_overruns",
+  "max": 27,
+  "exact": true,
+  "description": "modules/carecontract — GET /traeger/care-time-overruns (#4683, ADR 0156): the schools of the Träger, then per school its own tenant unit with the Soll und Ist overrun list (roster, settings, calendar, care plan, contract Soll, attendance, status days) in batches. Settings come in one prefetch per school. Measured with two schools; one school costs the same block again, independent of the number of children. TestCareTimeOverrunsQueryBudget compares one with four children.",
+  "route": "GET /traeger/care-time-overruns/"
+}

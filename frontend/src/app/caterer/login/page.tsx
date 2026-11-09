@@ -9,19 +9,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import {
-  AuthFieldError,
-  AuthShell,
-  MotoBrand,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoBrand } from "~/components/auth/auth-shell";
 import {
   credentialError,
   LOGIN_REFUSALS,
   PASSKEY_LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -42,14 +38,13 @@ import {
   isPasskeySupported,
   loginWithPasskey,
 } from "~/lib/passkey-api";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "CatererLoginPage" });
 
 // Wie die anderen Anmeldungen: der Portalname klein darüber, die Begrüßung
 // als Titel.
 const SHELL_COPY = {
-  eyebrow: "Caterer-Portal",
-  eyebrowClassName: "text-moto-blue",
   title: "Willkommen im Caterer-Portal",
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;
@@ -78,7 +73,6 @@ interface MFAStep {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -242,10 +236,7 @@ function LoginForm() {
             onCancel={backToCredentials}
           />
         ) : isCheckingAuth ? (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Anmeldung wird geprüft …</p>
-          </div>
+          <Loading message="Anmeldung wird geprüft …" />
         ) : (
           <form
             ref={formRef}
@@ -290,29 +281,23 @@ function LoginForm() {
                 >
                   Passwort
                 </FieldLabel>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    controlSize="compact"
-                    autoComplete="current-password"
-                    required
-                    disabled={isSubmitting}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    aria-invalid={Boolean(passwordError)}
-                    aria-describedby={
-                      passwordError ? "password-error" : undefined
-                    }
-                    className="pr-10"
-                  />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
-                </div>
-                <AuthFieldError id="password-error" message={passwordError} />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  controlSize="compact"
+                  autoComplete="current-password"
+                  required
+                  disabled={isSubmitting}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={Boolean(passwordError)}
+                  aria-describedby={
+                    passwordError ? "password-error" : undefined
+                  }
+                  revealable
+                />
+                <FieldErrorHint id="password-error" message={passwordError} />
               </div>
 
               <div className="text-center">
@@ -374,10 +359,7 @@ export default function CatererLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Wird geladen …</p>
-          </div>
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

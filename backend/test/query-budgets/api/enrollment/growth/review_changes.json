@@ -1,0 +1,7 @@
+{
+  "scenario": "api.enrollment.growth.review_changes",
+  "max": 7,
+  "exact": true,
+  "description": "Positive mounted HTTP route, full SQL including tenant transaction. N3/N8 rows or schema fields. Admin changes retains existing linear growth; N8 baseline, not a constant bound.",
+  "route": "GET /api/enrollment/admin/change-requests/list"
+}

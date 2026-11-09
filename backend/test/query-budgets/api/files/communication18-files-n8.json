@@ -1,0 +1,7 @@
+{
+  "scenario": "api.files.files.communication18.n8",
+  "max": 8,
+  "exact": true,
+  "description": "Literal protected /api/files files route, positive N8 fixtures and full ordered DTO assertions. Complete real owner transaction graph. Measured fixture contract, not global minimum.",
+  "route": "GET /api/files/folders/{folderId}/files"
+}

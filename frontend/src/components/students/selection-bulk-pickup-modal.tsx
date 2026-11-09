@@ -2,6 +2,7 @@
 
 import { wireErrorCode } from "~/lib/api-error";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -14,6 +15,7 @@ import {
   type BulkPickupScheduleInput,
 } from "~/lib/pickup-schedule-api";
 import { WEEKDAYS } from "~/lib/student-arrival-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "SelectionBulkPickupModal" });
 
@@ -174,16 +176,18 @@ export function SelectionBulkPickupModal({
         ) : null}
         <div className="space-y-2">
           {WEEKDAYS.map((day) => (
-            <div
+            <InsetPanel
               key={day.value}
-              className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5"
+              framed
+              padding="compact"
+              className="flex items-center gap-3"
             >
-              <label
+              <FieldLabel
                 htmlFor={`bulk-pickup-${day.value}`}
-                className="w-28 text-sm font-medium text-gray-700"
+                className="mb-0 w-28"
               >
                 {day.label}
-              </label>
+              </FieldLabel>
               <Input
                 id={`bulk-pickup-${day.value}`}
                 type="time"
@@ -204,7 +208,7 @@ export function SelectionBulkPickupModal({
                   nicht ändern
                 </span>
               ) : null}
-            </div>
+            </InsetPanel>
           ))}
         </div>
       </div>

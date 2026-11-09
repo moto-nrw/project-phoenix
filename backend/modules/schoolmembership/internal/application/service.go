@@ -296,6 +296,9 @@ func (s *Service) ListTeachers(ctx context.Context, filter schoolmembership.Teac
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListTeachers(txCtx, filter)
 		stats.Add(queryStats)
+		if err == nil && filter.IncludeStaff && !filter.MembershipOnly {
+			return s.composeTeacherEmployment(txCtx, result, stats)
+		}
 		return err
 	})
 	return result, err

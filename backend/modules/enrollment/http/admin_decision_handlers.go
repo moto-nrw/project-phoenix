@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,8 +37,8 @@ type AdminRequestSummary struct {
 	GuardianPhone             *string                   `json:"guardian_phone,omitempty"`
 	SubmittedAt               time.Time                 `json:"submitted_at"`
 	WithdrawnAt               *time.Time                `json:"withdrawn_at,omitempty"`
-	CustomData                map[string]any            `json:"custom_data,omitempty"`
-	ConsentFlags              map[string]any            `json:"consent_flags,omitempty"`
+	CustomData                capability.FormValues     `json:"custom_data,omitzero"`
+	ConsentFlags              capability.FormValues     `json:"consent_flags,omitzero"`
 	SchemaFields              []AdminRequestSchemaField `json:"schema_fields,omitempty"`
 	// SchemaLegalBlocks carries key→title pairs from the pinned schema's
 	// legal blocks so the detail UI can label custom consent flags (e.g.
@@ -123,11 +122,27 @@ type AdminRequestChild struct {
 	ReviewedBy        *int64     `json:"reviewed_by,omitempty"`
 	ActivationMode    string     `json:"activation_mode"`
 	CreatedStudentID  string     `json:"created_student_id,omitempty"`
+	// MatchedStudentID is the enrolled child the approval renews instead of
+	// creating a new one (#1663, #6053).
+	MatchedStudentID string `json:"matched_student_id,omitempty"`
+	// PossibleExistingChildren are enrolled children that may be this child
+	// (#6053). Detail endpoint only; while it is non-empty the approval needs
+	// the office's choice: existing_student_id or create_new_student.
+	PossibleExistingChildren    []AdminExistingChildCandidate `json:"possible_existing_children,omitempty"`
+	ExistingChildChoiceRequired bool                          `json:"existing_child_choice_required,omitempty"`
+	// ExistingChildOnly marks a required choice whose phase renews enrolled
+	// children only: the office renews a candidate or refuses, it may not
+	// create a new child (#6053).
+	ExistingChildOnly bool `json:"existing_child_only,omitempty"`
 	// ReviewReason says why an open enrollment was left to the school,
 	// e.g. child_quota_reached for a renewal the automatic approval held
 	// back (#3570). Cleared by the next decision.
-	ReviewReason *string        `json:"review_reason,omitempty"`
-	CustomData   map[string]any `json:"custom_data,omitempty"`
+	ReviewReason *string `json:"review_reason,omitempty"`
+	// WeeklyPlanOn is the day the approved weekly plan of a renewal applies
+	// when the child's care was still running at approval (#6043). Until
+	// then the running pickup times, care days and Heimweg stay.
+	WeeklyPlanOn string                `json:"weekly_plan_on,omitempty"`
+	CustomData   capability.FormValues `json:"custom_data,omitzero"`
 	// Offerings is the per-child Betreuungsangebote selection that is on
 	// file RIGHT NOW — exactly the set a correction replaces. Populated
 	// only on the detail endpoint (listing endpoints leave it empty to
@@ -144,6 +159,16 @@ type AdminRequestChild struct {
 	// save a correction in this state: an empty editor plus a save
 	// deletes whatever the family actually booked.
 	OfferingsUnavailable bool `json:"offerings_unavailable,omitempty"`
+}
+
+// AdminExistingChildCandidate is an enrolled child that may be the child of
+// an enrollment (#6053).
+type AdminExistingChildCandidate struct {
+	StudentID   string  `json:"student_id"`
+	FirstName   string  `json:"first_name"`
+	LastName    string  `json:"last_name"`
+	DateOfBirth *string `json:"date_of_birth,omitempty"`
+	SchoolClass string  `json:"school_class,omitempty"`
 }
 
 // AdminRequestChildOffering is one care-offering pick for a child.
@@ -224,7 +249,9 @@ func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
 			ReviewedBy:        c.ReviewedBy,
 			ActivationMode:    c.ActivationMode,
 			CreatedStudentID:  optionalInt64String(c.CreatedStudentID),
+			MatchedStudentID:  optionalInt64String(c.MatchedStudentID),
 			ReviewReason:      c.ReviewReason,
+			WeeklyPlanOn:      optionalDateString(c.WeeklyPlanOn),
 			CustomData:        c.CustomData,
 		})
 	}
@@ -364,10 +391,7 @@ func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Re
 		if listErr != nil {
 			return listErr
 		}
-		out = make([]AdminRequestSummary, 0, len(summaries))
-		for _, summary := range summaries {
-			out = append(out, rs.toAdminRequestDetailSummary(ctx, summary))
-		}
+		out = rs.toStudentHistorySummaries(ctx, summaries)
 		return nil
 	})
 	if err != nil {
@@ -409,6 +433,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 		}
 	}
 
+	attachExistingChildCandidates(detail.Children, summary.Children, summary.ExistingChildCandidates, !capability.OfficeMayCreateNewChild(summary.Phase))
 	if rs.DecisionService != nil {
 		childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID)
 		if err != nil {
@@ -426,11 +451,39 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 	return detail
 }
 
+// attachExistingChildCandidates fills the per-child candidates in place,
+// matching admin children to summary children positionally like
+// attachChildOfferings.
+func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren []*capability.RequestChild, candidates map[int64][]capability.ExistingChildCandidate, existingOnly bool) {
+	for i := range children {
+		if i >= len(summaryChildren) {
+			continue
+		}
+		_, children[i].ExistingChildChoiceRequired = candidates[summaryChildren[i].ID]
+		children[i].ExistingChildOnly = existingOnly && children[i].ExistingChildChoiceRequired
+		for _, candidate := range candidates[summaryChildren[i].ID] {
+			children[i].PossibleExistingChildren = append(children[i].PossibleExistingChildren, newAdminExistingChildCandidate(candidate))
+		}
+	}
+}
+
+func newAdminExistingChildCandidate(candidate capability.ExistingChildCandidate) AdminExistingChildCandidate {
+	out := AdminExistingChildCandidate{
+		StudentID: strconv.FormatInt(candidate.StudentID, 10),
+		FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
+	}
+	if candidate.DateOfBirth != nil {
+		dob := string(*candidate.DateOfBirth)
+		out.DateOfBirth = &dob
+	}
+	return out
+}
+
 // attachChildOfferings fills the per-child Offerings slices in place from
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*RequestChild, childOfferings map[int64]ChildOfferingSet) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*capability.RequestChild, childOfferings map[int64]ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
@@ -489,12 +542,35 @@ func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField
 }
 
 // AdminDecideRequest is the body of POST .../children/{childId}/decide.
+// ExistingStudentID and CreateNewStudent answer an approval whose child may
+// already be enrolled (#6053): renew that child, or create a new one.
 type AdminDecideRequest struct {
-	Status string `json:"status"` // approved | waitlisted | rejected | under_review
-	Reason string `json:"reason,omitempty"`
+	Status            string `json:"status"` // approved | waitlisted | rejected | under_review
+	Reason            string `json:"reason,omitempty"`
+	ExistingStudentID string `json:"existing_student_id,omitempty"`
+	CreateNewStudent  bool   `json:"create_new_student,omitempty"`
 }
 
 func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
+
+// existingStudentID parses the chosen enrolled child, nil when none is chosen.
+func (req *AdminDecideRequest) existingStudentID() (*int64, error) {
+	return parseExistingStudentID(req.ExistingStudentID)
+}
+
+// parseExistingStudentID reads the office's chosen enrolled child of a
+// decision or a manual enrollment, nil when none is chosen.
+func parseExistingStudentID(value string) (*int64, error) {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, errors.New("invalid existing_student_id")
+	}
+	return &id, nil
+}
 
 func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	if rs.DecisionService == nil {
@@ -515,19 +591,28 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existingStudentID, err := body.existingStudentID()
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	outcome, err := rs.decideChildWithRetry(r, DecideInput{
-		RequestID:  requestID,
-		ChildID:    childID,
-		Status:     DecisionStatus(body.Status),
-		Reason:     body.Reason,
-		ReviewedBy: int64(claims.ID),
+	// The command opens the tenant unit and owns its retry and the guardian
+	// invitation an approval owes (#6093).
+	outcome, err := rs.DecisionService.DecideAndInvite(r.Context(), DecideInput{
+		RequestID:         requestID,
+		ChildID:           childID,
+		Status:            DecisionStatus(body.Status),
+		Reason:            body.Reason,
+		ReviewedBy:        int64(claims.ID),
+		ExistingStudentID: existingStudentID,
+		CreateNewStudent:  body.CreateNewStudent,
 	})
 	if err != nil {
 		rs.renderDecideError(w, r, err)
 		return
 	}
-
 	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
 }
 
@@ -596,43 +681,6 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 	}
 }
 
-// decideChildWithRetry runs the decision inside a tenant transaction,
-// retrying once on a transient database error when the decision body has
-// not yet committed. A cancelled/expired request context stops the retry
-// loop and surfaces the context error.
-func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*DecideOutcome, error) {
-	var err error
-	var outcome *DecideOutcome
-	for attempt := 0; attempt < 2; attempt++ {
-		outcome = nil
-		decisionBodySucceeded := false
-		err = rs.runInTenantTx(r, func(ctx context.Context) error {
-			out, e := rs.DecisionService.Decide(ctx, input)
-			if e != nil {
-				return e
-			}
-			outcome = out
-			decisionBodySucceeded = true
-			return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
-		})
-		if err == nil {
-			break
-		}
-		if reqErr := r.Context().Err(); reqErr != nil {
-			return outcome, reqErr
-		}
-		if decisionBodySucceeded || !rs.Failures.Transient(err) || attempt == 1 {
-			break
-		}
-		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
-			slog.Int64("request_id", input.RequestID),
-			slog.Int64("child_id", input.ChildID),
-			slog.String("error", err.Error()),
-		)
-	}
-	return outcome, err
-}
-
 func (rs *Resource) decideErrorRules() []common.ErrorRule {
 	return []common.ErrorRule{
 		{Target: context.Canceled, Render: common.ErrorClientClosed},
@@ -661,6 +709,15 @@ func (rs *Resource) decideErrorRules() []common.ErrorRule {
 		{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
 		}},
+		{Target: capability.ErrChildPossiblyEnrolled, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentChildPossiblyEnrolled)
+		}},
+		{Target: capability.ErrExistingChildChoiceInvalid, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentExistingChildChoiceInvalid)
+		}},
+		{Target: capability.ErrExistingStudentAlreadyRequested, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentChildAlreadyRequested)
+		}},
 		{Match: rs.Failures.Transient, Render: common.ErrorServiceUnavailable},
 	}
 }
@@ -674,7 +731,7 @@ func (rs *Resource) renderDecideError(w http.ResponseWriter, r *http.Request, er
 // newAdminRequestChild maps a decided child model onto the wire shape
 // returned by the decide endpoint (no CustomData / Offerings — those are
 // detail-endpoint concerns).
-func newAdminRequestChild(child *RequestChild) AdminRequestChild {
+func newAdminRequestChild(child *capability.RequestChild) AdminRequestChild {
 	return AdminRequestChild{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -688,7 +745,9 @@ func newAdminRequestChild(child *RequestChild) AdminRequestChild {
 		ReviewedBy:        child.ReviewedBy,
 		ActivationMode:    child.ActivationMode,
 		CreatedStudentID:  optionalInt64String(child.CreatedStudentID),
+		MatchedStudentID:  optionalInt64String(child.MatchedStudentID),
 		ReviewReason:      child.ReviewReason,
+		WeeklyPlanOn:      optionalDateString(child.WeeklyPlanOn),
 	}
 }
 
@@ -700,13 +759,4 @@ func actorRoleFromClaims(roles []string) string {
 		}
 	}
 	return "admin"
-}
-
-// enqueueDecisionInvite joins the decision transaction so approval and its
-// durable invitation either both commit or both roll back.
-func (rs *Resource) enqueueDecisionInvite(ctx context.Context, invite *PendingGuardianInvite) error {
-	if invite == nil || !rs.GuardianInvitations.configured() {
-		return nil
-	}
-	return rs.GuardianInvitations.Create(ctx, invite.GuardianProfileID, invite.CreatedBy)
 }

@@ -4,23 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
-)
-
-// Rate-limit thresholds. They work for "small school with families of three
-// children submitting once" without tuning; a school needing others would
-// promote them to settings.
-const (
-	rateLimitWindowIP        = time.Hour
-	rateLimitWindowEmail     = 24 * time.Hour
-	rateLimitMaxAttemptsIP   = 10
-	rateLimitMaxAttemptsMail = 5
 )
 
 func (s *Intake) newStatusToken() (string, error) {
@@ -37,7 +26,7 @@ func (s *Intake) lateInviteTokenHash(token string) string {
 }
 
 func normalizeGuardianEmail(email string) (string, error) {
-	trimmed := strings.ToLower(strings.TrimSpace(email))
+	trimmed := guardianEmailKey(email)
 	if trimmed == "" {
 		return "", enrollment.InvalidInput(enrollment.CodeGuardianEmailRequired, "guardian_email", fmt.Errorf("%w: guardian email is required", enrollment.ErrInvalidSubmission))
 	}
@@ -116,7 +105,8 @@ func (s *Intake) findLateInviteForSubmit(ctx context.Context, token string, phas
 
 // CreateManualApprovedEnrollment submits a staff-created enrollment
 // (rate-limit skipped, closed window allowed, submission mails suppressed,
-// source admin_manual) and approves it in the caller's transaction.
+// source admin_manual) and approves it in the caller's transaction, with the
+// guardian invitation the approval owes.
 func (s *Intake) CreateManualApprovedEnrollment(ctx context.Context, input enrollment.ManualApprovedEnrollmentInput) (*enrollment.ManualApprovedEnrollmentResult, error) {
 	result, err := s.createManualApprovedEnrollment(ctx, input)
 	return result, publicError(err)
@@ -126,10 +116,7 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	if s.deps.ManualDecider == nil {
 		return nil, errors.New("manual enrollment decider is not configured")
 	}
-	req, err := decodeSubmitRequest(input.Request)
-	if err != nil {
-		return nil, err
-	}
+	req := decodeSubmitRequest(input.Request)
 	req.SkipRateLimit, req.AllowClosedPhase = true, true
 	req.SuppressSubmissionEmails, req.ExternalConsentConfirmed = true, true
 	req.SubmissionSource = enrollment.RequestSourceAdminManual
@@ -146,99 +133,42 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	if len(submitted.Children) != 1 {
 		return nil, errors.New("manual approved enrollment produced " + strconv.Itoa(len(submitted.Children)) + " children")
 	}
-	decided, err := s.deps.ManualDecider.Decide(ctx, enrollment.DecideInput{
+	decided, err := s.deps.ManualDecider.DecideAndInvite(ctx, enrollment.DecideInput{
 		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID, Status: enrollment.DecisionApproved,
 		Reason: input.Reason, ReviewedBy: input.ActorID,
 		SuppressParentEmail: !input.SendNotification, SuppressGuardianInvitation: !input.SendNotification,
+		ExistingStudentID: input.ExistingStudentID, CreateNewStudent: input.CreateNewStudent,
 	})
 	if err != nil {
 		return nil, err
 	}
-	request, err := requestInput(submitted.Request)
-	if err != nil {
-		return nil, err
-	}
+	request := submitted.Request
 	return &enrollment.ManualApprovedEnrollmentResult{
-		Request: request, Child: decided.Child, StatusURL: submitted.StatusURL, PendingInvite: decided.PendingInvite,
+		Request: request, Child: decided.Child, StatusURL: submitted.StatusURL,
 	}, nil
 }
 
-// enforceRateLimit counts the attempt in the per-IP and per-email buckets of
-// the submission's tenant, in a transaction of its own so the count survives
-// a refused submission, and refuses once either crosses its threshold.
+// enforceRateLimit runs count in the tenant's transaction of its own, so the
+// count survives a refused submission or upload, and passes on its refusal.
 // Without a limiter the check is skipped.
-func (s *Intake) enforceRateLimit(ctx context.Context, req SubmitRequest) error {
-	if s.deps.RateLimits == nil || req.TenantID <= 0 {
+func (s *Intake) enforceRateLimit(ctx context.Context, tenantID int64, count func(context.Context) error) error {
+	if s.deps.RateLimits == nil || tenantID <= 0 {
 		return nil
 	}
 	if s.deps.Runtime.TenantTx == nil {
-		return s.enforceRateLimitBuckets(ctx, req)
+		return count(ctx)
 	}
-	var limitErr error
 	rateCtx := s.deps.Runtime.WithoutTransaction(ctx)
-	err := s.deps.Runtime.TenantTx(rateCtx, req.TenantID, func(txCtx context.Context) error {
-		limitErr = s.enforceRateLimitBuckets(txCtx, req)
-		if errors.Is(limitErr, enrollment.ErrRateLimited) {
-			return nil
+	return countSurvivingRefusal(func(fn func(context.Context) error) error {
+		if err := s.deps.Runtime.TenantTx(rateCtx, tenantID, fn); err != nil {
+			return fmt.Errorf("enrollment submit: rate-limit transaction: %w", err)
 		}
-		return limitErr
-	})
-	if err != nil {
-		return fmt.Errorf("enrollment submit: rate-limit transaction: %w", err)
-	}
-	if errors.Is(limitErr, enrollment.ErrRateLimited) {
-		return limitErr
-	}
-	return nil
-}
-
-func (s *Intake) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest) error {
-	if req.uploadAttempt {
-		return s.countUploadAttempt(ctx, req)
-	}
-	ip := strings.TrimSpace(req.RemoteIP)
-	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-	if ip != "" {
-		if err := s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-			keyType: enrollment.SubmissionRateLimitKeyTypeIP, label: "IP", window: rateLimitWindowIP, maxAttempts: rateLimitMaxAttemptsIP,
-		}, ip); err != nil {
-			return err
-		}
-	}
-	if email != "" {
-		return s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-			keyType: enrollment.SubmissionRateLimitKeyTypeEmail, label: "email", window: rateLimitWindowEmail, maxAttempts: rateLimitMaxAttemptsMail,
-		}, email)
-	}
-	return nil
-}
-
-// rateLimitBucket is one submission counter: its key type, the label its
-// error names, its window and its threshold.
-type rateLimitBucket struct {
-	keyType     string
-	label       string
-	window      time.Duration
-	maxAttempts int
-}
-
-func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, bucket rateLimitBucket, keyValue string) error {
-	keyType, maxAttempts := bucket.keyType, bucket.maxAttempts
-	state, err := s.deps.RateLimits.IncrementAttempts(ctx, tenantID, keyType, keyValue, bucket.window)
-	if err != nil {
-		return fmt.Errorf("enrollment submit: rate-limit %s increment: %w", bucket.label, err)
-	}
-	if state.Attempts > maxAttempts {
-		s.logger().Info("enrollment submit rate-limited",
-			slog.String("key_type", keyType),
-			slog.Int("attempts", state.Attempts),
-			slog.Int64("tenant_id", tenantID))
-		return enrollment.ErrRateLimited
-	}
-	return nil
+		return nil
+	}, count)
 }
 
 // cloneSourceMetadata copies a metadata map so the submission can add to it.
+// Unlike maps.Clone it never returns nil: the callers write into the copy.
 func cloneSourceMetadata(src map[string]any) map[string]any {
 	out := make(map[string]any, len(src))
 	for k, v := range src {

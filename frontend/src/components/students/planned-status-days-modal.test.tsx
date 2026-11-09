@@ -337,8 +337,10 @@ describe("PlannedStatusDaysModal", () => {
     await waitFor(() =>
       expect(onDeletePartialAbsence).toHaveBeenCalledWith("9"),
     );
+    // Die Löschung schließt die Bestätigung asynchron; erst danach ist die
+    // Zeilenaktion wieder erreichbar. Auf langsamen Runnern fehlt sie sonst.
     fireEvent.click(
-      screen.getByRole("button", {
+      await screen.findByRole("button", {
         name: "Aktionen für Teilentschuldigung vom Mittwoch, 27. Mai 2026",
       }),
     );
@@ -714,7 +716,9 @@ describe("PlannedStatusDaysModal", () => {
     );
 
     fireEvent.click(screen.getByText("Nicht zusammenhängende Tage auswählen"));
-    fireEvent.click(screen.getByRole("button", { name: "26.05.2026" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "26.05.2026 entfernen" }),
+    );
     await clickEnabledButton("Krankmelden");
 
     await waitFor(() => {

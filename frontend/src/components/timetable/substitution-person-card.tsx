@@ -10,12 +10,15 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Radio } from "~/components/ui/radio";
 
 import {
   isEditableAppointment,
   type PersonForm,
 } from "./substitution-deviation-input";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface PersonCardProps {
   row: InstanceStaffSummary;
@@ -53,7 +56,7 @@ function PersonIdentity({ row, person, name }: PersonHeaderProps) {
       >
         {name}
       </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+      <div className="mt-0.5 flex items-center gap-1.5 text-xs">
         <span
           className={
             person.absent
@@ -155,9 +158,10 @@ function ScopeChoice({
 }: ScopeChoiceProps) {
   const id = `vp-scope-${scope}-${staffId}`;
   return (
-    <label
+    <ChoiceTile
       htmlFor={id}
-      className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white p-3"
+      selected={selected}
+      className="items-start gap-2 p-3 font-normal"
     >
       <Radio
         id={id}
@@ -171,7 +175,7 @@ function ScopeChoice({
         {title}
         <span className="block text-xs text-gray-500">{description}</span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }
 
@@ -234,7 +238,7 @@ function AppointmentList(props: AppointmentListProps) {
   const { staffId, person, appointments, onUpdate, onToggleAppointment } =
     props;
   return (
-    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <InsetPanel framed className="space-y-2">
       <p className="text-xs font-semibold text-gray-700">Termine auswählen</p>
       <ul className="space-y-2">
         {appointments.map((appointment) => (
@@ -264,7 +268,7 @@ function AppointmentList(props: AppointmentListProps) {
           </span>
         </label>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -331,21 +335,21 @@ interface SubstituteHintProps {
 function SubstituteHint(props: SubstituteHintProps) {
   if (props.unstaffed) {
     return (
-      <p className="mt-1 text-[11px] text-gray-400">
+      <p className="mt-1 text-xs text-gray-400">
         Der Termin ist bewusst unbesetzt. Deshalb ist keine Vertretung möglich.
       </p>
     );
   }
   if (!props.scopeReady) {
     return (
-      <p className="mt-1 text-[11px] text-gray-500">
+      <p className="mt-1 text-xs text-gray-500">
         Wählen Sie zuerst die Termine.
       </p>
     );
   }
   if (props.fullyCovered) {
     return (
-      <p className="mt-1 text-[11px] text-gray-400">
+      <p className="mt-1 text-xs text-gray-400">
         Der Termin ist bereits vollständig vertreten. Wählen Sie zuerst
         „Entfernen“.
       </p>
@@ -353,7 +357,7 @@ function SubstituteHint(props: SubstituteHintProps) {
   }
   if (props.staffLoadError && !props.hasOptions) {
     return (
-      <p className="text-moto-red-strong mt-1 text-[11px]">
+      <p className="text-moto-red-strong mt-1 text-xs">
         Die Personalliste konnte nicht geladen werden. Laden Sie die Seite neu.
       </p>
     );
@@ -365,9 +369,7 @@ function SubstitutePicker(props: PersonCardProps) {
   const { person, name, canEdit, substituteOptions, onUpdate } = props;
   return (
     <div>
-      <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-        Vertretung für {name}
-      </span>
+      <FieldLabel className="mb-1">Vertretung für {name}</FieldLabel>
       {canEdit ? (
         <CustomSelect
           value={person.substituteId}

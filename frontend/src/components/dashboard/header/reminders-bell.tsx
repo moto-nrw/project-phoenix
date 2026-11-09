@@ -7,9 +7,12 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { useState } from "react";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import { NavLink } from "~/components/ui/nav-link";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Bell } from "lucide-react";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
@@ -40,7 +43,7 @@ function BellRow({ reminder }: { readonly reminder: Reminder }) {
         <span className="text-xs font-semibold text-gray-900">
           {reminder.due_time}
         </span>
-        <span className={`text-[11px] ${reminderToneClass(reminder)}`}>
+        <span className={`text-xs ${reminderToneClass(reminder)}`}>
           {reminderRelativeLabel(reminder)}
         </span>
       </div>
@@ -52,92 +55,23 @@ export function RemindersBell() {
   const { reminders, count, enabled } = useReminders();
   const tenantPath = useTenantAwarePath();
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (containerRef.current?.contains(target)) return;
-      setIsOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsOpen(false);
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
 
   // Hidden entirely until the school switches on a reminder type.
   if (!enabled) return null;
 
   const preview = reminders.slice(0, PREVIEW_LIMIT);
   const overflow = count - preview.length;
-  const badgeLabel = count > 99 ? "99+" : String(count);
 
   return (
-    <div ref={containerRef} className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => setIsOpen((open) => !open)}
-        aria-label={count > 0 ? `Erinnerungen (${count})` : "Erinnerungen"}
-        aria-expanded={isOpen}
-        title="Erinnerungen"
-        className="relative"
-      >
-        <Bell className="h-5 w-5" />
-        {count > 0 && (
-          <span className="bg-moto-red absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white">
-            {badgeLabel}
-          </span>
-        )}
-      </Button>
-
-      {/*
-        Mobile: pinned to the viewport just under the topbar and spanning the
-        full width (the bell sits left of the avatar, so a bell-anchored panel
-        would overflow the left edge). Desktop: a narrow dropdown anchored to
-        the bell.
-      */}
-      <div
-        className={`moto-popover-surface fixed top-12 right-3 left-3 z-50 overflow-hidden rounded-2xl border transition-all duration-150 ease-out sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-80 ${
-          isOpen
-            ? "visible translate-y-0 opacity-100"
-            : "invisible -translate-y-2 opacity-0"
-        }`}
-      >
-        <div className="border-b border-gray-100 px-4 py-3">
-          <p className="font-semibold text-gray-900">Erinnerungen</p>
-        </div>
-
-        {count === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gray-500">
-            Keine aktiven Erinnerungen.
-          </p>
-        ) : (
-          <>
-            <ul className="divide-y divide-gray-100">
-              {preview.map((reminder) => (
-                <BellRow key={reminderKey(reminder)} reminder={reminder} />
-              ))}
-            </ul>
-            {overflow > 0 && (
-              <p className="px-4 pt-2 text-center text-xs text-gray-500">
-                +{overflow} weitere
-              </p>
-            )}
-          </>
-        )}
-
+    <AnchoredPopover
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      ariaLabel="Erinnerungen"
+      preferredWidth={320}
+      align="end"
+      focusPanelOnOpen
+      header={<p className="font-semibold text-gray-900">Erinnerungen</p>}
+      footer={
         <div className="p-2">
           <NavLink
             href={tenantPath("/reminders")}
@@ -147,7 +81,54 @@ export function RemindersBell() {
             Alle ansehen
           </NavLink>
         </div>
-      </div>
-    </div>
+      }
+      renderTrigger={({ ref, toggle, panelId }) => (
+        <Button
+          ref={ref}
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={toggle}
+          aria-label={count > 0 ? `Erinnerungen (${count})` : "Erinnerungen"}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          aria-controls={isOpen ? panelId : undefined}
+          title="Erinnerungen"
+          className="relative"
+        >
+          <Bell className="h-5 w-5" />
+          <NotificationBadge
+            count={count}
+            tone="danger"
+            size="sm"
+            ariaLabel={`${count} Erinnerungen`}
+            className="absolute -top-0.5 -right-0.5"
+          />
+        </Button>
+      )}
+    >
+      {() =>
+        count === 0 ? (
+          <EmptyState
+            variant="compact"
+            title="Keine aktiven Erinnerungen."
+            className="px-4 py-4"
+          />
+        ) : (
+          <>
+            <ul className="divide-y divide-gray-100">
+              {preview.map((reminder) => (
+                <BellRow key={reminderKey(reminder)} reminder={reminder} />
+              ))}
+            </ul>
+            {overflow > 0 && (
+              <p className="px-4 py-2 text-center text-xs text-gray-500">
+                +{overflow} weitere
+              </p>
+            )}
+          </>
+        )
+      }
+    </AnchoredPopover>
   );
 }

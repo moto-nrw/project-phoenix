@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.parentportal.related_accounts.list.n3",
+  "max": 14,
+  "exact": false,
+  "description": "Related-account service with 3 linked profiles (one active caller, remaining contacts); includes admin ownership and tenant list transactions. Profiles load through one People Directory ID-set batch; invitation reads retain their existing per-contact behavior."
+}

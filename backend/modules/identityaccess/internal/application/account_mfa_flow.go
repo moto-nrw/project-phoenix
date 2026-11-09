@@ -95,9 +95,9 @@ func (f *AccountMFAFlows) ResolvePolicy(ctx context.Context, accountID, tenantID
 }
 
 // ResolvePolicyInTx re-resolves the policy on the caller's transaction, past
-// the request-scoped settings cache. The school-portal mint guard uses it:
-// an admin switching security.mfa_mode from off to required while a login is
-// in flight must not leave the guard evaluating the stale verdict.
+// the request-scoped settings cache. The school mint re-decides its MFA gate with
+// it: an admin switching security.mfa_mode from off to required while a login
+// is in flight must not leave the mint evaluating the stale verdict.
 func (f *AccountMFAFlows) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (domain.MFAPolicy, error) {
 	return f.resolvePolicy(ctx, accountID, tenantID, true)
 }
@@ -273,16 +273,6 @@ func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challenge
 	}
 	if claims.Scope != expectedScope {
 		return "", identityaccess.ErrMFAUnsupportedScope
-	}
-	return f.resend(ctx, claims, ip)
-}
-
-// ResendChallenge accepts a challenge of any scope and is therefore not for
-// HTTP surfaces; every portal endpoint uses ResendChallengeForScope.
-func (f *AccountMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	claims, err := f.codec.ParseChallengeToken(challengeToken)
-	if err != nil {
-		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return f.resend(ctx, claims, ip)
 }
@@ -524,10 +514,10 @@ func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, te
 	return identityaccess.ErrMFAPermissionDenied
 }
 
-// challengeDeviceHint is the remember-device line of a code mail. A Träger
-// challenge has no school and remembers no device, so its mail offers none.
+// challengeDeviceHint is the remember-device line of a code mail; a portal
+// that remembers no device offers none.
 func (f *AccountMFAFlows) challengeDeviceHint(ctx context.Context, tenantID int64, scope string) (bool, int) {
-	if scope == domain.MFAChallengeScopeOrg {
+	if portal, ok := domain.PortalNamed(scope); !ok || !portal.TrustedDevice {
 		return false, 0
 	}
 	return f.trustedDeviceHint(ctx, tenantID)
@@ -616,7 +606,7 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 type schoolLedgerKey struct{}
 
 func schoollessMFAContext(ctx context.Context, scope string) context.Context {
-	if scope != domain.MFAChallengeScopeOrg && scope != domain.MFAChallengeScopeCaterer {
+	if portal, ok := domain.PortalNamed(scope); !ok || !portal.Schoolless() {
 		return ctx
 	}
 	return withoutSchoolLedgerContext(ctx)

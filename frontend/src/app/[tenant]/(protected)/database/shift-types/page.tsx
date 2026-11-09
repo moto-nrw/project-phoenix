@@ -14,7 +14,7 @@ import {
 } from "~/components/database/catalog/catalog-page";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { Button } from "~/components/ui/button";
-import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
+import { CatalogColorField } from "~/components/database/catalog-color-field";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";

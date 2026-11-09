@@ -1,11 +1,18 @@
 import type { NextRequest } from "next/server";
-import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
-import { auth } from "../server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
-import { handleApiError } from "./api-helpers.server";
+import { problemResponse } from "./api-response-error.server";
+import {
+  readBackendJson,
+  sendBackend,
+  unwrapEnvelope,
+} from "./backend-client.server";
 import type { ErrorCode } from "./error-codes.generated";
+import type { ProxyEndpoint } from "./portal-handlers.server";
+import {
+  readBoundedBody,
+  wrapInApiResponse,
+} from "./route-wrapper-utils.server";
+import { tenant } from "./route-wrapper.server";
 
 interface FileUploadOptions {
   maxSizeInMB?: number;
@@ -14,6 +21,40 @@ interface FileUploadOptions {
 }
 
 const MULTIPART_OVERHEAD_BYTES = 2 * 1024 * 1024;
+
+/**
+ * A scanned or photographed paper document. An empty or generic MIME type is
+ * what some browsers send for a valid PDF; the extension gate and the
+ * backend's content check still apply.
+ */
+export const SCAN_UPLOAD: FileUploadOptions = {
+  maxSizeInMB: 10,
+  allowedMimeTypes: [
+    "",
+    "application/octet-stream",
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+  ],
+  allowedExtensions: [".pdf", ".png", ".jpg", ".jpeg"],
+};
+
+/**
+ * A scan or a Word document. DOCX is an OOXML ZIP container, so browsers
+ * without the OOXML mapping label a valid .docx as a plain ZIP; the backend
+ * rejects an archive that lacks the OOXML parts (api/common/upload_documents.go).
+ */
+export const DOCUMENT_UPLOAD: FileUploadOptions = {
+  maxSizeInMB: 10,
+  allowedMimeTypes: [
+    ...(SCAN_UPLOAD.allowedMimeTypes ?? []),
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/zip",
+    "application/x-zip-compressed",
+  ],
+  allowedExtensions: [...(SCAN_UPLOAD.allowedExtensions ?? []), ".docx"],
+};
 
 /** Error thrown by file validation with the appropriate HTTP status code. */
 export class FileValidationError extends Error {
@@ -108,9 +149,11 @@ export async function parseBoundedMultipartFormData(
   request: NextRequest,
   maxSizeInBytes: number,
 ): Promise<FormData> {
-  const maxBodySize = maxSizeInBytes + MULTIPART_OVERHEAD_BYTES;
-  const contentLength = request.headers.get("content-length");
-  if (contentLength !== null && Number(contentLength) > maxBodySize) {
+  const bytes = await readBoundedBody(
+    request,
+    maxSizeInBytes + MULTIPART_OVERHEAD_BYTES,
+  );
+  if (bytes === null) {
     throw new FileValidationError(
       `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
       413,
@@ -118,49 +161,33 @@ export async function parseBoundedMultipartFormData(
       { max_mb: maxSizeInBytes / (1024 * 1024) },
     );
   }
-
-  if (!request.body) {
-    return request.formData();
-  }
-
-  const reader = request.body.getReader();
-  const chunks: ArrayBuffer[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      size += value.byteLength;
-      if (size > maxBodySize) {
-        await reader.cancel();
-        throw new FileValidationError(
-          `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
-          413,
-          "files.file_too_large",
-          { max_mb: maxSizeInBytes / (1024 * 1024) },
-        );
-      }
-      const chunk = new Uint8Array(value.byteLength);
-      chunk.set(value);
-      chunks.push(chunk.buffer);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
   return new Request(request.url, {
     method: request.method,
-    headers: {
-      "content-type": request.headers.get("content-type") ?? "",
-    },
-    body: new Blob(chunks),
+    headers: { "content-type": request.headers.get("content-type") ?? "" },
+    body: bytes,
   }).formData();
 }
 
+/** Sends a multipart form to the tenant backend and answers its `data`. */
+export async function postForm<T>(
+  request: NextRequest,
+  path: string,
+  token: string,
+  form: FormData,
+): Promise<T> {
+  const response = await sendBackend(path, token, {
+    method: "POST",
+    body: form,
+    request,
+  });
+  return unwrapEnvelope<T>(await readBackendJson(response));
+}
+
 /**
- * Wrapper function for handling file upload API routes
+ * Tenant file upload route: authenticates, bounds and validates the
+ * multipart body, then runs the handler, once more with the refreshed
+ * session's token after it throws a backend 401. The handler builds its
+ * outgoing form on each run, so the retry sends the same files again.
  */
 export function createFileUploadHandler<T>(
   handler: (
@@ -171,76 +198,86 @@ export function createFileUploadHandler<T>(
   ) => Promise<T>,
   options?: FileUploadOptions,
 ) {
-  return withTenantAuth(
-    async (
-      request,
-      context: {
-        params: Promise<Record<string, string | string[] | undefined>>;
-      },
-    ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-      try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-          return problemResponse(401, "Unauthorized", request);
-        }
-
-        // Extract parameters
-        const safeParams: Record<string, unknown> = {};
-
-        const contextParams = await context.params;
-        if (contextParams) {
-          Object.entries(contextParams).forEach(([key, value]) => {
-            if (value !== undefined) {
-              safeParams[key] = value;
-            }
-          });
-        }
-
-        // Get form data
-        const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
-        const formData = await parseBoundedMultipartFormData(
-          request,
-          maxSizeInBytes,
-        );
-
-        // Validate all files in the form data — return the semantically correct
-        // HTTP status (413/415/422) instead of letting validation errors fall
-        // through to the generic 500 handler.
-        try {
-          for (const [, value] of formData.entries()) {
-            if (value instanceof File) {
-              validateFile(value, options ?? {});
-            }
-          }
-        } catch (validationError) {
-          if (validationError instanceof FileValidationError) {
-            return fileValidationProblemResponse(validationError, request);
-          }
-          throw validationError;
-        }
-
-        const data = await handler(
-          request,
-          formData,
-          session.user.token,
-          safeParams,
-        );
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> =
-          typeof data === "object" && data !== null && "success" in data
-            ? (data as unknown as ApiResponse<T>)
-            : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
-      } catch (error) {
-        if (error instanceof FileValidationError) {
-          return fileValidationProblemResponse(error, request);
-        }
-        return handleApiError(error, request);
+  return tenant.route(async (request, token, params) => {
+    try {
+      const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
+      const formData = await parseBoundedMultipartFormData(
+        request,
+        maxSizeInBytes,
+      );
+      for (const [, value] of formData.entries()) {
+        if (value instanceof File) validateFile(value, options ?? {});
       }
+      const result = await tenant.runWithRenewal(request, token, (current) =>
+        handler(request, formData, current, params),
+      );
+      return result instanceof Response
+        ? result
+        : NextResponse.json(wrapInApiResponse(result));
+    } catch (error) {
+      if (error instanceof FileValidationError) {
+        return fileValidationProblemResponse(error, request);
+      }
+      throw error;
+    }
+  });
+}
+
+interface FileForwardOptions extends FileUploadOptions {
+  /** The form field carrying the file. */
+  readonly file: string;
+  /** Text fields the backend requires; a missing one answers 400. */
+  readonly fields?: readonly string[];
+  /** Text fields forwarded only when present. */
+  readonly optionalFields?: readonly string[];
+  /** Content check on the file bytes; throws FileValidationError. */
+  readonly verify?: (bytes: ArrayBuffer) => void;
+}
+
+/**
+ * Tenant upload proxy: validates the file and forwards it with the listed
+ * fields and the client identity. Answers the backend's `data`.
+ */
+export function proxyFileUpload(
+  endpoint: ProxyEndpoint,
+  options: FileForwardOptions,
+) {
+  return createFileUploadHandler<unknown>(
+    async (request, formData, token, params) => {
+      const file = formData.get(options.file);
+      if (!(file instanceof File)) {
+        throw new FileValidationError(
+          `No ${options.file} file provided`,
+          400,
+          "files.file_missing",
+        );
+      }
+      options.verify?.(await file.arrayBuffer());
+
+      const forwarded = new FormData();
+      forwarded.append(options.file, file);
+      for (const name of options.fields ?? []) {
+        const value = formData.get(name);
+        if (typeof value !== "string" || value === "") {
+          throw new FileValidationError(
+            `No ${name} provided`,
+            400,
+            "general.input",
+          );
+        }
+        forwarded.append(name, value);
+      }
+      for (const name of options.optionalFields ?? []) {
+        const value = formData.get(name);
+        if (typeof value === "string" && value !== "") {
+          forwarded.append(name, value);
+        }
+      }
+
+      const path = typeof endpoint === "string" ? endpoint : endpoint(params);
+      return postForm(request, path, token, forwarded);
     },
+    options,
   );
 }
 

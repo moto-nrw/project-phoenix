@@ -15,5 +15,12 @@
   "not_supplied": "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
   "order_not_found": "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
   "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
-  "participation_manage_denied": "Mund t’i shikoni regjistrimet për ushqim, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni ekipin e kujdesit pas shkollës."
+  "participation_manage_denied": "Mund t’i shikoni regjistrimet për ushqim, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni ekipin e kujdesit pas shkollës.",
+  "billing_month_running": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "billing_month_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "billing_month_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "billing_month_no_traeger": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "billing_month_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "billing_month_attendance_expired": "Të dhënat e pranisë për këtë muaj mund të jenë fshirë. Muaji nuk mund të miratohet më me siguri. Ju lutemi kontaktoni ofruesin tuaj.",
+  "billing_month_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }

@@ -115,33 +115,30 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 // A reserved permission the role does not hold yet is refused (#4574); one it
 // already holds may stay or be removed, so a role from before the rule stays
 // editable.
-func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) (err error) {
-	if r == nil {
-		return errRoleAdministrationUnavailable
-	}
-	defer func() { err = roleError(err) }()
-	ctx = bindRuntime(r.attach, ctx)
-	const op = "replace role permissions"
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		// The role row serializes full replacements and the one-at-a-time
-		// mutations. Lock it before loading mappings so each operation observes
-		// the preceding committed selection.
-		if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
-			return err
-		}
+func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
+	return runFlowErr(ctx, r.flow(), func(ctx context.Context) error {
+		const op = "replace role permissions"
+		return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+			// The role row serializes full replacements and the one-at-a-time
+			// mutations. Lock it before loading mappings so each operation observes
+			// the preceding committed selection.
+			if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
+				return err
+			}
 
-		desired, err := r.desiredRolePermissions(txCtx, permissionIDs)
-		if err != nil {
-			return err
-		}
-		current, err := r.rolePermissions(txCtx, roleID, op)
-		if err != nil {
-			return err
-		}
-		if err := requireNoNewReservedPermission(desired, current, op); err != nil {
-			return err
-		}
-		return r.applyRolePermissionSelection(txCtx, roleID, desired, current, op)
+			desired, err := r.desiredRolePermissions(txCtx, permissionIDs)
+			if err != nil {
+				return err
+			}
+			current, err := r.rolePermissions(txCtx, roleID, op)
+			if err != nil {
+				return err
+			}
+			if err := requireNoNewReservedPermission(desired, current, op); err != nil {
+				return err
+			}
+			return r.applyRolePermissionSelection(txCtx, roleID, desired, current, op)
+		})
 	})
 }
 
@@ -170,21 +167,18 @@ func (r *RoleAdministration) applyRolePermissionSelection(txCtx context.Context,
 }
 
 // RemovePermissionFromRole removes a permission from a custom role.
-func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) (err error) {
-	if r == nil {
-		return errRoleAdministrationUnavailable
-	}
-	defer func() { err = roleError(err) }()
-	ctx = bindRuntime(r.attach, ctx)
-	const op = "remove permission from role"
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
-			return err
-		}
-		if err := r.store.RemoveRolePermission(txCtx, roleID, permissionID); err != nil {
-			return failed(op, err)
-		}
-		return nil
+func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
+	return runFlowErr(ctx, r.flow(), func(ctx context.Context) error {
+		const op = "remove permission from role"
+		return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+			if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
+				return err
+			}
+			if err := r.store.RemoveRolePermission(txCtx, roleID, permissionID); err != nil {
+				return failed(op, err)
+			}
+			return nil
+		})
 	})
 }
 
@@ -193,9 +187,12 @@ func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int6
 		return nil, errRoleAdministrationUnavailable
 	}
 	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
-		permissions, err := r.store.ListRolePermissions(ctx, roleID)
+		permissions, found, err := r.store.ListVisibleRolePermissions(ctx, roleID)
 		if err != nil {
 			return nil, failed("get role permissions", err)
+		}
+		if !found {
+			return nil, failed("get role permissions", domain.ErrRoleNotFound)
 		}
 		return permissions, nil
 	}

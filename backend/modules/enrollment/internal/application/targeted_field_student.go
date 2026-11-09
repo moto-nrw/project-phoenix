@@ -62,12 +62,12 @@ var consentStamps = []consentStamp{
 // photo block erase a photo consent the original enrollment recorded (#1663).
 func (r *targetedFieldSync) applyConsentFlags() {
 	flags := r.request.ConsentFlags
-	if flags == nil {
+	if flags.IsZero() || r.options.Scope == weeklyPlanOnly {
 		return
 	}
 	now := time.Now()
 	for _, stamp := range consentStamps {
-		if given, ok := flags[stamp.key].(bool); ok && given {
+		if given, ok := formValue(flags, stamp.key).(bool); ok && given {
 			stamp.apply(r.student, &now, r.reviewedBy)
 			r.studentDirty = true
 		}
@@ -76,7 +76,7 @@ func (r *targetedFieldSync) applyConsentFlags() {
 		return
 	}
 	for _, stamp := range consentStamps {
-		if given, ok := flags[stamp.key].(bool); ok && !given {
+		if given, ok := formValue(flags, stamp.key).(bool); ok && !given {
 			stamp.apply(r.student, nil, r.reviewedBy)
 			r.studentDirty = true
 		}

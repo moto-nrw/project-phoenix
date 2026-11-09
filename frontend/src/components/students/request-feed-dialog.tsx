@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, RefreshCw, Rss } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -18,6 +19,7 @@ import {
 } from "~/lib/request-feed-api";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /** Objekt der Fehlertexte aus dem Katalog (#2513). */
 const FEED_OBJECT = "das Abo";
@@ -184,7 +186,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
           Sie nur in moto.
         </p>
 
-        <div className="rounded-xl bg-gray-50 p-4">
+        <InsetPanel padding="md">
           <p className="font-semibold text-gray-800">Gut zu wissen</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-gray-600">
             <li>Das Programm prüft selbst. Hinweise können später ankommen.</li>
@@ -192,7 +194,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
             <li>Namen und andere persönliche Daten stehen nicht im Feed.</li>
             <li>Ein Online-Dienst verarbeitet den Feed außerhalb von moto.</li>
           </ul>
-        </div>
+        </InsetPanel>
 
         {checking ? <p role="status">RSS-Link wird geprüft…</p> : null}
 
@@ -210,18 +212,16 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
 
         {url ? (
           <div className="space-y-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <Input
-                  id="parent-request-feed-url"
-                  label="Ihr RSS-Link"
-                  readOnly
-                  value={url}
-                  controlSize="compact"
-                  onFocus={(event) => event.target.select()}
-                  className="bg-gray-50 text-gray-700"
-                />
-              </div>
+            <FormRow>
+              <Input
+                id="parent-request-feed-url"
+                label="Ihr RSS-Link"
+                readOnly
+                value={url}
+                controlSize="compact"
+                onFocus={(event) => event.target.select()}
+                className="bg-gray-50 text-gray-700"
+              />
               <Button
                 type="button"
                 size="md"
@@ -236,7 +236,7 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
                 )}
                 {copied ? "Kopiert" : "Kopieren"}
               </Button>
-            </div>
+            </FormRow>
             <p className="text-xs leading-5 text-gray-500">
               Fügen Sie diesen Link in Ihrem RSS-Programm ein. Verwalten Sie den
               Link nur hier in moto.

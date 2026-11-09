@@ -1,0 +1,7 @@
+{
+  "scenario": "api.enrollment.growth.profile",
+  "max": 6,
+  "exact": true,
+  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows.",
+  "route": "GET /api/enrollment/me/profile"
+}

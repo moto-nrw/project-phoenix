@@ -35,12 +35,12 @@ type fakeOperatorPasskeyGate struct {
 	verifiedCode       string
 }
 
-func (g *fakeOperatorPasskeyGate) StartChallenge(_ context.Context, operatorID int64, _ net.IP) (string, error) {
+func (g *fakeOperatorPasskeyGate) StartOperatorMFAChallenge(_ context.Context, operatorID int64, _ net.IP) (string, error) {
 	g.startedOperatorID = operatorID
 	return g.challengeToken, g.startErr
 }
 
-func (g *fakeOperatorPasskeyGate) VerifyCodeForOperator(_ context.Context, operatorID int64, code string) error {
+func (g *fakeOperatorPasskeyGate) VerifyOperatorMFACode(_ context.Context, operatorID int64, code string) error {
 	g.verifiedOperatorID, g.verifiedCode = operatorID, code
 	return g.verifyErr
 }

@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func storedColumn(t *testing.T, db *bun.DB, table, column string, id int64) string {
@@ -52,7 +54,7 @@ func TestAccountSessionTokensAreStoredAsHashes(t *testing.T) {
 	_, err = access.FindAccountSession(ctx, testpkg.TokenHash(t, db, predecessor.Token))
 	require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound, "the stored hash is no credential")
 
-	listed, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{FamilyID: familyID})
+	listed, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{FamilyID: familyID})
 	require.NoError(t, err)
 	require.Len(t, listed, 2)
 	for _, session := range listed {
@@ -69,11 +71,11 @@ func TestOperatorTokensAreStoredAsHashes(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 
 	familyID := newFamilyID()
-	predecessor, err := module.CreateOperatorSession(ctx, identityaccess.OperatorSession{
+	predecessor, err := module.CreateOperatorSession(ctx, ports.OperatorSession{
 		OperatorID: operator.ID, Token: uuid.Must(uuid.NewV4()).String(), Expiry: time.Now().Add(time.Hour), FamilyID: familyID,
 	})
 	require.NoError(t, err)
-	successor, err := module.CreateOperatorSession(ctx, identityaccess.OperatorSession{
+	successor, err := module.CreateOperatorSession(ctx, ports.OperatorSession{
 		OperatorID: operator.ID, Token: uuid.Must(uuid.NewV4()).String(), Expiry: time.Now().Add(time.Hour), FamilyID: familyID, Generation: 1,
 	})
 	require.NoError(t, err)

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
@@ -33,12 +34,9 @@ type NotificationEvent struct {
 	Portal         string
 }
 
-// NotificationSender and DurableNotificationSender are the producer's ports.
+// NotificationSender is the producer's port.
 type NotificationSender interface {
 	communication.NotificationSender
-}
-type DurableNotificationSender interface {
-	NotifyDurably(context.Context, communication.NotificationEvent) (int, error)
 }
 
 // NotificationPreferences only narrows the producer's candidate recipients.
@@ -80,20 +78,6 @@ func NewNotificationSender(send func(context.Context, communication.Notification
 		return nil
 	}
 	return notificationSender(send)
-}
-
-type durableNotificationSender func(context.Context, communication.NotificationEvent) (int, error)
-
-func (send durableNotificationSender) NotifyDurably(ctx context.Context, event communication.NotificationEvent) (int, error) {
-	return send(ctx, event)
-}
-
-// NewDurableNotificationSender binds the existing durable path and receipt.
-func NewDurableNotificationSender(send func(context.Context, communication.NotificationEvent) (int, error)) DurableNotificationSender {
-	if send == nil {
-		return nil
-	}
-	return durableNotificationSender(send)
 }
 
 // Public preserves every selector when crossing the application boundary.
@@ -145,13 +129,43 @@ type LocaleNormalizer interface{ NormalizeLocale(string) string }
 
 const TypeParentRequestDecided = communication.TypeParentRequestDecided
 
-// singleReceiptSender retains the original non-durable producer's one-attempt
-// count even when dispatch fails; the durable producer keeps its real count.
-type singleReceiptSender func(context.Context, communication.NotificationEvent) error
-
-func NewSingleReceiptSender(source NotificationSender) DurableNotificationSender {
-	return singleReceiptSender(source.Notify)
+// notifyEach sends the events in order as consecutive Notify calls and
+// reports how many the router accepted before the first error.
+func (s *service) notifyEach(ctx context.Context, events []communication.NotificationEvent) (int, error) {
+	if s.series.Notify != nil {
+		return s.series.Notify(ctx, events)
+	}
+	for i, event := range events {
+		if err := s.notifier.Notify(ctx, event); err != nil {
+			return i, err
+		}
+	}
+	return len(events), nil
 }
-func (send singleReceiptSender) NotifyDurably(ctx context.Context, event communication.NotificationEvent) (int, error) {
-	return 1, send(ctx, event)
+
+// notifyEachDurably sends the events in order as consecutive NotifyDurably
+// calls and sums the receipts of those accepted before the first error.
+func (s *service) notifyEachDurably(ctx context.Context, events []communication.NotificationEvent) (int, error) {
+	receipts, err := s.series.NotifyDurably(ctx, events)
+	accepted := 0
+	for _, count := range receipts {
+		accepted += count
+	}
+	return accepted, err
+}
+
+// localeGroups splits the push audience by portal language, in a fixed
+// language order so that every run sends the variants in the same order.
+func localeGroups(accountIDs []int64, localeByAccount map[int64]string) ([]string, map[string][]int64) {
+	groups := make(map[string][]int64)
+	var locales []string
+	for _, accountID := range accountIDs {
+		locale := localeByAccount[accountID]
+		if _, ok := groups[locale]; !ok {
+			locales = append(locales, locale)
+		}
+		groups[locale] = append(groups[locale], accountID)
+	}
+	slices.Sort(locales)
+	return locales, groups
 }

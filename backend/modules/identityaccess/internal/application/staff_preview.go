@@ -32,104 +32,98 @@ import (
 // adminFamilyID is the refresh-token family of the admin's session. The
 // preview token carries it, so the preview lives only as long as that
 // family: the admin's logout ends the preview on the next request (#5194).
-func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, adminFamilyID, previousToken, ipAddress, userAgent string) (_ *identityaccess.StaffPreviewSession, err error) {
-	if l == nil {
-		return nil, errAccountLifecycleUnavailable
-	}
-	defer func() { err = lifecycleError(err) }()
-	ctx = bindRuntime(l.auth.attach, ctx)
-	const op = "start staff preview"
+func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, adminFamilyID, previousToken, ipAddress, userAgent string) (*identityaccess.StaffPreviewSession, error) {
+	return runFlow(ctx, l.flow(), func(ctx context.Context) (_ *identityaccess.StaffPreviewSession, err error) {
+		const op = "start staff preview"
 
-	if tenantID <= 0 {
-		return nil, failed(op, identityaccess.ErrTenantNotFound)
-	}
-	if targetAccountID == adminAccountID {
-		return nil, failed(op, identityaccess.ErrPreviewSelf)
-	}
-
-	// Everything that decides whether this person may be previewed and the
-	// minting of the token happen in ONE admin transaction, with the same row
-	// locks the login/refresh path uses. Under READ COMMITTED a plain read
-	// would only prove the account was active at statement time. The FOR
-	// UPDATE on the account and the FOR SHARE on the mapping make the
-	// revoking UPDATE wait for this transaction, so a minted token is provably
-	// backed by an active account, an active membership, and the roles and
-	// permissions that still existed when the token was written.
-	var (
-		account     domain.LoginAccount
-		claims      *domain.AccountClaimsPayload
-		accessToken string
-		previewID   string
-		isRemint    bool
-	)
-	err = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		var err error
-		account, claims, err = l.staffPreviewIdentity(txCtx, tenantID, targetAccountID)
-		if err != nil {
-			return err
+		if tenantID <= 0 {
+			return nil, failed(op, identityaccess.ErrTenantNotFound)
 		}
-		accessToken, previewID, isRemint, err = l.mintStaffPreview(txCtx, account, claims, previousToken, adminFamilyID, adminAccountID, tenantID, targetAccountID)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
+		if targetAccountID == adminAccountID {
+			return nil, failed(op, identityaccess.ErrPreviewSelf)
+		}
 
-	if err := l.recordStaffPreviewOutcome(ctx, isRemint, adminAccountID, tenantID, targetAccountID, previewID, ipAddress, userAgent); err != nil {
-		return nil, err
-	}
-	return &identityaccess.StaffPreviewSession{
-		AccessToken:     accessToken,
-		ExpiresIn:       int64(l.codec.AccessExpiry().Seconds()),
-		TargetAccountID: targetAccountID,
-		TargetName:      staffPreviewDisplayName(claims, account.Email),
-	}, nil
+		// Everything that decides whether this person may be previewed and the
+		// minting of the token happen in ONE admin transaction, with the same row
+		// locks the login/refresh path uses. Under READ COMMITTED a plain read
+		// would only prove the account was active at statement time. The FOR
+		// UPDATE on the account and the FOR SHARE on the mapping make the
+		// revoking UPDATE wait for this transaction, so a minted token is provably
+		// backed by an active account, an active membership, and the roles and
+		// permissions that still existed when the token was written.
+		var (
+			account     domain.LoginAccount
+			claims      *domain.AccountClaimsPayload
+			accessToken string
+			previewID   string
+			isRemint    bool
+		)
+		err = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			var err error
+			account, claims, err = l.staffPreviewIdentity(txCtx, tenantID, targetAccountID)
+			if err != nil {
+				return err
+			}
+			accessToken, previewID, isRemint, err = l.mintStaffPreview(txCtx, account, claims, previousToken, adminFamilyID, adminAccountID, tenantID, targetAccountID)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if err := l.recordStaffPreviewOutcome(ctx, isRemint, adminAccountID, tenantID, targetAccountID, previewID, ipAddress, userAgent); err != nil {
+			return nil, err
+		}
+		return &identityaccess.StaffPreviewSession{
+			AccessToken:     accessToken,
+			ExpiresIn:       int64(l.codec.AccessExpiry().Seconds()),
+			TargetAccountID: targetAccountID,
+			TargetName:      staffPreviewDisplayName(claims, account.Email),
+		}, nil
+	})
 }
 
-func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (_ int64, err error) {
-	if l == nil {
-		return 0, errAccountLifecycleUnavailable
-	}
-	defer func() { err = lifecycleError(err) }()
-	ctx = bindRuntime(l.auth.attach, ctx)
-	const op = "end staff preview"
+func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
+	return runFlow(ctx, l.flow(), func(ctx context.Context) (int64, error) {
+		const op = "end staff preview"
 
-	claims, err := l.codec.ParseAccessTokenAllowExpired(previewToken)
-	if err != nil {
-		l.logger.Warn("staff preview end: token not parseable",
-			slog.String("error", err.Error()),
-		)
-		return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
-	}
-	if !claims.ReadOnly || claims.ActingAdminID <= 0 ||
-		claims.TenantID <= 0 || claims.AccountID <= 0 || claims.PreviewID == "" {
-		l.logger.Warn("staff preview end: token is not a preview token")
-		return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
-	}
-	event := domain.StaffPreviewEvent{
-		AdminAccountID: claims.ActingAdminID, TenantID: claims.TenantID, TargetAccountID: claims.AccountID,
-		PreviewID: claims.PreviewID, IPAddress: ipAddress, UserAgent: userAgent,
-	}
+		claims, err := l.codec.ParseAccessTokenAllowExpired(previewToken)
+		if err != nil {
+			l.logger.Warn("staff preview end: token not parseable",
+				slog.String("error", err.Error()),
+			)
+			return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
+		}
+		if !claims.ReadOnly || claims.ActingAdminID <= 0 ||
+			claims.TenantID <= 0 || claims.AccountID <= 0 || claims.PreviewID == "" {
+			l.logger.Warn("staff preview end: token is not a preview token")
+			return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
+		}
+		event := domain.StaffPreviewEvent{
+			AdminAccountID: claims.ActingAdminID, TenantID: claims.TenantID, TargetAccountID: claims.AccountID,
+			PreviewID: claims.PreviewID, IPAddress: ipAddress, UserAgent: userAgent,
+		}
 
-	recorded, err := l.recordPreviewEnd(ctx, event)
-	if err != nil {
-		return 0, failed(op, err)
-	}
-	if !recorded {
-		// Not an error for the caller: the preview IS over. It simply does
-		// not get a second audit row.
-		l.logger.Debug("staff preview end: already recorded",
+		recorded, err := l.recordPreviewEnd(ctx, event)
+		if err != nil {
+			return 0, failed(op, err)
+		}
+		if !recorded {
+			// Not an error for the caller: the preview IS over. It simply does
+			// not get a second audit row.
+			l.logger.Debug("staff preview end: already recorded",
+				slog.Int64("admin_account_id", event.AdminAccountID),
+				slog.Int64("target_account_id", event.TargetAccountID),
+			)
+			return event.TargetAccountID, nil
+		}
+
+		l.logger.Info("staff preview ended",
 			slog.Int64("admin_account_id", event.AdminAccountID),
 			slog.Int64("target_account_id", event.TargetAccountID),
 		)
 		return event.TargetAccountID, nil
-	}
-
-	l.logger.Info("staff preview ended",
-		slog.Int64("admin_account_id", event.AdminAccountID),
-		slog.Int64("target_account_id", event.TargetAccountID),
-	)
-	return event.TargetAccountID, nil
+	})
 }
 
 // continuedPreviewID reads the preview id out of the token the client is
@@ -390,13 +384,10 @@ func (l *AccountLifecycle) mintStaffPreview(txCtx context.Context, account domai
 		previewID = newID
 	}
 
-	accessToken, err = l.codec.IssueAccessToken(domain.SessionClaims{
-		AccountID: account.ID, Email: account.Email, Username: claims.Username,
-		FirstName: claims.FirstName, LastName: claims.LastName,
-		Roles: claims.RoleNames, RoleIsSystem: domain.RoleSystemFlags(claims.Roles), Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
-		Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID, FamilyID: adminFamilyID,
-		ReadOnly: true, ActingAdminID: adminAccountID, PreviewID: previewID,
-	})
+	preview := accessClaims(account, claims, adminFamilyID, account.Email)
+	preview.TenantID = tenantID
+	preview.ReadOnly, preview.ActingAdminID, preview.PreviewID = true, adminAccountID, previewID
+	accessToken, err = l.codec.IssueAccessToken(preview)
 	if err != nil {
 		return accessToken, previewID, isRemint, failed(op, err)
 	}

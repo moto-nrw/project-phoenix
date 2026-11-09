@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -85,6 +86,12 @@ type InvitationResponse struct {
 	EmailSentAt         *time.Time                      `json:"email_sent_at,omitempty"`
 	EmailError          *string                         `json:"email_error,omitempty"`
 	EmailRetryCount     int                             `json:"email_retry_count"`
+	// MailOutcome is what Delivery knows about the last mail; "sent" above only
+	// says the mail server took it. AddressMark is set while the school's list
+	// holds the address (#5934).
+	MailOutcome   string `json:"mail_outcome,omitempty"`
+	AddressMark   string `json:"address_mark,omitempty"`
+	ProviderBlock string `json:"provider_block,omitempty"`
 }
 
 // InvitationValidationResponse is the public-safe view of a redeemable
@@ -222,6 +229,8 @@ func toInvitationResponse(invitation identityaccess.SchoolInvitation) Invitation
 		EmailSentAt:     invitation.Delivery.SentAt,
 		EmailError:      invitation.Delivery.Error,
 		EmailRetryCount: invitation.Delivery.RetryCount,
+		MailOutcome:     invitation.Delivery.Outcome,
+		AddressMark:     invitation.Delivery.AddressMark,
 	}
 }
 
@@ -449,6 +458,28 @@ func (rs *Resource) lookupTenantSubdomainForInvitation(ctx context.Context, toke
 	return rs.Invitations.SchoolInvitationSubdomain(ctx, token)
 }
 
+// pendingInvitationsWithMailStates adds what Delivery knows about the last mail of
+// each invitation, in one read for the whole list (#5934).
+func (rs *Resource) pendingInvitationsWithMailStates(ctx context.Context) ([]identityaccess.SchoolInvitation, error) {
+	invitations, err := rs.Invitations.ListPendingSchoolInvitations(ctx)
+	if err != nil || len(invitations) == 0 {
+		return invitations, err
+	}
+	ids := make([]int64, len(invitations))
+	for i, invitation := range invitations {
+		ids[i] = invitation.ID
+	}
+	states, err := rs.Invitations.SchoolInvitationMailStates(ctx, invitations[0].TenantID, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range invitations {
+		state := states[invitations[i].ID]
+		invitations[i].Delivery.Outcome, invitations[i].Delivery.AddressMark, invitations[i].Delivery.ProviderBlock = state.Outcome, state.AddressMark, state.ProviderBlock
+	}
+	return invitations, nil
+}
+
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	if rs.Invitations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
@@ -460,12 +491,12 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	var err error
 	if rs.transactions != nil {
 		err = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-			inv, txErr := rs.Invitations.ListPendingSchoolInvitations(txCtx)
+			inv, txErr := rs.pendingInvitationsWithMailStates(txCtx)
 			invitations = inv
 			return txErr
 		})
 	} else {
-		invitations, err = rs.Invitations.ListPendingSchoolInvitations(ctx)
+		invitations, err = rs.pendingInvitationsWithMailStates(ctx)
 	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -601,16 +632,31 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 
 // renderInvitationError maps owner-reported invitation errors to appropriate
 // HTTP responses.
+// isInvitationMailRefusal reports a mail nobody should read as sent (#5934).
+func isInvitationMailRefusal(err error) bool {
+	return errors.Is(err, identityaccess.ErrGuardianEmailAddressBlocked) || errors.Is(err, identityaccess.ErrInvitationMailDelayed) ||
+		errors.Is(err, identityaccess.ErrMailBlockedAtProvider) || errors.Is(err, identityaccess.ErrMailBlockUnreadable)
+}
+
+func invitationMailRefusal(err error) render.Renderer {
+	switch {
+	case errors.Is(err, identityaccess.ErrGuardianEmailAddressBlocked):
+		return common.ErrorConflictWithCode(err, common.CodeIdentityGuardianEmailAddressBlocked)
+	case errors.Is(err, identityaccess.ErrMailBlockedAtProvider):
+		return common.ErrorConflictWithCode(err, common.CodeIdentityMailBlockedAtProvider)
+	case errors.Is(err, identityaccess.ErrMailBlockUnreadable):
+		return common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMailBlockUnreadable)
+	default:
+		return common.ErrorConflictWithCode(err, common.CodeIdentityInvitationMailDelayed)
+	}
+}
+
 func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
 	if err == nil {
 		return false
 	}
 
-	var operation *identityaccess.AuthenticationError
-	if errors.As(err, &operation) && operation.Err != nil {
-		err = operation.Err
-	}
-
+	err = portalauth.Cause(err)
 	switch {
 	case errors.Is(err, identityaccess.ErrInvitationNotFound):
 		if render.Render(w, r, common.ErrorNotFoundWithCode(identityaccess.ErrInvitationNotFound, common.CodeIdentityInvitationNotFound)) != nil {
@@ -622,6 +668,8 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 			return false
 		}
 		return true
+	case isInvitationMailRefusal(err):
+		return render.Render(w, r, invitationMailRefusal(err)) == nil
 	case errors.Is(err, identityaccess.ErrGuardianAccessMailNotQueued):
 		// The resend rolled back; the previous link still works (#4602).
 		if render.Render(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityGuardianInvitationEmailNotQueued)) != nil {

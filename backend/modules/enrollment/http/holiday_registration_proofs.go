@@ -2,9 +2,9 @@ package enrollmenthttp
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"time"
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -21,19 +22,27 @@ import (
 // field of the online registration (#4783): the content type comes from the
 // bytes, the extension must name it and the size is measured.
 
-// uploadProof stores one proof of benefits for the link's period.
+// uploadProof stores one proof of benefits for the link's period. The link
+// and the IP's upload bucket are checked before the body is read.
 func (rs *HolidayRegistrationResource) uploadProof(w http.ResponseWriter, r *http.Request) {
-	upload, err := parseHolidayProof(w, r)
-	if err != nil {
-		renderUploadRefusal(w, r, err)
-		return
-	}
 	link, err := rs.resolveLink(r.Context(), chi.URLParam(r, "token"))
 	if err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
-	receipt, err := rs.proofs.UploadHolidayProof(r.Context(), link, remoteIPFromRequest(r), upload)
+	remoteIP := remoteIPFromRequest(r)
+	if err := rs.countAttempt(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
+		return rs.registrations.CountHolidayProofUpload(txCtx, link.OrganizationID, remoteIP)
+	}); err != nil {
+		renderHolidayRegistrationError(w, r, err)
+		return
+	}
+	upload, err := parseHolidayProof(w, r)
+	if err != nil {
+		renderUploadRefusal(w, r, err)
+		return
+	}
+	receipt, err := rs.proofs.UploadHolidayProof(r.Context(), link, upload)
 	if err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
@@ -111,7 +120,7 @@ func (rs *HolidayPeriodResource) openProof(w http.ResponseWriter, r *http.Reques
 	// the sandbox denies it scripts, forms and same-origin access, and no
 	// cache keeps it.
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": file.Filename}))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("inline", file.Filename))
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

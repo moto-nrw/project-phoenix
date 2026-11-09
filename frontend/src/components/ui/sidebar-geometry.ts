@@ -1,0 +1,141 @@
+/**
+ * Das gemeinsame Raster der Seitenleiste (#2923).
+ *
+ * Ein- und ausgeklappte Leiste sind dieselben Elemente — nur die Breite
+ * ändert sich. Damit beim Umschalten nichts springt, kommen Höhe, Abstand,
+ * Ausrichtung und Rundung jeder Zeile aus dieser Datei. Seit #5975 gilt das
+ * Raster für die Leisten aller Portale (`sidebar-row.tsx`), nicht nur für
+ * die einklappbare Tenant-Leiste.
+ *
+ * Die Maße hängen voneinander ab; die Rechnung steht bei den Konstanten:
+ *
+ *   ausgeklappt   |<-10->|<-12->[icon 20]<-12->Bezeichnung ...      |
+ *   eingeklappt   |<-10->|<-12->[icon 20]<-12->|
+ *                        ^ Icon-Mitte 32px = Mitte der 64px-Leiste
+ *
+ * Weil Innenabstand der Navigation (10px) und Innenabstand der Zeile (12px)
+ * in beiden Zuständen gleich sind, bleibt die Icon-Mitte über die ganze
+ * Breitenänderung hinweg exakt an derselben Stelle: 10 + 12 + 10 = 32px,
+ * also genau die Mitte des schmalen Streifens (64px / 2). Wer eines der
+ * beiden Maße ändert, verschiebt die Icons beim Klappen wieder.
+ */
+
+/** Breite der ausgeklappten Leiste (256px). */
+export const SIDEBAR_WIDTH_EXPANDED = "w-64";
+/** Breite des eingeklappten Icon-Streifens (64px). */
+export const SIDEBAR_WIDTH_COLLAPSED = "w-16";
+
+/**
+ * Breiten-Slide beim Klappen (#2825). Aussenhülle und Inhalt tragen dieselbe
+ * Dauer und Kurve, damit die Zeilen mit der Leiste mitwandern statt am Anfang
+ * oder Ende ein zweites Mal zu springen. `motion-safe` respektiert
+ * prefers-reduced-motion: dort wechselt die Breite ohne Bewegung.
+ */
+export const SIDEBAR_WIDTH_TRANSITION =
+  "motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-in-out";
+
+/** Innenabstand jeder Navigationsspalte (10px, siehe Rechnung oben). */
+export const SIDEBAR_NAV_PADDING = "p-2.5";
+/** Vertikaler Abstand zwischen zwei Zeilen (4px). */
+export const SIDEBAR_NAV_GAP = "space-y-1";
+
+/**
+ * Rückmeldung jeder anklickbaren Zeile: Farbe und Hintergrund blenden in
+ * 150ms über, beim Drücken gibt die Zeile kurz nach (`motion-safe` lässt das
+ * bei prefers-reduced-motion weg). Gesperrte Zeilen tragen kein Nachgeben.
+ *
+ * `--nav-row-bg` ist die aktuelle Hintergrundfarbe der Zeile. Die Szenen der
+ * Icons (`NavSceneIcon`) füllen damit Teile, die etwas dahinter verdecken
+ * (Sprechblasen, Ablage, Buchseite); ohne sie stünde dort beim Überfahren
+ * ein weißer Fleck auf grauem Grund.
+ */
+const ROW_TRANSITION =
+  "transition-[color,background-color,scale] duration-150 ease-out";
+const ROW_PRESS = "motion-safe:active:scale-[0.98]";
+const ROW_BG_IDLE =
+  "[--nav-row-bg:var(--color-white)] hover:[--nav-row-bg:var(--color-gray-50)]";
+const ROW_BG_ACTIVE = "[--nav-row-bg:var(--color-gray-100)]";
+
+/**
+ * Grundriss jeder Navigationszeile: 40px hoch, 12px Innenabstand, gleiche
+ * Rundung für Links und Bereichs-Schalter. Ohne Breakpoint-Varianten — ein
+ * Raster für alle Desktop-Breiten, sonst wechselt die Zeilenhöhe zwischen
+ * 1024px und 1280px und das Klappen springt genau dort (#2923).
+ */
+// overflow-hidden hält Chevron und Zähler während der Bewegung in der Zeile,
+// statt sie über die Kante der schrumpfenden Leiste laufen zu lassen. Der
+// Fokusring liegt deshalb innen (ring-inset), damit er nicht abgeschnitten
+// wird — Links und Bereichs-Schalter tragen denselben Ring wie der
+// Kit-Button.
+// justify-start steht ausdrücklich hier: der Bereichs-Schalter ist ein
+// Kit-Button, und dessen Grundklassen zentrieren den Inhalt. Beide Zeilenarten
+// beginnen links am Icon.
+const ROW_BASE = `group relative flex h-10 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-sm ${ROW_TRANSITION} focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none`;
+
+const ROW_ACTIVE = `bg-gray-100 font-semibold text-gray-900 ${ROW_BG_ACTIVE} ${ROW_PRESS}`;
+const ROW_INACTIVE = `font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${ROW_BG_IDLE} ${ROW_PRESS}`;
+const ROW_DISABLED = "font-medium text-gray-400";
+
+/**
+ * Zeilenklassen für Links und Bereichs-Schalter. Ein Aufrufpunkt für beide,
+ * damit Aktiv-Zustand, Hover und Fokus überall gleich aussehen.
+ */
+export function sidebarRowClasses(options?: {
+  readonly isActive?: boolean;
+  readonly isDisabled?: boolean;
+}): string {
+  if (options?.isDisabled)
+    return `${ROW_BASE} ${ROW_DISABLED} cursor-not-allowed`;
+  return `${ROW_BASE} ${options?.isActive ? ROW_ACTIVE : ROW_INACTIVE}`;
+}
+
+/**
+ * Kopfzeile einer Gruppe (#2826): dieselbe Breite, derselbe Innenabstand
+ * und dieselbe Icon-Spalte wie eine Navigationszeile, aber 32px hoch und
+ * ohne Aktiv-Markierung — sie ist ein Schalter für den Block darunter,
+ * keine Seite. Im Streifen bleibt nur ihr Icon übrig; weil px-3 gleich
+ * ist, sitzt es auf derselben Achse wie die Zeilen-Icons.
+ */
+export const SIDEBAR_GROUP_HEADING_CLASSES = `group relative flex h-8 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-gray-600 ${ROW_TRANSITION} ${ROW_PRESS} ${ROW_BG_IDLE} hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none`;
+
+/** 20px-Icon, feste Größe in beiden Zuständen. */
+export const SIDEBAR_ICON_CLASSES = "h-5 w-5 shrink-0 transition-colors";
+
+/**
+ * Die Bezeichnung neben dem Icon. Sie blendet mit der Breitenänderung aus
+ * (kurze Blende, damit der Text nicht sichtbar "aufgefressen" wird) und beim
+ * Aufklappen leicht verzögert wieder ein. `truncate` hält den Text
+ * einzeilig — er darf während der Bewegung nicht umbrechen.
+ */
+export function sidebarLabelClasses(isVisible: boolean): string {
+  return `ml-3 min-w-0 flex-1 truncate motion-safe:transition-opacity motion-safe:duration-150 ${
+    isVisible ? "opacity-100 motion-safe:delay-75" : "opacity-0"
+  }`;
+}
+
+/**
+ * Unterpunkte richten sich an der Bezeichnung der Elternzeile aus:
+ * 10px Navigationsabstand + 12px Zeilenabstand + 20px Icon + 12px = 54px,
+ * abzüglich des Navigationsabstands also 44px (pl-11).
+ */
+export const SIDEBAR_SUB_ITEM_CLASSES = `flex h-8 items-center justify-between overflow-hidden rounded-lg pr-3 pl-11 text-sm ${ROW_TRANSITION} motion-safe:active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none`;
+
+/**
+ * Ab dieser Fensterposition klebt die Leiste: unter der Kopfzeile (73 px), mit
+ * einem festen Streifen darüber 121 px, mit der Abendzeile der Demo 153 px.
+ */
+export type PortalSidebarTopOffset = 73 | 121 | 153;
+
+/**
+ * Wo die Seitenleiste klebt: Ein fester Streifen (Demo, Mitarbeiter-Vorschau,
+ * h-12) schiebt die Kopfzeile um 48 px nach unten (#2893, #3467), die Abendzeile
+ * der Demo um weitere 32 px (#3921). Ohne das schöbe sich die Kopfzeile beim
+ * Scrollen über die obersten Einträge.
+ */
+export function portalSidebarTopOffset(
+  stripActive: boolean,
+  eveningRow = false,
+): PortalSidebarTopOffset {
+  if (eveningRow) return 153;
+  return stripActive ? 121 : 73;
+}

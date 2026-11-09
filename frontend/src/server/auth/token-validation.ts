@@ -1,14 +1,13 @@
 import "server-only";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
-import type { JwtPayload } from "./jwt-payload";
-
-type Portal = "tenant" | "platform" | "parent" | "school" | "caterer" | "org";
+import { sendBackend } from "~/lib/backend-client.server";
+import type { ErrorCode } from "~/lib/error-codes.generated";
+import { decodeJwtPayload, type JwtPayload } from "./jwt-payload";
+import { acceptsScope, type ValidationPortal } from "./portals";
 
 /** Only backend-verified claims may cross a client token-handoff boundary. */
 export async function validateSessionToken(
   accessToken: string,
-  portal: Portal,
+  portal: ValidationPortal,
   refreshToken?: string,
 ): Promise<JwtPayload | null> {
   if (
@@ -22,20 +21,10 @@ export async function validateSessionToken(
   )
     return null;
   try {
-    const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
+    const response = await sendBackend("/auth/session/validate", accessToken, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...(await incomingClientForwardHeaders()),
-      },
-      body: JSON.stringify({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        portal,
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      json: { access_token: accessToken, refresh_token: refreshToken, portal },
+      timeout: "session",
     });
     if (!response.ok) return null;
     const claims = (await response.json()) as JwtPayload;
@@ -46,46 +35,25 @@ export async function validateSessionToken(
       claims.exp * 1000 <= Date.now()
     )
       return null;
-    const scope = claims.scope ?? "";
-    if (
-      portal === "tenant"
-        ? !["", "tenant", "org"].includes(scope)
-        : scope !== portal
-    )
-      return null;
+    if (!acceptsScope(portal, claims.scope)) return null;
     return claims;
   } catch {
     return null;
   }
 }
 
-/** live: the family backs the token; ended: revoked; unknown: no answer, or an expired token. */
-export type SessionFamilyState = "live" | "ended" | "unknown";
+/**
+ * live: the family backs the token; notBooked: it does, but the school has
+ * not booked the portal's module; ended: revoked; unknown: no answer, or an
+ * expired token.
+ */
+export type SessionFamilyState = "live" | "notBooked" | "ended" | "unknown";
 
-/** The validation portal of a session's scope claim. */
-export function portalOfScope(scope: unknown): Portal {
-  switch (scope) {
-    case "platform":
-    case "parent":
-    case "school":
-    case "caterer":
-    case "org":
-      return scope;
-    default:
-      return "tenant";
-  }
-}
+const moduleNotBookedCode: ErrorCode = "module.not_booked";
 
-/** The `exp` claim of an access token in seconds; null when unreadable. */
-function accessTokenExpiry(accessToken: string): number | null {
-  try {
-    const { exp } = JSON.parse(
-      Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
-    ) as { exp?: unknown };
-    return typeof exp === "number" ? exp : null;
-  } catch {
-    return null;
-  }
+/** A module the school did not book closes pages, not the session. */
+export function familyBacksSession(state: SessionFamilyState): boolean {
+  return state === "live" || state === "notBooked";
 }
 
 /**
@@ -97,28 +65,31 @@ function accessTokenExpiry(accessToken: string): number | null {
  */
 export async function sessionFamilyState(
   accessToken: string,
-  portal: Portal,
+  portal: ValidationPortal,
 ): Promise<SessionFamilyState> {
   if (!accessToken || accessToken.length > 16000) return "ended";
   // Identity & Access rejects an expired token before it reads the family,
   // so its refusal says nothing about the family. The session's refresh
   // decides; a revoked family ends there.
-  const expiry = accessTokenExpiry(accessToken);
-  if (expiry !== null && expiry * 1000 <= Date.now()) return "unknown";
+  const expiry = decodeJwtPayload(accessToken)?.exp;
+  if (typeof expiry === "number" && expiry * 1000 <= Date.now()) {
+    return "unknown";
+  }
   try {
-    const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
+    const response = await sendBackend("/auth/session/validate", accessToken, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...(await incomingClientForwardHeaders()),
-      },
-      body: JSON.stringify({ access_token: accessToken, portal }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      json: { access_token: accessToken, portal },
+      timeout: "session",
     });
     if (response.ok) return "live";
-    return response.status === 401 ? "ended" : "unknown";
+    if (response.status === 401) return "ended";
+    if (response.status === 403) {
+      const body = (await response.json().catch(() => null)) as {
+        code?: unknown;
+      } | null;
+      if (body?.code === moduleNotBookedCode) return "notBooked";
+    }
+    return "unknown";
   } catch {
     return "unknown";
   }

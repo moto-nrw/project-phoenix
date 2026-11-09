@@ -103,6 +103,8 @@ import {
   type AbsenceType,
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -643,7 +645,10 @@ export function AbwesenheitenTab({
         bodyClassName="mt-4 space-y-3"
       >
         {rebookSelection ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2">
+          <InsetPanel
+            padding="compact"
+            className="flex flex-wrap items-center justify-between gap-2"
+          >
             <span className="text-sm text-gray-700">
               {rebookSelection.size === 1
                 ? "1 Eintrag gewählt"
@@ -668,7 +673,7 @@ export function AbwesenheitenTab({
                 Weiter
               </Button>
             </div>
-          </div>
+          </InsetPanel>
         ) : null}
         {history.length === 0 ? (
           <EmptyState title="Keine vergangenen oder abgelehnten Abwesenheiten." />
@@ -937,32 +942,29 @@ function PendingAbsences({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-5 py-4">
-        <span className="bg-moto-green/15 text-moto-green-strong inline-flex h-7 w-7 items-center justify-center rounded-full">
-          <Check className="h-4 w-4" aria-hidden />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-gray-700">
-            Keine offenen Anfragen
-          </p>
-          <p className="text-xs text-gray-500">Alles bearbeitet.</p>
-        </div>
-      </div>
+      <SectionCard>
+        <EmptyState
+          variant="compact"
+          tone="success"
+          icon={<Check aria-hidden />}
+          title="Keine offenen Anfragen"
+          description="Alles bearbeitet."
+          className="py-0"
+        />
+      </SectionCard>
     );
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Eingehende Anfragen
-        </h3>
-        {/* Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe
-            Tripel auf wie StatusColorBadge(LOCATION_COLORS.SICK), und direkt
-            darunter stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler
-            offener Anfragen ist ausserdem keine Fehlermeldung. */}
-        <StatusBadge tone="gray" label={String(rows.length)} />
-      </div>
+    <SectionCard
+      title="Eingehende Anfragen"
+      headingLevel={3}
+      // Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe Tripel
+      // auf wie StatusColorBadge(LOCATION_COLORS.SICK), und direkt darunter
+      // stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler offener Anfragen
+      // ist ausserdem keine Fehlermeldung.
+      titleBadge={<StatusBadge tone="gray" label={String(rows.length)} />}
+    >
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
           <AbsenceRequestRow
@@ -978,7 +980,7 @@ function PendingAbsences({
           />
         ))}
       </ul>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1077,16 +1079,18 @@ function VacationOpeningSummary({
   readonly opening: StaffVacationOpening;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
-      <span className="font-semibold tracking-wider text-gray-500 uppercase">
-        Übernahme
-      </span>
+    <InsetPanel
+      framed
+      padding="compact"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600"
+    >
+      <SectionLabel as="p">Übernahme</SectionLabel>
       <span className="tabular-nums">
         {formatDayCount(opening.taken_before_days)} vor Einführung genommen
       </span>
       <span className="text-gray-300">·</span>
       <span>Stichtag {formatDate(opening.effective_date)}</span>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1272,51 +1276,38 @@ function VacationOpeningModal({
           moto errechnet daraus die vor der Einführung bereits genommenen Tage.
           Der Jahresanspruch bleibt unverändert.
         </p>
-        <div>
-          <label
-            htmlFor="vacation-opening-date"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Stichtag
-          </label>
-          <ISODatePicker
-            id="vacation-opening-date"
-            min={`${year}-01-01`}
-            max={maxEffectiveDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-            error={formErrors.fieldError("effective_date")}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss im Jahr {year} und vor dem heutigen Tag liegen.
-          </p>
-        </div>
-        <div>
-          <label
-            htmlFor="vacation-opening-remaining"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Resturlaub zum Stichtag (Tage)
-          </label>
-          <Input
-            id="vacation-opening-remaining"
-            name="remaining_days"
-            type="text"
-            inputMode="decimal"
-            controlSize="compact"
-            value={remainingDays}
-            onChange={(e) => setRemainingDays(e.target.value)}
-            placeholder="z. B. 12,5"
-            error={
-              remainingDays.trim() !== "" && !remainingValid
-                ? REMAINING_RANGE_HINT
-                : formErrors.fieldError("remaining_days")
-            }
-          />
-        </div>
-        <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+        <ISODatePicker
+          label="Stichtag"
+          id="vacation-opening-date"
+          min={`${year}-01-01`}
+          max={maxEffectiveDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+          hint={`Der Stichtag muss im Jahr ${year} und vor dem heutigen Tag liegen.`}
+          error={formErrors.fieldError("effective_date")}
+        />
+        <Input
+          label="Resturlaub zum Stichtag (Tage)"
+          id="vacation-opening-remaining"
+          name="remaining_days"
+          type="text"
+          inputMode="decimal"
+          controlSize="compact"
+          value={remainingDays}
+          onChange={(e) => setRemainingDays(e.target.value)}
+          placeholder="z. B. 12,5"
+          error={
+            remainingDays.trim() !== "" && !remainingValid
+              ? REMAINING_RANGE_HINT
+              : formErrors.fieldError("remaining_days")
+          }
+        />
+        <InsetPanel
+          padding="compact"
+          className="space-y-1 text-sm text-gray-700"
+        >
           <p>
             Jahresanspruch inklusive Übertrag:{" "}
             <span className="font-medium tabular-nums">
@@ -1339,24 +1330,17 @@ function VacationOpeningModal({
               schreibt die Differenz zusätzlich gut.
             </p>
           )}
-        </div>
-        <div>
-          <label
-            htmlFor="vacation-opening-note"
-            className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Begründung (Pflicht)
-          </label>
-          <Textarea
-            id="vacation-opening-note"
-            name="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
-            error={formErrors.fieldError("note")}
-          />
-        </div>
+        </InsetPanel>
+        <Textarea
+          label="Begründung (Pflicht)"
+          id="vacation-opening-note"
+          name="note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          placeholder="z. B. Übernahme aus Urlaubsliste, Stand 31.07."
+          error={formErrors.fieldError("note")}
+        />
       </div>
     </Modal>
   );

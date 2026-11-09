@@ -27,6 +27,10 @@ const (
 	EnrollmentPayloadPhaseName         = "phase_name"
 	EnrollmentPayloadStatusReason      = "status_reason"
 	EnrollmentPayloadRolloverDeadline  = "rollover_deadline"
+	// EnrollmentPayloadCareFacilityTerm is the school's term for its care
+	// (enrollment.care_facility_term, #6042) for the mail header. A payload
+	// enqueued before it existed has none; the header then says "OGS".
+	EnrollmentPayloadCareFacilityTerm = "care_facility_term"
 )
 
 // StatusURL builds the parent-facing status link sent in the submitted,
@@ -117,12 +121,23 @@ func ParentResolvedStatus(status string) bool {
 	}
 }
 
+// MailBrand is the school branding of one enrollment mail: the school name,
+// the school and moto logos and the school's term for its care (#6042).
+type MailBrand struct {
+	SchoolName       string
+	LogoURL          string
+	MotoLogoURL      string
+	CareFacilityTerm string
+}
+
 // Notifications is Enrollment's side of the parent and admin mails: the
 // school branding every mail carries and the decision notifications.
 type Notifications interface {
-	// SchoolBrand returns the school name, school logo and moto footer logo.
-	// An unreadable school leaves its name and logo empty, not the footer.
-	SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (schoolName, logoURL, motoLogoURL string)
+	// SchoolBrand returns the branding every school mail carries. An
+	// unreadable school leaves its name and logo empty, not the footer; an
+	// unreadable care-facility term fails, since another wording would be a
+	// guess.
+	SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (MailBrand, error)
 	// NotifyDecisions routes one decision generation through the request's
 	// pinned notification mode: immediate mails per child, or one digest
 	// once every child is resolved. It pins the mode at the first
@@ -176,4 +191,14 @@ type CaptchaVerifier interface {
 	// SiteKey returns the public site key for the tenant, or "" when unset.
 	// Safe to expose on a public endpoint.
 	SiteKey(ctx context.Context) (string, error)
+}
+
+// RequestMailOutcome is what became of one mail to the family of an application
+// (#5934). Kind is one of the MailKind values.
+type RequestMailOutcome struct {
+	Kind        string     `json:"kind"`
+	Outcome     string     `json:"outcome"`
+	AddressMark string     `json:"address_mark,omitempty"`
+	Stopped     bool       `json:"stopped,omitempty"`
+	OutcomeAt   *time.Time `json:"outcome_at,omitempty"`
 }

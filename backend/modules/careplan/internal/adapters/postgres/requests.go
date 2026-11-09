@@ -25,41 +25,39 @@ const (
 	dataTargetDeparture           = "departure"
 )
 
+// CountOpenCareRequests counts the pending student-data, excused-absence and
+// care-schedule requests per child in one statement: one grouped count per
+// queue, joined by UNION ALL and summed here, so the per-queue int casts stay
+// as they were (#5880, decision E2: one shared read may replace the former
+// three READ COMMITTED reads; a caller holding the request locks still reads
+// after them).
 func (s *requestStore) CountOpenCareRequests(ctx context.Context, studentIDs []int64) (map[int64]int, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err
 	}
 	counts := make(map[int64]int, len(studentIDs))
-	stats := carePlanCompose.RequestStoreStats{}
+	pending := func(query *bun.SelectQuery) *bun.SelectQuery {
+		return withTenant(query.ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID)
+	}
+	query := pending(db.NewSelect().TableExpr(`users.student_data_change_requests AS "request"`)).
+		UnionAll(pending(db.NewSelect().TableExpr(`active.excused_absence_requests AS "request"`))).
+		UnionAll(pending(db.NewSelect().TableExpr(`schedule.care_schedule_change_requests AS "request"`)))
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Total     int   `bun:"total"`
+	}
+	stats := carePlanCompose.RequestStoreStats{Queries: 1}
 	started := time.Now()
-	add := func(query *bun.SelectQuery) error {
-		var rows []struct {
-			StudentID int64 `bun:"student_id"`
-			Total     int   `bun:"total"`
-		}
-		stats.Queries++
-		if err := query.Scan(ctx, &rows); err != nil {
-			return err
-		}
-		stats.Rows += int64(len(rows))
-		for _, row := range rows {
-			counts[row.StudentID] += row.Total
-		}
-		return nil
-	}
-	queries := []*bun.SelectQuery{
-		withTenant(db.NewSelect().TableExpr(`users.student_data_change_requests AS "request"`).ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID),
-		withTenant(db.NewSelect().TableExpr(`active.excused_absence_requests AS "request"`).ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID),
-		withTenant(db.NewSelect().TableExpr(`schedule.care_schedule_change_requests AS "request"`).ColumnExpr(`"request".student_id, COUNT(*)::int AS total`).Where(`"request".student_id IN (?)`, bun.List(studentIDs)).Where(`"request".status = ?`, requestPending).GroupExpr(`"request".student_id`), "request", tenantID),
-	}
-	for _, query := range queries {
-		if err := add(query); err != nil {
-			stats.StatementDuration = time.Since(started)
-			return nil, stats, requestDBError("count open care requests", err)
-		}
-	}
+	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, requestDBError("count open care requests", err)
+	}
+	stats.Rows = int64(len(rows))
+	for _, row := range rows {
+		counts[row.StudentID] += row.Total
+	}
 	return counts, stats, nil
 }
 
@@ -170,10 +168,6 @@ func applyRequestUrgency(query *bun.SelectQuery, filter *careplan.RequestQueueFi
 		return query.Where("?", bun.SafeQuery(expression, args...))
 	}
 	return query.Where("NOT (?)", bun.SafeQuery(expression, args...))
-}
-
-func escapeILike(value string) string {
-	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
 }
 
 func (s *requestStore) FindExcusedAbsenceRequest(ctx context.Context, id int64, lock bool) (careplan.ExcusedAbsenceRequest, bool, carePlanCompose.RequestStoreStats, error) {
@@ -583,6 +577,10 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 	rows := []studentDataRequestRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(`users.student_data_change_requests AS "student_data_change_request"`), "student_data_change_request", tenantID)
+	query, none := whereRequestIDs(query, "student_data_change_request", filter.IDs)
+	if none {
+		return []careplan.StudentDataChangeRequest{}, carePlanCompose.RequestStoreStats{}, nil
+	}
 	if filter.StudentID > 0 {
 		query = query.Where(`"student_data_change_request".student_id = ?`, filter.StudentID)
 	}
@@ -612,6 +610,18 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 		return nil, stats, requestDBError("list student data change requests", err)
 	}
 	return studentDataRequestsToPublic(rows), stats, nil
+}
+
+// whereRequestIDs restricts a request listing to exact rows. A nil filter
+// leaves the query unchanged; an empty one matches no row, reported as none.
+func whereRequestIDs(query *bun.SelectQuery, alias string, ids []int64) (*bun.SelectQuery, bool) {
+	if ids == nil {
+		return query, false
+	}
+	if len(ids) == 0 {
+		return query, true
+	}
+	return query.Where("?.id IN (?)", bun.Ident(alias), bun.List(ids)), false
 }
 
 func (s *requestStore) HasPendingStudentDataRequest(ctx context.Context, studentID int64, target, field string) (bool, carePlanCompose.RequestStoreStats, error) {

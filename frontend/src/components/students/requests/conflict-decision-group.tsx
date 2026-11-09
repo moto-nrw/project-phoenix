@@ -15,7 +15,7 @@ import { ApiError } from "~/lib/api-error";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -26,7 +26,7 @@ import { Radio } from "~/components/ui/radio";
 import { Textarea } from "~/components/ui/textarea";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
-import { DEPARTURE_WEEKDAYS } from "~/lib/student-helpers";
+import { DEPARTURE_WEEKDAYS } from "~/lib/departure-plan";
 import { createLogger } from "~/lib/logger";
 import {
   conflictResolutionKind,
@@ -40,6 +40,7 @@ import {
   OFFERING_NO_DAY_HINT,
   type StaffValueInput,
 } from "./request-copy";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "ConflictDecisionGroup" });
 
@@ -104,29 +105,23 @@ function StaffValueField({
           <legend className="mb-1 text-sm font-medium text-gray-800">
             Tage
           </legend>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {DEPARTURE_WEEKDAYS.map((day) => (
-              <label
-                key={day.key}
-                htmlFor={`staff-day-${day.key}`}
-                className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-gray-800"
-              >
-                <Checkbox
-                  id={`staff-day-${day.key}`}
-                  checked={draft.days.includes(day.key)}
-                  onChange={(event) =>
-                    onChange({
-                      ...draft,
-                      days: event.target.checked
-                        ? [...draft.days, day.key]
-                        : draft.days.filter((value) => value !== day.key),
-                    })
-                  }
-                />
-                <span>{day.label}</span>
-              </label>
-            ))}
-          </div>
+          <WeekdayToggleGroup
+            ariaLabel="Tage"
+            days={DEPARTURE_WEEKDAYS.map((day) => ({
+              value: day.key,
+              label: day.label.slice(0, 2),
+              ariaLabel: day.label,
+            }))}
+            value={draft.days}
+            onToggle={(day) =>
+              onChange({
+                ...draft,
+                days: draft.days.includes(day)
+                  ? draft.days.filter((value) => value !== day)
+                  : [...draft.days, day],
+              })
+            }
+          />
           <p className="mt-1 text-xs text-gray-600">{OFFERING_NO_DAY_HINT}</p>
         </fieldset>
       </div>
@@ -210,7 +205,7 @@ export function ConflictDecisionGroup({
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const sectionRef = useRef<HTMLElement>(null);
+  const sectionRef = useRef<HTMLFieldSetElement>(null);
   const errors = useApiFormError(sectionRef);
   // „Wiederholen“ speichert die aktuelle Auswahl, nicht die vom Fehler.
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
@@ -297,11 +292,8 @@ export function ConflictDecisionGroup({
 
   const name = `conflict-${group.key}`;
   return (
-    <section
-      ref={sectionRef}
-      className="moto-content-surface rounded-2xl border p-4"
-    >
-      <fieldset className="space-y-3">
+    <SectionCard>
+      <fieldset ref={sectionRef} className="space-y-3">
         <legend className="text-sm font-semibold text-gray-900">
           {group.expectedCount} Wünsche für {group.label}
         </legend>
@@ -373,20 +365,15 @@ export function ConflictDecisionGroup({
           />
           <span>Keine Änderung</span>
         </label>
-        <label
-          htmlFor={`${name}-reason`}
-          className="block space-y-1 text-sm font-medium text-gray-800"
-        >
-          <span>Begründung</span>
-          <Textarea
-            id={`${name}-reason`}
-            name="reason"
-            rows={2}
-            value={reason}
-            error={errors.fieldError("reason")}
-            onChange={(event) => setReason(event.target.value)}
-          />
-        </label>
+        <Textarea
+          label="Begründung"
+          id={`${name}-reason`}
+          name="reason"
+          rows={2}
+          value={reason}
+          error={errors.fieldError("reason")}
+          onChange={(event) => setReason(event.target.value)}
+        />
         <FormErrorAlert message={errors.error} />
         <Button
           type="button"
@@ -416,6 +403,6 @@ export function ConflictDecisionGroup({
           </div>
         </ConfirmationModal>
       )}
-    </section>
+    </SectionCard>
   );
 }

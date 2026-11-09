@@ -1,8 +1,9 @@
 "use client";
 
+import { FieldLabel } from "~/components/ui/field-label";
+import { FramedList } from "~/components/ui/framed-list";
 import { groups as groupsKeys } from "~/lib/swr/groups";
-import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { summarizeTargets } from "~/components/announcements/announcement-meta";
 import type { FormError } from "~/components/ui/form-error";
@@ -12,11 +13,15 @@ import { Input } from "~/components/ui/input";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
-import { studentService } from "~/lib/api";
+import { fetchSchoolClasses, fetchStudents } from "~/lib/student-api";
 import { fetchActivities } from "~/lib/activity-api";
-import type { Group, Student } from "~/lib/api";
+import type { Group } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { Activity } from "~/lib/activity-helpers";
 import type { AnnouncementTarget } from "~/lib/parent-announcements-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { CheckboxIndicator } from "~/components/ui/checkbox";
 
 /*
  * Die Empfängerwahl für Eltern: ganze Schule, Klassen, Gruppen, AGs und
@@ -43,24 +48,16 @@ function CheckPill({
   readonly onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <ChoiceTile
+      as="button"
+      selected={active}
+      aria-pressed={active}
       onClick={onClick}
-      className={`flex w-full min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all ${
-        active
-          ? "border-gray-900 bg-gray-50 text-gray-900"
-          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-      }`}
+      className="w-full min-w-0 gap-2 py-2 font-normal"
     >
-      <span
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
-          active ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-      >
-        {active && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-      </span>
+      <CheckboxIndicator checked={active} />
       <span className="truncate">{label}</span>
-    </button>
+    </ChoiceTile>
   );
 }
 
@@ -154,6 +151,7 @@ export function ParentTargetPicker({
 
   // Students are too many to list, so this stays a debounced search; the chosen
   // children render as removable chips below it.
+  const fieldId = useId();
   const [studentSearch, setStudentSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,7 +176,7 @@ export function ParentTargetPicker({
       ? `parent-announcements-student-search-${debouncedSearch}`
       : null,
     async () => {
-      const result = await studentService.getStudents({
+      const result = await fetchStudents({
         search: debouncedSearch,
         pageSize: 20,
       });
@@ -192,8 +190,6 @@ export function ParentTargetPicker({
     "die Suche nach Kindern",
     () => void retryStudentSearch(),
   );
-
-  const fieldLabel = "mb-1.5 block text-sm font-medium text-gray-700";
 
   return (
     <div className="space-y-4">
@@ -229,9 +225,15 @@ export function ParentTargetPicker({
           <LoadErrorAlert error={lookupLoadError} />
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <span className={fieldLabel}>Klassen</span>
+              <FieldLabel
+                id={`${fieldId}-classes-label`}
+                htmlFor={`${fieldId}-classes`}
+              >
+                Klassen
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="Klassen auswählen"
+                id={`${fieldId}-classes`}
+                ariaLabelledBy={`${fieldId}-classes-label`}
                 value={selectedClasses}
                 options={schoolClasses.map((c) => ({ value: c, label: c }))}
                 onChange={(values) => setCategory("class", values)}
@@ -244,9 +246,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <span className={fieldLabel}>Gruppen</span>
+              <FieldLabel
+                id={`${fieldId}-groups-label`}
+                htmlFor={`${fieldId}-groups`}
+              >
+                Gruppen
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="Gruppen auswählen"
+                id={`${fieldId}-groups`}
+                ariaLabelledBy={`${fieldId}-groups-label`}
                 value={selectedGroups}
                 options={groups.map((g) => ({ value: g.id, label: g.name }))}
                 onChange={(values) => setCategory("group", values)}
@@ -259,9 +267,15 @@ export function ParentTargetPicker({
               />
             </div>
             <div>
-              <span className={fieldLabel}>AGs / Betreuung</span>
+              <FieldLabel
+                id={`${fieldId}-activities-label`}
+                htmlFor={`${fieldId}-activities`}
+              >
+                AGs / Betreuung
+              </FieldLabel>
               <MultiSelect
-                ariaLabel="AGs auswählen"
+                id={`${fieldId}-activities`}
+                ariaLabelledBy={`${fieldId}-activities-label`}
                 value={selectedActivities}
                 options={activities.map((a) => ({
                   value: a.id,
@@ -279,7 +293,9 @@ export function ParentTargetPicker({
           </div>
 
           <div>
-            <span className={fieldLabel}>Einzelne Kinder</span>
+            <FieldLabel htmlFor="announcement-student-search">
+              Einzelne Kinder
+            </FieldLabel>
             {selectedStudents.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {selectedStudents.map((t) => (
@@ -309,44 +325,47 @@ export function ParentTargetPicker({
               placeholder="Kind suchen (mind. 2 Zeichen)…"
             />
             {debouncedSearch.length >= 2 && (
-              <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
+              <FramedList maxHeight="sm" className="mt-2">
                 {studentsLoadError ? (
-                  <LoadErrorAlert error={studentsLoadError} />
+                  <li>
+                    <LoadErrorAlert error={studentsLoadError} />
+                  </li>
                 ) : studentsLoading || (studentsError && !studentResults) ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">
+                  <li className="px-3 py-2 text-sm text-gray-500">
                     Wird gesucht…
-                  </p>
+                  </li>
                 ) : (studentResults?.length ?? 0) === 0 ? (
-                  <p className="px-3 py-2 text-sm text-gray-500">
+                  <li className="px-3 py-2 text-sm text-gray-500">
                     Keine Kinder gefunden.
-                  </p>
+                  </li>
                 ) : (
                   studentResults?.map((student) => (
-                    <button
-                      key={student.id}
-                      type="button"
-                      onClick={() => addStudent(student)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-                    >
-                      <span className="truncate">{student.name}</span>
-                      {student.school_class && (
-                        <span className="ml-2 shrink-0 text-xs text-gray-400">
-                          {student.school_class}
-                        </span>
-                      )}
-                    </button>
+                    <li key={student.id}>
+                      <button
+                        type="button"
+                        onClick={() => addStudent(student)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                      >
+                        <span className="truncate">{student.name}</span>
+                        {student.school_class && (
+                          <span className="ml-2 shrink-0 text-xs text-gray-400">
+                            {student.school_class}
+                          </span>
+                        )}
+                      </button>
+                    </li>
                   ))
                 )}
-              </div>
+              </FramedList>
             )}
           </div>
         </>
       )}
 
-      <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+      <InsetPanel as="p" padding="compact" className="text-sm text-gray-700">
         Ausgewählt:{" "}
         <span className="font-medium">{summarizeTargets(targets)}</span>
-      </p>
+      </InsetPanel>
     </div>
   );
 }
@@ -387,7 +406,7 @@ export function useParentTargetLookups(enabled: boolean): {
     mutate: reloadClasses,
   } = useSWRAuth<string[]>(
     enabled ? "parent-announcements-classes" : null,
-    () => studentService.getSchoolClasses(),
+    () => fetchSchoolClasses(),
     { revalidateOnFocus: false },
   );
   const groupsLoadError = useSwrLoadError(

@@ -17,8 +17,10 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
@@ -72,12 +74,12 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	logger := slog.Default()
 	cfg := CurrentServiceConfig()
-	calendarConfig := owners.NewCalendarFacts(repos.Staff, repos.Student, owners.NewCalendarGuardianDirectory(repos.GuardianProfile, owners.MustNewPeopleDirectory(db)),
-		repos.StudentGuardian, parents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(db).Group)
+	calendarConfig := owners.BindCalendarElternAppBookings(owners.NewCalendarFacts(repos.Staff, repos.Student, owners.NewCalendarGuardianDirectory(repos.GuardianProfile, owners.MustNewPeopleDirectory(db)),
+		parents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(db).Group), settings.Settings)
 	calendarConfig = owners.BindCalendarScheduleFacts(calendarConfig, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance.Reads, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	calendarConfig = owners.BindCalendarFeedFacts(calendarConfig, reposSchools.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
 	calendarConfig = owners.BindCalendarCaller(calendarConfig, identity.Caller())
-	calendarConfig.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+	calendarConfig = bindCalendarTestClockAndConferences(calendarConfig, db)
 	calendarConfig.Appointments = appointments
 	calendarConfig.Runtime = calendarCompose.NewTenantRuntime(db.Pool())
 	calendarConfig.CalendarRenderer = calendarCompose.NewCalendarRenderer(schoolCalendar)
@@ -94,6 +96,13 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	calendarSvc := owners.NewCalendarPortal(calendarConfig)
 
 	return CalendarTestModule{Calendar: calendarSvc}, nil
+}
+
+func bindCalendarTestClockAndConferences(cfg calendarCompose.Config, db transactionruntime.Database) calendarCompose.Config {
+	cfg.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+	cfg.Today = func() calendarService.Date { return calendarService.Date(calendar.NewDate(2026, 1, 1)) }
+	cfg.ParentConferences = owners.BuildServeParentConferences(db)
+	return cfg
 }
 
 // CalendarNoPushAudience is the error the root's Delivery binding of the

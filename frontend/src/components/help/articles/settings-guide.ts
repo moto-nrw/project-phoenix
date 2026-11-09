@@ -2,7 +2,7 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * Die wichtigsten Einstellungen je Reiter (#3727). Bewusst eine Auswahl, keine
+ * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
  * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
@@ -86,6 +86,7 @@ export function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Online-Anmeldung`: Eltern melden ihr Kind über ein Formular im Internet an.",
+          "`Name der Betreuung in Texten für Eltern`: So heißt Ihre Betreuung in den festen Texten der Anmeldung, der Eltern-App und in den E-Mails dazu. Wählen Sie `OGS`, `GTS` oder `Eigener Name`. Ihre eigenen Texte im Formular ändern sich nicht.",
           "`Empfänger für neue Anmeldungen`: Diese Adressen bekommen bei jeder neuen Anmeldung eine E-Mail.",
           "`Rechtstexte`: Was Eltern im Formular lesen und bestätigen, zum Beispiel die Datenschutzinformation.",
         ],

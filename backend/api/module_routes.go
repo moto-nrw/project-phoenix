@@ -43,9 +43,13 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/public/calendar", moduleRouteBasis},
 	{"/public/login-image", moduleRouteBasis},
 	{"/public/request-feed", moduleRouteBasis},
+	{"/webhooks", moduleRouteBasis},
 	// #4805: the payroll office's one-time link. The file was already sent;
 	// only a close of a school that books Zeiterfassung queues one.
 	{"/public/payroll-download", moduleRouteBasis},
+	// #4679: the one-time link to sign a care contract of a Träger. The
+	// contract lives at the Träger, not at a booked school module.
+	{"/public/care-contract-signing", moduleRouteBasis},
 	{"/public/enrollment-legal-documents", settings.ModuleOnlineAnmeldung},
 	{"/public/enrollment-form-legal-documents", settings.ModuleOnlineAnmeldung},
 	// #5199: public period PDFs, no person data or school membership.
@@ -110,6 +114,8 @@ var moduleRouteRules = []moduleRouteRule{
 	// Staff and parent surveys (#4781); see docs/reference/modulschalter.md.
 	{"/api/surveys", moduleRouteBasis},
 	{"/api/timetable", moduleRouteBasis},
+	// Documents the Träger shared (#4692); see docs/reference/modulschalter.md.
+	{"/api/traeger-documents", moduleRouteBasis},
 	{"/api/users", moduleRouteBasis},
 
 	// NFC-Anwesenheit: armbands and cards of a child.
@@ -118,6 +124,7 @@ var moduleRouteRules = []moduleRouteRule{
 	// Mittagessen und Catering.
 	{"/api/meal-plan", settings.ModuleMittagessen},
 	{"/api/meal-caterer", settings.ModuleMittagessen},
+	{"/api/meal-billing-months", settings.ModuleMittagessen},
 	{"/caterer", settings.ModuleMittagessen},
 
 	// Eltern-App: messages and letters to parents, parent-portal invitations.
@@ -138,10 +145,7 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/enrollment/*/uploads", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/phases/public", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/form-bootstrap/public", settings.ModuleOnlineAnmeldung},
-	{"/api/enrollment/schema/public", settings.ModuleOnlineAnmeldung},
-	{"/api/enrollment/care-offerings/public", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/legal", settings.ModuleOnlineAnmeldung},
-	{"/api/enrollment/captcha-config", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/requests", settings.ModuleOnlineAnmeldung},
 
 	// Dienstplan.
@@ -213,10 +217,7 @@ var moduleRoutesLockedElsewhere = map[string]string{
 	"/api/enrollment/phases/public":           "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
 	"/api/enrollment/form-bootstrap/public":   "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
 	"/api/enrollment/requests":                "Anmeldung: Statuslink schließt mit dem Modul",
-	"/api/enrollment/schema/public":           "Anmeldung: Formularaufbau einer Phase, keine Personendaten",
-	"/api/enrollment/care-offerings/public":   "Anmeldung: Angebotsliste einer Phase, keine Personendaten",
 	"/api/enrollment/legal":                   "Anmeldung: Rechtstexte der Schule, keine Personendaten",
-	"/api/enrollment/captcha-config":          "Anmeldung: Captcha-Schlüssel, keine Personendaten",
 	"/public/enrollment-legal-documents":      "Anmeldung: Rechtstexte der Schule, keine Personendaten",
 	"/public/enrollment-form-legal-documents": "Anmeldung: Rechtstexte der Schule, keine Personendaten",
 }

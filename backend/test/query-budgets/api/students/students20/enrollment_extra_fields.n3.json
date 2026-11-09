@@ -1,0 +1,7 @@
+{
+  "scenario": "api.students.students20.enrollment_extra_fields.n3",
+  "max": 9,
+  "exact": true,
+  "description": "Resource HTTP seam, real owner SQL, N3 positive collection fixture. Transaction frame included; production live-session authentication excluded. Request-linked phases, children, guardians and historical schemas load by owner ID sets; count stays constant as linked requests grow.",
+  "route": "GET /api/students/{id}/enrollment-extra-fields"
+}

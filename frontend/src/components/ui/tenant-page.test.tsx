@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
 import { Button, ButtonLink } from "./button";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 
 // Der Zustand für nicht gebuchte Module liest die Sitzung (#4894).
 vi.mock("next-auth/react", () => ({
@@ -155,6 +156,12 @@ describe("TenantPage", () => {
       "max-sm:border-0",
       "max-sm:p-0",
     );
+  });
+
+  it("blendet die Kopfkarte auf einer druckbaren Inhaltsansicht aus", () => {
+    render(<TenantPage title="Elternsprechtag" printHideHeader />);
+
+    expect(screen.getByRole("banner")).toHaveClass("print:hidden");
   });
 
   it("zeigt beim Laden ein Skelett statt der Statuszeile", () => {
@@ -823,16 +830,18 @@ describe("TenantPage", () => {
 describe("TenantPage mit nicht gebuchtem Modul", () => {
   it("erklärt das Modul statt einen Fehler zu zeigen", () => {
     render(
-      <TenantPage
-        title="Mein Dienstplan"
-        error={{
-          message:
-            "Ihre Schule hat das Modul Dienstplan nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
-          notBookedModule: "dienstplan",
-        }}
-      >
-        <p>Inhalt</p>
-      </TenantPage>,
+      <ModuleNotBookedSlots>
+        <TenantPage
+          title="Mein Dienstplan"
+          error={{
+            message:
+              "Ihre Schule hat das Modul Dienstplan nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
+            notBookedModule: "dienstplan",
+          }}
+        >
+          <p>Inhalt</p>
+        </TenantPage>
+      </ModuleNotBookedSlots>,
     );
 
     expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();

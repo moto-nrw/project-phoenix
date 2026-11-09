@@ -31,7 +31,7 @@ Diese Liste beschreibt die Screenshots, die später für die Web-Dokumentation e
 - Hauptnavigation auf Desktop
 - Hauptnavigation auf Mobilgerät
 - `Datenverwaltung` Übersicht mit den Karten `Kinder`, `Personal`, `Räume`, `Aktivitäten`, `Gruppen`
-- Kinderliste mit `Importieren`
+- Kinderliste mit geöffnetem Menü und `Importieren`
 - Kinderformular `Persönliche Daten`
 - Kinderformular `Erziehungsberechtigte`
 - Kinderformular `Datenschutz`

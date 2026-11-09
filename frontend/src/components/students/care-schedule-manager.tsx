@@ -12,7 +12,6 @@ import { mutate } from "~/lib/swr/mutate";
 import {
   ChevronLeft,
   ChevronRight,
-  Loader2,
   SquarePen,
   StickyNote,
   X,
@@ -21,7 +20,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import {
   type CareExceptionSubmit,
   CarePlanEditorModal,
@@ -81,7 +83,7 @@ import {
 import {
   type AllowedDepartureModes,
   DEPARTURE_MODE_LABELS,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   type DayData as PickupDayData,
   type PickupData,
@@ -107,6 +109,11 @@ import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { Loading } from "~/components/ui/loading";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
+import { CARE_SCHEDULE_STALE_EVENT } from "~/lib/care-schedule-stale";
+import { groupKeys } from "~/lib/swr/groups-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -238,7 +245,7 @@ function invalidatePickupCaches() {
     mutate(
       (key) =>
         typeof key === "string" &&
-        (key.includes("ogs-students-") || key.includes("dashboard")),
+        (key.includes(groupKeys.liveFamily) || key.includes("dashboard")),
     ).catch(() => undefined);
   } catch {
     return;
@@ -535,8 +542,8 @@ export function CareScheduleManager({
       renderedCareDataRequestId.current = requestId;
       setArrivalData(arrival);
       setPickupData(pickup);
-      setCareDaysSource(settings.care_days_source);
-      setSchoolPeriods(settings.school_periods ?? []);
+      setCareDaysSource(settings.careDaysSource);
+      setSchoolPeriods(settings.schoolPeriods);
       setTimePresets({
         arrival: settings.defaultArrivalTime ?? "",
         pickup: settings.defaultPickupTime ?? "",
@@ -649,9 +656,8 @@ export function CareScheduleManager({
       }
       refreshFromRemote();
     };
-    window.addEventListener("phoenix:care-schedule-stale", onStale);
-    return () =>
-      window.removeEventListener("phoenix:care-schedule-stale", onStale);
+    window.addEventListener(CARE_SCHEDULE_STALE_EVENT, onStale);
+    return () => window.removeEventListener(CARE_SCHEDULE_STALE_EVENT, onStale);
   }, [refreshFromRemote]);
 
   // Drain a refresh that arrived while the user was editing.
@@ -803,7 +809,7 @@ export function CareScheduleManager({
       try {
         if (arrival) {
           const existing = arrivalData.exceptions.find(
-            (exception) => exception.exception_date.slice(0, 10) === dayISO,
+            (exception) => exception.exceptionDate.slice(0, 10) === dayISO,
           );
           if (arrival.kind === "regular") {
             if (existing) {
@@ -908,14 +914,14 @@ export function CareScheduleManager({
     [studentId, refreshCareData],
   );
   const handleUpdateArrivalNote = useCallback(
-    async (date: string, noteId: number, content: string) => {
+    async (date: string, noteId: string, content: string) => {
       await updateArrivalNote(studentId, noteId, { note_date: date, content });
       await refreshCareData();
     },
     [studentId, refreshCareData],
   );
   const handleDeleteArrivalNote = useCallback(
-    async (noteId: number) => {
+    async (noteId: string) => {
       await deleteArrivalNote(studentId, noteId);
       await refreshCareData();
     },
@@ -991,9 +997,9 @@ export function CareScheduleManager({
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border py-12">
-        <Loader2 className="h-7 w-7 animate-spin text-gray-500" />
-      </div>
+      <SectionCard>
+        <Loading message="Betreuungszeiten werden geladen …" />
+      </SectionCard>
     );
   }
 
@@ -1316,37 +1322,15 @@ function MobileDayButton({
       : getStatusLabel(day.status)
     : null;
   return (
-    <button
-      type="button"
+    <PlanningDayChip
+      stacked
+      weekdayLabel={shortWeekdayLabel(day.date)}
+      dateLabel={String(day.date.getDate())}
+      selected={isSelected}
       onClick={onClick}
-      className={`min-w-0 rounded-lg border px-1 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-        isSelected
-          ? "border-gray-300 bg-gray-100 text-gray-900 shadow-sm"
-          : "border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
-      }`}
-    >
-      <span className="block truncate text-xs font-semibold">
-        {shortWeekdayLabel(day.date)}
-      </span>
-      <span
-        className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
-          day.isToday
-            ? "bg-moto-orange-strong text-white"
-            : isSelected
-              ? "bg-white text-gray-900"
-              : "bg-gray-100 text-gray-700"
-        }`}
-      >
-        {day.date.getDate()}
-      </span>
-      <span
-        className={`mt-1 block truncate text-sm font-semibold ${
-          isSelected ? "text-gray-500" : "text-gray-400"
-        }`}
-      >
-        {statusLabel ?? " "}
-      </span>
-    </button>
+      statusLabel={statusLabel ?? undefined}
+      today={day.isToday}
+    />
   );
 }
 
@@ -1401,10 +1385,12 @@ function CareDayCard({
               <span className="text-xs font-semibold text-gray-500">Heute</span>
             ) : null}
             {parentChanged ? (
-              <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                <MotoConceptIcon concept={parentsConcept} size={14} />
-                Von Eltern
-              </span>
+              <StatusBadge
+                label="Von Eltern"
+                tone="blue"
+                icon={<MotoConceptIcon concept={parentsConcept} size={14} />}
+                compact
+              />
             ) : null}
           </div>
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
@@ -1502,9 +1488,7 @@ function AbsencePlaceholder({
     <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
       <ConceptIconTile concept={concept} size="section" />
       <div className="min-w-0">
-        <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Status
-        </div>
+        <div className="text-xs text-gray-500">Status</div>
         <div className="text-sm leading-5 font-semibold text-gray-900">
           {isDeleting ? "Wird entfernt..." : label}
         </div>
@@ -1591,9 +1575,7 @@ function CareBoundaryRow({
           {boundary.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {boundary.label}
-          </div>
+          <div className="text-xs text-gray-500">{boundary.label}</div>
           {/* Flex-wrapped rather than inline: the badge is taller than the 20px
               line box, so as an inline element it painted over the next line
               whenever the value wrapped ("Keine Abholung" in a day column). */}
@@ -1634,17 +1616,14 @@ function CareAppointmentSection({
   return (
     <div className="space-y-1.5">
       {appointments.map((appointment) => (
-        <div
-          key={appointment.key}
-          className="rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm"
-        >
+        <InsetPanel key={appointment.key} tone="white" padding="compact">
           <div className="text-sm font-semibold text-gray-500">
             {appointment.timeRange}
           </div>
           <div className="text-sm font-semibold text-gray-900">
             {appointment.title}
           </div>
-        </div>
+        </InsetPanel>
       ))}
     </div>
   );
@@ -1670,21 +1649,19 @@ function CareNotesSection({ notes }: { readonly notes: CareNoteItem[] }) {
 // Muss dieselbe Dreiteilung tragen wie AbsencePlaceholder in derselben Karte,
 // sonst zeigt ein Klassenfahrt-Tag eine lila Pille ueber einem cyanfarbenen
 // Icon und ist ausserdem nicht von "Entschuldigt" zu unterscheiden.
-const STATUS_PILL_CLASSES: Record<StudentStatusKind, string> = {
-  sick: "border-moto-red/30 bg-moto-red/10 text-moto-red-strong",
-  class_trip: "border-moto-cyan/30 bg-moto-cyan/10 text-moto-cyan-strong",
-  excused: "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong",
+const STATUS_PILL_TONES: Record<StudentStatusKind, StatusBadgeTone> = {
+  sick: "red",
+  class_trip: "cyan",
+  excused: "purple",
 };
 
 function StatusPill({ status }: { readonly status: StudentStatusKind }) {
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-        STATUS_PILL_CLASSES[status]
-      }`}
-    >
-      {getStatusLabel(status)}
-    </span>
+    <StatusBadge
+      label={getStatusLabel(status)}
+      tone={STATUS_PILL_TONES[status]}
+      compact
+    />
   );
 }
 

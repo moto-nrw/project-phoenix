@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { StudentSearchTransitCard } from "./student-search-transit-card";
 
 const { state } = vi.hoisted(() => ({

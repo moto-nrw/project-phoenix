@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_contracts",
+  "max": 4,
+  "exact": true,
+  "description": "modules/carecontract — GET /traeger/contracts (#4678, ADR 0153): the Träger binding of the Träger\ntransaction, the filtered list with version and party in one statement, the\ncount by status, then the tenant binding of each school whose contracts the\npage shows, for its access log (ADR 0088 section 7). Flat in the number of\ncontracts; one statement more per school shown.",
+  "route": "GET /traeger/contracts/"
+}

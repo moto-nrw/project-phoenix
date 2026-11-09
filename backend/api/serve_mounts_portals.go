@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
+
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -16,11 +16,13 @@ import (
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
@@ -36,7 +38,6 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
-	"github.com/spf13/viper"
 )
 
 // mountPortalRoutes mounts the root-level session portals: tenant auth,
@@ -60,7 +61,7 @@ func caregiverCapabilityViews(db transactionruntime.Database, caregivers peopleP
 // newAccountResource composes the tenant account routes. Their caregiver
 // capability is the one the operator routes provision with.
 func newAccountResource(db transactionruntime.Database, identity identityaccess.Owner, organizations organizationtenancy.Query, caregivers peoplePorts.CaregiverCapabilityService, settings settingsCompose.SettingsService) *authAPI.Resource {
-	authSchools := authSchoolDirectory{schools: organizations, memberships: identity}
+	authSchools := NewAuthSchoolDirectory(organizations, identity)
 	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, settings)
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(db, caregivers)
 	resource.RoleGrants = owners.RoleGrantPolicy{}
@@ -69,9 +70,21 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 	return resource
 }
 
+// operatorIdentityCapabilities are the Identity & Access capabilities the
+// operator routes call.
+type operatorIdentityCapabilities interface {
+	identityaccess.OperatorSessionLiveness
+	identityOperatorAPI.Capability
+	identityOperatorAPI.OperatorAccess
+	identityaccess.OperatorPasskeyFlows
+	identityaccess.OperatorMFAFlows
+	identityaccess.AccountMFA
+	Caterers() *identityaccess.CatererAccess
+}
+
 // newOperatorIdentity binds the operator sign-in, session and account routes
 // to Identity & Access.
-func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identityaccess.Owner) operatorIdentity {
+func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity operatorIdentityCapabilities) operatorIdentity {
 	var caterers identityOperatorAPI.CatererMFA
 	if identity != nil {
 		if access := identity.Caterers(); access != nil {
@@ -81,7 +94,7 @@ func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identitya
 	return operatorIdentity{
 		caterers:    caterers,
 		sessions:    identityOperatorAPI.NewSessions(sessionAuth, identity),
-		account:     identityOperatorAPI.NewResource(identity, operatorIdentityResponses()),
+		account:     identityOperatorAPI.NewResource(identity, provisioningOperatorAPI.ProvisioningErrorRenderer),
 		access:      identity,
 		passkeys:    identity,
 		mfa:         identity,
@@ -169,7 +182,7 @@ func newParentResource(
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
-		Resets:      parentPasswordResets(identity),
+		Resets:      portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeParent),
 		Parent:      parent,
 		Calendar:    calendarApp,
 		Conferences: calendarApp,
@@ -191,17 +204,11 @@ func newParentResource(
 
 func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
 	return platformAnnouncementsHTTP.Runtime{
-		// TenantMiddleware supplies the scope guard: parent- and school-scope
-		// tokens are rejected with 401 (#2207) — before it, this group was the
-		// only /api mount without a scope check, so a portal-bound token could
-		// read tenant announcements here. Tenant, org, and platform tokens pass
-		// unchanged.
+		// Tenant routes: parent-, school- and org-scope tokens are refused
+		// with 401 (#2207).
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
-				r.Use(sessiontoken.Authenticator)
-				r.Use(ReadOnlyPreviewMiddleware)
-				r.Use(TenantScopeMiddleware)
-				r.Use(SecurityPrincipalMiddleware)
+				TenantSessionChain(r)
 				register(r)
 			})
 		},

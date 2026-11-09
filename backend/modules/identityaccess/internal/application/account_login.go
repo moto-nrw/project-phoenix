@@ -2,73 +2,33 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
-	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// LoginWithAudit authenticates a tenant-portal user and returns an access and
-// refresh token pair. tenantSlug is optional: when non-empty the account is
-// resolved to the matching school; when empty the first active mapping is
-// used.
-func (s *AccountAuthentication) loginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
-	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
-	if err != nil {
-		return "", "", err
-	}
-	// The tenant is resolved from the database first so the refresh session
-	// gets the correct tenant on creation; login is a public route and the
-	// context names no tenant.
-	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
-	if err != nil {
-		return "", "", err
-	}
-	// Tenant-portal policy: a guardian-only account at this school must use
-	// the parents portal, a school-portal-only account moto schule (#2207).
-	// Dual-role accounts pass through unchanged.
-	if domain.IsGuardianOnly(metadata.RoleNames) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
-		return "", "", failed("login", identityaccess.ErrParentMustUseParentPortal)
-	}
-	if domain.IsSchoolPortalOnly(metadata.Roles) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
-		return "", "", failed("login", identityaccess.ErrMustUseSchoolPortal)
-	}
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
-	if err != nil {
-		return "", "", err
-	}
-	access, refresh := buildClaims(account, session, metadata, email)
-	return s.generateAndLogTokens(ctx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
-}
-
-// LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit: after a
-// successful credential check it consults the MFA gate and returns either a
-// token pair, a challenge token or an enrollment token. trustedDeviceCookie
-// may be empty; when set and verifiable, MFA is skipped.
+// loginWithMFAGate authenticates a tenant-portal user. After the credential
+// check it consults the MFA gate and returns a token pair, a challenge token
+// or an enrollment token. trustedDeviceCookie may be empty; when set and
+// verifiable, the challenge is skipped. tenantSlug is optional: when empty
+// the first active mapping is used.
 func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*domain.LoginResult, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
+	// The tenant is resolved from the database: login is a public route and
+	// the context names no tenant.
 	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
 	if err != nil {
 		return nil, err
 	}
-	if domain.IsGuardianOnly(metadata.RoleNames) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
-		return nil, failed("login", identityaccess.ErrParentMustUseParentPortal)
-	}
-	if domain.IsSchoolPortalOnly(metadata.Roles) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
-		return nil, failed("login", identityaccess.ErrMustUseSchoolPortal)
+	if err := s.refuseTenantPortal(ctx, "login", account, metadata, ipAddress, userAgent); err != nil {
+		return nil, err
 	}
 
 	mfaRequired, enrolled, err := s.resolveTenantMFAGate(ctx, account, metadata)
@@ -76,28 +36,25 @@ func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, pas
 		return nil, err
 	}
 	if mfaRequired && !enrolled {
-		return s.mfaEnrollmentResult(account, metadata.TenantID, domain.ScopeTenant)
+		return s.mfaEnrollmentResult(account, metadata.TenantID, domain.PortalTenant)
 	}
-	// Issue a challenge exactly when MFA is required, the factor is enrolled
-	// and no valid trusted-device cookie is presented.
 	if mfaRequired && enrolled && !s.trustedDeviceVerified(ctx, account.ID, metadata.TenantID, trustedDeviceCookie) {
-		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.ScopeTenant, ipAddress)
+		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.PortalTenant, ipAddress)
 	}
 
-	var guard mintGuard
+	var proof mintProof
 	if mfaRequired && enrolled {
-		guard = s.trustedDeviceMintGuard(account.ID, metadata.TenantID, trustedDeviceCookie, nil)
+		proof = mintProof{kind: proofTrustedDevice, trustedDeviceCookie: trustedDeviceCookie}
 	}
-	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, guard, "", mfaRequired && enrolled)
+	minted, err := s.mintAccountSession(ctx, mintRequest{
+		portal: domain.PortalTenant, account: account, email: email, tenantID: metadata.TenantID, proof: proof,
+		op:    "login",
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
+	})
 	if err != nil {
 		return nil, err
 	}
-	access, refresh := buildClaims(account, session, metadata, email)
-	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
-	if err != nil {
-		return nil, err
-	}
-	return &domain.LoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: accessToken, RefreshToken: refreshToken}, nil
+	return &domain.LoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: minted.accessToken, RefreshToken: minted.refreshToken}, nil
 }
 
 // resolveTenantMFAGate is the fail-closed MFA inquiry for the tenant login:
@@ -120,15 +77,8 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 
 // mfaEnrollmentResult issues an enrollment JWT only the portal's
 // /mfa/enroll/* surface accepts.
-func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, scope string) (*domain.LoginResult, error) {
-	enrollmentScope := "tenant"
-	switch scope {
-	case domain.ScopeSchool:
-		enrollmentScope = "school"
-	case domain.ScopeOrg:
-		enrollmentScope = "org"
-	}
-	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, enrollmentScope, domain.MFAEnrollmentTokenTTL)
+func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, portal domain.Portal) (*domain.LoginResult, error) {
+	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, portal.Name, domain.MFAEnrollmentTokenTTL)
 	if err != nil {
 		return nil, failed("issue mfa enrollment token", err)
 	}
@@ -150,23 +100,12 @@ func (s *AccountAuthentication) trustedDeviceVerified(ctx context.Context, accou
 
 // mfaChallengeResult is the "MFA required, factor enrolled" response: an
 // email code plus a challenge token bound to the portal scope.
-func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account domain.LoginAccount, tenantID int64, scope, ipAddress string) (*domain.LoginResult, error) {
-	challengeScope := "tenant"
-	switch scope {
-	case domain.ScopeSchool:
-		challengeScope = "school"
-	case domain.ScopeOrg:
-		challengeScope = "org"
-	case domain.ScopeCaterer:
-		challengeScope = domain.MFAChallengeScopeCaterer
-	}
-	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, challengeScope, ipAddress)
+func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account domain.LoginAccount, tenantID int64, portal domain.Portal, ipAddress string) (*domain.LoginResult, error) {
+	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, portal.Name, ipAddress)
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
 	}
-	if scope == domain.ScopeOrg {
-		// The Träger-Portal remembers no device: it has no school whose
-		// trusted-device settings would apply.
+	if !portal.TrustedDevice {
 		return &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}, nil
 	}
 	return &domain.LoginResult{
@@ -178,20 +117,25 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 	}, nil
 }
 
-// IssueTokensForAuthenticatedAccount mints a token pair for an account whose
-// identity was proven via a non-password channel (MFA code, recovery code or
-// passkey). It skips the credential check but otherwise reuses the login
-// pipeline, so the session is indistinguishable from a password login.
-// tenantID is the school carried in the MFA challenge.
-func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	return s.issueAuthenticatedTokens(ctx, accountID, tenantID, ipAddress, userAgent, nil)
+// IssueTokensForPasskey mints the tenant session of a passkey sign-in: the
+// assertion carried user verification, so the session is verified like one
+// after an e-mail code. tenantID is the school of the ceremony.
+func (s *AccountAuthentication) IssueTokensForPasskey(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+	return s.issueTenantTokens(ctx, accountID, tenantID, mintProof{kind: proofPasskey}, ipAddress, userAgent)
 }
 
+// IssueDemoTokens mints the tenant session a demo access redeems (#3462).
+func (s *AccountAuthentication) IssueDemoTokens(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+	return s.issueTenantTokens(ctx, accountID, tenantID, mintProof{kind: proofDemoLink}, ipAddress, userAgent)
+}
+
+// IssueTokensForVerifiedMFA mints the tenant session after a redeemed code;
+// the school is the one the challenge carries.
 func (s *AccountAuthentication) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
-	return s.issueAuthenticatedTokens(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent, &proof)
+	return s.issueTenantTokens(ctx, proof.AccountID, proof.TenantID, challengeProof(&proof), ipAddress, userAgent)
 }
 
-func (s *AccountAuthentication) issueAuthenticatedTokens(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, proof *identityaccess.VerifiedMFAChallenge) (_ string, _ string, err error) {
+func (s *AccountAuthentication) issueTenantTokens(ctx context.Context, accountID, tenantID int64, proof mintProof, ipAddress, userAgent string) (_ string, _ string, err error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
@@ -205,20 +149,15 @@ func (s *AccountAuthentication) issueAuthenticatedTokens(ctx context.Context, ac
 	if err != nil {
 		return "", "", err
 	}
-	if domain.IsGuardianOnly(metadata.RoleNames) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant token issue")
-		return "", "", failed("issue tokens", identityaccess.ErrParentMustUseParentPortal)
-	}
-	if domain.IsSchoolPortalOnly(metadata.Roles) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
-		return "", "", failed("issue tokens", identityaccess.ErrMustUseSchoolPortal)
-	}
-	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeTenant, nil), "", true)
-	if err != nil {
+	if err := s.refuseTenantPortal(ctx, "token issue", account, metadata, ipAddress, userAgent); err != nil {
 		return "", "", err
 	}
-	access, refresh := buildClaims(account, session, metadata, account.Email)
-	return s.generateAndLogTokens(ctx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
+	minted, err := s.mintAccountSession(ctx, mintRequest{
+		portal: domain.PortalTenant, account: account, tenantID: metadata.TenantID, proof: proof,
+		op:    "issue tokens",
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
+	})
+	return minted.accessToken, minted.refreshToken, err
 }
 
 // authenticatedAccount loads the active account whose identity a
@@ -283,117 +222,6 @@ func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, pass
 		return failed("login", identityaccess.ErrInvalidCredentials)
 	}
 	return nil
-}
-
-// createRefreshSession mints a refresh session with retry logic for
-// concurrent logins that collide on the token family.
-func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, verified ...bool) (domain.AccountSession, error) {
-	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "", verified...)
-}
-
-// createRefreshSessionGuarded is createRefreshSession with an authorization
-// re-check inside the persistence transaction. A guard failure is terminal:
-// the retry loop exists for token-family collisions only. retireFamilyID
-// names the caller's current family, retired in the same transaction before
-// the session cap runs so the new session replaces it (tenant switch, #2952).
-func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string, verified ...bool) (domain.AccountSession, error) {
-	session := s.newRefreshSession(account.ID, scope)
-	session.MFAVerified = len(verified) > 0 && verified[0]
-	return s.persistNewSession(ctx, account, session, tenantID, guard, retireFamilyID, retireFamilyID)
-}
-
-// persistNewSession writes a freshly minted session, retrying with a new
-// family only for token-family collisions of concurrent logins. Inheriting
-// a source does not require retiring it: an Absprung leaves its Träger live.
-func (s *AccountAuthentication) persistNewSession(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, sourceFamilyID, retireFamilyID string) (domain.AccountSession, error) {
-	const maxRetries = 3
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, sourceFamilyID, retireFamilyID)
-		if err == nil {
-			return stored, nil
-		}
-		var guardErr *mintGuardError
-		if errors.As(err, &guardErr) {
-			return domain.AccountSession{}, guardErr.err
-		}
-		if !isTokenFamilyConflict(err) {
-			return domain.AccountSession{}, failed("login transaction", err)
-		}
-		retried := uuid.Must(uuid.NewV4()).String()
-		if session.SwitchedFromFamilyID == session.FamilyID {
-			session.SwitchedFromFamilyID = retried
-		}
-		session.FamilyID = retried
-		s.logger.Warn("login race condition detected, retrying",
-			slog.Int64("account_id", account.ID),
-			slog.Int("attempt", attempt+1),
-			slog.Int("max_retries", maxRetries))
-	}
-	return domain.AccountSession{}, failed("login transaction", fmt.Errorf("max retries exceeded"))
-}
-
-func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string) domain.AccountSession {
-	identifier := domain.RefreshTokenIdentifier
-	now := time.Now()
-	familyID := uuid.Must(uuid.NewV4()).String()
-	return domain.AccountSession{
-		Token:      uuid.Must(uuid.NewV4()).String(),
-		AccountID:  accountID,
-		Expiry:     now.Add(s.codec.RefreshExpiry()),
-		Mobile:     false,
-		Identifier: &identifier,
-		FamilyID:   familyID,
-		// A new family is its own lineage origin until a switch or an
-		// Absprung names another; an empty origin marks a family issued
-		// before #5422 (capLegacyLineage).
-		SwitchedFromFamilyID: familyID,
-		Generation:           0,
-		PortalScope:          domain.PersistedPortalScope(scope),
-		CreatedAt:            now,
-		UpdatedAt:            now,
-	}
-}
-
-// persistSessionInTransaction writes the session in one administrative
-// transaction: the login route has no tenant context and auth.tokens is
-// RLS-guarded. The guard re-validates the caller's authorization first;
-// the last-login write then takes the account row lock so concurrent
-// issuers enforce the session cap serially instead of from identical
-// snapshots; the replaced family is retired before the cap so it is the cap's
-// first candidate.
-func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, sourceFamilyID, retireFamilyID string) (domain.AccountSession, error) {
-	var stored domain.AccountSession
-	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, sourceFamilyID)
-		if err != nil {
-			return err
-		}
-		if err := s.retireReplacedFamily(txCtx, account.ID, retireFamilyID, loginTime); err != nil {
-			return err
-		}
-		// The tenant comes from the database resolution, never from the
-		// context: login is a public route.
-		session.TenantID = tenantID
-		created, err := s.sessions.CreateAccountSession(txCtx, identityaccess.AccountSession(session))
-		if err != nil {
-			return err
-		}
-		stored = domain.AccountSession(created)
-		if err := s.sessions.DeleteExpiredRotatedAccountSessions(txCtx, account.ID, time.Now()); err != nil {
-			s.logger.Warn("failed to clean up refresh-token handoffs",
-				slog.Int64("account_id", account.ID),
-				slog.Any("error", err))
-		}
-		return s.capSessionsUnlessDemo(txCtx, account.ID, stored)
-	})
-	if err != nil {
-		return domain.AccountSession{}, err
-	}
-	return stored, nil
-}
-
-func isTokenFamilyConflict(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "uk_tokens_family_generation")
 }
 
 // loadAccountMetadata resolves the tenant first, then the roles, permissions
@@ -667,22 +495,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefaultInTransaction(ctx con
 // buildClaims constructs the access and refresh claims from the account, the
 // minted session and the claims material.
 func buildClaims(account domain.LoginAccount, session domain.AccountSession, metadata *domain.AccountClaimsPayload, email string) (domain.SessionClaims, domain.RefreshClaims) {
-	access := domain.SessionClaims{
-		AccountID:    account.ID,
-		Email:        email,
-		Username:     metadata.Username,
-		FirstName:    metadata.FirstName,
-		LastName:     metadata.LastName,
-		Roles:        metadata.RoleNames,
-		RoleIsSystem: domain.RoleSystemFlags(metadata.Roles),
-		Permissions:  metadata.Permissions,
-		IsAdmin:      metadata.IsAdmin,
-		Scope:        metadata.Scope,
-		TenantID:     metadata.TenantID,
-		OrgID:        metadata.OrgID,
-		FamilyID:     session.FamilyID,
-		ViaTraeger:   metadata.ViaTraeger,
-	}
+	access := accessClaims(account, metadata, session.FamilyID, email)
 	refresh := domain.RefreshClaims{
 		AccountID: account.ID,
 		Token:     session.Token,
@@ -696,24 +509,25 @@ func buildClaims(account domain.LoginAccount, session domain.AccountSession, met
 	return access, refresh
 }
 
-// generateAndLogTokens signs the pair and records the event. Persistence has
-// already committed, so an audit failure is logged rather than reported:
-// reporting it would leave the caller with an issued refresh session but no
-// response.
-func (s *AccountAuthentication) generateAndLogTokens(ctx context.Context, accountID int64, access domain.SessionClaims, refresh domain.RefreshClaims, ipAddress, userAgent, eventType string) (string, string, error) {
-	accessToken, refreshToken, err := s.codec.IssueTokenPair(access, refresh)
-	if err != nil {
-		return "", "", failed("generate tokens", err)
+// accessClaims is the access token's projection of the claims material; the
+// staff preview builds its read-only token from it as well.
+func accessClaims(account domain.LoginAccount, metadata *domain.AccountClaimsPayload, familyID, email string) domain.SessionClaims {
+	return domain.SessionClaims{
+		AccountID:    account.ID,
+		Email:        email,
+		Username:     metadata.Username,
+		FirstName:    metadata.FirstName,
+		LastName:     metadata.LastName,
+		Roles:        metadata.RoleNames,
+		RoleIsSystem: domain.RoleSystemFlags(metadata.Roles),
+		Permissions:  metadata.Permissions,
+		IsAdmin:      metadata.IsAdmin,
+		Scope:        metadata.Scope,
+		TenantID:     metadata.TenantID,
+		OrgID:        metadata.OrgID,
+		FamilyID:     familyID,
+		ViaTraeger:   metadata.ViaTraeger,
 	}
-	if ipAddress != "" {
-		if err := s.logAuthEvent(ctx, accountID, eventType, true, ipAddress, userAgent, ""); err != nil {
-			s.logger.Error("failed to audit authenticated session",
-				slog.Int64("account_id", accountID),
-				slog.String("event_type", eventType),
-				slog.Any("error", err))
-		}
-	}
-	return accessToken, refreshToken, nil
 }
 
 func (s *AccountAuthentication) logFailedLogin(ctx context.Context, accountID int64, ipAddress, userAgent, reason string) {
@@ -743,7 +557,7 @@ func (s *AccountAuthentication) logAuthEvent(ctx context.Context, accountID int6
 	if s.runtime.HasTransaction(ctx) {
 		return s.audit.RecordAuthEvent(ctx, event)
 	}
-	return s.runtime.WithTenantTx(s.runtime.WithTenantID(ctx, tenantID), tenantID, func(txCtx context.Context) error {
+	return s.ledgerUnit(s.runtime.WithTenantID(ctx, tenantID), tenantID, func(txCtx context.Context) error {
 		return s.audit.RecordAuthEvent(txCtx, event)
 	})
 }
@@ -765,13 +579,4 @@ func otherMappedTenants(tenantIDs []int64, excludeTenantID int64) []int64 {
 	}
 	slices.Sort(candidates)
 	return candidates
-}
-
-func (s *AccountAuthentication) retireReplacedFamily(txCtx context.Context, accountID int64, retireFamilyID string, loginTime time.Time) error {
-	if retireFamilyID != "" {
-		if err := s.sessions.RetireAccountSessionFamily(txCtx, accountID, retireFamilyID, loginTime.Add(s.rotation.RecoveryGrace())); err != nil {
-			return fmt.Errorf("retire replaced refresh-token family: %w", err)
-		}
-	}
-	return nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // NewMailRenderers returns Enrollment's mail renderers. Every field a
@@ -143,6 +144,10 @@ func payloadStringSlice(payload map[string]any, key string) []string {
 	return nil
 }
 
+// careFacilityBadge is the text of the 48 px logo stand-in in the mail
+// header (#6042); the parent message mail shares the rule (#6082).
+func careFacilityBadge(term string) string { return textnorm.Badge(term) }
+
 // schoolSender is the sender name of a mail: the school's name, or "" for
 // the platform's default sender.
 func schoolSender(schoolName string) string {
@@ -178,6 +183,8 @@ func renderSubmitted(_ string, payload map[string]any) (*enrollment.RenderedMail
 			"StatusURL":         statusURL,
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+			"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 		},
 	}, nil
@@ -216,6 +223,8 @@ func renderAdminNotification(_ string, payload map[string]any) (*enrollment.Rend
 			"AdminURL":          adminURL,
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+			"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 		},
 	}, nil
@@ -269,6 +278,8 @@ func rolloverRenderer(spec rolloverRendererSpec) payloadRenderer {
 				"StatusURL":         statusURL,
 				"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 				"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+				"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+				"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 				"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 				"RolloverDeadline":  payloadString(payload, enrollment.EnrollmentPayloadRolloverDeadline),
 			},
@@ -304,6 +315,8 @@ func renderDecisionMail(kind string, payload map[string]any, subject, templateNa
 			"StatusURL":         statusURL,
 			"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 			"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+			"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+			"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 			"StatusReason":      payloadString(payload, enrollment.EnrollmentPayloadStatusReason),
 		},
@@ -365,6 +378,8 @@ func changeRequestRenderer(subject, templateName string) payloadRenderer {
 				"AdminURL":          payloadString(payload, enrollment.EnrollmentPayloadAdminURL),
 				"LogoURL":           payloadString(payload, enrollment.EnrollmentPayloadLogoURL),
 				"MotoLogoURL":       payloadString(payload, enrollment.EnrollmentPayloadMotoLogoURL),
+				"CareFacilityTerm":  payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm),
+				"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 			},
 		}, nil
 	}

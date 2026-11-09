@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { Check } from "lucide-react";
 import { useState } from "react";
 
@@ -15,6 +16,7 @@ interface PlanningTrackSelectProps {
   readonly tracks: readonly PlanningTrack[];
   readonly onChange: (value: string) => void;
   readonly disabled?: boolean;
+  readonly ariaDescribedBy?: string;
 }
 
 function normalize(value: string): string {
@@ -35,6 +37,7 @@ export function PlanningTrackSelect({
   tracks,
   onChange,
   disabled = false,
+  ariaDescribedBy,
 }: PlanningTrackSelectProps) {
   const [query, setQuery] = useState("");
 
@@ -64,6 +67,7 @@ export function PlanningTrackSelect({
       options={options}
       onChange={onChange}
       ariaLabel="Planungsspur"
+      ariaDescribedBy={ariaDescribedBy}
       disabled={disabled}
       placeholder="Keine Planungsspur"
       triggerRole="combobox"
@@ -76,9 +80,11 @@ export function PlanningTrackSelect({
       className="w-full"
       emptyState={
         <li role="presentation">
-          <p className="px-3 py-4 text-center text-sm text-gray-500">
-            Keine Planungsspur gefunden.
-          </p>
+          <EmptyState
+            variant="compact"
+            title="Keine Planungsspur gefunden."
+            className="px-3"
+          />
         </li>
       }
       renderTrigger={({ open }) => (

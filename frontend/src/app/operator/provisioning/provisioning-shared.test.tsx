@@ -4,7 +4,7 @@ import {
   FormField,
   FieldWarning,
   DeliveryStatusBadge,
-  EmptyState,
+  ProvisioningEmptyState,
   SimpleEmptyState,
   SelectWithChevron,
   PlusIcon,
@@ -128,25 +128,28 @@ describe("DeliveryStatusBadge", () => {
   it("should apply green styling for sent", () => {
     render(<DeliveryStatusBadge status="sent" />);
 
-    const badge = screen.getByText("Gesendet");
-    expect(badge.className).toContain("bg-moto-green/15");
-    expect(badge.className).toContain("text-moto-green-strong");
+    expect(screen.getByText("Gesendet")).toHaveStyle({
+      backgroundColor: "#EEF9E1",
+      color: "#3F6F12",
+    });
   });
 
-  it("should apply yellow styling for pending", () => {
+  it("should apply amber styling for pending", () => {
     render(<DeliveryStatusBadge status="pending" />);
 
-    const badge = screen.getByText("Ausstehend");
-    expect(badge.className).toContain("bg-moto-amber-soft");
-    expect(badge.className).toContain("text-moto-amber-strong");
+    expect(screen.getByText("Ausstehend")).toHaveStyle({
+      backgroundColor: "#FEF3C7",
+      color: "#92400E",
+    });
   });
 
   it("should apply red styling for failed", () => {
     render(<DeliveryStatusBadge status="failed" />);
 
-    const badge = screen.getByText("Fehlgeschlagen");
-    expect(badge.className).toContain("bg-moto-red/10");
-    expect(badge.className).toContain("text-moto-red-strong");
+    expect(screen.getByText("Fehlgeschlagen")).toHaveStyle({
+      backgroundColor: "#FEF2F2",
+      color: "#B91C1C",
+    });
   });
 
   it("should fall back to raw status text for unknown status", () => {
@@ -155,19 +158,29 @@ describe("DeliveryStatusBadge", () => {
     expect(screen.getByText("unknown_status")).toBeInTheDocument();
   });
 
+  it("should fall back for inherited status-map keys", () => {
+    render(<DeliveryStatusBadge status="constructor" />);
+
+    expect(screen.getByText("constructor")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
+  });
+
   it("should apply gray styling for unknown status", () => {
     render(<DeliveryStatusBadge status="something_else" />);
 
-    const badge = screen.getByText("something_else");
-    expect(badge.className).toContain("bg-gray-100");
-    expect(badge.className).toContain("text-gray-500");
+    expect(screen.getByText("something_else")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
   });
 });
 
-describe("EmptyState", () => {
+describe("ProvisioningEmptyState", () => {
   it("should render title", () => {
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Create your first item"
         buttonLabel="Add"
@@ -180,7 +193,7 @@ describe("EmptyState", () => {
 
   it("should render description", () => {
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Create your first item"
         buttonLabel="Add"
@@ -193,7 +206,7 @@ describe("EmptyState", () => {
 
   it("should render button with label", () => {
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Description"
         buttonLabel="Add Item"
@@ -210,7 +223,7 @@ describe("EmptyState", () => {
     const onAction = vi.fn();
 
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Description"
         buttonLabel="Add"
@@ -225,7 +238,7 @@ describe("EmptyState", () => {
 
   it("should render an SVG icon", () => {
     const { container } = render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="Empty"
         description="Nothing here"
         buttonLabel="Create"

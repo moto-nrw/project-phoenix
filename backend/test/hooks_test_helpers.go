@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -17,13 +18,13 @@ import (
 // function is called. It keeps service-package tests on the shared test seam
 // instead of importing tenant runtime internals directly.
 func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
-	return tenant.WithAfterCommitHooksForTest(ctx)
+	return tenanttest.WithAfterCommitHooks(ctx)
 }
 
 // ContextWithTransaction makes tx the ambient tenant transaction of ctx, so a
 // repository test can hold a lock in one transaction and contend in another.
 func ContextWithTransaction(ctx context.Context, tx any) context.Context {
-	return tenant.WithTransactionForTest(ctx, tx)
+	return tenanttest.WithTransaction(ctx, tx)
 }
 
 // MintTestJWT signs a JWT for the given claims using the same configuration as
@@ -43,7 +44,7 @@ func MintTestJWT(t testing.TB, claims sessiontoken.AppClaims) string {
 	claims.TenantID = RebaseTenantID(t, claims.TenantID)
 	tokenAuth, err := ConfiguredTokenAuth()
 	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(t, err, "MintTestJWT: CreateJWT")
 	return token
 }
@@ -78,7 +79,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 		TenantID:    fixtureTenantID(tb),
 	}
 
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(tb, err, "Failed to create test JWT")
 
 	return token

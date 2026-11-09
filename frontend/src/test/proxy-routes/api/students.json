@@ -29,14 +29,23 @@
     "GET tenant /api/students/id%2F1/arrival-schedules",
     "PUT tenant /api/students/id%2F1/arrival-schedules"
   ],
+  "api/students/[id]/attendance-history": [
+    "GET tenant /api/students/id%2F1/attendance-history query=start,end"
+  ],
   "api/students/[id]/care-end/resume": [
     "POST tenant /api/students/id%2F1/care-end/resume"
   ],
   "api/students/[id]/care-withdrawals": [
     "GET tenant /api/students/id%2F1/care-withdrawals"
   ],
+  "api/students/[id]/change-history": [
+    "GET tenant /api/students/id%2F1/change-history"
+  ],
   "api/students/[id]/companions": [
     "GET tenant /api/students/id%2F1/companions"
+  ],
+  "api/students/[id]/delete-impact": [
+    "GET tenant /api/students/id%2F1/delete-impact"
   ],
   "api/students/[id]/departure-exceptions/[date]": [
     "DELETE tenant /api/students/id%2F1/departure-exceptions/date%2F1",
@@ -44,6 +53,13 @@
   ],
   "api/students/[id]/documents/[documentId]": [
     "DELETE tenant /api/students/id%2F1/documents/documentId%2F1"
+  ],
+  "api/students/[id]/enrollment-extra-fields": [
+    "GET tenant /api/students/id%2F1/enrollment-extra-fields"
+  ],
+  "api/students/[id]/family-protection": [
+    "GET tenant /api/students/id%2F1/family-protection",
+    "PUT tenant /api/students/id%2F1/family-protection"
   ],
   "api/students/[id]/note-subjects": [
     "GET tenant /api/students/id%2F1/note-subjects"
@@ -55,6 +71,14 @@
   "api/students/[id]/notes/[noteId]": [
     "DELETE tenant /api/students/id%2F1/notes/noteId%2F1",
     "PUT tenant /api/students/id%2F1/notes/noteId%2F1"
+  ],
+  "api/students/[id]/partial-absences": [
+    "GET tenant /api/students/id%2F1/partial-absences",
+    "POST tenant /api/students/id%2F1/partial-absences"
+  ],
+  "api/students/[id]/partial-absences/[partialAbsenceId]": [
+    "DELETE tenant /api/students/id%2F1/partial-absences/partialAbsenceId%2F1",
+    "PUT tenant /api/students/id%2F1/partial-absences/partialAbsenceId%2F1"
   ],
   "api/students/[id]/pickup-exceptions": [
     "POST tenant /api/students/id%2F1/pickup-exceptions"
@@ -84,6 +108,21 @@
   "api/students/[id]/pickup-schedules/reset-offering": [
     "POST tenant /api/students/id%2F1/pickup-schedules/reset-offering"
   ],
+  "api/students/[id]/privacy-consent": [
+    "GET tenant /api/students/id%2F1/privacy-consent",
+    "PUT tenant /api/students/id%2F1/privacy-consent"
+  ],
+  "api/students/[id]/purge": ["DELETE tenant /api/students/id%2F1/purge"],
+  "api/students/[id]/school-checkin": [
+    "POST tenant /api/students/id%2F1/school-checkin"
+  ],
+  "api/students/[id]/status-days": [
+    "GET tenant /api/students/id%2F1/status-days",
+    "POST tenant /api/students/id%2F1/status-days"
+  ],
+  "api/students/[id]/status-days/[statusDayId]": [
+    "DELETE tenant /api/students/id%2F1/status-days/statusDayId%2F1"
+  ],
   "api/students/arrival-schedules/bulk": [
     "POST tenant /api/students/arrival-schedules/bulk"
   ],
@@ -96,14 +135,16 @@
   "api/students/arrival-times/bulk": [
     "POST tenant /api/students/arrival-times/bulk"
   ],
-  "api/students/care-end": [
-    "POST tenant /api/students/care-end"
-  ],
-  "api/students/care-end/cancel": [
-    "POST tenant /api/students/care-end/cancel"
-  ],
+  "api/students/care-end": ["POST tenant /api/students/care-end"],
+  "api/students/care-end/cancel": ["POST tenant /api/students/care-end/cancel"],
   "api/students/care-end/preview": [
     "POST tenant /api/students/care-end/preview"
+  ],
+  "api/students/care-schedule-change-requests/[requestId]": [
+    "GET tenant /api/students/care-schedule-change-requests/requestId%2F1"
+  ],
+  "api/students/care-schedule-change-requests/[requestId]/decide": [
+    "POST tenant /api/students/care-schedule-change-requests/requestId%2F1/decide"
   ],
   "api/students/care-withdrawals": [
     "GET tenant /api/students/care-withdrawals"
@@ -117,9 +158,33 @@
   "api/students/care-withdrawals/[completionId]/deletion-impact": [
     "GET tenant /api/students/care-withdrawals/completionId%2F1/deletion-impact"
   ],
+  "api/students/change-requests": [
+    "GET tenant /api/students/change-requests query=view,search,student_id,types,status,from,to,cursor,limit",
+    "POST tenant /api/students/change-requests/bulk-approve"
+  ],
+  "api/students/change-requests/[kind]/[id]/correct": [
+    "POST tenant /api/students/change-requests/kind%2F1/id%2F1/correct"
+  ],
+  "api/students/change-requests/[kind]/[id]/mark-done": [
+    "POST tenant /api/students/change-requests/kind%2F1/id%2F1/mark-done"
+  ],
+  "api/students/change-requests/access": [
+    "GET tenant /api/students/change-requests/access query=student_id"
+  ],
   "api/students/change-requests/conflicts/resolve": [
     "POST tenant /api/students/change-requests/conflicts/resolve"
   ],
+  "api/students/change-requests/pending-count": [
+    "GET tenant /api/students/change-requests/pending-count"
+  ],
+  "api/students/change-requests/rss-feed": [
+    "GET tenant /api/students/change-requests/rss-feed raw",
+    "POST tenant /api/students/change-requests/rss-feed raw"
+  ],
+  "api/students/change-requests/rss-feed/rotate": [
+    "POST tenant /api/students/change-requests/rss-feed/rotate raw"
+  ],
+  "api/students/child-quota": ["GET tenant /api/students/child-quota"],
   "api/students/class-arrival-exceptions/[schoolClass]": [
     "GET tenant /api/students/class-arrival-exceptions/schoolClass%2F1"
   ],
@@ -130,8 +195,21 @@
   "api/students/class-arrival-times/[schoolClass]": [
     "GET tenant /api/students/class-arrival-times/schoolClass%2F1"
   ],
-  "api/students/ended-care": [
-    "GET tenant /api/students/ended-care"
+  "api/students/day-log": [
+    "GET tenant /api/students/day-log query=date,group_id"
+  ],
+  "api/students/ended-care": ["GET tenant /api/students/ended-care"],
+  "api/students/excused-absence-requests/[requestId]/decide": [
+    "POST tenant /api/students/excused-absence-requests/requestId%2F1/decide"
+  ],
+  "api/students/master-data-change-requests/[requestId]/decide": [
+    "POST tenant /api/students/master-data-change-requests/requestId%2F1/decide"
+  ],
+  "api/students/offering-change-requests/[requestId]/decide": [
+    "POST tenant /api/students/offering-change-requests/requestId%2F1/decide"
+  ],
+  "api/students/offering-change-requests/[requestId]/preview": [
+    "POST tenant /api/students/offering-change-requests/requestId%2F1/preview"
   ],
   "api/students/pickup-schedules/bulk": [
     "POST tenant /api/students/pickup-schedules/bulk"
@@ -139,6 +217,13 @@
   "api/students/pickup-times/bulk": [
     "POST tenant /api/students/pickup-times/bulk"
   ],
+  "api/students/privacy-consent/defaults": [
+    "GET tenant /api/students/privacy-consent/defaults"
+  ],
+  "api/students/school-checkin/batch": [
+    "POST tenant /api/students/school-checkin/batch max=65536"
+  ],
+  "api/students/status-days": ["GET tenant /api/students/status-days"],
   "api/students/status-days/bulk": [
     "POST tenant /api/students/status-days/bulk"
   ]

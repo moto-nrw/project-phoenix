@@ -49,11 +49,13 @@ func (f *masterFake) ListHistory(_ context.Context, filters excusedrequests.Queu
 }
 
 type careFake struct {
+	filters []careplan.RequestQueueFilter
 	pending []*careplan.CareScheduleReviewItem
 	history []*careplan.CareScheduleHistoryItem
 }
 
-func (f *careFake) ListPending(context.Context, careplan.RequestQueueFilter) ([]*careplan.CareScheduleReviewItem, *careplan.RequestCursor, error) {
+func (f *careFake) ListPending(_ context.Context, filter careplan.RequestQueueFilter) ([]*careplan.CareScheduleReviewItem, *careplan.RequestCursor, error) {
+	f.filters = append(f.filters, filter)
 	return f.pending, nil, nil
 }
 
@@ -491,7 +493,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			require.NoError(t, testpkg.WithTenantTx(t, counter.Context(side.Context), db, side.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				page, err := query.ListRequests(txCtx, requestreview.ListQuery{Search: "ReviewRLS"})
 				require.NoError(t, err)
-				querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Measurement(counter.Queries()))
 				require.Len(t, page.Items, 4, "each school lists exactly its own four requests")
 				types := make([]string, 0, 4)
 				for _, item := range page.Items {
@@ -572,4 +574,20 @@ func (ReviewProof) Scope(context.Context) (careplan.ReviewScope, error) {
 func (ReviewProof) Today() careplan.Date { return careplan.Date(reviewToday()) }
 func (ReviewProof) PreviewPickupBlocks(context.Context, careplan.PickupReviewImpact) ([]careplan.PickupReviewBlock, error) {
 	return nil, nil
+}
+
+func TestCareQueueOmitsDiffOnlyForTheBadge(t *testing.T) {
+	t.Parallel()
+	care := &careFake{}
+	queue := nativeCareQueue(care, func() careplan.Date { return today })
+	_, _, err := queue.Open(context.Background(), requestreview.QueueFilter{UrgentDate: today.String()})
+	require.NoError(t, err)
+	_, _, err = queue.Open(context.Background(), requestreview.QueueFilter{UrgentDate: today.String(), Limit: 200})
+	require.NoError(t, err)
+	_, err = queue.OpenCount(context.Background(), requestreview.Date(today))
+	require.NoError(t, err)
+	require.Len(t, care.filters, 3)
+	require.False(t, care.filters[0].OmitDiff, "the visible page still needs display diffs")
+	require.False(t, care.filters[1].OmitDiff, "the whole-queue conflict scan derives its keys from diffs")
+	require.Equal(t, careplan.RequestQueueFilter{UrgentDate: today.String(), OmitDiff: true}, care.filters[2])
 }

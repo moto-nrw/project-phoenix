@@ -17,16 +17,14 @@ import (
 // ChangeOperatorStatus deactivates or reactivates another operator's account
 // and records the change in the operator ledger.
 func (p *OperatorProvisioning) ChangeOperatorStatus(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
-	if p == nil {
-		return identityaccess.Operator{}, errOperatorProvisioningUnavailable
-	}
-	ctx = bindRuntime(p.attach, ctx)
-	apply := p.deactivateOperator
-	if change.Active {
-		apply = p.reactivateOperator
-	}
-	operator, err := apply(ctx, change)
-	return identityaccess.Operator(operator), operatorProvisioningError(err)
+	return runFlow(ctx, p.flow(), func(ctx context.Context) (identityaccess.Operator, error) {
+		apply := p.deactivateOperator
+		if change.Active {
+			apply = p.reactivateOperator
+		}
+		operator, err := apply(ctx, change)
+		return identityaccess.Operator(operator), err
+	})
 }
 
 // deactivateOperator locks another operator's account and ends its sessions.
@@ -56,17 +54,14 @@ func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change id
 // DeleteDeactivatedOperators removes the accounts deactivated before the
 // operator ledger cutoff and reports how many went. Platform rows go only in
 // an administrative transaction; the hourly cleanup hands its own in.
-func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (deleted int, err error) {
-	if p == nil {
-		return 0, errOperatorProvisioningUnavailable
-	}
-	defer func() { err = operatorProvisioningError(err) }()
-	ctx = bindRuntime(p.attach, ctx)
-	err = p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		deleted, err = p.operators.deleteDeactivatedOperators(txCtx)
-		return err
+func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (int, error) {
+	return runFlow(ctx, p.flow(), func(ctx context.Context) (deleted int, err error) {
+		err = p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			deleted, err = p.operators.deleteDeactivatedOperators(txCtx)
+			return err
+		})
+		return deleted, err
 	})
-	return deleted, err
 }
 
 // changeOperatorStatus locks the operator's row, applies and records the
@@ -74,14 +69,10 @@ func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (
 func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, status identityaccess.OperatorStatusChange, action string, change func(context.Context, *domain.Operator) error) (domain.Operator, error) {
 	var result domain.Operator
 	err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := p.operators.findOperatorForUpdate(txCtx, status.OperatorID)
+		operator, err := p.operators.UpdateOperator(txCtx, status.OperatorID, func(locked *identityaccess.Operator) error {
+			return change(txCtx, (*domain.Operator)(locked))
+		})
 		if err != nil {
-			return err
-		}
-		if err := change(txCtx, &operator); err != nil {
-			return err
-		}
-		if _, err := p.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); err != nil {
 			return err
 		}
 		if err := p.recordStatusChange(txCtx, status, action); err != nil {

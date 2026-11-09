@@ -41,6 +41,7 @@ import {
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
 
@@ -397,16 +398,15 @@ export function CalendarPeriodModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {persisted
-                ? "Kalenderzeitraum bearbeiten"
-                : "Kalenderzeitraum anlegen"}
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton aria-label="Zeitraum schließen" />
+      <SlideOverContent size="md">
+        <SlideOverHeader
+          close={<SlideOverCloseButton aria-label="Zeitraum schließen" />}
+        >
+          <SlideOverTitle>
+            {persisted
+              ? "Kalenderzeitraum bearbeiten"
+              : "Kalenderzeitraum anlegen"}
+          </SlideOverTitle>
         </SlideOverHeader>
         <SlideOverBody error={formErrors.error}>
           <div ref={formRef}>
@@ -536,10 +536,7 @@ export function CalendarPeriodModal({
                 initial &&
                 phaseLink &&
                 phaseLink.phases.length > 0 && (
-                  <fieldset className="rounded-xl border border-gray-200 p-3">
-                    <legend className="px-1 text-xs font-semibold text-gray-700">
-                      Verknüpfte Anmeldephasen
-                    </legend>
+                  <FormFieldset legend="Verknüpfte Anmeldephasen">
                     <div className="flex flex-col">
                       {phaseLink.phases.map((phase) => {
                         const linked =
@@ -577,7 +574,7 @@ export function CalendarPeriodModal({
                         );
                       })}
                     </div>
-                  </fieldset>
+                  </FormFieldset>
                 )}
 
               {saveWarnings.map((warning) => (
@@ -590,7 +587,7 @@ export function CalendarPeriodModal({
             </form>
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* On a phone the actions share one full-width row and „Löschen“
               sits full width below them, like the Regeltermin dialog. */}
           <div className={isEdit ? "order-2 sm:order-1" : "hidden sm:block"}>
@@ -663,9 +660,7 @@ export function CalendarPeriodModal({
             </p>
           }
           warningSlot={
-            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-              {deleteConflictHint}
-            </p>
+            <Alert type="warning" announce="off" message={deleteConflictHint} />
           }
           gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
           onConfirm={handleDelete}

@@ -18,6 +18,7 @@ import {
   type PlanExportVariant,
 } from "~/lib/plan-export-api";
 import { isPlanFilterActive, type PlanFilter } from "~/lib/plan-filter";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const PLAN_EXPORT_FORMATS: readonly PlanExportFormat[] = ["pdf", "xlsx"];
 
@@ -210,37 +211,23 @@ export function PlanExportModal({
 
         {rangeMode === "range" && (
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="plan-export-from"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Von
-              </label>
-              <ISODatePicker
-                id="plan-export-from"
-                controlSize="lg"
-                value={from}
-                onChange={setFrom}
-                calendarLayout="popover"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="plan-export-to"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Bis
-              </label>
-              <ISODatePicker
-                id="plan-export-to"
-                controlSize="lg"
-                value={to}
-                min={from || undefined}
-                onChange={setTo}
-                calendarLayout="popover"
-              />
-            </div>
+            <ISODatePicker
+              id="plan-export-from"
+              label="Von"
+              controlSize="lg"
+              value={from}
+              onChange={setFrom}
+              calendarLayout="popover"
+            />
+            <ISODatePicker
+              id="plan-export-to"
+              label="Bis"
+              controlSize="lg"
+              value={to}
+              min={from || undefined}
+              onChange={setTo}
+              calendarLayout="popover"
+            />
           </div>
         )}
 
@@ -317,23 +304,14 @@ function RadioOption({
   onClick: () => void;
 }>) {
   return (
-    <label
-      htmlFor={id}
-      className={`flex cursor-pointer gap-3 rounded-lg border px-3 py-3 text-left shadow-sm transition-colors ${
-        selected
-          ? "border-gray-900 bg-gray-950 text-white"
-          : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
-      }`}
-    >
+    <ChoiceTile htmlFor={id} selected={selected} className="items-start py-3">
       <Radio id={id} name={name} checked={selected} onChange={onClick} />
       <span>
         <span className="block text-sm font-semibold">{label}</span>
-        <span
-          className={`mt-1 block text-xs ${selected ? "text-gray-200" : "text-gray-500"}`}
-        >
+        <span className="mt-1 block text-xs font-normal text-gray-500">
           {description}
         </span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }

@@ -208,14 +208,14 @@ describe.concurrent("bauart/no-autosave", () => {
     expect(status).toBe(0);
   });
 
-  it("exempts the operator portal, which the spec does not cover", async () => {
+  it("covers the operator portal since #5604", async () => {
     const { status, output } = await lintSource(
       BLUR_SAVE,
       "src/app/operator/probe/page.tsx",
     );
 
-    expect(output).not.toContain("bauart(no-autosave)");
-    expect(status).toBe(0);
+    expect(output).toContain("bauart(no-autosave)");
+    expect(status).toBe(1);
   });
 
   it("exempts the named baseline entries", async () => {

@@ -3,11 +3,13 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, StickyNote } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
   completesOneDigitHour,
@@ -69,7 +71,7 @@ export interface CarePlanWeeklyAdjustment {
   readonly completeWithdrawalConfirmed?: boolean;
 }
 
-export interface WeeklyRow {
+interface WeeklyRow {
   readonly weekday: number;
   /** The child is in care that weekday (#2414). */
   readonly arrivalInCare: boolean;
@@ -236,7 +238,7 @@ function offeringRemovesAllCareDays(
 
 // --- draft state ------------------------------------------------------------
 
-export interface WeeklyPlanDraft {
+interface WeeklyPlanDraft {
   readonly rows: WeeklyRow[];
   readonly expandedWeekdays: Set<number>;
   readonly setField: (
@@ -342,9 +344,9 @@ export function CareWeeklyPlanGrid({
   const { rows, expandedWeekdays, setField, toggleCare, toggleNotes } = draft;
   return (
     <div className="space-y-3">
-      <div className="moto-content-surface overflow-hidden rounded-xl border sm:rounded-2xl">
+      <div className="moto-content-surface overflow-hidden rounded-xl border">
         <div
-          className={`hidden gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid ${GRID_COLUMNS}`}
+          className={`hidden gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-medium text-gray-500 sm:grid ${GRID_COLUMNS}`}
         >
           <span>Betreuungstag</span>
           <span>Ankunft</span>
@@ -515,9 +517,11 @@ export function CareWeeklyPlanGrid({
       </div>
 
       {removals.length > 0 ? (
-        <div className="border-moto-orange/25 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-sm">
-          Wird beim Speichern entfernt: {removals.join(", ")}.
-        </div>
+        <Alert
+          type="warning"
+          announce="polite"
+          message={`Wird beim Speichern entfernt: ${removals.join(", ")}.`}
+        />
       ) : null}
     </div>
   );
@@ -543,12 +547,9 @@ function WeeklyTimeField({
       {/* The column header names the field on wide screens; the label is
           only shown where the rows stack. It stays for screen readers, which
           do not associate the column header with the field. */}
-      <label
-        htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-500 sm:sr-only"
-      >
+      <FieldLabel htmlFor={id} className="sm:sr-only">
         {label}
-      </label>
+      </FieldLabel>
       {/* A text field with the digit mask instead of the native time input
           (#3371): Safari fills an empty native field with the current time in
           grey, which reads like a stored value and has to be overwritten hour
@@ -631,24 +632,17 @@ function WeeklyNoteField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-500"
-      >
-        {label}
-      </label>
-      <Input
-        id={id}
-        type="text"
-        controlSize="compact"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        maxLength={500}
-        placeholder="Optional"
-      />
-    </div>
+    <Input
+      label={label}
+      id={id}
+      type="text"
+      controlSize="compact"
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      maxLength={500}
+      placeholder="Optional"
+    />
   );
 }
 

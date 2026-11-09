@@ -33,7 +33,7 @@ func (d deviceSchoolDirectory) FindSchool(ctx context.Context, id int64) (*devic
 	if err != nil || school == nil {
 		return nil, err
 	}
-	return &deviceauth.School{Deleted: school.IsDeleted()}, nil
+	return &deviceauth.School{Active: school.Active, Deleted: school.IsDeleted()}, nil
 }
 
 // schoolName reads the display name of one school.
@@ -51,6 +51,12 @@ func schoolName(schools organizationModule.Query) func(context.Context, int64) (
 // membership in.
 type accountSchoolMemberships interface {
 	ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) ([]int64, error)
+}
+
+// NewAuthSchoolDirectory binds the account routes to the school catalog and
+// active account memberships used by the production account resource.
+func NewAuthSchoolDirectory(organizations organizationModule.Query, memberships accountSchoolMemberships) authAPI.SchoolDirectory {
+	return authSchoolDirectory{schools: organizations, memberships: memberships}
 }
 
 // authSchoolDirectory answers the auth routes.

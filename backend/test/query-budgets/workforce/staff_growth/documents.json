@@ -1,0 +1,7 @@
+{
+  "scenario": "workforce.staff_growth.documents",
+  "max": 18,
+  "exact": true,
+  "description": "Measured full resource request with tenant transaction; positive N=3/N=8 records, fixture SQL outside capture.",
+  "route": "GET /api/staff/{id}/documents"
+}

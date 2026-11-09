@@ -2,9 +2,11 @@ package emailoutbox
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"testing"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/require"
 )
@@ -42,13 +44,36 @@ func (r *recordingMailRenderer) RecordDelivery(ctx context.Context, _ *Intent, r
 	return nil
 }
 
+type receiptMailTransport struct{ sent *email.Message }
+
+func (receiptMailTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
+func (m receiptMailTransport) SendWithReceipt(_ context.Context, message email.Message) (email.Receipt, error) {
+	*m.sent = message
+	return email.Receipt{ProviderMessageID: "provider-1", UsedFallback: message.UseFallback}, nil
+}
+
+func TestTransportHandsTheMailKindToTheMailer(t *testing.T) {
+	t.Parallel()
+	sent := &email.Message{}
+	transport := Transport{Mailer: receiptMailTransport{sent: sent}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default()}
+
+	receipt, err := transport.Send(context.Background(), &Intent{TenantID: 42, DeliveryToken: "token-1", Security: true, UseFallback: true},
+		&recordingMailRenderer{}, email.NewEmail("", "guardian@example.com"))
+
+	require.NoError(t, err)
+	require.Equal(t, "provider-1", receipt.ProviderMessageID)
+	require.True(t, sent.Security)
+	require.True(t, sent.UseFallback)
+	require.Equal(t, "token-1", sent.DeliveryToken)
+}
+
 func TestTransportRecordsAttemptAfterSendingContextEnds(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	renderer := &recordingMailRenderer{}
 	transport := Transport{Mailer: cancelledMailTransport{cancel: cancel}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default()}
-	err := transport.Send(ctx, &Intent{TenantID: 42}, renderer, email.NewEmail("", "recipient@example.test"))
+	_, err := transport.Send(ctx, &Intent{TenantID: 42}, renderer, email.NewEmail("", "recipient@example.test"))
 	require.ErrorIs(t, err, context.Canceled)
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
 	require.True(t, renderer.recorded, "the caller must still see the failed transport attempt in its delivery record")
@@ -60,4 +85,42 @@ func (contextCheckingMailTransactions) WithinSystem(ctx context.Context, fn func
 		return err
 	}
 	return fn(ctx)
+}
+
+func TestProviderResultPersistsFallbackReceipt(t *testing.T) {
+	t.Parallel()
+	sent := &email.Message{}
+	provider := MailPushProvider{
+		Registry: NewTemplateRegistry(map[string]Renderer{"security": &recordingMailRenderer{}}),
+		Mailer:   receiptMailTransport{sent: sent}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default(),
+	}
+	result, err := provider.SendEmail(context.Background(), deliveryContract.ClaimedIntent{
+		TenantID: 42, Template: "security", Security: true, UseFallback: true, EmailPayload: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(result)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"provider_message_id":"provider-1","used_fallback":true,"status_code":202}`, string(encoded))
+}
+
+// A request the fallback can no longer answer ends on this try: a retry over the same
+// configuration cannot change that.
+func TestProviderEndsAFallbackRequestWithoutAFallback(t *testing.T) {
+	t.Parallel()
+	provider := MailPushProvider{
+		Registry: NewTemplateRegistry(map[string]Renderer{"security": &recordingMailRenderer{}}),
+		Mailer:   removedFallbackTransport{}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default(),
+	}
+	_, err := provider.SendEmail(context.Background(), deliveryContract.ClaimedIntent{
+		TenantID: 42, Template: "security", Security: true, UseFallback: true, EmailPayload: json.RawMessage(`{}`),
+	})
+	require.ErrorIs(t, err, deliveryContract.ErrPermanent)
+	require.NotErrorIs(t, err, deliveryContract.ErrRecipientRejected, "the address is not at fault")
+}
+
+type removedFallbackTransport struct{}
+
+func (removedFallbackTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
+func (removedFallbackTransport) SendWithReceipt(context.Context, email.Message) (email.Receipt, error) {
+	return email.Receipt{}, email.ErrFallbackRemoved
 }

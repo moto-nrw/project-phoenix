@@ -13,7 +13,6 @@
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
@@ -101,18 +100,7 @@ function SurveyDoneNote({
   title,
 }: Readonly<{ title: string }>): React.ReactNode {
   const t = useTranslations("surveyForm");
-  return (
-    <div
-      role="status"
-      className="bg-moto-green-soft text-moto-green-strong flex items-start gap-3 rounded-xl px-4 py-3"
-    >
-      <Check className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="mt-0.5 text-sm">{t("thanksText")}</p>
-      </div>
-    </div>
-  );
+  return <Alert type="success" title={title} message={t("thanksText")} />;
 }
 
 function QuestionField({
@@ -345,8 +333,8 @@ export function SurveyAnswerPanel({
   if (!form) {
     return (
       <div className="space-y-3" aria-busy="true">
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton shape="inner" className="h-16 w-full" />
+        <Skeleton shape="inner" className="h-24 w-full" />
       </div>
     );
   }

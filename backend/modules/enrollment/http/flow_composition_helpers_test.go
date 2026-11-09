@@ -47,6 +47,13 @@ func (s notificationModeSettings) NotifyPerDecision(ctx context.Context) (string
 	return s.settings.ResolveString(ctx, settingKeyNotifyPerDecision)
 }
 
+func (s notificationModeSettings) CareFacilityTerm(ctx context.Context) (string, error) {
+	if s.settings == nil {
+		return "", nil
+	}
+	return s.settings.ResolveString(ctx, settingKeyCareFacilityTerm)
+}
+
 // collectionSettings reads the grade and class collection toggles from a
 // suite's settings double; a double without the class-collection lock
 // skips it.
@@ -205,7 +212,7 @@ func (r requestFixtureRoot) Submit(ctx context.Context, req enrollmentAPI.Submit
 	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error { value, err = r.RequestService.Submit(txCtx, req); return err })
 	return value, err
 }
-func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) (value *enrollmentAPI.Request, children []*enrollmentAPI.RequestChild, err error) {
+func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) (value *enrollmentNative.Request, children []*enrollmentNative.RequestChild, err error) {
 	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
 		value, children, err = r.RequestService.GetByStatusToken(txCtx, token)
 		return err

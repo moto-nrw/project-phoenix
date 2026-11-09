@@ -31,31 +31,28 @@ export function DocumentTemplatePreviewBody({
               {block.text}
             </p>
           ) : null}
-          {block.rows.length > 0 ? (
-            <DataTable
-              columns={[
-                {
-                  key: "label",
-                  header: "Bezeichnung",
-                  render: (row) => row.label,
-                },
-                {
-                  key: "value",
-                  header: "Wert",
-                  render: (row) => row.value,
-                  align: "right",
-                  className: "whitespace-nowrap tabular-nums",
-                },
-              ]}
-              rows={block.rows.map((row, rowIndex) => ({ ...row, rowIndex }))}
-              getRowKey={(row) => row.rowIndex}
-              rowClassName={(row) =>
-                row.bold ? "font-semibold text-gray-900" : ""
-              }
-            />
-          ) : null}
+          {block.rows.length > 0 ? <PreviewRows rows={block.rows} /> : null}
         </div>
       ))}
+      {preview.legalRemedy && preview.legalRemedy.length > 0 ? (
+        // Der Bescheid druckt die Belehrung nach dem Text der Vorlage (#4688).
+        <div className="space-y-2 border-t border-gray-100 pt-4">
+          {preview.legalRemedy.map((block, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- static order of the filled template
+            <div key={index} className="space-y-1">
+              {block.heading || index === 0 ? (
+                <p className="font-semibold text-gray-900">
+                  {block.heading || "Rechtsbehelfsbelehrung"}
+                </p>
+              ) : null}
+              {block.text ? (
+                <p className="whitespace-pre-line">{block.text}</p>
+              ) : null}
+              {block.rows.length > 0 ? <PreviewRows rows={block.rows} /> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {preview.closing.length > 0 ? (
         <div>
           {preview.closing.map((line) => (
@@ -64,5 +61,32 @@ export function DocumentTemplatePreviewBody({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Die Tabelle eines Absatzes, im Brieftext wie in der Belehrung (#4688). */
+function PreviewRows({
+  rows,
+}: Readonly<{ rows: DocumentTemplatePreview["blocks"][number]["rows"] }>) {
+  return (
+    <DataTable
+      columns={[
+        {
+          key: "label",
+          header: "Bezeichnung",
+          render: (row) => row.label,
+        },
+        {
+          key: "value",
+          header: "Wert",
+          render: (row) => row.value,
+          align: "right",
+          className: "whitespace-nowrap tabular-nums",
+        },
+      ]}
+      rows={rows.map((row, rowIndex) => ({ ...row, rowIndex }))}
+      getRowKey={(row) => row.rowIndex}
+      rowClassName={(row) => (row.bold ? "font-semibold text-gray-900" : "")}
+    />
   );
 }

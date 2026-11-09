@@ -131,6 +131,16 @@ type StudentRepository interface {
 	// stored birth date are omitted, never rendered as an unknown date.
 	FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error)
 
+	// FindBornOn returns every child of the school born on one of dates,
+	// also one whose care has ended, with its membership interval (#5994).
+	FindBornOn(ctx context.Context, dates []calendar.Date) ([]peopledirectory.StudentBorn, error)
+
+	// FindEnrolledMatchCandidates returns the enrolled (active or pending)
+	// children of the context's school with the given name and birthday,
+	// compared like ExistsEnrolledByNameAndBirthday, with the details the
+	// office needs to tell them apart (#6053). A missing school is an error.
+	FindEnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday calendar.Date) ([]peopledirectory.StudentMatchCandidate, error)
+
 	// ListWithOptions retrieves students with query options
 	// ListByGroupIDsIncludingAlumni is the care-participation candidate set:
 	// the rule that follows decides per child whether a graduate still counts.
@@ -230,11 +240,19 @@ type CaregiverBindingLocker interface {
 type StaffRepository interface {
 	CRUDRepository[*peopledirectory.Staff]
 
+	// FindMembershipByID and FindMembershipByPersonID read live membership facts,
+	// without the Workforce employment profile.
+	FindMembershipByID(context.Context, int64) (*peopledirectory.Staff, error)
+	FindMembershipByPersonID(context.Context, int64) (*peopledirectory.Staff, error)
+
 	// FindByIDForUpdate retrieves and locks a staff row for a transaction.
 	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.Staff, error)
 
 	// FindByPersonID retrieves a staff member by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
+
+	// ListMembershipWithPerson omits unused Employment fields.
+	ListMembershipWithPerson(context.Context) ([]*peopledirectory.Staff, error)
 
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
 	ListAllWithPerson(ctx context.Context) ([]*peopledirectory.Staff, error)
@@ -330,6 +348,10 @@ type TeacherRepository interface {
 	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
 	ListAllWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
 
+	// ListRosterWithStaffAndPerson combines teacher and live membership facts
+	// while retaining employment failures and person filtering.
+	ListRosterWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
+
 	// FindWithStaffAndPersonByIDs retrieves teachers with staff and person data for multiple IDs
 	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopledirectory.Teacher, error)
 }
@@ -379,6 +401,7 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
+	FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -474,6 +497,14 @@ type GuardianProfileRepository interface {
 	// FindByID retrieves a guardian profile by their ID
 	FindByID(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
 
+	// FindByIDForUpdate reads the complete guardian profile while locking its
+	// row for the current transaction, before phone-list validation or writes.
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
+
+	// SetEmailsStopped records or clears the school's decision that this person
+	// gets no school mail. The first stop keeps its time.
+	SetEmailsStopped(ctx context.Context, id int64, stopped bool) error
+
 	// LockByIDForUpdate locks a guardian profile row for the current
 	// transaction. Used by full-delete flows to block concurrent link inserts.
 	LockByIDForUpdate(ctx context.Context, id int64) error
@@ -564,6 +595,10 @@ type GuardianPhoneNumberRepository interface {
 
 	// CountByGuardianID returns the number of phone numbers for a guardian
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+
+	// CountAndNextPriority returns the phone count and MAX(priority)+1 (1 if empty).
+	// Callers that mutate the list must hold the guardian profile lock.
+	CountAndNextPriority(ctx context.Context, guardianProfileID int64) (int, int, error)
 
 	// GetNextPriority returns the next priority value for a guardian's phone numbers
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)

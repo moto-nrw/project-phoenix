@@ -1230,7 +1230,7 @@ describe("BetreuungsplanView", () => {
     expect(call).toBeDefined();
     await (call![1] as () => Promise<unknown>)();
     expect(fetchStudents).toHaveBeenCalledWith({
-      page_size: 500,
+      pageSize: 500,
       view: "names",
     });
     expect(mockUseSWRAuth).not.toHaveBeenCalledWith(
@@ -2374,7 +2374,7 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /1 Lücke/ }));
     // Sprungliste-Zeile (Titel des Blocks) im Popover.
-    const popover = screen.getByRole("region", { name: "Offene Lücken" });
+    const popover = screen.getByRole("dialog", { name: "Offene Lücken" });
     fireEvent.click(within(popover).getByRole("button", { name: /Mensa/ }));
 
     await waitFor(() => expect(screen.getByText("detail-close")).toBeVisible());

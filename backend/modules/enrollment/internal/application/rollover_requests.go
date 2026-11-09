@@ -20,15 +20,11 @@ type rolloverChildAttributes struct {
 
 func (s *Rollovers) rollSourceRequests(ctx context.Context, input rolloverRequestInput) error {
 	requestOrder, childrenByRequest := groupRolloverChildrenByRequest(input.sourceChildren)
-	values, err := s.deps.Requests.RequestsByID(ctx, requestOrder)
+	requests, err := s.deps.Requests.RequestsByID(ctx, requestOrder)
 	if err != nil {
 		return fmt.Errorf("rollover: load source requests: %w", err)
 	}
-	requests, err := requestValues(values)
-	if err != nil {
-		return fmt.Errorf("rollover: load source requests: %w", err)
-	}
-	requestsByID := make(map[int64]*Request, len(requests))
+	requestsByID := make(map[int64]*enrollmentNative.Request, len(requests))
 	for _, request := range requests {
 		requestsByID[request.ID] = request
 	}
@@ -45,8 +41,8 @@ func (s *Rollovers) rollSourceRequests(ctx context.Context, input rolloverReques
 	return nil
 }
 
-func groupRolloverChildrenByRequest(sourceChildren []*RequestChild) ([]int64, map[int64][]*RequestChild) {
-	childrenByRequest := make(map[int64][]*RequestChild, len(sourceChildren))
+func groupRolloverChildrenByRequest(sourceChildren []*enrollmentNative.RequestChild) ([]int64, map[int64][]*enrollmentNative.RequestChild) {
+	childrenByRequest := make(map[int64][]*enrollmentNative.RequestChild, len(sourceChildren))
 	requestOrder := make([]int64, 0)
 	for _, child := range sourceChildren {
 		if _, seen := childrenByRequest[child.RequestID]; !seen {
@@ -60,7 +56,7 @@ func groupRolloverChildrenByRequest(sourceChildren []*RequestChild) ([]int64, ma
 // rollOneRequest creates the per-parent renewal envelope (new Request)
 // plus per-child rows + their care-offering copies, then enqueues the
 // renewal email.
-func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *Request, sourceChildren []*RequestChild) error {
+func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *enrollmentNative.Request, sourceChildren []*enrollmentNative.RequestChild) error {
 	newRequest, err := s.createRolloverRequest(ctx, input, sourceRequest)
 	if err != nil {
 		return err
@@ -77,12 +73,12 @@ func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInp
 	return nil
 }
 
-func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *Request) (*Request, error) {
+func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *enrollmentNative.Request) (*enrollmentNative.Request, error) {
 	statusToken, err := enrollmentNative.NewStatusToken(s.deps.Random)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: generate status token: %w", err)
 	}
-	request := &Request{
+	request := &enrollmentNative.Request{
 		PhaseID:           input.newPhase.ID,
 		SchemaID:          input.newPhase.FormSchemaID,
 		GuardianFirstName: sourceRequest.GuardianFirstName,
@@ -90,54 +86,38 @@ func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverReq
 		GuardianEmail:     sourceRequest.GuardianEmail,
 		GuardianPhone:     sourceRequest.GuardianPhone,
 		GuardianAccountID: sourceRequest.GuardianAccountID,
-		ConsentFlags:      sourceRequest.ConsentFlags,
-		CustomData:        sourceRequest.CustomData,
+		ConsentFlags:      sourceRequest.ConsentFlags.Clone(),
+		CustomData:        sourceRequest.CustomData.Clone(),
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}
 	request.TenantID = input.tenantID
-	if err := s.insertRequest(ctx, request); err != nil {
+	if err := s.deps.Requests.InsertRequest(ctx, request); err != nil {
 		return nil, fmt.Errorf("rollover: create request: %w", err)
 	}
 	return request, nil
 }
 
-// insertRequest encodes, inserts and decodes a request back into place.
-func (s *Rollovers) insertRequest(ctx context.Context, request *Request) error {
-	value, err := requestInput(request)
-	if err != nil {
-		return err
-	}
-	if err := s.deps.Requests.InsertRequest(ctx, value); err != nil {
-		return err
-	}
-	result, err := requestValue(value)
-	if err != nil {
-		return err
-	}
-	*request = *result
-	return nil
-}
-
-func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *Request, source *RequestChild) (string, error) {
+func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *enrollmentNative.Request, source *enrollmentNative.RequestChild) (string, error) {
 	attributes := rolloverAttributesForSource(input, source)
 	sourceID := source.ID
-	child := &RequestChild{
+	child := &enrollmentNative.RequestChild{
 		RequestID:             newRequest.ID,
 		FirstName:             source.FirstName,
 		LastName:              source.LastName,
 		DateOfBirth:           source.DateOfBirth,
 		TargetGradeLevel:      attributes.targetGradeLevel,
 		TargetSchoolClass:     attributes.targetSchoolClass,
-		CustomData:            source.CustomData,
+		CustomData:            source.CustomData.Clone(),
 		Status:                attributes.status,
 		ActivationMode:        source.ActivationMode,
 		SortOrder:             source.SortOrder,
 		RolloverSourceChildID: &sourceID,
+		MatchedByOffice:       source.MatchedByOffice,
 		ReviewReason:          attributes.reviewReason,
 	}
 	child.TenantID = input.tenantID
-	if err := s.insertChild(ctx, child); err != nil {
+	if err := s.deps.Children.InsertChild(ctx, child); err != nil {
 		if errors.Is(err, enrollmentNative.ErrRolloverSourceChildTaken) {
 			return "", fmt.Errorf("%w: source child %d", enrollmentNative.ErrRolloverSourceAlreadyRolled, source.ID)
 		}
@@ -149,24 +129,7 @@ func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestIn
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
 }
 
-// insertChild encodes, inserts and decodes a child back into place.
-func (s *Rollovers) insertChild(ctx context.Context, child *RequestChild) error {
-	value, err := childInput(child)
-	if err != nil {
-		return err
-	}
-	if err := s.deps.Children.InsertChild(ctx, value); err != nil {
-		return err
-	}
-	result, err := childValue(value)
-	if err != nil {
-		return err
-	}
-	*child = *result
-	return nil
-}
-
-func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChild) rolloverChildAttributes {
+func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentNative.RequestChild) rolloverChildAttributes {
 	grade, reviewReason := classifyRolloverGrade(
 		source.TargetGradeLevel,
 		input.newPhase.RolloverBumpsGrade,
@@ -194,9 +157,10 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChil
 // the target phase's clone, the effective weekday selection (parent-
 // selected, manual, and automatically derived days) plus notes seed the new
 // submission. Effective bookings use the new phase's service window, never
-// the historical source intervals (#2249).
+// the historical source intervals (#2249). The source booking comes from
+// one read of all source children (rolloverSourceOfferings).
 func (s *Rollovers) copyRolloverOfferings(ctx context.Context, input rolloverRequestInput, sourceChildID, newChildID int64) error {
-	offerings, err := s.deps.Children.RequestChildOfferingsAtDate(ctx, sourceChildID, input.sourcePhase.ServiceEndDate)
+	offerings, err := input.sourceOfferings.of(ctx, s.deps.Children, input.sourcePhase.ServiceEndDate, sourceChildID)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}
@@ -249,7 +213,7 @@ func rolloverOfferingCopies(input rolloverRequestInput, sourceChildID int64, off
 	return choices, bookings, nil
 }
 
-func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string, result *enrollmentNative.RolloverResult) {
+func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmentNative.Phase, req *enrollmentNative.Request, childNames []string, result *enrollmentNative.RolloverResult) {
 	if s.deps.Outbox == nil {
 		return
 	}
@@ -261,9 +225,18 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	if *newPhase.RolloverMode == enrollmentNative.PhaseRolloverModeOptIn {
 		kind = enrollmentNative.MailKindRolloverOptIn
 	}
+	payload, err := s.renewalMailPayload(ctx, newPhase, req, childNames)
+	if err != nil {
+		s.deps.Logger.Warn("rollover: renewal email branding failed",
+			slog.Int64("request_id", req.ID),
+			slog.String("kind", kind),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
 	if err := s.deps.Outbox.EnqueueMail(ctx, Mail{
 		Kind:              kind,
-		Payload:           s.renewalMailPayload(ctx, newPhase, req, childNames),
+		Payload:           payload,
 		RelatedEntityType: enrollmentNative.MailRelatedRequest,
 		RelatedEntityID:   req.ID,
 	}); err != nil {
@@ -277,8 +250,11 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	result.EnqueuedEmails++
 }
 
-func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string) map[string]any {
-	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *enrollmentNative.Request, childNames []string) (map[string]any, error) {
+	brand, err := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+	if err != nil {
+		return nil, err
+	}
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
@@ -287,13 +263,50 @@ func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment
 		enrollmentNative.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		enrollmentNative.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		enrollmentNative.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		enrollmentNative.EnrollmentPayloadSchoolName:        schoolName,
+		enrollmentNative.EnrollmentPayloadSchoolName:        brand.SchoolName,
 		enrollmentNative.EnrollmentPayloadPhaseName:         newPhase.Name,
 		enrollmentNative.EnrollmentPayloadStatusURL:         enrollmentNative.StatusURL(s.deps.ParentsURL, req.StatusToken),
-		enrollmentNative.EnrollmentPayloadLogoURL:           logoURL,
-		enrollmentNative.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollmentNative.EnrollmentPayloadLogoURL:           brand.LogoURL,
+		enrollmentNative.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+		enrollmentNative.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 		enrollmentNative.EnrollmentPayloadChildNames:        childNames,
 		enrollmentNative.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		enrollmentNative.EnrollmentPayloadRolloverDeadline:  deadlineStr,
+	}, nil
+}
+
+// rolloverSourceOfferings reads the booking every source child has at the
+// end of the source phase in one statement set, at the place where the
+// first child copy used to read its own booking (#5836). That read comes
+// after the catalog clone's recurrence gate and after the first child
+// insert, so every row a copy uses was read under the gate, and an insert
+// refusal of the first child still precedes any booking read. Writers that
+// hold the gate cannot change the rows until the rollover commits.
+type rolloverSourceOfferings struct {
+	childIDs []int64
+	byChild  map[int64][]*enrollmentNative.RequestChildOffering
+}
+
+func newRolloverSourceOfferings(children []*enrollmentNative.RequestChild) *rolloverSourceOfferings {
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		ids = append(ids, child.ID)
 	}
+	return &rolloverSourceOfferings{childIDs: ids}
+}
+
+// of returns the source child's rows in read order, reading every source
+// child once on the first call.
+func (o *rolloverSourceOfferings) of(ctx context.Context, children RolloverChildren, onDate enrollmentNative.Date, childID int64) ([]*enrollmentNative.RequestChildOffering, error) {
+	if o.byChild == nil {
+		rows, err := children.RequestChildOfferingsForChildrenAtDate(ctx, o.childIDs, onDate)
+		if err != nil {
+			return nil, err
+		}
+		o.byChild = make(map[int64][]*enrollmentNative.RequestChildOffering, len(o.childIDs))
+		for _, row := range rows {
+			o.byChild[row.RequestChildID] = append(o.byChild[row.RequestChildID], row)
+		}
+	}
+	return o.byChild[childID], nil
 }

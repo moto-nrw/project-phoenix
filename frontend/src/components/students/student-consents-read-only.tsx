@@ -1,6 +1,6 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import {
   CollectionGrid,
   CollectionGridTile,
@@ -9,11 +9,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import type { StudentConsent } from "~/lib/student-helpers";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 export function StudentConsentsReadOnly({
   consents,
 }: Readonly<{ consents?: readonly StudentConsent[] }>) {
-  const t = useTranslations("parentChild.consents");
+  const t = useCareTermTranslations("parentChild.consents");
   const locale = useLocale();
   const visibleConsents =
     consents?.filter((consent) => consent.state !== "not_recorded") ?? [];

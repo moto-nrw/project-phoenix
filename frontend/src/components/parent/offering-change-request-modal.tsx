@@ -8,12 +8,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { Loader2 } from "lucide-react";
+import { useLocale } from "next-intl";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { RequiredMark } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -24,6 +23,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
 import { useRequestVersion } from "~/components/parent/request-edit-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   getChildOfferingCatalog,
@@ -40,6 +40,8 @@ import {
 } from "~/lib/care-offering-day-conflicts";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "OfferingChangeRequestModal" });
 
@@ -156,7 +158,7 @@ export function OfferingChangeRequestModal({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const locale = useLocale();
   const [catalog, setCatalog] = useState<OfferingCatalog | null>(null);
   const [draft, setDraft] = useState<DraftMap>({});
@@ -446,13 +448,12 @@ export function OfferingChangeRequestModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 sm:w-auto"
+              className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || loading || !catalog || emptyCatalog}
+              isLoading={submitting}
+              loadingText={t("careOfferingsModal.submitting")}
             >
-              {submitting && (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              )}
               {editRequestId
                 ? t("careOfferingsModal.saveEdit")
                 : t("careOfferingsModal.submit")}
@@ -476,8 +477,8 @@ export function OfferingChangeRequestModal({
 
           {loading && (
             <div className="space-y-2">
-              <Skeleton className="h-16 rounded-xl" />
-              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton shape="inner" className="h-16" />
+              <Skeleton shape="inner" className="h-16" />
             </div>
           )}
 
@@ -498,10 +499,7 @@ export function OfferingChangeRequestModal({
                   const unavailable =
                     item.is_active === false && !item.selected;
                   return (
-                    <div
-                      key={item.id}
-                      className="rounded-xl border border-gray-200 p-3"
-                    >
+                    <ChoiceTile as="div" key={item.id} className="block p-3">
                       <label className="flex cursor-pointer items-start gap-3">
                         <Checkbox
                           checked={selected}
@@ -519,14 +517,18 @@ export function OfferingChangeRequestModal({
                               {item.name}
                             </span>
                             {item.is_required && (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                                {t("careOfferingsModal.requiredBadge")}
-                              </span>
+                              <StatusBadge
+                                tone="gray"
+                                compact
+                                label={t("careOfferingsModal.requiredBadge")}
+                              />
                             )}
                             {full && (
-                              <span className="bg-parent-red-soft text-parent-red-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                                {t("careOfferingsModal.fullBadge")}
-                              </span>
+                              <StatusBadge
+                                tone="red"
+                                compact
+                                label={t("careOfferingsModal.fullBadge")}
+                              />
                             )}
                             {!full && item.free_slots !== undefined && (
                               <span className="text-xs text-gray-500">
@@ -554,9 +556,11 @@ export function OfferingChangeRequestModal({
                               {DAY_ORDER.filter((day) =>
                                 item.available_days.includes(day),
                               ).map((day) => (
-                                <label
+                                <ChoiceTile
                                   key={day}
-                                  className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
+                                  selected={row?.days.has(day) ?? false}
+                                  disabled={item.automatic}
+                                  className="gap-1.5 px-2.5 py-1.5 font-normal"
                                 >
                                   <Checkbox
                                     checked={row?.days.has(day) ?? false}
@@ -566,7 +570,7 @@ export function OfferingChangeRequestModal({
                                   <span className="text-sm text-gray-700">
                                     {weekdayLabel(day)}
                                   </span>
-                                </label>
+                                </ChoiceTile>
                               ))}
                             </div>
                           </div>
@@ -582,7 +586,7 @@ export function OfferingChangeRequestModal({
                             })}
                           </p>
                         )}
-                    </div>
+                    </ChoiceTile>
                   );
                 })}
                 {dayConflicts.map((conflict) => (
@@ -604,38 +608,31 @@ export function OfferingChangeRequestModal({
                   required
                   disabled={loading}
                   onChange={(date) => void loadForEffectiveDate(date)}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  {t("careOfferingsModal.effectiveFromHint", {
+                  hint={t("careOfferingsModal.effectiveFromHint", {
                     date: formatDate(
                       catalog.earliest_effective_from,
                       false,
                       locale,
                     ),
                   })}
-                </p>
+                />
               </div>
 
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  {t("careOfferingsModal.noteLabel")}
-                  {reasonRequired && <RequiredMark />}
-                </span>
-                <textarea
-                  name="note"
-                  value={note}
-                  onChange={(event) => {
-                    setNote(event.target.value);
-                    if (form.fieldError("note")) form.clear();
-                  }}
-                  aria-invalid={Boolean(form.fieldError("note"))}
-                  rows={3}
-                  maxLength={2000}
-                  required={reasonRequired}
-                  placeholder={t("careOfferingsModal.notePlaceholder")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                />
-              </label>
+              <Textarea
+                name="note"
+                label={t("careOfferingsModal.noteLabel")}
+                value={note}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                  if (form.fieldError("note")) form.clear();
+                }}
+                error={form.fieldError("note")}
+                rows={3}
+                maxLength={2000}
+                required={reasonRequired}
+                placeholder={t("careOfferingsModal.notePlaceholder")}
+                className="resize-y"
+              />
               {!editRequestId && (
                 <RequestSharingSelector
                   studentId={studentId}
@@ -666,6 +663,7 @@ export function OfferingChangeRequestModal({
         <p className="text-sm text-gray-600">
           {t("careOfferingsModal.withdrawalConfirmBody", {
             name: childName ?? "",
+            date: formatDate(effectiveFrom, false, locale),
           })}
         </p>
       </ConfirmationModal>

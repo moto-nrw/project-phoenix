@@ -27,12 +27,7 @@ import {
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { useApiFormError } from "~/contexts/ToastContext";
-import {
-  formatDate,
-  parseISODate,
-  toISODate,
-  berlinTodayISO,
-} from "~/lib/date-helpers";
+import { formatDate, berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   CARE_EXIT_NOTE_MAX_LENGTH,
@@ -45,6 +40,8 @@ import {
   type CareExitPreview,
   type CareExitReason,
 } from "~/lib/care-exit-api";
+import { lastCareDayBefore } from "~/lib/care-withdrawal-notice";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CareExitModal" });
 
@@ -97,9 +94,7 @@ export function CareExitModal({
   // nicht wählbar (min = heute) — dann bleibt der heutige Tag der Startwert.
   const completionLastCareDay = useMemo(() => {
     if (!completionId || !firstBookinglessDay) return null;
-    const day = parseISODate(firstBookinglessDay);
-    day.setDate(day.getDate() - 1);
-    return toISODate(day);
+    return lastCareDayBefore(firstBookinglessDay);
   }, [completionId, firstBookinglessDay]);
   const initialLastCareDay =
     completionLastCareDay ??
@@ -305,17 +300,14 @@ export function CareExitModal({
         if (!nextOpen && !saving) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{title}</SlideOverTitle>
-            <SlideOverDescription>
-              {step === 1
-                ? "Schritt 1 von 2: Tag und Grund festlegen."
-                : "Schritt 2 von 2: Vorschau prüfen und bestätigen."}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton disabled={saving} />
+      <SlideOverContent size="md">
+        <SlideOverHeader close={<SlideOverCloseButton disabled={saving} />}>
+          <SlideOverTitle>{title}</SlideOverTitle>
+          <SlideOverDescription>
+            {step === 1
+              ? "Schritt 1 von 2: Tag und Grund festlegen."
+              : "Schritt 2 von 2: Vorschau prüfen und bestätigen."}
+          </SlideOverDescription>
         </SlideOverHeader>
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <WizardStepper steps={STEPS} current={step - 1} />
@@ -344,26 +336,17 @@ export function CareExitModal({
                 max={completionLastCareDay ?? undefined}
                 required
               />
-              <div>
-                <label
-                  id="care-exit-reason-label"
-                  htmlFor="care-exit-reason"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Grund
-                </label>
-                <CustomSelect
-                  id="care-exit-reason"
-                  value={reason}
-                  options={REASON_OPTIONS}
-                  onChange={(value) => {
-                    setReason(value as CareExitReason | "");
-                    if (value !== "other") setNote("");
-                  }}
-                  ariaLabelledBy="care-exit-reason-label"
-                  required
-                />
-              </div>
+              <CustomSelect
+                label="Grund"
+                id="care-exit-reason"
+                value={reason}
+                options={REASON_OPTIONS}
+                onChange={(value) => {
+                  setReason(value as CareExitReason | "");
+                  if (value !== "other") setNote("");
+                }}
+                required
+              />
               {noteRequired ? (
                 <Input
                   id="care-exit-note"
@@ -386,9 +369,7 @@ export function CareExitModal({
             <CareExitPreviewList preview={preview} />
           ) : null}
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
+        <SlideOverFooter>{footer}</SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
   );
@@ -406,7 +387,7 @@ function CareExitPreviewList({
   return (
     <div className="space-y-4">
       {blocked.length > 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <InsetPanel framed padding="md">
           <p className="text-sm font-semibold text-gray-900">
             Die Betreuung wurde nicht beendet
           </p>
@@ -424,7 +405,7 @@ function CareExitPreviewList({
               </li>
             ))}
           </ul>
-        </div>
+        </InsetPanel>
       ) : null}
 
       {ready.length > 0 ? (

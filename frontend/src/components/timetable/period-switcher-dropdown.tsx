@@ -18,17 +18,13 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
  * 3. A "Neuen Zeitraum anlegen" footer.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "~/components/ui/navigation-link";
 import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useClickOutside } from "~/lib/hooks/use-click-outside";
-import {
-  timetablePopoverSurface,
-  timetableWarningText,
-} from "./timetable-style";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 
 import {
   type CalendarPeriod,
@@ -41,6 +37,8 @@ import {
 } from "~/lib/calendar-period-helpers";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
+import { StatusDot } from "~/components/ui/status-dot";
+import { SectionLabel } from "~/components/ui/section-label";
 
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
@@ -75,7 +73,6 @@ export function PeriodSwitcherDropdown({
   canManage = true,
 }: PeriodSwitcherDropdownProps) {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const tenantPath = useTenantAwarePath();
 
   const isoDays = useMemo(() => weekDays.map(toISODate), [weekDays]);
@@ -144,14 +141,10 @@ export function PeriodSwitcherDropdown({
     ].filter((g) => g.periods.length > 0);
   }, [periods, today]);
 
-  // Click-outside / Escape to close.
-  const closeMenu = useCallback(() => setOpen(false), []);
-  useClickOutside(containerRef, closeMenu, open);
-
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.
   if (isLoading) {
-    return <Skeleton className="h-8 w-44 rounded-lg" />;
+    return <Skeleton shape="control" className="h-8 w-44" />;
   }
 
   // Empty state: no periods exist at all.
@@ -171,40 +164,76 @@ export function PeriodSwitcherDropdown({
   }
 
   return (
-    <div className="relative" ref={containerRef}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="compact"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        className="-ml-2.5 max-w-[240px]"
-        title="Planungszeitraum wechseln"
-      >
-        <span
-          className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full"
-          aria-hidden
-        />
-        <span className="truncate">{triggerLabel}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
-      </Button>
-
-      {open && (
-        <div
-          className={`absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 sm:right-0 sm:left-auto sm:w-96 ${timetablePopoverSurface}`}
+    <AnchoredPopover
+      open={open}
+      onOpenChange={setOpen}
+      ariaLabel="Planungszeitraum"
+      preferredWidth={384}
+      align="end"
+      focusPanelOnOpen
+      header={
+        <>
+          <p className="text-sm font-semibold text-gray-900">
+            Planungszeitraum
+          </p>
+          <p className="text-sm text-gray-500">
+            Zeiträume legen fest, in welchen Wochen regelmäßige Termine gelten.
+            So kannst du Schuljahr, Ferien oder besondere Phasen getrennt
+            planen.
+          </p>
+        </>
+      }
+      footer={
+        canManage ? (
+          <>
+            {/* Menüeintrag der Auswahl wie der Verwaltungslink darunter,
+                kein Kit-Knopf (#5529: Menüeinträge sind keine Buttons). */}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onCreate();
+              }}
+              className="flex h-8 w-full items-center gap-1.5 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+            >
+              <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
+            </button>
+            {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
+                Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
+                als direkter Weg aus dem Planungskontext. tenantPath hält den
+                Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
+            <Link
+              href={tenantPath("/calendar-periods")}
+              onClick={() => setOpen(false)}
+              className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Schuljahr
+              und Kalender verwalten
+            </Link>
+          </>
+        ) : undefined
+      }
+      renderTrigger={({ ref, toggle, panelId }) => (
+        <Button
+          ref={ref}
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-controls={open ? panelId : undefined}
+          className="-ml-2.5 max-w-[240px]"
+          title="Planungszeitraum wechseln"
         >
-          <div className="border-b border-gray-100 px-4 py-3">
-            <p className="text-sm font-semibold text-gray-900">
-              Planungszeitraum
-            </p>
-            <p className="text-[11px] text-gray-500">
-              Zeiträume legen fest, in welchen Wochen regelmäßige Termine
-              gelten. So kannst du Schuljahr, Ferien oder besondere Phasen
-              getrennt planen.
-            </p>
-          </div>
-
+          <StatusDot className="bg-moto-green" decorative />
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+        </Button>
+      )}
+    >
+      {({ close }) => (
+        <>
           {showContextAssignments && view === "month" && (
             <MonthPeriodSummary
               assignedPeriods={assignedPeriods}
@@ -214,16 +243,16 @@ export function PeriodSwitcherDropdown({
 
           {showContextAssignments && view !== "month" && (
             <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-              <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+              <SectionLabel as="p" className="mb-1">
                 {contextLabel}
-              </p>
+              </SectionLabel>
               <div className="space-y-0.5">
                 {assignments.map((a, index) => {
                   const day = weekDays[index]!;
                   return (
                     <div
                       key={a.date}
-                      className="flex items-center justify-between gap-3 text-[11px]"
+                      className="flex items-center justify-between gap-3 text-xs"
                     >
                       <span className="font-medium text-gray-500">
                         {getGermanWeekdayShort(day)}
@@ -249,7 +278,7 @@ export function PeriodSwitcherDropdown({
                             })()}
                           </>
                         ) : (
-                          <span className={timetableWarningText}>
+                          <span className="text-moto-amber-strong">
                             Kein aktiver Zeitraum
                           </span>
                         )}
@@ -262,12 +291,12 @@ export function PeriodSwitcherDropdown({
           )}
 
           {/* All periods, grouped */}
-          <div className="max-h-72 overflow-y-auto py-1">
+          <div className="py-1">
             {grouped.map((group) => (
               <div key={group.label} className="py-1">
-                <p className="px-4 py-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+                <SectionLabel as="p" className="px-4 py-1">
                   {group.label}
-                </p>
+                </SectionLabel>
                 {group.periods.map((p) => {
                   const isSelected = selectedPeriodId
                     ? p.id === selectedPeriodId
@@ -277,7 +306,7 @@ export function PeriodSwitcherDropdown({
                       <button
                         type="button"
                         onClick={() => {
-                          setOpen(false);
+                          close();
                           onSelect(p);
                         }}
                         className={`group relative min-w-0 flex-1 rounded-lg px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
@@ -289,7 +318,7 @@ export function PeriodSwitcherDropdown({
                             {p.name}
                           </span>
                         </div>
-                        <p className="text-[10px] text-gray-500 tabular-nums">
+                        <p className="text-xs text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
                           {(() => {
                             const label = weekCycleLabel(p.weekCycleLength);
@@ -315,39 +344,9 @@ export function PeriodSwitcherDropdown({
               </div>
             ))}
           </div>
-
-          {/* Footer: create new */}
-          {canManage && (
-            // Menüeintrag der Auswahl wie der Verwaltungslink darunter,
-            // kein Kit-Knopf (#5529: Menüeinträge sind keine Buttons).
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onCreate();
-              }}
-              className="flex h-8 w-full items-center gap-1.5 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
-            >
-              <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
-            </button>
-          )}
-          {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
-              Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
-              als direkter Weg aus dem Planungskontext. tenantPath hält den
-              Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
-          {canManage && (
-            <Link
-              href={tenantPath("/calendar-periods")}
-              onClick={() => setOpen(false)}
-              className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-            >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Schuljahr
-              und Kalender verwalten
-            </Link>
-          )}
-        </div>
+        </>
       )}
-    </div>
+    </AnchoredPopover>
   );
 }
 
@@ -362,9 +361,9 @@ function MonthPeriodSummary({
     const period = assignedPeriods[0]!;
     return (
       <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-        <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+        <SectionLabel as="p" className="mb-1">
           Dieser Monat
-        </p>
+        </SectionLabel>
         <p className="text-xs text-gray-700">
           Liegt komplett in{" "}
           <span className="font-semibold text-gray-900">{period.name}</span>.
@@ -376,10 +375,10 @@ function MonthPeriodSummary({
   if (assignedPeriods.length === 0) {
     return (
       <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-        <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+        <SectionLabel as="p" className="mb-1">
           Dieser Monat
-        </p>
-        <p className={`text-xs ${timetableWarningText}`}>
+        </SectionLabel>
+        <p className="text-moto-amber-strong text-xs">
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
@@ -388,22 +387,22 @@ function MonthPeriodSummary({
 
   return (
     <div className="border-b border-gray-100 bg-gray-50/60 px-4 py-2.5">
-      <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+      <SectionLabel as="p" className="mb-1">
         Dieser Monat
-      </p>
+      </SectionLabel>
       <p className="mb-1.5 text-xs text-gray-700">Umfasst mehrere Zeiträume.</p>
       <div className="space-y-0.5">
         {assignedPeriods.map((period) => (
           <p
             key={period.id}
-            className="truncate text-[11px] text-gray-600 tabular-nums"
+            className="truncate text-xs text-gray-600 tabular-nums"
           >
             <span className="font-medium text-gray-800">{period.name}</span>{" "}
             <span className="text-gray-400">{formatPeriodRange(period)}</span>
           </p>
         ))}
         {hasMissingDays && (
-          <p className={`text-[11px] ${timetableWarningText}`}>
+          <p className="text-moto-amber-strong text-xs">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

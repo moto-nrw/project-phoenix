@@ -3,6 +3,8 @@
  * Type definitions and mapping functions for IoT device management
  */
 
+import { LOCATION_COLORS } from "~/lib/location-helper";
+
 // Device interface matching backend structure
 export interface Device {
   id: string;
@@ -127,21 +129,23 @@ export function getDeviceStatusDisplayName(status: string): string {
     offline: "Offline",
   };
 
-  return statusMap[status] ?? status;
+  return Object.hasOwn(statusMap, status) ? statusMap[status]! : status;
 }
 
 /**
- * Get device status color classes
+ * Get the status colour for StatusColorBadge
  */
 export function getDeviceStatusColor(status: string): string {
   const colorMap: Record<string, string> = {
-    active: "bg-moto-green-soft text-moto-green-strong",
-    inactive: "bg-gray-100 text-gray-800",
-    maintenance: "bg-moto-amber-soft text-moto-amber-strong",
-    offline: "bg-moto-red-soft text-moto-red-strong",
+    active: LOCATION_COLORS.GROUP_ROOM,
+    inactive: LOCATION_COLORS.HOME,
+    maintenance: LOCATION_COLORS.WARNING,
+    offline: LOCATION_COLORS.DANGER,
   };
 
-  return colorMap[status] ?? "bg-gray-100 text-gray-800";
+  return Object.hasOwn(colorMap, status)
+    ? colorMap[status]!
+    : LOCATION_COLORS.HOME;
 }
 
 /**

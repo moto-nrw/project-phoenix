@@ -10,14 +10,14 @@ import {
 } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { Skeleton } from "~/components/ui/skeleton";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   formatLocalizedDate,
   formatLocalizedDateTime,
@@ -25,6 +25,8 @@ import {
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ParentEnrollPicker" });
 
@@ -59,7 +61,7 @@ function groupBySchool(phases: readonly EnrollablePhase[]): SchoolGroup[] {
 }
 
 export function ParentEnrollPicker() {
-  const t = useTranslations("parentEnroll");
+  const t = useCareTermTranslations("parentEnroll");
   const locale = useLocale();
   const [phases, setPhases] = useState<EnrollablePhase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,37 +109,47 @@ export function ParentEnrollPicker() {
   }, [phases]);
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={t("description")}
-      />
-
-      {loading ? (
-        <ParentEnrollSkeleton />
-      ) : loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : phases.length === 0 ? (
-        <EmptyPhases />
-      ) : (
-        <div className="space-y-6">
-          {linked.length > 0 && (
-            <SchoolSection
-              label={t("yourSchools")}
-              groups={linked}
-              locale={locale}
-            />
-          )}
-          {other.length > 0 && (
-            <SchoolSection
-              label={t("otherSchools")}
-              groups={other}
-              locale={locale}
-            />
-          )}
-        </div>
-      )}
+    <ParentPage
+      header={
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+      }
+      loading={
+        loading && (
+          <div data-testid="parent-enroll-skeleton">
+            <ListSkeleton rows={4} avatar={false} />
+          </div>
+        )
+      }
+      error={loadError}
+      empty={
+        phases.length === 0
+          ? {
+              title: t("empty"),
+              icon: <MotoConceptIcon concept={schoolsConcept} />,
+            }
+          : null
+      }
+    >
+      <div className="space-y-6">
+        {linked.length > 0 && (
+          <SchoolSection
+            label={t("yourSchools")}
+            groups={linked}
+            locale={locale}
+          />
+        )}
+        {other.length > 0 && (
+          <SchoolSection
+            label={t("otherSchools")}
+            groups={other}
+            locale={locale}
+          />
+        )}
+      </div>
     </ParentPage>
   );
 }
@@ -164,21 +176,22 @@ function SchoolCard({
   locale,
 }: Readonly<{ group: SchoolGroup; locale: string }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-        <ConceptIconTile concept={schoolsConcept} size="page" />
-        <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
-          {group.schoolName}
-        </h3>
-      </div>
-      <ul className="divide-y divide-gray-100">
+    <SectionCard
+      title={group.schoolName}
+      headingLevel={3}
+      titleClassName="break-words"
+      leading={<ConceptIconTile concept={schoolsConcept} size="page" />}
+      flush
+      bodyClassName=""
+    >
+      <ul className="divide-y divide-gray-100 border-t border-gray-100">
         {group.phases.map((phase) => (
           <li key={phase.phase_id}>
             <PhaseRow phase={phase} locale={locale} />
           </li>
         ))}
       </ul>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -186,7 +199,7 @@ function PhaseRow({
   phase,
   locale,
 }: Readonly<{ phase: EnrollablePhase; locale: string }>) {
-  const t = useTranslations("parentEnroll");
+  const t = useCareTermTranslations("parentEnroll");
 
   const kindLabel = {
     school_year: t("kindSchoolYear"),
@@ -218,20 +231,16 @@ function PhaseRow({
         phase.school_subdomain,
       )}/${encodeURIComponent(phase.phase_id)}`}
       aria-label={`${t("openPhase")}: ${phaseDisplayName(phase, locale)}`}
-      className="group flex items-center gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-6"
+      className="group flex items-center gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-5"
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-gray-900">
             {phaseDisplayName(phase, locale)}
           </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600">
-            {kindLabel}
-          </span>
+          <StatusBadge tone="gray" compact label={kindLabel} />
           {audienceLabel && (
-            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
-              {audienceLabel}
-            </span>
+            <StatusBadge tone="blue" compact wrap label={audienceLabel} />
           )}
         </div>
         <p className="mt-1 text-sm text-gray-600">{range}</p>
@@ -249,60 +258,6 @@ function PhaseRow({
         aria-hidden="true"
       />
     </Link>
-  );
-}
-
-function EmptyPhases() {
-  const t = useTranslations("parentEnroll");
-  return (
-    <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <ConceptIconTile
-        concept={schoolsConcept}
-        size="page"
-        className="mx-auto"
-      />
-      <p className="mt-3 text-sm leading-6 text-gray-600">{t("empty")}</p>
-    </div>
-  );
-}
-
-function ParentEnrollSkeleton() {
-  // Mirrors SchoolCard above: icon-tile header row over a divide-y list of
-  // PhaseRow-shaped lines, instead of two blank blocks.
-  return (
-    <div
-      data-testid="parent-enroll-skeleton"
-      className="space-y-4"
-      aria-hidden="true"
-    >
-      <Skeleton className="ml-1 h-5 w-32" />
-      {[0, 1].map((card) => (
-        <div
-          key={card}
-          className="moto-content-surface overflow-hidden rounded-2xl border"
-        >
-          <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-            <Skeleton className="size-11 shrink-0 rounded-xl" />
-            <Skeleton className="h-5 w-48 max-w-2/3" />
-          </div>
-          <ul className="divide-y divide-gray-100">
-            {[0, 1].map((row) => (
-              <li key={row} className="flex items-center gap-4 p-4 sm:px-6">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex gap-2">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                  </div>
-                  <Skeleton className="h-4 w-56 max-w-full" />
-                  <Skeleton className="h-3 w-40" />
-                </div>
-                <Skeleton className="size-5 shrink-0 rounded" />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
   );
 }
 

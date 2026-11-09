@@ -1,0 +1,7 @@
+{
+  "scenario": "api.students.ogs_group_live.identity.live_middleware",
+  "max": 43,
+  "exact": true,
+  "description": "OGS live N3/N8, cold/warm requests through native JWT, live-session, tenant and request-memo middleware. Measured on a fixed school Monday (2026-08-24), the path of every care weekday: it includes the day's arrival and pickup exception and note reads, which a weekend skips (4 statements fewer). 7e1548adb7 had measured a Saturday with the wall clock (#6266).",
+  "route": "GET /api/students/ogs-group-live"
+}

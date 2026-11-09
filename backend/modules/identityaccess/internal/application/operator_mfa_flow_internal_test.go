@@ -286,7 +286,7 @@ func TestOperatorMFAHasEnrollmentFailsClosedOnStoreError(t *testing.T) {
 	operator := domain.Operator{ID: 5, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{findCredErr: errOperatorMFAStore})
 
-	enrolled, err := fixture.flows.HasEnrollment(context.Background(), operator.ID)
+	enrolled, err := fixture.flows.HasOperatorMFAEnrollment(context.Background(), operator.ID)
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.False(t, enrolled)
 }
@@ -299,12 +299,12 @@ func TestOperatorMFAHasEnrollmentMissingRowIsNotEnrolled(t *testing.T) {
 	operator := domain.Operator{ID: 6, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
-	enrolled, err := fixture.flows.HasEnrollment(context.Background(), operator.ID)
+	enrolled, err := fixture.flows.HasOperatorMFAEnrollment(context.Background(), operator.ID)
 	require.NoError(t, err)
 	assert.False(t, enrolled)
 
 	require.NoError(t, fixture.flows.Enroll(context.Background(), operator.ID))
-	enrolled, err = fixture.flows.HasEnrollment(context.Background(), operator.ID)
+	enrolled, err = fixture.flows.HasOperatorMFAEnrollment(context.Background(), operator.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled)
 	assert.Contains(t, fixture.audit.operatorActions(), domain.OperatorAuditActionMFAEnrolled)
@@ -322,7 +322,7 @@ func TestOperatorMFAStartChallengeFailsClosedOnDeliveryFailure(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, nil)
 	fixture.mail.err = errors.New("smtp connection lost")
 
-	token, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Empty(t, token, "a refused delivery must not produce a challenge credential")
 	assert.Zero(t, fixture.store.activateCalls, "the undelivered code must stay unredeemable")
@@ -339,7 +339,7 @@ func TestOperatorMFAStartChallengeFailsClosedOnRateLimitLookupFailure(t *testing
 	operator := domain.Operator{ID: 19, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{countErr: errOperatorMFAStore})
 
-	token, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable,
 		"an unreadable rate-limit count must refuse the code, not wave it through")
 	assert.Empty(t, token, "a refused challenge must not produce a challenge credential")
@@ -355,7 +355,7 @@ func TestOperatorMFAStartChallengeRateLimits(t *testing.T) {
 	operator := domain.Operator{ID: 8, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{challengeCount: domain.OperatorMFARateLimitMaxSent})
 
-	_, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	_, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 	require.ErrorIs(t, err, identityaccess.ErrMFARateLimited)
 	assert.Empty(t, fixture.mail.codes, "a rate-limited request sends nothing")
 }
@@ -368,7 +368,7 @@ func TestOperatorMFAStartChallengeRefusesLockedOperator(t *testing.T) {
 	operator := domain.Operator{ID: 9, Email: "ops@example.test", DisplayName: "Ops", Active: true, MFALockedUntil: &lockedUntil}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
-	_, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	_, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 	require.ErrorIs(t, err, identityaccess.ErrMFALocked)
 }
 
@@ -380,10 +380,10 @@ func TestOperatorMFAStartChallengeMailsTheCode(t *testing.T) {
 	operator := domain.Operator{ID: 10, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
-	token, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 	require.NoError(t, err)
 	assert.Equal(t, "challenge-token", token)
-	assert.Equal(t, domain.MFAChallengeScopePlatform, fixture.codec.issued.Scope,
+	assert.Equal(t, domain.PortalPlatform.Name, fixture.codec.issued.Scope,
 		"the operator id reuses the account slot, so the scope is what distinguishes it")
 	assert.Equal(t, operator.ID, fixture.codec.issued.AccountID)
 
@@ -393,7 +393,7 @@ func TestOperatorMFAStartChallengeMailsTheCode(t *testing.T) {
 	assert.Equal(t, operator.DisplayName, sent.RecipientName)
 	assert.True(t, sent.Operator)
 	assert.True(t, sent.TrustedDeviceEnabled, "operators always have remember-device on")
-	assert.Equal(t, fixture.flows.TrustedDeviceDays(), sent.TrustedDeviceDays)
+	assert.Equal(t, fixture.flows.OperatorTrustedDeviceDays(), sent.TrustedDeviceDays)
 	assert.Equal(t, 1, fixture.store.activateCalls, "a delivered code becomes redeemable")
 }
 
@@ -411,12 +411,12 @@ func TestOperatorMFAVerifyChallengeRefusesTheConsumeRaceLoser(t *testing.T) {
 		consumeErr: errors.New("operator mfa challenge was already consumed or activated"),
 	}
 	fixture := newOperatorMFAFixture(t, operator, store)
-	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.MFAChallengeScopePlatform}
+	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.PortalPlatform.Name}
 
-	verified, err := fixture.flows.VerifyChallenge(context.Background(), "token", "123456")
+	verified, err := fixture.flows.VerifyOperatorMFAChallenge(context.Background(), "token", "123456")
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
 		"a consumption that did not apply must read as the generic invalid code, leaking nothing")
-	assert.Zero(t, verified.OperatorID)
+	assert.Zero(t, verified)
 	assert.Equal(t, 1, store.consumeCalls, "the flow consumes exactly once before refusing")
 	assert.Contains(t, fixture.audit.operatorActions(), domain.OperatorAuditActionMFAFailed)
 }
@@ -432,7 +432,7 @@ func TestOperatorMFAVerifyCodeRefusesTheConsumeRaceLoser(t *testing.T) {
 	}
 	fixture := newOperatorMFAFixture(t, operator, store)
 
-	err := fixture.flows.VerifyCodeForOperator(context.Background(), operator.ID, "654321")
+	err := fixture.flows.VerifyOperatorMFACode(context.Background(), operator.ID, "654321")
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 	assert.Equal(t, 1, store.consumeCalls)
 }
@@ -444,10 +444,10 @@ func TestOperatorMFAVerifyChallengeRefusesForeignScope(t *testing.T) {
 	operator := domain.Operator{ID: 13, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 	fixture.codec.parse["tenant-token"] = domain.MFAChallengeClaims{
-		AccountID: operator.ID, Scope: domain.MFAChallengeScopeTenant,
+		AccountID: operator.ID, Scope: domain.PortalTenant.Name,
 	}
 
-	_, err := fixture.flows.VerifyChallenge(context.Background(), "tenant-token", "123456")
+	_, err := fixture.flows.VerifyOperatorMFAChallenge(context.Background(), "tenant-token", "123456")
 	require.ErrorIs(t, err, identityaccess.ErrMFAChallengeTokenInvalid)
 	assert.Zero(t, fixture.store.consumeCalls, "a foreign token never reaches the code")
 }
@@ -459,9 +459,9 @@ func TestOperatorMFAVerifyChallengeWrongCodeCountsTheAttempt(t *testing.T) {
 	operator := domain.Operator{ID: 14, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	store := &fakeOperatorMFAStore{challenge: &domain.OperatorMFAChallenge{ID: 7, OperatorID: 14, CodeHash: "hash:123456"}}
 	fixture := newOperatorMFAFixture(t, operator, store)
-	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.MFAChallengeScopePlatform}
+	fixture.codec.parse["token"] = domain.MFAChallengeClaims{AccountID: operator.ID, Scope: domain.PortalPlatform.Name}
 
-	_, err := fixture.flows.VerifyChallenge(context.Background(), "token", "000000")
+	_, err := fixture.flows.VerifyOperatorMFAChallenge(context.Background(), "token", "000000")
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 	assert.Zero(t, store.consumeCalls, "a wrong code is never consumed")
 	assert.Contains(t, fixture.audit.operatorActions(), domain.OperatorAuditActionMFAFailed)
@@ -497,10 +497,10 @@ func TestOperatorMFADisableRollsBackOnPartialFailure(t *testing.T) {
 	// Both must survive: the credential delete that already applied is
 	// undone with the failing revoke, so the operator is never left without
 	// an enrollment while its cookies still verify.
-	enrolled, err := fixture.flows.HasEnrollment(ctx, operator.ID)
+	enrolled, err := fixture.flows.HasOperatorMFAEnrollment(ctx, operator.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled, "the credential delete must roll back with the failing revoke")
-	verified, err := fixture.flows.VerifyTrustedDevice(ctx, operator.ID, cookie)
+	verified, err := fixture.flows.VerifyOperatorTrustedDevice(ctx, operator.ID, cookie)
 	require.NoError(t, err)
 	assert.True(t, verified, "the trusted device must still verify after the failed cascade")
 }
@@ -519,10 +519,10 @@ func TestOperatorMFADisableClearsEverything(t *testing.T) {
 
 	require.NoError(t, fixture.flows.Disable(ctx, operator.ID))
 
-	enrolled, err := fixture.flows.HasEnrollment(ctx, operator.ID)
+	enrolled, err := fixture.flows.HasOperatorMFAEnrollment(ctx, operator.ID)
 	require.NoError(t, err)
 	assert.False(t, enrolled)
-	verified, err := fixture.flows.VerifyTrustedDevice(ctx, operator.ID, cookie)
+	verified, err := fixture.flows.VerifyOperatorTrustedDevice(ctx, operator.ID, cookie)
 	require.NoError(t, err)
 	assert.False(t, verified, "a revoked device must stop verifying")
 	assert.Contains(t, fixture.audit.operatorActions(), domain.OperatorAuditActionMFADisabled)
@@ -545,9 +545,9 @@ func TestOperatorMFARevokeTrustedDeviceChecksOwnership(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
 
-	require.ErrorIs(t, fixture.flows.RevokeTrustedDevice(ctx, operator.ID, devices[0].ID+99),
+	require.ErrorIs(t, fixture.flows.RevokeOperatorTrustedDeviceOwned(ctx, operator.ID, devices[0].ID+99),
 		identityaccess.ErrMFAPermissionDenied, "a device that is not this operator's is refused")
-	require.NoError(t, fixture.flows.RevokeTrustedDevice(ctx, operator.ID, devices[0].ID))
+	require.NoError(t, fixture.flows.RevokeOperatorTrustedDeviceOwned(ctx, operator.ID, devices[0].ID))
 }
 
 // Issuing a cookie tells the operator by mail, so trusting a device never
@@ -568,7 +568,7 @@ func TestOperatorMFAIssueTrustedDeviceNotifiesTheOperator(t *testing.T) {
 	sent := fixture.mail.devices[0]
 	assert.Equal(t, operator.Email, sent.Recipient)
 	assert.True(t, sent.Operator)
-	assert.Equal(t, fixture.flows.TrustedDeviceDays(), sent.TrustedDays)
+	assert.Equal(t, fixture.flows.OperatorTrustedDeviceDays(), sent.TrustedDays)
 	assert.NotEmpty(t, sent.DeviceLabel)
 	assert.Contains(t, fixture.audit.operatorActions(), domain.OperatorAuditActionMFATrustedDeviceAdded)
 }

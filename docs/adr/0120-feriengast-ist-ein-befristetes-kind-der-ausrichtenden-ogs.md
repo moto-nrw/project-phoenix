@@ -281,3 +281,114 @@ Ferienzeit da. Punkt 2 und Punkt 4 gelten mit diesen Änderungen:
 - **Kiosk.** PyrePortal zeigt den Hinweis nicht; ein Gast hat kein Armband
   und wird im Browser an- und abgemeldet. Ein Hinweis am Tablet folgt als
   eigenes Issue, falls die ausrichtende OGS das Tablet nutzt.
+
+## Nachtrag 2026-11-07: Vorgemerkte eigene Kinder erst ab Betreuungsbeginn (#6041)
+
+Rückmeldung der Grundschule Barnstorf vom 06.11.2026
+([#6041](https://github.com/moto-nrw/project-phoenix/issues/6041)): Eltern
+melden im Dezember für die Betreuung ab Februar an, und bestätigte Kinder
+standen sofort in den laufenden Listen. Für die Teilnahme von Care Plan gilt
+der Satz „Eigene Kinder mit späterem Start bleiben, wie sie sind“ aus dem
+Nachtrag vom 03.11.2026 nicht mehr:
+
+- Ein vorgemerktes Kind (Status `pending`), dessen `enrolled_from` nach dem
+  Tag der Liste liegt, nimmt an diesem Tag nicht an der Betreuung teil.
+  Care Plan entscheidet das in `ParticipatingOn`
+  (`modules/careplan/internal/domain`), also für jede Leserin der
+  Teilnahme: laufende Kinderliste mit Zählung und Export
+  (`GET /api/students`, `POST /api/students/export`), Gruppenliste und
+  Live-Ansicht der Gruppe, Klassenliste, geplante Betreuungstage mit ihren
+  Zählern und die Fehlzeitenliste.
+- Maßgeblich ist der Betreuungsbeginn, nicht die Anmeldefrist: Ab
+  `enrolled_from` zählt das Kind, auch bevor der stündliche Abgleich es
+  aktiviert, und auch an einem ausdrücklich gewählten Planungstag ab dem
+  Beginn. Die Kinderverwaltung (`include_pending_withdrawals`,
+  `AdministrativelyVisibleOn`), die Ansicht aller Kinder und die
+  Anmeldeverwaltung zeigen es weiter, damit die Schule den Start vorbereitet.
+- Ein sofort aktiviertes Kind (Status `active`) zählt weiter vor seinem
+  regulären Beginn, wie bei der Stichtagszahl. Eine laufende
+  Wiederanmeldung bleibt aktiv und zählt. Ein tatsächlich anwesendes Kind
+  bleibt stehen. Ein vorgemerktes Kind ohne Beginn blendet die Regel nicht
+  aus. Das Ende der Betreuung und der Feriengast bleiben, wie oben
+  beschrieben.
+- Die Live-Listen des People Directory, die ohne Teilnahme von Care Plan
+  lesen (`currentCare`), ändert dieser Nachtrag nicht; ob vorgemerkte
+  Kinder dort fehlen sollen, klärt
+  [#6050](https://github.com/moto-nrw/project-phoenix/issues/6050); die
+  Antwort steht im Nachtrag vom 08.11.2026.
+
+### Vergangene Tage: neues und zurückkehrendes Kind (#6041, Review)
+
+Eine Wiederaufnahme (`ResumeStudentCare`) und eine Wiederanmeldung
+(`RenewStudentEnrollment`) speichern ein bekanntes Kind wie ein neues:
+`pending`, neues `enrolled_from`, früherer Beginn ersetzt. Hielte Care Plan
+jedes vorgemerkte Kind an allen Tagen vor dem Beginn zurück, verschwände die
+echte frühere Betreuung eines zurückkehrenden Kindes aus der Fehlzeitenliste.
+Hielte es nur ab heute zurück, stünde ein im Dezember bestätigtes Kind mit
+Start im Februar in der Fehlzeitenliste des laufenden Halbjahres, mit
+„nicht erfasst“-Tagen und in Summen und Export, und die Antwort für einen Tag
+hinge davon ab, an welchem Tag man ihn liest.
+
+Kein vorhandenes Datum trennt die beiden verlässlich: Den Aktivierungsplan
+der Anmeldung stempelt auch eine Wiederanmeldung, die Wiederaufnahme
+berührt ihn nicht; `created_at` deckt die Tage zwischen Anlage und heute
+nicht ab; fehlende Anwesenheitsdaten beweisen keine fehlende Betreuung.
+
+Darum merkt sich School Membership den frühesten Tag, an dem ein neues Kind
+betreut worden sein kann: `users.student_school_memberships.first_care_from`
+(Migration 1.15.812,
+[ADR 0166](0166-mitgliedschaft-merkt-sich-den-fruehesten-betreuungstag.md)).
+Eine neue Genehmigung mit späterem Start (`pending` mit Beginn, keine andere
+auch gelöschte Mitgliedschaft) setzt ihn auf den Beginn. Die Schreibvorgänge
+von School Membership führen ihn am Tag der Anwendung nach: Ein erreichter
+Tag rückt nur noch früher, die Aktivierung am Starttag und eine
+Wiederaufnahme behalten ihn, eine Aktivierung vor dem Beginn setzt ihn auf
+diesen Tag, unbekannt bleibt unbekannt. Der Nachlauf der Migration setzt ihn
+nur für Zeilen, die seit dem Einfügen nachweislich unverändert sind.
+
+Care Plan liest ihn über die Schülerprojektion (`CareStudent.FirstCareFrom`)
+in denselben Statements. `AwaitsCareStartOn` hält ein Kind an jedem Tag vor
+`first_care_from` zurück, in jedem Status, also auch nach der Aktivierung;
+ohne diesen Tag ein vorgemerktes Kind vor seinem Beginn nur ab heute. Ein
+zurückkehrendes oder unbekanntes Kind behält seine vergangenen Tage. Echte
+Betreuung verschwindet nie: Die Fehlzeitenliste zählt ein zurückgehaltenes
+Kind an einem Tag mit, an dem Student Presence eine Anwesenheit oder einen
+Raumbesuch gespeichert hat, wie die laufenden Listen ein tatsächlich
+anwesendes Kind behalten. Die Lücke zwischen früherem Ende und
+Wiederaufnahme eines zurückkehrenden Kindes hält Care Plan seit
+[#6073](https://github.com/moto-nrw/project-phoenix/issues/6073) ebenso
+zurück ([ADR 0180](0180-mitgliedschaft-merkt-sich-die-betreuungsluecke-eines-zurueckkehrenden-kindes.md)).
+
+## Nachtrag 2026-11-08: Live-Listen des People Directory behalten vorgemerkte eigene Kinder (#6050)
+
+Entscheidung zu
+[#6050](https://github.com/moto-nrw/project-phoenix/issues/6050): Die
+Live-Listen des People Directory, die ohne Teilnahme von Care Plan lesen
+(`currentCare`), zeigen ein vorgemerktes eigenes Kind (Status `pending`,
+`enrolled_from` in der Zukunft) weiter vor seinem Beginn. Der Satz „Eigene
+Kinder mit späterem Start bleiben, wie sie sind“ aus dem Nachtrag vom
+03.11.2026 gilt für diese Leser fort. Keine dieser Listen zählt Betreuung
+oder ist eine laufende Betreuungsliste; jede dient der Vorbereitung oder dem
+Auflösen schon gespeicherter Daten:
+
+- **Armband-Zuordnung am Kiosk.** `FindAllWithGroups` und
+  `FindByTeacherStaffIDsWithGroups` speisen `GET /api/iot/students`, die
+  Kinderauswahl, mit der PyrePortal ein Armband zuordnet. Das Team gibt das
+  Armband vor dem ersten Tag aus, nicht erst am ersten Morgen.
+- **Empfängerauswahl im Kalender.** `FindAllWithGroups` liefert die Suche
+  nach Kindern für Kalendereinträge. Eltern eines Kindes mit späterem Start
+  brauchen vorher Informationen, etwa zum ersten Tag oder zu einem
+  Elternabend. In einer Suche stört der Eintrag nicht.
+- **Elternsprechtag.** `FindAllWithGroups` nennt nur die Namen schon
+  gebuchter Kinder. Fehlte das Kind dort, stünde eine bestehende Buchung
+  ohne Namen.
+- **Rückmeldungen der Anmeldephase.** `ListStudentRoster` markiert ein
+  vorgemerktes Kind als `NotActive`; Enrollment fragt es nicht nach einer
+  Wiederanmeldung, weil seine eigene Anmeldung noch läuft. Keine Änderung.
+- `FindByTeacherIDWithGroups` hat keinen Leser außerhalb von Port und
+  Dekorator.
+
+Feriengast und Ende der Betreuung bleiben, wie oben beschrieben. Zeigt sich,
+dass vorgemerkte Kinder die Armband-Auswahl am Kiosk unübersichtlich machen,
+bekommen sie dort einen Hinweis auf ihren Beginn statt einer Ausblendung;
+das ändert den Kiosk-Vertrag mit PyrePortal und braucht ein eigenes Issue.

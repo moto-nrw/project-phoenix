@@ -4,7 +4,7 @@ import { useCallback, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import {
   checkoutConfirmationRoom,
   type useSchoolCheckinMode,

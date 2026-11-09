@@ -169,6 +169,7 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 		Attendance:           deps.activeService,
 		Students:             deps.students,
 		People:               deps.personService,
+		CallerStaff:          unavailableCallerStaff{},
 		EducationGroups:      deps.groups,
 		Rooms:                deps.rooms,
 		BlockMetadata:        fakeOpsBlockDisplay{instances: deps.instanceRepo, rooms: deps.rooms},
@@ -187,6 +188,12 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 			return time.Now()
 		},
 	}
+}
+
+type unavailableCallerStaff struct{}
+
+func (unavailableCallerStaff) StaffID(context.Context) (int64, error) {
+	return 0, timetable.ErrTimetableOperationForbidden
 }
 
 type fakeOpsInstanceRepo struct {
@@ -563,16 +570,18 @@ func (r *fakeOpsVisitRepo) ListVisits(_ context.Context, filter studentpresence.
 		}
 		return visits, nil
 	}
-	studentID := filter.StudentIDs[0]
-	current := r.currentByStudent[studentID]
-	if sequence := r.currentByStudentSequence[studentID]; len(sequence) > 0 {
-		current = sequence[0]
-		r.currentByStudentSequence[studentID] = sequence[1:]
+	var visits []studentpresence.Visit
+	for _, studentID := range filter.StudentIDs {
+		current := r.currentByStudent[studentID]
+		if sequence := r.currentByStudentSequence[studentID]; len(sequence) > 0 {
+			current = sequence[0]
+			r.currentByStudentSequence[studentID] = sequence[1:]
+		}
+		if current != nil {
+			visits = append(visits, *current)
+		}
 	}
-	if current == nil {
-		return nil, nil
-	}
-	return []studentpresence.Visit{*current}, nil
+	return visits, nil
 }
 
 type fakeOpsStudentRepo struct {

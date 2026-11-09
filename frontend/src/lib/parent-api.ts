@@ -1,4 +1,5 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
   transportFetch as fetchTransport,
@@ -40,6 +41,13 @@ import type {
 } from "~/lib/enrollment-submission-api";
 
 import { boundSessionAccount } from "~/lib/session-account";
+import {
+  type BackendNoticeOptions,
+  type ContractNoticeOptions,
+  declarationBody,
+  type NoticeDeclaration,
+  noticeOptionsFromBackend,
+} from "~/lib/care-contract-notices";
 import {
   isParentAccessRefusal,
   PARENT_ACCESS_REFUSED_EVENT,
@@ -306,6 +314,9 @@ export interface ChildFeatures {
   // Neuigkeiten feed is empty, so the parents-portal nav/panel entries gate on
   // this to avoid dead-ending on an empty page.
   readonly parent_news_enabled: boolean;
+  // The school's term for its care („OGS“, „GTS“; #6082). Every parent text
+  // that names the care of this child uses it.
+  readonly care_facility_term?: string;
 }
 
 // One dish of the read-only meal plan (Essensplan) for a child's school.
@@ -576,12 +587,14 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
+/** A DELETE without a result answers 204. */
 async function deleteJson<T>(url: string): Promise<T> {
   const response = await transportFetch(url, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
   if (!response.ok) await throwResponseError(url, response);
+  if (response.status === 204) return undefined as T;
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
@@ -725,8 +738,7 @@ async function fetchEnrollmentEndpoint(
 /**
  * Fetches the parent's autofill payload for the embedded enrollment
  * form, scoped to a specific tenant slug. Returns null on 401 so the
- * form can render without prefill rather than failing. This matches the
- * public path's fetchMyEnrollmentProfile contract.
+ * form can render without prefill rather than failing.
  */
 export async function fetchParentEnrollmentProfile(
   tenantSlug: string,
@@ -2451,9 +2463,18 @@ export interface ParentDocument {
   readonly id: string;
   readonly organization_id: string;
   readonly traeger_name: string;
-  /** The confirmation letter, or the letter of its Storno or Gutschrift (#4690). */
+  /**
+   * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
+   * a care contract (#4678), or the letter of a monthly invoice and of its
+   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`.
+   */
   readonly kind:
-    "confirmation_letter" | "cancellation_letter" | "credit_letter";
+    | "confirmation_letter"
+    | "cancellation_letter"
+    | "credit_letter"
+    | "care_invoice_letter"
+    | "care_cancellation_letter"
+    | "care_contract";
   readonly number: string;
   readonly period_name: string;
   readonly service_from: string;
@@ -2462,14 +2483,112 @@ export interface ParentDocument {
   readonly total_cents: number;
   readonly child_names: readonly string[];
   readonly sent_at: string;
+  /** The state of a care contract (#4679); absent for a letter. */
+  readonly contract_status?: CareContractStatus;
+  readonly can_sign?: boolean;
+  readonly signed_at?: string | null;
+  /**
+   * A care contract version that a change on its own first day replaced
+   * (#4681): it holds on no day; the changed version holds from
+   * `service_from`.
+   */
+  readonly replaced?: boolean;
+  /** The last day of a terminated care contract (#4682). */
+  readonly ends_on?: string;
+  /**
+   * The account may withdraw or terminate this contract: its relationship
+   * to the child grants the right (#4682). Absent when it may only read.
+   */
+  readonly can_end_contract?: boolean;
+  /**
+   * `can_end_contract` holds and the withdrawal period may still run: the
+   * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
+   */
+  readonly can_withdraw_contract?: boolean;
 }
 
 /**
- * The documents the Träger of the account's schools sent to the family,
- * newest first. 403 when no relationship of the account grants them.
+ * The documents the Träger of the account's schools sent to the family:
+ * the letters and the care contracts (#4678), newest first. 403 when no
+ * relationship of the account grants them.
  */
-export async function listMyDocuments(): Promise<ParentDocument[]> {
-  return getJson<ParentDocument[]>("/api/parent/me/documents");
+export interface ParentDocumentInbox {
+  readonly documents: ParentDocument[];
+  /** Documents a Träger released for the parents (#4692). */
+  readonly shared: ParentSharedDocument[];
+  /** `several` when more than one source failed: no single one is named. */
+  readonly failedSource: "letters" | "contracts" | "shared" | "several" | null;
+  readonly error: unknown;
+}
+
+/**
+ * A document a Träger released for the parents of the account's children
+ * (#4692): a house rule, a letter, a list. It is the same for every family
+ * the release covers, so it names no child and no amount.
+ */
+export interface ParentSharedDocument {
+  readonly id: string;
+  readonly organization_id: string;
+  readonly traeger_name: string;
+  readonly title: string;
+  readonly file_name: string;
+  readonly content_type: string;
+  readonly size_bytes: number;
+  readonly released_at: string;
+}
+
+export async function listMyDocuments(): Promise<ParentDocumentInbox> {
+  const [letters, contracts, shared] = await Promise.allSettled([
+    getJson<ParentDocument[]>("/api/parent/me/documents"),
+    getJson<ParentDocument[]>("/api/parent/me/documents/contracts"),
+    getJson<ParentSharedDocument[]>("/api/parent/me/documents/shared"),
+  ]);
+  if (
+    letters.status === "rejected" &&
+    contracts.status === "rejected" &&
+    shared.status === "rejected"
+  ) {
+    throw letters.reason;
+  }
+  const documents = [
+    ...(letters.status === "fulfilled" ? letters.value : []),
+    ...(contracts.status === "fulfilled" ? contracts.value : []),
+  ].sort(
+    (a, b) =>
+      Date.parse(b.sent_at) - Date.parse(a.sent_at) ||
+      Number(b.id) - Number(a.id),
+  );
+  const failed = [
+    ["letters", letters],
+    ["contracts", contracts],
+    ["shared", shared],
+  ] as const;
+  const failures = failed.filter(([, result]) => result.status === "rejected");
+  const firstFailure = failures[0];
+  return {
+    documents,
+    shared: shared.status === "fulfilled" ? shared.value : [],
+    failedSource:
+      failures.length > 1 ? "several" : firstFailure ? firstFailure[0] : null,
+    error:
+      firstFailure && firstFailure[1].status === "rejected"
+        ? firstFailure[1].reason
+        : null,
+  };
+}
+
+/**
+ * Downloads one document a Träger released for the parents, under the file
+ * name the backend chose. The backend records the opening.
+ */
+export async function downloadMySharedDocument(
+  document: Pick<ParentSharedDocument, "id" | "organization_id" | "file_name">,
+): Promise<void> {
+  const url = `/api/parent/me/documents/${encodeURIComponent(document.organization_id)}/shared/${encodeURIComponent(document.id)}/file`;
+  const response = await transportFetch(url, { method: "GET" });
+  if (!response.ok) await throwResponseError(url, response);
+  const blob = await response.blob();
+  downloadBlob(blob, filenameFromDisposition(response) ?? document.file_name);
 }
 
 /**
@@ -2478,14 +2597,55 @@ export async function listMyDocuments(): Promise<ParentDocument[]> {
  * the page as a message; a 401 still leads to the login.
  */
 export async function downloadMyDocument(
-  document: Pick<ParentDocument, "id" | "organization_id" | "number">,
+  document: Pick<ParentDocument, "id" | "organization_id" | "number" | "kind">,
 ): Promise<void> {
-  const url = `/api/parent/me/documents/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}/pdf`;
+  const organization = encodeURIComponent(document.organization_id);
+  const id = encodeURIComponent(document.id);
+  const url =
+    document.kind === "care_contract"
+      ? `/api/parent/me/documents/${organization}/contracts/${id}/pdf`
+      : `/api/parent/me/documents/${organization}/${id}/pdf`;
   const response = await transportFetch(url, { method: "GET" });
   if (!response.ok) await throwResponseError(url, response);
   const blob = await response.blob();
   downloadBlob(
     blob,
     filenameFromDisposition(response) ?? `dokument-${document.number}.pdf`,
+  );
+}
+
+// ── Kündigung und Widerruf (#4682) ─────────────────────────────────────────
+
+const contractNoticePath = (organizationId: string, contractId: string) =>
+  `/api/parent/me/documents/${encodeURIComponent(organizationId)}/contracts/${encodeURIComponent(contractId)}/notice`;
+
+/**
+ * What the parents can declare today on a care contract sent to them, or
+ * the declaration made. 403 without the relationship right to bind the
+ * family (parent_portal.enrollment.submit), 404 for a contract outside the
+ * inbox.
+ */
+export async function fetchMyContractNoticeOptions(
+  organizationId: string,
+  contractId: string,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await getJson<BackendNoticeOptions>(
+      contractNoticePath(organizationId, contractId),
+    ),
+  );
+}
+
+/** The parents' „jetzt kündigen“ or „jetzt widerrufen“ (§ 312k BGB). */
+export async function declareMyContractNotice(
+  organizationId: string,
+  contractId: string,
+  declaration: NoticeDeclaration,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await postJson<BackendNoticeOptions>(
+      contractNoticePath(organizationId, contractId),
+      declarationBody(declaration),
+    ),
   );
 }

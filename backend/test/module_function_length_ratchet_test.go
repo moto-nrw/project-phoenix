@@ -78,7 +78,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/auth_test_helpers.go:NewAuthTestModule":                         164,
 	"api/calendar_test_helpers.go:NewCalendarTestModule":                 63,
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":        61,
-	"api/guardians_composition.go:newGuardiansResource":                  108,
+	"api/guardians_composition.go:NewGuardiansResource":                  106,
 	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           82,
 	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
@@ -497,7 +497,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/request_child_storage_contract.go:requestChildStorageContractDataPreflight": 66,
 	// ADR 0087.
-	"database/migrations/reset.go:resetDatabase": 99,
+	"database/migrations/reset.go:resetDatabase": 71,
 	// ADR 0087.
 	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 75,
 	// ADR 0087.
@@ -540,13 +540,13 @@ var moduleFuncLenAllowlist = map[string]int{
 	"internal/devtools/seedapi/enrollment_bookings_profile.go:(seedEnrollmentBookingsProfileStep).Run": 71,
 	// ADR 0087.
 	// ADR 0087.
-	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 87,
+	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 80,
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:submitWeeklyProfileRequest": 62,
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 62,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 258,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 246,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 61,
 	// ADR 0087.

@@ -22,14 +22,17 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err != nil {
 		return nil, err
 	}
-	req, err := decodedRequestByID(ctx, s.deps.Requests, input.RequestID, true)
+	if err := s.lockApprovalGates(ctx); err != nil {
+		return nil, err
+	}
+	req, err := s.deps.Requests.RequestByID(ctx, input.RequestID, true)
 	if err != nil && !s.deps.Runtime.NotFound(err) {
 		return nil, err
 	}
 	if err != nil || req == nil {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, true)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, true)
 	if err != nil {
 		return nil, fmt.Errorf("admin data correction: lock children: %w", err)
 	}
@@ -51,23 +54,57 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err := s.rejectOpenChangeRequestsForAdminCorrection(ctx, req, reason, input.ActorAccountID); err != nil {
 		return nil, err
 	}
+	correction := correctedChildFields(child, SubmitChild{
+		FirstName: firstName, LastName: lastName, DateOfBirth: input.DateOfBirth,
+		TargetGradeLevel: targetGradeLevel, TargetSchoolClass: targetSchoolClass,
+	})
 	child.FirstName, child.LastName, child.DateOfBirth = firstName, lastName, input.DateOfBirth
 	child.TargetGradeLevel, child.TargetSchoolClass = targetGradeLevel, targetSchoolClass
-	if err := updateDecodedChild(ctx, s.deps.Children, child); err != nil {
+	if err := s.deps.Children.UpdateChildData(ctx, child); err != nil {
 		return nil, fmt.Errorf("admin data correction: update enrollment child: %w", err)
 	}
 	if _, err := s.deps.Decisions.SyncApprovedChildData(ctx, enrollmentNative.ApprovedChildSync{
 		RequestID: req.ID, ChildID: child.ID, ActorAccountID: input.ActorAccountID,
-		PreviousSnapshot: []byte("null"),
+		PreviousSnapshot: []byte("null"), Correction: correction,
 	}); err != nil {
 		return nil, fmt.Errorf("admin data correction: sync student: %w", err)
 	}
 	return s.recordAdminCorrection(ctx, req, children, child, baseSnapshot, reason, input.ActorAccountID)
 }
 
+// correctedChildFields names the child fields a direct correction changes,
+// so the sync can apply exactly those where the request's own data no longer
+// reaches the child (#6053).
+func correctedChildFields(child *enrollmentNative.RequestChild, corrected SubmitChild) *enrollmentNative.ApprovedChildCorrection {
+	return &enrollmentNative.ApprovedChildCorrection{
+		FirstName: corrected.FirstName != child.FirstName,
+		LastName:  corrected.LastName != child.LastName,
+		Birthday:  corrected.DateOfBirth != child.DateOfBirth,
+		Class: !sameGradeLevel(child.TargetGradeLevel, corrected.TargetGradeLevel) ||
+			!sameOptionalString(child.TargetSchoolClass, corrected.TargetSchoolClass),
+	}
+}
+
+// lockApprovalGates takes the class-writes and recurrence gates a
+// change-request approval and a direct correction write under, before the
+// request, change-request and child row locks (ADR 0162). The student sync
+// and the booking changes need them; a phase edit holds the recurrence gate
+// while it rewrites pending weekly plans, and Decide(approved) holds both
+// while it waits for the request row (#6043 review). Without the decision
+// flow nothing gated is written.
+func (s *ChangeRequests) lockApprovalGates(ctx context.Context) error {
+	if s.deps.Decisions == nil || s.deps.BookingGates == nil {
+		return nil
+	}
+	if err := s.deps.BookingGates.LockOfferingDerivedWrites(ctx); err != nil {
+		return fmt.Errorf("change request: lock offering-derived writes: %w", err)
+	}
+	return nil
+}
+
 // recordAdminCorrection stores the approved staff change request that
 // documents a direct correction.
-func (s *ChangeRequests) recordAdminCorrection(ctx context.Context, req *Request, children []*RequestChild, child *RequestChild, baseSnapshot map[string]any, reason string, actorAccountID int64) (*changeRequestCase, error) {
+func (s *ChangeRequests) recordAdminCorrection(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild, child *enrollmentNative.RequestChild, baseSnapshot map[string]any, reason string, actorAccountID int64) (*changeRequestCase, error) {
 	proposedSnapshot, err := s.currentSnapshot(ctx, req, children)
 	if err != nil {
 		return nil, err
@@ -87,7 +124,7 @@ func (s *ChangeRequests) recordAdminCorrection(ctx context.Context, req *Request
 
 // rejectOpenChangeRequestsForAdminCorrection rejects the family's open
 // change requests the correction supersedes and tells the family why.
-func (s *ChangeRequests) rejectOpenChangeRequestsForAdminCorrection(ctx context.Context, req *Request, reason string, actorAccountID int64) error {
+func (s *ChangeRequests) rejectOpenChangeRequestsForAdminCorrection(ctx context.Context, req *enrollmentNative.Request, reason string, actorAccountID int64) error {
 	rows, err := changeRequestsFromOwner(s.deps.Requests.OpenChangeRequestsForRequestForUpdate(ctx, req.ID))
 	if err != nil {
 		return fmt.Errorf("admin data correction: lock open change requests: %w", err)
@@ -95,7 +132,7 @@ func (s *ChangeRequests) rejectOpenChangeRequestsForAdminCorrection(ctx context.
 	if len(rows) == 0 {
 		return nil
 	}
-	note := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+	note := "Die Schule hat die Daten direkt korrigiert. Diese Änderungsanfrage ist damit erledigt. Grund: " + reason
 	now := time.Now()
 	for _, row := range rows {
 		if err := s.deps.Requests.MarkChangeRequestReviewed(ctx, row.ID, enrollmentNative.ChangeRequestStatusRejected, &note, actorAccountID, now); err != nil {
@@ -133,7 +170,7 @@ func validateAdminCorrectionInput(input enrollmentNative.CorrectApprovedChildDat
 	return firstName, lastName, reason, nil
 }
 
-func requestChildByID(children []*RequestChild, childID int64) *RequestChild {
+func requestChildByID(children []*enrollmentNative.RequestChild, childID int64) *enrollmentNative.RequestChild {
 	for _, child := range children {
 		if child != nil && child.ID == childID {
 			return child
@@ -142,7 +179,7 @@ func requestChildByID(children []*RequestChild, childID int64) *RequestChild {
 	return nil
 }
 
-func (s *ChangeRequests) validateAdminCorrectionChild(child *RequestChild) error {
+func (s *ChangeRequests) validateAdminCorrectionChild(child *enrollmentNative.RequestChild) error {
 	if child.Status != enrollmentNative.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 || s.deps.Decisions == nil {
 		return fmt.Errorf("%w: only approved children with a linked student can be corrected", enrollmentNative.ErrChangeRequestNotAllowed)
 	}
@@ -151,7 +188,7 @@ func (s *ChangeRequests) validateAdminCorrectionChild(child *RequestChild) error
 
 // prepareAdminCorrectionTargets validates a changed grade or class against
 // the collection settings; unchanged targets are kept as stored.
-func (s *ChangeRequests) prepareAdminCorrectionTargets(ctx context.Context, req *Request, child *RequestChild, input enrollmentNative.CorrectApprovedChildDataInput) (*int16, *string, error) {
+func (s *ChangeRequests) prepareAdminCorrectionTargets(ctx context.Context, req *enrollmentNative.Request, child *enrollmentNative.RequestChild, input enrollmentNative.CorrectApprovedChildDataInput) (*int16, *string, error) {
 	normalizedSchoolClass := normalizedOptionalString(input.TargetSchoolClass)
 	gradeChanged := !sameGradeLevel(child.TargetGradeLevel, input.TargetGradeLevel)
 	classChanged := !sameOptionalString(child.TargetSchoolClass, normalizedSchoolClass)

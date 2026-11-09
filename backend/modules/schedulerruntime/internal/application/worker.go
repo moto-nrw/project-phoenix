@@ -44,6 +44,7 @@ func validateWorkerDependencies(deps ports.WorkerDependencies) error {
 		{name: "operator account retention", value: deps.OperatorRetention.Accounts},
 		{name: "account retention", value: deps.AccountRetention},
 		{name: "holiday registration retention", value: deps.HolidayRegistrationRetention},
+		{name: "Träger document read retention", value: deps.TraegerDocumentReadRetention},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
 		{name: "cleanup run ledger", value: deps.CleanupRuns},
 		{name: "export transfer recovery", value: deps.SettleExpiredTransfers},
@@ -67,7 +68,9 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"booking-consistency-audit",
 		"holiday-guest-reconciliation",
 		"planned-staff-exits",
+		"care-contract-conclusion",
 		"staff-qualification-reminders",
+		"care-contract-reminders",
 		"week-protocols",
 		"payroll-dispatch",
 		"meal-orders",
@@ -87,6 +90,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"timetable-auto-end",
 		"activate-students",
 		"email-outbox",
+		"email-delivery-reconciliation",
 		"rollover-deadline",
 		"appointment-reminders",
 		"announcement-reminders",
@@ -112,7 +116,9 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.bookingConsistency), "booking-consistency-audit", s.scheduleBookingConsistencyAuditTask)
 	add(!isNilDependency(s.holidayGuests), "holiday-guest-reconciliation", s.scheduleHolidayGuestReconciliationTask)
 	add(!isNilDependency(s.plannedStaffExits), "planned-staff-exits", s.schedulePlannedStaffExitsTask)
+	add(s.careContractConclusion != nil, "care-contract-conclusion", s.scheduleCareContractConclusionTask)
 	add(!isNilDependency(s.staffQualificationReminders), "staff-qualification-reminders", s.scheduleStaffQualificationRemindersTask)
+	add(s.careContractReminders != nil, "care-contract-reminders", s.scheduleCareContractRemindersTask)
 	add(!isNilDependency(s.weekProtocols), "week-protocols", s.scheduleWeekProtocolsTask)
 	add(!isNilDependency(s.payrollDispatch), "payroll-dispatch", s.schedulePayrollDispatchTask)
 	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)
@@ -132,6 +138,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.autoEnd), "timetable-auto-end", s.scheduleAutoEndTask)
 	add(!isNilDependency(s.studentLifecycleRepo), "activate-students", s.scheduleActivateStudentsTask)
 	add(!isNilDependency(s.outboxWorker), "email-outbox", s.scheduleOutboxWorkerTask)
+	add(!isNilDependency(s.emailReconciliation), "email-delivery-reconciliation", s.scheduleEmailReconciliationTask)
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
 	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)

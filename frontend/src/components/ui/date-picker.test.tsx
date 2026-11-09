@@ -976,6 +976,25 @@ describe("ISODateInput", () => {
 });
 
 describe("ISODatePicker name", () => {
+  it("links an external hint and its own error", () => {
+    render(
+      <ISODatePicker
+        id="closing-day-start"
+        value=""
+        onChange={() => undefined}
+        ariaDescribedBy="closing-day-start-hint"
+        error="Bitte wählen Sie ein Datum."
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Datum auswählen" }),
+    ).toHaveAttribute(
+      "aria-describedby",
+      "closing-day-start-hint closing-day-start-error",
+    );
+  });
+
   it("carries the value under the field name for server field errors", () => {
     const { container } = render(
       <ISODatePicker
@@ -1018,3 +1037,60 @@ it.each(schoolDateCases("2026-05-27"))(
 );
 
 afterEach(() => vi.unstubAllEnvs());
+
+describe("hint", () => {
+  it("links the DatePicker hint to its trigger", () => {
+    render(
+      <DatePicker
+        id="deadline"
+        value={null}
+        onChange={vi.fn()}
+        ariaDescribedBy="outer"
+        hint="Danach können Eltern nicht mehr antworten."
+      />,
+    );
+
+    const hint = screen.getByText("Danach können Eltern nicht mehr antworten.");
+    const trigger = document.getElementById("deadline");
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute("aria-describedby")).toBe(`outer ${hint.id}`);
+    expect(hint.id).toBe("deadline-hint");
+  });
+
+  it("links a DatePicker hint without an id", () => {
+    render(
+      <DatePicker value={null} onChange={vi.fn()} hint="Ohne Frist offen." />,
+    );
+
+    const hint = screen.getByText("Ohne Frist offen.");
+    expect(hint.id).not.toBe("");
+    expect(
+      screen.getByRole("button", { name: /Datum auswählen/ }),
+    ).toHaveAttribute("aria-describedby", hint.id);
+  });
+
+  it("puts the ISODatePicker hint before its error", () => {
+    render(
+      <ISODatePicker
+        id="reset-date"
+        label="Stichtag"
+        value=""
+        onChange={vi.fn()}
+        hint="Der Stichtag muss vor dem heutigen Tag liegen."
+        error="Bitte ein Datum wählen."
+      />,
+    );
+
+    const hint = screen.getByText(
+      "Der Stichtag muss vor dem heutigen Tag liegen.",
+    );
+    const error = screen.getByText("Bitte ein Datum wählen.");
+    expect(screen.getByLabelText(/Stichtag/)).toHaveAttribute(
+      "aria-describedby",
+      `${hint.id} ${error.id}`,
+    );
+    expect(
+      hint.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});

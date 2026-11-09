@@ -16,12 +16,15 @@
  * (gleiches Problemfeld wie PR #1962).
  */
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { TriangleAlert, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -30,6 +33,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverHeader,
@@ -150,8 +154,14 @@ export function StaffPoolSlideOver({
           if (!next) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[460px]">
-          <SlideOverHeader>
+        <SlideOverContent>
+          <SlideOverHeader
+            close={
+              <SlideOverCloseButton
+                disabled={canManage && pendingMove !== null}
+              />
+            }
+          >
             <SlideOverTitle>Personalpool</SlideOverTitle>
             <SlideOverDescription>
               {instance
@@ -166,14 +176,11 @@ export function StaffPoolSlideOver({
             )}
             <LoadErrorAlert error={poolLoadError} />
             {pool && !pool.dienstplanInUse && (
-              <div className="border-moto-orange/30 bg-moto-orange/10 flex items-start gap-2 rounded-xl border p-3 text-xs text-gray-700">
-                <TriangleAlert className="text-moto-orange mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Für diese Woche ist kein Dienstplan gepflegt. Die
-                  Verfügbarkeit laut Schichten kann daher nicht angezeigt
-                  werden.
-                </span>
-              </div>
+              <Alert
+                type="warning"
+                announce="off"
+                message="Für diese Woche ist kein Dienstplan gepflegt. Die Verfügbarkeit laut Schichten kann daher nicht angezeigt werden."
+              />
             )}
             {pool && !canManage && (
               <Alert
@@ -399,21 +406,31 @@ function PoolSection({
   const [expanded, setExpanded] = useState(!collapsedByDefault);
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        className="flex w-full items-center gap-1.5 text-left text-[10px] font-bold tracking-wider text-gray-400 uppercase"
-        onClick={() => setExpanded((current) => !current)}
-        aria-expanded={expanded}
-      >
-        <span className="text-gray-400">{icon}</span>
-        {title}
-        <span className="font-medium text-gray-300">({entries.length})</span>
-      </button>
+      <ListGroupHeader
+        className="rounded-lg px-3"
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-gray-400">{icon}</span>
+            {title}
+          </span>
+        }
+        addon={
+          <span className="text-xs text-gray-500 tabular-nums">
+            {entries.length}
+          </span>
+        }
+        collapsible={{
+          expanded,
+          onToggle: () => setExpanded((current) => !current),
+        }}
+      />
       {expanded &&
         (entries.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-400">
-            {emptyText}
-          </p>
+          <EmptyState
+            variant="dashed"
+            title={emptyText}
+            className="px-3 py-2"
+          />
         ) : (
           <div className="space-y-1.5">
             {entries.map((entry) => (
@@ -454,13 +471,7 @@ function PoolEntryRow({
     );
   }
   return (
-    <div
-      className={`rounded-xl border p-3 ${
-        danger
-          ? "border-moto-red/20 bg-moto-red/10 shadow-sm"
-          : "moto-content-surface"
-      }`}
-    >
+    <InsetPanel tone={danger ? "danger" : "white"}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-gray-900">
@@ -468,7 +479,7 @@ function PoolEntryRow({
           </div>
           {metaParts.length > 0 && (
             <div
-              className={`mt-0.5 flex items-center gap-1 text-[11px] ${
+              className={`mt-0.5 flex items-center gap-1 text-xs ${
                 danger ? "text-moto-red-strong" : "text-gray-500"
               }`}
             >
@@ -487,6 +498,6 @@ function PoolEntryRow({
           </div>
         )}
       </div>
-    </div>
+    </InsetPanel>
   );
 }

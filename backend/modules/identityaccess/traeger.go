@@ -44,6 +44,9 @@ const (
 	// TraegerRoleSchoolAccess opens the schools of the Träger as their admin
 	// (#5471), for the Fachberatung that works in the schools.
 	TraegerRoleSchoolAccess = "school_access"
+	// TraegerRoleDocuments manages the documents the Träger shares with
+	// parents and schools (#5992), apart from the Anmeldung.
+	TraegerRoleDocuments = "documents"
 )
 
 // The Träger rights of ADR 0084 section 4. They travel only in Träger-Portal
@@ -64,10 +67,15 @@ const (
 	// TraegerRightHealthRead opens the health information of the holiday
 	// registrations (#4722, ADR 0084 section 4 addendum).
 	TraegerRightHealthRead = "traeger_health:read"
+	// TraegerRightDocumentsManage uploads, releases, revokes and deletes the
+	// documents of the Träger (#5992, ADR 0084 addendum). Reading them needs
+	// only the overview.
+	TraegerRightDocumentsManage = "traeger_documents:manage"
 )
 
 // traegerRoleRights is the role table of ADR 0084 section 4 with its
-// addendum of #5471: Verwaltung no longer manages accounts or opens schools.
+// addenda: Verwaltung no longer manages accounts or opens schools (#5471),
+// and the documents have a role of their own (#5992).
 var traegerRoleRights = map[string][]string{
 	TraegerRoleAdministration: {
 		TraegerRightOverviewRead, TraegerRightEnrollmentManage, TraegerRightContractsManage, TraegerRightReportsRead,
@@ -75,6 +83,7 @@ var traegerRoleRights = map[string][]string{
 	},
 	TraegerRoleLeadership:   {TraegerRightOverviewRead, TraegerRightAccountsManage},
 	TraegerRoleSchoolAccess: {TraegerRightOverviewRead, TraegerRightSchoolSwitch},
+	TraegerRoleDocuments:    {TraegerRightOverviewRead, TraegerRightDocumentsManage},
 	TraegerRoleBilling:      {TraegerRightOverviewRead, TraegerRightBillingManage, TraegerRightFinanceExport, TraegerRightReportsRead},
 	TraegerRolePersonnel:    {TraegerRightOverviewRead, TraegerRightStaffManage, TraegerRightReportsRead},
 	TraegerRoleReadOnly:     {TraegerRightOverviewRead, TraegerRightReportsRead},
@@ -88,6 +97,7 @@ var traegerRoleLabels = map[string]string{
 	TraegerRoleReadOnly:       "Nur lesen",
 	TraegerRoleLeadership:     "Leitung",
 	TraegerRoleSchoolAccess:   "Schulzugang",
+	TraegerRoleDocuments:      "Dokumente",
 }
 
 // TraegerRoleLabels names the roles in German, joined like a sentence:
@@ -132,21 +142,16 @@ type TraegerOrganization struct {
 	Name string
 }
 
-// TraegerLoginStatus discriminates the Träger login answers.
-type TraegerLoginStatus string
+// TraegerLoginStatus is the LoginStatus of a Träger sign-in.
+type TraegerLoginStatus = LoginStatus
 
+// The Träger sign-in answers; every Träger session needs a second factor
+// (#4651).
 const (
-	// TraegerLoginAuthenticated carries a Träger session.
-	TraegerLoginAuthenticated TraegerLoginStatus = "authenticated"
-	// TraegerLoginSelectionRequired lists the Träger of a member of several;
-	// the login is repeated with one of them.
-	TraegerLoginSelectionRequired TraegerLoginStatus = "organization_selection_required"
-	// TraegerLoginMFARequired carries the challenge of the e-mailed code
-	// (#4651); every Träger session needs a second factor.
-	TraegerLoginMFARequired TraegerLoginStatus = "mfa_required"
-	// TraegerLoginMFAEnrollmentRequired carries an enrollment token: the
-	// account sets up its second factor before the Träger session exists.
-	TraegerLoginMFAEnrollmentRequired TraegerLoginStatus = "mfa_enrollment_required"
+	TraegerLoginAuthenticated         = LoginStatusAuthenticated
+	TraegerLoginSelectionRequired     = LoginStatusOrganizationSelectionRequired
+	TraegerLoginMFARequired           = LoginStatusMFARequired
+	TraegerLoginMFAEnrollmentRequired = LoginStatusMFAEnrollmentRequired
 )
 
 // TraegerLoginResult is the Träger login answer: a token pair, the Träger to

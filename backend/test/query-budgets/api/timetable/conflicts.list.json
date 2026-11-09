@@ -1,0 +1,7 @@
+{
+  "scenario": "api.timetable.conflicts.list",
+  "max": 3,
+  "exact": true,
+  "description": "Timetable HTTP route: populated N3/N8 growth, including real owner reads; SELECT statements only.",
+  "route": "GET /api/timetable/conflicts"
+}

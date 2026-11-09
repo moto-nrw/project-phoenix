@@ -3,14 +3,15 @@
  * Extracted to reduce code duplication between create and edit modals
  */
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useId } from "react";
 import { Bus } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import type { Student } from "@/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { RequiredMark } from "~/components/ui/field-label";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { todayISO } from "~/lib/date-helpers";
@@ -21,11 +22,14 @@ import {
   type DepartureMode,
   formatAllowedDepartureDays,
   normalizeAllowedDepartureModes,
-} from "~/lib/student-helpers";
+  DEPARTURE_MODE_SHORT_LABELS,
+} from "~/lib/departure-plan";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
+import { Textarea } from "~/components/ui/textarea";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { CompanionPicker } from "./companion-picker";
 import type {
@@ -35,6 +39,8 @@ import type {
 } from "~/lib/student-companion-api";
 import { childrenConcept } from "~/lib/concepts/children";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { InfoSection } from "~/components/ui/detail-modal-components";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface SelectOption {
   value: string;
@@ -73,15 +79,16 @@ export function PersonalInfoSection({
   };
 }>) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <InfoSection
+      title="Persönliche Daten"
+      icon={
         <MotoDuotoneIcon
           icon={childrenConcept.icon}
           tone={childrenConcept.tone}
-          size={18}
+          size={16}
         />
-        Persönliche Daten
-      </h3>
+      }
+    >
       <ParentVisibilityLegend className="mb-3 md:mb-4" />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
         <TextInput
@@ -145,7 +152,7 @@ export function PersonalInfoSection({
           placeholder="Köln"
         />
       </div>
-    </div>
+    </InfoSection>
   );
 }
 
@@ -177,16 +184,12 @@ function TextInput({
 
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label
-          htmlFor={inputId}
-          className="block text-xs font-medium text-gray-700"
-        >
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={inputId} required={required} className="mb-0">
           {label}
-        </label>
-        {required && <RequiredMark />}
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Input
@@ -227,22 +230,13 @@ function SelectInput({
 }>) {
   const selectId = useId();
   return (
-    <div>
-      <label
-        id={`${selectId}-label`}
-        htmlFor={selectId}
-        className="mb-1 block text-xs font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={selectId}
-        ariaLabelledBy={`${selectId}-label`}
-        value={value}
-        options={options}
-        onChange={onChange}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={selectId}
+      value={value}
+      options={options}
+      onChange={onChange}
+    />
   );
 }
 
@@ -264,15 +258,12 @@ function DateInput({
   const inputId = useId();
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label
-          htmlFor={inputId}
-          className="block text-xs font-medium text-gray-700"
-        >
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={inputId} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <ISODatePicker
@@ -315,7 +306,7 @@ function TextareaField({
   parentVisibleHint?: string;
 }>) {
   return (
-    <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <h3 className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
           className={`h-3.5 w-3.5 md:h-4 md:w-4 ${iconClassName}`}
@@ -331,17 +322,18 @@ function TextareaField({
           />
         </svg>
         {label}
-        {parentVisibleHint && <ParentVisibleBadge hint={parentVisibleHint} />}
+        {parentVisibleHint && <VisibilityBadge hint={parentVisibleHint} />}
       </h3>
-      <textarea
+      <Textarea
+        aria-label={label}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="focus:border-moto-blue focus:ring-moto-blue block w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:ring-1 md:text-sm"
+        className="text-xs md:text-sm"
         placeholder={placeholder}
         maxLength={2000}
       />
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -405,15 +397,16 @@ export function PrivacyConsentSection({
 }>) {
   const retentionError = fieldError("data_retention_days");
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+    <InfoSection
+      title="Datenschutz"
+      icon={
         <MotoDuotoneIcon
           icon={permissionsConcept.icon}
           tone={permissionsConcept.tone}
-          size={18}
+          size={16}
         />
-        Datenschutz
-      </h3>
+      }
+    >
       <div className="space-y-4">
         <label
           htmlFor="privacy-consent-accepted"
@@ -431,23 +424,16 @@ export function PrivacyConsentSection({
           </span>
         </label>
         <div>
-          <label
-            htmlFor="data-retention-days"
-            className="mb-1 block text-xs font-medium text-gray-700"
-          >
-            Aufbewahrungsdauer (Tage)
-          </label>
           <Input
+            label="Aufbewahrungsdauer (Tage)"
             id="data-retention-days"
             controlSize="compact"
             name="data_retention_days"
             type="number"
             min="1"
             max="31"
-            aria-invalid={retentionError ? true : undefined}
-            aria-describedby={
-              retentionError ? "data-retention-days-error" : undefined
-            }
+            error={retentionError}
+            hint="Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)"
             value={formData.data_retention_days ?? ""}
             onChange={(e) => {
               const inputValue = e.target.value;
@@ -458,22 +444,10 @@ export function PrivacyConsentSection({
                 onChange("data_retention_days", Number.isNaN(v) ? null : v);
               }
             }}
-            placeholder="30"
           />
-          {retentionError && (
-            <p
-              id="data-retention-days-error"
-              className="text-moto-red mt-1 text-xs"
-            >
-              {retentionError}
-            </p>
-          )}
-          <p className="mt-1 text-xs text-gray-500">
-            Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)
-          </p>
         </div>
       </div>
-    </div>
+    </InfoSection>
   );
 }
 
@@ -485,12 +459,10 @@ export function PrivacyConsentSection({
 const DEPARTURE_OPTIONS: ReadonlyArray<{
   value: DepartureMode;
   short: string;
-}> = [
-  { value: "alone", short: "Zu Fuß" },
-  { value: "bus", short: "Bus" },
-  { value: "pickup", short: "Abgeholt" },
-  { value: "accompanied", short: "Anderes Kind" },
-];
+}> = (["alone", "bus", "pickup", "accompanied"] as const).map((value) => ({
+  value,
+  short: DEPARTURE_MODE_SHORT_LABELS[value],
+}));
 
 // Stable empty default so the prop keeps referential equality across renders.
 const EMPTY_COMPANIONS: StudentCompanion[] = [];
@@ -547,7 +519,7 @@ export function DepartureSection({
   );
   const companionNoteId = useId();
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+    <InsetPanel framed padding="md">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
         <h3 className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
           <Bus
@@ -555,11 +527,14 @@ export function DepartureSection({
             style={{ color: GROUP_ROOM_SHADES.text }}
           />
           Erlaubte Heimwege
-          <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.departure} />
+          <VisibilityBadge hint={PARENT_VISIBLE_HINTS.departure} />
         </h3>
         {anySelected && (
-          <span className="bg-moto-green-soft text-moto-green-strong hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline">
-            {formatAllowedDepartureDays(normalized)}
+          <span className="hidden shrink-0 sm:inline-flex">
+            <StatusBadge
+              label={formatAllowedDepartureDays(normalized)}
+              tone="green"
+            />
           </span>
         )}
       </div>
@@ -578,13 +553,11 @@ export function DepartureSection({
                   const active =
                     normalized[day.key]?.includes(opt.value) ?? false;
                   return (
-                    <label
+                    <ChoiceTile
                       key={opt.value}
-                      className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
-                        active
-                          ? "border-gray-900 bg-white text-gray-900"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
+                      tone="gray"
+                      selected={active}
+                      className="h-8 gap-2 rounded-lg px-2.5 text-xs font-semibold"
                     >
                       <Checkbox
                         checked={active}
@@ -631,7 +604,7 @@ export function DepartureSection({
                         }}
                       />
                       {opt.short}
-                    </label>
+                    </ChoiceTile>
                   );
                 })}
               </div>
@@ -652,15 +625,12 @@ export function DepartureSection({
       )}
       {onCompanionNoteChange && accompaniedSelected && (
         <div className="mt-3">
-          <label
-            htmlFor={companionNoteId}
-            className="mb-1 block text-xs font-medium text-gray-700"
-          >
-            {onCompanionsChange
-              ? "Oder mit welcher Person?"
-              : "Mit welchem Kind?"}
-          </label>
           <Input
+            label={
+              onCompanionsChange
+                ? "Oder mit welcher Person?"
+                : "Mit welchem Kind?"
+            }
             id={companionNoteId}
             controlSize="compact"
             name="departure_companion_note"
@@ -690,6 +660,6 @@ export function DepartureSection({
           )}
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }

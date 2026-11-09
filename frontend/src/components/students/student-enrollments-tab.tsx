@@ -1,5 +1,8 @@
 "use client";
 
+import type { EnrollmentExportFormat } from "~/lib/enrollment-report-api";
+import { EmptyState } from "~/components/ui/empty-state";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useCallback,
   useEffect,
@@ -9,7 +12,6 @@ import {
 } from "react";
 import {
   type AdminRequestSummary,
-  type EnrollmentRequestExportFormat,
   exportStudentEnrollmentRequests,
   listStudentEnrollmentRequests,
 } from "~/lib/enrollment-admin-api";
@@ -22,17 +24,19 @@ import {
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ExportMenu, exportFormatOptions } from "~/components/ui/export-menu";
 import { SectionCard } from "~/components/ui/section-card";
+import { ChildOfferingAdjustment } from "~/components/enrollment/child-offering-adjustment";
 import {
   ChildExtraFields,
-  ChildOfferingAdjustment,
   ChildOfferings,
   RequestExtraSection,
   formatDateTime,
   formatPlainDate,
-} from "~/components/enrollment/admin-enrollment-detail";
+} from "~/components/enrollment/enrollment-request-display";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { createLogger } from "~/lib/logger";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { studentKeys } from "~/lib/swr/portal-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StudentEnrollmentsTab" });
 
@@ -52,17 +56,18 @@ export function StudentEnrollmentsTab({
   const showLoadError = load.show;
   const clearLoadError = load.clear;
   const handleExportRef = useRef<
-    (format: EnrollmentRequestExportFormat) => Promise<void>
+    (format: EnrollmentExportFormat) => Promise<void>
   >(async () => undefined);
-  const [exporting, setExporting] =
-    useState<EnrollmentRequestExportFormat | null>(null);
+  const [exporting, setExporting] = useState<EnrollmentExportFormat | null>(
+    null,
+  );
 
   const {
     data: requests = [],
     error,
     isLoading,
     mutate,
-  } = useSWRAuth(`student-enrollments-${studentId}`, () =>
+  } = useSWRAuth(studentKeys.enrollments(studentId), () =>
     listStudentEnrollmentRequests(studentId),
   );
 
@@ -78,7 +83,7 @@ export function StudentEnrollmentsTab({
   }, [error, mutate, showLoadError, clearLoadError]);
 
   const handleExport = useCallback(
-    async (format: EnrollmentRequestExportFormat) => {
+    async (format: EnrollmentExportFormat) => {
       setExporting(format);
       try {
         await exportStudentEnrollmentRequests(studentId, format);
@@ -132,10 +137,10 @@ export function StudentEnrollmentsTab({
       ) : error ? (
         <LoadErrorAlert error={load.error} />
       ) : requests.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-600">
-          Für dieses Kind ist keine angenommene oder übernommene
-          Online-Anmeldung verknüpft.
-        </div>
+        <EmptyState
+          variant="compact"
+          description="Für dieses Kind ist keine angenommene oder übernommene Online-Anmeldung verknüpft."
+        />
       ) : (
         <div className="space-y-4">
           {requests.map((request) => (
@@ -164,28 +169,20 @@ function EnrollmentRequestCard({
   });
 
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h4 className="text-base font-semibold text-gray-900">
-            {request.phase_name || "Nicht zugeordnet"}
-          </h4>
-          <p className="mt-1 text-sm text-gray-600">
-            Eingegangen am {submittedAt}
-          </p>
-        </div>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-          {request.children.length} Kind
-          {request.children.length === 1 ? "" : "er"}
-        </span>
-      </div>
-
-      <div className="space-y-4 p-4">
+    <SectionCard
+      headingLevel={4}
+      title={request.phase_name || "Nicht zugeordnet"}
+      description={`Eingegangen am ${submittedAt}`}
+      action={
+        <StatusBadge
+          label={`${request.children.length} Kind${request.children.length === 1 ? "" : "er"}`}
+          tone="gray"
+        />
+      }
+    >
+      <div className="space-y-4">
         {request.children.map((child) => (
-          <section
-            key={child.id}
-            className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
-          >
+          <InsetPanel as="section" key={child.id} framed>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h5 className="text-sm font-semibold text-gray-900">
@@ -206,12 +203,16 @@ function EnrollmentRequestCard({
             </div>
 
             {child.status_reason ? (
-              <div className="mt-3 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm text-gray-700">
+              <InsetPanel
+                tone="white"
+                padding="compact"
+                className="mt-3 text-sm text-gray-700"
+              >
                 <span className="text-xs font-medium text-gray-500">
                   Begründung:{" "}
                 </span>
                 {child.status_reason}
-              </div>
+              </InsetPanel>
             ) : null}
 
             <ChildOfferings
@@ -232,11 +233,11 @@ function EnrollmentRequestCard({
               child={child}
               schemaFields={request.schema_fields}
             />
-          </section>
+          </InsetPanel>
         ))}
 
         <RequestExtraSection request={request} />
       </div>
-    </article>
+    </SectionCard>
   );
 }

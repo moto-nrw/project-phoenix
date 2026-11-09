@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
@@ -54,7 +55,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	// value keeps this test on the skipped-empty-slot path.
 	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicator2, "", nil, nil))
 
-	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", "Test", "1a")
+	studentIDs := make([]int64, 0, 8)
 
 	active := &stubPresenceOperations{
 		trackingIndicators: func(_ context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
@@ -69,26 +70,36 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	rs := NewResource(active, nil, nil, nil, settings, scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)), slog.Default(), struct{ PresenceQueries }{}, requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("tracking must not bind staff") }), authorizationForTest(), tenantsettings.NewDisplaySettings(settings))
 	router := rs.Router()
 
-	body, err := json.Marshal(map[string]any{"student_ids": []int64{student.ID}})
-	require.NoError(t, err)
-
 	counter := testpkg.CaptureQueries(t, db)
+	for _, n := range []int{1, 3, 8} {
+		for len(studentIDs) < n {
+			student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", fmt.Sprintf("Test%d", len(studentIDs)), "1a")
+			studentIDs = append(studentIDs, student.ID)
+		}
+		body, err := json.Marshal(map[string]any{"student_ids": studentIDs})
+		require.NoError(t, err)
+		req := httptest.NewRequest("POST", "/tracking-indicators", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		counter.Reset()
+		rr := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/active", router), req, testutil.AdminTestClaimsForTenant(1, tenantID))
+		queries := counter.Selects("config.setting_values")
+		require.Equal(t, testutil.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
-	req := httptest.NewRequest("POST", "/tracking-indicators", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := testutil.ExecuteWithAuth(t, router, req, testutil.AdminTestClaimsForTenant(1, tenantID))
-	queries := counter.Selects("config.setting_values")
-
-	require.Equal(t, testutil.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-
-	var resp struct {
-		Data struct {
-			Labels []string `json:"labels"`
-		} `json:"data"`
+		var resp struct {
+			Data struct {
+				Labels  []string          `json:"labels"`
+				Results map[string][]bool `json:"results"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.Equal(t, []string{"Bibliothek"}, resp.Data.Labels,
+			"empty label keys must still be skipped by the per-key reads")
+		require.Len(t, resp.Data.Results, n)
+		for _, id := range studentIDs {
+			require.Equal(t, []bool{false}, resp.Data.Results[fmt.Sprint(id)])
+		}
+		t.Logf("students N=%d: %d setting_values statements", n, len(queries))
+		// Toggle + three label keys must share one read at every cardinality.
+		querybudgets.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", counter.Measurement(queries))
 	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	assert.Equal(t, []string{"Bibliothek"}, resp.Data.Labels,
-		"empty label keys must still be skipped by the per-key reads")
-	// Toggle + three label keys must share one config.setting_values query.
-	querybudgets.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", queries)
 }

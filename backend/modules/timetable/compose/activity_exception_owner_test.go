@@ -206,7 +206,7 @@ func TestActivityExceptionListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListActivityExceptions(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: &group.ID})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.activity_exceptions.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.activity_exceptions.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

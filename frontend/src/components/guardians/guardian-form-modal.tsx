@@ -8,7 +8,6 @@ import {
   SlideOverHeader,
   SlideOverTitle,
   SlideOverFooter,
-  SlideOverCloseButton,
 } from "~/components/ui/slide-over";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -34,10 +33,11 @@ import {
   defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
-import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "GuardianForm" });
 
@@ -555,12 +555,9 @@ export default function GuardianFormModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]" isBackdropDismissDisabled>
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{modalTitle}</SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="lg" isBackdropDismissDisabled>
+        <SlideOverHeader>
+          <SlideOverTitle>{modalTitle}</SlideOverTitle>
         </SlideOverHeader>
         <form
           ref={formRef}
@@ -605,7 +602,7 @@ export default function GuardianFormModal({
                 )}
 
                 {/* Personal Information */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -624,16 +621,16 @@ export default function GuardianFormModal({
                   </h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                     <div>
-                      <div className="mb-1 flex items-center gap-1">
+                      <div className="mb-2 flex items-center gap-1">
                         <FieldLabel
                           htmlFor={`guardian-first-name-${entry.id}`}
                           required
                           invalid={hasFieldError(entry.id, "firstName")}
-                          className="mb-0 text-xs"
+                          className="mb-0"
                         >
                           Vorname
                         </FieldLabel>
-                        <ParentVisibleBadge
+                        <VisibilityBadge
                           compact
                           hint={PARENT_VISIBLE_HINTS.guardianName}
                         />
@@ -657,16 +654,16 @@ export default function GuardianFormModal({
                     </div>
 
                     <div>
-                      <div className="mb-1 flex items-center gap-1">
+                      <div className="mb-2 flex items-center gap-1">
                         <FieldLabel
                           htmlFor={`guardian-last-name-${entry.id}`}
                           required
                           invalid={hasFieldError(entry.id, "lastName")}
-                          className="mb-0 text-xs"
+                          className="mb-0"
                         >
                           Nachname
                         </FieldLabel>
-                        <ParentVisibleBadge
+                        <VisibilityBadge
                           compact
                           hint={PARENT_VISIBLE_HINTS.guardianName}
                         />
@@ -705,10 +702,10 @@ export default function GuardianFormModal({
                       disabled={isLoading}
                     />
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Contact Information */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -724,20 +721,15 @@ export default function GuardianFormModal({
                       />
                     </svg>
                     Kontaktdaten
-                    <ParentVisibleBadge
+                    <VisibilityBadge
                       hint={PARENT_VISIBLE_HINTS.guardianContact}
                     />
                   </h3>
 
                   {/* Email */}
                   <div className="mb-4">
-                    <label
-                      htmlFor={`guardian-email-${entry.id}`}
-                      className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-moto-red" : "text-gray-700"}`}
-                    >
-                      E-Mail
-                    </label>
                     <Input
+                      label="E-Mail"
                       controlSize="compact"
                       id={`guardian-email-${entry.id}`}
                       type="email"
@@ -756,14 +748,13 @@ export default function GuardianFormModal({
 
                   {/* Phone Numbers */}
                   <div className="space-y-3">
-                    <span className="block text-xs font-medium text-gray-700">
-                      Telefonnummern
-                    </span>
+                    <FieldLabel className="mb-0">Telefonnummern</FieldLabel>
 
                     {entry.phoneNumbers.map((phone, phoneIndex) => (
-                      <div
+                      <InsetPanel
                         key={phone.id}
-                        className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center"
+                        tone="white"
+                        className="flex flex-col gap-2 sm:flex-row sm:items-center"
                       >
                         {/* Phone Type Select */}
                         <div className="w-full sm:w-32">
@@ -878,7 +869,7 @@ export default function GuardianFormModal({
                             </Button>
                           )}
                         </div>
-                      </div>
+                      </InsetPanel>
                     ))}
 
                     {/* Add Phone Button */}
@@ -894,10 +885,10 @@ export default function GuardianFormModal({
                       Weitere Nummer hinzufügen
                     </Button>
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Address (optional) */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -919,19 +910,14 @@ export default function GuardianFormModal({
                       />
                     </svg>
                     Adresse
-                    <ParentVisibleBadge
+                    <VisibilityBadge
                       hint={PARENT_VISIBLE_HINTS.guardianContact}
                     />
                   </h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                     <div className="md:col-span-2">
-                      <label
-                        htmlFor={`guardian-street-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Straße und Hausnummer
-                      </label>
                       <Input
+                        label="Straße und Hausnummer"
                         controlSize="compact"
                         id={`guardian-street-${entry.id}`}
                         type="text"
@@ -944,55 +930,41 @@ export default function GuardianFormModal({
                         maxLength={255}
                       />
                     </div>
-                    <div>
-                      <label
-                        htmlFor={`guardian-postal-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        PLZ
-                      </label>
-                      <Input
-                        controlSize="compact"
-                        id={`guardian-postal-${entry.id}`}
-                        type="text"
-                        value={entry.addressPostalCode}
-                        onChange={(e) =>
-                          updateEntry(
-                            entry.id,
-                            "addressPostalCode",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="50667"
-                        maxLength={5}
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor={`guardian-city-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Ort
-                      </label>
-                      <Input
-                        controlSize="compact"
-                        id={`guardian-city-${entry.id}`}
-                        type="text"
-                        value={entry.addressCity}
-                        onChange={(e) =>
-                          updateEntry(entry.id, "addressCity", e.target.value)
-                        }
-                        placeholder="Köln"
-                        disabled={isLoading}
-                        maxLength={255}
-                      />
-                    </div>
+                    <Input
+                      label="PLZ"
+                      controlSize="compact"
+                      id={`guardian-postal-${entry.id}`}
+                      type="text"
+                      value={entry.addressPostalCode}
+                      onChange={(e) =>
+                        updateEntry(
+                          entry.id,
+                          "addressPostalCode",
+                          e.target.value,
+                        )
+                      }
+                      placeholder="50667"
+                      maxLength={5}
+                      disabled={isLoading}
+                    />
+                    <Input
+                      label="Ort"
+                      controlSize="compact"
+                      id={`guardian-city-${entry.id}`}
+                      type="text"
+                      value={entry.addressCity}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "addressCity", e.target.value)
+                      }
+                      placeholder="Köln"
+                      disabled={isLoading}
+                      maxLength={255}
+                    />
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Additional Info */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -1010,33 +982,19 @@ export default function GuardianFormModal({
                     Weitere Angaben
                   </h3>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                    <div>
-                      <label
-                        id={`guardian-language-${entry.id}-label`}
-                        htmlFor={`guardian-language-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Bevorzugte Sprache
-                      </label>
-                      <CustomSelect
-                        id={`guardian-language-${entry.id}`}
-                        ariaLabelledBy={`guardian-language-${entry.id}-label`}
-                        value={entry.languagePreference}
-                        options={LANGUAGE_PREFERENCES}
-                        onChange={(next) =>
-                          updateEntry(entry.id, "languagePreference", next)
-                        }
-                        disabled={isLoading}
-                      />
-                    </div>
+                    <CustomSelect
+                      label="Bevorzugte Sprache"
+                      id={`guardian-language-${entry.id}`}
+                      value={entry.languagePreference}
+                      options={LANGUAGE_PREFERENCES}
+                      onChange={(next) =>
+                        updateEntry(entry.id, "languagePreference", next)
+                      }
+                      disabled={isLoading}
+                    />
                     <div className="md:col-span-2">
-                      <label
-                        htmlFor={`guardian-notes-${entry.id}`}
-                        className="mb-1 block text-xs font-medium text-gray-700"
-                      >
-                        Notizen
-                      </label>
                       <Textarea
+                        label="Notizen"
                         id={`guardian-notes-${entry.id}`}
                         value={entry.notes}
                         onChange={(e) =>
@@ -1049,7 +1007,7 @@ export default function GuardianFormModal({
                       />
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Relationship Flags + Emergency Contact (shared with picker) */}
                 <RelationshipPermissionsFields
@@ -1096,7 +1054,7 @@ export default function GuardianFormModal({
               </Button>
             )}
           </div>
-          <SlideOverFooter className="flex-row items-center justify-between gap-2 md:gap-3">
+          <SlideOverFooter className="items-center justify-between md:gap-3">
             {/* Delete button (only in edit mode) */}
             {mode === "edit" && onDelete ? (
               <Button
@@ -1126,36 +1084,11 @@ export default function GuardianFormModal({
                 variant="primary"
                 size="md"
                 data-setup-tour="guardian-submit"
-                disabled={isLoading}
+                isLoading={isLoading}
+                loadingText="Wird gespeichert..."
                 className="flex-1"
               >
                 {(() => {
-                  if (isLoading) {
-                    return (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg
-                          className="h-4 w-4 animate-spin text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        Wird gespeichert...
-                      </span>
-                    );
-                  }
                   if (mode === "create") {
                     return entries.length > 1
                       ? `${entries.length} Personen hinzufügen`

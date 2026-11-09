@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { useTranslations } from "next-intl";
 import { Pencil, Plus, X } from "lucide-react";
 import {
@@ -39,6 +40,7 @@ import { createLogger } from "~/lib/logger";
 import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -59,7 +61,9 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { EmptyState } from "~/components/ui/empty-state";
-import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
+import { Textarea } from "~/components/ui/textarea";
+import { VisibilityBadge } from "~/components/ui/visibility-badge";
+import { Avatar } from "~/components/ui/avatar";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import {
   PickupSignatureField,
@@ -73,6 +77,7 @@ import {
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { peopleConcept } from "~/lib/concepts/people";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "GuardiansPanel" });
 
@@ -102,10 +107,6 @@ function isRelationshipType(type: string): type is RelationshipType {
   return RELATIONSHIP_TYPES.includes(type as RelationshipType);
 }
 
-function initials(first: string, last: string): string {
-  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || "?";
-}
-
 let nextPhoneDraftId = 0;
 
 function newPhoneDraftId(): string {
@@ -131,8 +132,9 @@ export default function GuardiansPanel({
   canAddContact = false,
   canManagePickup = false,
 }: GuardiansPanelProps) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const visibilityT = useCareTermTranslations("parentVisibility");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
   const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
   // Offene Abholerlaubnis-Anfragen je Kontakt (#4780).
@@ -378,7 +380,11 @@ export default function GuardiansPanel({
             data-parent-tour="child-guardians"
             className="flex flex-col items-start gap-2 sm:flex-row sm:items-center"
           >
-            <OgsVisibleBadge />
+            <VisibilityBadge
+              audience="ogs"
+              label={visibilityT("ogs")}
+              hint={visibilityT("ogsDescription")}
+            />
             {canAddContact ? (
               <Button
                 type="button"
@@ -586,35 +592,22 @@ export default function GuardiansPanel({
               <p>{t("guardians.access.inviteIntro")}</p>
               <p>{t("guardians.access.inviteDetails")}</p>
             </div>
-            <div className="space-y-2">
-              <label
-                htmlFor="guardian-invite-email"
-                className="block text-sm font-medium text-gray-800"
-              >
-                {t("guardians.access.emailLabel")}
-              </label>
-              <Input
-                id="guardian-invite-email"
-                name="email"
-                error={inviteFieldError("email")}
-                type="email"
-                autoComplete="email"
-                required
-                value={inviteEmail}
-                onChange={(event) => {
-                  setInviteEmail(event.target.value);
-                  clearInviteError();
-                }}
-                placeholder={t("guardians.access.emailPlaceholder")}
-                aria-describedby="guardian-invite-email-hint"
-              />
-              <p
-                id="guardian-invite-email-hint"
-                className="text-xs leading-5 text-gray-500"
-              >
-                {t("guardians.access.emailHint")}
-              </p>
-            </div>
+            <Input
+              id="guardian-invite-email"
+              name="email"
+              label={t("guardians.access.emailLabel")}
+              hint={t("guardians.access.emailHint")}
+              error={inviteFieldError("email")}
+              type="email"
+              autoComplete="email"
+              required
+              value={inviteEmail}
+              onChange={(event) => {
+                setInviteEmail(event.target.value);
+                clearInviteError();
+              }}
+              placeholder={t("guardians.access.emailPlaceholder")}
+            />
           </form>
         </Modal>
       ) : null}
@@ -671,23 +664,29 @@ function ConnectedAccountRow({
   onCancelRemove: () => void;
   onConfirmRemove: () => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
+  const t = useCareTermTranslations("parentChildDetail");
   const email = displayEmail(account.email);
   const name = `${account.first_name} ${account.last_name}`.trim() || email;
   const removable = canRemove && !account.is_primary && !account.is_self;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-center">
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
-        {initials(account.first_name, account.last_name)}
-      </span>
+    <InsetPanel
+      padding="md"
+      className="flex flex-col gap-3 sm:flex-row sm:items-center"
+    >
+      <Avatar tone="neutral" size="md" decorative name={name} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
           {account.is_self && isDemoBuild() ? (
-            <StatusBadge tone="blue" label={t("guardians.badges.self")} />
+            <StatusBadge
+              tone="blue"
+              compact
+              label={t("guardians.badges.self")}
+            />
           ) : null}
           <StatusBadge
+            compact
             label={t(`guardians.access.status.${account.status}`)}
             tone={accessTone(account.status)}
           />
@@ -731,7 +730,7 @@ function ConnectedAccountRow({
           )}
         </div>
       ) : null}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -754,8 +753,8 @@ function GuardianRow({
   onEditPickup: () => void;
   onGrantAccess: (email: string, name: string) => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const weekdayList = useWeekdayList();
   const pickupDays = normalizeWeekdays(g.pickup_weekdays ?? []);
   const name =
@@ -780,23 +779,27 @@ function GuardianRow({
     access.guardian_role !== "social_worker" &&
     Boolean(accessEmail);
   return (
-    <div className="rounded-xl bg-gray-50 p-4">
+    <InsetPanel padding="md">
       <div className="flex items-start gap-3">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
-          {initials(g.first_name, g.last_name)}
-        </span>
+        <Avatar tone="neutral" size="md" decorative name={name} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-gray-900">{name}</p>
             <span className="text-xs text-gray-500">{relationshipLabel}</span>
             {g.is_primary && (
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
-                {t("guardians.badges.primary")}
-              </span>
+              <StatusBadge
+                tone="outline"
+                compact
+                label={t("guardians.badges.primary")}
+              />
             )}
             {/* The demo visitor is this child's parent (#5033). */}
             {g.is_self && isDemoBuild() && (
-              <StatusBadge tone="blue" label={t("guardians.badges.self")} />
+              <StatusBadge
+                tone="blue"
+                compact
+                label={t("guardians.badges.self")}
+              />
             )}
           </div>
           {/* Neutral text chips, not colored dots: "darf abholen" and
@@ -805,18 +808,25 @@ function GuardianRow({
           {(g.can_pickup || g.is_emergency_contact || pendingPermission) && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {t("guardians.badges.canPickup")}
-                </span>
+                <StatusBadge
+                  tone="outline"
+                  compact
+                  label={t("guardians.badges.canPickup")}
+                />
               )}
               {g.can_pickup && pickupDays.length > 0 && (
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {tPermission("onlyDays", { days: weekdayList(pickupDays) })}
-                </span>
+                <StatusBadge
+                  tone="outline"
+                  compact
+                  label={tPermission("onlyDays", {
+                    days: weekdayList(pickupDays),
+                  })}
+                />
               )}
               {pendingPermission && (
                 <StatusBadge
                   tone="orange"
+                  compact
                   label={tPermission("pending", {
                     days:
                       pendingPermission.weekdays.length > 0
@@ -826,9 +836,11 @@ function GuardianRow({
                 />
               )}
               {g.is_emergency_contact && (
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {t("guardians.badges.emergency")}
-                </span>
+                <StatusBadge
+                  tone="outline"
+                  compact
+                  label={t("guardians.badges.emergency")}
+                />
               )}
             </div>
           )}
@@ -968,7 +980,7 @@ function GuardianRow({
           </Button>
         </div>
       )}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1014,8 +1026,8 @@ function ContactModal({
   /** requested: eine Abholerlaubnis ging als Anfrage an die OGS (#4780). */
   onSaved: (requested: boolean) => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [firstName, setFirstName] = useState(guardian?.first_name ?? "");
   const [lastName, setLastName] = useState(guardian?.last_name ?? "");
   const [email, setEmail] = useState(guardian?.email ?? "");
@@ -1209,10 +1221,8 @@ function ContactModal({
               {t("guardians.createContactIntro")}
             </p>
             <div>
-              <p className="mb-1 text-sm font-medium text-gray-700">
-                {t("guardians.relationshipLabel")}
-              </p>
               <CustomSelect
+                label={t("guardians.relationshipLabel")}
                 value={relationshipType}
                 options={RELATIONSHIP_TYPES.map((type) => ({
                   value: type,
@@ -1221,11 +1231,10 @@ function ContactModal({
                 onChange={(value) =>
                   setRelationshipType(value as RelationshipType)
                 }
-                ariaLabel={t("guardians.relationshipLabel")}
               />
             </div>
             {canManagePickup ? (
-              <div className="space-y-3 rounded-xl bg-gray-50 p-3">
+              <InsetPanel className="space-y-3">
                 <label
                   htmlFor="new-contact-can-pickup"
                   className="flex items-start gap-3"
@@ -1291,7 +1300,7 @@ function ContactModal({
                     </span>
                   </span>
                 </label>
-              </div>
+              </InsetPanel>
             ) : null}
           </div>
         ) : null}
@@ -1346,9 +1355,7 @@ function ContactModal({
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-gray-700">
-            {t("guardians.phoneNumbers")}
-          </p>
+          <FieldLabel>{t("guardians.phoneNumbers")}</FieldLabel>
           <div className="space-y-2">
             {phones.map((p, i) => (
               <div key={p.id} className="flex items-center gap-2">
@@ -1415,23 +1422,16 @@ function ContactModal({
           )}
         </div>
         {mode === "create" ? (
-          <div>
-            <label
-              htmlFor="new-contact-pickup-notes"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              {t("guardians.pickupNotes")}
-            </label>
-            <textarea
-              id="new-contact-pickup-notes"
-              value={pickupNotes}
-              onChange={(event) => setPickupNotes(event.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder={t("guardians.pickupNotesPlaceholder")}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
+          <Textarea
+            id="new-contact-pickup-notes"
+            label={t("guardians.pickupNotes")}
+            value={pickupNotes}
+            onChange={(event) => setPickupNotes(event.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={t("guardians.pickupNotesPlaceholder")}
+            className="resize-y"
+          />
         ) : null}
       </div>
     </Modal>
@@ -1452,8 +1452,8 @@ function PickupModal({
   /** requested: die Abholerlaubnis ging als Anfrage an die OGS (#4780). */
   onSaved: (requested: boolean) => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const weekdayList = useWeekdayList();
   const [canPickup, setCanPickup] = useState(g.can_pickup);
   const [weekdays, setWeekdays] = useState<number[]>(
@@ -1695,23 +1695,16 @@ function PickupModal({
             can_edit_contact. A pickup-manage-only caller sees just the flags
             above; the backend rejects a note edit on a contact-locked guardian. */}
         {g.can_edit_contact && (
-          <div>
-            <label
-              htmlFor="pickup-notes"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              {t("guardians.pickupNotes")}
-            </label>
-            <textarea
-              id="pickup-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder={t("guardians.pickupNotesPlaceholder")}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
+          <Textarea
+            id="pickup-notes"
+            label={t("guardians.pickupNotes")}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={t("guardians.pickupNotesPlaceholder")}
+            className="resize-y"
+          />
         )}
       </div>
     </Modal>

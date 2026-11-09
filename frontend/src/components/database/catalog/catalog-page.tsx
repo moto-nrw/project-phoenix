@@ -12,15 +12,15 @@
 // Anlegen als Kopf-Aktion. Eine Route liefert nur noch ihre Daten und ihre
 // Felder.
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, MousePointer2 } from "lucide-react";
 
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { DetailPanel } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import {
   GroupedList,
   type GroupDefinition,
@@ -28,8 +28,8 @@ import {
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { DatabaseForm } from "~/components/ui/database/database-form";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { DatabaseForm } from "~/components/database/database-form";
+import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -579,9 +579,12 @@ export function CatalogPage<T extends CatalogItem>({
       onTabChange={() => undefined}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title={`${config.singular} auswählen`}
       description={`Wählen Sie links einen Eintrag, um ihn zu ändern.`}
+      className="h-full justify-center px-12"
     />
   );
 

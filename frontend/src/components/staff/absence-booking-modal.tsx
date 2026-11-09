@@ -56,6 +56,7 @@ import {
 import { formatDate, berlinTodayISO, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { staffAbsenceService } from "~/lib/staff-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "AbsenceBookingModal" });
 
@@ -489,7 +490,7 @@ export function QuotaSummary({
 }) {
   const multiYear = projections.length > 1;
   return (
-    <div className="divide-y divide-gray-200 rounded-lg bg-gray-50 px-3 [&>*]:py-2">
+    <InsetPanel padding="tight" className="divide-y divide-gray-200 [&>*]:py-2">
       {projections.map((item) => (
         <DataGrid key={item.year} columns={1}>
           <DataField
@@ -521,7 +522,7 @@ export function QuotaSummary({
           ) : null}
         </DataGrid>
       ))}
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -874,21 +875,14 @@ function DateField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <ISODatePicker
-        id={id}
-        value={value}
-        min={min}
-        onChange={onChange}
-        calendarLayout="popover"
-        hideClearButton
-      />
-    </div>
+    <ISODatePicker
+      label={label}
+      id={id}
+      value={value}
+      min={min}
+      onChange={onChange}
+      calendarLayout="popover"
+      hideClearButton
+    />
   );
 }

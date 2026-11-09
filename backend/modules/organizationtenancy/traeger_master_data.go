@@ -58,6 +58,21 @@ type TraegerContact struct {
 	Email string `json:"email"`
 }
 
+// TraegerWithdrawalContact is where parents reach the Träger to withdraw
+// from a contract (#6200): the withdrawal notice names this phone number
+// and e-mail address. An empty field takes the contact person's.
+type TraegerWithdrawalContact struct {
+	Phone string `json:"phone"`
+	Email string `json:"email"`
+}
+
+// TraegerDocumentContact is what documents of the Träger print about whom
+// to reach: the contact person and the withdrawal contact.
+type TraegerDocumentContact struct {
+	Contact    TraegerContact
+	Withdrawal TraegerWithdrawalContact
+}
+
 // TraegerBankAccount is a bank account of the Träger. At most one is the
 // default; the first one is.
 type TraegerBankAccount struct {
@@ -85,9 +100,10 @@ type TraegerBankAccountInput struct {
 
 // TraegerProfile is the master data of a Träger. Logo is nil without one.
 type TraegerProfile struct {
-	Contact      TraegerContact       `json:"contact"`
-	Logo         *TraegerLogo         `json:"logo"`
-	BankAccounts []TraegerBankAccount `json:"bank_accounts"`
+	Contact      TraegerContact           `json:"contact"`
+	Withdrawal   TraegerWithdrawalContact `json:"withdrawal"`
+	Logo         *TraegerLogo             `json:"logo"`
+	BankAccounts []TraegerBankAccount     `json:"bank_accounts"`
 }
 
 // TraegerMasterData lets the Träger-Büro keep the master data of its
@@ -99,12 +115,19 @@ type TraegerMasterData interface {
 	Profile(ctx context.Context, organizationID, accountID int64) (TraegerProfile, error)
 	// LogoImage reads the stored logo.
 	LogoImage(ctx context.Context, organizationID int64) (TraegerLogoImage, error)
+	// DocumentContact reads the contact person and the withdrawal contact a
+	// document prints. Like LogoImage it serves a rendering, not a person, so
+	// it needs no account and writes no log; a public signing link reads it.
+	DocumentContact(ctx context.Context, organizationID int64) (TraegerDocumentContact, error)
 	// ReplaceLogo checks the image and stores it in place of the old one.
 	ReplaceLogo(ctx context.Context, organizationID, accountID int64, data []byte) (TraegerLogo, error)
 	// RemoveLogo deletes the logo.
 	RemoveLogo(ctx context.Context, organizationID, accountID int64) error
 	// UpdateContact stores the contact person; empty fields clear it.
 	UpdateContact(ctx context.Context, organizationID, accountID int64, contact TraegerContact) (TraegerContact, error)
+	// UpdateWithdrawalContact stores the withdrawal contact; empty fields
+	// take the contact person's again.
+	UpdateWithdrawalContact(ctx context.Context, organizationID, accountID int64, contact TraegerWithdrawalContact) (TraegerWithdrawalContact, error)
 	CreateBankAccount(ctx context.Context, organizationID, accountID int64, input TraegerBankAccountInput) (TraegerBankAccount, error)
 	UpdateBankAccount(ctx context.Context, organizationID, accountID, bankAccountID int64, input TraegerBankAccountInput) (TraegerBankAccount, error)
 	// DeleteBankAccount deletes a bank account. Deleting the default makes

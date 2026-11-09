@@ -1,0 +1,7 @@
+{
+  "scenario": "api.enrollment.growth.status",
+  "max": 17,
+  "exact": true,
+  "description": "Positive mounted handler with real settings and persistence behind the request-scoped settings cache production mounts router-wide, all SQL including transaction envelope; N3/N8 sibling children.",
+  "route": "GET /api/enrollment/requests/{statusToken}"
+}

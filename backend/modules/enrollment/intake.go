@@ -10,34 +10,33 @@ import (
 
 // The parent-facing intake of an enrollment (#3565): the submission and its
 // edits, the status link, the public form loads and the late invites. The
-// answers, consent flags and source metadata a family submits stay raw JSON
-// at this boundary; the intake decodes them itself.
+// answers, consent flags and source metadata a family submits travel as
+// FormValues (ADR 0173).
 
 // SubmitRequest is one submission as the intake receives it.
 type SubmitRequest struct {
-	TenantID int64
-	PhaseID  int64
+	// DisplayedFormSchemaID is the form version the parent's form showed
+	// (#4680). Versions never change, so the snapshot proves the shown legal
+	// texts are the stored ones only when it equals the version in force.
+	DisplayedFormSchemaID int64
+	TenantID              int64
+	PhaseID               int64
 	// RemoteIP is the parent's source IP. Empty disables IP-based rate
 	// limiting for that submission.
 	RemoteIP string
 	// LateInviteToken opens a closed phase for its holder. It is phase-bound,
 	// validated, and consumed inside the write transaction, but it does not
 	// bind the submitted guardian email to the invitation address (#2164).
-	LateInviteToken string
-	// Internal admin paths set these; the public routes never do.
-	SkipRateLimit            bool
-	AllowClosedPhase         bool
-	SuppressSubmissionEmails bool
-	ExternalConsentConfirmed bool
-	SubmissionSource         string
-	SourceMetadata           json.RawMessage
+	LateInviteToken  string
+	SubmissionSource string
+	SourceMetadata   FormValues
 
 	GuardianFirstName string
 	GuardianLastName  string
 	GuardianEmail     string
 	GuardianPhone     *string
-	ConsentFlags      json.RawMessage
-	CustomData        json.RawMessage
+	ConsentFlags      FormValues
+	CustomData        FormValues
 	// GuardianAccountID is set when an authenticated parent submits through
 	// the parents portal; nil is an anonymous public submission.
 	GuardianAccountID *int64
@@ -72,7 +71,7 @@ type SubmitChild struct {
 	DateOfBirth       calendar.Date
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	CustomData        json.RawMessage
+	CustomData        FormValues
 	OfferingIDs       []int64
 	OfferingDays      []SubmitOfferingDays
 	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
@@ -119,14 +118,14 @@ const (
 )
 
 // EditPatch carries the fields a parent may patch before the first decision.
-// Pointer fields leave a value alone unless set; a non-nil JSON document
-// replaces the stored one.
+// Pointer fields leave a value alone unless set; set values, even empty
+// ones, replace the stored ones.
 type EditPatch struct {
 	GuardianFirstName *string
 	GuardianLastName  *string
 	GuardianPhone     *string
-	ConsentFlags      json.RawMessage
-	CustomData        json.RawMessage
+	ConsentFlags      *FormValues
+	CustomData        *FormValues
 }
 
 // CreateLateInviteInput is an admin's late invite for one family.
@@ -153,15 +152,20 @@ type ManualApprovedEnrollmentInput struct {
 	Reason           string
 	SendNotification bool
 	ActorID          int64
+	// ExistingStudentID and CreateNewStudent are the office's answer when
+	// the child may already be enrolled (#6148), passed to the approval as
+	// in DecideInput.
+	ExistingStudentID *int64
+	CreateNewStudent  bool
 }
 
-// ManualApprovedEnrollmentResult is the created request, the approved child,
-// its status link and the guardian invitation the approval owes.
+// ManualApprovedEnrollmentResult is the created request, the approved child
+// and its status link. The approval's guardian invitation is already created
+// in the same transaction.
 type ManualApprovedEnrollmentResult struct {
-	Request       *Request
-	Child         *RequestChild
-	StatusURL     string
-	PendingInvite *PendingGuardianInvite
+	Request   *Request
+	Child     *RequestChild
+	StatusURL string
 }
 
 // LegalTexts bundles the per-tenant legal texts of the public enrollment
@@ -297,6 +301,14 @@ type RequestStatus struct {
 	Children []*RequestChild
 }
 
+// StatusPage is what the token status page offers beyond the request: the
+// edit path and the school's care-facility term (#6042). The page runs on the
+// parents host without a school context, so the term travels with it.
+type StatusPage struct {
+	EditMode         string
+	CareFacilityTerm string
+}
+
 // EditDraft is the persisted request that reopens the public form.
 type EditDraft struct {
 	Request          *Request
@@ -316,6 +328,9 @@ type EditDraft struct {
 	// GradeLevelMax is the tenant's upper bound of target grades, resolved in
 	// the same transaction as the rest of the draft.
 	GradeLevelMax int
+	// CareFacilityTerm is the school's term for its care in the fixed texts
+	// of the reopened form (#6042).
+	CareFacilityTerm string
 }
 
 // IntakeSubmissions stores submissions and the parent's later changes. Each
@@ -348,8 +363,9 @@ type IntakeStatus interface {
 	// StatusByToken loads the request and its children; the status reason
 	// is redacted unless the phase shows it to parents.
 	StatusByToken(ctx context.Context, token string) (*RequestStatus, error)
-	// EditModeForStatus returns the edit path the status page may offer.
-	EditModeForStatus(ctx context.Context, status *RequestStatus) (string, error)
+	// StatusPage returns the edit path the status page may offer and the
+	// school's term for its care in the page's fixed texts (#6042).
+	StatusPage(ctx context.Context, status *RequestStatus) (StatusPage, error)
 	// GuardiansByStatusToken loads the request's co-guardians.
 	GuardiansByStatusToken(ctx context.Context, token string) ([]*RequestGuardian, error)
 	// EditDraft loads everything that reopens the public form.
@@ -366,17 +382,14 @@ type IntakeForms interface {
 	// LegalTextsForPhaseWithLateInvite resolves the legal contract of a
 	// phase behind the public phase gate.
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
-	// PublicActiveSchema resolves the schema a public form renders; a Basis
-	// phase returns ErrNoActiveSchema.
-	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*FormSchema, error)
 	// LoadPublicFormBootstrap assembles the anonymous public form load.
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	// LoadEnrolleeFormBootstrap assembles the parents-portal form load for
 	// the restricted audiences the caller's access covers.
 	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
-	// LoadPublicCareOfferings is the offering-only projection of the public
-	// form load.
-	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadPhasePreviewCareOfferings loads the effective form configuration and
+	// active offerings for staff, without public activity, audience or window gates.
+	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	// LoadManualEnrollmentBootstrap assembles the staff manual-enrollment
 	// form load.
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)

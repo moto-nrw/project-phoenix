@@ -2,9 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
+
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
 
 	"github.com/go-chi/chi/v5"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
@@ -24,6 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
@@ -45,7 +51,7 @@ import (
 func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, frontendURL string) error {
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
 		DB: db.Pool(), Feed: newParentRequestFeed, FrontendURL: frontendURL, Now: time.Now,
-		NewToken: sessiontoken.NewOpaqueCapabilityToken, HashToken: sessiontoken.OpaqueCapabilityFingerprint,
+		NewToken: tokenprimitives.NewOpaqueCapabilityToken, HashToken: tokenprimitives.OpaqueCapabilityFingerprint,
 	})
 	if err != nil {
 		return err
@@ -61,6 +67,42 @@ func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, l
 	root.Mount("/public/request-feed", resource.PublicRouter())
 	tenant.Mount("/students/change-requests/rss-feed", resource.TenantRouter())
 	return nil
+}
+
+// emailWebhookPath hangs at the root, outside every session group: the signature
+// is the credential and the school comes from the matched mail.
+const emailWebhookPath = "/webhooks"
+
+func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest) {
+	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit()).Router())
+}
+
+// emailWebhookFailureRules answer by what the provider should do next: it
+// retries a timeout, 408, 429 and 5xx, and drops other 4xx. No text tells a
+// sender why a signature was refused.
+var emailWebhookFailureRules = []apiCommon.ErrorRule{
+	{Target: deliveryContract.ErrEmailWebhookUnknownProvider, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorNotFoundWithCode, errors.New("unknown webhook provider"), apiCommon.CodeGeneralInput)},
+	{Target: deliveryContract.ErrEmailWebhookSignature, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorUnauthorizedWithCode, errors.New("invalid webhook signature"), apiCommon.CodeGeneralPermission)},
+	{Target: deliveryContract.ErrEmailWebhookPayload, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New("invalid webhook payload"), apiCommon.CodeGeneralInput)},
+	{Target: emailWebhooksHTTP.ErrBodyTooLarge, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorRequestTooLargeWithCode, emailWebhooksHTTP.ErrBodyTooLarge, apiCommon.CodeGeneralRequestTooLarge)},
+}
+
+func renderEmailWebhookFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, deliveryContract.ErrEmailWebhookNotConfigured) {
+		// A state of this deployment that anyone can ask about without a
+		// signature. The provider retries the 503; nobody has to be paged.
+		slog.Default().WarnContext(r.Context(), "email webhook has no signing secret")
+		apiCommon.RenderExpectedUnavailable(w, r, errors.New("the webhook is not configured"), apiCommon.CodeGeneralUnavailable)
+		return
+	}
+	if errors.Is(err, emailWebhooksHTTP.ErrBodyUnreadable) {
+		// The sender's connection broke off or timed out. The provider retries the
+		// 503; if that keeps failing, it turns the webhook off and the alarm goes.
+		slog.Default().WarnContext(r.Context(), "email webhook body could not be read")
+		apiCommon.RenderExpectedUnavailable(w, r, emailWebhooksHTTP.ErrBodyUnreadable, apiCommon.CodeGeneralUnavailable)
+		return
+	}
+	apiCommon.RenderError(w, r, apiCommon.RenderWithRules(err, emailWebhookFailureRules, apiCommon.ErrorInternalServerRenderer("the webhook delivery could not be stored")))
 }
 
 // mountModuleRoutes mounts the route groups modules serve themselves.
@@ -88,13 +130,13 @@ func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
 	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity identityaccess.Owner, caller *owners.CallerRows,
 	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays birthdaysAPI.Service,
-	emergency emergencysnapshot.Query, settings settingsCompose.SettingsService,
+	emergency emergencysnapshot.Query, settings settingsCompose.SettingsService, guardianEmail GuardianEmailDelivery, guardianEmailLog guardianEmailAudit,
 ) {
 	tenant.Mount("/statistics", statisticsAPI.NewResource(reports.Statistics, statisticsHTTPRuntime(renderer), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))
-	tenant.Mount("/guardians", newGuardiansResource(persons, NewGuardianDirectoryRuntime(guardians, renderer, identity, caller.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/guardians", NewGuardiansResource(persons, NewGuardianDirectoryRuntime(guardians, renderer, identity, caller.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), guardianEmail, guardianEmailLog, logger), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(mealPlan, newMealPlanExportRenderer()).Router())
-	tenant.Mount("/users", newUsersResource(persons, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+	tenant.Mount("/users", NewUsersResource(persons, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
 		return found, err
 	}).Router())
@@ -132,8 +174,8 @@ func mountCommunicationRoutes(
 
 // mountDeliveryRoutes serves the live streams and the file storage: the staff
 // routes under /api and the portal routes at the root. The portal routes sit
-// at the root because /parent is a catch-all mount; ParentMiddleware and
-// SchoolMiddleware authenticate them.
+// at the root because /parent is a catch-all mount; ParentScopeMiddleware and
+// SchoolScopeMiddleware authenticate them.
 func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, parent *parentportal.Portal, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
 	attachmentReads, err := filestorageModule.TenantReads(fileStore)

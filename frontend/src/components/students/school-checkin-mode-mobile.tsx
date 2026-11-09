@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
-import { CheckSquare, Loader2, LogIn, LogOut, X } from "lucide-react";
+import { CheckSquare, LogIn, LogOut, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import {
   leftOutLabel,
   type SelectAllControl,
 } from "~/components/students/school-checkin-select-all";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
 // Measured bar height plus the install hint's clearance (#4358): 106 px in
@@ -106,28 +107,18 @@ export function SchoolCheckinModeMobile({
   if (!attendanceWebEnabled) return null;
   if (!isActive) {
     return (
-      <button
+      <Button
         type="button"
         onClick={onToggle}
         aria-pressed={false}
         aria-label="Kinder an- und abmelden"
-        className="flex w-full items-center justify-center gap-2.5 rounded-full px-5 py-3 text-base font-semibold transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-        style={{
-          backgroundColor: "var(--color-white)",
-          color: GROUP_ROOM_SHADES.text,
-          boxShadow: `inset 0 0 0 1.5px ${GROUP_ROOM_SHADES.base}, 0 1px 2px rgb(0 0 0 / 0.04)`,
-          // @ts-expect-error CSS custom property for focus ring colour
-          "--tw-ring-color": `${GROUP_ROOM_SHADES.base}80`,
-        }}
+        variant="surface"
+        size="base"
+        className="w-full gap-2"
       >
-        <span
-          className="flex size-5 flex-shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: `${GROUP_ROOM_SHADES.base}1a` }}
-        >
-          <CheckSquare className="size-3.5" strokeWidth={2.5} aria-hidden />
-        </span>
+        <CheckSquare className="size-4" strokeWidth={2.5} aria-hidden />
         <span>Kinder an- und abmelden</span>
-      </button>
+      </Button>
     );
   }
 
@@ -157,30 +148,17 @@ export function SchoolCheckinModeMobile({
       style={{ bottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
       data-checkin-mode-mobile="active"
     >
-      <div
-        className="moto-content-surface rounded-2xl border p-2"
-        role="region"
+      <SelectionBar
         aria-label="An- und Abmelde-Modus"
-        aria-busy={disabled && runningAction !== null}
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-start gap-1.5">
-            <CheckSquare
-              className="text-moto-green mt-0.5 size-4 shrink-0"
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-balance text-gray-900">
-                An- und Abmelde-Modus aktiv
-              </p>
-              {selectionActive ? null : (
-                <p className="text-xs text-gray-600">
-                  Jeder Tipp meldet sofort an oder ab.
-                </p>
-              )}
-            </div>
-          </div>
-
+        placement="inline"
+        className="rounded-2xl p-2"
+        count={selectedCount}
+        busy={disabled && runningAction !== null}
+        label="An- und Abmelde-Modus aktiv"
+        description={
+          selectionActive ? null : "Jeder Tipp meldet sofort an oder ab."
+        }
+        actions={
           <Button
             type="button"
             variant="primary"
@@ -192,10 +170,10 @@ export function SchoolCheckinModeMobile({
           >
             Fertig
           </Button>
-        </div>
-
+        }
+      >
         {showStatusRow ? (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             {onSelectionActiveChange ? (
               <SegmentedControl
                 ariaLabel="Tipp-Verhalten"
@@ -214,10 +192,7 @@ export function SchoolCheckinModeMobile({
             </span>
 
             {pendingCount > 0 ? (
-              <Loader2
-                className="size-3.5 shrink-0 animate-spin text-gray-500"
-                aria-hidden
-              />
+              <SpinnerIcon className="size-3.5 shrink-0 text-gray-500" />
             ) : null}
 
             {selectionActive && selectAll ? (
@@ -271,7 +246,7 @@ export function SchoolCheckinModeMobile({
               }
             >
               {runningAction === "in" ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                <SpinnerIcon className="size-3.5" />
               ) : (
                 <LogIn className="size-3.5" aria-hidden />
               )}
@@ -288,7 +263,7 @@ export function SchoolCheckinModeMobile({
               }
             >
               {runningAction === "out" ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                <SpinnerIcon className="size-3.5" />
               ) : (
                 <LogOut className="size-3.5" aria-hidden />
               )}
@@ -300,7 +275,7 @@ export function SchoolCheckinModeMobile({
         {leftOut ? (
           <p className="mt-1 text-xs text-gray-600">{leftOut}</p>
         ) : null}
-      </div>
+      </SelectionBar>
     </div>
   );
 }

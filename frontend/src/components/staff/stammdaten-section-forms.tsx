@@ -17,6 +17,7 @@ import {
   suggestExpiry,
   type QualificationType,
 } from "~/lib/staff-qualification-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Feldgruppen der Stammdaten (#1423). Sie sind reine Eingabeflächen ohne
 // eigenen Speichern-Knopf: der Reiter hat EINEN Bearbeiten-Zustand mit EINEM
@@ -194,22 +195,13 @@ function SelectField({
   readonly onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <label
-        id={`${id}-label`}
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium text-gray-700"
-      >
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        ariaLabelledBy={`${id}-label`}
-        value={value}
-        onChange={onChange}
-        options={[...options]}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={id}
+      value={value}
+      onChange={onChange}
+      options={[...options]}
+    />
   );
 }
 
@@ -460,7 +452,7 @@ export function QualifikationenFields({
           // Die Zeilen sind positionsgebunden (die Liste wird komplett
           // ersetzt); der Index ist die Identität.
           // eslint-disable-next-line react/no-array-index-key
-          <div key={index} className="rounded-xl bg-gray-50 p-3">
+          <InsetPanel key={index}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <SelectField
@@ -511,7 +503,7 @@ export function QualifikationenFields({
                 />
               </div>
             </div>
-          </div>
+          </InsetPanel>
         ))}
       </div>
       <Button
@@ -538,23 +530,17 @@ export function PersonnelNumberFields({
 }) {
   const valid = personnelNumberValid(draft.personnelNumber);
   return (
-    <div>
-      <Input
-        id="personnel-number"
-        label="Personalnummer"
-        controlSize="compact"
-        value={draft.personnelNumber}
-        onChange={(e) => onChange({ personnelNumber: e.target.value })}
-        placeholder="z. B. 1023"
-        inputMode="numeric"
-        error={valid ? undefined : "Nur Ziffern, höchstens 9 Stellen."}
-      />
-      <p className="mt-1 text-xs text-gray-500">
-        Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer muss
-        der Personalnummer im Lohnsystem entsprechen und ist pro Schule
-        eindeutig.
-      </p>
-    </div>
+    <Input
+      id="personnel-number"
+      label="Personalnummer"
+      controlSize="compact"
+      value={draft.personnelNumber}
+      onChange={(e) => onChange({ personnelNumber: e.target.value })}
+      placeholder="z. B. 1023"
+      inputMode="numeric"
+      error={valid ? undefined : "Nur Ziffern, höchstens 9 Stellen."}
+      hint="Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer muss der Personalnummer im Lohnsystem entsprechen und ist pro Schule eindeutig."
+    />
   );
 }
 

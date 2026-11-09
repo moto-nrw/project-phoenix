@@ -5,14 +5,15 @@ import (
 	"strconv"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/go-chi/jwtauth/v5"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // SentrySessionContext tags every Sentry event of a request with the session
 // it acts for (#3643), a panic event included. It runs after the root
 // verifier, which leaves a token only when its signature and expiry hold;
-// ParseClaims rejects MFA interim tokens. A request without a session
+// only a session token counts, MFA interim tokens do not. A request without a session
 // carries no user and no session tags.
 //
 // The data boundary of #3590 holds: user.id is the internal account ID and
@@ -31,9 +32,8 @@ func SentrySessionContext(next http.Handler) http.Handler {
 }
 
 func verifiedSession(r *http.Request) (sessiontoken.AppClaims, bool) {
-	var claims sessiontoken.AppClaims
-	token, raw, err := jwtauth.FromContext(r.Context())
-	if err != nil || token == nil || claims.ParseClaims(raw) != nil || claims.ID == 0 {
+	claims, ok := sessiontoken.VerifiedAccessClaims(r.Context())
+	if !ok || claims.ID == 0 {
 		return sessiontoken.AppClaims{}, false
 	}
 	return claims, true
@@ -48,19 +48,14 @@ func verifiedSession(r *http.Request) (sessiontoken.AppClaims, bool) {
 // operator tokens are platform-wide. There school_id is absent, never a
 // placeholder.
 func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
-	var portal, role string
-	var schoolID int64
-	switch {
-	case claims.IsPlatformScope():
-		portal, role = "operator", "operator"
-	case claims.Scope == "parent":
-		portal, role = "parent", "guardian"
-	case claims.IsCatererScope():
-		portal, role = "caterer", "caterer"
-	case claims.IsSchoolScope():
-		portal, role, schoolID = "school", "lehrkraft", claims.TenantID
-	default:
-		portal, role, schoolID = "tenant", tenantRole(claims), claims.TenantID
+	portal, role, schoolID := "tenant", tenantRole(claims), claims.TenantID
+	if claimed, ok := tokenprimitives.PortalOfClaim(claims.Scope); ok {
+		if tag, tagged := sentryPortalTags[claimed.Name]; tagged {
+			portal, role = tag.portal, tag.role
+			if !tag.bindsSchool {
+				schoolID = 0
+			}
+		}
 	}
 
 	scope.SetUser(sentry.User{ID: strconv.Itoa(claims.ID)})
@@ -71,9 +66,21 @@ func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
 	}
 }
 
+// sentryPortalTags are the portals with tags of their own; every other
+// session reports as the OGS portal.
+var sentryPortalTags = map[string]struct {
+	portal, role string
+	bindsSchool  bool
+}{
+	tokenprimitives.PortalPlatform: {portal: "operator", role: "operator"},
+	tokenprimitives.PortalParent:   {portal: "parent", role: "guardian"},
+	tokenprimitives.PortalCaterer:  {portal: "caterer", role: "caterer"},
+	tokenprimitives.PortalSchool:   {portal: "school", role: "lehrkraft", bindsSchool: true},
+}
+
 func tenantRole(claims sessiontoken.AppClaims) string {
 	switch {
-	case claims.Scope == "org":
+	case claims.IsOrgScope():
 		return "carrier"
 	case claims.IsAdmin || claims.IsReadOnlyPreview():
 		return "admin"

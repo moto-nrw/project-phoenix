@@ -1,62 +1,25 @@
-// Authenticated proxy streaming student photo bytes. On 401 we refresh
-// the access token via uncachedAuth() and retry once.
-
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth, uncachedAuth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { problemResponse } from "~/lib/api-helpers.server";
+import { tenant } from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-const logger = createLogger({ component: "StudentPhotoServeRoute" });
-
-async function GETHandler(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; filename: string }> },
-) {
-  const { id, filename } = await params;
-
-  const session = await auth();
-  const token = session?.user?.token;
-  if (!token) {
-    return problemResponse(401, "Unauthorized", request);
-  }
-
-  const backendUrl = `${getServerApiUrl()}/api/students/${encodeURIComponent(id)}/photo/${encodeURIComponent(filename)}`;
-
+export const GET = tenant.route(async (request, _token, params) => {
   // The backend marks each per-upload photo URL as privately cacheable
   // and immutable, so browsers normally reuse their copy without asking.
   // When they do revalidate (expired entry, forced reload), forward the
   // conditional headers so http.ServeContent can answer 304 instead of
   // re-sending the full body.
-  const buildHeaders = (bearer: string): HeadersInit => {
-    const h: Record<string, string> = { Authorization: `Bearer ${bearer}` };
-    const ifNoneMatch = request.headers.get("if-none-match");
-    if (ifNoneMatch) h["if-none-match"] = ifNoneMatch;
-    const ifModifiedSince = request.headers.get("if-modified-since");
-    if (ifModifiedSince) h["if-modified-since"] = ifModifiedSince;
-    return h;
-  };
-
-  const makeRequest = (bearer: string) =>
-    fetch(backendUrl, {
-      method: "GET",
-      headers: buildHeaders(bearer),
-    });
-
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
+  const conditional: Record<string, string> = {};
+  for (const name of ["if-none-match", "if-modified-since"]) {
+    const value = request.headers.get(name);
+    if (value) conditional[name] = value;
   }
-
-  // 304 Not Modified is the success-with-no-body path — preserve it
-  // verbatim so the browser keeps using its cached copy. ETag /
-  // Last-Modified are passed through (when present) for the same reason.
+  const upstream = await tenant.backendFetch(
+    request,
+    `/api/students/${requirePathSegmentParam(params)}/photo/${requirePathSegmentParam(params, "filename")}`,
+    { headers: conditional },
+  );
+  // 304 keeps the browser on its cached copy.
   if (upstream.status === 304) {
     const headers = new Headers();
     const cacheControl = upstream.headers.get("cache-control");
@@ -68,19 +31,9 @@ async function GETHandler(
     return new NextResponse(null, { status: 304, headers });
   }
 
-  if (!upstream.ok) {
-    logger.warn("student_photo_serve_proxy_non_ok", {
-      student_id: id,
-      filename,
-      status: upstream.status,
-    });
-    return forwardBackendResponse(upstream, request);
-  }
+  if (!upstream.ok) return forwardBackendResponse(upstream, request);
 
-  // 200 path — stream the body through unchanged. Preserve Content-Type,
-  // the backend's Cache-Control (private browser cache, no revalidation
-  // while fresh), and the validators (ETag / Last-Modified) so a later
-  // conditional GET can short-circuit to 304 above.
+  // The validators let a later conditional GET end in the 304 above.
   const headers = new Headers();
   const contentType = upstream.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
@@ -95,6 +48,4 @@ async function GETHandler(
     status: 200,
     headers,
   });
-}
-
-export const GET = withTenantAuth(GETHandler);
+});

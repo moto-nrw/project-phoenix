@@ -6,8 +6,8 @@
 // dem Weg zu ihrer Prüfung (#4663).
 
 import { useState } from "react";
-import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -140,6 +140,7 @@ function registrationCountText(count: number): string {
 function HolidayRegistrationLink({
   period,
 }: Readonly<{ period: HolidayPeriod }>) {
+  const { showMessage } = useApiErrorDisplay();
   if (!period.publicToken) return null;
   const url = parentsPortalUrl(
     `/ferienanmeldung/${encodeURIComponent(period.publicToken)}`,
@@ -151,16 +152,16 @@ function HolidayRegistrationLink({
         Über diesen Link melden Eltern ihre Kinder für alle Wochen an. Ein
         Elternkonto brauchen sie nicht.
       </p>
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 select-all">
-          {url}
-        </span>
-        <PublicLinkCopyButton
-          url={url}
-          componentId={`holiday-registration-link-${period.id}`}
-          label="Link kopieren"
-        />
-      </div>
+      <CopyField
+        value={url}
+        monospace
+        copyLabel="Link kopieren"
+        onCopyFailed={() =>
+          showMessage(
+            "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+          )
+        }
+      />
     </div>
   );
 }

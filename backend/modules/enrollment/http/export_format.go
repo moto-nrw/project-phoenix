@@ -40,7 +40,7 @@ func statusLabelDE(status string) string {
 	return status
 }
 
-func activationSummary(c *RequestChild) string {
+func activationSummary(c *enrollmentCapability.RequestChild) string {
 	mode := "Geplant"
 	if c.ActivationMode == enrollmentCapability.ChildActivationImmediate {
 		mode = "Sofort"
@@ -80,7 +80,7 @@ var consentLabelsDE = []struct {
 	{enrollmentCapability.ConsentKeyPhoto, "Foto"},
 }
 
-func consentSummary(flags map[string]any) string {
+func consentSummary(flags enrollmentCapability.FormValues) string {
 	parts := make([]string, 0, len(consentLabelsDE))
 	for _, c := range consentLabelsDE {
 		parts = append(parts, c.Label+": "+consentLabel(flags, c.Key))
@@ -88,8 +88,8 @@ func consentSummary(flags map[string]any) string {
 	return strings.Join(parts, ", ")
 }
 
-func consentLabel(flags map[string]any, key string) string {
-	if isTruthy(flags[key]) {
+func consentLabel(flags enrollmentCapability.FormValues, key string) string {
+	if isTruthy(formValue(flags, key)) {
 		return "Ja"
 	}
 	return "Nein"

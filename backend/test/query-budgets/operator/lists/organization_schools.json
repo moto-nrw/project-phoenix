@@ -1,0 +1,7 @@
+{
+  "scenario": "operator.lists.organization_schools",
+  "max": 21,
+  "exact": true,
+  "description": "GET /operator/organizations/{id}/schools; N new schools in the primary organization plus N accounts/persons/devices at its original school. N=3/8 positive body IDs and cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit where mounted and owner transactions/RLS. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor.",
+  "route": "GET /operator/organizations/{id}/schools"
+}

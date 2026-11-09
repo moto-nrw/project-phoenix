@@ -8,19 +8,21 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func newOperatorAccess(t *testing.T, db *bun.DB) identityaccess.OperatorAccess {
+func newOperatorAccess(t *testing.T, db *bun.DB) ports.OperatorAccess {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
-	return module
+	return module.(ports.Records)
 }
 
 var errInjected = errors.New("injected failure")
@@ -29,8 +31,8 @@ func uniqueEmail(prefix string) string {
 	return fmt.Sprintf("%s-%s@test.local", prefix, uuid.Must(uuid.NewV4()).String()[:8])
 }
 
-func newSession(operatorID int64, familyID string, generation int) identityaccess.OperatorSession {
-	return identityaccess.OperatorSession{
+func newSession(operatorID int64, familyID string, generation int) ports.OperatorSession {
+	return ports.OperatorSession{
 		OperatorID: operatorID,
 		Token:      uuid.Must(uuid.NewV4()).String(),
 		Expiry:     time.Now().Add(time.Hour),
@@ -66,9 +68,11 @@ func TestOperatorLifecycle(t *testing.T) {
 	_, err = access.FindOperatorByEmail(ctx, uniqueEmail("nobody"))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 
-	found.DisplayName = "Renamed"
-	found.Active = false
-	updated, err := access.UpdateOperator(ctx, found)
+	updated, err := access.UpdateOperator(ctx, found.ID, func(operator *identityaccess.Operator) error {
+		operator.DisplayName = "Renamed"
+		operator.Active = false
+		return nil
+	})
 	require.NoError(t, err)
 	assert.Equal(t, "Renamed", updated.DisplayName)
 	reloaded, err := access.FindOperator(ctx, created.ID)
@@ -76,7 +80,10 @@ func TestOperatorLifecycle(t *testing.T) {
 	assert.Equal(t, "Renamed", reloaded.DisplayName)
 	assert.False(t, reloaded.Active)
 
-	_, err = access.UpdateOperator(ctx, identityaccess.Operator{ID: created.ID + 1_000_000, Email: email, DisplayName: "Ghost", PasswordHash: "hash"})
+	_, err = access.UpdateOperator(ctx, created.ID+1_000_000, func(operator *identityaccess.Operator) error {
+		operator.DisplayName = "Ghost"
+		return nil
+	})
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 
 	_, err = access.CreateOperator(ctx, identityaccess.Operator{Email: "", DisplayName: "No address", PasswordHash: "hash"})
@@ -140,7 +147,7 @@ func TestOperatorSessionRotationHandoff(t *testing.T) {
 	successor, err := access.CreateOperatorSession(ctx, newSession(operator.ID, familyID, 1))
 	require.NoError(t, err)
 
-	_, err = access.CreateOperatorSession(ctx, identityaccess.OperatorSession{OperatorID: operator.ID, Token: "", Expiry: time.Now(), FamilyID: familyID})
+	_, err = access.CreateOperatorSession(ctx, ports.OperatorSession{OperatorID: operator.ID, Token: "", Expiry: time.Now(), FamilyID: familyID})
 	require.EqualError(t, err, "identity access: create operator session: token value is required")
 
 	latest, err := access.LatestOperatorSessionInFamily(ctx, familyID)
@@ -258,10 +265,11 @@ func TestOperatorObservationsCountRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	operator := testpkg.CreateTestOperator(t, db)
 	var observations []identityCompose.Observation
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)
+	access := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 
 	_, err = access.FindOperatorByEmail(ctx, operator.Email)
@@ -321,8 +329,8 @@ func TestOperatorRowsAreVisibleFromEveryTenantContext(t *testing.T) {
 // refreshState carries the two sessions one refresh works on between its
 // writes.
 type refreshState struct {
-	predecessor identityaccess.OperatorSession
-	successor   identityaccess.OperatorSession
+	predecessor ports.OperatorSession
+	successor   ports.OperatorSession
 }
 
 // The refresh flow performs four authoritative writes in one administrative
@@ -452,7 +460,7 @@ func TestOperatorRevocationRollsBackWithItsCaller(t *testing.T) {
 	}))
 }
 
-func lockedOperatorSession(t *testing.T, ctx context.Context, db *bun.DB, access identityaccess.OperatorAccess, token string) (value identityaccess.OperatorSession, err error) {
+func lockedOperatorSession(t *testing.T, ctx context.Context, db *bun.DB, access ports.OperatorAccess, token string) (value ports.OperatorSession, err error) {
 	t.Helper()
 	err = testpkg.WithinAdminContext(t, ctx, db, func(txCtx context.Context) error {
 		value, err = access.FindOperatorSessionForUpdate(txCtx, token)

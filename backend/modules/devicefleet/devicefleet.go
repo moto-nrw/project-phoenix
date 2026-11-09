@@ -159,6 +159,38 @@ type Display struct {
 type DeviceQuery interface {
 	DeviceLookup
 	DeviceOnlineStatus
+	DeviceRoomProjection
+}
+
+// DeviceRoomProjection refreshes only room presentation for an already-owned
+// value. It is not a device lookup or an authorization boundary: callers must
+// pass the unmodified full RETURNING row from this owner's successful write
+// in the same tenant transaction, while its device row lock is still held.
+type DeviceRoomProjection interface {
+	DeviceRoomName(context.Context, Device) (*string, error)
+}
+
+// DeviceCredentialSchoolCheck reads the credential's school through its owner.
+// It runs fresh on every credential resolution, including credential cache hits,
+// in the existing read-only administrative discovery unit. An error aborts that
+// unit; the authentication adapter classifies the school outcome separately
+// from credential errors after the rollback.
+type DeviceCredentialSchoolCheck interface {
+	CheckDeviceSchool(context.Context, int64) error
+}
+
+// DeviceHeartbeatCheck authorizes one heartbeat in its existing tenant unit.
+// The check returns the accepted observation and whether debounce permits a
+// write. Rejections must return an error before any device mutation.
+type DeviceHeartbeatCheck interface {
+	CheckDeviceHeartbeat(context.Context) (time.Time, bool, error)
+}
+
+// CheckedDeviceHeartbeat records activity only after its authentication guard.
+// Callers must supply the authenticated school and no ambient transaction, so
+// the heartbeat commits independently before the request handler starts.
+type CheckedDeviceHeartbeat interface {
+	UpdateDeviceLastSeenChecked(context.Context, int64, DeviceHeartbeatCheck) error
 }
 
 // DeviceLookup resolves device records and fleet listings.
@@ -166,7 +198,7 @@ type DeviceLookup interface {
 	FindDevice(context.Context, int64) (Device, error)
 	FindDeviceForUpdate(context.Context, int64) (Device, error)
 	FindDeviceByDeviceID(context.Context, string) (Device, error)
-	FindDeviceByAPIKey(context.Context, string) (Device, error)
+	FindDeviceByAPIKey(context.Context, string, ...DeviceCredentialSchoolCheck) (Device, error)
 	ListDevices(context.Context, DeviceFilter) ([]Device, error)
 	ListDevicesByID(context.Context, []int64) ([]Device, error)
 	ListOfflineDevices(context.Context, time.Duration) ([]Device, error)
@@ -192,9 +224,15 @@ type DeviceCommand interface {
 	CreateDevice(context.Context, CreateDevice) (Device, error)
 	UpdateDevice(context.Context, UpdateDevice) (Device, error)
 	UpdateDeviceColumns(context.Context, UpdateDevice, []string) (int64, error)
+	// ApplyDeviceEdit applies only the school administration fields and returns
+	// the stored device, preserving ambient room observations.
+	ApplyDeviceEdit(context.Context, DeviceEdit) (Device, error)
 	DeleteDevice(context.Context, int64) error
 	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
+	// RecordDeviceHeartbeat stamps a live device by its tenant-unique device_id,
+	// without loading unused device or room presentation.
+	RecordDeviceHeartbeat(context.Context, string) error
 	// UpdateRoomID moves one device into a room.
 	UpdateRoomID(context.Context, int64, int64) error
 }
@@ -306,4 +344,15 @@ func (input *UpdateDevice) Validate() error {
 	}
 	input.Status = status
 	return nil
+}
+
+// DeviceEdit names the fields owned by the school's device edit. An omitted
+// status preserves the current stored status, including a concurrent change.
+type DeviceEdit struct {
+	ID             int64
+	DeviceID       string
+	DeviceType     string
+	Name           *string
+	RegisteredByID *int64
+	Status         *DeviceStatus
 }

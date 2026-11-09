@@ -20,11 +20,13 @@ function render(ui: React.ReactElement) {
 const mocks = vi.hoisted(() => ({
   listMyDocuments: vi.fn(),
   downloadMyDocument: vi.fn(),
+  downloadMySharedDocument: vi.fn(),
 }));
 
 vi.mock("~/lib/parent-api", () => ({
   listMyDocuments: mocks.listMyDocuments,
   downloadMyDocument: mocks.downloadMyDocument,
+  downloadMySharedDocument: mocks.downloadMySharedDocument,
 }));
 
 import { ParentDocumentsPage } from "./parent-documents-page";
@@ -49,8 +51,50 @@ describe("ParentDocumentsPage", () => {
     vi.clearAllMocks();
   });
 
+  it("shows a document the Träger released for the parents (#4692)", async () => {
+    const shared = {
+      id: "9",
+      organization_id: "4",
+      traeger_name: "Ganztag im Quartier e.V.",
+      title: "Hausordnung 2026/27",
+      file_name: "hausordnung.pdf",
+      content_type: "application/pdf",
+      size_bytes: 2048,
+      released_at: "2026-10-05T09:30:00Z",
+    };
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      shared: [shared],
+      failedSource: null,
+      error: null,
+    });
+
+    render(<ParentDocumentsPage />);
+
+    const headings = await screen.findAllByRole("heading", { level: 2 });
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      "Hausordnung 2026/27",
+      "Bestätigungsschreiben Herbstferien 2026",
+    ]);
+    expect(
+      screen.getByText(
+        "Vom Träger für Eltern freigegeben: Ganztag im Quartier e.V.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("PDF · 2 KB")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    await waitFor(() =>
+      expect(mocks.downloadMySharedDocument).toHaveBeenCalledWith(shared),
+    );
+  });
+
   it("shows each sent letter with its children, amount and sender", async () => {
-    mocks.listMyDocuments.mockResolvedValue([letter]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
 
     render(<ParentDocumentsPage />);
 
@@ -69,10 +113,15 @@ describe("ParentDocumentsPage", () => {
   });
 
   it("names the letter of a Storno and a Gutschrift (#4690)", async () => {
-    mocks.listMyDocuments.mockResolvedValue([
-      { ...letter, id: "8", kind: "cancellation_letter", number: "FE-0008" },
-      { ...letter, id: "9", kind: "credit_letter", number: "FE-0009" },
-    ]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        { ...letter, id: "8", kind: "cancellation_letter", number: "FE-0008" },
+        { ...letter, id: "9", kind: "credit_letter", number: "FE-0009" },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
 
     render(<ParentDocumentsPage />);
 
@@ -84,8 +133,48 @@ describe("ParentDocumentsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the letter of a monthly invoice and of its Storno (#4684)", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        {
+          ...letter,
+          id: "10",
+          kind: "care_invoice_letter",
+          number: "MB-2027-0001",
+          period_name: "Monatsbeitrag Januar 2027",
+        },
+        {
+          ...letter,
+          id: "11",
+          kind: "care_cancellation_letter",
+          number: "MB-2027-0009",
+          period_name: "Monatsbeitrag Januar 2027",
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Rechnung Monatsbeitrag Januar 2027",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Storno Monatsbeitrag Januar 2027" }),
+    ).toBeInTheDocument();
+  });
+
   it("downloads the stored PDF of a letter", async () => {
-    mocks.listMyDocuments.mockResolvedValue([letter]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
     mocks.downloadMyDocument.mockResolvedValue(undefined);
 
     render(<ParentDocumentsPage />);
@@ -99,7 +188,12 @@ describe("ParentDocumentsPage", () => {
   });
 
   it("names a failed download in a toast", async () => {
-    mocks.listMyDocuments.mockResolvedValue([letter]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
     mocks.downloadMyDocument.mockRejectedValue(
       new ApiError("diag", 404, {
         code: "parent_billing.parent_document_not_found",
@@ -118,8 +212,247 @@ describe("ParentDocumentsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a loaded letter visible and downloadable beside the failed contract source", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      shared: [],
+      failedSource: "contracts",
+      error: new ApiError("diag", 500, { code: "general.internal_error" }),
+    });
+    render(<ParentDocumentsPage />);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Bestätigungsschreiben Herbstferien 2026",
+      }),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Betreuungsverträge/,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Als PDF laden" }));
+    await waitFor(() =>
+      expect(mocks.downloadMyDocument).toHaveBeenCalledWith(letter),
+    );
+  });
+
+  it("names the documents as a whole when several sources fail (#4692 review)", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [],
+      shared: [],
+      failedSource: "several",
+      error: new ApiError("diag", 500, { code: "general.internal_error" }),
+    });
+    render(<ParentDocumentsPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/Die Dokumente/);
+    expect(alert).not.toHaveTextContent(/Briefe|Betreuungsverträge/);
+  });
+
+  it("keeps letters and contracts with identical IDs as distinct rows", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mocks.listMyDocuments.mockResolvedValue({
+        documents: [letter, { ...letter, kind: "care_contract" }],
+        shared: [],
+        failedSource: null,
+        error: null,
+      });
+      render(<ParentDocumentsPage />);
+      expect(
+        await screen.findByRole("heading", { name: "Betreuungsvertrag" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", {
+          name: "Bestätigungsschreiben Herbstferien 2026",
+        }),
+      ).toBeInTheDocument();
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it.each([true, false])(
+    "offers signing only with per-contract eligibility: %s",
+    async (canSign) => {
+      const contract: ParentDocument = {
+        ...letter,
+        kind: "care_contract",
+        contract_status: "versendet",
+        can_sign: canSign,
+      };
+      mocks.listMyDocuments.mockResolvedValue({
+        documents: [contract],
+        shared: [],
+        failedSource: null,
+        error: null,
+      });
+      render(<ParentDocumentsPage />);
+      expect(
+        await screen.findByRole("heading", { name: "Betreuungsvertrag" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Als PDF laden" }),
+      ).toBeInTheDocument();
+      // Who may sign may also state the children of the family (#5918);
+      // the others only read the number.
+      expect(
+        screen.getByRole("link", {
+          name: canSign
+            ? deMessages.parentDocuments.familyChildren
+            : deMessages.parentFamilyChildren.title,
+        }),
+      ).toBeInTheDocument();
+      if (canSign) {
+        expect(
+          screen.getByRole("link", {
+            name: deMessages.parentDocuments.signNow,
+          }),
+        ).toBeInTheDocument();
+      } else {
+        expect(
+          screen.queryByRole("link", {
+            name: deMessages.parentDocuments.signNow,
+          }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
+
+  it("distinguishes a concluded contract without a signature", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        {
+          ...letter,
+          kind: "care_contract",
+          contract_status: "aktiv",
+          signed_at: null,
+          can_sign: false,
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+    render(<ParentDocumentsPage />);
+    expect(
+      await screen.findByRole("heading", { name: "Betreuungsvertrag" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Abgeschlossen")).toBeInTheDocument();
+    expect(screen.queryByText("Unterschrieben")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: deMessages.parentDocuments.signNow }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks a replaced contract version and names from when the new version applies (#4681)", async () => {
+    const contract: ParentDocument = {
+      ...letter,
+      id: "74",
+      kind: "care_contract",
+      number: "Nr. 74",
+      period_name: "OGS Ganztag · OGS Sonnenhof",
+      service_from: "2027-03-01",
+      total_cents: 0,
+      child_names: ["Lina"],
+    };
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        {
+          ...contract,
+          contract_status: "aktiv",
+          replaced: true,
+          can_end_contract: true,
+        },
+        {
+          ...contract,
+          id: "75",
+          contract_status: "aktiv",
+          replaced: false,
+          can_end_contract: false,
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findAllByRole("heading", { name: "Betreuungsvertrag" }),
+    ).toHaveLength(2);
+    expect(screen.getByText("Ersetzt")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Diese Fassung gilt nicht mehr. Ab 01.03.2027 gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
+      ),
+    ).toBeInTheDocument();
+    // The button only where the relationship may end the contract (#4682);
+    // the other contract says why it has none.
+    expect(
+      screen.getAllByRole("link", { name: "Verträge hier kündigen" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText(deMessages.parentDocuments.cancelNotPermitted),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Kinder in Ihrer Familie" }),
+    ).toHaveAttribute("href", "/documents/vertrag/4/75?family=1");
+    // Only the replaced version carries the mark.
+    expect(screen.getAllByText("Ersetzt")).toHaveLength(1);
+  });
+
+  // § 356a BGB (#6105): while the withdrawal period may run, the contract
+  // carries the withdrawal function under the label the notice names.
+  it("offers „Vertrag widerrufen“ while the withdrawal period may run", async () => {
+    const contract: ParentDocument = {
+      ...letter,
+      id: "74",
+      organization_id: "2",
+      kind: "care_contract",
+      number: "Nr. 74",
+      period_name: "OGS Ganztag · OGS Sonnenhof",
+      service_from: "2027-03-01",
+      total_cents: 0,
+      child_names: ["Lina"],
+      contract_status: "aktiv",
+      can_end_contract: true,
+    };
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        { ...contract, can_withdraw_contract: true },
+        {
+          ...contract,
+          id: "75",
+          number: "Nr. 75",
+          can_withdraw_contract: false,
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findAllByRole("link", { name: "Verträge hier kündigen" }),
+    ).toHaveLength(2);
+    const withdraw = screen.getAllByRole("link", {
+      name: "Vertrag widerrufen",
+    });
+    expect(withdraw).toHaveLength(1);
+    expect(withdraw[0]).toHaveAttribute(
+      "href",
+      "/documents/vertraege/2/74?widerruf=1",
+    );
+  });
+
   it("explains an empty inbox and how letters arrive", async () => {
-    mocks.listMyDocuments.mockResolvedValue([]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
 
     render(<ParentDocumentsPage />);
 

@@ -10,9 +10,8 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   SCHOOL_NOTICES_TODAY_KEY,
@@ -45,35 +44,31 @@ export default function SchoolNoticesPage() {
   }, [error, mutate, showLoadError, clearLoadError]);
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Tagesinformationen
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Hinweise der OGS-Leitung an die Lehrkräfte. Sie werden im OGS-Büro
-          angelegt; hier lesen Sie, was heute gilt.
-        </p>
-      </div>
-
-      <SectionCard title="Heute">
-        {isLoading && notices.length === 0 ? (
-          <Loading fullPage={false} />
-        ) : error ? (
-          <LoadErrorAlert error={load.error} />
-        ) : notices.length === 0 ? (
-          <p className="text-sm leading-6 text-gray-600">
-            Für heute liegen keine Hinweise der OGS vor.
-          </p>
-        ) : (
-          <TodayNoticeList
-            notices={notices}
-            onChanged={mutate}
-            acknowledge={schoolStaffNoticesApi.acknowledgeStaffNotice}
-            layout="grid"
-          />
-        )}
+    <TenantPage
+      title="Tagesinformationen"
+      loading={isLoading && notices.length === 0}
+      loadingLabel="Tagesinformationen werden geladen…"
+      error={error ? load.error : null}
+      empty={
+        !error && notices.length === 0
+          ? {
+              title: "Heute keine Hinweise",
+              description: "Für heute liegen keine Hinweise der OGS vor.",
+            }
+          : null
+      }
+    >
+      <SectionCard
+        title="Heute"
+        description="Hinweise der OGS-Leitung an die Lehrkräfte. Sie werden im OGS-Büro angelegt; hier lesen Sie, was heute gilt."
+      >
+        <TodayNoticeList
+          notices={notices}
+          onChanged={mutate}
+          acknowledge={schoolStaffNoticesApi.acknowledgeStaffNotice}
+          layout="grid"
+        />
       </SectionCard>
-    </div>
+    </TenantPage>
   );
 }

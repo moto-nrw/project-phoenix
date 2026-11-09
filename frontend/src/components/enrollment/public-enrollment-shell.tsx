@@ -2,17 +2,19 @@
 
 import Image from "next/image";
 import { Check, ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+
 import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 export function PublicEnrollmentBrand({
   tenant,
 }: {
   readonly tenant: TenantInfo | null;
 }) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
   const schoolName = tenant?.name ?? t("fallbackSchool");
   const logoUrl = getTenantLogoUrl(tenant);
   const initials = schoolName
@@ -41,9 +43,6 @@ export function PublicEnrollmentBrand({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("brandEyebrow")}
-        </p>
         <p className="truncate text-lg font-semibold text-gray-900">
           {schoolName}
         </p>
@@ -80,7 +79,7 @@ export function PublicEnrollmentSteps({
 }: {
   readonly current: "phase" | "form" | "done";
 }) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
   const steps = [
     { id: "phase", label: t("steps.phase") },
     { id: "form", label: t("steps.form") },
@@ -172,17 +171,16 @@ export function PublicEnrollmentContentSkeleton({
 }: Readonly<{ sections?: number }>) {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5" aria-hidden="true">
-      <div className="moto-content-surface rounded-xl border p-5 sm:p-6">
-        <Skeleton className="h-3 w-28" />
-        <Skeleton className="mt-2 h-7 w-64 max-w-3/4" />
-        <Skeleton className="mt-3 h-4 w-full max-w-2xl" />
-        <Skeleton className="mt-2 h-4 w-2/3 max-w-xl" />
-      </div>
+      <SectionCard padding="none">
+        <div className="p-5 sm:p-6">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="mt-2 h-7 w-64 max-w-3/4" />
+          <Skeleton className="mt-3 h-4 w-full max-w-2xl" />
+          <Skeleton className="mt-2 h-4 w-2/3 max-w-xl" />
+        </div>
+      </SectionCard>
       {Array.from({ length: sections }, (_, sectionIndex) => (
-        <div
-          key={sectionIndex}
-          className="moto-content-surface overflow-hidden rounded-xl border"
-        >
+        <SectionCard key={sectionIndex} padding="none">
           <div className="border-b border-gray-100 p-5 sm:p-6">
             <Skeleton className="h-5 w-48" />
           </div>
@@ -190,11 +188,11 @@ export function PublicEnrollmentContentSkeleton({
             {Array.from({ length: 3 }, (_, rowIndex) => (
               <div key={rowIndex} className="space-y-2">
                 <Skeleton className="h-3 w-28" />
-                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton shape="control" className="h-10 w-full" />
               </div>
             ))}
           </div>
-        </div>
+        </SectionCard>
       ))}
     </div>
   );

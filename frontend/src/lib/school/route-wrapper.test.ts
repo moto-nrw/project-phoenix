@@ -6,23 +6,18 @@ const { mockSchoolAuth, mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockSchoolAuth,
-  uncachedSchoolAuth: mockSchoolAuth,
-}));
-vi.mock("~/server/auth/school-route", () => ({
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: mockSchoolAuth,
+    uncachedAuth: mockSchoolAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyGet, proxyPost } from "./route-wrapper.server";
+import { proxyDelete, proxyGet, proxyPost } from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -75,4 +70,38 @@ describe("school proxy backend errors", () => {
       );
     },
   );
+});
+
+describe("school token refresh", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("answers the retry's empty result with 204 instead of 401 after a token refresh", async () => {
+    mockSchoolAuth
+      .mockResolvedValueOnce({ user: { token: "old-token" } })
+      .mockResolvedValueOnce({ user: { token: "new-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ status: "success", data: null }));
+
+    const response = await proxyDelete("/school/push/subscriptions")(
+      new NextRequest("http://localhost:3000/api/school/push/subscriptions", {
+        method: "DELETE",
+      }),
+      context,
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "http://localhost:8080/school/push/subscriptions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer new-token",
+        }),
+      }),
+    );
+    // A DELETE without a result answers 204 in every portal.
+    expect(response.status).toBe(204);
+  });
 });

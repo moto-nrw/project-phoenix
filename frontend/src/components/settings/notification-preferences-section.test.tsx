@@ -67,6 +67,21 @@ describe("NotificationPreferencesSection", () => {
     ).toHaveAttribute("aria-checked", "false");
   });
 
+  it("shows a school-specific prerequisite in the card", async () => {
+    renderWithToast(
+      <NotificationPreferencesSection
+        portal="school"
+        description="Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf diesem Gerät."
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf diesem Gerät.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders every group the backend sends, in its order", async () => {
     // The card used to render from a hard-coded group list, so a group added in
     // the backend catalogue silently dropped its types — and with "no row means

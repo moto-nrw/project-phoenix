@@ -17,56 +17,27 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { formatBerlinDate, formatTime } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
   fetchLetterMailings,
   type LetterMailing,
-  type LetterMailStatus,
   type LetterSeries,
   mailBillingLetter,
   mailBillingLetters,
   printBillingLetters,
 } from "~/lib/traeger-billing-api";
 import { BILLING_DOCUMENT_KIND_LABELS } from "./billing-format";
+import {
+  canSendMail,
+  mailBadge,
+  mailStatusDetail,
+} from "./billing-mail-status";
 
 const logger = createLogger({ component: "BillingMailCard" });
 
 // While a mail waits, the card looks again after this many milliseconds.
 const REFRESH_WHILE_QUEUED_MS = 15_000;
-
-const STATUS_TONES: Record<
-  LetterMailStatus,
-  "blue" | "green" | "red" | "gray"
-> = {
-  not_sent: "gray",
-  queued: "blue",
-  sent: "green",
-  failed: "red",
-  unknown: "gray",
-};
-
-const STATUS_LABELS: Record<LetterMailStatus, string> = {
-  not_sent: "Nicht gesendet",
-  queued: "Wird gesendet",
-  sent: "Gesendet",
-  failed: "Nicht angekommen",
-  unknown: "Ergebnis unbekannt",
-};
-
-// The date beside the short status; it wraps on small screens.
-function statusDetail(mailing: LetterMailing): string | null {
-  const at = (iso: string) =>
-    `${formatBerlinDate(iso)}, ${formatTime(iso)} Uhr`;
-  if (mailing.status === "sent" && mailing.sentAt) {
-    return `am ${at(mailing.sentAt)}`;
-  }
-  if (mailing.status === "unknown" && mailing.requestedAt) {
-    return `Versand angefragt am ${at(mailing.requestedAt)}. Ob die Mail ankam, ist nicht bekannt.`;
-  }
-  return null;
-}
 
 function seriesMessage(series: LetterSeries): string {
   const parts: string[] = [];
@@ -232,16 +203,13 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                   </p>
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <StatusBadge
-                    label={STATUS_LABELS[mailing.status]}
-                    tone={STATUS_TONES[mailing.status]}
-                  />
-                  {statusDetail(mailing) ? (
+                  <StatusBadge {...mailBadge(mailing)} />
+                  {mailStatusDetail(mailing) ? (
                     <span className="text-sm text-gray-600">
-                      {statusDetail(mailing)}
+                      {mailStatusDetail(mailing)}
                     </span>
                   ) : null}
-                  {mailing.recipientEmail && mailing.status !== "queued" ? (
+                  {canSendMail(mailing) ? (
                     <Button
                       type="button"
                       variant="ghost"
@@ -262,7 +230,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
           </ul>
         </div>
       ) : (
-        <Loading fullPage={false} />
+        <Loading />
       )}
     </SectionCard>
   );

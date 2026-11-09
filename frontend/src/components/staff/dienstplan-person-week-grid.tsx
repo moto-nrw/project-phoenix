@@ -13,8 +13,11 @@ import {
   ClosingDayConfirmModal,
 } from "~/components/planning/closing-day-marker";
 import { Button } from "~/components/ui/button";
-import { PlanBlock } from "~/components/ui/plan-block";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { PlanBlock } from "~/components/ui/planning/plan-block";
+import {
+  PlanLegend,
+  type PlanLegendEntry,
+} from "~/components/ui/planning/plan-legend";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   formatColumnDate,
@@ -25,6 +28,8 @@ import {
   type StaffWeeklySummary,
 } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { StatusDot } from "~/components/ui/status-dot";
+import { ColorBar } from "~/components/ui/color-bar";
 
 // Wochenraster einer Person in Viertelstunden (#3818): Mo–Fr als Spalten, je
 // Viertelstunde eine Zeile, Schichten als farbige Blöcke nach Schichtart und
@@ -484,9 +489,9 @@ export function DienstplanPersonWeekGrid({
                         >
                           {label}
                           {isToday && (
-                            <span
-                              aria-label="heute"
-                              className="bg-moto-red ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle"
+                            <StatusDot
+                              className="bg-moto-red ml-1.5 align-middle"
+                              label="heute"
                             />
                           )}
                         </div>
@@ -610,15 +615,7 @@ export function DienstplanPersonWeekGrid({
               {sums.rows.map((row) => (
                 <div key={row.key} className="flex border-b border-gray-100">
                   <div className="sticky left-0 z-30 flex w-24 shrink-0 items-start gap-1.5 border-r border-gray-200 bg-gray-50 px-2 py-1 text-gray-700 sm:w-36">
-                    <span
-                      aria-hidden
-                      className={`mt-0.5 h-3 w-0.5 shrink-0 rounded-full ${
-                        row.color ? "" : "bg-gray-300"
-                      }`}
-                      style={
-                        row.color ? { backgroundColor: row.color } : undefined
-                      }
-                    />
+                    <ColorBar color={row.color} size="xs" className="mt-0.5" />
                     <span
                       className="line-clamp-2 hyphens-auto"
                       title={row.label}
@@ -742,7 +739,7 @@ function ShiftBlock({
       onPointerDown={(event) => event.stopPropagation()}
     >
       <PlanBlock
-        size={isShort ? "compact" : "default"}
+        size={isShort ? "flush" : "default"}
         status={shift.cancelled ? "cancelled" : "default"}
         timeRange={timeRange}
         label={label}
@@ -766,7 +763,7 @@ function ShiftBlock({
             </span>
           ) : undefined
         }
-        className={`flex h-full flex-col overflow-hidden ${isShort ? "justify-center py-0!" : "justify-start"}`}
+        className={`flex h-full flex-col overflow-hidden ${isShort ? "justify-center" : "justify-start"}`}
         interactive={onEdit !== undefined}
         onClick={onEdit}
         aria-label={ariaParts.join(", ")}

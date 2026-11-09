@@ -173,6 +173,9 @@ Migration `1.15.727` ergänzt ebenso `platform.realtime_notifications`
 Migration `1.15.733` ergänzt ebenso `active.payroll_wage_types` und
 `active.payroll_surcharge_rules` (eigene Lohnarten und Zuschläge, #4807)
 samt neuem FK-Fingerabdruck.
+Migration `1.15.758` ergänzt ebenso `platform.email_delivery_events` und
+`platform.email_suppressions` (Zustellereignisse und Sperrliste, #5932) samt
+neuem FK-Fingerabdruck.
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
 `platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md#ergänzung-aufbewahrung-der-abrechnungszählungen-3837-b-runde-2).

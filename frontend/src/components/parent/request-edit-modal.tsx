@@ -4,16 +4,17 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "~/components/ui/button";
-import { RequiredMark } from "~/components/ui/field-label";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { TimeField } from "~/components/ui/time-field";
+import { Textarea } from "~/components/ui/textarea";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   listParentRequestEvents,
   updateExcusedRequest,
@@ -181,8 +182,9 @@ export function RequestEditModal({
   onClose: () => void;
   onSaved: () => void;
 }>) {
-  const t = useTranslations("parentRequestEdit");
+  const t = useCareTermTranslations("parentRequestEdit");
   const tError = useTranslations("errorCatalog");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const [draft, setDraft] = useState<Draft>(() => initialDraft(request));
@@ -284,93 +286,81 @@ export function RequestEditModal({
         )}
         {request.type === "excused" && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("firstDay")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("firstDay")}
-                value={draft.from}
-                onChange={(next) =>
-                  set({ from: next, to: next > draft.to ? next : draft.to })
-                }
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("lastDay")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("lastDay")}
-                value={draft.to}
-                min={draft.from}
-                onChange={(next) => set({ to: next })}
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
+            <ISODatePicker
+              {...datePicker}
+              id="request-first-day"
+              label={t("firstDay")}
+              ariaLabel={t("firstDay")}
+              value={draft.from}
+              onChange={(next) =>
+                set({ from: next, to: next > draft.to ? next : draft.to })
+              }
+              calendarLayout="popover"
+              hideClearButton
+            />
+            <ISODatePicker
+              {...datePicker}
+              id="request-last-day"
+              label={t("lastDay")}
+              ariaLabel={t("lastDay")}
+              value={draft.to}
+              min={draft.from}
+              onChange={(next) => set({ to: next })}
+              calendarLayout="popover"
+              hideClearButton
+            />
           </div>
         )}
         {request.type === "pickup_change" && (
           <>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("day")}
-              </span>
-              <ISODatePicker
-                {...datePicker}
-                ariaLabel={t("day")}
-                value={draft.from}
-                onChange={(next) => set({ from: next, to: next })}
-                calendarLayout="popover"
-                hideClearButton
-              />
-            </label>
+            <ISODatePicker
+              {...datePicker}
+              id="request-day"
+              label={t("day")}
+              ariaLabel={t("day")}
+              value={draft.from}
+              onChange={(next) => set({ from: next, to: next })}
+              calendarLayout="popover"
+              hideClearButton
+            />
             <TimeField
               value={draft.time}
               onChange={(next) => set({ time: next })}
               label={t("pickupTime")}
               hint={t("timeFormatHint")}
               placeholder={t("timeExample")}
+              timePickerLabels={{
+                selectTime: tTimePicker("selectTime"),
+                hour: tTimePicker("hour"),
+                minute: tTimePicker("minute"),
+                minimum: (time) => tTimePicker("minimum", { time }),
+              }}
               required
             />
           </>
         )}
         {request.type === "master_data" ? (
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {request.label}
-            </span>
-            <Input
-              name="request-value"
-              aria-label={request.label}
-              autoComplete="off"
-              value={draft.text}
-              disabled={saving}
-              error={fieldError("request-value")}
-              onChange={(event) => set({ text: event.target.value })}
-            />
-          </label>
+          <Input
+            name="request-value"
+            label={request.label}
+            autoComplete="off"
+            value={draft.text}
+            disabled={saving}
+            error={fieldError("request-value")}
+            onChange={(event) => set({ text: event.target.value })}
+          />
         ) : (
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {t("reasonLabel")}
-              {reasonRequired && <RequiredMark />}
-            </span>
-            <textarea
-              name="request-reason"
-              aria-invalid={fieldError("request-reason") ? true : undefined}
-              value={draft.text}
-              onChange={(event) => set({ text: event.target.value })}
-              rows={3}
-              maxLength={2000}
-              className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
+          <Textarea
+            name="request-reason"
+            label={t("reasonLabel")}
+            aria-required={reasonRequired}
+            error={fieldError("request-reason")}
+            value={draft.text}
+            onChange={(event) => set({ text: event.target.value })}
+            rows={3}
+            maxLength={2000}
+            className="min-h-20 text-base"
+          />
         )}
       </div>
     </Modal>

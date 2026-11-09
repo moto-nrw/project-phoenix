@@ -11,7 +11,7 @@ import (
 
 // VerifyChallenge verifies a tenant-portal challenge.
 func (f *AccountMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, code string) (domain.VerifiedMFAChallenge, error) {
-	return f.VerifyChallengeForScope(ctx, challengeToken, code, domain.MFAChallengeScopeTenant)
+	return f.VerifyChallengeForScope(ctx, challengeToken, code, domain.PortalTenant.Name)
 }
 
 // VerifyChallengeForScope refuses a challenge started for another portal
@@ -37,7 +37,10 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 		return domain.VerifiedMFAChallenge{}, err
 	}
 	account, found, err := f.records.FindAccountIdentity(ctx, claims.AccountID)
-	if err != nil || !found {
+	if err != nil {
+		return domain.VerifiedMFAChallenge{}, f.verificationUnavailable(claims.AccountID, err)
+	}
+	if !found {
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
@@ -52,7 +55,10 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	active, activeFound, err := f.records.FindActiveChallengeForAccount(ctx, claims.ChallengeID, claims.AccountID)
-	if err != nil || !activeFound {
+	if err != nil {
+		return domain.VerifiedMFAChallenge{}, f.verificationUnavailable(claims.AccountID, err)
+	}
+	if !activeFound {
 		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "no active challenge")
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
@@ -92,7 +98,10 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 func (f *AccountMFAFlows) VerifyEnrollmentCode(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (domain.VerifiedMFAChallenge, error) {
 	ctx = schoollessMFAContext(ctx, expectedScope)
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
-	if err != nil || !found {
+	if err != nil {
+		return domain.VerifiedMFAChallenge{}, f.verificationUnavailable(accountID, err)
+	}
+	if !found {
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
@@ -101,7 +110,10 @@ func (f *AccountMFAFlows) VerifyEnrollmentCode(ctx context.Context, accountID, t
 	// The challenge and lockout policy use the explicit school. Audit events
 	// below use the authenticated school context.
 	active, activeFound, err := f.records.FindActiveChallengeInScope(ctx, accountID, tenantID, expectedScope)
-	if err != nil || !activeFound {
+	if err != nil {
+		return domain.VerifiedMFAChallenge{}, f.verificationUnavailable(accountID, err)
+	}
+	if !activeFound {
 		f.recordFailure(ctx, accountID, 0, "no active challenge")
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
@@ -195,4 +207,13 @@ func (f *AccountMFAFlows) verifyBoundChallengeCode(ctx context.Context, claims d
 	}
 
 	return nil
+}
+
+// verificationUnavailable reports a read the verification could not run: an
+// outage is no wrong code and counts toward no lockout.
+func (f *AccountMFAFlows) verificationUnavailable(accountID int64, err error) error {
+	f.logger.Warn("mfa verification read failed",
+		slog.Int64("account_id", accountID),
+		slog.String("error", err.Error()))
+	return identityaccess.ErrMFAStatusUnavailable
 }

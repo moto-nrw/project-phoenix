@@ -27,6 +27,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/settings/EnrollmentIntakeValues.CareFacilityTerm",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "modules/settings/EnrollmentIntakeValues.CareOfferingsEnabled",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -293,6 +298,11 @@
     {
       "decision": "0090",
       "id": "modules/settings/parentMessageRetentionValues.ParentMessageRetentionDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/settings/parentMessagingValues.CareFacilityTerm",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

@@ -47,10 +47,13 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 	identity, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	userContext := identity.Caller()
+	settings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 
 	cfg := owners.NewCalendarFacts(reposPeople.Staff, reposPeople.Student,
 		owners.NewCalendarGuardianDirectory(reposPeople.GuardianProfile, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-		reposPeople.StudentGuardian, reposParents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
+		reposParents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
+	cfg = owners.BindCalendarElternAppBookings(cfg, settings.Settings)
 	cfg = owners.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance.Reads, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	cfg = owners.BindCalendarCaller(cfg, userContext)
 	cfg.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
@@ -780,7 +783,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	queryCounter := testpkg.CaptureQueriesForContext(t, db)
 	calendar, err := service.AuthenticateStaffCalDAV(queryCounter.Context(testpkg.Ctx(t)), strings.ToUpper(account.Email), access.CalDAV.AppPassword)
 	require.NoError(t, err)
-	querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Measurement(queryCounter.Queries()))
 	require.NotEmpty(t, calendar.Items)
 	assert.Equal(t, testpkg.Tenant(t), calendar.TenantID)
 

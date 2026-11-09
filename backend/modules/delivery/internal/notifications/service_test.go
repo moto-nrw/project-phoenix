@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"regexp"
 	"strings"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +101,7 @@ func TestNotifyDefersDeliveryUntilCommit(t *testing.T) {
 
 	channel := &recordingChannel{name: "recording"}
 	svc := notifications.NewService(enabledSettings(true), nil, channel)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, commit := tenanttest.WithAfterCommitHooks(context.Background())
 
 	event := tenantEvent(41)
 	event.Data = map[string]string{"reminder_id": "123"}
@@ -134,8 +135,7 @@ func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("^" + regexp.QuoteMeta("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '41', true)") + "$").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
 	channel := &recordingChannel{name: "recording"}

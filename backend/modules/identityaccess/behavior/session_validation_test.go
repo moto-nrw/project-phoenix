@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
 // TestValidateSessionTokens drives the retained AuthService's session
@@ -29,8 +31,9 @@ func TestValidateSessionTokens(t *testing.T) {
 	require.NotNil(t, service, "the composed module validates session hand-offs")
 	signer, err := sessiontoken.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
 	require.NoError(t, err)
-	sessions, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
+	owner, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
+	sessions := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 	for _, portal := range []string{"tenant", "parent", "school", "platform", "caterer"} {
 		t.Run(portal, func(t *testing.T) {
@@ -39,6 +42,17 @@ func TestValidateSessionTokens(t *testing.T) {
 			scope := portal
 			tenantID := testpkg.Tenant(t)
 			accountID := account.ID
+			// Validation renews like the refresh, so each account holds what
+			// its portal's guard demands.
+			switch portal {
+			case "parent":
+				assignSchoolSystemRole(t, db, accountID, testpkg.Tenant(t), "guardian")
+			case "school":
+				assignSchoolSystemRole(t, db, accountID, testpkg.Tenant(t), "lehrkraft")
+			case "caterer":
+				acceptance, _ := acceptedCatererAccount(t, db, identityModule, testpkg.Tenant(t), "session-validation")
+				accountID = acceptance.AccountID
+			}
 			if portal == "tenant" {
 				scope = ""
 			}
@@ -51,21 +65,21 @@ func TestValidateSessionTokens(t *testing.T) {
 			if portal == "platform" {
 				operator := testpkg.CreateTestOperator(t, db)
 				accountID = operator.ID
-				stored, err := sessions.CreateOperatorSession(ctx, identityaccess.OperatorSession{
+				stored, err := sessions.CreateOperatorSession(ctx, ports.OperatorSession{
 					OperatorID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family,
 				})
 				require.NoError(t, err)
 				tokenID = stored.ID
 			} else {
-				stored, err := sessions.CreateAccountSession(ctx, identityaccess.AccountSession{
+				stored, err := sessions.CreateAccountSession(ctx, ports.AccountSession{
 					AccountID: accountID, TenantID: testpkg.Tenant(t), Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family, PortalScope: portal,
 				})
 				require.NoError(t, err)
 				tokenID = stored.ID
 			}
 			accessClaims := sessiontoken.AppClaims{ID: int(accountID), Sub: account.Email, Roles: []string{"user"}, Scope: scope, TenantID: tenantID, FamilyID: family}
-			refreshClaims := sessiontoken.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
-			access, refresh, err := signer.GenTokenPair(accessClaims, refreshClaims)
+			refreshClaims := tokentest.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
+			access, refresh, err := tokentest.GenTokenPair(signer, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			verified, err := service.ValidateSessionTokens(ctx, access, refresh, portal)
 			require.NoError(t, err)
@@ -86,13 +100,12 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.Error(t, err)
 			otherSigner, err := sessiontoken.NewTokenAuthWithDurations(testpkg.NewTestSigningSecret(), time.Minute, time.Hour)
 			require.NoError(t, err)
-			forged, _, err := otherSigner.GenTokenPair(accessClaims, refreshClaims)
+			forged, _, err := tokentest.GenTokenPair(otherSigner, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, forged, refresh, portal)
 			require.Error(t, err)
 			for _, flag := range []string{"mfa_pending", "mfa_enrollment_pending", "missing_expiry"} {
-				raw, err := sessiontoken.ParseStructToMap(accessClaims)
-				require.NoError(t, err)
+				raw := tokentest.AccessClaimMap(accessClaims)
 				raw["exp"] = time.Now().Add(time.Minute).Unix()
 				if flag == "missing_expiry" {
 					delete(raw, "exp")
@@ -105,26 +118,25 @@ func TestValidateSessionTokens(t *testing.T) {
 				require.Error(t, err, flag)
 			}
 			accessClaims.FamilyID = "another-family"
-			wrongFamily, _, err := signer.GenTokenPair(accessClaims, refreshClaims)
+			wrongFamily, _, err := tokentest.GenTokenPair(signer, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, wrongFamily, refresh, portal)
 			require.Error(t, err)
 			accessClaims.FamilyID = family
 			accessClaims.ExpiresAt = time.Now().Add(-time.Minute).Unix()
-			rawClaims, err := sessiontoken.ParseStructToMap(accessClaims)
-			require.NoError(t, err)
+			rawClaims := tokentest.AccessClaimMap(accessClaims)
 			_, expired, err := signer.JwtAuth.Encode(rawClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, expired, refresh, portal)
 			require.Error(t, err)
 			refreshClaims.ExpiresAt = time.Now().Add(-time.Minute).Unix()
-			expiredRefresh, err := signer.CreateRefreshJWT(refreshClaims)
+			expiredRefresh, err := tokentest.CreateRefreshJWT(signer, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access, expiredRefresh, portal)
 			require.Error(t, err)
 			refreshClaims.ExpiresAt = 0
 			refreshClaims.Token = "signed-but-unpersisted"
-			unknownRefresh, err := signer.CreateRefreshJWT(refreshClaims)
+			unknownRefresh, err := tokentest.CreateRefreshJWT(signer, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access, unknownRefresh, portal)
 			require.Error(t, err)

@@ -1,23 +1,22 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Pencil, MousePointer2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DetailDeleteButton } from "~/components/database/detail-delete-button";
-import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
 import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { roleEditSections } from "~/components/database/configs/roles.config";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -35,6 +34,10 @@ import {
   type Role,
 } from "@/lib/auth-helpers";
 import { rolesConcept } from "~/lib/concepts/roles";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { Loading } from "~/components/ui/loading";
 
 interface RolesMasterDetailProps {
   roles: Role[];
@@ -92,9 +95,7 @@ export function RolesMasterDetail({
       renderItem={renderItem}
       keyFor={keyForRole}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Rollen gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Rollen gefunden." />
       }
     />
   );
@@ -111,9 +112,12 @@ export function RolesMasterDetail({
       onPermissionsSaved={onPermissionsSaved}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Keine Rolle ausgewählt"
       description="Wähle links eine Rolle, um die Details zu sehen."
+      className="h-full justify-center"
     />
   );
 
@@ -267,7 +271,7 @@ function RoleStammdatenTab({
   const saveErrors = useApiFormError();
 
   if (loading) {
-    return <DetailLoadingSpinner label="Rollendaten werden geladen..." />;
+    return <Loading message="Rollendaten werden geladen..." />;
   }
 
   // Ohne Detail fehlen die Berechtigungen: keine „0 Berechtigungen“ zeigen.
@@ -297,19 +301,20 @@ function RoleStammdatenTab({
       <section className="moto-content-surface rounded-xl border p-4">
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-              Vorgegeben
-            </span>
+            <StatusBadge label="Vorgegeben" tone="gray" />
           ) : null}
           {!role.isSystem && !role.baseRole ? (
-            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2.5 py-1 text-xs font-medium">
-              Zuordnung fehlt
-            </span>
+            <StatusColorBadge
+              label="Zuordnung fehlt"
+              color={LOCATION_COLORS.WARNING}
+            />
           ) : null}
-          <span className="bg-moto-purple-soft text-moto-purple-strong rounded-full px-2.5 py-1 text-xs font-medium">
-            {role.permissions?.length ?? 0}{" "}
-            {role.permissions?.length === 1 ? "Berechtigung" : "Berechtigungen"}
-          </span>
+          <StatusBadge
+            label={`${role.permissions?.length ?? 0} ${
+              role.permissions?.length === 1 ? "Berechtigung" : "Berechtigungen"
+            }`}
+            tone="purple"
+          />
         </div>
       </section>
 

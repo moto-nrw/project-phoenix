@@ -136,11 +136,13 @@ function pollAnswerSummary(
 }
 
 /**
- * The type line above the title, only where the type is news: an Umfrage, an
+ * The type tag above the title, only where the type is news: an Umfrage, an
  * Einverständnis or a cancelled care day. The page is called "Elternbriefe", so "Elternbrief" on
  * every card only repeated it. "Wichtig" and "Erinnerung" describe the message
  * and sit with its other states in the last line; up here they stacked into
- * two or three mini-headings above the title on a phone (#3719).
+ * two or three mini-headings above the title on a phone (#3719). The tag is a
+ * small kit pill, not a capitalised kicker: outside a `SectionCard` the
+ * parents portal has no kicker (#5590).
  */
 function NewsCardType({
   item,
@@ -148,8 +150,8 @@ function NewsCardType({
   const t = useTranslations("parentDashboard");
   if (item.system_kind === "care_cancellation") {
     return (
-      <span className="text-moto-red-strong mb-1 block text-xs font-semibold tracking-wide uppercase">
-        {t("newsCareCancellation")}
+      <span className="mb-1 block">
+        <StatusBadge size="xs" tone="red" label={t("newsCareCancellation")} />
       </span>
     );
   }
@@ -161,8 +163,8 @@ function NewsCardType({
         : null;
   if (type === null) return null;
   return (
-    <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-      {type}
+    <span className="mb-1 block">
+      <StatusBadge size="xs" tone="gray" label={type} />
     </span>
   );
 }
@@ -628,26 +630,26 @@ function PollChildCard({
   long: boolean;
 }>) {
   const status = usePollChildStatus(poll, child);
+  const disabled = poll.closed || poll.saving;
   return (
-    <fieldset
-      disabled={poll.closed || poll.saving}
-      className="moto-content-surface rounded-2xl border p-4 disabled:opacity-60"
-    >
-      <legend className="mb-3 w-full">
-        <span className="flex items-center justify-between gap-3">
-          <span className="min-w-0 truncate text-base font-semibold text-gray-900">
-            {child.first_name} {child.last_name}
+    <SectionCard className={disabled ? "opacity-60" : ""}>
+      <fieldset disabled={disabled}>
+        <legend className="mb-3 w-full">
+          <span className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-base font-semibold text-gray-900">
+              {child.first_name} {child.last_name}
+            </span>
+            <StatusBadge label={status.label} tone={status.tone} />
           </span>
-          <StatusBadge label={status.label} tone={status.tone} />
-        </span>
-      </legend>
-      {long && (
-        <p className="-mt-1 mb-3 text-sm text-gray-600">
-          <PollSelectionSummary poll={poll} child={child} />
-        </p>
-      )}
-      <PollOptionList poll={poll} child={child} compact={long} />
-    </fieldset>
+        </legend>
+        {long && (
+          <p className="-mt-1 mb-3 text-sm text-gray-600">
+            <PollSelectionSummary poll={poll} child={child} />
+          </p>
+        )}
+        <PollOptionList poll={poll} child={child} compact={long} />
+      </fieldset>
+    </SectionCard>
   );
 }
 
@@ -815,15 +817,7 @@ export function NewsCard({
     >
       <span className="relative shrink-0">
         <ConceptIconTile concept={concept} iconTone="blue" />
-        {outstanding && (
-          <>
-            <span
-              className="bg-moto-blue absolute top-0.5 right-0.5 size-2 rounded-full ring-2 ring-white"
-              aria-hidden="true"
-            />
-            <span className="sr-only">{t("newsOutstanding")}</span>
-          </>
-        )}
+        {outstanding && <span className="sr-only">{t("newsOutstanding")}</span>}
       </span>
       <span className="min-w-0 flex-1">
         <NewsCardType item={item} />
@@ -961,17 +955,26 @@ function NewsReminderNote({
 }: Readonly<{ sentAt: string; text?: string }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
+  const from = t("newsReminderFrom", {
+    date: formatBerlinDate(sentAt, locale),
+  });
+  // Ohne eigenen Wortlaut ist die Zeile „Erinnerung vom …“ selbst die Meldung.
   return (
-    <div className="bg-moto-blue-soft mt-4 rounded-xl px-4 py-3">
-      <p className="text-moto-blue-strong text-xs font-semibold tracking-wide uppercase">
-        {t("newsReminderFrom", { date: formatBerlinDate(sentAt, locale) })}
-      </p>
-      {text && (
-        <p className="mt-1 text-base leading-7 whitespace-pre-line text-gray-900">
-          <LinkifiedText text={text} />
-        </p>
-      )}
-    </div>
+    <Alert
+      type="info"
+      announce="off"
+      className="mt-4"
+      title={text ? from : undefined}
+      message={
+        text ? (
+          <p className="whitespace-pre-line">
+            <LinkifiedText text={text} />
+          </p>
+        ) : (
+          from
+        )
+      }
+    />
   );
 }
 
@@ -980,25 +983,24 @@ function NewsMessageSection({
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
-  const headingId = `news-message-${item.id}`;
-
   return (
-    <section
-      aria-labelledby={headingId}
-      className="moto-content-surface rounded-2xl border p-4"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h4 id={headingId} className="text-base font-semibold text-gray-950">
-          {isDeclarationItem(item)
-            ? t("newsDeclarationFrom", { school: senderLabel(item, t) })
-            : t("newsMessageFrom", { school: senderLabel(item, t) })}
-        </h4>
-        {item.published_at && (
+    <SectionCard
+      title={
+        isDeclarationItem(item)
+          ? t("newsDeclarationFrom", { school: senderLabel(item, t) })
+          : t("newsMessageFrom", { school: senderLabel(item, t) })
+      }
+      headingLevel={4}
+      namedRegion
+      action={
+        item.published_at ? (
           <time className="text-sm text-gray-500">
             {formatDate(item.published_at, false, locale)}
           </time>
-        )}
-      </div>
+        ) : undefined
+      }
+      bodyClassName=""
+    >
       {item.reminder_sent_at && (
         <NewsReminderNote
           sentAt={item.reminder_sent_at}
@@ -1033,7 +1035,7 @@ function NewsMessageSection({
           </span>
         </a>
       )}
-    </section>
+    </SectionCard>
   );
 }
 

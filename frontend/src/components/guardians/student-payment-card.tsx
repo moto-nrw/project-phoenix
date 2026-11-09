@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Eye, Landmark, Loader2 } from "lucide-react";
+import { Eye, Landmark } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -28,6 +28,7 @@ import {
   updateGuardianPayment,
 } from "~/lib/guardian-payment-api";
 import { createLogger } from "~/lib/logger";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "StudentPaymentCard" });
 
@@ -302,13 +303,9 @@ export function StudentPaymentCard({
         {editing ? (
           <div ref={editRef} className="max-w-sm space-y-3">
             <div>
-              <label
-                htmlFor="payment-payer"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Wer zahlt für dieses Kind?
-              </label>
               <CustomSelect
+                label="Wer zahlt für dieses Kind?"
+                hint="Zur Auswahl stehen die Erziehungsberechtigten dieses Kindes."
                 id="payment-payer"
                 name="guardian_id"
                 invalid={Boolean(editErrors.fieldError("guardian_id"))}
@@ -327,9 +324,6 @@ export function StudentPaymentCard({
                 disabled={isSaving}
                 testId="payment-payer-select"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Zur Auswahl stehen die Erziehungsberechtigten dieses Kindes.
-              </p>
             </div>
 
             {payerChanged ? (
@@ -404,7 +398,7 @@ export function StudentPaymentCard({
                 <DataField label="Kontoinhaber">
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2 text-gray-600">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      <SpinnerIcon className="h-4 w-4" />
                       Wird geladen…
                     </span>
                   ) : loadFailed ? (
@@ -417,7 +411,8 @@ export function StudentPaymentCard({
               {payer && (
                 <DataField label="IBAN" mono={Boolean(ibanMasked)} fullWidth>
                   {isLoading ? (
-                    <span className="font-sans text-gray-600">
+                    <span className="inline-flex items-center gap-2 font-sans text-gray-600">
+                      <SpinnerIcon className="h-4 w-4" />
                       Wird geladen…
                     </span>
                   ) : loadFailed ? (
@@ -442,10 +437,11 @@ export function StudentPaymentCard({
                   size="md"
                   variant="outline"
                   onClick={() => void handleReveal()}
-                  disabled={isRevealing}
+                  isLoading={isRevealing}
+                  loadingText="Wird geladen…"
                 >
                   <Eye className="mr-1.5 h-4 w-4" aria-hidden />
-                  {isRevealing ? "Wird geladen…" : "Anzeigen"}
+                  Anzeigen
                 </Button>
               </div>
             )}

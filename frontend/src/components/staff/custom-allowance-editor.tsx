@@ -5,13 +5,13 @@
 // Bauart 2): Tage mit Minus und Plus oder direkt eintippen, Begründung für das
 // Änderungsprotokoll, unten `EditActions`.
 
-import { Minus, Plus } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { NumberStepper } from "~/components/ui/number-stepper";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDayCount } from "~/lib/absence-helpers";
 import {
@@ -128,45 +128,23 @@ export function CustomAllowanceEditForm({
     >
       <FormErrorAlert message={formErrors.error} />
       <div>
-        <label
-          htmlFor={`allowance-days-${type.id}`}
-          className="mb-1 block text-sm font-medium text-gray-700"
-        >
+        <FieldLabel htmlFor={`allowance-days-${type.id}`}>
           Anspruch {year} in Tagen
-        </label>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => step(-1)}
-            disabled={saving || (parsed ?? 0) - 1 < used}
-            aria-label="Einen Tag weniger"
-          >
-            <Minus className="h-4 w-4" aria-hidden />
-          </Button>
-          <Input
-            id={`allowance-days-${type.id}`}
-            name="entitled_days"
-            inputMode="decimal"
-            controlSize="compact"
-            className="w-24 text-center tabular-nums"
-            value={days}
-            onChange={(event) => setDays(event.target.value)}
-            error={formErrors.fieldError("entitled_days")}
-            disabled={saving}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => step(1)}
-            disabled={saving || (parsed ?? 0) + 1 > MAX_DAYS}
-            aria-label="Einen Tag mehr"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-          </Button>
-        </div>
+        </FieldLabel>
+        <NumberStepper
+          id={`allowance-days-${type.id}`}
+          name="entitled_days"
+          inputMode="decimal"
+          value={days}
+          onChange={(event) => setDays(event.target.value)}
+          onStep={step}
+          canDecrement={(parsed ?? 0) - 1 >= used}
+          canIncrement={(parsed ?? 0) + 1 <= MAX_DAYS}
+          decrementLabel="Einen Tag weniger"
+          incrementLabel="Einen Tag mehr"
+          error={formErrors.fieldError("entitled_days")}
+          disabled={saving}
+        />
         <p className="mt-1 text-xs text-gray-500">
           Halbe Tage mit Komma, z. B. 1,5. Beim Start mit moto: die Tage
           eintragen, die noch übrig sind.

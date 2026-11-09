@@ -19,6 +19,18 @@ import (
 
 const TransactionalMailKind = "transactional_mail"
 
+// securityMailTypes are the mails someone waits for to get in: they go before
+// other mail, and the suppression list never holds them back (#5932).
+var securityMailTypes = map[string]bool{
+	"mfa_email_code":               true,
+	"operator_mfa_email_code":      true,
+	"password_reset":               true,
+	"invitation":                   true,
+	"operator_invitation":          true,
+	"traeger_invitation":           true,
+	"operator_email_change_verify": true,
+}
+
 // DurableMail is a rendered feature snapshot, persisted with its triggering
 // write. TenantID is absent for global identity flows, never a made-up school.
 type DurableMail struct {
@@ -72,7 +84,7 @@ func (o OutboxEnqueuer) EnqueueMailIntent(ctx context.Context, mail DurableMail)
 	intent := deliveryContract.EmailIntent{
 		TenantID: mail.TenantID, Template: TransactionalMailKind, IdempotencyKey: mail.IdempotencyKey,
 		Recipient: deliveryContract.EmailRecipient{Name: mail.Message.To.Name, Address: mail.Message.To.Address},
-		Payload:   payload,
+		Payload:   payload, Security: securityMailTypes[mail.Type],
 	}
 	if mail.ReferenceID > 0 {
 		intent.Related = deliveryContract.RelatedEntity{Type: mail.Type, ID: mail.ReferenceID}
@@ -159,7 +171,7 @@ func (r TransactionalMailRenderer) RecordDelivery(ctx context.Context, intent *d
 	if err != nil {
 		return err
 	}
-	result := email.DeliveryResult{Attempt: intent.Attempts + 1, MaxAttempt: payload.MaxAttempts, SentAt: time.Now(), Err: sendErr, Final: sendErr == nil || intent.Attempts+1 >= payload.MaxAttempts}
+	result := email.DeliveryResult{Attempt: intent.Attempts + 1, MaxAttempt: payload.MaxAttempts, SentAt: time.Now(), Err: sendErr, Final: sendErr == nil || intent.Attempts+1 >= payload.MaxAttempts || errors.Is(sendErr, email.ErrPermanentRejection)}
 	result.Status = email.DeliveryStatusSent
 	if sendErr != nil {
 		result.Status = email.DeliveryStatusFailed

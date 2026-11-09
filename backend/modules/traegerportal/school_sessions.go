@@ -63,7 +63,7 @@ func (rs *Resource) startSchoolSession(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := rs.schoolSessions.StartTraegerSchoolSession(r.Context(), identityaccess.TraegerSchoolSessionRequest{
 		AccountID: int64(claims.ID), OrganizationID: claims.OrgID, TraegerFamilyID: claims.FamilyID, SchoolID: req.SchoolID,
-		IPAddress: common.GetClientIPString(r), UserAgent: r.Header.Get(headerUserAgent),
+		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
 		common.RenderError(w, r, renderSchoolSessionError(err))

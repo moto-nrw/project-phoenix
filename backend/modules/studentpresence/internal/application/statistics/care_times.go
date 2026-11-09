@@ -22,7 +22,7 @@ import (
 
 var errCareTimesNotConfigured = errors.New("statistics: care time sources are not configured")
 
-func (s *service) StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date) (*studentpresence.StudentCareTimes, error) {
+func (s *service) StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date, actor studentpresence.StatisticsActor) (*studentpresence.StudentCareTimes, error) {
 	today := calendar.DateFromTime(s.cfg.Now())
 	if err := s.validate(studentpresence.StatisticsFilters{From: from, To: to}, today); err != nil {
 		return nil, err
@@ -36,6 +36,10 @@ func (s *service) StudentCareTimes(ctx context.Context, studentID int64, from, t
 		return nil, err
 	}
 	result := compared[studentID]
+	scope := careTimeAccessScope(studentpresence.CareTimeFilters{From: from, To: to})
+	if err := s.recordStudentAccess(ctx, scope, actor, studentID); err != nil {
+		return nil, err
+	}
 	return &studentpresence.StudentCareTimes{
 		StudentID: studentID, From: from, To: to, DataFrom: dataFrom,
 		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes,
@@ -87,7 +91,10 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 		return nil, err
 	}
 	rows := make([]studentpresence.CareTimeOverrunRow, 0)
+	comparedDays, uncomparedDays := 0, 0
 	for _, student := range students {
+		done, open := comparedDayCounts(compared[student.ID].days)
+		comparedDays, uncomparedDays = comparedDays+done, uncomparedDays+open
 		summary := compared[student.ID].summary
 		if summary.OverrunCount() == 0 {
 			continue
@@ -108,8 +115,28 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 	})
 	return &studentpresence.CareTimeOverruns{
 		From: filters.From, To: filters.To, DataFrom: dataFrom,
-		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes, Students: rows,
+		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes, ComparedDays: comparedDays, UncomparedDays: uncomparedDays, Students: rows,
 	}, nil
+}
+
+// comparedDayCounts splits the days with a check-in into those fully
+// compared with a booking and those that were not: no plan on file, no
+// check-out yet, or a booked day whose end is unknown (a module without an
+// end time). Such a day stays incomplete even when an early arrival already
+// makes it an overrun: its later minutes are unknown.
+func comparedDayCounts(days []studentpresence.CareTimeDay) (compared, uncompared int) {
+	for _, day := range days {
+		switch {
+		case day.ActualStart == nil:
+			continue
+		case day.ActualEnd == nil, day.Kind == studentpresence.CareTimeDayNoPlan,
+			day.Kind != studentpresence.CareTimeDayUnbooked && day.PlannedEnd == nil:
+			uncompared++
+		default:
+			compared++
+		}
+	}
+	return compared, uncompared
 }
 
 func enrolledStudents(students []*ports.StatisticsStudent) []*ports.StatisticsStudent {
@@ -146,9 +173,12 @@ type comparedStudent struct {
 // whole population.
 type careTimeInputs struct {
 	careDays map[calendar.Date]bool
-	planned  map[int64]map[calendar.Date]studentpresence.PlannedCareDay
-	spans    map[dayKey]attendanceSpan
-	status   map[dayKey]string
+	// vacationOnly are care weekdays only a holiday period excludes; on them
+	// a holiday booking keeps the day a care day (#5994).
+	vacationOnly map[calendar.Date]bool
+	planned      map[int64]map[calendar.Date]studentpresence.PlannedCareDay
+	spans        map[dayKey]attendanceSpan
+	status       map[dayKey]string
 }
 
 // attendanceSpan is the Ist of one child-day: the first check-in and the last
@@ -164,6 +194,13 @@ type attendanceSpan struct {
 // compareCareTimes compares every child-day from the later of from and the
 // retention cutoff; it returns that first compared day.
 func (s *service) compareCareTimes(ctx context.Context, students []*ports.StatisticsStudent, from, to, today calendar.Date) (map[int64]comparedStudent, calendar.Date, error) {
+	if s.cfg.Retention != nil {
+		prefetched, err := s.cfg.Retention.PrefetchCareTimeSettings(ctx)
+		if err != nil {
+			return nil, calendar.Date(""), fmt.Errorf("prefetch care time settings: %w", err)
+		}
+		ctx = prefetched
+	}
 	dataFrom, err := s.careTimeDataFrom(ctx, from, today)
 	if err != nil {
 		return nil, calendar.Date(""), err
@@ -194,7 +231,9 @@ func compareStudentDays(student *ports.StatisticsStudent, inputs careTimeInputs,
 		if span, ok := inputs.spans[key]; ok {
 			attended = &span
 		}
-		day, listed := classifyCareTimeDay(date, inputs.planned[student.ID][date], attended, inputs.status[key], inputs.careDays[date])
+		planned := inputs.planned[student.ID][date]
+		careDay := inputs.careDays[date] || planned.Source == studentpresence.PlannedCareSourceHoliday && inputs.vacationOnly[date]
+		day, listed := classifyCareTimeDay(date, planned, attended, inputs.status[key], careDay)
 		// Today is not over: a child who has not checked in yet may still come.
 		if !listed || (date == today && day.Kind == studentpresence.CareTimeDayAbsent) {
 			continue
@@ -231,7 +270,7 @@ func (s *service) loadCareTimeInputs(ctx context.Context, students []*ports.Stat
 	}
 	var inputs careTimeInputs
 	var err error
-	if inputs.careDays, _, err = s.careDays(ctx, from, to); err != nil {
+	if inputs.careDays, inputs.vacationOnly, _, err = s.careCalendar(ctx, from, to); err != nil {
 		return careTimeInputs{}, err
 	}
 	if inputs.planned, err = s.cfg.PlannedCareDays.PlannedCareDays(ctx, ids, from, to); err != nil {
@@ -331,6 +370,9 @@ func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCare
 		}
 		day.ActualMinutes = spanMinutes(day.ActualStart, day.ActualEnd)
 	}
+	if !planned.NoPlan {
+		day.PlannedSource = planned.Source
+	}
 	switch {
 	case planned.NoPlan, planned.Expected && planned.Arrival == nil && planned.Pickup == nil && present:
 		// Nothing to compare against: no plan at all, or a booking that
@@ -375,6 +417,8 @@ func classifyAttendedBookedDay(day *studentpresence.CareTimeDay) {
 		day.Kind = studentpresence.CareTimeDayOverrun
 	case day.ActualEnd == nil:
 		day.Kind = studentpresence.CareTimeDayOpen
+	case day.PlannedEnd == nil:
+		day.Kind = studentpresence.CareTimeDayEndUnknown
 	default:
 		day.Kind = studentpresence.CareTimeDayWithinPlan
 	}

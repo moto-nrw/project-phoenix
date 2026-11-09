@@ -3,7 +3,7 @@
 // POST /api/timetable/templates/{id}/offering-connection
 //   „Mit Angebot verbinden“ (#5103): every period of the series from
 //   effective_date on takes its children from the offering.
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const POST = proxyPost(

@@ -1,5 +1,10 @@
 "use client";
 
+import { phaseHasPublicForm } from "~/lib/enrollment-phase-rules";
+import {
+  countChildStatuses,
+  isOpenChangeRequestStatus,
+} from "~/lib/enrollment-status";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -17,10 +22,12 @@ import {
 import {
   type AdminEnrollmentChangeRequest,
   type AdminRequestSummary,
-  type ChildStatus,
   listAdminEnrollmentChangeRequests,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { listCareOfferings } from "~/lib/care-offering-api";
 import {
@@ -42,13 +49,14 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { ButtonLink } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { ProgressBar } from "~/components/ui/progress-bar";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
@@ -224,10 +232,8 @@ export function AdminEnrollmentsList({
       requests: allRequests.length,
       openChangeRequests: changeRequestsFailed
         ? null
-        : changeRequests.filter(
-            (request) =>
-              request.status === "pending_review" ||
-              request.status === "needs_parent_response",
+        : changeRequests.filter((request) =>
+            isOpenChangeRequestStatus(request.status),
           ).length,
     });
   }, [
@@ -311,23 +317,13 @@ function ChangeRequestsOverview({
   const openCount = pending.length + waitingForParent.length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex gap-3">
-          <ConceptIconTile
-            concept={parentConversationsConcept}
-            size="section"
-          />
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Änderungsanfragen
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Familien können nach einer Entscheidung Korrekturen einreichen.
-              Offene Anfragen prüfen Sie gesammelt im Anfragen-Modul.
-            </p>
-          </div>
-        </div>
+    <SectionCard
+      title="Änderungsanfragen"
+      description="Familien können nach einer Entscheidung Korrekturen einreichen. Offene Anfragen prüfen Sie gesammelt im Anfragen-Modul."
+      leading={
+        <ConceptIconTile concept={parentConversationsConcept} size="section" />
+      }
+      action={
         <ButtonLink
           href={tenantPath("/anfragen")}
           variant="primary"
@@ -337,17 +333,19 @@ function ChangeRequestsOverview({
           Anfragen prüfen
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </ButtonLink>
-      </div>
+      }
+    >
       {failed ? (
-        <LoadErrorAlert error={error} className="mt-4" />
+        <LoadErrorAlert error={error} />
       ) : (
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile label="Offen" value={pending.length} />
-          <EnrollmentStatTile
+        <div className="grid gap-2 sm:grid-cols-3">
+          <StatCard variant="inline" label="Offen" value={pending.length} />
+          <StatCard
+            variant="inline"
             label="Rückfragen"
             value={waitingForParent.length}
           />
-          <EnrollmentStatTile label="Gesamt" value={requests.length} />
+          <StatCard variant="inline" label="Gesamt" value={requests.length} />
         </div>
       )}
       {!failed && openCount === 0 ? (
@@ -358,7 +356,7 @@ function ChangeRequestsOverview({
           description="Aktuell wartet keine Änderungsanfrage auf Bearbeitung."
         />
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -379,12 +377,6 @@ function readEnrollmentEnabled(
   return null;
 }
 
-const OPEN_STATUSES = new Set<ChildStatus>([
-  "submitted",
-  "under_review",
-  "pending_admin_review",
-]);
-
 function EnrollmentPhaseOverview({
   phases,
   requests,
@@ -397,24 +389,17 @@ function EnrollmentPhaseOverview({
   tenantPath: (path: string) => string;
 }>) {
   const phaseStats = useMemo(() => {
-    const stats = new Map<
-      string,
-      { total: number; open: number; approved: number; rejected: number }
-    >();
-    for (const phase of phases) {
-      stats.set(phase.id, { total: 0, open: 0, approved: 0, rejected: 0 });
-    }
+    const childrenByPhase = new Map<string, AdminRequestSummary["children"]>();
+    for (const phase of phases) childrenByPhase.set(phase.id, []);
     for (const request of requests) {
-      const entry = stats.get(request.phase_id);
-      if (!entry) continue;
-      for (const child of request.children) {
-        entry.total += 1;
-        if (OPEN_STATUSES.has(child.status)) entry.open += 1;
-        if (child.status === "approved") entry.approved += 1;
-        if (child.status === "rejected") entry.rejected += 1;
-      }
+      childrenByPhase.get(request.phase_id)?.push(...request.children);
     }
-    return stats;
+    return new Map(
+      [...childrenByPhase].map(([phaseId, children]) => [
+        phaseId,
+        countChildStatuses(children),
+      ]),
+    );
   }, [phases, requests]);
 
   const sortedPhases = useMemo(
@@ -428,7 +413,7 @@ function EnrollmentPhaseOverview({
 
   if (phases.length === 0) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+      <SectionCard>
         {/* Leerzustand als EmptyState statt als loser Textblock mit Button. */}
         <EmptyState
           title="Noch keine Anmeldephase"
@@ -444,26 +429,17 @@ function EnrollmentPhaseOverview({
             </ButtonLink>
           }
         />
-      </section>
+      </SectionCard>
     );
   }
 
   return (
-    <section
+    <SectionCard
       id="enrollment-phase-overview"
-      className="moto-content-surface rounded-2xl border p-4 sm:p-6"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">
-            Anmeldephasen und Eingänge
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Wählen Sie eine Phase aus, um die eingegangenen Anmeldungen zu
-            prüfen und zu bearbeiten.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      title="Anmeldephasen und Eingänge"
+      description="Wählen Sie eine Phase aus, um die eingegangenen Anmeldungen zu prüfen und zu bearbeiten."
+      actions={
+        <>
           <ButtonLink
             href={tenantPath("/anmeldung")}
             target="_blank"
@@ -483,10 +459,10 @@ function EnrollmentPhaseOverview({
           >
             Anmeldephasen verwalten
           </ButtonLink>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        </>
+      }
+    >
+      <div className="grid gap-3 lg:grid-cols-2">
         {sortedPhases.map((phase) => {
           const stats = phaseStats.get(phase.id) ?? {
             total: 0,
@@ -495,10 +471,7 @@ function EnrollmentPhaseOverview({
             rejected: 0,
           };
           return (
-            <article
-              key={phase.id}
-              className="moto-content-surface rounded-2xl border p-4"
-            >
+            <InsetPanel key={phase.id} tone="white" padding="md">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -526,16 +499,24 @@ function EnrollmentPhaseOverview({
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
-                <EnrollmentStatTile label="Gesamt" value={stats.total} />
-                <EnrollmentStatTile label="Offen" value={stats.open} />
-                <EnrollmentStatTile label="Bestätigt" value={stats.approved} />
-                <EnrollmentStatTile label="Abgelehnt" value={stats.rejected} />
+                <StatCard variant="inline" label="Gesamt" value={stats.total} />
+                <StatCard variant="inline" label="Offen" value={stats.open} />
+                <StatCard
+                  variant="inline"
+                  label="Bestätigt"
+                  value={stats.approved}
+                />
+                <StatCard
+                  variant="inline"
+                  label="Abgelehnt"
+                  value={stats.rejected}
+                />
               </div>
-            </article>
+            </InsetPanel>
           );
         })}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -551,20 +532,23 @@ function PhasePublicLinkActions({
   enrollmentsHref: string;
 }>) {
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
+  const publicForm = phaseHasPublicForm(phase);
 
   return (
     <>
-      <ButtonLink
-        href={formHref}
-        target="_blank"
-        rel="noreferrer"
-        variant="outline"
-        size="md"
-        className="inline-flex items-center justify-center gap-1.5"
-      >
-        Formular ansehen
-        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </ButtonLink>
+      {publicForm ? (
+        <ButtonLink
+          href={formHref}
+          target="_blank"
+          rel="noreferrer"
+          variant="outline"
+          size="md"
+          className="inline-flex items-center justify-center gap-1.5"
+        >
+          Formular ansehen
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </ButtonLink>
+      ) : null}
       <ButtonLink
         href={enrollmentsHref}
         variant="primary"
@@ -573,7 +557,7 @@ function PhasePublicLinkActions({
       >
         Anmeldungen ansehen
       </ButtonLink>
-      {phaseUrl ? (
+      {publicForm && phaseUrl ? (
         <PublicLinkCopyButton
           url={phaseUrl}
           componentId={`AdminEnrollmentsList:${phase.id}`}
@@ -723,7 +707,7 @@ function EnrollmentSetupGuide({
   const contentExpanded = !setupComplete || expanded;
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       {setupComplete && (
         <button
           type="button"
@@ -732,10 +716,6 @@ function EnrollmentSetupGuide({
           className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <span className="flex min-w-0 items-center gap-3.5">
-            <span
-              className="bg-moto-green h-2.5 w-2.5 shrink-0 rounded-full"
-              aria-hidden="true"
-            />
             <span className="min-w-0">
               <span className="block text-base font-semibold text-gray-900">
                 Online-Anmeldung eingerichtet
@@ -783,15 +763,17 @@ function EnrollmentSetupGuide({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <StatusPill
+                    <StatusBadge
+                      compact
                       label={
                         readyForPreview ? "Eingerichtet" : "In Vorbereitung"
                       }
-                      tone={readyForPreview ? "success" : "neutral"}
+                      tone={readyForPreview ? "green" : "gray"}
                     />
-                    <StatusPill
+                    <StatusBadge
+                      compact
                       label={`${requestCount} Anmeldungen`}
-                      tone={requestCount > 0 ? "info" : "neutral"}
+                      tone={requestCount > 0 ? "blue" : "gray"}
                     />
                   </div>
                 </div>
@@ -802,12 +784,14 @@ function EnrollmentSetupGuide({
                     </span>
                     <span>{progressPercent}%</span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full bg-gray-900 transition-[width]"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={completedSteps}
+                    max={steps.length}
+                    label={`${completedSteps} von ${steps.length} Schritten erledigt`}
+                    tone="dark"
+                    size="sm"
+                    className="mt-2"
+                  />
                 </div>
               </div>
 
@@ -898,7 +882,7 @@ function EnrollmentSetupGuide({
                   </ButtonLink>
                 ) : null}
 
-                <div className="moto-content-surface rounded-2xl border p-3">
+                <InsetPanel tone="white">
                   <p className="text-xs font-semibold text-gray-900">
                     Prozessstatus
                   </p>
@@ -912,14 +896,19 @@ function EnrollmentSetupGuide({
                         <span className="min-w-0 truncate text-gray-700">
                           {step.title}
                         </span>
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${getStepDotClass(step.status)}`}
-                          aria-hidden="true"
-                        />
+                        {isStepComplete(step.status) && (
+                          <>
+                            <Check
+                              className="text-moto-green-strong h-4 w-4 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span className="sr-only">Erledigt</span>
+                          </>
+                        )}
                       </NavigationLink>
                     ))}
                   </div>
-                </div>
+                </InsetPanel>
 
                 <div className="text-xs leading-relaxed text-gray-500">
                   Für den Elternlink sind Aktivierung, Anmeldephase und
@@ -932,7 +921,7 @@ function EnrollmentSetupGuide({
           </div>
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -947,33 +936,6 @@ function getStepIconClass(status: SetupStepStatus) {
   return "border-gray-200 bg-white text-gray-500";
 }
 
-function getStepDotClass(status: SetupStepStatus) {
-  if (isStepComplete(status)) return "bg-moto-green";
-  return "bg-gray-300";
-}
-
-function StatusPill({
-  label,
-  tone,
-}: Readonly<{
-  label: string;
-  tone: "success" | "info" | "neutral";
-}>) {
-  const className =
-    tone === "success"
-      ? "bg-moto-green/15 text-moto-green-strong"
-      : tone === "info"
-        ? "bg-moto-blue/10 text-moto-blue-hover"
-        : "bg-gray-100 text-gray-600";
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
-    >
-      {label}
-    </span>
-  );
-}
-
 function StepMeta({
   label,
   status,
@@ -986,12 +948,8 @@ function StepMeta({
         : "text-gray-500";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${className}`}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${getStepDotClass(status)}`}
-        aria-hidden="true"
-      />
       {label}
     </span>
   );

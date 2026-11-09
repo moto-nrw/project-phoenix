@@ -1,16 +1,13 @@
-import { backendResponseError } from "~/lib/api-response-error.server";
+import { apiDelete } from "~/lib/api-helpers.server";
 import { revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
 import {
   createFileUploadHandler,
   FileValidationError,
+  postForm,
 } from "~/lib/file-upload-wrapper.server";
-import {
-  createDeleteHandler,
-  createGetHandler,
-} from "~/lib/route-wrapper.server";
+import { createDeleteHandler, proxyGet } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
-import { uncachedAuth } from "~/server/auth";
 
 const logger = createLogger({ component: "LoginImageRoute" });
 
@@ -64,24 +61,6 @@ function revalidateTenantCache(request: NextRequest) {
   });
 }
 
-/** Fetch with 401 retry — refreshes the NextAuth session token once on backend 401. */
-async function fetchWithRetry(
-  token: string,
-  doFetch: (authToken: string) => Promise<Response>,
-): Promise<Response> {
-  let response = await doFetch(token);
-
-  if (response.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      response = await doFetch(refreshed.user.token);
-    }
-  }
-
-  return response;
-}
-
-// POST handler for login image upload
 export const POST = createFileUploadHandler<LoginImageResponse>(
   async (request: NextRequest, formData: FormData, token: string) => {
     const file = formData.get("login_image");
@@ -92,26 +71,15 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
         "files.file_missing",
       );
     }
-
-    const validatedFormData = new FormData();
-    validatedFormData.append("login_image", file);
-
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/api/settings/login-image`;
-    const response = await fetchWithRetry(token, (t) =>
-      fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${t}` },
-        body: validatedFormData,
-      }),
+    const forwarded = new FormData();
+    forwarded.append("login_image", file);
+    const data = await postForm<LoginImageResponse>(
+      request,
+      "/api/settings/login-image",
+      token,
+      forwarded,
     );
-
-    if (!response.ok) throw await backendResponseError(response);
-
-    const data = ((await response.json()) as { data: LoginImageResponse }).data;
-
     revalidateTenantCache(request);
-
     return data;
   },
   {
@@ -121,46 +89,12 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
   },
 );
 
-// DELETE handler for removing login image
 export const DELETE = createDeleteHandler(
   async (request: NextRequest, token: string) => {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/api/settings/login-image`;
-    const response = await fetchWithRetry(token, (t) =>
-      fetch(url, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${t}` },
-      }),
-    );
-
-    if (!response.ok) throw await backendResponseError(response);
-
+    await apiDelete("/api/settings/login-image", token);
     revalidateTenantCache(request);
-
     return null;
   },
 );
 
-// GET handler for fetching current login image URL
-export const GET = createGetHandler(
-  async (_request: NextRequest, token: string) => {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/api/settings/login-image`;
-    const response = await fetchWithRetry(token, (t) =>
-      fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${t}`,
-          "Content-Type": "application/json",
-        },
-      }),
-    );
-
-    if (!response.ok) throw await backendResponseError(response);
-
-    const responseData = (await response.json()) as {
-      data: { login_image_url: string | null; can_edit: boolean };
-    };
-    return responseData.data;
-  },
-);
+export const GET = proxyGet("/api/settings/login-image");

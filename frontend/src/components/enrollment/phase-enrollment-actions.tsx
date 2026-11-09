@@ -12,14 +12,19 @@ import {
   createLateInvite,
   createManualApprovedEnrollment,
   fetchManualEnrollmentBootstrap,
+  existingChildChoiceFields,
+  type AdminExistingChildCandidate,
+  type ExistingChildChoice,
 } from "~/lib/enrollment-admin-api";
 import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -33,18 +38,27 @@ import {
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
-  SlideOverCloseButton,
 } from "~/components/ui/slide-over";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
-  EnrollmentForm,
+  prefetchedDataFromBootstrap,
   type EnrollmentFormPrefetchedData,
-} from "~/components/enrollment/enrollment-form";
+} from "~/components/enrollment/enrollment-form-config";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import {
+  existingChildChoiceDescription,
+  existingChildChoiceOptions,
+  renewedChildNameOf,
+  sendWithExistingChildChoice,
+  type ExistingChildChoiceSubject,
+} from "~/components/enrollment/existing-child-choice";
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { createLogger } from "~/lib/logger";
+import { withLateInviteQuery } from "~/lib/enrollment-http";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "PhaseEnrollmentActions" });
 
@@ -91,7 +105,7 @@ export function LateInviteModal({
         guardian_email: guardianEmail.trim(),
         reason: reason.trim() || undefined,
       });
-      setGeneratedUrl(buildLateInviteUrl(phaseUrl, result.token));
+      setGeneratedUrl(withLateInviteQuery(phaseUrl, result.token));
     } catch (err) {
       logger.warn("late_invite_create_failed", {
         error: err instanceof Error ? err.message : "unknown",
@@ -142,26 +156,28 @@ export function LateInviteModal({
         />
 
         {generatedUrl ? (
-          <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-            <p className="text-moto-green-strong text-sm font-medium">
-              Link wurde erstellt.
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  aria-label="Erstellter Nachzügler-Link"
-                  readOnly
-                  value={generatedUrl}
-                  controlSize="compact"
+          <Alert
+            type="success"
+            message="Link wurde erstellt."
+            actionLayout="stacked"
+            action={
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    aria-label="Erstellter Nachzügler-Link"
+                    readOnly
+                    value={generatedUrl}
+                    controlSize="compact"
+                  />
+                </div>
+                <PublicLinkCopyButton
+                  url={generatedUrl}
+                  componentId={`LateInvite:${phase.id}:${generatedUrl}`}
+                  label="Nachzügler-Link kopieren"
                 />
               </div>
-              <PublicLinkCopyButton
-                url={generatedUrl}
-                componentId={`LateInvite:${phase.id}:${generatedUrl}`}
-                label="Nachzügler-Link kopieren"
-              />
-            </div>
-          </div>
+            }
+          />
         ) : null}
 
         <div className="flex justify-end gap-2 pt-2">
@@ -205,6 +221,16 @@ export function ManualApprovedEnrollmentModal({
     useState(false);
   const [sendNotification, setSendNotification] = useState(false);
   const [statusUrl, setStatusUrl] = useState("");
+  // Whether the saved enrollment renewed an enrolled child (#6148).
+  const [renewedChildName, setRenewedChildName] = useState<string | null>(null);
+  // The open question „Ist das Kind schon angemeldet?“ and the answer the
+  // waiting submission resumes with.
+  const [existingChildQuestion, setExistingChildQuestion] = useState<{
+    subject: ExistingChildChoiceSubject;
+    answer: (choice: ExistingChildChoice | null) => void;
+  } | null>(null);
+  // True from sending until the answer is in, the question included.
+  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const loadError = useApiLoadError();
@@ -227,6 +253,7 @@ export function ManualApprovedEnrollmentModal({
     setExternalConsentConfirmed(false);
     setSendNotification(false);
     setStatusUrl("");
+    setRenewedChildName(null);
     clearLoadError();
     clearChecks();
     setLoading(true);
@@ -291,14 +318,43 @@ export function ManualApprovedEnrollmentModal({
       return null;
     }
     checks.clear();
-    const result = await createManualApprovedEnrollment(phase.id, {
-      ...payload,
-      external_consent_confirmed: true,
-      reason: trimmedReason,
-      send_notification: sendNotification,
-    });
-    setStatusUrl(result.status_url);
-    return result;
+    setRenewedChildName(null);
+    const child = payload.children[0];
+    let renewalCandidates: AdminExistingChildCandidate[] = [];
+    setSending(true);
+    const result = await sendWithExistingChildChoice(
+      (choice) =>
+        createManualApprovedEnrollment(phase.id, {
+          ...payload,
+          external_consent_confirmed: true,
+          reason: trimmedReason,
+          send_notification: sendNotification,
+          ...existingChildChoiceFields(choice),
+        }).then((created) => ({ created, choice })),
+      // The form keeps its send button busy until the office answers.
+      (candidates) =>
+        new Promise<ExistingChildChoice | null>((resolve) => {
+          renewalCandidates = candidates;
+          setExistingChildQuestion({
+            subject: {
+              first_name: child?.first_name ?? "",
+              last_name: child?.last_name ?? "",
+              possible_existing_children: candidates,
+            },
+            answer: resolve,
+          });
+        }),
+    ).finally(() => setSending(false));
+    if (!result) return null;
+    // The renewed child is named as the school knows it, not as typed.
+    setRenewedChildName(renewedChildNameOf(result.choice, renewalCandidates));
+    setStatusUrl(result.created.status_url);
+    return result.created;
+  };
+
+  const answerExistingChildQuestion = (choice: ExistingChildChoice | null) => {
+    existingChildQuestion?.answer(choice);
+    setExistingChildQuestion(null);
   };
 
   return (
@@ -307,15 +363,14 @@ export function ManualApprovedEnrollmentModal({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      // The question dialog sits outside the panel: neither a click on it
+      // nor the focus it hands back may close the form whose submission
+      // waits for the answer.
+      isDismissDisabled={sending}
     >
-      <SlideOverContent widthClass="sm:w-[900px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              Kind manuell über Anmeldung freigeben
-            </SlideOverTitle>
-          </div>
-          <SlideOverCloseButton />
+      <SlideOverContent size="xl">
+        <SlideOverHeader>
+          <SlideOverTitle>Kind manuell über Anmeldung freigeben</SlideOverTitle>
         </SlideOverHeader>
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <p className="text-sm leading-6 text-gray-600">
@@ -326,26 +381,32 @@ export function ManualApprovedEnrollmentModal({
           <LoadErrorAlert error={loadError.error ?? configurationError} />
           <FormErrorAlert message={checks.error} />
           {statusUrl ? (
-            <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-              <p className="text-moto-green-strong text-sm font-medium">
-                Die manuelle Anmeldung wurde angelegt und freigegeben.
-              </p>
-              <div className="mt-3 flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <Input
-                    aria-label="Statuslink der manuellen Anmeldung"
-                    readOnly
-                    value={statusUrl}
-                    controlSize="compact"
+            <Alert
+              type="success"
+              message={
+                renewedChildName
+                  ? `Die Anmeldung von ${renewedChildName} wurde verlängert. Es wurde kein neues Kind angelegt.`
+                  : "Die manuelle Anmeldung wurde angelegt und freigegeben."
+              }
+              actionLayout="stacked"
+              action={
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      aria-label="Statuslink der manuellen Anmeldung"
+                      readOnly
+                      value={statusUrl}
+                      controlSize="compact"
+                    />
+                  </div>
+                  <PublicLinkCopyButton
+                    url={statusUrl}
+                    componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
+                    label="Statuslink kopieren"
                   />
                 </div>
-                <PublicLinkCopyButton
-                  url={statusUrl}
-                  componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
-                  label="Statuslink kopieren"
-                />
-              </div>
-            </div>
+              }
+            />
           ) : null}
           <div className="moto-content-surface grid gap-3 rounded-xl border p-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
             <Textarea
@@ -390,9 +451,7 @@ export function ManualApprovedEnrollmentModal({
             </div>
           </div>
           {loading ? (
-            <p className="text-sm text-gray-500">
-              Formularvorlage wird geladen...
-            </p>
+            <Loading message="Formularvorlage wird geladen..." />
           ) : prefetchedData && gradeLevelMax !== null ? (
             <EnrollmentForm
               phaseID={phase.id}
@@ -410,6 +469,24 @@ export function ManualApprovedEnrollmentModal({
           ) : null}
         </div>
       </SlideOverContent>
+      {existingChildQuestion ? (
+        <ChoiceModal
+          isOpen
+          title="Ist das Kind schon angemeldet?"
+          description={existingChildChoiceDescription(
+            existingChildQuestion.subject,
+          )}
+          options={existingChildChoiceOptions(existingChildQuestion.subject)}
+          onClose={() => answerExistingChildQuestion(null)}
+          onSelect={(value) =>
+            answerExistingChildQuestion(
+              value === "new"
+                ? { createNewStudent: true }
+                : { existingStudentId: value },
+            )
+          }
+        />
+      ) : null}
     </SlideOver>
   );
 }
@@ -417,32 +494,19 @@ export function ManualApprovedEnrollmentModal({
 function toManualPrefetchedData(
   bootstrap: Awaited<ReturnType<typeof fetchManualEnrollmentBootstrap>>,
 ): EnrollmentFormPrefetchedData {
-  return {
-    schema: bootstrap.schema,
-    offerings: bootstrap.offerings,
-    careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-    collectGradeLevel: bootstrap.collect_grade_level,
-    careOfferingsEnabled: bootstrap.care_offerings_enabled,
-    captchaConfig: null,
-    legalTexts: {
-      ...bootstrap.legal_texts,
-      blocks: (bootstrap.legal_texts.blocks ?? []).map((block) => ({
-        ...block,
-        required: false,
-      })),
+  // The school confirms consent outside the form, so no block is required.
+  // Staff entry bypasses the phase's audience and grade gates.
+  return prefetchedDataFromBootstrap(
+    {
+      ...bootstrap,
+      legal_texts: {
+        ...bootstrap.legal_texts,
+        blocks: (bootstrap.legal_texts.blocks ?? []).map((block) => ({
+          ...block,
+          required: false,
+        })),
+      },
     },
-    profile: null,
-    schoolClass: bootstrap.school_class,
-  };
-}
-
-function buildLateInviteUrl(phaseUrl: string, token: string): string {
-  try {
-    const url = new URL(phaseUrl);
-    url.searchParams.set("late_invite", token);
-    return url.toString();
-  } catch {
-    const separator = phaseUrl.includes("?") ? "&" : "?";
-    return `${phaseUrl}${separator}late_invite=${encodeURIComponent(token)}`;
-  }
+    { phaseRestrictions: false },
+  );
 }

@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 97,
+  "policy_epoch": 98,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -123,6 +123,10 @@
     },
     {
       "id": "parent-billing",
+      "kind": "domain"
+    },
+    {
+      "id": "care-contract",
       "kind": "domain"
     },
     {
@@ -529,10 +533,6 @@
       "class": "crypto"
     },
     {
-      "path": "github.com/lestrrat-go/jwx/v3/transform",
-      "class": "crypto"
-    },
-    {
       "path": "github.com/pkg/sftp",
       "class": "delivery"
     },
@@ -653,6 +653,10 @@
       "class": "utility"
     },
     {
+      "path": "golang.org/x/image/webp",
+      "class": "utility"
+    },
+    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -687,6 +691,10 @@
     {
       "path": "gopkg.in/yaml.v3",
       "class": "utility"
+    },
+    {
+      "path": "hash/crc32",
+      "class": "standard"
     },
     {
       "path": "hash/fnv",

@@ -176,7 +176,7 @@ func TestSwitchTenantRefusesRevokedSourceFamily(t *testing.T) {
 	family := accessSessionOf(t, access).FamilyID
 	require.NoError(t, service.LogoutWithAudit(ctx, refresh, "", ""))
 
-	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), family)
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), family, "", "")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 	assert.Empty(t, liveTokens(t, db, account.ID), "no new session out of the revoked family")
 }
@@ -194,7 +194,7 @@ func TestStaffPreviewRestsOnTheAdminsFamily(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, admin.ID, tenantID)
 	assignSeededRoleForTenant(t, db, admin.ID, tenantID, "admin")
 	_, target := testpkg.CreateTestCalendarStaff(t, db, "Erika", "Familie")
-	adminAccess, adminRefresh, err := service.IssueTokensForAuthenticatedAccount(ctx, admin.ID, tenantID, "", "")
+	adminAccess, adminRefresh, err := service.IssueTokensForPasskey(ctx, admin.ID, tenantID, "", "")
 	require.NoError(t, err)
 	adminSession := accessSessionOf(t, adminAccess)
 
@@ -293,7 +293,7 @@ func TestVerifyAccessSessionQueryBudget(t *testing.T) {
 	}
 	rotated := run()
 	assert.Len(t, rotated, len(fresh), "the check must not grow with the generations of the family")
-	querybudgets.AssertQueryBudget(t, "identity.access_session.verify", rotated)
+	querybudgets.AssertQueryBudget(t, "identity.access_session.verify", counter.Measurement(rotated))
 }
 
 // TestPortalLogoutEndsOnlyThatPortalsAccessTokens pins #5194 for the parent
@@ -329,7 +329,7 @@ func TestPortalLogoutEndsOnlyThatPortalsAccessTokens(t *testing.T) {
 
 	schoolTenant, _ := testpkg.CreateTestTenant(t, db)
 	_, teacherID := createLehrkraftAccount(t, db, service, "portal-logout-school", schoolTenant)
-	schoolAccess, schoolRefresh, err := service.IssueSchoolTokensForAuthenticatedAccount(testpkg.TenantContext(schoolTenant), teacherID, schoolTenant, "", "")
+	schoolAccess, schoolRefresh, err := issueSchoolTokens(service, testpkg.TenantContext(schoolTenant), teacherID, schoolTenant, "", "")
 	require.NoError(t, err)
 	school := accessSessionOf(t, schoolAccess)
 	require.Equal(t, "school", school.Scope)

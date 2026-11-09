@@ -1,0 +1,7 @@
+{
+  "scenario": "parent.messages.conversation.positive_growth",
+  "max": 17,
+  "exact": true,
+  "description": "Parent-scope protected route at N3/N8 real returned messages and two audience conversations (domain maximum), unrelated families excluded. Capture includes ownership admin transaction and tenant read/cursor write, excludes fixtures and outer live-session verification. Another family is forbidden. Not a global minimum.",
+  "route": "GET /parent/me/messages/children/{studentId}"
+}

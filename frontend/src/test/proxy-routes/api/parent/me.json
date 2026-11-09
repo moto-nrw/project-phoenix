@@ -102,11 +102,23 @@
   "api/parent/me/children/[studentId]/today": [
     "GET parent /parent/me/children/studentId%2F1/today"
   ],
-  "api/parent/me/enrollable-schools": [
-    "GET parent /parent/me/enrollable-schools"
-  ],
   "api/parent/me/documents": [
     "GET parent /parent/me/documents"
+  ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/sign": [
+    "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sign"
+  ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/signing": [
+    "GET parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/signing"
+  ],
+  "api/parent/me/documents/contracts": [
+    "GET parent /parent/me/documents/contracts"
+  ],
+  "api/parent/me/documents/shared": [
+    "GET parent /parent/me/documents/shared"
+  ],
+  "api/parent/me/enrollable-schools": [
+    "GET parent /parent/me/enrollable-schools"
   ],
   "api/parent/me/enrollments": [
     "GET parent /parent/me/enrollments"

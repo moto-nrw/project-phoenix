@@ -89,7 +89,8 @@ const externalTests = testsIn(cwd, true);
 const guards = [
   "src/app/api/proxy-routes.test.ts",
   "src/app/api/route-cache-policy.test.ts",
-  "src/server/auth/route-handler-coverage.test.ts",
+  "src/app/api/route-session-coverage.test.ts",
+  "src/app/api/credential-route-coverage.test.ts",
   "src/app/api/auth/session-cookie-inventory.test.ts",
   "src/lib/app-route-invariants.test.ts",
   "src/lib/analytics-routes.test.ts",
@@ -100,7 +101,7 @@ const guards = [
   "src/lib/browser-token-ratchet.test.ts",
   "src/components/ui/tenant-page-scaffold.test.ts",
   "src/components/ui/nav-scene-icon/nav-scene-coverage.test.ts",
-  "src/components/ui/plan-design-guards.test.ts",
+  "src/components/ui/planning/plan-design-guards.test.ts",
   "src/components/settings/settings-filter.test.ts",
   "src/components/school-setup/setup-tour-targets.test.ts",
   "src/components/auth/session-end-barrier.test.tsx",

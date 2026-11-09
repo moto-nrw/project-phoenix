@@ -42,40 +42,26 @@ func rejectGeneratedSecret(secret string) error {
 	return nil
 }
 
-// Verifier http middleware will verify a jwt string from a http request.
+// Verifier verifies the token of a request. ParseVerified after it parses
+// that token once for the middleware that follows.
 func (a *TokenAuth) Verifier() func(http.Handler) http.Handler {
 	return jwtauth.Verifier(a.JwtAuth)
 }
 
-// ParseAccessJWT verifies an access token's signature, decodes it into
-// AppClaims, and rejects expired tokens. Mirrors ParseMFAChallengeJWT for the
-// access-token shape: callers that receive a token in a request BODY (rather
-// than through the Verifier middleware) need the same guarantees the
-// middleware gives — the staff-view preview end call (#2893) proves with it
-// which preview token the admin actually held.
+// ParseAccessJWT verifies an access token a request carries in its body and
+// refuses an expired one; the staff-view preview end (#2893) proves with it
+// which preview token the admin held.
 func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {
-	return a.parseAccessJWT(tokenString, false)
-}
-
-func (a *TokenAuth) parseAccessJWT(tokenString string, allowExpired bool) (*AppClaims, error) {
-	jwtToken, err := a.JwtAuth.Decode(tokenString)
+	token, err := a.JwtAuth.Decode(tokenString)
 	if err != nil {
 		return nil, err
 	}
-	raw := make(map[string]any)
-	for _, key := range jwtToken.Keys() {
-		var value any
-		if jwtToken.Get(key, &value) == nil {
-			raw[key] = value
-		}
+	decoded := decode(token)
+	if decoded.AccessErr != nil {
+		return nil, decoded.AccessErr
 	}
-	var claims AppClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return nil, err
-	}
-	claims.ExpiresAt = expiryFromClaims(raw)
-	if !allowExpired && claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
+	if decoded.access.ExpiresAt > 0 && decoded.access.ExpiresAt < time.Now().Unix() {
 		return nil, errors.New("access token expired")
 	}
-	return &claims, nil
+	return &decoded.access, nil
 }

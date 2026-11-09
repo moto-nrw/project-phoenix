@@ -162,7 +162,25 @@ func (c *effectiveTimeCore[S, E, N, D]) updateExceptionRow(
 	return nil
 }
 
-func (c *effectiveTimeCore[S, E, N, D]) createOrReclaimException(
+// createOrReclaimException writes the staff exceptions of a batch of
+// students in one unit of work; see createOrReclaimLocked for the order of
+// locks, reads, writes and refusals. A single command is a batch of one.
+func (c *effectiveTimeCore[S, E, N, D]) createOrReclaimException(ctx context.Context, batch exceptionBatch) ([]E, error) {
+	var written []E
+	err := c.transactions.WithinTenant(ctx, func(txCtx context.Context) error {
+		var err error
+		written, err = c.createOrReclaimLocked(txCtx, batch)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return written, nil
+}
+
+// createOrReclaimOne is the single-student command. authorizeLockedStudent
+// rechecks a school-scoped subject after its student lock.
+func (c *effectiveTimeCore[S, E, N, D]) createOrReclaimOne(
 	ctx context.Context,
 	studentID int64,
 	date calendar.Date,
@@ -172,42 +190,16 @@ func (c *effectiveTimeCore[S, E, N, D]) createOrReclaimException(
 	resolveStaffID func() (int64, error),
 	authorizeLockedStudent func(context.Context) error,
 ) (E, error) {
-	var result E
-	err := c.transactions.WithinTenant(ctx, func(txCtx context.Context) error {
-		if err := c.transactions.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
-			return err
-		}
-
-		// School-scoped writes must revalidate their subject after the student
-		// lock, in the same unit as conflict checks and exception persistence.
-		if authorizeLockedStudent != nil {
-			if err := authorizeLockedStudent(txCtx); err != nil {
-				return err
-			}
-		}
-
-		existing, err := c.exceptionForDate(txCtx, studentID, date)
-		if err != nil {
-			return err
-		}
-
-		fields := domain.EffectiveExceptionFields{
-			StudentID: studentID, Date: date, Time: value, Reason: reason,
-			Source: careplan.ExceptionSourceStaff, CreatedBy: staffID,
-		}
-		if !isZeroEntity(existing) {
-			var reclaimErr error
-			result, reclaimErr = c.reclaimException(txCtx, existing, fields, resolveStaffID)
-			return reclaimErr
-		}
-		result = c.domain.NewException(fields)
-		return c.createException(txCtx, result)
-	})
-	if err != nil {
+	batch := exceptionBatch{studentIDs: []int64{studentID}, date: date, value: value, reason: reason, staffID: staffID, resolveStaffID: resolveStaffID}
+	if authorizeLockedStudent != nil {
+		batch.authorize = func(txCtx context.Context, _ int64) error { return authorizeLockedStudent(txCtx) }
+	}
+	written, err := c.createOrReclaimException(ctx, batch)
+	if err != nil || len(written) == 0 {
 		var zero E
 		return zero, err
 	}
-	return result, nil
+	return written[0], nil
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) updateException(
@@ -335,24 +327,24 @@ func (c *effectiveTimeCore[S, E, N, D]) deleteExceptionRow(ctx context.Context, 
 	return nil
 }
 
-func (c *effectiveTimeCore[S, E, N, D]) reclaimException(ctx context.Context, existing E, fields domain.EffectiveExceptionFields, resolveStaffID func() (int64, error)) (E, error) {
+// reclaimedFields takes over a guardian's exception for a staff write, or
+// refuses the day.
+func (c *effectiveTimeCore[S, E, N, D]) reclaimedFields(existing E, fields domain.EffectiveExceptionFields, resolveStaffID func() (int64, error)) (domain.EffectiveExceptionFields, error) {
 	previous := c.domain.ExceptionFields(existing)
-	var zero E
 	if previous.Source != careplan.ExceptionSourceGuardian {
-		return zero, careplan.ErrCareExceptionDayConflict
+		return fields, careplan.ErrCareExceptionDayConflict
 	}
 	// Reclaiming a partial-absence row would erase its provenance.
 	if previous.ExcusedFrom != nil {
-		return zero, careplan.ErrCareExceptionContainsPartialAbsence
+		return fields, careplan.ErrCareExceptionContainsPartialAbsence
 	}
 	staffID, err := resolveStaffID()
 	if err != nil || staffID == 0 {
-		return zero, careplan.ErrCareExceptionStaffProfileRequired
+		return fields, careplan.ErrCareExceptionStaffProfileRequired
 	}
 	fields.ID, fields.CreatedAt, fields.TenantID = previous.ID, previous.CreatedAt, previous.TenantID
 	fields.CreatedBy = staffID
-	result := c.domain.NewException(fields)
-	return result, c.updateExceptionRow(ctx, result)
+	return fields, nil
 }
 
 func prepareExceptionUpdate(fields *domain.EffectiveExceptionFields, studentID int64, date calendar.Date, clearValue bool, resolveStaffID func() (int64, error)) error {

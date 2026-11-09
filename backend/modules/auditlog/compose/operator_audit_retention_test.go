@@ -102,3 +102,49 @@ func TestTraegerAccountLedgerLosesEntriesWithTheOperatorLedger(t *testing.T) {
 		Scan(ctx, &remaining))
 	assert.Equal(t, []int64{halfYear, recent}, remaining, "only the entry before 1 January of last year goes")
 }
+
+// The Träger document download ledger (#4692, ADR 0157) has no school either
+// and keeps its entries for the same window: the same hourly deletion
+// removes an expired download and keeps the younger ones.
+func TestTraegerDocumentDownloadsLoseEntriesWithTheOperatorLedger(t *testing.T) {
+	t.Parallel()
+	// The deletion sweeps every Träger; a shared database lets the other
+	// retention tests delete this test's expired row first.
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	persistence, err := NewTenantPersistence(db)
+	require.NoError(t, err)
+	command, err := NewObservedCommand(persistence.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
+	require.NoError(t, err)
+
+	organizationID := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger Downloads", Slug: fmt.Sprintf("traeger-downloads-%d", testpkg.UniqueTestTenantID(t)), Active: true,
+	}).ID
+	testpkg.OwnTraegerDocuments(t, db, organizationID)
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("downloads-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+	var documentID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.traeger_documents (organization_id, title, file_name, content_type, size_bytes, content)
+		VALUES (?, 'Hausordnung', 'hausordnung.pdf', 'application/pdf', 8, '%PDF-1.4'::bytea) RETURNING id`, organizationID).Scan(ctx, &documentID))
+	insert := func(at time.Time) int64 {
+		var id int64
+		require.NoError(t, db.NewRaw(`INSERT INTO audit.traeger_document_downloads
+			(organization_id, document_id, actor_account_id, client_ip, user_agent, downloaded_at)
+			VALUES (?, ?, ?, '203.0.113.9', 'Testbrowser', ?) RETURNING id`, organizationID, documentID, account.ID, at).Scan(ctx, &id))
+		return id
+	}
+	now := time.Now()
+	expired := insert(now.AddDate(-3, 0, 0))
+	halfYear := insert(now.AddDate(0, -6, 0))
+	recent := insert(now)
+
+	require.NoError(t, tenant.WithinAdmin(testpkg.WithTenantRuntime(t, ctx, db), func(adminCtx context.Context) error {
+		_, err = command.DeleteExpiredOperatorAuditLog(adminCtx)
+		return err
+	}))
+
+	var remaining []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM audit.traeger_document_downloads WHERE organization_id = ? ORDER BY id`, organizationID).
+		Scan(ctx, &remaining))
+	assert.Equal(t, []int64{halfYear, recent}, remaining, "only the download before 1 January of last year goes")
+	assert.NotContains(t, remaining, expired)
+}

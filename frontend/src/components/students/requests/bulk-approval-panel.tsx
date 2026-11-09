@@ -8,6 +8,7 @@
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
+import { SectionCard } from "~/components/ui/section-card";
 
 export function BulkApprovalPanel({
   count,
@@ -26,32 +27,27 @@ export function BulkApprovalPanel({
   if (count === 0) return null;
   const blocked = count < 2 || (reasonRequired && reason.trim() === "");
   return (
-    <div className="moto-content-surface space-y-3 rounded-2xl border p-4">
-      <div>
-        <h2 className="font-semibold text-gray-900">Gemeinsam freigeben</h2>
-        <p className="text-sm text-gray-600">
-          {count === 1
-            ? "Wählen Sie noch eine passende Anfrage aus."
-            : "Alle ausgewählten Anfragen werden freigegeben. Klappt eine nicht, wird keine freigegeben."}
-        </p>
-      </div>
-      <label
-        htmlFor="bulk-approval-reason"
-        className="block space-y-1 text-sm font-medium text-gray-800"
-      >
-        <span>
-          {reasonRequired
+    <SectionCard
+      title="Gemeinsam freigeben"
+      description={
+        count === 1
+          ? "Wählen Sie noch eine passende Anfrage aus."
+          : "Alle ausgewählten Anfragen werden freigegeben. Klappt eine nicht, wird keine freigegeben."
+      }
+      bodyClassName="compact:mt-3 mt-4 space-y-3"
+    >
+      <Textarea
+        label={
+          reasonRequired
             ? "Gemeinsame Begründung"
-            : "Gemeinsame Begründung (freiwillig)"}
-        </span>
-        <Textarea
-          id="bulk-approval-reason"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          rows={2}
-          placeholder="Warum können diese Anfragen freigegeben werden?"
-        />
-      </label>
+            : "Gemeinsame Begründung (freiwillig)"
+        }
+        id="bulk-approval-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        rows={2}
+        placeholder="Warum können diese Anfragen freigegeben werden?"
+      />
       <Button
         type="button"
         variant="primary"
@@ -61,7 +57,7 @@ export function BulkApprovalPanel({
       >
         {count} {count === 1 ? "Anfrage" : "Anfragen"} freigeben
       </Button>
-    </div>
+    </SectionCard>
   );
 }
 

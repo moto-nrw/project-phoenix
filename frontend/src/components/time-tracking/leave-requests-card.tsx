@@ -10,11 +10,13 @@ import {
   useState,
 } from "react";
 
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { SectionLabel } from "~/components/ui/section-label";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -255,7 +257,7 @@ export function LeaveRequestsCard() {
             <div
               className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
             >
-              <Tile
+              <StatCard
                 label="Resturlaub"
                 value={loading ? "-" : `${remainingDays} Tage`}
                 hint={
@@ -263,41 +265,39 @@ export function LeaveRequestsCard() {
                     ? `${quota.entitled_days + quota.carryover_days} Tage Anspruch für ${year}`
                     : "lädt…"
                 }
-                tone="primary"
+                tone="neutral"
               />
-              <Tile
+              <StatCard
                 label="Beantragt"
                 value={loading ? "-" : String(counts.reserved)}
                 hint="wartet auf Antwort"
-                tone={counts.reserved > 0 ? "amber" : "muted"}
+                tone={counts.reserved > 0 ? "orange" : "gray"}
               />
               {counts.question > 0 && (
-                <Tile
+                <StatCard
                   label="Rückfrage"
                   value={String(counts.question)}
                   hint="Antwort nötig"
-                  tone="amber"
+                  tone="orange"
                 />
               )}
-              <Tile
+              <StatCard
                 label="Genehmigt"
                 value={loading ? "-" : String(counts.approved)}
                 hint="kommende Tage"
-                tone={counts.approved > 0 ? "success" : "muted"}
+                tone={counts.approved > 0 ? "green" : "gray"}
               />
-              <Tile
+              <StatCard
                 label="Abgelehnt"
                 value={loading ? "-" : String(counts.declined)}
                 hint="dieses Jahr"
-                tone="muted"
+                tone="gray"
               />
             </div>
 
             {sortedQuestionedVacations.length > 0 && (
               <div className="mt-5 border-t border-gray-100 pt-5">
-                <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  Rückfragen
-                </h3>
+                <SectionLabel className="mb-3">Rückfragen</SectionLabel>
                 <ul className="space-y-2">
                   {sortedQuestionedVacations.map((vacation) => (
                     <AbsenceRequestItem
@@ -315,9 +315,7 @@ export function LeaveRequestsCard() {
 
             {recentVacations.length > 0 && (
               <div className="mt-5 border-t border-gray-100 pt-5">
-                <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  Meine Anträge
-                </h3>
+                <SectionLabel className="mb-3">Meine Anträge</SectionLabel>
                 <ul className="space-y-2">
                   {recentVacations.map((vacation) => (
                     <AbsenceRequestItem
@@ -488,15 +486,10 @@ function ResubmitAbsenceForm({
   return (
     <div ref={formRef} className="mt-3 border-t border-gray-100 pt-3">
       <FormErrorAlert message={formErrors.error} className="mb-3" />
-      <label
-        htmlFor={`resubmit-note-${absence.id}`}
-        className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-      >
-        Ihre Antwort
-      </label>
       <Textarea
         id={`resubmit-note-${absence.id}`}
         name="note"
+        label="Ihre Antwort"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
@@ -515,38 +508,6 @@ function ResubmitAbsenceForm({
           {submitting ? "…" : "Antwort senden & erneut einreichen"}
         </Button>
       </div>
-    </div>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly hint: string;
-  readonly tone: "primary" | "success" | "amber" | "muted";
-}) {
-  // Brand hexes from LOCATION_COLORS (green GROUP_ROOM, orange SCHOOLYARD in
-  // its darkened Alert foreground) — never generic Tailwind hues.
-  const valueClass = {
-    primary: "text-gray-900",
-    success: "text-moto-green-strong",
-    amber: "text-moto-amber-strong",
-    muted: "text-gray-400",
-  }[tone];
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-        {label}
-      </p>
-      <p className={`mt-1 text-lg font-bold sm:text-xl ${valueClass}`}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-xs text-gray-400">{hint}</p>
     </div>
   );
 }

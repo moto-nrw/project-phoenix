@@ -223,11 +223,19 @@ func (s *materializationService) materializeForTenantLocked(
 	if err != nil {
 		return nil, err
 	}
+	schedules, err := s.materializationSchedules(ctx, templates)
+	if err != nil {
+		return result, err
+	}
+	people, err := s.loadTemplatesPeople(ctx, scheduledTemplateIDs(templates, schedules), "materialize template")
+	if err != nil {
+		return result, err
+	}
 
-	// Iterate templates. Per template: load schedules, enrollments, supervisors
-	// once; loop over the date window; produce candidates.
+	// Schedules and rosters are shared run inputs; the per-date decisions
+	// stay inside the same locked unit as before.
 	for _, tmpl := range templates {
-		if err := s.materializeTemplate(ctx, tmpl, world, result); err != nil {
+		if err := s.materializeTemplate(ctx, tmpl, schedules[tmpl.ID], people[tmpl.ID], world, result); err != nil {
 			return result, err
 		}
 	}
@@ -242,6 +250,36 @@ func (s *materializationService) materializeForTenantLocked(
 
 	s.finishLog(tenantID, source, result, start)
 	return result, nil
+}
+
+// scheduledTemplateIDs lists the templates with schedules in run order; a
+// template without schedules materializes nothing and reads no roster.
+func scheduledTemplateIDs(templates []*activityContract.Group, schedules map[int64][]*activityContract.Schedule) []int64 {
+	ids := make([]int64, 0, len(templates))
+	for _, tmpl := range templates {
+		if len(schedules[tmpl.ID]) > 0 {
+			ids = append(ids, tmpl.ID)
+		}
+	}
+	return ids
+}
+
+// materializationSchedules partitions one tenant-scoped read without changing
+// the schedule order within a template. The recurrence gate is already held.
+func (s *materializationService) materializationSchedules(ctx context.Context, templates []*activityContract.Group) (map[int64][]*activityContract.Schedule, error) {
+	ids := make([]int64, 0, len(templates))
+	for _, tmpl := range templates {
+		ids = append(ids, tmpl.ID)
+	}
+	schedules, err := groupsSchedules(ctx, s.scheduleRepo, ids)
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: "materialize template: load schedules", Err: err}
+	}
+	byTemplate := make(map[int64][]*activityContract.Schedule, len(templates))
+	for _, sch := range schedules {
+		byTemplate[sch.ActivityGroupID] = append(byTemplate[sch.ActivityGroupID], sch)
+	}
+	return byTemplate, nil
 }
 
 // loadMaterializationPreconditions loads the active periods and the
@@ -502,19 +540,13 @@ func expectedStudentIDsOn(
 func (s *materializationService) materializeTemplate(
 	ctx context.Context,
 	tmpl *activityContract.Group,
+	schedules []*activityContract.Schedule,
+	roster templateRoster,
 	world *materializationWorld,
 	result *timetable.MaterializationResult,
 ) error {
-	schedules, err := groupSchedules(ctx, s.scheduleRepo, tmpl.ID)
-	if err != nil {
-		return &ports.ScheduleError{Op: "materialize template: load schedules", Err: err}
-	}
 	if len(schedules) == 0 {
 		return nil // nothing to materialize for this template
-	}
-	roster, err := s.loadTemplatePeople(ctx, tmpl.ID, "materialize template")
-	if err != nil {
-		return err
 	}
 	roster.schedules = schedules
 

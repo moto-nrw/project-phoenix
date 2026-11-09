@@ -1,0 +1,12 @@
+{
+  "api/traeger/documents/[id]": ["DELETE traeger /traeger/documents/id%2F1"],
+  "api/traeger/documents/[id]/releases": [
+    "POST traeger /traeger/documents/id%2F1/releases"
+  ],
+  "api/traeger/documents/[id]/releases/[releaseId]": [
+    "DELETE traeger /traeger/documents/id%2F1/releases/releaseId%2F1"
+  ],
+  "api/traeger/documents/audiences": [
+    "GET traeger /traeger/documents/audiences"
+  ]
+}

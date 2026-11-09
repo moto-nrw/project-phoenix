@@ -22,9 +22,14 @@ import {
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { createLogger } from "~/lib/logger";
-import type { Student } from "@/lib/api";
-import { PersonalInfoSection, DepartureSection } from "./student-form-fields";
-import { StudentCommonFormSections } from "./student-common-form-sections";
+import type { Student } from "~/lib/student-helpers";
+import {
+  AdditionalInfoSection,
+  DepartureSection,
+  HealthInfoSection,
+  PersonalInfoSection,
+  PrivacyConsentSection,
+} from "./student-form-fields";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import {
   busDaysHaveAny,
@@ -34,7 +39,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import GuardianFormModal, {
   type RelationshipFormData,
 } from "~/components/guardians/guardian-form-modal";
@@ -57,6 +62,7 @@ import {
   type CareTimePresets,
   type SchoolPeriod,
 } from "~/lib/student-arrival-api";
+import { fetchPrivacyConsentDefaults } from "~/lib/student-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   mapBulkPickupScheduleFormToBackend,
@@ -65,6 +71,7 @@ import {
 } from "~/lib/pickup-schedule-helpers";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StudentCreateModal" });
 
@@ -203,8 +210,6 @@ export function StudentCreateModal({
     birthday: "",
     health_info: "",
     extra_info: "",
-    privacy_consent_accepted: false,
-    data_retention_days: 30,
     bus: false,
     // Explicit empty pickup map = "Geht alleine nach Hause". Sending it (not
     // omitting it) keeps the create contract identical to the edit flow and
@@ -241,6 +246,14 @@ export function StudentCreateModal({
   const settingsLoad = useApiLoadError();
   const showSettingsLoadError = settingsLoad.show;
   const clearSettingsLoadError = settingsLoad.clear;
+  // The consent fields start at the school's defaults and are only sent when
+  // the person changed one: the stored consent then follows the school
+  // setting until somebody decides otherwise for this child.
+  const [consentDefaultsReload, setConsentDefaultsReload] = useState(0);
+  const consentDefaultsLoad = useApiLoadError();
+  const showConsentDefaultsError = consentDefaultsLoad.show;
+  const clearConsentDefaultsError = consentDefaultsLoad.clear;
+  const touchedConsentFieldsRef = useRef(new Set<string>());
   const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
   // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
   // the modal so the kept scroll position lands further down the form. Re-anchor
@@ -268,8 +281,6 @@ export function StudentCreateModal({
         birthday: "",
         health_info: "",
         extra_info: "",
-        privacy_consent_accepted: false,
-        data_retention_days: 30,
         bus: false,
         pickup_days: {},
         departure_days: {},
@@ -287,8 +298,45 @@ export function StudentCreateModal({
       setArrivalSettingsLoading(false);
       setGuardianPickerOpen(false);
       pendingGuardianScrollRef.current = false;
+      touchedConsentFieldsRef.current = new Set();
     }
   }, [isOpen, clearErrors]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    clearConsentDefaultsError();
+    void fetchPrivacyConsentDefaults()
+      .then((defaults) => {
+        if (cancelled) return;
+        const touched = touchedConsentFieldsRef.current;
+        setFormData((prev) => ({
+          ...prev,
+          ...(!touched.has("privacy_consent_accepted") && {
+            privacy_consent_accepted: defaults.accepted,
+          }),
+          ...(!touched.has("data_retention_days") && {
+            data_retention_days: defaults.dataRetentionDays,
+          }),
+        }));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          void showConsentDefaultsError(error, {
+            object: "die Datenschutz-Voreinstellung",
+            retry: () => setConsentDefaultsReload((count) => count + 1),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    consentDefaultsReload,
+    showConsentDefaultsError,
+    clearConsentDefaultsError,
+  ]);
 
   // The tenant decides where care days come from. Resolve that boundary as
   // soon as the dialog opens: in booking mode this direct form must not create
@@ -301,8 +349,8 @@ export function StudentCreateModal({
     void fetchArrivalSettings()
       .then((settings) => {
         if (!cancelled) {
-          setCareDaysSource(settings.care_days_source);
-          setSchoolPeriods(settings.school_periods ?? []);
+          setCareDaysSource(settings.careDaysSource);
+          setSchoolPeriods(settings.schoolPeriods);
           setTimePresets({
             arrival: settings.defaultArrivalTime ?? "",
             pickup: settings.defaultPickupTime ?? "",
@@ -395,8 +443,26 @@ export function StudentCreateModal({
 
   // Prüfung vor dem Senden: gleicher Kasten wie ein Fehler vom Server, die
   // Felder heißen wie in der API, damit Markierung und Fokus sie finden.
+  /**
+   * The form as it is sent. An untouched consent pair stays out, so the
+   * consent follows the school setting; a touched one always travels whole
+   * (the consent write is a full upsert), with "not accepted" as the
+   * unanswered checkbox.
+   */
+  const studentDraft = (): Partial<Student> => {
+    const draft = { ...formData };
+    if (touchedConsentFieldsRef.current.size === 0) {
+      delete draft.privacy_consent_accepted;
+      delete draft.data_retention_days;
+    } else {
+      draft.privacy_consent_accepted = draft.privacy_consent_accepted ?? false;
+      draft.data_retention_days = draft.data_retention_days ?? null;
+    }
+    return draft;
+  };
+
   const validateForm = (): boolean => {
-    const fieldErrors = validateStudentForm(formData, {
+    const fieldErrors = validateStudentForm(studentDraft(), {
       firstName: true,
       lastName: true,
       schoolClass: true,
@@ -436,7 +502,7 @@ export function StudentCreateModal({
     if (careDaysSource !== "weekly_plan" || !validateForm()) return;
     const payload: Partial<Student> & {
       guardians?: StudentGuardianPayload[];
-    } & CreateStudentSchedules = { ...formData };
+    } & CreateStudentSchedules = studentDraft();
     if (guardians.length > 0) {
       payload.guardians = guardians;
     }
@@ -484,6 +550,8 @@ export function StudentCreateModal({
     field: keyof Student,
     value: string | boolean | number | BusDays | null,
   ) => {
+    if (field === "privacy_consent_accepted" || field === "data_retention_days")
+      touchedConsentFieldsRef.current.add(field);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -512,12 +580,11 @@ export function StudentCreateModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[720px]" isBackdropDismissDisabled>
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>Neues Kind</SlideOverTitle>
-            </div>
-            <SlideOverCloseButton aria-label="Fenster schließen" />
+        <SlideOverContent size="lg" isBackdropDismissDisabled>
+          <SlideOverHeader
+            close={<SlideOverCloseButton aria-label="Fenster schließen" />}
+          >
+            <SlideOverTitle>Neues Kind</SlideOverTitle>
           </SlideOverHeader>
           <form
             ref={formRef}
@@ -559,6 +626,10 @@ export function StudentCreateModal({
                 <LoadErrorAlert error={settingsLoad.error} />
               ) : null}
 
+              {mode === "student" ? (
+                <LoadErrorAlert error={consentDefaultsLoad.error} />
+              ) : null}
+
               {mode === "student" && careDaysSource === "bookings" ? (
                 <Alert
                   type="info"
@@ -577,23 +648,30 @@ export function StudentCreateModal({
 
               {mode === "list-entry" ? (
                 <div className="space-y-4">
-                  <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-3 text-xs leading-5 text-gray-700 md:p-4 md:text-sm">
-                    Für Kinder, die nicht im Ganztag sind: Der Eintrag besteht
-                    nur aus Name und Klasse und erscheint ausschließlich auf
-                    Klassenlisten und in der Klassenansicht (
-                    <span className="font-medium">Keine Betreuung</span>). Keine
-                    Anwesenheit, keine Betreuungsplanung, keine Kontaktdaten.
-                    Verwalten lässt sich die Liste über das Menü oben rechts
-                    unter <span className="font-medium">Klassenliste</span>.
-                  </div>
-                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+                  <Alert
+                    type="info"
+                    announce="off"
+                    message={
+                      <>
+                        Für Kinder, die nicht im Ganztag sind: Der Eintrag
+                        besteht nur aus Name und Klasse und erscheint
+                        ausschließlich auf Klassenlisten und in der
+                        Klassenansicht (
+                        <span className="font-medium">Keine Betreuung</span>).
+                        Keine Anwesenheit, keine Betreuungsplanung, keine
+                        Kontaktdaten. Verwalten lässt sich die Liste über das
+                        Menü oben rechts unter{" "}
+                        <span className="font-medium">Klassenliste</span>.
+                      </>
+                    }
+                  />
+                  <InsetPanel framed padding="md">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                       <div>
                         <FieldLabel
                           htmlFor="list-entry-first-name"
                           required
                           invalid={Boolean(errors.fieldError("first_name"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Vorname
                         </FieldLabel>
@@ -613,7 +691,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-last-name"
                           required
                           invalid={Boolean(errors.fieldError("last_name"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Nachname
                         </FieldLabel>
@@ -633,7 +710,6 @@ export function StudentCreateModal({
                           htmlFor="list-entry-school-class"
                           required
                           invalid={Boolean(errors.fieldError("school_class"))}
-                          className="mb-1 text-xs md:text-sm"
                         >
                           Klasse
                         </FieldLabel>
@@ -654,7 +730,7 @@ export function StudentCreateModal({
                         )}
                       </div>
                     </div>
-                  </div>
+                  </InsetPanel>
                 </div>
               ) : null}
 
@@ -677,111 +753,117 @@ export function StudentCreateModal({
                   <section
                     ref={guardianSectionRef}
                     aria-label="Erziehungsberechtigte"
-                    className="scroll-mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
+                    className="scroll-mt-4"
                   >
-                    <div className="mb-3 flex items-center justify-between md:mb-4">
-                      <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                        <MotoConceptIcon concept={groupsConcept} size={18} />
-                        Erziehungsberechtigte
-                      </h3>
-                      <span className="text-xs text-gray-500">
-                        {guardians.length > 0
-                          ? `${guardians.length} hinzugefügt`
-                          : "Optional"}
-                      </span>
-                    </div>
-
-                    {guardians.length > 0 && (
-                      <ul className="mb-3 space-y-2">
-                        {guardians.map((guardian, index) => {
-                          const flags = [
-                            guardian.can_pickup ? "Abholberechtigt" : null,
-                            guardian.is_emergency_contact
-                              ? "Notfallkontakt"
-                              : null,
-                            guardian.is_primary ? "Primär" : null,
-                          ].filter(Boolean);
-                          return (
-                            <li
-                              key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
-                              className="flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
-                                  {`${guardian.first_name} ${guardian.last_name}`.trim() ||
-                                    "Erziehungsberechtigte/r"}
-                                  <span className="ml-2 font-normal text-gray-500">
-                                    {relationshipLabel(
-                                      guardian.relationship_type,
-                                    )}
-                                  </span>
-                                </p>
-                                {flags.length > 0 && (
-                                  <p className="mt-0.5 truncate text-xs text-gray-500">
-                                    {flags.join(" · ")}
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost_danger"
-                                size="icon"
-                                onClick={() => removeGuardian(index)}
-                                disabled={saveLoading}
-                                aria-label="Erziehungsberechtigte/n entfernen"
-                                className="shrink-0"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-
-                    {guardianPickerOpen ? (
-                      // Existing-guardian path is inline (not a second modal): a search
-                      // is a light lookup, so it expands here in place. "Neu anlegen"
-                      // stays a full modal because the new-guardian form is heavy.
-                      <GuardianPickerPanel
-                        onSelect={handleGuardianPick}
-                        onCancel={handlePickerCancel}
-                        excludeProfileIds={addedProfileIds}
-                      />
-                    ) : (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          type="button"
-                          variant="dashed"
-                          size="md"
-                          onClick={() => setGuardianModalOpen(true)}
-                          disabled={saveLoading}
-                          className="flex-1 gap-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Neu anlegen
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="dashed"
-                          size="md"
-                          onClick={() => setGuardianPickerOpen(true)}
-                          disabled={saveLoading}
-                          className="flex-1 gap-2"
-                        >
-                          <Search className="h-4 w-4" />
-                          Vorhandene/n suchen
-                        </Button>
+                    <InsetPanel framed padding="md">
+                      <div className="mb-3 flex items-center justify-between md:mb-4">
+                        <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+                          <MotoConceptIcon concept={groupsConcept} size={18} />
+                          Erziehungsberechtigte
+                        </h3>
+                        <span className="text-xs text-gray-500">
+                          {guardians.length > 0
+                            ? `${guardians.length} hinzugefügt`
+                            : "Optional"}
+                        </span>
                       </div>
-                    )}
+
+                      {guardians.length > 0 && (
+                        <ul className="mb-3 space-y-2">
+                          {guardians.map((guardian, index) => {
+                            const flags = [
+                              guardian.can_pickup ? "Abholberechtigt" : null,
+                              guardian.is_emergency_contact
+                                ? "Notfallkontakt"
+                                : null,
+                              guardian.is_primary ? "Primär" : null,
+                            ].filter(Boolean);
+                            return (
+                              <InsetPanel
+                                as="li"
+                                key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
+                                tone="white"
+                                className="flex items-start justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
+                                    {`${guardian.first_name} ${guardian.last_name}`.trim() ||
+                                      "Erziehungsberechtigte/r"}
+                                    <span className="ml-2 font-normal text-gray-500">
+                                      {relationshipLabel(
+                                        guardian.relationship_type,
+                                      )}
+                                    </span>
+                                  </p>
+                                  {flags.length > 0 && (
+                                    <p className="mt-0.5 truncate text-xs text-gray-500">
+                                      {flags.join(" · ")}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost_danger"
+                                  size="icon"
+                                  onClick={() => removeGuardian(index)}
+                                  disabled={saveLoading}
+                                  aria-label="Erziehungsberechtigte/n entfernen"
+                                  className="shrink-0"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </InsetPanel>
+                            );
+                          })}
+                        </ul>
+                      )}
+
+                      {guardianPickerOpen ? (
+                        // Existing-guardian path is inline (not a second modal): a search
+                        // is a light lookup, so it expands here in place. "Neu anlegen"
+                        // stays a full modal because the new-guardian form is heavy.
+                        <GuardianPickerPanel
+                          onSelect={handleGuardianPick}
+                          onCancel={handlePickerCancel}
+                          excludeProfileIds={addedProfileIds}
+                        />
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            type="button"
+                            variant="dashed"
+                            size="md"
+                            onClick={() => setGuardianModalOpen(true)}
+                            disabled={saveLoading}
+                            className="flex-1 gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Neu anlegen
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="dashed"
+                            size="md"
+                            onClick={() => setGuardianPickerOpen(true)}
+                            disabled={saveLoading}
+                            className="flex-1 gap-2"
+                          >
+                            <Search className="h-4 w-4" />
+                            Vorhandene/n suchen
+                          </Button>
+                        </div>
+                      )}
+                    </InsetPanel>
                   </section>
 
                   {/* Betreuungszeiten — weekly arrival/pickup times staged here and
               persisted atomically with the student, mirroring the guardian
               section above. Reuses the existing CareWeeklyPlanModal editor. */}
-                  <section
+                  <InsetPanel
+                    as="section"
                     aria-label="Betreuungszeiten"
-                    className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
+                    framed
+                    padding="md"
                   >
                     <div className="mb-3 flex items-center justify-between md:mb-4">
                       <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
@@ -796,7 +878,10 @@ export function StudentCreateModal({
                     </div>
 
                     {hasCarePlan && (
-                      <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3">
+                      <InsetPanel
+                        tone="white"
+                        className="mb-3 flex items-start justify-between gap-2"
+                      >
                         <div className="min-w-0">
                           <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
                             {scheduledWeekdays.map(weekdayShort).join(" · ")}
@@ -819,7 +904,7 @@ export function StudentCreateModal({
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      </div>
+                      </InsetPanel>
                     )}
 
                     <Button
@@ -835,13 +920,20 @@ export function StudentCreateModal({
                         ? "Wochenplan ändern"
                         : "Wochenplan hinzufügen"}
                     </Button>
-                  </section>
+                  </InsetPanel>
 
-                  {/* Common Form Sections */}
-                  <StudentCommonFormSections
+                  <HealthInfoSection
+                    value={formData.health_info}
+                    onChange={(v) => handleChange("health_info", v)}
+                  />
+                  <AdditionalInfoSection
+                    value={formData.extra_info}
+                    onChange={(v) => handleChange("extra_info", v)}
+                  />
+                  <PrivacyConsentSection
                     formData={formData}
-                    fieldError={errors.fieldError}
                     onChange={handleChange}
+                    fieldError={errors.fieldError}
                   />
 
                   {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
@@ -881,7 +973,7 @@ export function StudentCreateModal({
             </div>
 
             {/* Action Buttons */}
-            <SlideOverFooter className="flex-row gap-2 md:gap-3">
+            <SlideOverFooter className="md:gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -898,35 +990,11 @@ export function StudentCreateModal({
                   variant="primary"
                   size="md"
                   data-setup-tour="student-submit"
-                  disabled={saveLoading}
+                  isLoading={saveLoading}
+                  loadingText="Wird erstellt..."
                   className="flex-1"
                 >
-                  {saveLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="h-4 w-4 animate-spin text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Wird erstellt...
-                    </span>
-                  ) : (
-                    "Erstellen"
-                  )}
+                  Erstellen
                 </Button>
               ) : null}
             </SlideOverFooter>

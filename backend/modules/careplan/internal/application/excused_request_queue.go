@@ -123,21 +123,13 @@ func (w *ExcusedRequests) pendingReviewItems(
 	scope careplan.ReviewScope,
 	today careplan.Date,
 ) ([]*careplan.ExcusedRequestReviewItem, error) {
+	rows = visibleExcusedRequests(rows, students, scope, today)
+	facts := w.loadAbsenceReviewFacts(ctx, rows, students, today)
 	items := make([]*careplan.ExcusedRequestReviewItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		st, ok := students[r.StudentID]
-		if !ok || !scope.Allows(&st) {
-			continue
-		}
-		// A graduated child is soft-deleted: their pending requests survive
-		// the graduation, so without this they would sit in the staff queue
-		// and could still be approved onto an alumnus. A child whose care has
-		// ended leaves the queue the same way.
-		if st.Alumnus || st.CareEndedOn(today) {
-			continue
-		}
-		item, err := w.pendingReviewItem(ctx, r, st, today)
+		st := students[r.StudentID]
+		item, err := w.pendingReviewItem(ctx, r, st, today, facts)
 		if err != nil {
 			return nil, err
 		}
@@ -151,12 +143,12 @@ func (w *ExcusedRequests) pendingReviewItems(
 
 // pendingReviewItem resolves the current statuses and bulk eligibility of one
 // pending request.
-func (w *ExcusedRequests) pendingReviewItem(ctx context.Context, r *careplan.ExcusedAbsenceRequest, st careplan.ReviewStudent, today careplan.Date) (*careplan.ExcusedRequestReviewItem, error) {
-	view, viewErr := w.currentStatusView(ctx, r)
+func (w *ExcusedRequests) pendingReviewItem(ctx context.Context, r *careplan.ExcusedAbsenceRequest, st careplan.ReviewStudent, today careplan.Date, facts absenceReviewFacts) (*careplan.ExcusedRequestReviewItem, error) {
+	view, viewErr := facts.statusView(ctx, w, r)
 	if viewErr != nil {
 		return nil, fmt.Errorf("care plan: resolve current absence statuses: %w", viewErr)
 	}
-	eligible, reasonCode, reasonText, eligibilityErr := w.excusedBulkEligibility(ctx, r, st, view, today)
+	eligible, reasonCode, reasonText, eligibilityErr := w.excusedBulkEligibility(ctx, r, st, view, today, facts)
 	if eligibilityErr != nil {
 		return nil, fmt.Errorf("care plan: resolve absence bulk eligibility: %w", eligibilityErr)
 	}

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChangeRequestStatus } from "~/lib/enrollment-status";
 import {
   useCallback,
   useEffect,
@@ -7,15 +8,17 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { ArrowRight, Check, Mail, UserRound, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   approveEnrollmentChangeRequest,
   askEnrollmentChangeRequestQuestion,
   getAdminEnrollmentChangeRequest,
+  getAdminEnrollmentFormLabels,
   rejectEnrollmentChangeRequest,
   type AdminEnrollmentChangeRequest,
-  type AdminEnrollmentChangeRequestStatus,
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
@@ -26,7 +29,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
-import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
+import { enrollmentChangeRequestStatusMeta } from "~/components/enrollment/enrollment-change-request-status";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
   useApiFormError,
@@ -37,9 +40,13 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Textarea } from "~/components/ui/textarea";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
+import {
+  changedEnrollmentChangeRequestLabels,
+  type EnrollmentFormLabels,
+} from "~/lib/enrollment-change-request-diff";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -96,6 +103,32 @@ export function AdminEnrollmentChangeRequestDetail({
     void load();
   }, [load]);
 
+  const requestId = data?.request_id;
+  const [formLabels, setFormLabels] = useState<EnrollmentFormLabels | null>(
+    null,
+  );
+  useLayoutEffect(() => {
+    setFormLabels(null);
+  }, [changeRequestId, requestId]);
+  useEffect(() => {
+    if (!requestId || data?.id !== changeRequestId) return;
+    let cancelled = false;
+    getAdminEnrollmentFormLabels(requestId)
+      .then((labels) => {
+        if (!cancelled) setFormLabels(labels);
+      })
+      .catch((err: unknown) => {
+        // Stays silent on purpose: the rows still show every value, only
+        // named by their stored key, and the review needs no extra step.
+        logger.warn("change_request_form_labels_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [changeRequestId, data?.id, requestId]);
+
   const handleQuestion = async () => {
     const body = question.trim();
     if (!body) return;
@@ -147,7 +180,7 @@ export function AdminEnrollmentChangeRequestDetail({
           ? "Die Änderung wurde freigegeben."
           : "Die Änderung wurde abgelehnt.",
       );
-      window.dispatchEvent(new Event("change-requests-refresh"));
+      announceChangeRequestsChanged();
     } catch (err) {
       logger.error("change_request_review_failed", {
         error: err instanceof Error ? err.message : "unknown",
@@ -233,16 +266,16 @@ export function AdminEnrollmentChangeRequestDetail({
         </div>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-5 p-5 sm:p-6">
+          <div className="space-y-5 p-5 max-sm:p-4">
             <p className="text-sm leading-6 text-gray-600">
               {data.origin === "admin"
                 ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
                 : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
             </p>
 
-            <ChangeSummary request={data} />
+            <ChangeSummary request={data} formLabels={formLabels} />
             {(data.roster_impacts ?? []).map((entry) => {
               const impact = mapRosterImpact(entry.roster_impact);
               return impact ? (
@@ -257,12 +290,9 @@ export function AdminEnrollmentChangeRequestDetail({
             {data.origin === "parent" ? <MessageThread request={data} /> : null}
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-6">
-              <section className="moto-content-surface rounded-2xl border p-4">
-                <h2 className="text-base font-semibold text-gray-900">
-                  Anmeldung
-                </h2>
+              <SectionCard title="Anmeldung" bodyClassName="">
                 {request ? (
                   <>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -299,13 +329,10 @@ export function AdminEnrollmentChangeRequestDetail({
                   Anmeldung öffnen
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </ButtonLink>
-              </section>
+              </SectionCard>
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Rückfrage
-                  </h2>
+                <SectionCard title="Rückfrage" bodyClassName="">
                   <FormErrorAlert
                     message={questionErrors.error}
                     className="mt-3"
@@ -336,14 +363,11 @@ export function AdminEnrollmentChangeRequestDetail({
                     />
                     {busy === "question" ? "Sendet…" : "Rückfrage senden"}
                   </Button>
-                </section>
+                </SectionCard>
               ) : null}
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Entscheidung
-                  </h2>
+                <SectionCard title="Entscheidung" bodyClassName="">
                   <FormErrorAlert
                     message={reviewErrors.error}
                     className="mt-3"
@@ -391,51 +415,61 @@ export function AdminEnrollmentChangeRequestDetail({
                       Prüfung wartet.
                     </p>
                   ) : null}
-                </section>
+                </SectionCard>
               ) : null}
             </div>
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
 
 function ChangeSummary({
   request,
+  formLabels,
 }: {
   readonly request: AdminEnrollmentChangeRequest;
+  readonly formLabels: EnrollmentFormLabels | null;
 }) {
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">
-          {request.origin === "admin"
-            ? "Protokollierte OGS-Korrektur"
-            : "Eingereichte Korrektur"}
-        </h2>
-      </div>
-
+    <SectionCard
+      title={
+        request.origin === "admin"
+          ? "Protokollierte OGS-Korrektur"
+          : "Eingereichte Korrektur"
+      }
+      bodyClassName="mt-4 space-y-4"
+    >
       {request.parent_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Hinweis der Eltern: </span>
           {request.parent_note}
-        </div>
+        </InsetPanel>
       ) : null}
 
       {request.origin === "admin" && request.admin_decision_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Grund: </span>
           {request.admin_decision_note}
-        </div>
+        </InsetPanel>
       ) : null}
 
       <EnrollmentChangeRequestDiff
         baseSnapshot={request.base_snapshot}
         proposedSnapshot={request.proposed_snapshot}
         diff={request.diff}
+        formLabels={formLabels}
       />
-    </section>
+    </SectionCard>
   );
 }
 
@@ -447,10 +481,7 @@ function MessageThread({
   const messages = request.messages ?? [];
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">Nachrichten</h2>
-      </div>
+    <SectionCard title="Nachrichten" bodyClassName="mt-4 space-y-4">
       {messages.length === 0 ? (
         <EmptyState
           variant="compact"
@@ -460,10 +491,7 @@ function MessageThread({
       ) : (
         <ol className="space-y-3">
           {messages.map((message) => (
-            <li
-              key={message.id}
-              className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2"
-            >
+            <InsetPanel as="li" framed padding="compact" key={message.id}>
               <p className="text-xs font-semibold text-gray-500">
                 {messageAuthorLabel(message.author_type)} ·{" "}
                 {formatChatDateTime(message.created_at)}
@@ -471,31 +499,31 @@ function MessageThread({
               <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
                 {message.body}
               </p>
-            </li>
+            </InsetPanel>
           ))}
         </ol>
       )}
       {request.admin_decision_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Entscheidung: </span>
           {request.admin_decision_note}
-        </div>
+        </InsetPanel>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
 function ChangeRequestStatusBadge({
   status,
 }: {
-  readonly status: AdminEnrollmentChangeRequestStatus;
+  readonly status: ChangeRequestStatus;
 }) {
-  return (
-    <StatusBadge
-      label={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].label}
-      tone={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].tone}
-    />
-  );
+  const meta = enrollmentChangeRequestStatusMeta(status);
+  return <StatusBadge label={meta.label} tone={meta.tone} />;
 }
 
 function messageAuthorLabel(authorType: string): string {

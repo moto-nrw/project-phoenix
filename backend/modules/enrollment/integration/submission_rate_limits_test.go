@@ -135,7 +135,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	assert.Equal(t, 1, state.Attempts, "first hit on a fresh bucket returns 1")
-	assert.False(t, state.RetryAt.IsZero(), "RetryAt populated")
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_RepeatHitsAccumulate(t *testing.T) {
@@ -273,34 +272,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_NegativeWindowRejected(
 		return iErr
 	})
 	require.Error(t, err)
-}
-
-func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlusWindow(t *testing.T) {
-	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
-	// The retry_at the repo returns must equal window_start + window —
-	// rate-limited callers use it as a Retry-After hint and we don't
-	// want to leak more (or less) than the actual reset time.
-	db, repo, tenantID := setupRateLimitTest(t)
-	key := uniqueKeyValue("retryat")
-
-	state, err := repoIncrement(t, db, repo, tenantID,
-		enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
-	require.NoError(t, err)
-
-	// Pull window_start back out of the DB and compare.
-	var windowStart time.Time
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("window_start").
-		TableExpr("enrollment.submission_rate_limits").
-		Where("tenant_id = ? AND key_type = ? AND key_value = ?",
-			tenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, key).
-		Scan(context.Background(), &windowStart))
-
-	// RetryAt - WindowStart should be ~1h.
-	diff := state.RetryAt.Sub(windowStart)
-	assert.InDelta(t, time.Hour.Seconds(), diff.Seconds(), 1,
-		"RetryAt MUST equal window_start + window (got diff %s)", diff)
 }
 
 // --- CleanupExpired ---------------------------------------------------

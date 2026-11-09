@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -69,7 +70,7 @@ func (s *Reports) rosterDay(ctx context.Context, filters enrollment.ClassRosterF
 	out := &enrollment.ClassRosterDay{
 		PhaseNames: make([]string, 0, len(phases)),
 		Rows:       rows,
-		Students:   classDayStudents(students, classDayKeyOf(planWeekday)),
+		Students:   classDayStudents(students, offeringContract.SchoolDayCode(planWeekday)),
 	}
 	for _, phase := range phases {
 		out.PhaseNames = append(out.PhaseNames, phase.name)
@@ -264,25 +265,6 @@ func appendMissingStrings(base []string, add []string) []string {
 	return base
 }
 
-// classDayKeyOf maps an ISO weekday onto the report day keys ("mon"
-// .."fri"). Weekend weekdays return "".
-func classDayKeyOf(isoWeekday int) string {
-	switch isoWeekday {
-	case 1:
-		return "mon"
-	case 2:
-		return "tue"
-	case 3:
-		return "wed"
-	case 4:
-		return "thu"
-	case 5:
-		return "fri"
-	default:
-		return ""
-	}
-}
-
 // classDayStudents lists the loaded students with the departure modes their
 // live plan allows on the weekday: the allowed modes, falling back to the
 // exclusive day plan.
@@ -305,34 +287,4 @@ func classDayStudents(students []*RosterStudent, weekday string) []enrollment.Cl
 		out = append(out, day)
 	}
 	return out
-}
-
-// ClassReportChildren reads just the names and IDs of a class, including
-// children whose care has ended. Period reports apply dated participation
-// themselves; day plans, phases and guardian contacts are not needed here.
-func (s *Reports) ClassReportChildren(ctx context.Context, schoolClass string) ([]enrollment.ClassReportChild, error) {
-	if s.deps.Students == nil || s.deps.Persons == nil {
-		return nil, fmt.Errorf("class report: repos not configured")
-	}
-	students, err := s.deps.Students.ListClassRoster(ctx, strings.TrimSpace(schoolClass))
-	if err != nil {
-		return nil, fmt.Errorf("class report: children: %w", err)
-	}
-	students = studentsInClass(students, schoolClass)
-	if len(students) > maxReportRows {
-		return nil, enrollment.ErrReportExportTooLarge
-	}
-	persons, err := s.deps.Persons.PersonsByID(ctx, classRosterPersonIDs(students))
-	if err != nil {
-		return nil, fmt.Errorf("class report: names: %w", err)
-	}
-	children := make([]enrollment.ClassReportChild, 0, len(students))
-	for _, student := range students {
-		person := persons[student.PersonID]
-		if person == nil {
-			return nil, fmt.Errorf("class report: person missing for student %d", student.ID)
-		}
-		children = append(children, enrollment.ClassReportChild{StudentID: student.ID, FirstName: person.FirstName, LastName: person.LastName})
-	}
-	return children, nil
 }

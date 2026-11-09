@@ -298,21 +298,21 @@ func TestTraegerAccessLogQueryBudgetIsFlat(t *testing.T) {
 	f := newTraegerAccessLogFixture(t, identityaccess.TraegerRoleAdministration)
 	recordAccessLogRead(t, f.db, f.first, f.staff, "attendance_history", accessLogAt(8))
 	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(9))
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/access-log/?"+accessLogWindow(nil).Encode(), nil)
 		req.Header.Set("Authorization", "Bearer "+f.token)
 		rec := httptest.NewRecorder()
-		f.router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	first := list()
 	for hour := 10; hour < 14; hour++ {
 		recordAccessLogRead(t, f.db, f.first, f.staff, "class_day_view", accessLogAt(hour))
 		recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(hour))
 	}
-	assert.Len(t, list(), len(first), "the access log reads the same statements for any number of entries")
+	assert.Len(t, list().Statements, len(first.Statements), "the access log reads the same statements for any number of entries")
 	querybudgets.AssertQueryBudget(t, "api.traeger.access_log", first)
 }
 

@@ -5,7 +5,8 @@ import {
   gateSessionCookieWrites,
   type FamilyStates,
 } from "./session-cookie-writes";
-import type { ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
+import type { SessionFamilyState } from "./token-validation";
 
 /**
  * Every user field the browser may see (#5005). The type demands one entry
@@ -50,7 +51,27 @@ export function toBrowserSession(session: ServerSession): Session {
     expires: session.expires,
     user: user as unknown as Session["user"],
     ...(session.error === undefined ? {} : { error: session.error }),
+    ...(session.notBooked === true ? { notBooked: true } : {}),
   };
+}
+
+/**
+ * The session as its family answers now: ended once revoked; marked not
+ * booked while the school does not book the portal's module, unmarked once
+ * it does again (#6187). Without an answer, the session's own renewal
+ * decides.
+ */
+function sessionOfFamily(
+  body: ServerSession,
+  shown: SessionFamilyState | null,
+): ServerSession {
+  if (shown === "ended") return { ...body, error: "RefreshTokenError" };
+  if (shown === "notBooked") return { ...body, notBooked: true };
+  if (shown === "live") {
+    const { notBooked: _cleared, ...booked } = body;
+    return booked;
+  }
+  return body;
 }
 
 function isServerSession(value: unknown): value is ServerSession {
@@ -95,8 +116,7 @@ export function withBrowserSession<A extends [Request, ...unknown[]]>(
             scope: body.user.scope,
           })
         : null;
-    const session: ServerSession =
-      shown === "ended" ? { ...body, error: "RefreshTokenError" } : body;
+    const session = sessionOfFamily(body, shown);
 
     const headers = new Headers(response.headers);
     headers.delete("Content-Length");

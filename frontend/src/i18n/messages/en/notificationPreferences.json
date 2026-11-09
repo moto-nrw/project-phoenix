@@ -18,8 +18,8 @@
       "description": "When the school publishes a new announcement in the parent portal."
     },
     "parent_message": {
-      "label": "New message from the OGS",
-      "description": "When the OGS writes to you about a child."
+      "label": "New message from the {careTerm}",
+      "description": "When the {careTerm} writes to you about a child."
     },
     "parent_appointment": {
       "label": "New or changed appointment",
@@ -31,15 +31,15 @@
     },
     "parent_request_decided": {
       "label": "Decision on your request",
-      "description": "When the OGS has decided on one of your requests."
+      "description": "When the {careTerm} has decided on one of your requests."
     },
     "parent_care_cancelled": {
       "label": "Care cancelled",
-      "description": "When the OGS cancels one of your child's care sessions."
+      "description": "When the {careTerm} cancels one of your child's care sessions."
     },
     "parent_billing_document": {
       "label": "New document from the provider",
-      "description": "When the provider sends you a document, for example a confirmation letter."
+      "description": "When the provider sends or shares a document with you, for example a contract."
     }
   },
   "errorObjectList": "the list of notifications",

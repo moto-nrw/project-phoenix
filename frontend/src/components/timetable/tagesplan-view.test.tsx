@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { setTestClock } from "~/test/clock";
-import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-colors";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
@@ -815,6 +815,7 @@ describe("TagesplanView", () => {
       const group = screen.getByRole("list", { name: /^Gleichzeitig/ });
       // Laufender Block: ganze Zelle öffnet die Kinderliste, mit Chevron.
       const running = within(group).getByRole("button", { name: /Freispiel/ });
+      expect(running).toHaveClass("border-l-4");
       expect(running.querySelector("svg.lucide-chevron-right")).not.toBeNull();
       fireEvent.click(running);
       expect(push).toHaveBeenCalledWith("/active-supervisions?session=91");

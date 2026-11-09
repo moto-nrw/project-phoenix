@@ -12,7 +12,7 @@ type ServerErrorCapture struct {
 	// tag: Sentry groups by stack trace, since server errors mostly share a
 	// generic code (#3590).
 	code string
-	// unreported marks the one 5xx answer that must not reach Sentry.
+	// unreported marks a 5xx answer that must not reach Sentry.
 	unreported bool
 }
 
@@ -27,9 +27,10 @@ func noteServerError(ctx context.Context, err error, code string) {
 }
 
 // SkipServerErrorReport keeps the 5xx answer the current request is about to
-// write out of Sentry. It is the single exception to the 5xx rule: the
-// error-report relay answers 502 when Sentry itself is unreachable, and
-// reporting that to Sentry could only loop (#3645). Outside
+// write out of Sentry. There are two exceptions to the 5xx rule: the error-report
+// relay answers 502 when Sentry itself is unreachable, and reporting that to
+// Sentry could only loop (#3645); and the mail provider webhook answers 503 to
+// anyone while a deployment has no secret for it (#5933). Outside
 // ServerErrorReporting it does nothing.
 func SkipServerErrorReport(ctx context.Context) {
 	if cause, ok := ctx.Value(serverErrorKey{}).(*ServerErrorCapture); ok {

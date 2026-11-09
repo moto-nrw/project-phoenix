@@ -26,6 +26,14 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
     notes: [
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+      // #6053, #6148 (manuelle Anmeldung)
+      "Ist schon ein Kind mit diesem Namen und Geburtsdatum angemeldet, fragt moto beim `Bestätigen` nach. Wählen Sie `Bestehendes Kind verwenden`, verlängert moto nur die Anmeldung dieses Kindes. Die Eltern aus der Anmeldung bekommen dadurch keinen Zugang. Ist es ein anderes Kind, wählen Sie `Als neues Kind anlegen`. Dieselbe Frage kommt, wenn Sie ein Kind selbst mit `Kind anlegen und freigeben` anmelden.",
+      // #6041
+      "Ist der Start eines bestätigten Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
+      // #6043: Wiederanmeldung vor dem Start der Betreuung.
+      "Wird ein Kind schon betreut und beginnt die Anmeldung später? Dann gelten Abholzeiten, Betreuungstage und Heimweg daraus erst ab dem Start. Bis dahin bleiben die bisherigen. Das Datum steht beim Kind. Steht der Hinweis nach dem Start noch da, gelten weiter die bisherigen. Melden Sie sich dann beim moto-Team.",
+      // #5934
+      "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
       "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
@@ -56,6 +64,7 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Auf dem Handy erscheint nur ein Hinweis. Die Prüfung läuft am Computer.",
     ],
     troubleshootingDetails: [
+      "Steht dort `Dieser Elternteil darf das Kind nicht mehr anmelden`, prüfen Sie Name und Geburtsdatum. Ist das Kind schon angemeldet, wählen Sie `Bestehendes Kind verwenden`. Die Eltern bekommen dadurch keinen Zugang. `Als neues Kind anlegen` wählen Sie nur, wenn es ein anderes Kind ist. Bei einer Anmeldung nur für angemeldete Kinder gibt es diese Wahl nicht. Passt kein Kind, lehnen Sie die Anmeldung ab.",
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
       "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
       "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",

@@ -1,4 +1,4 @@
-package sessiontoken
+package sessiontoken_test
 
 import (
 	"net/http"
@@ -6,89 +6,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 )
 
-// The tests in this file exercise PR #1430 review item #8: every JWT claim
-// parser must explicitly reject the FOREIGN MFA-pending flags so a token
-// minted for one surface can never be replayed against another. Item #1
-// already wired this into AppClaims.ParseClaims; this commit extends the
-// defense-in-depth to RefreshClaims, MFAEnrollmentClaims, and
-// MFAChallengeClaims so the rejection is universal and symmetric.
-
-// TestRefreshClaims_ParseClaims_RejectsMFAPending proves the
-// /auth/refresh route refuses a challenge JWT even if some future change
-// adds the `id`/`token` fields the parser would otherwise require.
-func TestRefreshClaims_ParseClaims_RejectsMFAPending(t *testing.T) {
-	t.Parallel()
-
-	claims := map[string]any{
-		"mfa_pending": true,
-		"id":          float64(42),
-		"token":       "refresh-token-value",
-	}
-	var c RefreshClaims
-	err := c.ParseClaims(claims)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pending-MFA challenge",
-		"refresh parser must mention the mfa_pending rejection so the cause is greppable in logs")
-}
-
-// TestRefreshClaims_ParseClaims_RejectsMFAEnrollmentPending — same as
-// above for the enrollment flag.
-func TestRefreshClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T) {
-	t.Parallel()
-
-	claims := map[string]any{
-		"mfa_enrollment_pending": true,
-		"id":                     float64(42),
-		"token":                  "refresh-token-value",
-	}
-	var c RefreshClaims
-	err := c.ParseClaims(claims)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pending-MFA-enrollment")
-}
-
-// TestMFAEnrollmentClaims_ParseClaims_RejectsMFAPending makes the
-// enrollment parser cross-reject a challenge JWT — a JWT cannot satisfy
-// BOTH the challenge and the enrollment middleware even if a future bug
-// in CreateMFA*JWT ever sets both flags.
-func TestMFAEnrollmentClaims_ParseClaims_RejectsMFAPending(t *testing.T) {
-	t.Parallel()
-
-	claims := map[string]any{
-		"mfa_pending":            true, // foreign flag — must be rejected
-		"mfa_enrollment_pending": true,
-		"account_id":             float64(42),
-		"scope":                  MFAEnrollmentScopeTenant,
-	}
-	var c MFAEnrollmentClaims
-	err := c.ParseClaims(claims)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pending-MFA challenge",
-		"enrollment parser must reject tokens carrying the challenge flag — symmetric to MFAChallengeClaims rejecting enrollment_pending")
-}
-
-// TestMFAChallengeClaims_ParseClaims_RejectsMFAEnrollmentPending —
-// symmetric to the previous test.
-func TestMFAChallengeClaims_ParseClaims_RejectsMFAEnrollmentPending(t *testing.T) {
-	t.Parallel()
-
-	claims := map[string]any{
-		"mfa_pending":            true,
-		"mfa_enrollment_pending": true, // foreign flag — must be rejected
-		"account_id":             float64(42),
-		"scope":                  MFAChallengeScopeTenant,
-	}
-	var c MFAChallengeClaims
-	err := c.ParseClaims(claims)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pending-MFA-enrollment",
-		"challenge parser must reject tokens carrying the enrollment flag — symmetric to MFAEnrollmentClaims rejecting mfa_pending")
-}
+// A token minted for one MFA surface must never be accepted by another
+// (#1430 review item #8).
 
 // TestAuthenticateRefreshJWT_RejectsChallengeToken is the end-to-end
 // counterpart: a real challenge JWT minted via CreateMFAChallengeJWT is
@@ -106,16 +35,17 @@ func TestAuthenticateRefreshJWT_RejectsChallengeToken(t *testing.T) {
 
 	// Mint a real challenge JWT — what /auth/login returns when MFA is
 	// required.
-	challengeToken, err := auth.CreateMFAChallengeJWT(MFAChallengeClaims{
+	challengeToken, err := tokentest.CreateMFAChallengeJWT(auth, tokentest.MFAChallengeClaims{
 		AccountID: 42,
-		Scope:     MFAChallengeScopeTenant,
+		Scope:     tokentest.MFAChallengeScopeTenant,
 		TenantID:  100,
 	}, 5*time.Minute)
+
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, _ *http.Request) {
 		// Reached only if the middleware accepts the challenge JWT —
 		// which would be a security regression.
@@ -139,16 +69,17 @@ func TestAuthenticateRefreshJWT_RejectsEnrollmentToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	enrollmentToken, err := auth.CreateMFAEnrollmentJWT(MFAEnrollmentClaims{
+	enrollmentToken, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 42,
-		Scope:     MFAEnrollmentScopeTenant,
+		Scope:     tokenprimitives.PortalTenant,
 		TenantID:  100,
 	}, 15*time.Minute)
+
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
 	r.Use(auth.Verifier())
-	r.Use(AuthenticateRefreshJWT)
+	r.Use(sessiontoken.AuthenticateRefreshJWT)
 	r.Post("/refresh", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

@@ -7,7 +7,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -87,7 +89,7 @@ func (rs *ProfileResource) InitiateEmailChange(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := rs.authService.InitiateOperatorEmailChange(r.Context(), OperatorEmailChangeRequest{
+	if err := rs.authService.InitiateOperatorEmailChange(r.Context(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operatorID, NewEmail: req.NewEmail, CurrentPassword: req.CurrentPassword,
 		IPAddress: clientIP(r),
 	}); err != nil {
@@ -122,9 +124,9 @@ func (rs *ProfileResource) ConfirmEmailChange(w http.ResponseWriter, r *http.Req
 // the frontend can offer a retry — the token remains unconsumed on rollback.
 func confirmEmailChangeErrorRenderer(err error) render.Renderer {
 	switch {
-	case errors.Is(err, ErrOperatorEmailChangeNotFound),
-		errors.Is(err, ErrOperatorEmailInUse),
-		errors.Is(err, ErrOperatorInactive):
+	case errors.Is(err, identityaccess.ErrOperatorEmailChangeNotFound),
+		errors.Is(err, identityaccess.ErrOperatorEmailInUse),
+		errors.Is(err, identityaccess.ErrOperatorInactive):
 		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityEmailChangeLinkInvalid, "dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut")
 	default:
 		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
@@ -137,24 +139,24 @@ func ProfileErrorRenderer(err error) render.Renderer {
 		return invalidOperatorInput(invalid, "new_password")
 	}
 	switch {
-	case errors.Is(err, ErrOperatorPasswordMismatch):
+	case errors.Is(err, identityaccess.ErrOperatorPasswordMismatch):
 		return common.OperatorInvalidField(common.CodeIdentityCurrentPasswordWrong, "current_password", "das aktuelle Passwort ist falsch")
-	case errors.Is(err, ErrOperatorNotFound):
+	case errors.Is(err, identityaccess.ErrOperatorNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
-	case errors.Is(err, ErrOperatorInactive):
+	case errors.Is(err, identityaccess.ErrOperatorInactive):
 		return operatorInactive("Dieser Account ist deaktiviert")
-	case errors.Is(err, ErrOperatorEmailInUse):
+	case errors.Is(err, identityaccess.ErrOperatorEmailInUse):
 		// Defensive: InitiateEmailChange returns nil for duplicates
 		// (anti-enumeration), and ConfirmEmailChange uses
 		// confirmEmailChangeErrorRenderer. No current caller surfaces this
 		// error, but the mapping exists as a safety net if future profile
 		// endpoints produce it.
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "E-Mail-Adresse wird bereits verwendet")
-	case errors.Is(err, ErrOperatorEmailChangeRateLimited):
+	case errors.Is(err, identityaccess.ErrOperatorEmailChangeRateLimited):
 		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityEmailChangeRateLimited, "Zu viele Versuche. Bitte warte eine Stunde.")
-	case errors.Is(err, ErrOperatorEmailChangeSameEmail):
+	case errors.Is(err, identityaccess.ErrOperatorEmailChangeSameEmail):
 		return common.OperatorInvalidField(common.CodeIdentityEmailChangeSameEmail, "new_email", "die neue E-Mail ist identisch mit der aktuellen")
-	case errors.Is(err, ErrOperatorEmailChangeNotFound):
+	case errors.Is(err, identityaccess.ErrOperatorEmailChangeNotFound):
 		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityEmailChangeLinkInvalid, "dieser Link ist abgelaufen oder ungültig")
 	default:
 		return common.OperatorInternal("An error occurred")

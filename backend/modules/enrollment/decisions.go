@@ -67,28 +67,26 @@ type DecideInput struct {
 	ReviewedBy                 int64  // admin's auth account id
 	SuppressParentEmail        bool
 	SuppressGuardianInvitation bool
+	// ExistingStudentID and CreateNewStudent are the office's answer when the
+	// child of an open or linked_parents phase may already be enrolled
+	// (#6053): renew that student, or create a new child. At most one is set,
+	// and only for an approval.
+	ExistingStudentID *int64
+	CreateNewStudent  bool
 }
 
-// DecideOutcome is what the admin handler gets back from Decide. It
-// carries the refreshed child plus an optional follow-up instruction asking
-// the handler to issue a guardian invitation post-commit (after the tenant
-// tx the handler owns completes).
-//
-// We surface the invitation as a side-effect rather than firing it from
-// inside the service so:
-//   - the invitation flow's own DB writes happen only if the approval
-//     tx committed cleanly
-//   - the handler can apply best-effort error handling without rolling
-//     back the approval
+// DecideOutcome is what Decide returns: the refreshed child plus the
+// guardian invitation the approval owes, if any. Decide leaves creating it
+// to its caller within the same transaction; DecideAndInvite creates it and
+// returns no pending invitation.
 type DecideOutcome struct {
 	Child         *RequestChild
 	PendingInvite *PendingGuardianInvite
 }
 
-// PendingGuardianInvite is the post-commit hook for fresh approvals
-// where the guardian doesn't yet have a portal account. The handler is
-// expected to create the guardian invitation with these values once the
-// tenant tx commits.
+// PendingGuardianInvite is the invitation a fresh approval owes a guardian
+// without a portal account. It must be created in the approval's
+// transaction, so the two commit or roll back together.
 type PendingGuardianInvite struct {
 	GuardianProfileID int64
 	CreatedBy         int64 // admin auth account id (for audit)
@@ -110,6 +108,22 @@ type DecisionSummary struct {
 	Children   []*RequestChild
 	Guardians  []*RequestGuardian
 	LateInvite *LateInvite
+	// ExistingChildCandidates are, per request child id, the enrolled
+	// children that may be the same child (#6053). Only the detail read
+	// fills it, and only for children whose approval still asks the office.
+	// A present key requires an office choice even when its candidates are empty.
+	ExistingChildCandidates map[int64][]ExistingChildCandidate
+}
+
+// ExistingChildCandidate is an enrolled child of the school with the name
+// and birthday an enrollment names (#6053), compared like the
+// existing_students match.
+type ExistingChildCandidate struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	DateOfBirth *Date
+	SchoolClass string
 }
 
 // ChildOfferingRow is one care-offering selection for a child, as
@@ -266,6 +280,15 @@ type RestoreOutcome struct {
 	WaitlistedChildIDs []int64
 }
 
+// DecisionCommand applies one child's decision and creates the guardian
+// invitation an approval owes in the same transaction, so a failed invitation
+// or mail rolls the decision back (#6093). It joins the caller's transaction,
+// or opens its own and replays it once after a transient database failure
+// before the decision body ran. The outcome carries no pending invitation.
+type DecisionCommand interface {
+	DecideAndInvite(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+}
+
 // Decisions backs the admin review: the request list and detail, the per-child
 // decision with the downstream record creation of an approval, the restore of
 // a withdrawn request, the booking correction and the audited exports. Every
@@ -274,11 +297,17 @@ type RestoreOutcome struct {
 type Decisions interface {
 	// RequestReads is the per-account read state of the queue (#3778).
 	RequestReads
+	// DecisionCommand is the decision of the admin routes and the manual
+	// approval, with the guardian invitation it owes (#6093).
+	DecisionCommand
 	// DecisionRequests lists the requests of the admin queue.
 	DecisionRequests(ctx context.Context, filters DecisionRequestFilters) ([]*DecisionSummary, error)
 	// StudentDecisionRequests lists the requests whose children created the
 	// student, keeping only those children.
 	StudentDecisionRequests(ctx context.Context, studentID int64) ([]*DecisionSummary, error)
+	// StudentExtraFieldRequests loads linked submissions for the student's
+	// extra fields, including their historical phases and children.
+	StudentExtraFieldRequests(ctx context.Context, studentID int64) ([]*DecisionSummary, error)
 	// DecisionRequest loads one request with its children, guardians and the
 	// late invite it was submitted through.
 	DecisionRequest(ctx context.Context, requestID int64) (*DecisionSummary, error)
@@ -337,6 +366,28 @@ type ApprovedChildSync struct {
 	// change, as the change request stored it.
 	PreviousSnapshot         json.RawMessage
 	PreviousRequestGuardians []*RequestGuardian
+	// ChildDataChanged marks a family's change request that proposes new
+	// data for this child. A family whose relationship to the pinned child
+	// lapsed may no longer change it (#6053).
+	ChildDataChanged bool
+	// Correction names the fields a direct staff correction changed. Where
+	// the request's own data no longer reaches the child (office match,
+	// lapsed parent pin), the trusted correction still writes exactly these
+	// fields onto the child (#6053).
+	Correction *ApprovedChildCorrection
+}
+
+// ApprovedChildCorrection lists the child fields a staff correction changed.
+type ApprovedChildCorrection struct {
+	FirstName bool
+	LastName  bool
+	Birthday  bool
+	Class     bool
+}
+
+// Any reports whether the correction changed a child field.
+func (c *ApprovedChildCorrection) Any() bool {
+	return c != nil && (c.FirstName || c.LastName || c.Birthday || c.Class)
 }
 
 // ApprovedChildChanges is the side of the decision flow the change requests
@@ -350,3 +401,23 @@ type ApprovedChildChanges interface {
 	// the student the approval created.
 	SyncApprovedChildData(ctx context.Context, input ApprovedChildSync) (*RequestChild, error)
 }
+
+// ChildPossiblyEnrolledError is ErrChildPossiblyEnrolled with the enrolled
+// children the office may choose from (#6148): a form that approves in the
+// same step, like the manual enrollment, offers them without a detail read.
+type ChildPossiblyEnrolledError struct {
+	Candidates []ExistingChildCandidate
+	detail     string
+}
+
+// NewChildPossiblyEnrolledError wraps ErrChildPossiblyEnrolled with the
+// candidates and the diagnostic detail.
+func NewChildPossiblyEnrolledError(detail string, candidates []ExistingChildCandidate) *ChildPossiblyEnrolledError {
+	return &ChildPossiblyEnrolledError{Candidates: candidates, detail: detail}
+}
+
+func (e *ChildPossiblyEnrolledError) Error() string {
+	return ErrChildPossiblyEnrolled.Error() + ": " + e.detail
+}
+
+func (e *ChildPossiblyEnrolledError) Unwrap() error { return ErrChildPossiblyEnrolled }

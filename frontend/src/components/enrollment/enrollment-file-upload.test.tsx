@@ -231,7 +231,7 @@ describe("FileUploadInput", () => {
     expect(
       screen
         .getAllByRole("listitem")
-        .map((item) => item.querySelector("span")?.textContent),
+        .map((item) => item.querySelector("span span")?.textContent),
     ).toEqual(["stored.pdf", "proof-1.pdf", "proof-2.pdf", "proof-3.pdf"]);
     expect(pendingCounts.at(-1)).toBe(0);
   });

@@ -2,12 +2,14 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // Operator identity and refresh sessions are platform-wide rows. Every
@@ -130,33 +132,70 @@ func (s *Service) CreateOperator(ctx context.Context, operator identityaccess.Op
 	return identityaccess.Operator(result), nil
 }
 
-// UpdateOperator validates and normalizes the address and display name and
-// writes every mutable column.
-func (s *Service) UpdateOperator(ctx context.Context, operator identityaccess.Operator) (identityaccess.Operator, error) {
+// UpdateOperator locks the operator's row in the administrative transaction,
+// lets change edit the row as committed and writes every mutable column back.
+// Because change never sees a copy read before the lock, a transition another
+// transaction committed meanwhile (deactivation, rotated password) stays in
+// force. The locked read (ErrOperatorNotFound included) and change report
+// their errors as is, and nothing is written; write errors are wrapped.
+func (s *Service) UpdateOperator(ctx context.Context, id int64, change func(*identityaccess.Operator) error) (identityaccess.Operator, error) {
 	var result domain.Operator
+	var editErr error
 	err := s.run(ctx, s.tx.RunAdmin, "update_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
-		row := domain.Operator(operator)
-		if row.ID <= 0 {
-			return identityaccess.ErrOperatorNotFound
+		row, lockErr := s.lockOperatorRow(txCtx, stats, id)
+		if editErr = lockErr; editErr != nil {
+			return editErr
 		}
-		if validateErr := row.Validate(); validateErr != nil {
-			return validateErr
+		edited := identityaccess.Operator(row)
+		if editErr = change(&edited); editErr != nil {
+			return editErr
 		}
-		found, queryStats, updateErr := s.operators.UpdateOperator(txCtx, row)
-		stats.Add(queryStats)
-		if updateErr != nil {
-			return updateErr
-		}
-		if !found {
-			return identityaccess.ErrOperatorNotFound
+		row = domain.Operator(edited)
+		row.ID = id
+		if writeErr := s.writeOperatorRow(txCtx, stats, &row); writeErr != nil {
+			return writeErr
 		}
 		result = row
 		return nil
 	})
+	if editErr != nil {
+		return identityaccess.Operator{}, editErr
+	}
 	if err != nil {
 		return identityaccess.Operator{}, fmt.Errorf("identity access: update operator: %w", MapError(err))
 	}
 	return identityaccess.Operator(result), nil
+}
+
+func (s *Service) lockOperatorRow(ctx context.Context, stats *domain.OperationStats, id int64) (domain.Operator, error) {
+	if id <= 0 {
+		return domain.Operator{}, identityaccess.ErrOperatorNotFound
+	}
+	row, found, queryStats, err := s.operators.FindOperator(ctx, id, true)
+	stats.Add(queryStats)
+	if err != nil {
+		return domain.Operator{}, err
+	}
+	if !found {
+		return domain.Operator{}, identityaccess.ErrOperatorNotFound
+	}
+	return row, nil
+}
+
+// writeOperatorRow validates and normalizes row in place, then stores it.
+func (s *Service) writeOperatorRow(ctx context.Context, stats *domain.OperationStats, row *domain.Operator) error {
+	if err := row.Validate(); err != nil {
+		return err
+	}
+	found, queryStats, err := s.operators.UpdateOperator(ctx, *row)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return identityaccess.ErrOperatorNotFound
+	}
+	return nil
 }
 
 func (s *Service) DeleteOperator(ctx context.Context, id int64) error {
@@ -230,20 +269,30 @@ func (s *Service) ResetOperatorMFAAttempts(ctx context.Context, id int64) error 
 	return nil
 }
 
-func (s *Service) FindOperatorSessionForUpdate(ctx context.Context, token string) (identityaccess.OperatorSession, error) {
+func (s *Service) FindOperatorSessionForUpdate(ctx context.Context, token string) (ports.OperatorSession, error) {
 	session, err := s.findOperatorSessionForUpdate(ctx, token)
 	if err != nil {
-		return identityaccess.OperatorSession{}, fmt.Errorf("identity access: find operator session for update: %w", MapError(err))
+		return ports.OperatorSession{}, fmt.Errorf("identity access: find operator session for update: %w", MapError(err))
 	}
-	return identityaccess.OperatorSession(session), nil
+	return ports.OperatorSession(session), nil
 }
 
-func (s *Service) findOperatorSessionForUpdate(ctx context.Context, token string) (result domain.OperatorSession, err error) {
-	err = s.run(ctx, func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, "find_operator_session_for_update", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) findOperatorSessionForUpdate(ctx context.Context, token string) (domain.OperatorSession, error) {
+	return s.findOperatorSession(ctx, "find_operator_session_for_update", token, true)
+}
+
+// findOperatorSessionByToken reads the operator session without a row lock,
+// for a check that writes nothing.
+func (s *Service) findOperatorSessionByToken(ctx context.Context, token string) (domain.OperatorSession, error) {
+	return s.findOperatorSession(ctx, "find_operator_session", token, false)
+}
+
+func (s *Service) findOperatorSession(ctx context.Context, operation, token string, forUpdate bool) (result domain.OperatorSession, err error) {
+	err = s.run(ctx, func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if token == "" {
 			return identityaccess.ErrOperatorSessionNotFound
 		}
-		session, found, queryStats, findErr := s.operators.FindOperatorSessionByToken(txCtx, token, true)
+		session, found, queryStats, findErr := s.operators.FindOperatorSessionByToken(txCtx, token, forUpdate)
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr
@@ -257,7 +306,7 @@ func (s *Service) findOperatorSessionForUpdate(ctx context.Context, token string
 	return result, err
 }
 
-func (s *Service) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (identityaccess.OperatorSession, error) {
+func (s *Service) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (ports.OperatorSession, error) {
 	var result domain.OperatorSession
 	err := s.run(ctx, s.tx.RunAdmin, "latest_operator_session_in_family", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if familyID == "" {
@@ -275,12 +324,12 @@ func (s *Service) LatestOperatorSessionInFamily(ctx context.Context, familyID st
 		return nil
 	})
 	if err != nil {
-		return identityaccess.OperatorSession{}, fmt.Errorf("identity access: latest operator session in family: %w", MapError(err))
+		return ports.OperatorSession{}, fmt.Errorf("identity access: latest operator session in family: %w", MapError(err))
 	}
-	return identityaccess.OperatorSession(result), nil
+	return ports.OperatorSession(result), nil
 }
 
-func (s *Service) CreateOperatorSession(ctx context.Context, session identityaccess.OperatorSession) (identityaccess.OperatorSession, error) {
+func (s *Service) CreateOperatorSession(ctx context.Context, session ports.OperatorSession) (ports.OperatorSession, error) {
 	var result domain.OperatorSession
 	err := s.run(ctx, s.tx.RunAdmin, "create_operator_session", func(txCtx context.Context, stats *domain.OperationStats) error {
 		row := domain.OperatorSession(session)
@@ -296,9 +345,9 @@ func (s *Service) CreateOperatorSession(ctx context.Context, session identityacc
 		return nil
 	})
 	if err != nil {
-		return identityaccess.OperatorSession{}, fmt.Errorf("identity access: create operator session: %w", MapError(err))
+		return ports.OperatorSession{}, fmt.Errorf("identity access: create operator session: %w", MapError(err))
 	}
-	return identityaccess.OperatorSession(result), nil
+	return ports.OperatorSession(result), nil
 }
 
 // MarkOperatorSessionRotated records the hand-off exactly once: a session that
@@ -347,7 +396,7 @@ func (s *Service) DeleteOperatorSession(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *Service) RevokeOperatorSessions(ctx context.Context, operatorID int64) ([]identityaccess.OperatorSession, error) {
+func (s *Service) RevokeOperatorSessions(ctx context.Context, operatorID int64) ([]ports.OperatorSession, error) {
 	var result []domain.OperatorSession
 	err := s.run(ctx, s.tx.RunAdmin, "revoke_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.operators.DeleteOperatorSessionsByOperator(txCtx, operatorID)
@@ -364,7 +413,7 @@ func (s *Service) RevokeOperatorSessions(ctx context.Context, operatorID int64) 
 	return operatorSessions(result), nil
 }
 
-func (s *Service) RevokeOperatorSessionFamily(ctx context.Context, familyID string) ([]identityaccess.OperatorSession, error) {
+func (s *Service) RevokeOperatorSessionFamily(ctx context.Context, familyID string) ([]ports.OperatorSession, error) {
 	var result []domain.OperatorSession
 	err := s.run(ctx, s.tx.RunAdmin, "revoke_operator_session_family", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.operators.DeleteOperatorSessionsByFamily(txCtx, familyID)
@@ -398,13 +447,42 @@ func (s *Service) DeleteExpiredOperatorSessions(ctx context.Context, now time.Ti
 	return result, nil
 }
 
-func operatorSessions(values []domain.OperatorSession) []identityaccess.OperatorSession {
+func operatorSessions(values []domain.OperatorSession) []ports.OperatorSession {
 	if values == nil {
 		return nil
 	}
-	result := make([]identityaccess.OperatorSession, 0, len(values))
+	result := make([]ports.OperatorSession, 0, len(values))
 	for _, value := range values {
-		result = append(result, identityaccess.OperatorSession(value))
+		result = append(result, ports.OperatorSession(value))
 	}
 	return result
+}
+
+// VerifyOperatorSession refuses an inactive or unknown operator and an access
+// token whose refresh family is gone, expired or another operator's. Operator
+// tokens keep this check of their own; account tokens run AccessSessions.
+// Both reads share one administrative read unit (ADR 0161) in this order and
+// with these guards; it writes nothing, and a refusal ends it before the next
+// statement.
+func (s *Service) VerifyOperatorSession(ctx context.Context, operatorID int64, familyID string) error {
+	return s.tx.RunAdmin(ctx, func(txCtx context.Context) error {
+		operator, err := s.FindOperator(txCtx, operatorID)
+		if err != nil {
+			return err
+		}
+		if !operator.Active || familyID == "" {
+			return identityaccess.ErrOperatorInactive
+		}
+		session, err := s.LatestOperatorSessionInFamily(txCtx, familyID)
+		if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
+			return identityaccess.ErrOperatorInactive
+		}
+		if err != nil {
+			return err
+		}
+		if session.OperatorID != operatorID || !session.Expiry.After(time.Now()) {
+			return identityaccess.ErrOperatorInactive
+		}
+		return nil
+	})
 }

@@ -38,9 +38,8 @@ func TestListInstancesQueryBudget(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	// Pickup cutoffs are read once per distinct date (bounded by the range
-	// cap), so both runs spread their instances over the same three days and
-	// the count must stay flat as instances per day grow.
+	// Pickup cutoffs use one window read. Both runs cover three distinct
+	// days and the count must stay flat as instances per day grow.
 	created := 0
 	addInstances := func(n int) {
 		for range n {
@@ -64,7 +63,7 @@ func TestListInstancesQueryBudget(t *testing.T) {
 
 	run := func() int {
 		counter.Reset()
-		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+		w := doList(t, testpkg.MountedQueryBudgetRouter("/api/timetable", router), fmt.Sprintf("/instances?from=%s&to=%s", from, to))
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		require.Len(t, decodeList(t, w).Instances, created)
 		return counter.Total()
@@ -74,7 +73,7 @@ func TestListInstancesQueryBudget(t *testing.T) {
 	smallCount := run()
 	filteredSmallCount := func() int {
 		counter.Reset()
-		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
+		w := doList(t, testpkg.MountedQueryBudgetRouter("/api/timetable", router), fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		require.Len(t, decodeList(t, w).Instances, created)
 		return counter.Total()
@@ -82,10 +81,10 @@ func TestListInstancesQueryBudget(t *testing.T) {
 
 	addInstances(5)
 	largeCount := run()
-	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list", counter.Measurement(counter.Queries()))
 	filteredLargeCount := func() int {
 		counter.Reset()
-		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
+		w := doList(t, testpkg.MountedQueryBudgetRouter("/api/timetable", router), fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		require.Len(t, decodeList(t, w).Instances, created)
 		return counter.Total()
@@ -97,5 +96,5 @@ func TestListInstancesQueryBudget(t *testing.T) {
 		"query count must be independent of the instance count (no per-instance N+1)")
 	assert.Equal(t, filteredSmallCount, filteredLargeCount,
 		"group-filter query count must be independent of the instance count")
-	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list.group_filter", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.instances.list.group_filter", counter.Measurement(counter.Queries()))
 }

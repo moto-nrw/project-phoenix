@@ -87,10 +87,12 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		Logger:                 slog.Default(),
 	})
 	s := &scenario{
-		t:               t,
-		db:              db,
-		resource:        resource,
-		createVisit:     live.Active.CreateVisit,
+		t:        t,
+		db:       db,
+		resource: resource,
+		createVisit: func(ctx context.Context, visit *studentpresence.Visit) error {
+			return live.Active.CreateVisit(ctx, visit)
+		},
 		endVisit:        live.Active.EndVisit,
 		previewCleanup:  factory.TimetableCleanup.PreviewExpiredTimetableData,
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
@@ -150,7 +152,7 @@ func (s *scenario) do(method, path string, body any, claims timetableTestClaims)
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()
-	testpkg.SessionVerifier(s.router).ServeHTTP(rr, req)
+	testpkg.MountedQueryBudgetRouter("/api/timetable", testpkg.SessionVerifier(s.router)).ServeHTTP(rr, req)
 	return rr
 }
 

@@ -14,6 +14,8 @@ import {
   type StaffShift,
 } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { ColorBar } from "~/components/ui/color-bar";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 
 // Handy-Fassung des eigenen Dienstplans (#3821), wie „Mein Kalender“ auf dem
 // Handy: statt des Wochenrasters, das man seitlich wischen müsste, eine
@@ -56,19 +58,16 @@ export function OwnWeekAgenda({
           const closingReason = closingDays?.get(day.date);
           return (
             <section key={day.date} className="divide-y divide-gray-100">
-              <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold text-gray-900">
-                    {day.label}
-                  </h2>
-                  {closingReason !== undefined && (
+              <ListGroupHeader
+                as="h2"
+                title={day.label}
+                addon={
+                  closingReason === undefined ? undefined : (
                     <ClosingDayChip reason={closingReason} />
-                  )}
-                </div>
-                <span className="shrink-0 text-xs text-gray-500 tabular-nums">
-                  {formatPlannedHours(plannedWeekMinutes(day.shifts))}
-                </span>
-              </div>
+                  )
+                }
+                meta={formatPlannedHours(plannedWeekMinutes(day.shifts))}
+              />
               {day.shifts.map((shift) => (
                 <AgendaShiftRow
                   key={shift.id}
@@ -108,11 +107,7 @@ function AgendaShiftRow({
         </span>
         <span className="text-xs text-gray-500">{shift.endTime}</span>
       </div>
-      <span
-        aria-hidden
-        className={`h-9 w-1 shrink-0 rounded-full ${color ? "" : "bg-gray-300"}`}
-        style={color ? { backgroundColor: color } : undefined}
-      />
+      <ColorBar color={color} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span

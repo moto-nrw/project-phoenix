@@ -2,19 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as status } from "./status/route";
 import { POST as sessions } from "./sessions/route";
+import { stubPortalHostEnv } from "~/test/route-test-helpers";
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://server:8080",
 }));
 
-vi.mock("~/server/auth", () => ({
-  setTenantSession: vi.fn(),
-  withTenantSessionResponse: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth/parent", () => ({
-  setParentSession: vi.fn(),
-  withParentSessionResponse: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    setSession: vi.fn(),
+    withSessionResponse: (handler: unknown) => handler,
+  }),
+);
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    setSession: vi.fn(),
+    withSessionResponse: (handler: unknown) => handler,
+  }),
+);
 const fetchMock = vi.fn();
 
 function request(body: unknown) {
@@ -26,6 +31,7 @@ function request(body: unknown) {
 }
 
 beforeEach(() => {
+  stubPortalHostEnv();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });

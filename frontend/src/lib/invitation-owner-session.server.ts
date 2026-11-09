@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
-import { env } from "~/env";
+import { configuredPortalOfHost } from "~/lib/portal-paths";
 import {
-  getClientForwardHeaders,
+  frontendOrigin,
   getOriginalRequestHost,
   hostnameFromAuthority,
 } from "~/lib/client-headers.server";
@@ -15,19 +15,17 @@ export async function withInvitationOwnerSession(
   request: NextRequest,
   accept: (token: string) => Promise<Response>,
 ): Promise<Response> {
-  const origin = getClientForwardHeaders(request)["X-Moto-Frontend-Origin"];
+  const origin = frontendOrigin(request);
   if (request.headers.get("origin") !== origin) {
     return problemResponse(403, "Invalid origin", request);
   }
   const hostname = hostnameFromAuthority(getOriginalRequestHost(request));
-  if (
-    !hostname ||
-    hostname === hostnameFromAuthority(env.NEXT_PUBLIC_OPERATOR_HOSTNAME)
-  ) {
+  const portal = hostname ? configuredPortalOfHost(hostname) : "operator";
+  if (portal !== "tenant" && portal !== "parent" && portal !== "school") {
     return problemResponse(403, "Unsupported portal", request);
   }
   const handler = async (authRequest: {
-    auth: import("~/server/auth/shared").ServerSession | null;
+    auth: import("~/server/auth/session-types").ServerSession | null;
   }) => {
     const token = authRequest.auth?.user?.token;
     if (!token) {
@@ -38,14 +36,14 @@ export async function withInvitationOwnerSession(
     }
     return accept(token);
   };
-  if (hostname === hostnameFromAuthority(env.NEXT_PUBLIC_PARENTS_HOSTNAME)) {
-    const { withParentAuth } = await import("~/server/auth/parent");
-    return withParentAuth(handler)(request);
+  if (portal === "parent") {
+    const { parentPortal } = await import("~/server/auth/parent");
+    return parentPortal.withAuth(handler)(request);
   }
-  if (hostname === hostnameFromAuthority(env.NEXT_PUBLIC_SCHOOL_HOSTNAME)) {
-    const { withSchoolAuth } = await import("~/server/auth/school");
-    return withSchoolAuth(handler)(request);
+  if (portal === "school") {
+    const { schoolPortal } = await import("~/server/auth/school");
+    return schoolPortal.withAuth(handler)(request);
   }
-  const { withTenantAuth } = await import("~/server/auth");
-  return withTenantAuth(handler)(request);
+  const { tenantPortal } = await import("~/server/auth");
+  return tenantPortal.withAuth(handler)(request);
 }

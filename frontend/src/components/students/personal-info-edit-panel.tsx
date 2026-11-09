@@ -17,13 +17,15 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { todayISO } from "~/lib/date-helpers";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import {
   deleteStudentPhoto,
@@ -33,7 +35,6 @@ import {
 import { DepartureSection, PrivacyConsentSection } from "./student-form-fields";
 import { StudentPhotoSection } from "./student-photo-section";
 import {
-  busDaysHaveAny,
   pickupDaysHaveAny,
   departureDaysFromLegacy,
   allowedDepartureModesFromDeparture,
@@ -44,7 +45,7 @@ import {
   allowedDepartureModesEqual,
   allowedDepartureModesFingerprint,
   accompaniedWeekdayKeys,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   companionsFingerprint,
   fetchStudentCompanions,
@@ -58,12 +59,13 @@ import {
   isCompanionDepartureRefusal,
   isCompanionsChanged,
   isPrivacyConsentSaved,
-} from "~/lib/api";
-import type { AllowedDepartureModes } from "~/lib/student-helpers";
+} from "~/lib/student-update-errors";
+import type { AllowedDepartureModes } from "~/lib/departure-plan";
 import {
-  ParentVisibleBadge,
+  VisibilityBadge,
   ParentVisibilityLegend,
-} from "~/components/ui/parent-visible-badge";
+} from "~/components/ui/visibility-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
@@ -75,7 +77,7 @@ const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 const COMPANION_PLAN_QUESTION =
   "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
 
-export type PersonalInfoSaveDraft = ExtendedStudent & {
+export type PersonalInfoSaveDraft = Student & {
   /** Datenschutzwerte werden nur bei einer bewussten Änderung gespeichert. */
   privacyConsentChanged: boolean;
 };
@@ -85,7 +87,7 @@ export type PersonalInfoSaveDraft = ExtendedStudent & {
 // a comparison between them sees plan changes and not shape noise.
 function departureModesOf(
   source: Pick<
-    ExtendedStudent,
+    Student,
     "allowed_departure_modes" | "departure_days" | "bus_days" | "pickup_days"
   >,
 ): AllowedDepartureModes {
@@ -99,7 +101,7 @@ function departureModesOf(
 }
 
 interface PersonalInfoEditPanelProps {
-  readonly student: ExtendedStudent;
+  readonly student: Student;
   readonly onSave: (student: PersonalInfoSaveDraft) => Promise<void>;
   /**
    * Lädt die Akte neu, nachdem ein Foto hochgeladen oder entfernt wurde. Die
@@ -131,7 +133,7 @@ export function PersonalInfoEditPanel({
   groups = EMPTY_GROUP_OPTIONS,
   onCancel,
 }: PersonalInfoEditPanelProps) {
-  const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
+  const [editedStudent, setEditedStudent] = useState<Student>(student);
   const [isSaving, setIsSaving] = useState(false);
   // Foto (#3115): bis zum Speichern nur im Browser. Eine Datei zu wählen oder
   // „Foto entfernen" zu klicken ist wie jedes andere Feld ein Entwurf; erst
@@ -244,10 +246,8 @@ export function PersonalInfoEditPanel({
         if (cancelled) return;
         setEditedStudent((prev) => ({
           ...prev,
-          privacy_consent_accepted:
-            consent?.accepted ?? prev.privacy_consent_accepted ?? false,
-          data_retention_days:
-            consent?.dataRetentionDays ?? prev.data_retention_days ?? 30,
+          privacy_consent_accepted: consent.accepted,
+          data_retention_days: consent.dataRetentionDays,
         }));
         setPrivacyConsentStatus("ready");
       })
@@ -365,9 +365,9 @@ export function PersonalInfoEditPanel({
       onRefresh: reloadCompanionsFromRemote,
     });
 
-  const updateField = <K extends keyof ExtendedStudent>(
+  const updateField = <K extends keyof Student>(
     field: K,
-    value: ExtendedStudent[K],
+    value: Student[K],
   ) => {
     if (
       field === "privacy_consent_accepted" ||
@@ -546,7 +546,6 @@ export function PersonalInfoEditPanel({
               allowedDepartureModes,
             ),
             bus_days: busDays,
-            buskind: busDaysHaveAny(busDays),
             pickup_days: pickupDays,
             pickup_status: pickupDaysHaveAny(pickupDays)
               ? "Wird abgeholt"
@@ -683,21 +682,28 @@ export function PersonalInfoEditPanel({
       {/* Speicherfehler oben im Bearbeiten-Bereich (Bauart 2 Regel 5). */}
       <FormErrorAlert message={errors.error} />
       {companionsStale ? (
-        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-          <p className="text-sm text-gray-900">
-            Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an anderer
-            Stelle geändert. Speichern ist gesperrt, damit die fremde Änderung
-            nicht überschrieben wird.
-          </p>
-          <p className="mt-1 text-xs text-gray-600">
-            Neu laden verwirft die hier vorgenommenen Änderungen an der
-            Laufgemeinschaft.
-          </p>
-          <div className="mt-2 flex justify-end">
+        <Alert
+          type="warning"
+          announce="polite"
+          actionLayout="stacked"
+          message={
+            <>
+              <p>
+                Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an
+                anderer Stelle geändert. Speichern ist gesperrt, damit die
+                fremde Änderung nicht überschrieben wird.
+              </p>
+              <p className="mt-1 text-xs">
+                Neu laden verwirft die hier vorgenommenen Änderungen an der
+                Laufgemeinschaft.
+              </p>
+            </>
+          }
+          action={
             <Button
               type="button"
               variant="primary"
-              size="md"
+              size="compact"
               onClick={() => {
                 errors.clear();
                 refreshFromRemote();
@@ -705,8 +711,8 @@ export function PersonalInfoEditPanel({
             >
               Neu laden
             </Button>
-          </div>
-        </div>
+          }
+        />
       ) : null}
       {companionsStatus === "error" ? (
         <div className="space-y-1">
@@ -718,52 +724,60 @@ export function PersonalInfoEditPanel({
         </div>
       ) : null}
       {planConflict ? (
-        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-          <p className="text-sm text-gray-900">{COMPANION_PLAN_QUESTION}</p>
-          <p className="mt-1 text-xs text-gray-600">
-            Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
-            werden? Bestehende Heimwege bleiben erhalten.
-          </p>
-          <div className="mt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                // Dismissing the question is a NO: drop the conflicts with
-                // it, so the next save asks again instead of widening the
-                // linked child's Heimweg on a yes that was never given.
-                setPlanConflict(false);
-                setPendingExtensions([]);
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={isSaving || companionsStale}
-              onClick={() => {
-                // Same reason as in handleSave — the confirmed retry
-                // re-sends the very list that went stale.
-                if (companionsStale) return;
-                // The yes happens HERE: only now do the conflicts the
-                // question named become confirmed extensions.
-                const confirmed = mergeCompanionConfirmations(
-                  confirmedExtensions,
-                  pendingExtensions,
-                );
-                setConfirmedExtensions(confirmed);
-                setPendingExtensions([]);
-                updateField("extend_companion_plans", true);
-                void submit(departureModesOf(editedStudent), true, confirmed);
-              }}
-            >
-              Ergänzen und speichern
-            </Button>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          actionLayout="stacked"
+          message={
+            <>
+              <p>{COMPANION_PLAN_QUESTION}</p>
+              <p className="mt-1 text-xs">
+                Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
+                werden? Bestehende Heimwege bleiben erhalten.
+              </p>
+            </>
+          }
+          action={
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => {
+                  // Dismissing the question is a NO: drop the conflicts with
+                  // it, so the next save asks again instead of widening the
+                  // linked child's Heimweg on a yes that was never given.
+                  setPlanConflict(false);
+                  setPendingExtensions([]);
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="compact"
+                disabled={isSaving || companionsStale}
+                onClick={() => {
+                  // Same reason as in handleSave — the confirmed retry
+                  // re-sends the very list that went stale.
+                  if (companionsStale) return;
+                  // The yes happens HERE: only now do the conflicts the
+                  // question named become confirmed extensions.
+                  const confirmed = mergeCompanionConfirmations(
+                    confirmedExtensions,
+                    pendingExtensions,
+                  );
+                  setConfirmedExtensions(confirmed);
+                  setPendingExtensions([]);
+                  updateField("extend_companion_plans", true);
+                  void submit(departureModesOf(editedStudent), true, confirmed);
+                }}
+              >
+                Ergänzen und speichern
+              </Button>
+            </div>
+          }
+        />
       ) : null}
       <ParentVisibilityLegend />
       <TextInput
@@ -871,7 +885,6 @@ export function PersonalInfoEditPanel({
             allowed_departure_modes: allowed,
             departure_days: departure,
             bus_days: busDays,
-            buskind: busDaysHaveAny(busDays),
             pickup_days: pickupDays,
             pickup_status: pickupDaysHaveAny(pickupDays)
               ? "Wird abgeholt"
@@ -913,10 +926,7 @@ export function PersonalInfoEditPanel({
         <PrivacyConsentSection
           formData={editedStudent}
           onChange={(field, value) =>
-            updateField(
-              field as keyof ExtendedStudent,
-              value as ExtendedStudent[keyof ExtendedStudent],
-            )
+            updateField(field as keyof Student, value as Student[keyof Student])
           }
           fieldError={errors.fieldError}
         />
@@ -956,12 +966,12 @@ function TextInput({
 }: Readonly<TextInputProps>) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs text-gray-500">
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={id} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <Input
@@ -992,17 +1002,13 @@ function SelectInput({
   options,
 }: Readonly<SelectInputProps>) {
   return (
-    <div>
-      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
-        {label}
-      </label>
-      <CustomSelect
-        id={id}
-        value={value}
-        onChange={onChange}
-        options={options}
-      />
-    </div>
+    <CustomSelect
+      label={label}
+      id={id}
+      value={value}
+      onChange={onChange}
+      options={options}
+    />
   );
 }
 
@@ -1024,12 +1030,12 @@ function DateInput({
 }: Readonly<DateInputProps>) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs text-gray-500">
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={id} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
       <ISODatePicker
@@ -1069,19 +1075,19 @@ function TextAreaInput({
 }: Readonly<TextAreaInputProps>) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1">
-        <label htmlFor={id} className="block text-xs text-gray-500">
+      <div className="mb-2 flex items-center gap-1">
+        <FieldLabel htmlFor={id} className="mb-0">
           {label}
-        </label>
+        </FieldLabel>
         {parentVisibleHint && (
-          <ParentVisibleBadge compact hint={parentVisibleHint} />
+          <VisibilityBadge compact hint={parentVisibleHint} />
         )}
       </div>
-      <textarea
+      <Textarea
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="focus:ring-moto-blue min-h-[80px] w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
+        className="min-h-[80px] resize-y py-2.5"
         rows={rows}
         placeholder={placeholder}
         maxLength={2000}

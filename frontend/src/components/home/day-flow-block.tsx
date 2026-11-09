@@ -2,13 +2,12 @@
 
 import { Fragment } from "react";
 
-import Link from "~/components/ui/navigation-link";
+import { ListRow } from "~/components/ui/list-row";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { SkeletonRows } from "~/components/ui/skeleton";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { blockTintStyle } from "~/components/timetable/block-row-parts";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
@@ -85,11 +84,9 @@ export function DayFlowBlock() {
   });
 
   return (
-    <SectionCard
+    <HomeCard
       title="Ablauf des Tages"
       leading={<HomeCardIcon concept={carePlanConcept} />}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       inlineActions
       actions={
         <HomeCardLink
@@ -105,19 +102,7 @@ export function DayFlowBlock() {
         // Ladefehler ist nie „Gerade steht nichts an“.
         if (loadError) return <LoadErrorAlert error={loadError} />;
         if ((isLoading && data === undefined) || error) {
-          return (
-            <div className="space-y-2" aria-hidden="true">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-                >
-                  <Skeleton className="h-4 w-24 rounded" />
-                  <Skeleton className="h-4 flex-1 rounded" />
-                </div>
-              ))}
-            </div>
-          );
+          return <SkeletonRows />;
         }
         if (blocks.length === 0) {
           return (
@@ -137,13 +122,14 @@ export function DayFlowBlock() {
                   <li key={block.id}>
                     {/* Jede Zeile führt in den Tagesplan, wo der Block bedient
                       wird — wie die Zeilen der Nachbarkarten. */}
-                    <Link
+                    <ListRow
                       href={dayPlanHref}
                       aria-label={`${block.title}${mine ? " (Mein Block)" : ""}: unter Heute öffnen`}
-                      className={`flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
-                        block.status === "completed" ? "opacity-60" : ""
-                      }`}
+                      className={
+                        block.status === "completed" ? "opacity-60" : undefined
+                      }
                       style={blockTintStyle(block, mine)}
+                      trailing={<BlockState block={block} now={now} />}
                     >
                       <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-900 tabular-nums">
                         {blockTimeRange(block)}
@@ -177,8 +163,7 @@ export function DayFlowBlock() {
                             .flatMap((part) => [" · ", part])}
                         </span>
                       </p>
-                      <BlockState block={block} now={now} />
-                    </Link>
+                    </ListRow>
                   </li>
                 );
               })}
@@ -192,7 +177,7 @@ export function DayFlowBlock() {
           </>
         );
       })()}
-    </SectionCard>
+    </HomeCard>
   );
 }
 

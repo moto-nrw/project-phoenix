@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { TeamChatThreadParts } from "~/components/messaging/team-chat-thread";
-import { renderThreadFrame } from "./page";
+import { renderThreadFrame } from "~/components/messaging/team-chat-frames";
 
 function parts(
   overrides: Partial<TeamChatThreadParts> = {},

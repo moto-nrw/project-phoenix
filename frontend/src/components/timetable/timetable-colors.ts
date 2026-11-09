@@ -1,0 +1,50 @@
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import type { InstanceStatus } from "~/lib/timetable-types";
+
+/**
+ * Shared 5-tone palette for small status/ratio indicators across the
+ * timetable feature (issue #1838). Supersedes two previously-separate,
+ * incompatible local palettes (the 4-tone StatPill in
+ * instance-detail-modal.tsx had no "danger", TimetableStatCard's
+ * neutral/success/warning/danger had no "info") — this is the union of both,
+ * mapped onto the existing LOCATION_COLORS semantic set. No new hex values.
+ */
+export type TimetableTone =
+  "neutral" | "success" | "info" | "warning" | "danger";
+
+export const timetableToneColors: Record<TimetableTone, string> = {
+  neutral: LOCATION_COLORS.UNKNOWN,
+  success: LOCATION_COLORS.GROUP_ROOM,
+  info: LOCATION_COLORS.OTHER_ROOM,
+  warning: LOCATION_COLORS.WARNING,
+  danger: LOCATION_COLORS.DANGER,
+} as const;
+
+/**
+ * Pillenfarbe des Terminstatus, damit „Läuft“ und „Abgesagt“ im Termin-Detail
+ * und in der Vertretung dieselbe Pille tragen. Geplant und Abgeschlossen teilen
+ * sich Grau, die Beschriftung trennt sie.
+ */
+export const instanceStatusTone: Record<InstanceStatus, StatusBadgeTone> = {
+  planned: "gray",
+  active: "green",
+  completed: "gray",
+  cancelled: "red",
+};
+
+/**
+ * Neutrale Blockkante für Termine ohne Planungsspur. Derselbe Wert wie
+ * UNTYPED_EDGE_COLOR in ui/planning/plan-block.tsx: die Rasterflächen, die den Block
+ * nicht selbst rendern (Monatsraster, Regeltermin-Karte, Tagesplan), müssen
+ * dieselbe Kante zeigen. Benannte Konstante statt eines Hex-Literals im
+ * Markup, damit ein tenant-gesetzter Spurwert und sein Ersatz an einer
+ * Stelle stehen.
+ */
+export const TIMETABLE_UNTYPED_EDGE_COLOR = MOTO_COLOR_PALETTE.neutral.muted;
+
+/**
+ * Ersatzfarbe, wenn eine Schicht- oder Spurfarbe aus den Tenant-Daten fehlt:
+ * das neutrale Grau der Palette, nie eine erfundene Buntfarbe.
+ */
+export const TIMETABLE_NEUTRAL_COLOR = MOTO_COLOR_PALETTE.neutral.base;

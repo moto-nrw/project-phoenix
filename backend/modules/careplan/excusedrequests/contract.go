@@ -190,6 +190,11 @@ type Request struct {
 // QueueFilter is the owner-neutral paging contract shared by the
 // immediate-notice and approval-request queues.
 type QueueFilter struct {
+	// OmitDiff skips only the best-effort care-schedule display diff for
+	// counts, retaining every row, child and reviewer-scope check. It must
+	// stay false for pages and conflict scans, whose keys depend on the diff.
+	// Other queues ignore it.
+	OmitDiff      bool
 	UrgentOnly    *bool
 	UrgentDate    string
 	StudentIDs    []int64
@@ -360,7 +365,9 @@ type Review interface {
 
 // BulkApproval is the excused-request part of the cross-kind bulk approval.
 type BulkApproval interface {
-	GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*BulkCandidate, error)
+	// GetExcusedBulkCandidate reads every named request before any lock. A
+	// request that is gone, decided or hidden from the caller is absent.
+	GetExcusedBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]BulkCandidate, error)
 	LockExcusedBulkRequest(ctx context.Context, requestID int64) error
 	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
 }

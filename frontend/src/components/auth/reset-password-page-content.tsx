@@ -1,14 +1,15 @@
 "use client";
 
+import { EmptyState } from "~/components/ui/empty-state";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
-  AuthFieldError,
   AuthShell,
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -17,13 +18,13 @@ import { Loading } from "~/components/ui/loading";
 import { useApiFormError } from "~/contexts/ToastContext";
 import Link from "next/link";
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { confirmPasswordReset } from "~/lib/auth-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
 
@@ -58,11 +59,13 @@ export interface ResetPasswordPageCopy {
   readonly passwordMissingNumber: string;
   readonly passwordMissingSpecial: string;
   readonly passwordMismatch: string;
-  readonly successEyebrow: string;
+  /** Kopfzeile über dem Titel, nur im Elternportal (#5607). */
+  readonly successEyebrow?: string;
   readonly successTitle: string;
   readonly successSubtitle: string;
   readonly successBody: string;
-  readonly formEyebrow: string;
+  /** Kopfzeile über dem Titel, nur im Elternportal (#5607). */
+  readonly formEyebrow?: string;
   readonly formTitle: string;
   readonly formSubtitle: string;
   readonly passwordLabel: string;
@@ -89,11 +92,9 @@ const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
   passwordMissingSpecial:
     "Das Passwort muss mindestens ein Sonderzeichen enthalten.",
   passwordMismatch: "Die Passwörter stimmen nicht überein.",
-  successEyebrow: "Passwort geändert",
   successTitle: "Passwort erfolgreich geändert",
   successSubtitle: "Sie werden automatisch zur Anmeldeseite weitergeleitet.",
   successBody: "Die Anmeldung ist gleich wieder möglich.",
-  formEyebrow: "Passwort zurücksetzen",
   formTitle: "Neues Passwort festlegen",
   formSubtitle: "Wählen Sie ein starkes Passwort für Ihr Konto.",
   passwordLabel: "Neues Passwort",
@@ -120,8 +121,6 @@ interface PasswordFieldProps {
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly visible: boolean;
-  readonly onToggleVisible: () => void;
   readonly disabled: boolean;
   readonly showPasswordLabel: string;
   readonly hidePasswordLabel: string;
@@ -134,8 +133,6 @@ function PasswordField({
   label,
   value,
   onChange,
-  visible,
-  onToggleVisible,
   disabled,
   showPasswordLabel,
   hidePasswordLabel,
@@ -145,29 +142,23 @@ function PasswordField({
       <FieldLabel htmlFor={id} required invalid={error !== undefined}>
         {label}
       </FieldLabel>
-      <div className="relative">
-        <Input
-          id={id}
-          name={name}
-          type={visible ? "text" : "password"}
-          controlSize="compact"
-          autoComplete="new-password"
-          required
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          aria-invalid={error !== undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
-          className="pr-10"
-          disabled={disabled}
-        />
-        <PasswordToggleButton
-          showPassword={visible}
-          onToggle={onToggleVisible}
-          showLabel={showPasswordLabel}
-          hideLabel={hidePasswordLabel}
-        />
-      </div>
-      <AuthFieldError id={`${id}-error`} message={error} />
+      <Input
+        id={id}
+        name={name}
+        type="password"
+        revealable
+        showPasswordLabel={showPasswordLabel}
+        hidePasswordLabel={hidePasswordLabel}
+        controlSize="compact"
+        autoComplete="new-password"
+        required
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error !== undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        disabled={disabled}
+      />
+      <FieldErrorHint id={`${id}-error`} message={error} />
     </div>
   );
 }
@@ -182,8 +173,6 @@ export function ResetPasswordPageContent({
 }: ResetPasswordPageContentProps = {}) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517): Katalogtext je Code, Feldfehler
   // am Feld. Vor der Anmeldung heißt 401 "abgelehnt", nicht "abgelaufen".
   const formRef = useRef<HTMLFormElement>(null);
@@ -315,22 +304,19 @@ export function ResetPasswordPageContent({
     return (
       <AuthShell
         eyebrow={copy.successEyebrow}
-        eyebrowClassName="text-moto-green"
         title={copy.successTitle}
         subtitle={copy.successSubtitle}
         variant="reset"
         brand={brand}
         testimonialPanelCopy={testimonialPanelCopy}
       >
-        <div className="text-center">
-          <div className="bg-moto-green-soft mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <CheckIcon className="text-moto-green-strong h-10 w-10" />
-          </div>
-
-          <p className="mb-6 text-sm text-gray-600">{copy.successBody}</p>
-
-          <Loading fullPage={false} />
-        </div>
+        <EmptyState
+          tone="success"
+          icon={<CheckIcon />}
+          description={copy.successBody}
+          progress={<Loading />}
+          className="py-0"
+        />
       </AuthShell>
     );
   }
@@ -338,7 +324,6 @@ export function ResetPasswordPageContent({
   return (
     <AuthShell
       eyebrow={copy.formEyebrow}
-      eyebrowClassName="text-moto-green"
       title={copy.formTitle}
       subtitle={copy.formSubtitle}
       variant="reset"
@@ -361,8 +346,6 @@ export function ResetPasswordPageContent({
             label={copy.passwordLabel}
             value={password}
             onChange={setPassword}
-            visible={showPassword}
-            onToggleVisible={() => setShowPassword(!showPassword)}
             disabled={isLoading || !token}
             showPasswordLabel={copy.showPassword}
             hidePasswordLabel={copy.hidePassword}
@@ -374,15 +357,13 @@ export function ResetPasswordPageContent({
             label={copy.confirmPasswordLabel}
             value={confirmPassword}
             onChange={setConfirmPassword}
-            visible={showConfirmPassword}
-            onToggleVisible={() => setShowConfirmPassword(!showConfirmPassword)}
             disabled={isLoading || !token}
             showPasswordLabel={copy.showPassword}
             hidePasswordLabel={copy.hidePassword}
           />
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
+        <InsetPanel framed className="text-left">
           <p className="mb-1.5 text-xs font-medium text-gray-700">
             {copy.requirementsTitle}
           </p>
@@ -391,7 +372,7 @@ export function ResetPasswordPageContent({
               <li key={requirement}>{requirement}</li>
             ))}
           </ul>
-        </div>
+        </InsetPanel>
 
         <Button
           type="submit"

@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
-import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -22,6 +21,8 @@ import {
   PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
+import { FormFieldset } from "~/components/ui/form-fieldset";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
   1: "mon",
@@ -169,15 +170,20 @@ function ModalFooter({
   onClose: () => void;
   onSubmit: () => void;
 }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <>
       <Button type="button" variant="outline" size="md" onClick={onClose}>
         {t("cancel")}
       </Button>
-      <Button type="button" size="md" disabled={submitting} onClick={onSubmit}>
-        {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
-        {t(submitting ? "requestSubmitting" : "requestSubmit")}
+      <Button
+        type="button"
+        size="md"
+        isLoading={submitting}
+        loadingText={t("requestSubmitting")}
+        onClick={onSubmit}
+      >
+        {t("requestSubmit")}
       </Button>
     </>
   );
@@ -194,14 +200,11 @@ function ScheduleDayFields({
   capabilities: Capabilities;
   onChange: (draft: DayDraft) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const day = t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`);
   const canChangeDay = capabilities.pickup && capabilities.departure_mode;
   return (
-    <fieldset className="space-y-3 rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {day}
-      </legend>
+    <FormFieldset legend={day} className="space-y-3">
       {canChangeDay && <CareDayToggle draft={draft} onChange={onChange} />}
       {draft.scheduled && (
         <ScheduleValues
@@ -211,7 +214,7 @@ function ScheduleDayFields({
           onChange={onChange}
         />
       )}
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -219,7 +222,7 @@ function CareDayToggle({
   draft,
   onChange,
 }: Readonly<{ draft: DayDraft; onChange: (draft: DayDraft) => void }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
       <Checkbox
@@ -244,7 +247,8 @@ function ScheduleValues({
   capabilities: Capabilities;
   onChange: (draft: DayDraft) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const options = ["alone", "bus", "pickup"].map((value) => ({
     value,
     label: t(`departureModes.${value}`),
@@ -267,6 +271,12 @@ function ScheduleValues({
           label={t("careSchedule.pickup")}
           hint={t("careSchedule.timeHint")}
           placeholder={t("careSchedule.timeExample")}
+          timePickerLabels={{
+            selectTime: tTimePicker("selectTime"),
+            hour: tTimePicker("hour"),
+            minute: tTimePicker("minute"),
+            minimum: (time) => tTimePicker("minimum", { time }),
+          }}
         />
       )}
     </>
@@ -280,8 +290,8 @@ function useRequestForm(
   onSubmit: SubmitRequest,
   onClose: () => void,
 ) {
-  const t = useTranslations("parentMasterData.careSchedule");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [drafts, setDrafts] = useState(() => draftsFromWeekdays(weekdays));
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -399,7 +409,7 @@ export function CareScheduleRequestModal({
   onClose: () => void;
   onSubmit: SubmitRequest;
 }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   const form = useRequestForm(
     studentId,
     weekdays,

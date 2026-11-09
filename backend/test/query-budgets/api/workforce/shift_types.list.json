@@ -1,0 +1,7 @@
+{
+  "scenario": "api.workforce.shift_types.list",
+  "max": 4,
+  "exact": true,
+  "description": "GET /api/shift-types/: real Workforce planning composition and protected tenant router. Complete request capture: BEGIN, combined tenant role/config, one tenant-scoped bulk shift-type SELECT and COMMIT. Exact for 0, 3 and 8 rows; includes inactive types, preserves DTO/name order, excludes foreign tenants and issues no writes. Listener and outer process middleware are outside this scope.",
+  "route": "GET /api/shift-types/"
+}

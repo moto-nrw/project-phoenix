@@ -12,6 +12,7 @@ const logger = createLogger({ component: "TraegerMasterData" });
 
 const EMPTY: TraegerMasterData = {
   contact: { name: "", phone: "", email: "" },
+  withdrawal: { phone: "", email: "" },
   logo: null,
   bankAccounts: [],
 };

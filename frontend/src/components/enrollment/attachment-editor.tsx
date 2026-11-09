@@ -1,23 +1,20 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { useEffect, useRef, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { Input } from "~/components/ui/input";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
-  MAX_ENROLLMENT_DOCUMENT_BYTES,
+  MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL,
+  enrollmentDocumentProblem,
   uploadEnrollmentLegalDocument,
   deleteEnrollmentLegalDocument,
   type FormAttachment,
 } from "~/lib/enrollment-form-schema-api";
-
-export const AttachmentUploadContext = createContext<{
-  remember: (url: string) => void;
-  begin: () => void;
-  end: () => void;
-} | null>(null);
+import { useDraftDocumentLifecycle } from "~/components/enrollment/draft-documents";
 
 /** Removal is staged with the form. The editor cleans unreferenced drafts
  * on save/discard, while the backend protects every saved version's files. */
@@ -36,11 +33,12 @@ const SCHOOL_ATTACHMENT_UPLOAD: AttachmentUploadAdapter = {
 const NO_ATTACHMENTS: FormAttachment[] = [];
 
 function selectionError(files: File[]): string | undefined {
-  if (files.some((file) => !file.name.toLowerCase().endsWith(".pdf"))) {
+  const problems = new Set(files.map(enrollmentDocumentProblem));
+  if (problems.has("not_pdf")) {
     return "Bitte wählen Sie nur PDF-Dateien aus.";
   }
-  if (files.some((file) => file.size > MAX_ENROLLMENT_DOCUMENT_BYTES)) {
-    return "Eine Datei ist größer als 10 MB. Bitte wählen Sie kleinere Dateien.";
+  if (problems.has("too_large")) {
+    return `Eine Datei ist größer als ${MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL}. Bitte wählen Sie kleinere Dateien.`;
   }
   return undefined;
 }
@@ -60,7 +58,7 @@ export function AttachmentEditor({
   fieldPath: string;
   fieldError: (name: string) => string | undefined;
 }>) {
-  const lifecycle = useContext(AttachmentUploadContext);
+  const lifecycle = useDraftDocumentLifecycle();
   const { show, showMessage } = useApiErrorDisplay();
   const [uploading, setUploading] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
@@ -103,7 +101,7 @@ export function AttachmentEditor({
   }
 
   async function upload(files: File[], previousURL: string | null) {
-    if (files.length === 0 || !lifecycle) return;
+    if (files.length === 0) return;
     const error = selectionError(files);
     if (error) {
       showMessage(error);
@@ -212,7 +210,10 @@ export function AttachmentEditor({
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-gray-500">Noch keine PDFs angehängt.</p>
+        <EmptyState
+          variant="compact"
+          description="Noch keine PDFs angehängt."
+        />
       )}
       <div className="space-y-2">
         <Button
@@ -231,8 +232,8 @@ export function AttachmentEditor({
             : "PDFs hinzufügen"}
         </Button>
         <p className="text-xs leading-5 text-gray-500">
-          Sie können mehrere PDFs gleichzeitig auswählen. Höchstens 10 MB pro
-          Datei.
+          Sie können mehrere PDFs gleichzeitig auswählen. Höchstens{" "}
+          {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
         </p>
       </div>
       <input

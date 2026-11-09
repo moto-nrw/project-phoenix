@@ -2,33 +2,29 @@ import { withServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { tenantAuthConfig as authConfig } from "./tenant-config";
-import { _resetRefreshState, _testHelpers } from "./shared";
-import { operatorAuthConfig } from "./operator-config";
-import { parentAuthConfig } from "./parent-config";
-import { schoolAuthConfig } from "./school-config";
-import { catererAuthConfig } from "./caterer-config";
+import { _resetRefreshState } from "./token-refresh";
+import { buildAuthUser, buildDisplayName, parseJwtPayload } from "./jwt-claims";
+import { parseDurationToMs } from "./session-lifetime";
+import { loginAtBackend } from "./backend-login";
 import type { User } from "next-auth";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const authConfig = createPortalAuthConfig(PORTALS.tenant);
+const operatorAuthConfig = createPortalAuthConfig(PORTALS.operator);
+const parentAuthConfig = createPortalAuthConfig(PORTALS.parent);
+const schoolAuthConfig = createPortalAuthConfig(PORTALS.school);
+const catererAuthConfig = createPortalAuthConfig(PORTALS.caterer);
 
 // Shared JWT token constants — decoded payloads documented inline
 // { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com", roles: ["teacher"], is_admin: false }
 const TEACHER_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl0sImlzX2FkbWluIjpmYWxzZX0.test";
-// { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com" } (no roles)
-const TEACHER_JWT_NO_ROLES =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJsYXN0X25hbWUiOiJEb2UiLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
 // { id: 123, first_name: "Test", last_name: "User", email: "test@example.com", roles: ["teacher"] }
 const INTERNAL_REFRESH_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzLCJmaXJzdF9uYW1lIjoiVGVzdCIsImxhc3RfbmFtZSI6IlVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ0ZWFjaGVyIl19.test";
-// { id: 1, first_name: "John", email: "john@example.com" } (no last_name, no roles)
-const TEACHER_JWT_MINIMAL =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
 // { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], permissions: [], scope: "platform", is_admin: false }
 const OPERATOR_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInBlcm1pc3Npb25zIjpbXSwic2NvcGUiOiJwbGF0Zm9ybSIsImlzX2FkbWluIjpmYWxzZX0.test";
-// { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
-const OPERATOR_JWT_MINIMAL =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInNjb3BlIjoicGxhdGZvcm0ifQ.test";
 // { id: 45, sub: "operator:45", email: "legacy-op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
 const OPERATOR_JWT_EMAIL_ONLY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZW1haWwiOiJsZWdhY3ktb3BAZXhhbXBsZS5jb20iLCJmaXJzdF9uYW1lIjoiT3AiLCJyb2xlcyI6WyJvcGVyYXRvciJdLCJzY29wZSI6InBsYXRmb3JtIn0.test";
@@ -67,9 +63,9 @@ vi.mock("~/env", () => ({
   },
 }));
 
-// Mock next-auth's dynamic-import surface used by createOperatorLoginError.
+// Mock next-auth's dynamic-import surface used by credentialsRefusal.
 // In the vitest environment the ESM dynamic `import("next-auth")` inside
-// shared.ts fails with ERR_MODULE_NOT_FOUND because next-auth resolves
+// backend-login.ts fails with ERR_MODULE_NOT_FOUND because next-auth resolves
 // differently than at app runtime. A minimal CredentialsSignin stub lets
 // the import succeed and lets tests assert on the thrown error's `code`.
 class MockCredentialsSignin extends Error {
@@ -88,9 +84,9 @@ vi.mock("next/headers", () => ({
 // Mock fetch globally
 const mockFetch = vi.fn();
 
-// Shared helper: invoke JWT callback with test defaults
-function callJwt(token: Record<string, unknown>) {
-  return authConfig.callbacks?.jwt?.({
+// Shared helper: invoke a portal's JWT callback with test defaults
+function callJwt(token: Record<string, unknown>, config = authConfig) {
+  return config.callbacks.jwt({
     token,
     user: undefined as unknown as User,
     account: null,
@@ -780,36 +776,17 @@ describe("authConfig", () => {
       expect(credentialsProvider).toBeDefined();
     });
 
-    it("should have authorize function that validates credentials", async () => {
-      const authorize = getTeacherAuthorize();
-
-      // Verify authorize function exists
-      expect(authorize).toBeDefined();
-      expect(typeof authorize).toBe("function");
-
-      // Verify it returns null for invalid/missing credentials (already tested in other tests)
-      const result = await authorize({}, new Request("http://localhost:3000"));
-      expect(result).toBeNull();
-    });
-
-    it("should return null for failed login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
+    // The tenant login page signs in through /api/auth/login (review L7).
+    it("refuses a password without asking the backend", async () => {
       const authorize = getTeacherAuthorize();
 
       const result = await authorize(
-        {
-          email: "test@example.com",
-          password: "wrongpassword",
-        },
+        { email: "test@example.com", password: "correct" },
         new Request("http://localhost:3000"),
       );
 
       expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("should return null for missing credentials", async () => {
@@ -845,27 +822,34 @@ describe("authConfig", () => {
     });
   });
 
+  // The backend reads the same env values with Go's time.ParseDuration;
+  // the frontend must accept and refuse exactly the same values.
   describe("parseDurationToMs", () => {
-    it("should parse hour durations", () => {
-      expect(_testHelpers.parseDurationToMs("1h")).toBe(3600000);
-      expect(_testHelpers.parseDurationToMs("12h")).toBe(43200000);
+    it.each([
+      ["15m", 15 * 60_000],
+      ["168h", 168 * 3_600_000],
+      ["1h30m", 90 * 60_000],
+      ["1.5h", 90 * 60_000],
+      ["90s", 90_000],
+      ["500ms", 500],
+      ["0", 0],
+    ])("reads %s as Go does", (value, ms) => {
+      expect(parseDurationToMs("AUTH_JWT_EXPIRY", value)).toBe(ms);
     });
 
-    it("should parse minute durations", () => {
-      expect(_testHelpers.parseDurationToMs("15m")).toBe(900000);
-      expect(_testHelpers.parseDurationToMs("30m")).toBe(1800000);
-    });
-
-    it("should return 12h default for invalid input", () => {
-      expect(_testHelpers.parseDurationToMs("invalid")).toBe(43200000);
-      expect(_testHelpers.parseDurationToMs("10s")).toBe(43200000);
-      expect(_testHelpers.parseDurationToMs("")).toBe(43200000);
-    });
+    it.each(["7d", "15", "garbage", "", "h", ".h", "1h 30m", "15M"])(
+      "fails fast on %j, which Go refuses too",
+      (value) => {
+        expect(() => parseDurationToMs("AUTH_JWT_EXPIRY", value)).toThrow(
+          /AUTH_JWT_EXPIRY/,
+        );
+      },
+    );
   });
 
   describe("parseJwtPayload", () => {
     it("should parse valid JWT payload", () => {
-      const payload = _testHelpers.parseJwtPayload(TEACHER_JWT);
+      const payload = parseJwtPayload(TEACHER_JWT);
 
       expect(payload).not.toBeNull();
       expect(payload?.id).toBe(1);
@@ -877,15 +861,13 @@ describe("authConfig", () => {
     });
 
     it("should return null for token with wrong number of parts", () => {
-      expect(_testHelpers.parseJwtPayload("not-a-jwt")).toBeNull();
-      expect(_testHelpers.parseJwtPayload("only.two")).toBeNull();
-      expect(_testHelpers.parseJwtPayload("a.b.c.d")).toBeNull();
+      expect(parseJwtPayload("not-a-jwt")).toBeNull();
+      expect(parseJwtPayload("only.two")).toBeNull();
+      expect(parseJwtPayload("a.b.c.d")).toBeNull();
     });
 
     it("should return null for invalid base64 payload", () => {
-      const result = _testHelpers.parseJwtPayload(
-        "header.!!!invalid!!!.signature",
-      );
+      const result = parseJwtPayload("header.!!!invalid!!!.signature");
       expect(result).toBeNull();
     });
   });
@@ -893,40 +875,34 @@ describe("authConfig", () => {
   describe("buildDisplayName", () => {
     it("should use first and last name when available", () => {
       const payload = { id: 1, first_name: "John", last_name: "Doe" };
-      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
-        "John Doe",
-      );
+      expect(buildDisplayName(payload, "john@example.com")).toBe("John Doe");
     });
 
     it("should use first name only when last name is missing", () => {
       const payload = { id: 1, first_name: "John" };
-      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
-        "John",
-      );
+      expect(buildDisplayName(payload, "john@example.com")).toBe("John");
     });
 
     it("should fall back to username", () => {
       const payload = { id: 1, username: "johnd" };
-      expect(_testHelpers.buildDisplayName(payload, "")).toBe("johnd");
+      expect(buildDisplayName(payload, "")).toBe("johnd");
     });
 
     it("should fall back to email", () => {
       const payload = { id: 1 };
-      expect(_testHelpers.buildDisplayName(payload, "john@example.com")).toBe(
+      expect(buildDisplayName(payload, "john@example.com")).toBe(
         "john@example.com",
       );
     });
 
     it("should fall back to ultimate fallback", () => {
       const payload = { id: 1 };
-      expect(_testHelpers.buildDisplayName(payload, "", "Unknown")).toBe(
-        "Unknown",
-      );
+      expect(buildDisplayName(payload, "", "Unknown")).toBe("Unknown");
     });
 
     it("should use default ultimate fallback", () => {
       const payload = { id: 1 };
-      expect(_testHelpers.buildDisplayName(payload, "")).toBe("User");
+      expect(buildDisplayName(payload, "")).toBe("User");
     });
   });
 
@@ -942,11 +918,12 @@ describe("authConfig", () => {
         is_admin: false,
       };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "access-token",
         "refresh-token",
         "john@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.id).toBe("1");
@@ -968,12 +945,12 @@ describe("authConfig", () => {
         is_admin: true,
       };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "token",
         "refresh",
         "op@example.com",
-        "platform",
+        PORTALS.operator,
       );
 
       expect(user.roles).toEqual(["operator"]);
@@ -984,11 +961,12 @@ describe("authConfig", () => {
     it("should handle missing roles with empty array", () => {
       const payload = { id: 2, email: "test@example.com" };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "token",
         "refresh",
         "test@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.roles).toEqual([]);
@@ -1000,388 +978,159 @@ describe("authConfig", () => {
         roles: "not-an-array" as unknown as string[],
       };
 
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         payload,
         "token",
         "refresh",
         "test@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.roles).toEqual([]);
     });
 
     it("preserves the system origin of each tenant role", () => {
-      const user = _testHelpers.buildAuthUser(
+      const user = buildAuthUser(
         { id: 4, roles: ["user", "user"], role_is_system: [true, false] },
         "token",
         "refresh",
         "test@example.com",
+        PORTALS.tenant,
       );
 
       expect(user.roleIsSystem).toEqual([true, false]);
     });
   });
 
-  describe("performOperatorLogin", () => {
-    it("should return tokens on successful login", async () => {
+  describe("loginAtBackend", () => {
+    const refused = (status: number, body: string) => ({
+      ok: false,
+      status,
+      text: async () => body,
+    });
+
+    it("unwraps an enveloped login answer", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           status: "success",
-          data: {
-            access_token: "op-access",
-            refresh_token: "op-refresh",
-            operator: { id: 1, email: "op@test.com", display_name: "Op" },
-          },
+          data: { access_token: "op-access", refresh_token: "op-refresh" },
         }),
       });
 
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "pass",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.operator,
+        { email: "op@test.com", password: "pass" },
+        undefined,
       );
 
       expect(result).toEqual({
-        access_token: "op-access",
-        refresh_token: "op-refresh",
+        ok: true,
+        tokens: { access_token: "op-access", refresh_token: "op-refresh" },
       });
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://server:8080/operator/auth/login",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
 
-    it("should return tokens with dev logging enabled", async () => {
+    it("reads a plain login answer", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          status: "success",
-          data: {
-            access_token: "op-access",
-            refresh_token: "op-refresh",
-            operator: { id: 1, email: "op@test.com", display_name: "Op" },
-          },
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
         }),
       });
 
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "pass",
-        true,
+      const result = await loginAtBackend(
+        PORTALS.tenant,
+        { email: "teacher@test.com", password: "pass" },
+        undefined,
       );
 
       expect(result).toEqual({
-        access_token: "op-access",
-        refresh_token: "op-refresh",
+        ok: true,
+        tokens: {
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
+        },
       });
     });
 
-    it("should return error status on HTTP error", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "wrong",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 401,
-      });
-    });
-
-    it("should return null on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-      const result = await _testHelpers.performOperatorLogin(
-        "op@test.com",
-        "pass",
-        false,
-      );
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("performParentLogin", () => {
-    it("should return tokens on successful login", async () => {
+    it("reports the step an MFA-aware login still needs as a refusal", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: "parent-access",
-            refresh_token: "parent-refresh",
-          },
-        }),
+        status: 200,
+        json: async () => ({ status: "mfa_required", challenge_token: "c" }),
       });
 
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "pass",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.school,
+        { email: "teacher@test.com", password: "pass" },
+        undefined,
       );
 
-      expect(result).toEqual({
-        access_token: "parent-access",
-        refresh_token: "parent-refresh",
-      });
+      expect(result).toEqual({ ok: false, status: 200, code: "mfa_required" });
     });
 
-    it("should extract code from JSON error body on 401 account_inactive", async () => {
-      // This is the case the original bug missed: backend signals
-      // account_inactive distinct from invalid_credentials via the
-      // body code, but the old code path only read response.status
-      // and dropped the body entirely.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () =>
+    it("passes the backend's code and status, never its body, back", async () => {
+      // The code tells an inactive account apart from a wrong password.
+      mockFetch.mockResolvedValueOnce(
+        refused(
+          401,
           JSON.stringify({
-            status: "error",
-            error: "account is inactive",
+            error: "account of parent@test.com is inactive",
             code: "identity.session_account_inactive",
           }),
-      });
+        ),
+      );
+      const warn = vi.spyOn(console, "warn");
 
-      const result = await _testHelpers.performParentLogin(
-        "disabled@test.com",
-        "correct",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.parent,
+        { email: "parent@test.com", password: "pass" },
+        undefined,
       );
 
       expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
+        ok: false,
         status: 401,
         code: "identity.session_account_inactive",
       });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("parent@test.com");
     });
 
-    it("should extract code from JSON error body on 403 not_a_guardian", async () => {
-      // Staff-account-at-parent-portal. Frontend uses this code to
-      // mask the error as invalid_credentials at the UI layer, but
-      // the wire-level code MUST come through so future UX changes
-      // (e.g. unmasking for non-rate-limited cases) have something
-      // to switch on.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        text: async () =>
-          JSON.stringify({
-            status: "error",
-            error: "account is not a guardian at any school",
-            code: "care.not_a_guardian",
-          }),
-      });
-
-      const result = await _testHelpers.performParentLogin(
-        "staff@test.com",
-        "correct",
-        false,
+    it("leaves the code undefined for a body without one or without JSON", async () => {
+      mockFetch.mockResolvedValueOnce(
+        refused(401, JSON.stringify({ error: "invalid credentials" })),
       );
+      mockFetch.mockResolvedValueOnce(refused(502, "<html>Bad Gateway</html>"));
 
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 403,
-        code: "care.not_a_guardian",
-      });
+      for (const status of [401, 502]) {
+        const result = await loginAtBackend(
+          PORTALS.parent,
+          { email: "parent@test.com", password: "pass" },
+          undefined,
+        );
+        expect(result).toEqual({ ok: false, status, code: undefined });
+      }
     });
 
-    it("should leave code undefined when body has no code field", async () => {
-      // Defensive: if an older backend (pre-this-change) is hit, the
-      // body parses fine but has no `code`. Must not crash, must
-      // surface status so the provider can still pick rate_limited
-      // for 429s.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () =>
-          JSON.stringify({ status: "error", error: "invalid credentials" }),
-      });
-
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "wrong",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 401,
-        code: undefined,
-      });
-    });
-
-    it("should leave code undefined on non-JSON body", async () => {
-      // Gateway/proxy error pages return HTML or plaintext. JSON.parse
-      // would throw — the parse must be wrapped so the login still
-      // surfaces a usable status.
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 502,
-        text: async () => "<html>Bad Gateway</html>",
-      });
-
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "pass",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "",
-        refresh_token: "",
-        status: 502,
-        code: undefined,
-      });
-    });
-
-    it("should return null on network error", async () => {
+    it("answers an unreachable or slow backend without tokens", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      const result = await _testHelpers.performParentLogin(
-        "parent@test.com",
-        "pass",
-        false,
+      const result = await loginAtBackend(
+        PORTALS.parent,
+        { email: "parent@test.com", password: "pass" },
+        undefined,
       );
 
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("performLogin", () => {
-    it("should return tokens on successful login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "teacher-access",
-          refresh_token: "teacher-refresh",
-        }),
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "",
-        false,
-      );
-
-      expect(result).toEqual({
-        access_token: "teacher-access",
-        refresh_token: "teacher-refresh",
-      });
-    });
-
-    it("should return tokens with dev logging enabled", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "teacher-access",
-          refresh_token: "teacher-refresh",
-        }),
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "",
-        true,
-      );
-
-      expect(result).toEqual({
-        access_token: "teacher-access",
-        refresh_token: "teacher-refresh",
-      });
-    });
-
-    it("should return null on HTTP error", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Bad credentials",
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "wrong",
-        "",
-        false,
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null on HTTP error with dev logging", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Bad credentials",
-      });
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "wrong",
-        "",
-        true,
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("forwards the browser's client IP and User-Agent to the backend login", async () => {
-      // The backend rate-limits logins per client IP; without the header it
-      // sees the frontend container and all staff share one bucket.
-      mockRequestHeaders.mockResolvedValue(
-        new Headers({
-          "user-agent": "Mozilla/5.0 Tablet",
-          "x-forwarded-for": "203.0.113.7",
-        }),
-      );
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "teacher-access",
-          refresh_token: "teacher-refresh",
-        }),
-      });
-
-      await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "schule-a",
-        false,
-      );
-
+      expect(result).toEqual({ ok: false });
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/auth/login"),
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 Tablet",
-            "X-Forwarded-For": "203.0.113.7",
-          }) as Record<string, string>,
-        }),
+        expect.any(String),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
-    });
-
-    it("should return null on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
-
-      const result = await _testHelpers.performLogin(
-        "teacher@test.com",
-        "pass",
-        "",
-        false,
-      );
-
-      expect(result).toBeNull();
     });
   });
 
@@ -1394,69 +1143,6 @@ describe("authConfig", () => {
   });
 
   describe("Credentials authorize - teacher flow", () => {
-    it("should return user on successful teacher login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: TEACHER_JWT,
-          refresh_token: "refresh-token",
-        }),
-      });
-
-      const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        { email: "john@example.com", password: "correct" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe("1");
-      expect(result?.name).toBe("John Doe");
-      expect(result?.roles).toEqual(["teacher"]);
-    });
-
-    it("should return null when login returns invalid JWT", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "not-a-valid-jwt",
-          refresh_token: "refresh-token",
-        }),
-      });
-
-      const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        { email: "john@example.com", password: "correct" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null for missing credentials", async () => {
-      const authorize = getTeacherAuthorize();
-      const result = await authorize({}, new Request("http://localhost:3000"));
-
-      expect(result).toBeNull();
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it("should return null for failed login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        { email: "test@example.com", password: "wrong" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
-    });
-
     it("should handle internal refresh", async () => {
       const authorize = getTeacherAuthorize();
       const result = await withServerSessionMutation(() =>
@@ -1490,70 +1176,6 @@ describe("authConfig", () => {
 
       expect(result).toBeNull();
     });
-
-    describe("with dev mode", () => {
-      beforeEach(() => {
-        vi.stubEnv("NODE_ENV", "development");
-      });
-      afterEach(() => {
-        vi.unstubAllEnvs();
-      });
-
-      it("should log debug info on successful login", async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            access_token: TEACHER_JWT,
-            refresh_token: "refresh-token",
-          }),
-        });
-
-        const authorize = getTeacherAuthorize();
-        const result = await authorize(
-          { email: "john@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.name).toBe("John Doe");
-      });
-
-      it("should log warning when token has no roles", async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            access_token: TEACHER_JWT_NO_ROLES,
-            refresh_token: "refresh-token",
-          }),
-        });
-
-        const authorize = getTeacherAuthorize();
-        const result = await authorize(
-          { email: "john@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.roles).toEqual([]);
-      });
-
-      it("should handle internal refresh logging", async () => {
-        const authorize = getTeacherAuthorize();
-        const result = await withServerSessionMutation(() =>
-          authorize(
-            {
-              internalRefresh: "true",
-              token: TEACHER_JWT_MINIMAL,
-              refreshToken: "refresh-token",
-            },
-            new Request("http://localhost:3000"),
-          ),
-        );
-
-        expect(result).not.toBeNull();
-        expect(mockFetch).not.toHaveBeenCalled();
-      });
-    });
   });
 
   describe("Credentials authorize - operator flow", () => {
@@ -1575,121 +1197,15 @@ describe("authConfig", () => {
       ) => Promise<User | null>;
     }
 
-    it("should return user with platform scope on successful operator login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: OPERATOR_JWT,
-            refresh_token: "op-refresh-token",
-            operator: {
-              id: 45,
-              email: "op@example.com",
-              display_name: "Op",
-            },
-          },
-        }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      const result = await authorize(
+    // The operator login page signs in through its BFF login route.
+    it("refuses a password without asking the backend", async () => {
+      const result = await getOperatorAuthorize()(
         { email: "op@example.com", password: "correct" },
         new Request("http://localhost:3000"),
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe("45");
-      expect(result?.roles).toEqual(["operator"]);
-      expect(result?.scope).toBe("platform");
-    });
-
-    it("should forward only the canonical operator client IP", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: OPERATOR_JWT,
-            refresh_token: "op-refresh-token",
-            operator: {
-              id: 45,
-              email: "op@example.com",
-              display_name: "Op",
-            },
-          },
-        }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      await authorize(
-        { email: "op@example.com", password: "correct" },
-        new Request("http://localhost:3000", {
-          headers: {
-            "x-forwarded-for": "203.0.113.10, 172.20.0.4",
-            "x-real-ip": "198.51.100.25",
-          },
-        }),
-      );
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://server:8080/operator/auth/login",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "X-Forwarded-For": "172.20.0.4",
-          }) as HeadersInit,
-        }),
-      );
-    });
-
-    it("should return null for missing credentials", async () => {
-      const authorize = getOperatorAuthorize();
-      const result = await authorize({}, new Request("http://localhost:3000"));
 
       expect(result).toBeNull();
       expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it("should throw CredentialsSignin with invalid_credentials on failed operator login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      const authorize = getOperatorAuthorize();
-      await expect(
-        authorize(
-          { email: "op@example.com", password: "wrong" },
-          new Request("http://localhost:3000"),
-        ),
-      ).rejects.toThrow();
-    });
-
-    it("should return null when operator login returns invalid JWT", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: "not-a-jwt",
-            refresh_token: "op-refresh",
-            operator: {
-              id: 1,
-              email: "op@example.com",
-              display_name: "Op",
-            },
-          },
-        }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        { email: "op@example.com", password: "correct" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
     });
 
     it("should handle internal refresh with platform scope", async () => {
@@ -1764,60 +1280,6 @@ describe("authConfig", () => {
       );
 
       expect(result).toBeNull();
-    });
-
-    describe("with dev mode", () => {
-      beforeEach(() => {
-        vi.stubEnv("NODE_ENV", "development");
-      });
-      afterEach(() => {
-        vi.unstubAllEnvs();
-      });
-
-      it("should handle operator login logging", async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: "success",
-            data: {
-              access_token: OPERATOR_JWT_MINIMAL,
-              refresh_token: "op-refresh",
-              operator: {
-                id: 45,
-                email: "op@example.com",
-                display_name: "Op",
-              },
-            },
-          }),
-        });
-
-        const authorize = getOperatorAuthorize();
-        const result = await authorize(
-          { email: "op@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.scope).toBe("platform");
-      });
-
-      it("should handle operator internal refresh logging", async () => {
-        const authorize = getOperatorAuthorize();
-        const result = await withServerSessionMutation(() =>
-          authorize(
-            {
-              internalRefresh: "true",
-              token: OPERATOR_JWT_MINIMAL,
-              refreshToken: "op-refresh",
-            },
-            new Request("http://localhost:3000"),
-          ),
-        );
-
-        expect(result).not.toBeNull();
-        expect(result?.scope).toBe("platform");
-        expect(mockFetch).not.toHaveBeenCalled();
-      });
     });
   });
 
@@ -1914,12 +1376,8 @@ describe("authConfig", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("should throw account_inactive when backend returns code account_inactive", async () => {
-      // This is the regression test for the second bug. Pre-fix the
-      // frontend dropped the body, so 401-inactive merged with 401-
-      // wrong-password and parents with deactivated accounts saw the
-      // generic "check your credentials" message. The test ensures
-      // the body code now wins over the bare status.
+    // The refusal carries the backend's registry code (error-path rule 1).
+    it("names an inactive account by its code, not by the bare 401", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -1937,10 +1395,10 @@ describe("authConfig", () => {
           { email: "disabled@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "account_inactive" });
+      ).rejects.toMatchObject({ code: "identity.session_account_inactive" });
     });
 
-    it("should throw portal_not_booked when no guardian school booked Eltern-App", async () => {
+    it("names module.not_booked when no guardian school booked Eltern-App", async () => {
       // #4895: the parents portal follows the module Eltern-App. The login
       // page explains the school's decision instead of a login error.
       mockFetch.mockResolvedValueOnce({
@@ -1961,18 +1419,12 @@ describe("authConfig", () => {
           { email: "parent@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "portal_not_booked" });
+      ).rejects.toMatchObject({ code: "module.not_booked" });
     });
 
-    it("should throw not_a_guardian when backend returns code not_a_guardian", async () => {
-      // Staff account hitting the parent portal. This code used to be
-      // masked to invalid_credentials so the UI would not confirm the
-      // email belongs to staff. The mask was dropped deliberately: the
-      // backend only reaches this branch AFTER validateLoginCredentials
-      // accepted the password (services/auth/auth_login_parent.go), so
-      // the caller already owns the account and learns nothing new. The
-      // mask did cost real users the one hint they needed — parents
-      // stuck on the wrong portal kept resetting their password instead.
+    it("names care.not_a_guardian for a staff account", async () => {
+      // Unmasked on purpose: the backend answers it only after the password
+      // check passed, so the caller already owns the account.
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 403,
@@ -1990,10 +1442,10 @@ describe("authConfig", () => {
           { email: "staff@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "not_a_guardian" });
+      ).rejects.toMatchObject({ code: "care.not_a_guardian" });
     });
 
-    it("should throw invalid_credentials when backend returns code invalid_credentials", async () => {
+    it("reads a code the parent login does not name as wrong credentials", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -2011,7 +1463,7 @@ describe("authConfig", () => {
           { email: "parent@example.com", password: "wrong" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "invalid_credentials" });
+      ).rejects.toMatchObject({ code: "identity.invalid_credentials" });
     });
 
     it("should throw rate_limited on 429", async () => {
@@ -2030,11 +1482,7 @@ describe("authConfig", () => {
       ).rejects.toMatchObject({ code: "rate_limited" });
     });
 
-    it("should throw invalid_credentials when backend returns no code (legacy)", async () => {
-      // If a pre-this-change backend is hit, body has no code. The
-      // provider falls back to invalid_credentials, which still shows
-      // a sensible message (the German copy covers wrong-password
-      // and includes the staff-login hint). This is the safety net.
+    it("reads a refusal without a code as wrong credentials", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -2048,7 +1496,7 @@ describe("authConfig", () => {
           { email: "parent@example.com", password: "wrong" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "invalid_credentials" });
+      ).rejects.toMatchObject({ code: "identity.invalid_credentials" });
     });
 
     it("should handle internal refresh with parent scope", async () => {
@@ -2165,7 +1613,7 @@ describe("authConfig", () => {
   });
 
   describe("JWT callback - operator scope refresh", () => {
-    it("should use operator refresh URL and parse envelope response", async () => {
+    it("renews an operator session at the operator refresh URL and unwraps its envelope", async () => {
       const newOperatorRefreshToken = refreshJwt("new-op-refresh");
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -2177,14 +1625,17 @@ describe("authConfig", () => {
         }),
       });
 
-      const result = await callJwt({
-        id: "45",
-        token: "old-op-access",
-        refreshToken: "old-op-refresh",
-        tokenExpiry: Date.now() + 2 * 60 * 1000,
-        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
-        scope: "platform",
-      });
+      const result = await callJwt(
+        {
+          id: "45",
+          token: "old-op-access",
+          refreshToken: "old-op-refresh",
+          tokenExpiry: Date.now() + 2 * 60 * 1000,
+          refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          scope: "platform",
+        },
+        operatorAuthConfig,
+      );
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/operator/auth/refresh"),
@@ -2192,53 +1643,6 @@ describe("authConfig", () => {
       );
       expect(result?.token).toBe("new-op-access");
       expect(result?.refreshToken).toBe(newOperatorRefreshToken);
-    });
-  });
-
-  describe("JWT callback - dev mode logging", () => {
-    beforeEach(() => {
-      vi.stubEnv("NODE_ENV", "development");
-    });
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
-    it("should log during initial sign in", async () => {
-      const user = {
-        id: "123",
-        name: "Dev User",
-        email: "dev@example.com",
-        token: "dev-token",
-        refreshToken: "dev-refresh",
-        roles: ["teacher"],
-        firstName: "Dev",
-        isAdmin: false,
-      };
-
-      const result = await authConfig.callbacks?.jwt?.({
-        token: {},
-        user,
-        account: null,
-        profile: undefined,
-        trigger: "signIn",
-        isNewUser: false,
-        session: undefined,
-      });
-
-      expect(result?.id).toBe("123");
-      expect(result?.token).toBe("dev-token");
-    });
-
-    it("should log during token refresh", async () => {
-      const result = await callJwt({
-        id: "123",
-        token: "access",
-        refreshToken: "refresh",
-        tokenExpiry: Date.now() + 10 * 60 * 1000,
-        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
-      });
-
-      expect(result?.token).toBe("access");
     });
   });
 
@@ -2384,6 +1788,35 @@ describe("authConfig", () => {
     });
   });
 
+  // The parent cookie is host-only; the portal's only callback (sign-out to
+  // its login) stays on its own origin.
+  describe("parent redirect callback", () => {
+    async function callParentRedirect(url: string): Promise<string> {
+      const redirectFn = parentAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("parent redirect callback not found");
+      return redirectFn({ url, baseUrl: "https://eltern.moto-app.de" });
+    }
+
+    it("allows the sign-out target on the parents origin", async () => {
+      await expect(
+        callParentRedirect("https://eltern.moto-app.de/login"),
+      ).resolves.toBe("https://eltern.moto-app.de/login");
+      await expect(callParentRedirect("/login")).resolves.toBe(
+        "https://eltern.moto-app.de/login",
+      );
+    });
+
+    it.each([
+      "https://school-a.eltern.moto-app.de/",
+      "https://moto-app.de/",
+      "//evil.example/phish",
+    ])("blocks callback target %s outside the parents origin", async (url) => {
+      await expect(callParentRedirect(url)).resolves.toBe(
+        "https://eltern.moto-app.de",
+      );
+    });
+  });
+
   // #3873: caterer sessions are host-only like school sessions, so a
   // callback target must not leave the caterer origin either.
   describe("caterer redirect callback", () => {
@@ -2428,33 +1861,21 @@ describe("authConfig", () => {
       expect(authConfig.cookies?.sessionToken?.name).toBe(
         "moto-app-de.session-token",
       );
-      expect(authConfig.cookies?.sessionToken?.options.domain).toBe(
+      expect(authConfig.cookies?.sessionToken?.options?.domain).toBe(
         ".moto-app.de",
       );
       expect(authConfig.cookies?.callbackUrl?.name).toBe(
         "moto-app-de.callback-url",
       );
-      expect(authConfig.cookies?.callbackUrl?.options.domain).toBe(
+      expect(authConfig.cookies?.callbackUrl?.options?.domain).toBe(
         ".moto-app.de",
       );
       expect(authConfig.cookies?.csrfToken?.name).toBe(
         "moto-app-de.csrf-token",
       );
-      expect(authConfig.cookies?.csrfToken?.options.domain).toBe(
+      expect(authConfig.cookies?.csrfToken?.options?.domain).toBe(
         ".moto-app.de",
       );
-    });
-
-    it("should derive unique prefixes that prevent cross-environment collisions", () => {
-      // The bug: staging.moto-app.de is a subdomain of moto-app.de, so
-      // production cookies on .moto-app.de are sent to staging too.
-      // With derived names, production uses "moto-app-de.*" and staging
-      // would use "staging-moto-app-de.*" — no collision.
-      const prodPrefix = "moto-app.de".replace(/\./g, "-");
-      const stagingPrefix = "staging.moto-app.de".replace(/\./g, "-");
-      expect(prodPrefix).toBe("moto-app-de");
-      expect(stagingPrefix).toBe("staging-moto-app-de");
-      expect(prodPrefix).not.toBe(stagingPrefix);
     });
 
     it("should configure operator cookies as host-only with unique names", () => {
@@ -2532,18 +1953,6 @@ describe("authConfig", () => {
       expect(result?.token).toBe("");
       expect(result?.refreshToken).toBe("");
       expect(result?.isAdmin).toBeUndefined();
-    });
-  });
-
-  describe("events.signOut", () => {
-    it("resets refresh state on tenant sign out", () => {
-      expect(authConfig.events).toBeDefined();
-      authConfig.events.signOut();
-    });
-
-    it("resets refresh state on operator sign out", () => {
-      expect(operatorAuthConfig.events).toBeDefined();
-      operatorAuthConfig.events.signOut();
     });
   });
 });

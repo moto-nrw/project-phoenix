@@ -19,3 +19,8 @@ export function isParentNavActive(href: string, pathname: string): boolean {
     pathname.startsWith(`${bare}/`)
   );
 }
+
+/** Ob die Adresse in den Einstellungen liegt, mit oder ohne /parents (#5750). */
+export function isParentSettingsPath(pathname: string): boolean {
+  return isParentNavActive("/parents/settings", pathname);
+}

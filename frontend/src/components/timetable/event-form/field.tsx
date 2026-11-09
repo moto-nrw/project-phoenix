@@ -6,6 +6,7 @@ export function Field({
   htmlFor,
   required = false,
   error,
+  hint,
   action,
   children,
 }: {
@@ -13,6 +14,8 @@ export function Field({
   htmlFor: string;
   required?: boolean;
   error?: string;
+  /** A line under the field that stays visible. Point the control's `aria-describedby` at `${htmlFor}_hint`. */
+  hint?: string;
   /** Optional control rendered opposite the label, e.g. a "Verwalten" link. */
   action?: React.ReactNode;
   children: React.ReactNode;
@@ -39,6 +42,11 @@ export function Field({
         labelEl
       )}
       {children}
+      {hint && (
+        <p id={`${htmlFor}_hint`} className="text-xs text-gray-600">
+          {hint}
+        </p>
+      )}
       <FieldErrorHint id={`${htmlFor}_error`} message={error} live />
     </div>
   );

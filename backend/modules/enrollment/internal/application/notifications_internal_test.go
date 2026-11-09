@@ -13,12 +13,18 @@ import (
 )
 
 type notificationSettingsStub struct {
-	mode string
-	err  error
+	mode    string
+	err     error
+	term    string
+	termErr error
 }
 
 func (s notificationSettingsStub) NotifyPerDecision(context.Context) (string, error) {
 	return s.mode, s.err
+}
+
+func (s notificationSettingsStub) CareFacilityTerm(context.Context) (string, error) {
+	return s.term, s.termErr
 }
 
 type modePinStub struct {
@@ -59,6 +65,11 @@ func (s schoolDirectoryStub) FindSchool(context.Context, int64) (*enrollment.Sch
 func testFingerprint(content []byte) string { return fmt.Sprintf("%x", content) }
 
 func newNotificationsForTest(deps NotificationDependencies) *Notifications {
+	if deps.Settings == nil {
+		// The mail header reads the school's care-facility term (#6042);
+		// an empty term keeps the header's "OGS" stand-in.
+		deps.Settings = notificationSettingsStub{}
+	}
 	if deps.Fingerprint == nil {
 		deps.Fingerprint = testFingerprint
 	}
@@ -222,25 +233,49 @@ func TestNotifyDecisionsRequiresItsCollaborators(t *testing.T) {
 func TestSchoolBrand(t *testing.T) {
 	t.Parallel()
 	school := &enrollment.School{Name: "OGS Sonnenschule", Settings: `{"loginImageUrl":"https://cdn.example.test/logo.png"}`}
+	gts := notificationSettingsStub{term: "GTS"}
 
-	name, logo, footer := newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}}).SchoolBrand(context.Background(), 3, "https://parents.example.test")
-	assert.Equal(t, "OGS Sonnenschule", name)
-	assert.Equal(t, "https://cdn.example.test/logo.png", logo)
-	assert.Equal(t, "https://parents.example.test/images/moto-logo-mit-schriftzug.png", footer)
+	brand, err := newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}, Settings: gts}).SchoolBrand(context.Background(), 3, "https://parents.example.test")
+	require.NoError(t, err)
+	assert.Equal(t, "OGS Sonnenschule", brand.SchoolName)
+	assert.Equal(t, "https://cdn.example.test/logo.png", brand.LogoURL)
+	assert.Equal(t, "https://parents.example.test/images/moto-logo-mit-schriftzug.png", brand.MotoLogoURL)
+	assert.Equal(t, "GTS", brand.CareFacilityTerm, "the school's own term reaches the mail header (#6042)")
 
 	for label, deps := range map[string]NotificationDependencies{
-		"no directory":   {},
-		"lookup failure": {Schools: schoolDirectoryStub{err: errors.New("down")}},
-		"missing school": {Schools: schoolDirectoryStub{}},
-		"deleted school": {Schools: schoolDirectoryStub{school: &enrollment.School{Name: "Alt", Deleted: true}}},
+		"no directory":   {Settings: gts},
+		"lookup failure": {Schools: schoolDirectoryStub{err: errors.New("down")}, Settings: gts},
+		"missing school": {Schools: schoolDirectoryStub{}, Settings: gts},
+		"deleted school": {Schools: schoolDirectoryStub{school: &enrollment.School{Name: "Alt", Deleted: true}}, Settings: gts},
 	} {
-		name, logo, footer := newNotificationsForTest(deps).SchoolBrand(context.Background(), 3, "https://parents.example.test")
-		assert.Empty(t, name, label)
-		assert.Empty(t, logo, label)
-		assert.Equal(t, "https://parents.example.test/images/moto-logo-mit-schriftzug.png", footer, label)
+		brand, err := newNotificationsForTest(deps).SchoolBrand(context.Background(), 3, "https://parents.example.test")
+		require.NoError(t, err, label)
+		assert.Empty(t, brand.SchoolName, label)
+		assert.Empty(t, brand.LogoURL, label)
+		assert.Equal(t, "https://parents.example.test/images/moto-logo-mit-schriftzug.png", brand.MotoLogoURL, label)
+		assert.Equal(t, "GTS", brand.CareFacilityTerm, label)
 	}
-	name, _, _ = newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}}).SchoolBrand(context.Background(), 0, "")
-	assert.Empty(t, name, "a zero tenant has no school")
+	brand, err = newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}, Settings: gts}).SchoolBrand(context.Background(), 0, "")
+	require.NoError(t, err)
+	assert.Empty(t, brand.SchoolName, "a zero tenant has no school")
+	assert.Empty(t, brand.CareFacilityTerm, "a zero tenant has no setting either")
+}
+
+// An unreadable term fails the mail instead of sending another school's
+// wording or a guessed default; a missing settings port is a wiring error.
+func TestSchoolBrandPropagatesTheTermReadFailure(t *testing.T) {
+	t.Parallel()
+	school := &enrollment.School{Name: "Grundschule Barnstorf"}
+
+	_, err := newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}, Settings: notificationSettingsStub{termErr: errors.New("db down")}}).SchoolBrand(context.Background(), 3, "")
+	require.ErrorContains(t, err, "db down")
+
+	require.PanicsWithValue(t, "enrollment notifications: settings are required", func() {
+		NewNotifications(NotificationDependencies{
+			Schools:  schoolDirectoryStub{school: school},
+			Branding: func(string, string) (string, string) { return "", "" },
+		})
+	})
 }
 
 // schoolLoginImageURL extracts the school's brand logo URL from the JSON

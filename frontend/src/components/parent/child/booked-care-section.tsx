@@ -1,5 +1,6 @@
 "use client";
 
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import {
   useCallback,
   useEffect,
@@ -8,9 +9,10 @@ import {
   useState,
 } from "react";
 import { CalendarCheckIcon, CalendarXIcon } from "@phosphor-icons/react/ssr";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
@@ -35,6 +37,7 @@ import {
 } from "~/lib/parent-api";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "BookedCareSection" });
 
@@ -75,8 +78,8 @@ export function BookedCareSection({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
-  const tc = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentMasterData");
+  const tc = useCareTermTranslations("parentChild");
   const locale = useLocale();
   const [offerings, setOfferings] = useState<ChildCareOfferings | null>(null);
   const [schedule, setSchedule] = useState<ChildCareSchedule | null>(null);
@@ -306,9 +309,10 @@ export function BookedCareSection({
           ) : (
             <ul className="space-y-2">
               {offerings.offerings.map((offering) => (
-                <li
+                <InsetPanel
+                  as="li"
+                  framed
                   key={`${offering.id}-${offering.valid_from ?? "current"}`}
-                  className="rounded-xl border border-gray-200 p-3"
                 >
                   <p className="text-sm font-semibold text-gray-900">
                     {offering.name}
@@ -338,7 +342,7 @@ export function BookedCareSection({
                       </span>
                     )}
                   </p>
-                </li>
+                </InsetPanel>
               ))}
             </ul>
           )}
@@ -365,24 +369,16 @@ export function BookedCareSection({
                 </p>
               </div>
               {pending.diff.length > 0 && (
-                <dl className="space-y-1">
+                <DataGrid columns={1}>
                   {pending.diff.map((line) => (
-                    <div
-                      key={line.label}
-                      className="flex flex-wrap items-baseline gap-x-2 text-sm"
-                    >
-                      <dt className="font-medium text-gray-700">
-                        {line.label}
-                      </dt>
-                      <dd className="text-gray-500 line-through">
+                    <DataField key={line.label} label={line.label}>
+                      <span className="font-normal text-gray-500 line-through">
                         {diffValue(line.old_state, line.old_days)}
-                      </dd>
-                      <dd className="text-gray-900">
-                        {diffValue(line.new_state, line.new_days)}
-                      </dd>
-                    </div>
+                      </span>{" "}
+                      {diffValue(line.new_state, line.new_days)}
+                    </DataField>
                   ))}
-                </dl>
+                </DataGrid>
               )}
               {pending.note && (
                 <p className="text-sm text-gray-500">

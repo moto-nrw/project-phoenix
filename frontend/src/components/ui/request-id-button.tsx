@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 
 interface RequestIdButtonProps {
   readonly requestId: string;
@@ -24,14 +25,11 @@ export function RequestIdButton({
   copyFailedLabel,
 }: RequestIdButtonProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
+  const { copy } = useClipboardCopy("RequestIdButton");
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(requestId);
-      setFeedback(copiedLabel);
-    } catch {
-      setFeedback(copyFailedLabel);
-    }
+    const copied = await copy(requestId);
+    setFeedback(copied ? copiedLabel : copyFailedLabel);
   };
 
   return (
@@ -39,13 +37,13 @@ export function RequestIdButton({
       {feedback ? <span role="status">{feedback}</span> : null}
       <Button
         type="button"
-        variant="ghost_tone"
+        variant="link_tone"
         size="compact"
         aria-label={copyLabel}
         onClick={() => void handleCopy()}
         // A request ID is a 36-character UUID: let it wrap inside the alert
         // or toast instead of running past its edge.
-        className="h-auto min-h-8 max-w-full min-w-0 self-center py-1 text-left break-all whitespace-normal underline underline-offset-2"
+        className="max-w-full min-w-0 self-center text-left break-all whitespace-normal"
       >
         {label?.replace("{requestId}", requestId) ?? requestId}
       </Button>

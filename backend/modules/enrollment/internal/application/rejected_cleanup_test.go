@@ -130,6 +130,10 @@ func (s *cleanupOutboxStub) CountRelatedEmails(_ context.Context, relatedType st
 	return int(s.counts[id]), nil
 }
 
+func (s *cleanupOutboxStub) RelatedEmailOutcomes(context.Context, string, int64) ([]enrollmentNative.RequestMailOutcome, error) {
+	return nil, nil
+}
+
 func (s *cleanupOutboxStub) CancelRelatedEmails(_ context.Context, relatedType string, id int64, _ string) (int64, error) {
 	if relatedType != enrollmentRequestDeliveryType {
 		return 0, errors.New("unexpected related type")

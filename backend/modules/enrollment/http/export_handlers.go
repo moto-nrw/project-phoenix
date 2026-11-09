@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // phaseExportRequest is the (optional) JSON body:
@@ -116,7 +117,7 @@ func renderPhaseExportError(w http.ResponseWriter, r *http.Request, err error) {
 // writeExportFile sends a rendered export as a download.
 func writeExportFile(w http.ResponseWriter, file lists.File) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
@@ -130,15 +131,8 @@ func writeExportFile(w http.ResponseWriter, file lists.File) {
 // so a typo can't silently widen the export to everyone.
 func parsePhaseExportRequest(r *http.Request) (lists.Format, string, error) {
 	var body phaseExportRequest
-	if r.Body != nil {
-		if raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16)); len(raw) > 0 {
-			// A present-but-malformed body is a client bug — surface it
-			// rather than silently defaulting. An empty body is still fine
-			// (falls through to the defaults below).
-			if err := json.Unmarshal(raw, &body); err != nil {
-				return "", "", fmt.Errorf("invalid export request body: %w", err)
-			}
-		}
+	if err := decodeOptionalJSONBody(r, &body); err != nil {
+		return "", "", err
 	}
 	// Normalise both sources to lower case so "PDF"/"XLSX" from either
 	// the JSON body or the ?format= query param resolve identically.
@@ -164,14 +158,36 @@ func parsePhaseExportRequest(r *http.Request) (lists.Format, string, error) {
 		childStatus = "" // explicit "all" == no filter
 	}
 	if childStatus != "" {
-		// Validate against the known child statuses (the German-label map
-		// is the authoritative key set) so an unknown value is a 400, not a
-		// silent full export.
-		if _, ok := statusLabelsDE[childStatus]; !ok {
+		// An unknown value is a 400, not a silent full export.
+		if !slices.Contains(capability.ChildStatuses(), childStatus) {
 			return "", "", fmt.Errorf("unsupported child_status %q", childStatus)
 		}
 	}
 	return format, childStatus, nil
+}
+
+// exportBodyLimit caps the JSON body of an export request.
+const exportBodyLimit = 1 << 16
+
+// decodeOptionalJSONBody decodes the export request body into dst. An empty
+// body leaves dst at its defaults. A present-but-malformed body is a client
+// bug and a body that cannot be read is no empty body; both are errors, so
+// neither silently drops a filter.
+func decodeOptionalJSONBody(r *http.Request, dst any) error {
+	if r.Body == nil {
+		return nil
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, exportBodyLimit))
+	if err != nil {
+		return fmt.Errorf("read export request body: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return fmt.Errorf("invalid export request body: %w", err)
+	}
+	return nil
 }
 
 func buildPhaseExportFile(svc lists.DocumentRenderer, data *PhaseExport, format lists.Format, childStatus string) (lists.File, error) {
@@ -290,7 +306,7 @@ func buildStudentEnrollmentExportRecords(data *StudentEnrollmentExport, title st
 // studentEnrollmentRecord is one enrollment of the child. The export is about
 // one child, so the block names the enrollment instead of repeating the
 // guardian's contact.
-func studentEnrollmentRecord(req *Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) lists.Record {
+func studentEnrollmentRecord(req *capability.Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) lists.Record {
 	return enrollmentChildBlock{
 		Name:  childFullName(ch.Child),
 		Child: childFields(ch, childCustoms),
@@ -327,7 +343,7 @@ func studentEnrollmentExportHead(data *StudentEnrollmentExport, title string) en
 	return enrollmentExportHead{Title: title, Subtitle: studentEnrollmentExportSubtitle(data)}
 }
 
-func studentEnrollmentRowValues(req *Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[lists.ColumnID]string {
+func studentEnrollmentRowValues(req *capability.Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[lists.ColumnID]string {
 	values := submissionRowValues(req, guardianCustoms)
 	values["phase"] = phaseNameForExport(phase)
 	return childRowValues(values, ch, childCustoms)
@@ -422,7 +438,7 @@ func phaseExportRows(data *PhaseExport, guardianCustoms, childCustoms []capabili
 	return rows
 }
 
-func guardianRowValues(req *Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
+func guardianRowValues(req *capability.Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
 	values := submissionRowValues(req, guardianCustoms)
 	values["guardian_last_name"] = req.GuardianLastName
 	values["guardian_first_name"] = req.GuardianFirstName
@@ -444,7 +460,7 @@ func childRowValues(guardianValues map[lists.ColumnID]string, ch ExportChildRow,
 	values["child_activation"] = activationSummary(c)
 	values["child_offerings"] = formatOfferings(ch.Offerings)
 	for _, cf := range childCustoms {
-		if v, ok := c.CustomData[cf.Key]; ok {
+		if v, ok := c.CustomData.Lookup(cf.Key); ok {
 			values[lists.ColumnID("custom_c_"+cf.Key)] = formatCustomValue(cf, v)
 		}
 	}
@@ -495,7 +511,7 @@ func collectCustomFields(schemas map[int64]*capability.FormSchema) (guardian, ch
 	return guardian, child
 }
 
-func guardianFullName(req *Request) string {
+func guardianFullName(req *capability.Request) string {
 	name := strings.TrimSpace(req.GuardianFirstName + " " + req.GuardianLastName)
 	if name == "" {
 		return "Anmeldung"

@@ -8,6 +8,8 @@ package querybudgets
 import (
 	"embed"
 	"fmt"
+	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -22,6 +24,7 @@ import (
 type queryBudget struct {
 	max   int
 	exact bool
+	route querybudget.Routes
 }
 
 // queryBudgets is the query-budget register (#2940): scenario → statements.
@@ -53,20 +56,39 @@ func loadQueryBudgets() map[string]queryBudget {
 	}
 	budgets := make(map[string]queryBudget, len(entries))
 	for scenario, entry := range entries {
-		budgets[scenario] = queryBudget{max: entry.Max, exact: entry.Exact}
+		budgets[scenario] = queryBudget{max: entry.Max, exact: entry.Exact, route: entry.Route}
 	}
 	return budgets
 }
 
 // AssertQueryBudget checks the statements a scenario issued against the
-// register. Pass the matched statements (counter.Queries(), counter.Selects(...)
-// or a Matching(...) bucket), never a bare number, so a failure can print them.
-func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
+// register. Pass counter.Measurement with the matched SQL bucket, including
+// for non-HTTP use cases. Bare SQL slices would discard HTTP route provenance.
+func AssertQueryBudget(tb testing.TB, scenario string, observed Measurement) {
 	tb.Helper()
 	budget, ok := queryBudgets[scenario]
 	if !ok {
 		tb.Fatalf("query budget %q is not registered in backend/test/query-budgets/", scenario)
 	}
+	assertQueryBudget(tb, scenario, budget, observed, os.Getenv)
+}
+
+func assertQueryBudget(tb testing.TB, scenario string, budget queryBudget, observed Measurement, getenv func(string) string) {
+	tb.Helper()
+	queries, route := observed.Statements, observed.Route
+	if observed.HTTPRequest && len(route) == 0 {
+		tb.Errorf("query budget %q: measured HTTP request has no resolved route", scenario)
+	}
+	if err := measuredRouteError(budget.route, route); err != nil && (len(budget.route) != 0 || getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES") == "") {
+		tb.Errorf("query budget %q: %v", scenario, err)
+	}
+
+	if path := getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES"); path != "" {
+		if err := appendBudgetReport(path, budgetReport{Scenario: scenario, Route: route, Test: tb.Name(), Actual: len(queries), Max: budget.max, Exact: budget.exact}); err != nil {
+			tb.Errorf("capture budget route: %v", err)
+		}
+	}
+	emitQueryFeedback(tb, scenario, queries, budget, getenv)
 	got := len(queries)
 	switch {
 	case got > budget.max:
@@ -74,18 +96,18 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 			"  Likely an N+1: a query inside a loop over rows. Batch-load by ID set instead\n"+
 			"  (reference: modules/timetable/compose/exception_conflicts.go, FindByStudentIDsAndDate).\n"+
 			"  Never raise the register entry.\n%s",
-			scenario, got, budget.max, indentQueries(queries))
+			scenario, got, budget.max, indentQueries(queries, 200))
 	case budget.exact && got < budget.max:
 		tb.Errorf("query budget %q pins exactly %d statement(s) but %d ran.\n"+
 			"  The dedup contract it guards no longer executes; check the scenario before touching the register.\n%s",
-			scenario, budget.max, got, indentQueries(queries))
+			scenario, budget.max, got, indentQueries(queries, 200))
 	case got < budget.max:
 		tb.Logf("query budget %q: %d of %d statements used. Lower the register entry to lock the headroom in.",
 			scenario, got, budget.max)
 	}
 }
 
-func indentQueries(queries []string) string {
+func indentQueries(queries []string, maxBytes int) string {
 	if len(queries) == 0 {
 		return ""
 	}
@@ -93,8 +115,8 @@ func indentQueries(queries []string) string {
 	lines = append(lines, "  Statements:")
 	for i, q := range queries {
 		q = strings.Join(strings.Fields(q), " ")
-		if len(q) > 200 {
-			q = q[:200] + "..."
+		if maxBytes > 0 && len(q) > maxBytes {
+			q = q[:maxBytes] + "..."
 		}
 		lines = append(lines, fmt.Sprintf("  %3d. %s", i+1, q))
 	}
@@ -109,4 +131,14 @@ func QueryBudgetScenarios() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// Measurement is the request-aware SQL snapshot returned by QueryCounter.Measurement.
+type Measurement = querybudget.Measurement
+
+func measuredRouteError(stored, measured querybudget.Routes) error {
+	if !slices.Equal(stored, measured) {
+		return fmt.Errorf("route: stored %q, measured %q", stored, measured)
+	}
+	return nil
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Pencil, MousePointer2 } from "lucide-react";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -9,7 +10,6 @@ import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
-import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import {
   GroupedList,
   type GroupDefinition,
@@ -17,9 +17,11 @@ import {
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { devicesConfig } from "~/components/database/configs/devices.config";
 import { Alert } from "~/components/ui/alert";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   DataField,
@@ -77,9 +79,10 @@ export function DevicesMasterDetail({
       isSelected={selectedId === device.id}
       onSelect={() => onSelect(device.id)}
       trailingAccessory={
-        <span
-          aria-label={device.is_online ? "Online" : "Offline"}
-          className={`mr-1 h-2 w-2 shrink-0 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
+        <StatusBadge
+          size="xs"
+          tone={device.is_online ? "green" : "gray"}
+          label={device.is_online ? "Online" : "Offline"}
         />
       }
     />
@@ -91,9 +94,7 @@ export function DevicesMasterDetail({
       renderItem={renderItem}
       keyFor={keyForDevice}
       emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Geräte gefunden.
-        </div>
+        <EmptyState variant="compact" title="Keine Geräte gefunden." />
       }
     />
   );
@@ -106,9 +107,12 @@ export function DevicesMasterDetail({
       onDeleteClick={onDeleteClick}
     />
   ) : (
-    <EmptyDetailState
+    <EmptyState
+      icon={<MousePointer2 className="h-10 w-10" aria-hidden="true" />}
+      titleAs="h3"
       title="Kein Gerät ausgewählt"
       description="Wähle links ein Gerät, um die Details zu sehen."
+      className="h-full justify-center"
     />
   );
 
@@ -247,9 +251,6 @@ function DeviceStammdatenTab({
           </DataField>
           <DataField label="Verbindung">
             <span className="inline-flex items-center gap-1.5">
-              <span
-                className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
-              />
               {device.is_online ? "Online" : "Offline"}
               {!device.is_online ? (
                 <span className="text-xs font-normal text-gray-500">
@@ -260,11 +261,11 @@ function DeviceStammdatenTab({
           </DataField>
           <DataField label="Standort">{device.room_name ?? "–"}</DataField>
           <DataField label="Status">
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getDeviceStatusColor(device.status)}`}
-            >
-              {getDeviceStatusDisplayName(device.status)}
-            </span>
+            <StatusColorBadge
+              compact
+              label={getDeviceStatusDisplayName(device.status)}
+              color={getDeviceStatusColor(device.status)}
+            />
           </DataField>
         </DataGrid>
       </InfoSection>

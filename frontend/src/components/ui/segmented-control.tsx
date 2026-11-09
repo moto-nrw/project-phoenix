@@ -113,9 +113,15 @@ export function SegmentedControl<T extends string>({
   // Nachfahren-Selektor auf alle Knöpfe legt und die Spur des Umschalters
   // sonst auf 48 px wüchse. Unter sm 36-px-Segmente, also 44 px gesamt —
   // dieselbe Touch-Höhe wie die Nachbarn.
+  // Bei voller Breite ist das die Mindesthöhe: umgebrochene Beschriftungen
+  // dürfen die Segmente gemeinsam höher machen, statt aus ihnen zu ragen.
   // Schriftgröße `text-sm`, nicht `text-xs`: ein Bedienelement ist kein
   // Kleingedrucktes (Typo-Boden, TENANT-PAGE-SPEC).
-  const base = `flex h-8! ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none max-sm:h-9!`;
+  const height =
+    fullWidth && !iconOnly
+      ? "h-auto! min-h-8 py-1 max-sm:min-h-9"
+      : "h-8! max-sm:h-9!";
+  const base = `flex ${height} ${iconOnly ? "w-9" : "min-w-[84px] px-3"} items-center justify-center text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`;
 
   // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
   // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im

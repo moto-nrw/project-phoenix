@@ -20,11 +20,8 @@ import {
   personalStorageOwner,
 } from "~/lib/personal-storage";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import {
-  type CareOfferingOption,
-  fetchCareOfferingOptions,
-  fetchStudents,
-} from "~/lib/student-api";
+import { fetchCareOfferingOptions, fetchStudents } from "~/lib/student-api";
+import type { CareOfferingOption } from "~/lib/student-helpers";
 import type { Student } from "~/lib/student-helpers";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
@@ -93,11 +90,11 @@ async function fetchPresentChildren(
   const children: PresentChild[] = [];
   for (let page = 1; ; page += 1) {
     const result = await fetchStudents({
-      location_state: "present",
-      include_pickup_times: true,
+      locationState: "present",
+      includePickupTimes: true,
       page,
-      page_size: PRESENT_PAGE_SIZE,
-      ...(careOfferingId ? { care_offering_id: careOfferingId } : {}),
+      pageSize: PRESENT_PAGE_SIZE,
+      ...(careOfferingId ? { careOfferingId } : {}),
     });
     children.push(...result.students.map(toPresentChild));
 
@@ -453,7 +450,7 @@ function PresentChildrenList({
   onToggleAll,
 }: PresentChildrenListProps) {
   if (load.kind === "loading") {
-    return <Loading message="Kinder werden geladen..." fullPage={false} />;
+    return <Loading message="Kinder werden geladen..." />;
   }
   if (load.kind === "failed") {
     return (

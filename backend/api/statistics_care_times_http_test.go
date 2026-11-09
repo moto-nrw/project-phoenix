@@ -156,7 +156,7 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 
 	counter := testpkg.CaptureQueriesForContext(t, tc.db)
 	type measurement struct {
-		statements []string
+		statements testpkg.QueryMeasurement
 		body       []byte
 	}
 	run := func(path string) measurement {
@@ -164,7 +164,7 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := authExec(t, tc, req.WithContext(counter.Context(req.Context())), claims, reportPermissions)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return measurement{statements: counter.Queries(), body: rec.Body.Bytes()}
+		return measurement{statements: counter.Measurement(counter.Queries()), body: rec.Body.Bytes()}
 	}
 
 	budgetWindow := "from=2026-06-08&to=2026-06-30"
@@ -179,8 +179,10 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 	require.NoError(t, json.Unmarshal(overrunsOne.body, &overrunPayload))
 	require.Len(t, overrunPayload.Data.Students, 1)
 	require.NotEmpty(t, exportOne.body)
-	// The first list and export record their access. Measure the steady-state
+	// The first child view, list and export record their access (#4683 adds
+	// the child view). Measure the steady-state
 	// read separately so that audit insertion does not mask a batch regression.
+	studentBaseline := run(studentPath)
 	overrunsBaseline := run("/care-time-overruns?" + budgetWindow)
 	exportBaseline := run("/care-time-overruns/export?" + budgetWindow + "&format=xlsx")
 
@@ -201,9 +203,9 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 	require.Len(t, overrunPayload.Data.Students, 4)
 	require.NotEmpty(t, exportMany.body)
 
-	assert.Len(t, studentMany.statements, len(studentOne.statements), "the child view must batch its day inputs")
-	assert.Len(t, overrunsMany.statements, len(overrunsBaseline.statements), "the overrun list must batch its children")
-	assert.Len(t, exportMany.statements, len(exportBaseline.statements), "the export must reuse the batched overrun list")
+	assert.Len(t, studentMany.statements.Statements, len(studentBaseline.statements.Statements), "the child view must batch its day inputs")
+	assert.Len(t, overrunsMany.statements.Statements, len(overrunsBaseline.statements.Statements), "the overrun list must batch its children")
+	assert.Len(t, exportMany.statements.Statements, len(exportBaseline.statements.Statements), "the export must reuse the batched overrun list")
 	querybudgets.AssertQueryBudget(t, "api.statistics.student_care_times", studentMany.statements)
 	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns", overrunsMany.statements)
 	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns_export", exportMany.statements)

@@ -1,0 +1,7 @@
+{
+  "scenario": "api.mealplan.orders.dates_5",
+  "max": 16,
+  "exact": true,
+  "description": "Production Serve root, positive N=3/8 content and tenant meal-row preservation; full route SQL excluding only independently budgeted session-family verification. Fixed March 2030 meal fixture; date-N contracts measure 1/5/8/20 weekdays, not a global SQL floor.",
+  "route": "GET /api/meal-plan/orders"
+}

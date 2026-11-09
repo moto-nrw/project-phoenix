@@ -16,6 +16,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
@@ -23,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	studentPresenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
@@ -30,6 +32,7 @@ import (
 	traegerViewHTTP "github.com/moto-nrw/project-phoenix/modules/traegerview/http"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -45,6 +48,9 @@ type TraegerPortalIdentity interface {
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
 	identityaccess.PasswordResets
+	// ListAccountEmails names the account addresses of a child's guardians
+	// for the notice of a decided contract end (#4682).
+	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }
 
 // TraegerPersons is the People Directory read the access log names people
@@ -52,6 +58,10 @@ type TraegerPortalIdentity interface {
 type TraegerPersons interface {
 	ListPersonsByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, error)
 	ListPersonsByID(ctx context.Context, personIDs []int64) ([]peopledirectory.Person, error)
+	// The guardian relationships and profiles of a contract's accounts,
+	// for the notice of a decided contract end (#4682).
+	ListGuardianLinksByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.GuardianLink, error)
+	ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Guardian, error)
 }
 
 // TraegerStaff is the School Membership read that ties a staff ID the
@@ -72,7 +82,7 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, healthData enrollment.HolidayHealthCipher) error {
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) error {
 	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData)
 	if err != nil {
 		return err
@@ -87,7 +97,7 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // Tenancy to the portal's route ports. healthData opens the health
 // information of a holiday registration behind the right
 // "Gesundheitsangaben sehen" (#4722).
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
 		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
 	}
@@ -97,11 +107,14 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		Bureau:  traegerBureauAddresses{roles: identity},
 		Rosters: schoolMembershipCompose.NewSchoolRosters(), Present: studentPresenceCompose.NewPresentStudents(),
 		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
+		KeyDates:    traegerKeyDateCounts{organizations: organizations},
+		Enrollments: enrollmentCompose.NewOpenEnrollments(), Alerts: traegerAlertSettings{settings: settings},
+		Occupancy: traegerOccupancyPorts(),
 	})
 	if err != nil {
 		return nil, err
 	}
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil),
 		enrollmentCompose.NewHolidayRegistrationReview(healthData), holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
@@ -110,8 +123,36 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
-		portalPasswordResets(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
+		portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
 		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
+}
+
+// TraegerPortalSettings is the Träger level of the settings system as the
+// portal serves it: the settings routes and the thresholds of the dashboard
+// hints (#4675).
+type TraegerPortalSettings interface {
+	settingsHTTP.TraegerOperations
+	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
+}
+
+// traegerAlertSettings binds the thresholds of the dashboard hints (#4675) to
+// the Träger values of the settings system.
+type traegerAlertSettings struct {
+	settings TraegerPortalSettings
+}
+
+func (s traegerAlertSettings) AlertThresholds(ctx context.Context, organizationID int64) (traegerview.AlertThresholds, error) {
+	values, err := s.settings.TraegerInts(ctx, organizationID, []string{
+		configModels.KeyTraegerAlertChildrenPerStaff, configModels.KeyTraegerAlertSickPercent, configModels.KeyTraegerAlertOpenEnrollments,
+	})
+	if err != nil {
+		return traegerview.AlertThresholds{}, err
+	}
+	return traegerview.AlertThresholds{
+		ChildrenPerStaff: values[configModels.KeyTraegerAlertChildrenPerStaff],
+		SickPercent:      values[configModels.KeyTraegerAlertSickPercent],
+		OpenEnrollments:  values[configModels.KeyTraegerAlertOpenEnrollments],
+	}, nil
 }
 
 // holidaySchoolNames binds the school names of the holiday registration
@@ -155,6 +196,39 @@ func (s traegerSchoolIDs) ListAccountTraeger(ctx context.Context, accountID int6
 	result := make([]traegerview.Traeger, 0, len(organizations))
 	for _, organization := range organizations {
 		result = append(result, traegerview.Traeger(organization))
+	}
+	return result, nil
+}
+
+// traegerKeyDateCounts binds the Träger projection's Stichtagszahlen to the
+// rows of the operator billing report at Organisation & Tenancy (#4673): it
+// translates an unavailable Träger and the calendar days into the
+// projection's contract.
+type traegerKeyDateCounts struct {
+	organizations organizationtenancy.TraegerMembershipQuery
+}
+
+func (c traegerKeyDateCounts) ListTraegerKeyDateCounts(ctx context.Context, organizationID int64) ([]traegerview.SchoolKeyDateCount, error) {
+	rows, err := c.organizations.ListTraegerBillingKeyDateCounts(ctx, organizationID)
+	if errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {
+		return nil, traegerview.ErrTraegerUnavailable
+	}
+	if err != nil {
+		return nil, err
+	}
+	result := make([]traegerview.SchoolKeyDateCount, 0, len(rows))
+	for _, row := range rows {
+		period, err := calendar.ParseDate(row.Period)
+		if err != nil {
+			return nil, err
+		}
+		keyDate, err := calendar.ParseDate(row.KeyDate)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, traegerview.SchoolKeyDateCount{SchoolID: row.SchoolID, KeyDateCount: traegerview.KeyDateCount{
+			Period: period, KeyDate: keyDate, ActiveStudents: row.ActiveStudents, ActiveTerminals: row.ActiveTerminals, RecordedAt: row.RecordedAt,
+		}})
 	}
 	return result, nil
 }
@@ -338,40 +412,12 @@ func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerporta
 		return traegerportal.AuthRuntime{}
 	}
 	return traegerportal.AuthRuntime{
-		Login: func(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*traegerportal.LoginResult, error) {
-			result, err := sessions.LoginTraeger(ctx, email, password, ipAddress, userAgent, organizationID)
-			if err != nil || result == nil {
-				return nil, err
-			}
-			return traegerPortalLoginResult(result), nil
-		},
-		IssueTokens: func(ctx context.Context, proof traegerportal.VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*traegerportal.LoginResult, error) {
-			result, err := sessions.IssueTraegerTokensForVerifiedMFA(ctx, identityaccess.VerifiedMFAChallenge{
+		Login: sessions.LoginTraeger,
+		IssueTokens: func(ctx context.Context, proof traegerportal.VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
+			return sessions.IssueTraegerTokensForVerifiedMFA(ctx, identityaccess.VerifiedMFAChallenge{
 				AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration,
 			}, organizationID, ipAddress, userAgent)
-			if err != nil || result == nil {
-				return nil, err
-			}
-			return traegerPortalLoginResult(result), nil
 		},
-		InvalidCredentials: identityInvalidCredentials,
-		AccountInactive:    identityIs(identityaccess.ErrAccountInactive),
-		NoMembership:       identityIs(identityaccess.ErrNoTraegerMembership),
-		MFABlocked:         identityMFABlocked,
-		MFAUnavailable:     identityIs(identityaccess.ErrMFAStatusUnavailable),
-		InvalidSession:     identityIs(identityaccess.ErrInvalidToken),
-	}
-}
-
-func traegerPortalLoginResult(result *identityaccess.TraegerLoginResult) *traegerportal.LoginResult {
-	organizations := make([]traegerportal.Organization, 0, len(result.Organizations))
-	for _, organization := range result.Organizations {
-		organizations = append(organizations, traegerportal.Organization(organization))
-	}
-	return &traegerportal.LoginResult{
-		Status: traegerportal.LoginStatus(result.Status), AccessToken: result.AccessToken,
-		RefreshToken: result.RefreshToken, ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
-		OrganizationID: result.OrganizationID, Organizations: organizations,
 	}
 }
 
@@ -403,10 +449,6 @@ func TraegerPortalMFA(mfa interface {
 		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP) (string, error) {
 			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip)
 		},
-		Enroll:            mfa.EnrollMFA,
-		ChallengeUnusable: identityChallengeUnusable,
-		Blocked:           identityMFABlocked,
-		Unavailable:       identityIs(identityaccess.ErrMFAStatusUnavailable),
-		AlreadyEnrolled:   identityIs(identityaccess.ErrMFAAlreadyEnrolled),
+		Enroll: mfa.EnrollMFA,
 	}
 }

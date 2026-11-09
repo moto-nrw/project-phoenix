@@ -30,6 +30,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { SectionCard } from "~/components/ui/section-card";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
   careWeekDayCount,
@@ -51,6 +52,8 @@ import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 import { CarePlanDayTimeline } from "./care-plan-day";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { studentKeys } from "~/lib/swr/portal-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 type ViewMode = "day" | "week";
 
@@ -218,7 +221,7 @@ export function CarePlanView({
   // --- Day mode fetch (only when the tab is active and in day mode) ---
   const dayKey =
     active && viewMode === "day"
-      ? `care-plan-day-${studentId}-${selectedDate}`
+      ? studentKeys.carePlanDay(studentId, selectedDate)
       : null;
   const {
     data: dayData,
@@ -238,7 +241,7 @@ export function CarePlanView({
   const weekTo = toISODate(weekDates[weekDates.length - 1]!);
   const weekKey =
     active && viewMode === "week"
-      ? `care-plan-week-${studentId}-${weekFrom}-${weekTo}`
+      ? studentKeys.carePlanWeek(studentId, weekFrom, weekTo)
       : null;
   const {
     data: weekData,
@@ -471,10 +474,7 @@ function WeekBody({
             const iso = toISODate(date);
             const day = daysByDate.get(iso) ?? null;
             return (
-              <div
-                key={iso}
-                className="rounded-xl border border-gray-200 bg-white/60 p-2.5"
-              >
+              <InsetPanel key={iso} tone="white">
                 <div className="mb-2 flex items-baseline justify-between">
                   <span className="text-sm font-semibold text-gray-900">
                     {WEEKDAY_LABELS[i]}
@@ -488,7 +488,7 @@ function WeekBody({
                   deviation={deviationFor(iso)}
                   compact
                 />
-              </div>
+              </InsetPanel>
             );
           })}
         </div>
@@ -496,29 +496,18 @@ function WeekBody({
 
       {/* Mobile: day-strip selector + selected day */}
       <div className="xl:hidden">
-        <div className="mb-3 flex gap-2 overflow-x-auto">
-          {weekDates.map((date, i) => {
-            const isSelected = i === selectedIndex;
-            return (
-              <button
-                key={toISODate(date)}
-                type="button"
-                onClick={() => onSelectMobileDay(i)}
-                className={`flex shrink-0 flex-col items-center rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-                  isSelected
-                    ? "border-transparent bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <span className="font-semibold">{WEEKDAY_LABELS[i]}</span>
-                <span
-                  className={isSelected ? "text-gray-200" : "text-gray-400"}
-                >
-                  {shortDate(date)}
-                </span>
-              </button>
-            );
-          })}
+        <div className="mb-3 flex gap-1 overflow-x-auto">
+          {weekDates.map((date, i) => (
+            <PlanningDayChip
+              key={toISODate(date)}
+              stacked
+              weekdayLabel={WEEKDAY_LABELS[i] ?? ""}
+              dateLabel={shortDate(date)}
+              selected={i === selectedIndex}
+              onClick={() => onSelectMobileDay(i)}
+              className="min-w-13 shrink-0"
+            />
+          ))}
         </div>
         <CarePlanDayTimeline
           day={selectedDay}

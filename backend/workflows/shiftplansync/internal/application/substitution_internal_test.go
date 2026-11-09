@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ func TestSubstitutionAdapterQueuesStaffingSignalAfterCommit(t *testing.T) {
 	adapter := NewSubstitutionAdapter(SubstitutionAdapterDependencies{
 		Broadcaster: broadcaster,
 	})
-	ctx, commit := tenant.WithAfterCommitHooksForTest(
+	ctx, commit := tenanttest.WithAfterCommitHooks(
 		tenant.WithTenantID(context.Background(), 42),
 	)
 

@@ -52,6 +52,8 @@ import type { dutyRosterTopic as authored_dutyRosterTopic } from "./articles/dut
 
 import type { editStudentTopic as authored_editStudentTopic } from "./articles/edit-student";
 
+import type { emailDeliveryTopic as authored_emailDeliveryTopic } from "./articles/email-delivery";
+
 import type { emergencyTopic as authored_emergencyTopic } from "./articles/emergency";
 
 import type { endCareTopic as authored_endCareTopic } from "./articles/end-care";
@@ -119,6 +121,8 @@ import type { loginTopic as authored_loginTopic } from "./articles/login";
 import type { manageActivityTopic as authored_manageActivityTopic } from "./articles/manage-activity";
 
 import type { manageStudentTopic as authored_manageStudentTopic } from "./articles/manage-student";
+
+import type { mealBillingReleaseTopic as authored_mealBillingReleaseTopic } from "./articles/meal-billing-release";
 
 import type { mealCatererTopic as authored_mealCatererTopic } from "./articles/meal-caterer";
 
@@ -226,6 +230,8 @@ import type { roomsCatalogTopic as authored_roomsCatalogTopic } from "./articles
 
 import type { roomsTopic as authored_roomsTopic } from "./articles/rooms";
 
+import type { schoolTraegerDocumentsTopic as authored_schoolTraegerDocumentsTopic } from "./articles/school-traeger-documents";
+
 import type { settingsGuideTopic as authored_settingsGuideTopic } from "./articles/settings-guide";
 
 import type { settingsTopic as authored_settingsTopic } from "./articles/settings";
@@ -320,9 +326,27 @@ import type { traegerAccountsTopic as authored_traegerAccountsTopic } from "./ar
 
 import type { traegerBillingRunTopic as authored_traegerBillingRunTopic } from "./articles/traeger-billing-run";
 
+import type { traegerBillingTermsTopic as authored_traegerBillingTermsTopic } from "./articles/traeger-billing-terms";
+
 import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./articles/traeger-briefkopf";
 
+import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
+
+import type { traegerCareCostSharesTopic as authored_traegerCareCostSharesTopic } from "./articles/traeger-care-cost-shares";
+
+import type { traegerCareMealsTopic as authored_traegerCareMealsTopic } from "./articles/traeger-care-meals";
+
+import type { traegerCareMonthsTopic as authored_traegerCareMonthsTopic } from "./articles/traeger-care-months";
+
+import type { traegerCareNoticesTopic as authored_traegerCareNoticesTopic } from "./articles/traeger-care-notices";
+
+import type { traegerCareReductionsTopic as authored_traegerCareReductionsTopic } from "./articles/traeger-care-reductions";
+
+import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
+
+import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } from "./articles/traeger-document-kinds";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
 
@@ -338,13 +362,21 @@ import type { traegerHolidayRegistrationTopic as authored_traegerHolidayRegistra
 
 import type { traegerInvitationTopic as authored_traegerInvitationTopic } from "./articles/traeger-invitation";
 
+import type { traegerKeyDateCountsTopic as authored_traegerKeyDateCountsTopic } from "./articles/traeger-key-date-counts";
+
 import type { traegerLoginTopic as authored_traegerLoginTopic } from "./articles/traeger-login";
+
+import type { traegerOccupancyTopic as authored_traegerOccupancyTopic } from "./articles/traeger-occupancy";
 
 import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } from "./articles/traeger-school-switch";
 
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
+import type { traegerSepaMandatesTopic as authored_traegerSepaMandatesTopic } from "./articles/traeger-sepa-mandates";
+
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
+
+import type { traegerSharedDocumentsTopic as authored_traegerSharedDocumentsTopic } from "./articles/traeger-shared-documents";
 
 import type { traegerTestSystemTopic as authored_traegerTestSystemTopic } from "./articles/traeger-test-system";
 
@@ -643,7 +675,8 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
         // #3823, ADR 0091: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
-          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Öffnen Sie in der laufenden Aufsicht oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
           "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
           "Tragen Sie `Vorname` und `Nachname` ein.",
@@ -1224,9 +1257,13 @@ export const careTimeComparisonTopic =
         },
       ],
       result:
-        "Überschreitungen sind orange markiert und tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`.",
+        "Überschreitungen tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`. Ihre `Abweichung` steht in Rot.",
       notes: [
+        "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
+        "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",
+        "Bei einem Feriengast steht `Soll und Ist` unter `Feriengast`. Der Zeitraum beginnt mit seiner Ferienwoche.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
         "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
         "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
@@ -1238,6 +1275,7 @@ export const careTimeComparisonTopic =
       differences: [
         "Steht `Keine Zeiten hinterlegt`? Für das Kind ist kein Wochenplan eingetragen. Dann gibt es nichts zu vergleichen.",
         "Steht `Noch nicht abgemeldet`? Das Kind ist noch da, oder die Abmeldung fehlt.",
+        "Steht `Abholzeit fehlt`? Für diesen Tag ist keine Abholzeit gebucht, zum Beispiel ein Modul im Vertrag ohne Endzeit. Dann lässt sich das Gehen nicht vergleichen.",
       ],
       troubleshootingDetails: [
         "Fehlt `Soll und Ist` beim Kind? Ihr Konto darf die Kinderdaten nicht lesen.",
@@ -1284,7 +1322,8 @@ export const careTimesTopic = function careTimesTopic(): HelpTopic {
         title: "Zeiten für mehrere Kinder auf einmal setzen",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Kinderdaten`.",
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Ankunftszeiten` oder `Gehzeiten`.",
           "Tragen Sie die Zeiten ein und wählen Sie `Speichern`.",
@@ -1510,7 +1549,8 @@ export const classListEntriesTopic =
           title: "Viele Einträge auf einmal",
           steps: [
             "Öffnen Sie `Klassenliste`.",
-            "Wählen Sie oben `Sammelimport`.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Sammelimport`.",
             "Folgen Sie den Schritten auf der Seite.",
           ],
         },
@@ -1618,7 +1658,9 @@ export const createStudentTopic = function createStudentTopic(): HelpTopic {
         description:
           "Für ein ganzes Schuljahr ist die Vorlage schneller als das Fenster.",
         steps: [
-          "Öffnen Sie `Kinderdaten` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Kinderdaten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Tragen Sie die Kinder ein. Beim Geburtstag geht zum Beispiel `14.03.2018`.",
@@ -1649,6 +1691,7 @@ export const createStudentTopic = function createStudentTopic(): HelpTopic {
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
+      "moto meldet, das Kind ist angelegt, aber die Angaben unter `Datenschutz` wurden nicht gespeichert? Wählen Sie in der Meldung `Öffnen`. Wählen Sie bei `Persönliche Informationen` `Bearbeiten` und tragen Sie die Angaben unter `Datenschutz` neu ein.",
       "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
     related: [
@@ -2095,6 +2138,102 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
   };
 } satisfies typeof authored_editStudentTopic;
 
+/**
+ * Die Zustellhinweise (#5934). Sie stehen an fünf Stellen: Einladung der Eltern,
+ * Elternbrief, Einladung ins Personal, Anmeldung und, für den Träger, im Versand
+ * der Schreiben. Hier steht, was jedes Wort bedeutet und wer als Nächstes handelt.
+ * `Versendet` heißt nur: Die Mail ist raus. `Zugestellt` meldet erst der
+ * Mail-Dienst, und ohne ihn (Strato, Brevo, Notweg) bleibt es bei `Versendet`.
+ */
+export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadEmailDelivery,
+    title: "Wenn eine E-Mail nicht ankommt",
+    question: "Was bedeuten Zugestellt, Verzögert und Adresse prüfen?",
+    summary:
+      "moto zeigt bei jeder Mail an Eltern, was aus ihr geworden ist und was Sie tun können.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "EnvelopeSimple",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Das bedeuten die Hinweise",
+        ordered: false,
+        steps: [
+          "`Wird gesendet`: Die Mail wartet noch.",
+          "`Versendet`: Die Mail ist raus. Ob sie im Postfach ankam, ist nicht bekannt.",
+          "`Zugestellt`: Die Mail ist angekommen.",
+          "`Verzögert`: Die Mail kommt später an. Es wird weiter versucht. Bitte senden Sie sie nicht noch einmal.",
+          "`Überfällig`: Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
+          "`Nicht zustellbar`: Die Mail kam nicht an.",
+          "`Nicht gesendet`: Die Mail ging nicht raus. Der Hinweis nennt den Grund. Besteht er nicht mehr, können Sie neu senden.",
+          "`Gesperrt`: Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
+          "`Stand unklar`: Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen. Versuchen Sie es später noch einmal.",
+          "`Nicht versendet`: Es gab keine Mail, zum Beispiel weil die Adresse fehlt.",
+          "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Bitte senden Sie neu.",
+          "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
+          "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
+          "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
+          "`Alte Adresse abgemeldet` oder `Alte Adresse gesperrt`: Die Person hat inzwischen eine neue Adresse. Eine neue Mail an diese Adresse ist möglich.",
+          "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
+          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
+        ],
+      },
+      {
+        title: "Einen Elternbrief neu senden",
+        description:
+          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen und gestoppte Personen bekommen keine neue Mail.",
+        steps: [
+          "Öffnen Sie den Elternbrief und sehen Sie sich den Status an.",
+          "Steht bei einer Person `Adresse prüfen`? Prüfen Sie zuerst die Adresse wie unten beschrieben.",
+          "Wählen Sie `Fehlgeschlagene erneut senden`. moto sendet an die aktuelle Adresse der Person.",
+        ],
+      },
+      {
+        title: "Eine gesperrte Adresse prüfen",
+        description:
+          "Die Sperre gilt, bis jemand an Ihrer Schule die Adresse geprüft hat.",
+        steps: [
+          "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
+          "Fragen Sie die Familie nach der richtigen Adresse.",
+          "Ist die Adresse falsch: Wählen Sie im Menü der Person `Bearbeiten` und tragen Sie die richtige ein.",
+          "Ist die Adresse richtig: Wählen Sie im Menü der Person `Sperre aufheben` und bestätigen Sie.",
+          "Senden Sie danach neu, zum Beispiel mit `Erneut einladen`.",
+        ],
+      },
+      {
+        title: "Mails an eine Person stoppen",
+        description:
+          "Zum Beispiel, wenn eine Person keine Mails der Schule mehr bekommen möchte. Der Stopp bleibt, auch wenn sich die Adresse ändert.",
+        steps: [
+          "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
+          "Wählen Sie im Menü der Person `Mails stoppen` und bestätigen Sie mit `Stoppen`.",
+          "Später heben Sie das im selben Menü mit `Mails wieder senden` auf.",
+        ],
+      },
+    ],
+    notes: [
+      "Anmeldecodes und Mails zum Passwort kommen auch an eine gesperrte Adresse.",
+      "Abrechnungsbriefe des Trägers gehen auch an gesperrte Adressen und gestoppte Personen.",
+      "Mails an das Team hält eine Sperre nicht zurück. Die Einladung zeigt den Hinweis trotzdem.",
+    ],
+    troubleshootingDetails: [
+      "Hat die Person eine Mail als unerwünscht gemeldet? Dann können Sie die Sperre nicht aufheben. Sprechen Sie die Person direkt an. Eine andere Adresse tragen Sie unter `Bearbeiten` ein.",
+      "`Erneut einladen` fehlt? Dann ist die Adresse gesperrt oder die letzte Mail noch unterwegs. Der Hinweis bei der Person sagt, was davon zutrifft.",
+      "Steht bei der Person `Gesperrt`? Die Schule kann das nicht aufheben. Wenden Sie sich an den moto-Support. Die Sperre lässt sich nicht weiter zuordnen.",
+      "Hat sich die Person abgemeldet oder eine Mail als unerwünscht gemeldet? An dieselbe Adresse geht kein Elternbrief mehr. Hat sie eine andere Adresse? Tragen Sie diese unter `Bearbeiten` ein. Dann können Sie den Brief neu senden.",
+      "Ist die Adresse in einem Elternbrief geändert? Die Zeile nennt die Adresse, an die die Mail ging, und darunter die aktuelle Adresse. Das Ergebnis gehört zur ersten.",
+      "Kommt nach dem Aufheben wieder eine Mail zurück? Dann sperrt moto die Adresse erneut. Fragen Sie die Familie nach einer anderen Adresse.",
+    ],
+    related: [
+      HELP_TOPICS.leadInviteGuardians,
+      HELP_TOPICS.leadInviteStaff,
+      HELP_TOPICS.leadManageStudent,
+    ],
+  };
+} satisfies typeof authored_emailDeliveryTopic;
+
 export const emergencyTopic = function emergencyTopic(
   presenceMode: HelpPresenceMode,
 ): HelpTopic {
@@ -2184,7 +2323,8 @@ export const endCareTopic = function endCareTopic(): HelpTopic {
       {
         title: "Mehrere Kinder auf einmal abmelden",
         steps: [
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Betreuung beenden`.",
           "Gehen Sie die beiden Schritte wie oben durch.",
@@ -2266,13 +2406,13 @@ export const enrollmentExportTopic =
       steps: [
         "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
         "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
-        "Wählen Sie oben `Anmeldungen exportieren`.",
-        "Wählen Sie `PDF`, `Word` oder `Excel`.",
+        "Öffnen Sie oben das Menü mit den drei Punkten.",
+        "Wählen Sie unter `Exportieren` `PDF`, `Word` oder `Excel`.",
       ],
       result: "Die Datei wird erstellt und heruntergeladen.",
       notes: [
         "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
-        "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
+        "Die Seite hat drei Exporte: `Exportieren` im Menü für die Anmeldungen sowie `Klassenliste exportieren` und `Auswertung exportieren` weiter unten.",
         "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
         "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
       ],
@@ -2298,7 +2438,7 @@ export const enrollmentExportTopic =
  *    Seite raet selbst davon ab, ohne Not eine Vorlage anzulegen. Wer das
  *    nicht weiss, baut eine ueberfluessige Vorlage.
  * 2. `Stammdaten-Vorschläge` schreiben die Antwort in die Daten des Kindes
- *    (FIELD_TARGET_LABELS, enrollment-form-editor.tsx:139), eine
+ *    (TargetSuggestions, form-template-builder-sections.tsx), eine
  *    `Freie Zusatzfrage` bleibt bei der Anmeldung. Gleiche Frage, anderes
  *    Ergebnis -- und im Formular sehen beide gleich aus.
  *
@@ -2435,6 +2575,8 @@ export const enrollmentFormTopic = function enrollmentFormTopic(): HelpTopic {
     notes: [
       "Eine Vorlage gilt für alle Phasen, die sie auswählen. Sie brauchen nicht für jede Phase eine eigene.",
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
+      "Die Vorschau zeigt nur Ihre Fragen, keine Betreuungsangebote. Unter `Angebote prüfen` öffnen Sie die Vorschau jeder Phase, die die Vorlage nutzt. Dort stehen die Angebote, auch wenn die Phase noch nicht aktiv ist.",
+      "Haben Ihre Betreuungsangebote eine Gehzeit, brauchen Sie keine Frage nach `Abholzeiten`. Eine Antwort darauf ersetzt die Gehzeit des Angebots beim Kind.",
       "Die Zustimmungen `Datenschutzinformation`, `Fotoeinwilligung` und `E-Mail-Kontakt` tragen `Aus Einstellungen übernommen`. Sie kommen aus Ihren Einstellungen und lassen sich je Vorlage ausblenden.",
       "Über `+ Eigene Zustimmung hinzufügen` ergänzen Sie einen Text, der nur in dieser Vorlage steht.",
 
@@ -2495,6 +2637,14 @@ export const enrollmentReviewTopic =
         "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
       notes: [
         "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+        // #6053, #6148 (manuelle Anmeldung)
+        "Ist schon ein Kind mit diesem Namen und Geburtsdatum angemeldet, fragt moto beim `Bestätigen` nach. Wählen Sie `Bestehendes Kind verwenden`, verlängert moto nur die Anmeldung dieses Kindes. Die Eltern aus der Anmeldung bekommen dadurch keinen Zugang. Ist es ein anderes Kind, wählen Sie `Als neues Kind anlegen`. Dieselbe Frage kommt, wenn Sie ein Kind selbst mit `Kind anlegen und freigeben` anmelden.",
+        // #6041
+        "Ist der Start eines bestätigten Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
+        // #6043: Wiederanmeldung vor dem Start der Betreuung.
+        "Wird ein Kind schon betreut und beginnt die Anmeldung später? Dann gelten Abholzeiten, Betreuungstage und Heimweg daraus erst ab dem Start. Bis dahin bleiben die bisherigen. Das Datum steht beim Kind. Steht der Hinweis nach dem Start noch da, gelten weiter die bisherigen. Melden Sie sich dann beim moto-Team.",
+        // #5934
+        "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
         "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
         "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
         "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
@@ -2525,6 +2675,7 @@ export const enrollmentReviewTopic =
         "Auf dem Handy erscheint nur ein Hinweis. Die Prüfung läuft am Computer.",
       ],
       troubleshootingDetails: [
+        "Steht dort `Dieser Elternteil darf das Kind nicht mehr anmelden`, prüfen Sie Name und Geburtsdatum. Ist das Kind schon angemeldet, wählen Sie `Bestehendes Kind verwenden`. Die Eltern bekommen dadurch keinen Zugang. `Als neues Kind anlegen` wählen Sie nur, wenn es ein anderes Kind ist. Bei einer Anmeldung nur für angemeldete Kinder gibt es diese Wahl nicht. Passt kein Kind, lehnen Sie die Anmeldung ab.",
         "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
         "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
         "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",
@@ -2579,32 +2730,37 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Betreuungsangebote` und tragen Sie ein, was buchbar sein soll.",
           "Öffnen Sie `Anmeldeformulare`. Dort steht schon ein `Basisformular`. Für die meisten OGS reicht es.",
-          "Sehen Sie es sich mit `Vorschau` an.",
-          "Öffnen Sie `Überblick` und wählen Sie `Formular ansehen`.",
+          "Sehen Sie es sich mit `Vorschau` an. Dort fehlen die Angebote noch.",
+          "Öffnen Sie `Anmeldephasen`, dann bei der Phase das Menü mit den drei Punkten, und wählen Sie `Vorschau mit Angeboten`. Dort sehen Sie das Formular mit den Angeboten, so wie die Eltern. Das geht auch, bevor die Phase aktiv ist.",
         ],
       },
       {
         title: "Die Anmeldung öffnen",
         steps: [
+          "Schalten Sie unter `Einstellungen` > `Anmeldung` die `Online-Anmeldung` ein.",
           "Öffnen Sie `Anmeldephasen`.",
           "Öffnen Sie bei der Phase das Menü mit den drei Punkten.",
           "Wählen Sie `Aktivieren`.",
-          "Kopieren Sie den Link der Phase und geben Sie ihn an die Eltern.",
+          "Hat das Menü `Elternlink kopieren`? Geben Sie diesen Link an die Eltern. Sonst läuft die Anmeldung über das Elternportal.",
         ],
       },
     ],
     result:
-      "Eltern können sich über den Link anmelden. Eingänge sehen Sie im `Überblick`.",
+      "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
+      "Ihre Betreuung heißt nicht OGS, sondern zum Beispiel GTS? Öffnen Sie `Einstellungen`, dann den Bereich `Anmeldung`. Wählen Sie bei `Name der Betreuung in Texten für Eltern` den passenden Namen.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
+      "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
+      "Ein Angebot nur für eine Klassenstufe, zum Beispiel Klasse 1: Setzen Sie den Haken bei `Nur für bestimmte Klassenstufen anbieten` und wählen Sie `Klasse 1`. Ohne Haken können alle Kinder das Angebot wählen.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
       "Eine Phase trägt `Aktiv` oder nichts. Nur eine aktive Phase nimmt Anmeldungen an.",
+      "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen` und der Link zum Kopieren. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
@@ -2793,7 +2949,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
       "Sie können jeden Schritt in der Checkliste aufklappen, auch in anderer Reihenfolge.",
       "Ob moto auch den Raum erfasst, stimmt das moto-Team mit Ihnen ab.",
       "Sie möchten die Anwesenheit mit NFC-Armbändern erfassen? Dann melden Sie sich beim moto-Team.",
-      "Sie haben eine Liste aller Kinder? Wählen Sie in der Tour zu `Erstes Kind anlegen` den Knopf `Importieren`. Dann zeigt die Tour den Import.",
+      "Sie haben eine Liste aller Kinder? Starten Sie die Tour zu `Erstes Kind anlegen`. Öffnen Sie dort das Menü mit den drei Punkten. Wählen Sie `Importieren`. Dann zeigt die Tour den Import.",
       "Ihre OGS nutzt die Eltern-App nicht? Dann überspringen Sie `Erste Eltern einladen`.",
       "Der Stand gilt für die ganze OGS. Andere Leitungen sehen denselben Stand.",
     ],
@@ -3436,7 +3592,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
       },
     ],
     result:
-      "Die Person bekommt eine E-Mail mit einem Link. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
+      "Die Person bekommt eine E-Mail mit einem Link. Bei der Person sehen Sie, ob die Mail angekommen ist. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
     notes: [
       "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen` oder `Konto aktiv`.",
       "Bei `Einladung offen` heißt der Knopf `Erneut einladen`. Damit geht die E-Mail noch einmal raus.",
@@ -3450,11 +3606,13 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
       "Eine Anfrage passt nicht? Wählen Sie `Ablehnen` und bestätigen Sie mit `Ablehnen`. Es wird kein Zugang gewährt.",
     ],
     related: [
+      HELP_TOPICS.leadEmailDelivery,
       HELP_TOPICS.leadManageStudent,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.parentMessage,
@@ -3537,7 +3695,9 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
         description:
           "Für ein ganzes Team ist die Vorlage schneller als einzelne Einladungen.",
         steps: [
-          "Öffnen Sie `Personal` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Personal`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Füllen Sie `Vorname`, `Nachname` und `Rolle` aus. Diese drei sind Pflicht.",
@@ -3571,7 +3731,8 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
     troubleshootingDetails: [
-      "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
+      "Die Einladung kam nicht an? Unter `Offene Einladungen` steht bei der Adresse `Nicht zustellbar` oder `Adresse prüfen`. Stimmt die Adresse nicht, löschen Sie die Einladung und laden neu ein. Prüfen Sie auch den Spam-Ordner.",
+      "Bei der Adresse steht `Verzögert`, und `Erneut senden` fehlt? Die Mail kommt später an. Bitte warten Sie, sonst kommt sie doppelt an.",
       "Eine Zeile wird als Fehler gemeldet? Dann gibt es die Person schon.",
       "moto erkennt eine bekannte Zeile an der Personalnummer, sonst an der E-Mail, sonst am Namen.",
       "Fehlt `Personal` in der Seitenleiste? Dafür braucht Ihre Rolle ein eigenes Recht.",
@@ -4222,6 +4383,50 @@ export const manageStudentTopic = function manageStudentTopic(): HelpTopic {
 } satisfies typeof authored_manageStudentTopic;
 
 /**
+ * Die Mensa-Freigabe (#4686): Die OGS-Leitung prüft am Monatsende, wer
+ * gegessen hat, und gibt den Monat für die Abrechnung des Trägers frei.
+ */
+export const mealBillingReleaseTopic =
+  function mealBillingReleaseTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadMealBillingRelease,
+      title: "Mensa-Monat freigeben",
+      question: "Wie gebe ich die Mensa eines Monats für die Abrechnung frei?",
+      summary:
+        "Am Monatsende prüfen Sie, wer gegessen hat. Dann geben Sie den Monat frei. Erst danach rechnet der Träger die Mensa ab.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "ClipboardList",
+      requirements: [
+        "`Anmeldung zum Mittagessen` ist eingeschaltet.",
+        "Sie dürfen den Speiseplan pflegen und Listen mit Namen sehen.",
+        "Der Monat ist vorbei. Freigeben können Sie ab dem 1. des nächsten Monats.",
+      ],
+      steps: [
+        "Öffnen Sie in der Seitenleiste `Speiseplan`.",
+        "Wählen Sie oben `Mensa-Freigabe`.",
+        "Wählen Sie den Monat. Ein Monat mit `Freigabe fehlt` wartet auf Sie.",
+        "Prüfen Sie in der Liste die Spalte `Nicht da`. Dort stehen die Tage, an denen ein angemeldetes Kind nicht da war.",
+        "Fehlt eine Anwesenheit, tragen Sie sie zuerst nach. Laden Sie die Seite danach neu.",
+        "Wählen Sie `Monat freigeben` und bestätigen Sie mit `Freigeben`.",
+      ],
+      result:
+        "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so.",
+      notes: [
+        "Ein Essen zählt, wenn das Kind angemeldet und da war. Tage, an denen die Eltern abgemeldet haben, zählen nicht.",
+        "Ferien, Feiertage und Schließtage zählen nie.",
+        "Sie können einen Monat später freigeben, solange alle Anwesenheiten aufbewahrt werden. Der Träger rechnet ihn dann nachträglich ab.",
+      ],
+      troubleshootingDetails: [
+        "`Nicht mehr abrechenbar`: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich. Geben Sie Monate deshalb bald nach dem Monatsende frei.",
+        "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
+        "Haben Sie nach der Freigabe eine Anwesenheit nachgetragen, steht oben `Seit der Freigabe hat sich die Anwesenheit geändert`. Prüfen Sie die Liste, wählen Sie `Erneut freigeben` und nennen Sie den Grund. Schon gestellte Rechnungen ändert das nicht. Der Träger sieht die Änderung und korrigiert die Rechnung.",
+      ],
+      related: [HELP_TOPICS.leadMealPlan],
+    };
+  } satisfies typeof authored_mealBillingReleaseTopic;
+
+/**
  * Der Caterer der Schule (ADR 0077): Einladung per E-Mail unter
  * `Speiseplan`, Ende der Belieferung, und was der Caterer sieht.
  */
@@ -4269,7 +4474,7 @@ export const mealCatererTopic = function mealCatererTopic(): HelpTopic {
 } satisfies typeof authored_mealCatererTopic;
 
 /**
- * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Reiter
+ * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Bereich
  * `Mittagessen`. Die Fristen gelten für Eltern; die Schule ändert jederzeit.
  */
 export const mealOrderingTopic = function mealOrderingTopic(): HelpTopic {
@@ -4285,7 +4490,7 @@ export const mealOrderingTopic = function mealOrderingTopic(): HelpTopic {
     requirements: ["`Anmeldung zum Mittagessen` ist eingeschaltet."],
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie oben den Reiter `Mittagessen`.",
+      "Wählen Sie den Bereich `Mittagessen`.",
       "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
       "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
       "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
@@ -4409,6 +4614,8 @@ export const missingChildOrGroupTopic = function missingChildOrGroupTopic(
       "Ein Kind kann an einem anderen Tag anders eingeplant sein.",
       "Vorübergehend übernommene Gruppen gelten nur bis zum Ende des Tages.",
       "Gelöschte oder noch nicht übernommene Kinder erscheinen nicht in der normalen Kinderliste.",
+      // #6041: ein Kind mit geplantem späterem Start zählt erst ab dem Start.
+      "Ist der Start eines Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
     ],
     related: [HELP_TOPICS.studentSearch, HELP_TOPICS.ownGroups],
   };
@@ -4444,7 +4651,7 @@ export const missingMenuTopic = function missingMenuTopic(
 } satisfies typeof authored_missingMenuTopic;
 
 /**
- * Gebuchte Module (#4894). Der Reiter `Module` unter Einstellungen zeigt sie
+ * Gebuchte Module (#4894). Der Bereich `Module` unter Einstellungen zeigt sie
  * lesend (#4892); Navigation, Startseite und Seiten folgen dem Modul-Register
  * (lib/module-register.ts). Das Schloss sieht nur, wer die Schule leitet.
  */
@@ -4460,7 +4667,7 @@ export const modulesTopic = function modulesTopic(): HelpTopic {
     icon: "PuzzlePiece",
     steps: [
       "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie den Reiter `Module`.",
+      "Wählen Sie den Bereich `Module`.",
       "Klappen Sie `Gebuchte Module` auf. Dort steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
       "Ein eingeschalteter Schalter heißt: Ihre OGS hat das Modul gebucht.",
     ],
@@ -4750,7 +4957,7 @@ export const nfcSettingsTopic = function nfcSettingsTopic(
           "Bei der Auslieferung ist eine einfache PIN gesetzt. Ändern Sie sie vor dem ersten Betreuungstag.",
         steps: [
           "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-          "Wählen Sie oben den Bereich `Geräte`.",
+          "Wählen Sie den Bereich `Geräte`.",
           "Tragen Sie unter `Geräte-PIN` eine vierstellige Zahl ein.",
           "Geben Sie die neue PIN an Ihr Team weiter.",
         ],
@@ -5339,6 +5546,7 @@ export const parentCareChangeTopic =
         "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
         "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
         "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+        "Gilt Ihr Betreuungsvertrag schon? Dann kann auch der Träger Ihrer OGS die Anfrage bestätigen. Nach der Bestätigung bekommt der Vertrag eine neue Version ab dem bestätigten Tag. Die alte Version gilt bis dahin weiter.",
         "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
       ],
       differences: [
@@ -5647,34 +5855,85 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentDepartureTopic;
 
-/** `/parents/meal-plan`: Wochenplan des Mittagessens, nur mit Freischaltung. */
+/**
+ * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
+ * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
+ * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682);
+ * die Nachricht `Neues Dokument vom Träger` für alle drei Arten (#5941).
+ */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentDocuments,
     title: "Dokumente vom Träger finden",
     question: "Wo finde ich Schreiben vom Träger?",
     summary:
-      "Unter `Dokumente` liegen die Schreiben, die Ihnen der Träger geschickt hat.",
+      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat. Dort finden Sie auch Dokumente, die der Träger für Eltern freigegeben hat, etwa eine Hausordnung.",
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
-    steps: [
-      "Tippen Sie unten auf `Mehr`.",
-      "Wählen Sie `Dokumente`.",
-      "Wählen Sie beim Schreiben `Als PDF laden`.",
+    instructionGroups: [
+      {
+        title: "Ein Schreiben laden",
+        steps: [
+          "Tippen Sie unten auf `Mehr`.",
+          "Wählen Sie `Dokumente`.",
+          "Wählen Sie beim Schreiben `Als PDF laden`. Bei einem freigegebenen Dokument wählen Sie `Herunterladen`.",
+        ],
+      },
+      {
+        title: "Den Betreuungsvertrag unterschreiben",
+        description:
+          "Ein Vertrag mit `Wartet auf Ihre Unterschrift` braucht Ihre Unterschrift. Das geht auch über den Link in der Mail, ohne Konto.",
+        steps: [
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben`.",
+          "Lesen Sie die gebuchte Betreuung und den Vertrag als PDF.",
+          "Lesen Sie die Widerrufsbelehrung. Setzen Sie den Haken bei `Ich habe die Widerrufsbelehrung gelesen.`",
+          "Soll die Betreuung schon vor dem Ende der Widerrufsfrist beginnen? Setzen Sie auch diesen Haken.",
+          "Unterschreiben Sie mit dem Finger oder tippen Sie Ihren Namen. Wählen Sie `Unterschrift bestätigen`.",
+          "Wählen Sie `Vertrag verbindlich unterschreiben`.",
+        ],
+      },
+      {
+        title: "Kinder in der Familie angeben",
+        description:
+          "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
+        steps: [
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`.",
+          "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
+          "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
+          "Wählen Sie `Angabe senden`.",
+        ],
+      },
     ],
+    steps: [],
     result:
-      "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
+      "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
-      "Heute sind das die Bestätigungsschreiben der Ferienbetreuung. Das Schreiben ist auch Ihre Rechnung.",
+      "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
+      "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
+      "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
+      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin und dann `Jetzt kündigen`. Solange Sie den Vertrag widerrufen können, steht beim Vertrag auch `Vertrag widerrufen`. Wählen Sie dann `Widerruf bestätigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
+      "Haben Sie einen wichtigen Grund, den Vertrag früher zu beenden? Wählen Sie `Außerordentlich kündigen` und schreiben Sie Ihren Grund auf. Der Träger prüft ihn. Erkennt er ihn an, legt er das Vertragsende fest. Erkennt er ihn nicht an, gilt Ihre Kündigung als ordentliche Kündigung zum nächsten möglichen Termin. Die Entscheidung bekommen Sie per Mail. Sie steht auch beim Vertrag unter `Mitteilung des Trägers zum Vertragsende`. Bis dahin findet die Betreuung wie gebucht statt.",
+      "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
+      "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
+      "Sie dürfen Anmeldungen nur ansehen? Wählen Sie beim Vertrag `Kinder in Ihrer Familie`. Dort sehen Sie die Angabe und die bestätigte Zahl. Sie können die Zahl nicht ändern.",
+      "Ihre Angabe zur Kinderzahl prüft der Träger. Bis dahin steht `Wird geprüft`. Hat er sie bestätigt, steht `Bestätigt`. Erst dann zählt sie für die Ermäßigung.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
-      "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
+      "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
+      "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein neues Dokument da ist? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Das gilt für Schreiben, Verträge und freigegebene Dokumente.",
+      "Die Nachricht nennt kein Kind und keinen Betrag. Was gekommen ist, sehen Sie unter `Dokumente`.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
+      "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
+      "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
+      "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
+      "Das Dokument ist da, aber es kam keine Nachricht? Prüfen Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger`. Schickt der Träger dasselbe Dokument noch einmal, kommt keine zweite Nachricht.",
+      "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],
     related: [
+      HELP_TOPICS.parentCareChange,
       HELP_TOPICS.parentHolidayRegistration,
       HELP_TOPICS.parentNotifications,
     ],
@@ -6195,6 +6454,7 @@ export const parentLetterTopic = function parentLetterTopic(): HelpTopic {
     result:
       "Der Brief steht im Elternportal. Die erreichten Eltern bekommen zusätzlich eine E-Mail.",
     notes: [
+      "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, korrigieren Sie die Adresse beim Kind unter `Erziehungsberechtigte`.",
       "Unter `Wer erhält die E-Mail?` wählen Sie `Nur mit Portalzugang` oder `Alle Bezugspersonen`.",
       "Die Eltern bestätigen den Brief. Eine Bestätigung pro Kind genügt.",
       "Der Kasten im Fenster zählt auf, was beim Veröffentlichen automatisch passiert.",
@@ -6562,7 +6822,7 @@ export const parentNotificationsTopic =
       icon: "BellRing",
       steps: [
         "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
-        "Schalten Sie unter `Benachrichtigungen` die Themen ein. Oder wählen Sie `Alle aktivieren`.",
+        "Sie sind jetzt im Bereich `Benachrichtigungen`. Schalten Sie die Themen ein. Oder wählen Sie `Alle aktivieren`.",
         "Wählen Sie darunter bei `Benachrichtigungen auf diesem Gerät` den Knopf `Aktivieren`. Auf breiten Bildschirmen heißt er `Benachrichtigungen einschalten`.",
         "Ihr Gerät fragt einmal nach Erlaubnis. Wählen Sie `Erlauben`.",
       ],
@@ -6860,7 +7120,7 @@ export const parentVisibilityTopic =
       icon: "Eye",
       steps: [
         "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-        "Bleiben Sie oben im Reiter `Betrieb`.",
+        "Bleiben Sie im Bereich `Betrieb`.",
         "Tragen Sie in `Einstellung suchen` `Elternportal` ein.",
         "Gehen Sie zur Gruppe `Elternportal`.",
         "Schalten Sie ein oder aus, was Eltern dürfen sollen.",
@@ -6872,7 +7132,7 @@ export const parentVisibilityTopic =
         "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
         "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
         "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-        "Speiseplan und Anmeldung zum Mittagessen stehen im Reiter `Mittagessen`.",
+        "Speiseplan und Anmeldung zum Mittagessen stehen im Bereich `Mittagessen`.",
       ],
       differences: [
         "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -7273,7 +7533,45 @@ export const roomsTopic = function roomsTopic(
 } satisfies typeof authored_roomsTopic;
 
 /**
- * Die wichtigsten Einstellungen je Reiter (#3727). Bewusst eine Auswahl, keine
+ * `/dateien`, Karte `Vom Träger` (#4692): Dokumente, die der Träger für die
+ * Schule oder die Eltern an ihr freigegeben hat.
+ */
+export const schoolTraegerDocumentsTopic =
+  function schoolTraegerDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.schoolTraegerDocuments,
+      title: "Dokumente vom Träger finden",
+      question: "Wo finde ich Dokumente, die der Träger freigegeben hat?",
+      summary:
+        "Ihr Träger kann Dokumente für Ihre Schule freigeben. Sie finden sie unter `Dateien`.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "Download",
+      requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+        "Oben steht die Karte `Vom Träger`.",
+        "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
+        "Wählen Sie `Herunterladen`.",
+      ],
+      result:
+        "Sie haben das Dokument auf Ihrem Gerät. Ändern kann es nur der Träger.",
+      notes: [
+        "Hier stehen auch Dokumente, die der Träger für die Eltern Ihrer Schule oder einer Gruppe freigegeben hat. So wissen Sie, was die Eltern bekommen haben.",
+        "Soll das Team ein Dokument sehen? Laden Sie es in einen Ordner unter `Dateien` hoch.",
+      ],
+      differences: [
+        "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
+      ],
+      troubleshootingDetails: [
+        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht. Fragen Sie beim Träger nach.",
+      ],
+      related: [HELP_TOPICS.sharedFiles],
+    };
+  } satisfies typeof authored_schoolTraegerDocumentsTopic;
+
+/**
+ * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
  * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
@@ -7357,6 +7655,7 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Online-Anmeldung`: Eltern melden ihr Kind über ein Formular im Internet an.",
+          "`Name der Betreuung in Texten für Eltern`: So heißt Ihre Betreuung in den festen Texten der Anmeldung, der Eltern-App und in den E-Mails dazu. Wählen Sie `OGS`, `GTS` oder `Eigener Name`. Ihre eigenen Texte im Formular ändern sich nicht.",
           "`Empfänger für neue Anmeldungen`: Diese Adressen bekommen bei jeder neuen Anmeldung eine E-Mail.",
           "`Rechtstexte`: Was Eltern im Formular lesen und bestätigen, zum Beispiel die Datenschutzinformation.",
         ],
@@ -7416,7 +7715,7 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
 } satisfies typeof authored_settingsGuideTopic;
 
 /**
- * `/settings`. Die Reiter kommen aus dem Schema des Servers und sind je Schule
+ * `/settings`. Die Bereiche kommen aus dem Schema des Servers und sind je Schule
  * verschieden (settings/page.tsx:32) -- deshalb nennt der Artikel keine feste
  * Liste, sondern den Weg und die Regeln. Die wichtigsten Einstellungen stehen
  * in `settingsGuideTopic`.
@@ -7432,12 +7731,13 @@ export const settingsTopic = function settingsTopic(): HelpTopic {
     icon: "Settings",
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie oben den Bereich.",
+      "Die Seitenleiste zeigt jetzt die Bereiche. Wählen Sie einen Bereich. Am Handy stehen sie unten, ein Teil davon hinter `Mehr`.",
       "Ändern Sie die gewünschte Einstellung.",
+      "Mit `Zurück zur App` kommen Sie wieder zur Seite, auf der Sie vorher waren.",
     ],
     result: "Die Änderung gilt sofort für alle in Ihrer OGS.",
     notes: [
-      "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
+      "Oben steht, wie viele Einstellungen dieses Bereichs von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
       "Unter `Datenschutz` können Sie die `Nutzungsanalyse` ausschalten. Dann erhält moto keine Nutzungsstatistiken Ihrer Schule mehr.",
       "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
@@ -7537,7 +7837,7 @@ export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
       "Wählen Sie bei `Wichtigkeit`, wie dringend der Hinweis ist.",
       "Wählen Sie bei `Woche`, ob der Hinweis sich wiederholt.",
       "Tragen Sie `Gilt ab` und bei Bedarf `Gilt bis (optional)` ein.",
-      "Haken Sie unter `Wochentage` die Tage an, an denen der Hinweis erscheint.",
+      "Wählen Sie unter `Wochentage` die Tage aus, an denen der Hinweis erscheint.",
       "Wählen Sie `Speichern`.",
     ],
     result: "Der Hinweis steht sofort unter `Heute` für die gewählte Gruppe.",
@@ -7675,7 +7975,8 @@ export const staffQualificationsTopic =
           steps: [
             "Öffnen Sie `Datenverwaltung` und danach `Nachweise`.",
             "Filtern Sie oben nach `Status` oder `Art`.",
-            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern. Ohne Treffer gibt es den Eintrag nicht.",
           ],
         },
         {
@@ -9250,6 +9551,7 @@ export const teacherParentLettersTopic =
         "Wählen Sie den Brief in der Liste. Dort sehen Sie, wer gelesen, bestätigt oder zugestimmt hat.",
         "Ein gesendeter Brief lässt sich nicht mehr ändern. Sie können ihn über `Zurückziehen` zurücknehmen.",
         "Die OGS sieht Ihre Briefe in ihrer Übersicht. Ändern kann sie nur Sie.",
+        "Unter `Empfänger` steht bei jeder Mail, was aus ihr geworden ist. Steht dort `Adresse prüfen`, sagen Sie der OGS Bescheid. Sie korrigiert die Adresse.",
       ],
       differences: [
         "Sie sehen nur Ihre eigenen Briefe. Briefe anderer Lehrkräfte stehen nicht in Ihrer Liste.",
@@ -9281,7 +9583,7 @@ export const teacherSettingsTopic = function teacherSettingsTopic(): HelpTopic {
     icon: "Settings",
     steps: [
       "Öffnen Sie `Einstellungen`.",
-      "Wählen Sie unter `Benachrichtigungen` die Arten aus.",
+      "Bleiben Sie im Bereich `Benachrichtigungen`. Wählen Sie die Arten aus.",
       "Erlauben Sie danach die Benachrichtigungen auf Ihrem Gerät.",
     ],
     result: "moto meldet sich, sobald etwas Neues für Sie ansteht.",
@@ -9698,9 +10000,10 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
     result:
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
-      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Dokumente` darf Dokumente für Eltern und Schulen hochladen, freigeben und löschen. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
       "Nur eine Person mit `Leitung` kann `Leitung` vergeben oder wegnehmen. Ihre eigene `Leitung` geben Sie erst ab, wenn eine andere Person sie hat.",
       "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
+      "Wer bisher `Verwaltung` hatte, hat `Dokumente` dazubekommen. Soll sich eine andere Person um die Dokumente kümmern? Geben Sie ihr `Dokumente` und nehmen Sie die Rolle bei der Verwaltung weg.",
       "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
       "Unter `Verlauf` steht, wer wann eingeladen, Rollen geändert oder entfernt hat. Bei Rollen sehen Sie, welche vorher galten und welche jetzt gelten.",
       "Ändern Sie die Rollen einer Person oder entfernen Sie sie, bekommt die Person eine E-Mail. Darin steht, wer es war und wann. Das gilt auch, wenn Sie Ihre eigenen Rollen ändern.",
@@ -9726,7 +10029,7 @@ export const traegerBillingRunTopic =
       title: "Ferien abrechnen",
       question: "Wie stelle ich die Rechnungen für die Ferien aus?",
       summary:
-        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut.",
+        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut. Unter `Familien` sehen Sie je Familie alle Rechnungen und den offenen Betrag.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "FileText",
@@ -9742,7 +10045,7 @@ export const traegerBillingRunTopic =
           steps: [
             "Wählen Sie unten in der Navigation `Einstellungen`.",
             "Wählen Sie `Abrechnungsvorgaben`.",
-            "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
+            "Wählen Sie bei `Rechnungsnummern der Ferien` den Knopf `Muster festlegen`.",
             "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
             "Wählen Sie `Speichern`.",
           ],
@@ -9791,7 +10094,7 @@ export const traegerBillingRunTopic =
             "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es bestätigt die Anmeldung und ist zugleich die Rechnung.",
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Bestätigungsschreiben` den Knopf `Schreiben erstellen`.",
-            "Tragen Sie bei `Zahlen bis` das Datum ein, bis wann die Familien zahlen sollen.",
+            "Prüfen Sie die `Fälligkeiten`. Sie stehen auf den Rechnungen fest. Nur ältere Rechnungen haben noch das Feld `Zahlen bis`.",
             "Schreiben Sie bei `Hinweise für die Eltern` zum Beispiel die Packliste und was bei Krankheit gilt.",
             "Tragen Sie bei `Notfallnummern der Betreuung` je Betreuung den Namen und die Telefonnummer ein.",
             "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
@@ -9816,7 +10119,9 @@ export const traegerBillingRunTopic =
             "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
-            "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
+            "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an.",
+            "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit. Spätestens bei `Überfällig` können Sie neu senden.",
+            "Bei `Nicht gesendet` und `Abgemeldet` zählt, ob die Sperre noch besteht. Besteht sie, fehlt `Erneut senden`, und der Hinweis sagt, was zu tun ist. Drucken Sie das Schreiben dann und geben Sie es der Familie. Ist sie weg, können Sie neu senden.",
             "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
             "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
           ],
@@ -9871,6 +10176,19 @@ export const traegerBillingRunTopic =
             "Schicken Sie die Liste an den Kostenträger. Sie nennt je Kind die Wochen, den Grundbetrag, die Geschwisterermäßigung, den übernommenen Betrag, ob ein Nachweis vorlag und den Tag der Bestätigung.",
           ],
         },
+        {
+          title: "Rechnungen und Beträge einer Familie ansehen",
+          description:
+            "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse.",
+          steps: [
+            "Wählen Sie in der Navigation `Abrechnung`.",
+            "Wählen Sie oben den Reiter `Familien`.",
+            "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
+            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
+            "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+            "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
+          ],
+        },
       ],
       result:
         "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme. Storno und Gutschrift stehen dort als eigene Zeilen mit Minusbetrag und der Nummer der Rechnung.",
@@ -9888,6 +10206,8 @@ export const traegerBillingRunTopic =
         "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
         "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
+        "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
+        "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -9912,9 +10232,91 @@ export const traegerBillingRunTopic =
       related: [
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerHolidayRegistrationReview,
+        HELP_TOPICS.traegerBillingTerms,
       ],
     };
   } satisfies typeof authored_traegerBillingRunTopic;
+
+export const traegerBillingTermsTopic =
+  function traegerBillingTermsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerBillingTerms,
+      title: "Zahlung und Empfänger der Rechnungen",
+      question: "Wie lege ich fest, wie und bis wann Familien zahlen?",
+      summary:
+        "Je Leistung legen Sie den Zahlungsweg und das Zahlungsziel fest. Das Mittagessen steht auf der Rechnung der Betreuung oder auf einer eigenen Rechnung. Für eine einzelne Familie legen Sie einen anderen Empfänger, einen eigenen Zahlungsweg oder einen eigenen Zahltag fest.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Users",
+      requirements: ["Ihre Rolle im Träger-Büro ist Abrechnung."],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Zahlung je Leistung festlegen",
+          description:
+            "Ohne Ihre Wahl zahlen alle Familien per Überweisung, innerhalb von 14 Tagen.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
+            "In der Karte `Zahlung und Rechnungen` steht je Leistung eine Zeile: `Monatsbeitrag Betreuung`, `Mittagessen` und `Ferienbetreuung`.",
+            "Wählen Sie die Zeile der Leistung. Oder wählen Sie das Menü mit den drei Punkten und dann `Ändern`.",
+            "Wählen Sie den `Zahlungsweg`: `Überweisung` oder `Lastschrift`.",
+            "Tragen Sie das `Zahlungsziel in Tagen` ein. Das sind die Tage nach dem Rechnungsdatum.",
+            "Beim Mittagessen wählen Sie bei `Rechnung`: `Auf der Rechnung der Betreuung` oder `Eigene Rechnung`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Fälligkeit eines Laufs festlegen",
+          description:
+            "Ein Lauf kann ein festes Datum haben, bis zu dem alle Familien zahlen. Das geht nur vor der Freigabe.",
+          steps: [
+            "Öffnen Sie den Lauf unter `Abrechnung`, bei den Monatsbeiträgen oder bei den Ferien.",
+            "Beim Monatslauf wählen Sie in der Karte `Monatslauf` beim Feld `Fällig` den Knopf `Ändern`. Beim Ferienlauf wählen Sie `Fälligkeiten ändern`. Es öffnet sich eine eigene Seite.",
+            "Wählen Sie je Zahlungsweg ein Datum. Ohne Datum gilt das Zahlungsziel der Leistung.",
+            "Wählen Sie `Speichern`. Sie kommen zurück zum Lauf. Bei `Fällig` steht jetzt das Datum.",
+          ],
+        },
+        {
+          title: "Empfänger und Zahlung einer Familie ändern",
+          description:
+            "Das gilt für alle Rechnungen dieser Familie, auch für Geschwister. Die Familie ist die E-Mail-Adresse der Person im Vertrag.",
+          steps: [
+            "Öffnen Sie einen Monatslauf unter `Abrechnung` und `Monatsbeiträge`.",
+            "Wählen Sie bei der Rechnung des Kindes das Menü mit den drei Punkten und dann `Empfänger und Zahlung`. Es öffnet sich eine eigene Seite.",
+            "Wählen Sie bei `Rechnung an`: `Person im Vertrag`, `Beide Eltern` oder `Andere Person`.",
+            "Bei `Beide Eltern` tragen Sie den Namen des zweiten Elternteils ein. Beide Namen stehen dann auf der Rechnung.",
+            "Bei `Andere Person` tragen Sie Name, E-Mail-Adresse und Anschrift ein. Die Rechnung geht dann an diese Person.",
+            "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie die Leistung` nimmt den Zahlungsweg aus den Abrechnungsvorgaben.",
+            "Wählen Sie bei Bedarf einen `Eigenen Zahltag`, zum Beispiel den 15. des Monats.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Jede Rechnung zeigt den Zahlungsweg und das Datum, an dem sie fällig ist. Steht dahinter `Zahltag der Familie`, kommt das Datum von der Familie. Rechnungen an beide Eltern oder an eine andere Person tragen das Zeichen `Beide Eltern` oder `Abweichender Zahler`.",
+      notes: [
+        "Die Ferienbetreuung hat immer eine eigene Rechnung. Sie steht nie auf der Rechnung der Betreuung.",
+        "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen, und Sie brauchen eine Gläubiger-ID. Ohne Mandat geht die Rechnung als Überweisung. moto bucht kein Geld ab.",
+        "Unter `Abrechnung` und `Familien` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
+        "Beim Erstellen der Schreiben stehen die Fälligkeiten bereits fest. Das Feld `Zahlen bis` gilt nur für ältere Rechnungen ohne eigenes Datum.",
+        "Welches Datum gilt: zuerst der eigene Zahltag der Familie, dann das Datum des Laufs, sonst das Zahlungsziel der Leistung.",
+      ],
+      differences: [
+        "Eine Rechnung zeigt keinen Zahlungsweg? Sie wurde ausgestellt, bevor es diese Angaben gab.",
+        "Bei einem freigegebenen Lauf fehlt `Ändern` beim Feld `Fällig`? Ausgestellte Rechnungen ändern sich nicht mehr.",
+        "Ändern Sie eine Fälligkeit, nachdem Sie die Prüfliste geprüft haben, lehnt moto die Freigabe ab. Laden Sie die Seite neu und prüfen Sie den Lauf noch einmal.",
+      ],
+      troubleshootingDetails: [
+        "Änderungen erscheinen nicht auf einer Rechnung? Ausgestellte Rechnungen bleiben, wie sie sind. Die Änderung gilt ab dem nächsten Lauf. Eine falsche Rechnung stornieren Sie und stellen sie neu aus.",
+        "`Empfänger und Zahlung` lässt sich nicht speichern, weil eine E-Mail-Adresse fehlt? Im Vertrag steht keine E-Mail-Adresse. Tragen Sie sie im Vertrag ein.",
+      ],
+      related: [
+        HELP_TOPICS.traegerSepaMandates,
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerBillingRun,
+      ],
+    };
+  } satisfies typeof authored_traegerBillingTermsTopic;
 
 /** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechpartner und Bankverbindungen. */
 export const traegerBriefkopfTopic =
@@ -9991,7 +10393,741 @@ export const traegerBriefkopfTopic =
     };
   } satisfies typeof authored_traegerBriefkopfTopic;
 
-/** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen. */
+/**
+ * `/traeger/vertraege` (#4678, #4679, #4680, #4681): festlegen, wann der
+ * Vertrag gilt, Vertragsbedingungen je Angebot festlegen, Entwürfe aus
+ * angenommenen Anmeldungen erstellen, prüfen und senden; die Unterschrift
+ * der Eltern und den Papiervertrag erfassen; Versionen nach einer Änderung;
+ * Kündigung und Widerruf (#4682); Änderungswünsche der Eltern freigeben (#5979).
+ */
+export const traegerCareContractsTopic =
+  function traegerCareContractsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareContracts,
+      title: "Betreuungsverträge erstellen und senden",
+      question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
+      summary:
+        "Aus jeder angenommenen Anmeldung entsteht ein Vertrag mit den gebuchten Modulen je Wochentag. Entweder gilt er gleich bei der Annahme, oder Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App. Die Eltern unterschreiben ihn dann online oder auf Papier.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Signature",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`. Sie gibt das Recht `Verträge verwalten`.",
+        "Die Schule hat die Anmeldung angenommen, und das Kind hat Betreuung gebucht.",
+      ],
+      instructionGroups: [
+        {
+          title: "Einmal: Festlegen, wann der Vertrag gilt",
+          steps: [
+            "Wählen Sie in der Navigation `Einstellungen` → `Allgemein`.",
+            "Wählen Sie den Reiter `Anmeldung`.",
+            "Wählen Sie bei `Wann gilt der Betreuungsvertrag?` eine Möglichkeit. `Bei der Annahme`: Nimmt die Schule eine Anmeldung an, gilt der Vertrag sofort. `Später verschicken`: Sie erstellen den Vertrag und schicken ihn den Eltern.",
+            "Eine Schule kann in ihren eigenen Einstellungen etwas anderes wählen. Was für welche Schule gilt, sehen Sie unter `Verträge` in der Karte `Wann gilt der Vertrag?`.",
+          ],
+        },
+        {
+          title: "Einmal: Vertragsbedingungen festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Verträge`.",
+            "Wählen Sie oben den Reiter `Vertragsbedingungen`.",
+            "Wählen Sie links ein Angebot. `Fehlt` heißt: Für dieses Angebot gibt es noch keine Bedingungen.",
+            "Wählen Sie die `Laufzeit`, die `Frist in Monaten` und wann die `Kündigung wirkt`.",
+            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Schreiben Sie dazu, wann sie möglich ist.",
+            "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
+            "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
+            "Wählen Sie `Bedingungen speichern`.",
+            "Unter `Widerrufsbelehrung für das Anmeldeformular` und `Häkchen „Betreuung vor Ende der Widerrufsfrist“` stehen zwei weitere Texte. Die Schule kopiert beide als eigene Rechtstexte ins Anmeldeformular. Die Belehrung muss bestätigt werden, das Häkchen nicht.",
+            "Die Widerrufsbelehrung ist das gesetzliche Muster. Sie gilt in jedem Bundesland gleich. Dieselbe Belehrung steht im Vertrag, auf der Seite zum Unterschreiben und in der Bestätigung per Mail. Die Anschrift kommt aus Ihrem Briefkopf, Telefon und E-Mail aus `Allgemein` › `Kontakt` › `Kontakt für Widerrufe`. Der Text für das Anmeldeformular und das PDF enthalten auch das Muster-Widerrufsformular.",
+            "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
+          ],
+        },
+        {
+          title: "Bei der Annahme: nichts zu tun",
+          steps: [
+            "Im Anmeldeformular stimmen die Eltern dem vollständigen gespeicherten Bedingungstext zu. Die eigene Zustimmung muss bestätigt werden. Ein allgemeiner Verweis auf Bedingungen reicht nicht. Die Schule nimmt die Anmeldung an.",
+            "Nach wenigen Minuten steht der Vertrag in der Liste. Sein Status ist `Aktiv`.",
+            "Die Eltern bekommen das PDF per Mail und in der Eltern-App. Sie müssen nichts unterschreiben.",
+            "Auf der Vertragsseite steht unter `Abgeschlossen`, wann der Vertrag gilt. Die Karte `Unterschrift` zeigt ebenfalls `Abgeschlossen`. Eine weitere Unterschrift ist nicht nötig.",
+          ],
+        },
+        {
+          title: "Später verschicken: Entwürfe erstellen",
+          steps: [
+            "Wählen Sie den Reiter `Verträge`.",
+            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
+            "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Beginn und je Wochentag die gebuchten Module mit ihrer Endzeit, zum Beispiel `Mo bis 14:00 · Di bis 16:30`.",
+            "Wählen Sie die Kinder aus. Ein Vertrag umfasst alle Module eines Kindes. Fehlen bei einem Modul die Bedingungen, oder weichen sie zwischen den Modulen ab, legen Sie sie zuerst fest.",
+            "Wählen Sie `Entwürfe erstellen`.",
+          ],
+        },
+        {
+          title: "Prüfen und senden",
+          steps: [
+            "Wählen Sie in der Liste ein Kind. Die Seite zeigt die `Vertragsangaben` und die `Vorschau` des PDF.",
+            "Prüfen Sie unter `Gebuchte Betreuung` jeden Wochentag: das Modul und bis wann das Kind betreut wird. Tage ohne Betreuung stehen als `Keine Betreuung` da.",
+            "Prüfen Sie Beginn und Beitrag.",
+            "Wählen Sie `Vertrag senden`.",
+            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
+          ],
+        },
+        {
+          title: "Unterschrift der Eltern",
+          description:
+            "Die Eltern unterschreiben in der Eltern-App oder über den Link in der Mail. Sie zeichnen mit dem Finger oder tippen ihren Namen.",
+          steps: [
+            "Öffnen Sie den Vertrag. Die Karte `Unterschrift` zeigt `Wartet auf Eltern` oder `Unterschrieben`.",
+            "Nach der Unterschrift ist der Vertrag `Aktiv`. Die Karte zeigt, wer wann auf welchem Weg unterschrieben hat, die Widerrufsfrist und die gespeicherte Unterschrift.",
+            "Die Eltern bekommen eine Bestätigung mit dem Vertrag und der Widerrufsbelehrung per Mail.",
+          ],
+        },
+        {
+          title: "Papiervertrag erfassen",
+          description:
+            "Für Familien ohne Internet oder einen Vertrag, den es nur auf Papier gibt.",
+          steps: [
+            "Wählen Sie oben `PDF herunterladen` und drucken Sie den Vertrag.",
+            "Die Eltern unterschreiben ihn. Scannen Sie den unterschriebenen Vertrag als PDF.",
+            "Wählen Sie auf der Vertragsseite in der Karte `Unterschrift` den Knopf `Papiervertrag erfassen`.",
+            "Prüfen Sie `Unterschrieben von` und `Unterschrieben am`. Wählen Sie mit `PDF wählen` die Datei.",
+            "Wählen Sie `Vertrag abschließen`. Der Vertrag ist dann `Aktiv`. Mit `Papiervertrag laden` holen Sie das PDF später wieder.",
+          ],
+        },
+        {
+          title: "Änderungswunsch der Eltern freigeben",
+          steps: [
+            "Die Eltern beantragen in der Eltern-App andere Tage oder Module. Sie oder die Schule entscheiden.",
+            "Wählen Sie in der Liste das Kind. Rechts steht die Karte `Änderungswunsch der Eltern`.",
+            "Je Modul sehen Sie die bisherige und die gewünschte Buchung. Bei festen Tagen steht dort `Gebucht (feste Tage)`.",
+            "Wählen Sie `Freigeben`. Prüfen Sie `Gilt ab` und die angezeigten Änderungen. Wählen Sie noch einmal `Freigeben`.",
+            "Oder wählen Sie `Ablehnen`. Schreiben Sie eine Begründung für die Eltern und wählen Sie `Ablehnen`.",
+            "Die Eltern bekommen eine Nachricht in der Eltern-App.",
+          ],
+        },
+        {
+          title: "Wenn sich die Betreuung ändert: neue Version",
+          steps: [
+            "Nach einer Freigabe durch Sie oder die Schule bekommt der aktive Vertrag nach wenigen Minuten eine neue Version. Sie gilt ab dem freigegebenen Tag.",
+            "Wählen Sie in der Liste das Kind. Oben steht, ab wann die neue Version gilt.",
+            "Unter `Versionen` sehen Sie jede Version mit ihren Tagen. `Geändert` markiert die Wochentage, die anders sind als vorher.",
+            "Mit `PDF` laden Sie eine Version als PDF.",
+          ],
+        },
+        {
+          title: "Kündigung oder Widerruf eintragen",
+          steps: [
+            "Eltern kündigen selbst in der Eltern-App. Dann steht die Kündigung von allein beim Vertrag. Sie müssen nichts tun.",
+            "Kam eine Kündigung per Mail oder Brief? Wählen Sie in der Liste das Kind.",
+            "Rechts steht die Karte `Vertrag beenden`. Sie zeigt den Kündigungstermin und die Absendefrist für einen Widerruf.",
+            "Wählen Sie `Kündigung eintragen`.",
+            "Wählen Sie bei `Eingegangen am` den Tag, an dem die Mail oder der Brief ankam.",
+            "Die Auswahl gilt für diesen Eingangstag, auch bei älteren Erklärungen. Wählen Sie `Kündigung` oder `Widerruf`. Bei einer Kündigung wählen Sie den Termin oder `Außerordentlich, aus wichtigem Grund` und tragen den Grund der Eltern ein.",
+            "Bei einem Widerruf: Tragen Sie bei `Abgesendet am` den Absende-Tag ein. Ein rechtzeitig abgesendeter Brief darf später ankommen.",
+            "Wählen Sie `Kündigung eintragen` oder `Widerruf eintragen`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Wer dort `Neues Dokument vom Träger` eingeschaltet hat, bekommt dazu eine Nachricht aufs Handy. Gilt der Vertrag bei der Annahme, ist sein Status `Aktiv`. Sonst wird er `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
+      notes: [
+        "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
+        "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
+        "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern. Eine zweite Nachricht aufs Handy gibt es dabei nicht. Nur eine korrigierte Mail-Adresse bekommt eine eigene Nachricht.",
+        "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
+        "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
+        "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+        "Wartet ein versendeter Vertrag auf die Unterschrift, bekommen die Eltern Erinnerungen per Mail. Es gibt höchstens drei. Bereits abgeschlossene Verträge bekommen keine Erinnerung. Nach wie vielen Tagen, legen Sie unter `Einstellungen` → `Allgemein` im Bereich `Betreuungsverträge` fest. Bei 0 gibt es keine Erinnerung.",
+        "Der Link in der Mail gilt einmal und 30 Tage. Jede Erinnerung bringt einen neuen Link.",
+        "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
+        "Bei einer außerordentlichen Kündigung steht in `Vertrag beenden` der Grund der Eltern und `Ende noch offen`. Prüfen Sie den Grund. Bis zu Ihrer Entscheidung gilt der Vertrag weiter.",
+        "Erkennen Sie den Grund an? Wählen Sie `Vertragsende festlegen` und den letzten Tag.",
+        "Erkennen Sie den Grund nicht an? Wählen Sie `Grund nicht anerkennen`. Dann gilt die Kündigung als ordentliche Kündigung. Der Vertrag endet zum nächsten möglichen Termin, gezählt ab dem Eingang. Das Datum steht unter dem Knopf und im Fenster, bevor Sie bestätigen.",
+        "Beide Entscheidungen lassen sich danach nicht mehr ändern. Die Eltern bekommen eine Mitteilung mit dem letzten Betreuungstag per Mail und in der Eltern-App. Die Texte legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest: `Mitteilung: Vertragsende festgelegt` und `Mitteilung: Grund nicht anerkannt`. Die Mitteilung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
+        "Nach einer Kündigung hat der Vertrag den Status `Gekündigt`. Er gilt bis zum Vertragsende und wird bis dahin abgerechnet. Nach einem Widerruf ist er `Widerrufen` und gilt an keinem Tag.",
+        "Die Eltern bekommen sofort eine Bestätigung per Mail und in der Eltern-App. Den Text legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest. Die Bestätigung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
+        "Den Kündigungstermin rechnet moto aus den Bedingungen im Vertrag, nicht aus den heutigen Vertragsbedingungen. Die Widerrufsfrist beginnt frühestens mit dem Erhalt der Belehrung. Ohne Nachweis gilt die längere Frist.",
+        "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
+        "Beginnt an einem Tag schon eine Version, und Sie oder die Schule geben für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+        "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
+      ],
+      differences: [
+        "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
+      ],
+      troubleshootingDetails: [
+        "In `Vertrag beenden` steht, dass die Mitteilung zum Vertragsende nicht rausging? Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf, zum Beispiel weil die Schule das Recht entzogen hat. Die Entscheidung gilt trotzdem. Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief.",
+        "`Vertragsende festlegen` oder `Grund nicht anerkennen` meldet, dass kein Ende mehr offen ist? Eine andere Person hat schon entschieden. Laden Sie die Seite neu. Die Entscheidung steht in `Vertrag beenden`.",
+        "Bei einem Änderungswunsch fehlt `Freigeben`? Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Tragen Sie sie unter `Vertrag beenden` ein, oder lehnen Sie den Wunsch ab.",
+        "Nach der Freigabe bleiben Regeltermine oder Abholzeiten unverändert? Geben Sie die angezeigten Hinweise an die Schule weiter. Die Schule muss sie prüfen.",
+        "Die Karte `Änderungswunsch der Eltern` fehlt? Sie steht nur bei aktiven Verträgen.",
+        "`Kündigung eintragen` fehlt? Der Vertrag ist noch nicht abgeschlossen oder schon beendet. Einen Entwurf oder versendeten Vertrag verwerfen Sie oder lassen ihn liegen.",
+        "Ein Brief kam nach der Widerrufsfrist an? Entscheidend ist der Absende-Tag. Tragen Sie ihn bei `Abgesendet am` ein.",
+        "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
+        "Ein Kind zeigt `Mail-Adresse gesperrt`? Mails an die Adresse der Eltern kamen nicht an. Die Schule prüft die Adresse beim Kind unter `Erziehungsberechtigte` und wählt `Sperre aufheben`. Danach entsteht der Vertrag von selbst.",
+        "Ein Kind zeigt `Mails gestoppt`? Die Schule hat die Mails an diese Eltern gestoppt. Der Vertrag kommt erst, wenn die Schule beim Kind unter `Erziehungsberechtigte` `Mails wieder senden` wählt.",
+        "Ein Kind zeigt `Zustimmung zum Vertrag fehlt` oder `Bedingungen nach der Anmeldung geändert`? Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt, oder Sie haben die Bedingungen danach geändert. Dann entsteht kein aktiver Vertrag. Stellen Sie die Schule auf `Später verschicken` und schicken Sie den Vertrag. Eine frühere Anmeldung wird nicht nachträglich verbindlich.",
+        "Nach Änderungen an den Bedingungen: Speichern Sie diese zuerst. Ersetzen Sie danach den Text im Anmeldeformular durch den neuen gespeicherten Text. Unverändertes Speichern lässt eine passende Zustimmung weiter gelten.",
+        "Schulen mit `Bei der Annahme` erlauben keine manuellen Entwürfe. Bereits vorhandene Entwürfe werden nicht automatisch abgeschlossen. Prüfen und verwerfen Sie diese bei Bedarf.",
+        "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
+        "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
+        "Eine Endzeit fehlt? Das Modul hat für diesen Tag keine Gehzeit. Die Schule trägt sie beim Angebot ein.",
+        "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
+        "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das geht auch bei aktiven Verträgen. Das PDF, der Abschluss, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
+        "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+        "Die Eltern sagen, der Link gilt nicht mehr? Er war schon benutzt oder ist abgelaufen. Wählen Sie `Erneut senden`. Die Eltern bekommen einen neuen Link. Oder sie unterschreiben in der Eltern-App unter `Dokumente`.",
+        "Die Karte `Unterschrift` meldet, die Prüfsumme stimmt nicht? Der gespeicherte Nachweis wurde verändert. Melden Sie das dem moto-Team.",
+        "Eine Änderung ist freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerBriefkopf,
+        HELP_TOPICS.traegerAccounts,
+      ],
+    };
+  } satisfies typeof authored_traegerCareContractsTopic;
+
+export const traegerCareCostSharesTopic =
+  function traegerCareCostSharesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareCostShares,
+      title: "Kostenträger im Monatsbeitrag",
+      question:
+        "Wie trage ich ein, dass Bildung und Teilhabe oder das Jugendamt mitzahlt?",
+      summary:
+        "Sie tragen je Kind ein, wer wie viel vom Monatsbeitrag übernimmt. Die Familie bekommt nur den Rest in Rechnung. Den Teil des Kostenträgers laden Sie als eigene Liste herunter.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "HandCoins",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Kostenträger steht unter `Einstellungen` und `Abrechnung`.",
+        "Sie haben den Bescheid geprüft.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Anteil eintragen",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Kostenträger`.",
+            "Wählen Sie beim Kind das Menü und dann `Anteil eintragen`.",
+            "Wählen Sie bei `Wer zahlt mit?` die Art: `Bildung und Teilhabe`, `Jugendamt` oder `Sonstiger Zuschuss`.",
+            "Wählen Sie den `Kostenträger`.",
+            "Wählen Sie bei `Wofür zahlt er?`: `Betreuung`, `Mensa` oder `Betreuung und Mensa`. Bei Bildung und Teilhabe ist `Mensa` schon gewählt.",
+            "Wählen Sie `Prozent vom Beitrag` oder `Fester Betrag im Monat`. Tragen Sie die Zahl ein.",
+            "Tragen Sie bei `Bescheid` nur das Aktenzeichen oder das Datum ein.",
+            "Wählen Sie, ab wann und bis wann der Bescheid gilt.",
+            "Wählen Sie `Anteil speichern`.",
+          ],
+        },
+        {
+          title: "Bevor ein Bescheid endet",
+          description:
+            "30 Tage vor dem Ende zeigt die Seite einen Hinweis. Der Anteil bekommt den Vermerk `Endet am`.",
+          steps: [
+            "Wählen Sie im Hinweis `Nur diese zeigen`.",
+            "Fragen Sie bei der Familie den neuen Bescheid an.",
+            "Wählen Sie beim Kind `Anteil eintragen` und tragen Sie den neuen Zeitraum ein.",
+          ],
+        },
+        {
+          title: "Liste für den Kostenträger",
+          description:
+            "Im Monatslauf zeigt die Karte `Kostenträger`, wie viel jede Stelle übernimmt.",
+          steps: [
+            "Öffnen Sie den Monatslauf unter `Monatsbeiträge`.",
+            "Wählen Sie in der Karte `Kostenträger` das Menü der Zeile.",
+            "Wählen Sie PDF, Excel oder CSV.",
+            "Schicken Sie die Liste an den Kostenträger.",
+          ],
+        },
+      ],
+      result:
+        "Der Monatslauf rechnet erst alle Ermäßigungen aus. Danach zieht er den Anteil des Kostenträgers ab. Die Rechnung zeigt den Monatsbeitrag, den Anteil und den Rest. Ein Anteil für die Mensa zieht vom Mensa-Betrag ab. Übernimmt der Kostenträger alles, steht auf der Rechnung `Beitragsfrei` und 0 €.",
+      differences: [
+        "Gilt ein Bescheid erst ab Mitte des Monats, zählt er für den ganzen Monat.",
+        "Ein fester Betrag für `Betreuung und Mensa` geht erst an die Betreuung. Was übrig bleibt, geht an die Mensa.",
+        "Kommt die Mensa auf eine eigene Rechnung, steht der Anteil für die Mensa auf der Mensa-Rechnung.",
+        "Vor der Freigabe ist die Liste eine Vorschau ohne Rechnungsnummern.",
+        "Eine Rechnung, die schon ausgestellt ist, bleibt, wie sie ist. Ein geänderter Anteil gilt ab dem nächsten Monatslauf.",
+        "Ein stornierter Beitrag steht in der Liste, zählt aber nicht zur Summe.",
+      ],
+      notes: [
+        "moto speichert nur Art, Anteil, Zeitraum und Aktenzeichen. Den Bescheid behalten Sie.",
+        "Jedes Öffnen der Seite `Kostenträger` steht im Zugriffsprotokoll.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareReductions,
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerAccessLog,
+      ],
+    };
+  } satisfies typeof authored_traegerCareCostSharesTopic;
+
+/**
+ * Mensa-Abrechnung des Trägers (#4686): je Schule je Essen oder als
+ * Pauschale, abgerechnet im Monatslauf aus der Freigabe der OGS-Leitung.
+ */
+export const traegerCareMealsTopic =
+  function traegerCareMealsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareMeals,
+      title: "Mensa abrechnen",
+      question: "Wie rechne ich das Essen ab, je Essen oder als Pauschale?",
+      summary:
+        "Sie legen je Schule fest, wie die Mensa abgerechnet wird. Der Monatslauf setzt freigegebene Monate auf die Rechnung des Kindes.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "UtensilsCrossed",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Die OGS-Leitung gibt jeden Monat in moto frei. Erst dann wird er abgerechnet.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Preis festlegen",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Mensa`.",
+            "Wählen Sie bei der Schule `Preis festlegen`.",
+            "Wählen Sie bei `Gültig ab` den ersten Monat.",
+            "Wählen Sie die Abrechnungsart: `Je Essen` oder `Pauschale`.",
+            "Tragen Sie den Betrag ein, zum Beispiel 4,80 je Essen.",
+            "Wählen Sie `Preis speichern`.",
+          ],
+        },
+        {
+          title: "Im Monatslauf",
+          description:
+            "Die Mensa steht im Monatslauf als eigene Zeile je Monat auf der Rechnung des Kindes, zum Beispiel „2 Mittagessen im Januar 2026“.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+            "Starten oder öffnen Sie den Lauf eines Monats.",
+            "Die Karte `Mensa` nennt Monate, die eine Schule noch nicht freigegeben hat, und Kinder ohne Vertrag.",
+            "`Nicht mehr abrechenbar` heißt: Die Anwesenheiten des Monats sind nach der Aufbewahrungsfrist der Schule gelöscht. Diesen Monat rechnet kein Lauf mehr ab.",
+            "`Nach der Ausstellung geändert` heißt: Die Schule hat einen Monat erneut freigegeben, der schon auf einer Rechnung steht. Stornieren Sie diese Rechnung. Der nächste Lauf dieses Monats stellt sie mit den neuen Zahlen neu aus.",
+            "Prüfen Sie die Rechnungen und geben Sie den Lauf frei.",
+          ],
+        },
+      ],
+      result:
+        "Jeder freigegebene Mensa-Monat steht genau einmal auf einer Rechnung. Gibt eine Schule einen Monat später frei, rechnet ihn der nächste Lauf nachträglich ab.",
+      notes: [
+        "Nach einem Storno stellen Sie die Mensa im ursprünglichen Rechnungsmonat neu aus. Starten Sie dafür einen weiteren Lauf dieses Monats.",
+        "Ob die Mensa auf der Rechnung der Betreuung steht oder eine eigene Rechnung bekommt, legen Sie unter `Einstellungen` und dann `Abrechnungsvorgaben` in der Karte `Zahlung und Rechnungen` beim `Mittagessen` fest. Eine eigene Mensa-Rechnung hat ihren eigenen Zahlungsweg und ihr eigenes Zahlungsziel.",
+        "Ermäßigungen wie Geschwister oder Einkommensstufen gelten nur für die Module. Die Mensa zahlen Eltern voll.",
+        "Ein Preis, mit dem schon abgerechnet ist, bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerCareReductions,
+      ],
+    };
+  } satisfies typeof authored_traegerCareMealsTopic;
+
+export const traegerCareMonthsTopic =
+  function traegerCareMonthsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareMonths,
+      title: "Monatsbeiträge abrechnen",
+      question: "Wie rechne ich die Betreuung jeden Monat ab?",
+      summary:
+        "Ein Monatslauf rechnet einen Monat für die gewählten Schulen nach den gültigen Verträgen ab. Der Beitrag eines Kindes kommt aus der Preisliste: als Summe der gebuchten Wochentage oder als Staffel nach Tagen je Woche. Es zählt der Vertrag, nicht die Anwesenheit. Vor der Freigabe prüfen Sie die Vorschau, ändern einzelne Rechnungen und schließen Rechnungen aus, die noch nicht stimmen. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarCheck",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+        "Die Kinder haben einen gültigen Betreuungsvertrag. Module und gebuchte Wochentage kommen aus dem Vertrag.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Preise festlegen",
+          description:
+            "Jede Schule hat eigene Preise. Jedes Modul hat eine Preisform. `Je Wochentag`: Jeder gebuchte Tag hat einen Monatspreis, der Beitrag ist die Summe. `Nach Tagen je Woche`: Der Beitrag hängt nur von der Zahl der gebuchten Tage ab, zum Beispiel 3 Tage = 60,00 €.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Preisliste`.",
+            "Wählen Sie bei der Schule `Neue Preise`.",
+            "Wählen Sie bei `Gültig ab` den Monat, ab dem die Preise gelten.",
+            "Wählen Sie bei `Beitragsfreie Monate` die Monate ohne Beitrag, zum Beispiel `Aug`. Dann stellt der Monatslauf für diese Schule im August keine Rechnung aus.",
+            "Wählen Sie je Modul `Je Wochentag` oder `Nach Tagen je Woche`.",
+            "Tragen Sie unter `1. Kind` die Monatspreise ein, zum Beispiel 16,00. Ein leeres Feld setzt keinen Preis. Dann gilt der Preis davor.",
+            "Hat jedes weitere Kind einen eigenen Preis, tragen Sie ihn unter `Jedes weitere Kind` ein, zum Beispiel 12,50. Leer heißt: gleicher Preis wie beim 1. Kind. Legen Sie unter `Ermäßigungen` eine Geschwisterregel mit `Preis laut Preisliste` an.",
+            "Kostet ein Modul an jedem Tag gleich viel, tragen Sie nur Montag ein. Wählen Sie dann `Mo-Preise für alle Tage übernehmen`.",
+            "Kostet ein Modul dasselbe wie ein anderes, wählen Sie `Werte übernehmen von …` und dann das andere Modul.",
+            "Ist das Essen nicht im Preis, setzen Sie den Haken bei `Essen extra`. Das Essen rechnet die Mensa ab.",
+            "Wählen Sie `Preise speichern`.",
+          ],
+        },
+        {
+          title: "Rechnungsnummern festlegen",
+          description: "Das machen Sie einmal vor der ersten Freigabe.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
+            "Wählen Sie bei `Rechnungsnummern der Monatsbeiträge` den Knopf `Muster festlegen`.",
+            "Tragen Sie ein Muster ein, zum Beispiel MB-{JJJJ}-{NNNN}. Nehmen Sie ein anderes Kürzel als bei den Ferien.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Monatslauf starten und prüfen",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+            "Wählen Sie `Monatslauf starten` und dann den Monat.",
+            "Wählen Sie bei `Schulen` die Schulen. Alle sind schon gewählt. Eine Schule, die schon in einem offenen Lauf dieses Monats ist, lässt sich nicht wählen.",
+            "Wählen Sie bei `Rechnungsdatum` das Datum, das auf jeder Rechnung steht, zum Beispiel den 30.10. für Oktober. Lassen Sie das Feld leer, gilt der Tag der Freigabe.",
+            "Wählen Sie `Vorschau öffnen`.",
+            "Prüfen Sie die Rechnungen. Je Schule steht eine Karte. Jede Rechnung hat je Modul eine Zeile mit den gebuchten Wochentagen.",
+            "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag oder eine Zahl von Tagen je Woche ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
+            "Steht oben `Doppelter Vertrag – bitte prüfen`, rechnen zwei Verträge eines Kindes am selben Tag dasselbe Modul ab. Die Freigabe rechnet dieses Kind mit allen seinen Verträgen nicht ab, alle anderen Kinder schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Beenden oder ändern Sie einen der Verträge. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
+          ],
+        },
+        {
+          title: "Vorschau prüfen und Rechnungen ausschließen",
+          description:
+            "Sie können eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
+          steps: [
+            "Wählen Sie bei `Monatslauf` den Knopf `Prüfliste` und dann `Excel` oder `CSV`. Die Liste hat je Position eine Zeile. Rechnungsnummern stehen noch nicht darin.",
+            "Stimmt eine Rechnung noch nicht, wählen Sie in ihrer Zeile das Menü mit den drei Punkten und dann `Ausschließen`.",
+            "Schreiben Sie bei `Grund`, warum, zum Beispiel „Kündigung wird noch geprüft“. Wählen Sie `Ausschließen`.",
+            "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer.",
+            "Mit `Wieder aufnehmen` nehmen Sie sie zurück in den Lauf.",
+            "Sind alle Rechnungen ausgeschlossen, wählen Sie trotzdem `Lauf freigeben`. Der Lauf schließt ohne Rechnungen und gibt die Schulen wieder frei. Die Gründe bleiben im Verlauf. Ein neuer Lauf kann diese Kinder abrechnen.",
+            "Das Rechnungsdatum ändern Sie bei `Rechnungsdatum` mit `Ändern`.",
+          ],
+        },
+        {
+          title: "Eine Rechnung vor der Freigabe ändern",
+          description:
+            "Sie ändern nur diese eine Rechnung in diesem Lauf. Die Familie und andere Rechnungen bleiben, wie sie sind. Jede Änderung braucht einen Grund und steht im Verlauf der Rechnung.",
+          steps: [
+            "Wählen Sie in der Zeile der Rechnung das Menü mit den drei Punkten und dann `Rechnung ändern`. Die Seite der Rechnung öffnet sich.",
+            "Wählen Sie oben `Ändern` und dann `Betrag ändern`, `Position hinzufügen`, `Empfänger ändern` oder `Anschrift ändern`.",
+            "Tragen Sie den neuen Wert ein und schreiben Sie bei `Grund`, warum. Wählen Sie den Knopf unten im Fenster.",
+            "Einen neuen Betrag zeigt die Rechnung als eigene Zeile `Korrektur` mit dem Unterschied. Die berechneten Zeilen bleiben stehen.",
+            "Eine Position nehmen Sie heraus: Wählen Sie bei der Position das Menü mit den drei Punkten und dann `Position entfernen`. Die Position bleibt durchgestrichen sichtbar, die Rechnung bekommt eine Zeile mit Minus.",
+            "Eine Änderung nehmen Sie zurück: Wählen Sie im `Verlauf der Änderungen` bei der Änderung `Zurücknehmen` und schreiben Sie einen Grund. Der Eintrag bleibt im Verlauf.",
+            "Prüfen Sie danach die Vorschau. Haben Sie die Seite vorher geprüft, prüfen Sie sie noch einmal. Erst dann geben Sie frei.",
+          ],
+        },
+        {
+          title: "Monatslauf freigeben",
+          steps: [
+            "Wählen Sie `Lauf freigeben`.",
+            "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+            "Jede Rechnung bekommt ihre Nummer und das Rechnungsdatum. Danach ändert sie sich nicht mehr.",
+            "Hat sich seit Ihrer Prüfung etwas geändert, zum Beispiel ein Vertrag, ein Preis oder eine Änderung einer Rechnung, gibt moto nicht frei. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und geben Sie dann frei.",
+            "Passt eine Änderung einer Rechnung nicht mehr, zum Beispiel weil sich der Preis geändert hat, gibt moto nicht frei. Wählen Sie in der Meldung `Rechnung öffnen` und nehmen Sie die Änderung zurück.",
+            "Die Familien sehen davon noch nichts. Sie bekommen erst das Schreiben, das Sie senden.",
+          ],
+        },
+        {
+          title: "Schreiben erstellen",
+          description:
+            "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es ist ihre Rechnung. Erstellen sendet noch nichts.",
+          steps: [
+            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben erstellen`. Die Seite mit den Schreiben des Laufs öffnet sich.",
+            "Wählen Sie dort bei `Schreiben an die Familien` noch einmal `Schreiben erstellen`.",
+            "Prüfen Sie die `Fälligkeiten`. Sie stehen auf den Rechnungen fest. Nur ältere Rechnungen haben noch das Feld `Zahlen bis`.",
+            "Schreiben Sie bei `Hinweis für die Familien` etwas, wenn alle Familien es lesen sollen. Das ist freiwillig.",
+            "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
+            "Wählen Sie `Schreiben erstellen`. Danach lassen sich die Schreiben nicht mehr ändern.",
+          ],
+        },
+        {
+          title: "Schreiben senden und drucken",
+          description:
+            "Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter `Dokumente`. Das geht nur, wenn das Kind einen Schülerdatensatz hat. Sonst steht bei der Rechnung `Nicht in der Eltern-App`, und die Familie bekommt das Schreiben per E-Mail oder gedruckt.",
+          steps: [
+            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben öffnen`. Dort steht schon, wie viele Schreiben gesendet sind.",
+            "Wählen Sie bei `Schreiben an die Familien` den Knopf `An alle senden`. Prüfen Sie die Zahl und bestätigen Sie, zum Beispiel mit `3 Schreiben senden`.",
+            "Die Karte zeigt, wie viele Schreiben gesendet sind, gerade gesendet werden, nicht angekommen sind, noch nicht gesendet sind und keine E-Mail-Adresse haben.",
+            "In jeder Rechnung steht unter `An die Familie`, ob ihr Schreiben gesendet ist. `Ausgestellt am` sagt nur, dass die Rechnung ihre Nummer hat.",
+            "Ist ein Schreiben nicht angekommen, wählen Sie bei der Rechnung das Menü mit den drei Punkten und dann `Erneut senden`. Mit `Senden` schicken Sie ein einzelnes Schreiben zum ersten Mal.",
+            "Mit `Schreiben ansehen` im Menü sehen Sie genau das Schreiben, das die Familie bekommt.",
+            "Für Familien ohne E-Mail wählen Sie `Drucken` und dann `Nur Familien ohne E-Mail`. Geben Sie ihnen das gedruckte Schreiben. `Alle Schreiben drucken` druckt alle Schreiben, die noch gelten.",
+          ],
+        },
+        {
+          title: "Rechnung stornieren und neu ausstellen",
+          description:
+            "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno bekommt eine eigene Nummer.",
+          steps: [
+            "Wählen Sie im freigegebenen Lauf `Schreiben öffnen`. Gibt es noch keine Schreiben, heißt der Knopf `Schreiben erstellen`.",
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten und dann `Stornieren`.",
+            "Schreiben Sie bei `Begründung`, warum Sie stornieren. Wählen Sie `Stornieren`.",
+            "Hatte die Familie die Rechnung schon bekommen, bekommt sie ein Storno-Schreiben. Es steht als eigene Zeile unter der Rechnung. Senden Sie es über das Menü dieser Zeile mit `Senden`.",
+            "Haben Sie die Rechnung zum Drucken heruntergeladen, bekommt der Storno auch ein Schreiben. Laden Sie es über `Drucken` und `Alle Schreiben drucken` herunter. Geben Sie es der Familie auf Papier.",
+            "Wurde die Rechnung weder gesendet noch zum Drucken heruntergeladen, bekommt die Familie kein Storno. Sie sieht nichts davon.",
+            "Wählen Sie in der Meldung über den Rechnungen `Neu ausstellen`. Ein passender Prüflauf öffnet sich, sonst ein neuer Lauf. Ein neuer Lauf enthält nur Schulen mit noch offenen Stornos. Geben Sie ihn frei und senden Sie das neue Schreiben. Verteilen sich die Stornos auf mehrere Prüfläufe, wiederholen Sie `Neu ausstellen`. Sind alle Rechnungen neu ausgestellt, verschwindet die Meldung im alten Lauf.",
+            "Die neue Rechnung übernimmt die Änderungen der stornierten Rechnung, zum Beispiel einen geänderten Betrag oder Empfänger. Im Verlauf steht dann `Übernommen aus` mit der alten Nummer. Passt eine Änderung nicht mehr, nehmen Sie sie dort zurück.",
+          ],
+        },
+      ],
+      result:
+        "Die Rechnungen des Monats sind ausgestellt, und die Familien haben ihr Schreiben per E-Mail oder auf Papier. Ein späterer Lauf desselben Monats rechnet nur Kinder ab, die noch keine gültige Rechnung für diesen Monat haben.",
+      differences: [
+        "Beginnt, endet oder ändert sich ein Vertrag im Monat, zählt standardmäßig der Vertrag am 1. des Monats für den ganzen Monat. Beginnt die Betreuung erst im Monat, zählt der erste Vertrag den ganzen Monat. Ein weiterer Vertrag, der später im Monat beginnt, zählt erst ab dem nächsten Monat. Anteilig nach Kalendertagen stellen Sie unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein.",
+        "Mit einem Preis, für den es schon eine Rechnung gibt, rechnet der Monat weiter ab. Ändern Sie ihn ab einem späteren Monat. Fehlende Preise ergänzen Sie auch für einen schon abgerechneten Monat. Der nächste Lauf dieses Monats rechnet die Kinder dann ab.",
+      ],
+      notes: [
+        "Welche Änderungen einer Rechnung möglich sind, stellt Ihr Träger unter `Einstellungen`, `Allgemein`, Bereich `Monatsbeitrag` ein. Standardmäßig sind alle vier an.",
+        "Ferienpreise legen Sie im Ferienzeitraum fest. Die Preisliste gilt nur für die Monatsbeiträge.",
+        "Die Preise für weitere Kinder gelten erst mit einer Geschwister-Regel mit der Wirkung `Preis laut Preisliste`. Die Regel legen Sie unter `Ermäßigungen` an.",
+        "In einem beitragsfreien Monat steht im Monatslauf bei `Beitragsfreier Monat`, wie viele Verträge keine Rechnung bekommen.",
+      ],
+      troubleshootingDetails: [
+        "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei.",
+        "`Schreiben erstellen` geht nicht: Es fehlt eine Bankverbindung. Tragen Sie sie unter `Einstellungen`, `Abrechnungsvorgaben` ein.",
+        "Ein Schreiben geht nicht raus, weil die Person nicht mehr im Vertrag steht: Stornieren Sie die Rechnung. Wählen Sie dann `Neu ausstellen`. Die neue Rechnung geht an die Person im Vertrag.",
+        "`Erneut senden` fehlt: Die Mail ist noch unterwegs, oder die Adresse ist gesperrt. Der Hinweis bei der Rechnung sagt, was zu tun ist. Drucken Sie das Schreiben, wenn die Adresse gesperrt ist.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareContracts,
+        HELP_TOPICS.traegerBillingRun,
+        HELP_TOPICS.traegerBillingTerms,
+      ],
+    };
+  } satisfies typeof authored_traegerCareMonthsTopic;
+
+export const traegerCareNoticesTopic =
+  function traegerCareNoticesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareNotices,
+      title: "Jahresbescheide ausstellen",
+      question: "Wie stelle ich einen Gebührenbescheid für das Jahr aus?",
+      summary:
+        "Ein Jahresbescheid setzt den Beitrag für mehrere Monate eines Jahres fest. Jede Familie bekommt je Vertrag einen Bescheid mit Monatsraten. Die Raten sind jeweils am 1. des Monats fällig. Für Monate mit Bescheid berechnet der Monatslauf keine Betreuung erneut. Essen rechnet er weiterhin ab.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarDays",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Die Preisliste hat Preise für die Monate. Der Bescheid rechnet wie der Monatslauf.",
+        "Die Vorlage `Bescheid` hat eine Rechtsbehelfsbelehrung. Ohne sie stellt moto keinen Bescheid aus.",
+        "Das Muster der Rechnungsnummern für Monatsbeiträge ist festgelegt. Der Bescheid nimmt seine Nummer daraus.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Lauf starten",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Jahresbescheide`.",
+            "Wählen Sie `Jahreslauf starten`.",
+            "Wählen Sie bei `Ab Monat` den ersten Monat, zum Beispiel September. Der Bescheid gilt bis Dezember.",
+            "Wählen Sie bei `Schulen` die Schulen. Alle sind schon gewählt.",
+            "Wählen Sie bei `Bescheiddatum` das Datum auf dem Bescheid. Lassen Sie das Feld leer, gilt der Tag der Ausstellung.",
+            "Wählen Sie `Vorschau öffnen`.",
+          ],
+        },
+        {
+          title: "Vorschau prüfen",
+          description:
+            "Vor der Ausstellung ändert sich nichts. Die Vorschau zeigt immer den Stand von heute.",
+          steps: [
+            "Je Kind steht eine Zeile mit Zeitraum, Monatsrate und Jahresbetrag.",
+            "Wählen Sie eine Zeile. Sie sehen Seite 1 des Bescheids so, wie die Familie ihn bekommt.",
+            "Unter `I. Berechnung` steht je Modul der Betrag im Monat und für den Zeitraum.",
+            "Unter `II. Abrechnung` stehen die Raten. Ein Monat, der schon begonnen hat, ist sofort fällig.",
+          ],
+        },
+        {
+          title: "Bescheide ausstellen",
+          steps: [
+            "Wählen Sie `Bescheide ausstellen`.",
+            "Prüfen Sie Zahl und Summe und wählen Sie `Ausstellen`.",
+            "Jeder Bescheid bekommt seine Nummer. Danach ändert er sich nicht mehr.",
+            "Hat sich seit Ihrer Prüfung etwas geändert, stellt moto nichts aus. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und stellen Sie dann aus.",
+            "Wählen Sie bei einem Bescheid `Drucken`, um ihn auszudrucken.",
+          ],
+        },
+        {
+          title: "Vertrag geändert: Änderungsbescheid",
+          description:
+            "Ein ausgestellter Bescheid ändert sich nie. Ändert sich ein Vertrag, gibt es einen Änderungsbescheid.",
+          steps: [
+            "Starten Sie für dasselbe Jahr einen neuen Jahreslauf, zum Beispiel ab dem Monat der Änderung.",
+            "Die Vorschau zeigt nur Kinder, bei denen sich etwas geändert hat. Sie stehen als `Änderungsbescheid`.",
+            "Der Änderungsbescheid nennt den alten Bescheid. Je Zeile steht `bisher`, `neu` und `Zu-/Abgang`.",
+            "Stellen Sie die Bescheide aus. Von da an gilt für diese Monate der Änderungsbescheid.",
+          ],
+        },
+      ],
+      result:
+        "Jede Familie hat ihren Bescheid mit den Raten bis Dezember. Für diese Monate berechnet der Monatslauf keine Betreuung erneut. Er zählt die Kinder unter `Schon abgerechnet`.",
+      differences: [
+        "Hat ein Kind für einen Monat schon eine Monatsrechnung, nimmt der Bescheid diesen Monat nicht auf. Er beginnt mit dem nächsten Monat.",
+        "Endet ein Vertrag, setzt der Änderungsbescheid die Monate danach auf 0,00 €. Das ist ein Abgang.",
+      ],
+      notes: [
+        "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
+        "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
+        "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
+      ],
+      troubleshootingDetails: [
+        "`Bescheide ausstellen` geht nicht und oben steht `Rechtsbehelfsbelehrung fehlt`: Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Dafür brauchen Sie das Recht `Einstellungen`.",
+        "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste. Stellen Sie die Bescheide aus oder schließen Sie den leeren Lauf ab.",
+        "Die Vorschau ist leer: Es gibt nichts Neues auszustellen. Wählen Sie `Jahreslauf abschließen` und dann `Abschließen`. Danach können Sie einen neuen Jahreslauf für andere Schulen starten.",
+        "Im Monatslauf steht `Durch aufgehobenen Bescheid gesperrt`: Ein Änderungsbescheid hat den Monat auf 0,00 € gesetzt. Der Monat bleibt gesperrt, damit ihn niemand doppelt abrechnet. Wollen Sie ihn abrechnen, stellen Sie mit `Neuen Bescheid ausstellen` einen neuen Bescheid aus.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerDocumentKinds,
+      ],
+    };
+  } satisfies typeof authored_traegerCareNoticesTopic;
+
+export const traegerCareReductionsTopic =
+  function traegerCareReductionsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareReductions,
+      title: "Ermäßigungen im Monatsbeitrag",
+      question:
+        "Wie lege ich Geschwister, Einkommensstufen und Höchstbeträge fest?",
+      summary:
+        "Sie legen fest, wann eine Familie weniger zahlt. Der Monatslauf rechnet jede Ermäßigung selbst aus. Sie steht als eigene Zeile auf der Rechnung.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "SlidersHorizontal",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Die Preise der Module stehen in der `Preisliste`.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Regel anlegen",
+          description:
+            "Es gibt vier Arten: Einkommensstufen, Geschwister, Alleinerziehende und Höchstbetrag. Der Monatslauf rechnet sie in dieser Reihenfolge.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Ermäßigungen`.",
+            "Wählen Sie bei der Art den Knopf `Regel anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
+            "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
+            "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
+            "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
+            "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein. Bei Geschwistern gibt es auch `Preis laut Preisliste`.",
+            "Wählen Sie `Regel speichern`.",
+          ],
+        },
+        {
+          title: "Geschwister",
+          description:
+            "Geschwister sind Kinder mit derselben Rechnungsadresse. Das Kind mit dem höchsten Beitrag ist das 1. Kind. Bei gleichem Beitrag zählt das ältere Kind zuerst.",
+          steps: [
+            "Wählen Sie bei `Ab dem Kind`, ab welchem Kind die Ermäßigung gilt, zum Beispiel ab dem 2. Kind.",
+            "Wählen Sie bei `Geschwister zählen an` die Schulen, deren Kinder mitzählen. Lassen Sie das Feld leer, zählen nur die Schulen der Regel.",
+            "`Fester Preis` heißt: Das Kind zahlt genau diesen Betrag. `Betrag weniger` zieht den Betrag vom Preis ab.",
+            "`Preis laut Preisliste` heißt: Jedes weitere Kind zahlt je Modul und Tag den Preis unter `Jedes weitere Kind` der Preisliste. Die Zahl tragen Sie dort ein, nicht in der Regel.",
+            "Sollen Geschwister an zwei Standorten getrennt zählen, legen Sie je Standort eine eigene Regel an. Lassen Sie `Geschwister zählen an` leer.",
+            "Sollen auch Geschwister ohne Betreuungsvertrag zählen? Schalten Sie `Geschwister ohne Vertrag mitzählen` ein.",
+          ],
+        },
+        {
+          title: "Kinderzahl der Familie prüfen",
+          description:
+            "Eltern geben im Vertrag an, wie viele Kinder ihre Familie hat. Sie bestätigen die Zahl. Erst dann zählt sie.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Kinderzahl`.",
+            "Unter `Zu prüfen` stehen neue Angaben der Eltern und Zahlen, die bald ablaufen.",
+            "Wählen Sie bei der Familie `Prüfen`. Im Menü einer Familie heißt es `Kinderzahl bestätigen` oder `Kinderzahl ändern`.",
+            "Prüfen Sie die Zahl. Ändern Sie sie, wenn nötig.",
+            "Wählen Sie, ab wann die Zahl gilt. Soll sie nur eine Zeit lang gelten, wählen Sie auch `Gilt bis`.",
+            "Wählen Sie `Kinderzahl bestätigen`.",
+          ],
+        },
+        {
+          title: "Nachweis eintragen",
+          description:
+            "Einkommensstufe und Ermäßigung für Alleinerziehende brauchen einen Nachweis je Kind.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Nachweise`.",
+            "Wählen Sie beim Kind das Menü und dann `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
+            "Wählen Sie die Stufe. Nennen Sie den geprüften Nachweis, zum Beispiel Einkommensteuerbescheid 2025.",
+            "Tragen Sie ein, wann Sie ihn geprüft haben und ab wann er gilt.",
+            "Wählen Sie `Nachweis speichern`.",
+          ],
+        },
+        {
+          title: "Nachweise ändern und vorab eintragen",
+          description:
+            "Die Liste zeigt alle Zeiträume, auch abgelaufene und zukünftige.",
+          steps: [
+            "Wählen Sie beim Kind das Menü. Jeder Nachweis zeigt seinen Zeitraum.",
+            "Wählen Sie beim passenden Zeitraum `Einkommensstufe ändern` oder `Alleinerziehend ändern`.",
+            "Für einen weiteren Zeitraum wählen Sie `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
+            "Beenden Sie den bisherigen Zeitraum, bevor der neue beginnt. Zeiträume derselben Art dürfen sich nicht überschneiden.",
+            "Wählen Sie `Nachweis speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Der nächste Monatslauf rechnet die Ermäßigungen aus. Jede Rechnung zeigt jede Ermäßigung mit Namen und Betrag. Bei Geschwistern steht dabei, das wievielte Kind es ist, zum Beispiel `2. Kind von 3`.",
+      differences: [
+        "Geschwister erkennt moto an derselben E-Mail-Adresse der Rechnung. Haben zwei Familien dieselbe Adresse, zählen ihre Kinder zusammen. Hat eine Familie zwei Adressen, zählen ihre Kinder nicht als Geschwister. Gleichen Sie die Adresse dann im Vertrag an.",
+        "Gilt ein Nachweis erst ab Mitte des Monats, zählt er für den ganzen Monat.",
+        "Zählt eine Regel die Kinderzahl, gilt die bestätigte Zahl. Es zählen aber immer mindestens die Kinder mit Vertrag. Geschwister ohne Vertrag stehen in der Reihe vorn: Bei 3 Kindern und einem Kind mit Vertrag ist es das 3. Kind.",
+        "Geschwister zählen je Schule getrennt. Ein Kind mit Vertrag an einer anderen Schule zählt bei der Kinderzahl nur mit, wenn die Regel unter `Geschwister zählen an` auch diese Schule nennt. Geschwister ohne Vertrag zählen an jeder Schule mit.",
+        "Eine Angabe der Eltern, die Sie noch nicht bestätigt haben, zählt nicht. Ist die Zahl abgelaufen, zählen nur die Kinder mit Vertrag. Der Monatslauf zeigt dann einen Hinweis.",
+        "Eine Rechnung, die schon ausgestellt ist, bleibt, wie sie ist. Eine geänderte Regel gilt ab dem nächsten Monatslauf.",
+      ],
+      notes: [
+        "moto speichert nur die Art des Nachweises und das Prüfdatum. Das Dokument und das Einkommen bleiben bei Ihnen.",
+        "Jedes Öffnen der Seite `Nachweise` steht im Zugriffsprotokoll.",
+        "Bei der Kinderzahl speichert moto nur die Zahl. Namen und Geburtstage der Geschwister ohne Vertrag erfasst moto nicht. Jedes Öffnen und Ändern steht im Zugriffsprotokoll.",
+      ],
+      related: [HELP_TOPICS.traegerCareMonths, HELP_TOPICS.traegerAccessLog],
+    };
+  } satisfies typeof authored_traegerCareReductionsTopic;
+
+/**
+ * `/traeger/zeitvergleich` (#4683): wie oft Kinder an den Schulen des Trägers
+ * länger da waren als gebucht, je Schule und mit Recht auch je Kind.
+ */
+export const traegerCareTimeOverrunsTopic =
+  function traegerCareTimeOverrunsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareTimeOverruns,
+      title: "Länger als gebucht",
+      question: "Welche Kinder waren länger da als gebucht?",
+      summary:
+        "moto vergleicht die Zeiten im Vertrag mit dem Ein- und Auschecken. Sie sehen je Schule, wie oft Kinder länger da waren.",
+      group: "auswertung",
+      audience: "traeger",
+      icon: "Hourglass",
+      requirements: [
+        "Für die Zahlen je Schule brauchen Sie das Recht `Berichte lesen`. Es gehört zu den Rollen `Verwaltung`, `Abrechnung`, `Personal` und `Nur lesen`.",
+        "Für die Namen der Kinder brauchen Sie das Recht `Verträge verwalten`. Es gehört zur Rolle `Verwaltung`.",
+      ],
+      steps: [
+        "Wählen Sie in der Navigation `Länger als gebucht`.",
+        "Wählen Sie oben den Monat. Am Anfang ist es der laufende Monat bis heute.",
+        "Wählen Sie bei Bedarf eine Schule. Sonst sehen Sie alle Schulen.",
+        "Lesen Sie oben die Summen: `Kinder`, `Tage` und `Zusätzliche Zeit`.",
+        "Lesen Sie unter `Je Schule` die Zahlen jeder Schule. Tippen Sie auf eine Spalte, um nach ihr zu sortieren.",
+        "Mit der Rolle `Verwaltung` sehen Sie unter `Kinder` jedes Kind mit Namen. Das Kind mit der meisten zusätzlichen Zeit steht oben.",
+      ],
+      result:
+        "Rote Zahlen zeigen Überschreitungen. Sprechen Sie mit den Eltern, oder ändern Sie die Buchung.",
+      notes: [
+        "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
+        "Das Soll kommt aus dem versendeten Vertrag: je Wochentag die Module und die Endzeit. Ohne Vertrag gilt der Betreuungsplan der Schule.",
+        "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, nicht der Vertrag. Jeder Tag zählt nur einmal.",
+        "Das Ist reicht vom ersten Einchecken bis zum letzten Auschecken des Tages.",
+        "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht. Ein Tag ohne Buchung zählt ganz.",
+        "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht.",
+        "Jedes Mal, wenn Sie Namen sehen, steht das im Zugriffsprotokoll der Schule.",
+      ],
+      differences: [
+        "Fehlt der Bereich mit den Namen? Ihre Rolle hat das Recht `Verträge verwalten` nicht. Dann sehen Sie nur die Zahlen je Schule.",
+        "Steht bei einer Schule `Check-ins erst ab` mit einem Datum? Die Schule bewahrt Check-ins nicht so lange auf. Verglichen wird ab diesem Tag.",
+        "Steht bei einer Schule `–` und `Keine Check-ins im Zeitraum`? Die Schule hat in diesem Zeitraum keine Check-ins. Dann kann moto nicht vergleichen. Das heißt nicht, dass alle Zeiten passen.",
+        "Steht bei einer Schule `Tage nicht verglichen`? An diesen Tagen war ein Kind da, aber es gab keinen Plan oder es ist noch nicht ausgecheckt. Diese Tage zählen nicht mit.",
+      ],
+      related: [HELP_TOPICS.traegerCareContracts, HELP_TOPICS.traegerAccessLog],
+    };
+  } satisfies typeof authored_traegerCareTimeOverrunsTopic;
+
+/** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =
   function traegerDashboardTopic(): HelpTopic {
     return {
@@ -10006,25 +11142,99 @@ export const traegerDashboardTopic =
       steps: [
         "Wählen Sie in der Navigation `Dashboard`.",
         "Lesen Sie oben die Summe für alle Schulen.",
+        "Prüfen Sie unter `Auffälligkeiten`, an welcher Schule etwas Ihre Grenzen erreicht.",
+        "Wählen Sie dort `Zur Schule`, um die Schule anzusehen.",
         "Lesen Sie unter `Zahlen je Schule` die Zahlen jeder Schule.",
         "Wählen Sie eine Schule, um ihre Zahlen und Stammdaten zu sehen.",
       ],
       result:
-        "Sie sehen für jede Schule, wie viele Kinder gerade da sind, wie viele heute krank sind und wie viele Betreuungskräfte angemeldet sind.",
+        "Sie sehen für jede Schule, wie viele Kinder gerade da sind, wie viele heute krank sind, wie viele Betreuungskräfte angemeldet sind und wie viele Anmeldungen offen sind.",
       notes: [
         "Die Zahlen aktualisieren sich jede Minute von selbst.",
         "Sie sehen nur Zahlen, keine Namen.",
         "Mit einem Klick auf eine Spaltenüberschrift sortieren Sie die Schulen, zum Beispiel nach `Heute krank`.",
         "Bei vielen Schulen finden Sie eine Schule schneller über das Suchfeld. Sie können nach dem Namen oder dem Ort suchen.",
         "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder. Oben gilt das für alle Schulen zusammen.",
+        "`Auffälligkeiten` kennt drei Hinweise: `Zu wenig Personal`, `Viele Krankmeldungen` und `Offene Anmeldungen`. In der Tabelle sind die Zahlen dazu orange mit einem Warnzeichen.",
+        "Mit dem Feld `Alle Schulen` zeigen Sie nur die Hinweise einer Schule.",
+        "Ab wann eine Schule auffällt, legen Sie selbst fest. Wählen Sie dazu `Grenzen ändern`. Mehr dazu steht im Artikel `Einstellungen für alle Schulen festlegen`.",
+        "`Offene Anmeldungen` zählt die Kinder aus der Online-Anmeldung, über die die Schule noch nicht entschieden hat.",
       ],
       differences: [
         "`Betreuungskräfte` zählt nur, wer sich in der Zeiterfassung angemeldet hat. Homeoffice zählt nicht. Nutzt eine Schule die Zeiterfassung nicht, steht dort 0 und beim Schlüssel `–`.",
         "Ohne das Recht `In OGS wechseln` fehlt die Aktion `Schul-App öffnen`. Die Zahlen sehen Sie trotzdem.",
+        "Ohne das Recht, Einstellungen zu ändern, steht dort `Grenzen ansehen` statt `Grenzen ändern`.",
+        "Steht unter `Auffälligkeiten` „Gerade ist an keiner Schule etwas auffällig.“? Dann erreicht keine Schule Ihre Grenzen.",
       ],
-      related: [HELP_TOPICS.traegerSchoolView, HELP_TOPICS.traegerSchoolSwitch],
+      related: [
+        HELP_TOPICS.traegerSchoolView,
+        HELP_TOPICS.traegerSchoolSwitch,
+        HELP_TOPICS.traegerSettings,
+      ],
     };
   } satisfies typeof authored_traegerDashboardTopic;
+
+/**
+ * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
+ * oder Bestätigung mit Rechnung je Leistung; die Rechtsbehelfsbelehrung des
+ * Bescheids schreibt der Träger in der Vorlage „Bescheid“.
+ */
+export const traegerDocumentKindsTopic =
+  function traegerDocumentKindsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerDocumentKinds,
+      title: "Rechnung oder Gebührenbescheid",
+      question:
+        "Wie lege ich fest, ob Familien eine Rechnung oder einen Bescheid bekommen?",
+      summary:
+        "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung mit Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
+      group: "konfiguration",
+      audience: "traeger",
+      icon: "ClipboardList",
+      requirements: ["Ihre Rolle im Träger-Büro ist Abrechnung."],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Dokumentart wählen",
+          description:
+            "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung mit Rechnung und beim Monatsbeitrag eine Rechnung.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Dokumentarten`.",
+            "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung mit Rechnung`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Rechtsbehelfsbelehrung eintragen",
+          description:
+            "Den Text ändert, wer das Recht `Einstellungen` hat. moto gibt keinen Rechtstext vor.",
+          steps: [
+            "Wählen Sie auf der Seite `Dokumentarten` in der Karte `Rechtsbehelfsbelehrung` den Knopf `Belehrung eintragen`.",
+            "Schreiben Sie den Text in das Feld `Rechtsbehelfsbelehrung`. Nennen Sie Frist, Stelle und Form des Widerspruchs.",
+            "Wählen Sie `Vorschau zeigen`. Die Belehrung steht unten im Bescheid.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Die nächste Freigabe stellt die gewählte Art aus. Im Lauf steht sie bei `Dokumentart`. Schon ausgestellte Schreiben bleiben, wie sie sind.",
+      notes: [
+        "Ein Gebührenbescheid nennt die Bescheidnummer und das Buchungszeichen der Familie. Das Buchungszeichen ist die Debitorennummer.",
+        "Ein Storno eines Gebührenbescheids heißt `Aufhebungsbescheid`. Eine Gutschrift heißt `Änderungsbescheid`. Die Nummern kommen aus demselben Nummernkreis.",
+        "Ändern Sie die Dokumentart nach der Prüfung eines Laufs, lehnt moto die Freigabe ab. Laden Sie den Lauf neu und prüfen Sie ihn noch einmal.",
+      ],
+      troubleshootingDetails: [
+        "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt das Recht `Einstellungen`. Bitten Sie eine Person mit diesem Recht, die Belehrung einzutragen.",
+        "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
+        "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerBillingRun,
+        HELP_TOPICS.traegerCareMonths,
+      ],
+    };
+  } satisfies typeof authored_traegerDocumentKindsTopic;
 
 /**
  * `/traeger/einstellungen/briefkopf/vorlagen` (#4677): Text der Briefe mit
@@ -10079,7 +11289,8 @@ export const traegerDocumentTemplatesTopic =
         "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
         "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
         "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-        "Heute nutzt moto die Vorlage für das Bestätigungsschreiben der Ferien. Die anderen Dokumente folgen.",
+        "Die Vorlage `Bescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
+        "moto nutzt die Vorlagen für das Bestätigungsschreiben der Ferien, den Betreuungsvertrag, die Ferienrechnung und den Gebührenbescheid. Welches Schreiben ein Lauf ausstellt, legen Sie unter `Dokumentarten` fest. Die anderen Dokumente folgen.",
       ],
       differences: [
         "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
@@ -10091,6 +11302,7 @@ export const traegerDocumentTemplatesTopic =
       related: [
         HELP_TOPICS.traegerBriefkopf,
         HELP_TOPICS.traegerBillingRun,
+        HELP_TOPICS.traegerDocumentKinds,
         HELP_TOPICS.errorMessages,
       ],
     };
@@ -10357,15 +11569,17 @@ export const traegerHolidayPeriodTopic =
       result:
         "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
       notes: [
+        "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
+        "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
       troubleshootingDetails: [
-        "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
+        "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       ],
       related: [
@@ -10568,7 +11782,7 @@ export const traegerHolidayRegistrationTopic =
         "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
       ],
       troubleshootingDetails: [
-        "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen.",
+        "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen. Ein gebuchtes Zeitmodell können Sie `Archivieren`.",
         "Eltern sagen, die Anmeldung sei nicht offen? Prüfen Sie `Anmeldebeginn` und `Anmeldeschluss`.",
       ],
       related: [HELP_TOPICS.traegerHolidayPeriod],
@@ -10614,6 +11828,43 @@ export const traegerInvitationTopic =
       related: [HELP_TOPICS.traegerLogin],
     };
   } satisfies typeof authored_traegerInvitationTopic;
+
+/** `/traeger/stichtagszahlen` (#4673): die festgehaltenen Zahlen, nach denen moto jede Schule berechnet. */
+export const traegerKeyDateCountsTopic =
+  function traegerKeyDateCountsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerKeyDateCounts,
+      title: "Stichtagszahlen der Schulen",
+      question: "Nach welchen Zahlen berechnet moto meine Schulen?",
+      summary:
+        "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Terminals jeder Schule am Stichtag.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "CalendarCheck",
+      steps: [
+        "Wählen Sie in der Navigation `Stichtagszahlen`.",
+        "Wählen Sie oben einen Monat. Zu Beginn sehen Sie den neuesten Monat.",
+        "Lesen Sie oben die Summe für alle Schulen.",
+        "Lesen Sie darunter die Zahlen jeder Schule.",
+        "Wählen Sie unter `Alle Monate` einen Monat, um seine Zahlen zu sehen.",
+      ],
+      result:
+        "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Terminals moto am Stichtag gezählt hat.",
+      notes: [
+        "Suchen Sie oben nach einer Schule oder einem Ort.",
+        "moto hält die Zahlen am Stichtag einmal fest. Danach ändern sie sich nicht mehr.",
+        "Das moto-Team sieht in seinem Bericht dieselben Zahlen.",
+        "Neben jeder Zahl steht, wie sie sich zum Monat davor verändert hat.",
+        "Sie sehen nur Zahlen, keine Namen.",
+      ],
+      differences: [
+        "Bei unterschiedlichen Stichtagen stehen unter `Alle Monate` mehrere Daten. Das genaue Datum finden Sie bei jeder Schule unter `Stichtag`.",
+        "Steht bei einer Schule `Keine Zahlen zu diesem Stichtag`, gab es die Schule am Stichtag noch nicht in moto.",
+        "Steht bei einer Schule `Nachgeholt`, hat moto die Zahlen erst nach dem Stichtag festgehalten. Sie gelten trotzdem für den Stichtag.",
+      ],
+      related: [HELP_TOPICS.traegerDashboard, HELP_TOPICS.traegerSchoolView],
+    };
+  } satisfies typeof authored_traegerKeyDateCountsTopic;
 
 // Portal "moto schule" (#2207). Geruest nach der echten Navigation des
 // Schul-Portals (`SCHOOL_PRIMARY_NAV`): Klassenansicht, Meine Aufsichten,
@@ -10681,6 +11932,44 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
     related: [HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerLoginTopic;
+
+/** `/traeger/belegung` (#4676): die Kinder von heute je Schule, Gruppe und Betreuungsform. */
+export const traegerOccupancyTopic =
+  function traegerOccupancyTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerOccupancy,
+      title: "Belegung der Schulen",
+      question: "Wie viele Kinder hat jede Schule, Gruppe und Betreuungsform?",
+      summary:
+        "Die Belegung zeigt, wie viele Kinder Ihre Schulen heute betreuen: je Schule, je OGS-Gruppe und je Betreuungsform.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "ChartLine",
+      steps: [
+        "Wählen Sie in der Navigation `Belegung`.",
+        "Lesen Sie oben die Summe für alle Schulen und die freien Plätze.",
+        "Wählen Sie einen Reiter: `Schulen`, `Gruppen` oder `Betreuungsformen`.",
+        "Wählen Sie `Herunterladen` und dann `CSV`, um alle Zahlen als Tabelle zu speichern.",
+      ],
+      result:
+        "Sie sehen für jede Schule, wie viele Kinder in welcher Gruppe sind und welches Betreuungsangebot sie heute gebucht haben. Sie sehen auch, wo noch Plätze frei sind.",
+      notes: [
+        "Suchen Sie oben nach einer Schule oder einem Ort. Die Summe zählt dann nur diese Schulen.",
+        "Es zählen dieselben Kinder wie bei der Stichtagszahl, aber von heute.",
+        "Eine Betreuungsform ist ein Betreuungsangebot, das als Betreuung zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht.",
+        "Unter `Betreuungsformen` steht jedes Angebot, das heute läuft. Auch eins, das noch niemand gebucht hat. Es hat dann 0 Kinder und alle Plätze frei.",
+        "Unter `Betreuungsformen` stehen Angebote mit gleichem Namen an mehreren Schulen auch zusammengezählt.",
+        "`Freie Plätze` zählt nur Angebote, für die die Schule Plätze festgelegt hat.",
+        "Sie sehen nur Zahlen, keine Namen von Kindern.",
+      ],
+      differences: [
+        "Steht bei einem Angebot `Keine Grenze`, hat die Schule keine Plätze festgelegt.",
+        "Steht bei einem Angebot `Voll` oder `Überbelegt`, sind alle Plätze vergeben. Die Plätze legt die Schule fest.",
+        "Steht bei einer Schule `Ohne Betreuungsform`, haben diese Kinder heute kein Betreuungsangebot gebucht. Das ist bei Schulen mit Wochenplan üblich.",
+      ],
+      related: [HELP_TOPICS.traegerDashboard, HELP_TOPICS.traegerKeyDateCounts],
+    };
+  } satisfies typeof authored_traegerOccupancyTopic;
 
 /** `/traeger` (#4654): Absprung in eine Schule des Trägers. */
 export const traegerSchoolSwitchTopic =
@@ -10753,6 +12042,81 @@ export const traegerSchoolViewTopic =
     };
   } satisfies typeof authored_traegerSchoolViewTopic;
 
+export const traegerSepaMandatesTopic =
+  function traegerSepaMandatesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSepaMandates,
+      title: "Lastschrift und SEPA-Mandate",
+      question: "Wie buche ich Beiträge per Lastschrift ab?",
+      summary:
+        "Sie tragen Ihre Gläubiger-ID ein und erfassen das SEPA-Mandat jeder Familie. Die Rechnung kündigt die Abbuchung dann an: mit Betrag, Datum, Konto, Gläubiger-ID und Mandatsreferenz. moto bucht kein Geld ab.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Repeat",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Zahlungsweg der Leistung oder der Familie ist `Lastschrift`.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Gläubiger-ID eintragen",
+          description:
+            "Die Gläubiger-ID bekommen Sie von der Bundesbank. Ohne sie gibt es keine Lastschrift und kein Mandat. Ein Mandat gilt nur für die Gläubiger-ID, die beim Erfassen eingetragen war. Ändern Sie die Gläubiger-ID, brauchen alle Familien ein neues Mandat.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
+            "Wählen Sie in der Karte `Lastschrift` den Knopf `Ändern`.",
+            "Tragen Sie die `Gläubiger-ID` ein.",
+            "Bei `Vorabankündigung in Tagen` steht 14. So viele Tage vor der Abbuchung muss die Rechnung bei der Familie sein. Weniger Tage nur, wenn Sie das mit den Familien vereinbart haben.",
+            "Wählen Sie bei `Wenn eine Familie kein gültiges Mandat hat`: `Als Überweisung ausstellen` oder `Freigabe anhalten`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Mandat einer Familie erfassen",
+          description:
+            "Je Familie gilt ein Mandat. Es gilt auch für Geschwister mit derselben E-Mail-Adresse im Vertrag.",
+          steps: [
+            "Öffnen Sie den Vertrag des Kindes unter `Verträge`. Oder öffnen Sie im Monatslauf bei der Rechnung das Menü mit den drei Punkten und dann `Empfänger und Zahlung`.",
+            "Wählen Sie in der Karte `SEPA-Lastschriftmandat` den Knopf `Mandat erfassen`. Es öffnet sich die Seite des Mandats.",
+            "Wählen Sie dort `Mandat erfassen`.",
+            "Übernehmen Sie `Kontoinhaber`, `IBAN` und `Unterschrieben am` aus dem unterschriebenen Mandat. Die `BIC` brauchen Sie nur bei Konten außerhalb der EU.",
+            "Tragen Sie die `Mandatsreferenz` ein. Lassen Sie das Feld leer, vergibt moto eine.",
+            "Wählen Sie die `Art`: `Dauermandat` für jeden Monat oder `Einzelmandat` für eine Abbuchung.",
+            "Wählen Sie bei `Wurde mit diesem Mandat schon abgebucht?` die passende Antwort. Bei einem Mandat aus einem anderen Programm meistens `Ja, schon einmal`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Mandat widerrufen",
+          steps: [
+            "Öffnen Sie unter `Abrechnung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
+            "Wählen Sie beim Mandat das Menü mit den drei Punkten und dann `Widerrufen`.",
+            "Wählen Sie bei `Widerruf erhalten am` den Tag, an dem der Widerruf kam.",
+            "Wählen Sie `Widerrufen`.",
+          ],
+        },
+      ],
+      result:
+        "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
+      notes: [
+        "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
+        "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
+        "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Kontodaten stehen dort nicht.",
+      ],
+      differences: [
+        "Die Familie hat kein gültiges Mandat? Mit `Als Überweisung ausstellen` bekommt sie eine Rechnung zum Überweisen. Die Prüfung des Monatslaufs zeigt sie in der Karte `Lastschrift`.",
+        "Mit `Freigabe anhalten` lässt sich der Lauf erst freigeben, wenn jede Familie mit Lastschrift ein gültiges Mandat hat.",
+        "`Mandat erfassen` fehlt? Die Familie hat schon ein gültiges Mandat. Widerrufen Sie es zuerst.",
+      ],
+      troubleshootingDetails: [
+        "Die IBAN wird nicht angenommen? Prüfen Sie jedes Zeichen. moto prüft die Prüfziffer.",
+        "Die Prüfung meldet `früher als Ihre Vorabankündigung erlaubt`? Die Abbuchung kommt zu früh nach dem Rechnungsdatum. Ändern Sie die Fälligkeit des Laufs oder das Rechnungsdatum.",
+      ],
+      related: [HELP_TOPICS.traegerBillingTerms, HELP_TOPICS.traegerCareMonths],
+    };
+  } satisfies typeof authored_traegerSepaMandatesTopic;
+
 /**
  * `/traeger/einstellungen` (#4652, ADR 0086, #5685): Träger-Werte zwischen Standard
  * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-nav-items.ts`.
@@ -10782,10 +12146,12 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Eine Schule kann einen eigenen Wert eintragen. Dann gilt dort ihr Wert.",
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
       "Im Bereich `Kontakt` tragen Sie den `Ansprechpartner` Ihres Trägers ein. Er steht auf allen Briefen und Rechnungen.",
+      "Darunter steht `Kontakt für Widerrufe`. Diese Telefonnummer und E-Mail-Adresse nennt die Widerrufsbelehrung jedes Betreuungsvertrags. Ein leeres Feld nimmt die Angabe des Ansprechpartners. Die Vorschau zeigt den Satz so, wie Eltern ihn lesen. Nach einer Änderung kopiert die Schule die Widerrufsbelehrung neu ins Anmeldeformular.",
       "Mit `Zurück zur App` oben in der Navigation kommen Sie zur zuletzt geöffneten Seite zurück.",
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
+      "Im Bereich `Dashboard` legen Sie fest, ab wann das Dashboard eine Schule unter `Auffälligkeiten` zeigt: bei zu wenig Personal, bei vielen Krankmeldungen und bei offenen Anmeldungen. 0 schaltet einen Hinweis aus.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [
@@ -10795,6 +12161,94 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerSettingsTopic;
+
+/**
+ * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
+ * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen; ein Dokument
+ * löschen (#5993). Schreiben darf die Rolle Dokumente (#5992).
+ */
+export const traegerSharedDocumentsTopic =
+  function traegerSharedDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSharedDocuments,
+      title: "Dokumente für Eltern und Schulen freigeben",
+      question: "Wie teile ich ein Dokument mit Eltern oder Schulen?",
+      summary:
+        "Sie laden eine Datei hoch, die Sie schon haben, zum Beispiel eine Hausordnung oder eine Liste. Dann geben Sie sie für Eltern oder für Schulen frei.",
+      group: "elternarbeit",
+      audience: "traeger",
+      icon: "EnvelopeOpen",
+      requirements: [
+        "Sie haben die Rolle `Dokumente`. Wer bisher `Verwaltung` hatte, hat sie dazubekommen.",
+        "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
+      ],
+      instructionGroups: [
+        {
+          title: "Dokument hochladen",
+          steps: [
+            "Wählen Sie in der Navigation `Dokumente`.",
+            "Wählen Sie oben `Dokument hochladen`.",
+            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei auswählen`.",
+            "Prüfen Sie den `Titel`. Eltern und Schulen sehen diesen Titel.",
+            "Wählen Sie `Hochladen`. moto öffnet danach die Seite des Dokuments.",
+          ],
+        },
+        {
+          title: "Dokument freigeben",
+          steps: [
+            "Öffnen Sie das Dokument in der Liste `Dokumente`.",
+            "Wählen Sie oben `Freigeben`.",
+            "Wählen Sie bei `Für wen?` entweder `Eltern` oder `Schulen`.",
+            "Wählen Sie bei `An welchen Schulen?`: `Alle Schulen`, `Eine Schule` oder bei Eltern auch `Eine Gruppe`.",
+            "Wählen Sie dann die `Schule` und gegebenenfalls die `Gruppe`.",
+            "Prüfen Sie den Kasten `Sichtbar für`. Wählen Sie `Freigeben`.",
+          ],
+        },
+        {
+          title: "Freigabe zurücknehmen",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie bei der Freigabe `Zurücknehmen`.",
+            "Bestätigen Sie mit `Ja, zurücknehmen` und dann `Zurücknehmen`.",
+          ],
+        },
+        {
+          title: "Dokument löschen",
+          description:
+            "Alle Freigaben enden dabei. Die Datei ist danach weg, auch für Sie.",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Dokument löschen`.",
+            "Prüfen Sie, welche Freigaben enden.",
+            "Tippen Sie `LÖSCHEN` ein. Wählen Sie `Endgültig löschen`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr, außer eine andere Freigabe des Dokuments gilt auch für sie. Nach dem Löschen sieht es niemand mehr, auch nicht über einen gespeicherten Link. Eltern mit eingeschalteter Nachricht `Neues Dokument vom Träger` bekommen bei der Freigabe eine Nachricht aufs Handy. Sie nennt keinen Titel und kein Kind.",
+      notes: [
+        "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+        "Eltern, die ein Dokument schon sehen, bekommen bei einer weiteren Freigabe keine zweite Nachricht. Nehmen Sie die Freigabe zurück, kommt auch keine Nachricht mehr.",
+        "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
+        "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
+        "Auch nach dem Löschen bleibt im Nachweis, wer das Dokument wann freigegeben, geöffnet und gelöscht hat.",
+      ],
+      differences: [
+        "Sie sehen `Dokument hochladen`, `Freigeben` und das Menü zum Löschen nicht? Ihnen fehlt die Rolle `Dokumente`. Sie können die Dokumente nur ansehen und herunterladen. Die Rolle gibt Ihnen eine Person mit der Rolle `Leitung` unter `Einstellungen` bei `Mitglieder und Rollen`.",
+      ],
+      troubleshootingDetails: [
+        "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
+        "Bei `Eine Gruppe` steht keine Gruppe? Die Schule hat in moto noch keine Gruppen angelegt.",
+        "Die Meldung sagt, das Dokument ist schon freigegeben? Für diese Menschen gibt es schon eine Freigabe.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerAccounts,
+        HELP_TOPICS.errorMessages,
+      ],
+    };
+  } satisfies typeof authored_traegerSharedDocumentsTopic;
 
 /** Hinweis `Testsystem` im Träger-Portal (#4658): erfundene Beispielkinder. */
 export const traegerTestSystemTopic =

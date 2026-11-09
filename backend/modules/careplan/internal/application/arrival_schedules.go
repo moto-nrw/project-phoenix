@@ -109,16 +109,18 @@ func (s *arrivalScheduleService) projectedWeek(
 ) (map[int64]careplan.ArrivalWeek, error) {
 	out := make(map[int64]careplan.ArrivalWeek, len(studentIDs))
 	if s.baselines == nil {
+		if len(studentIDs) == 0 {
+			return out, nil
+		}
+		rows, err := s.loadSchedules(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
 		for _, studentID := range studentIDs {
-			rows, err := s.loadSchedules(ctx, studentID)
-			if err != nil {
-				return nil, err
-			}
-			week := make(careplan.ArrivalWeek, len(rows))
-			for _, row := range rows {
-				week[row.Weekday] = row
-			}
-			out[studentID] = week
+			out[studentID] = make(careplan.ArrivalWeek)
+		}
+		for _, row := range rows {
+			out[row.StudentID][row.Weekday] = row
 		}
 		return out, nil
 	}
@@ -386,7 +388,7 @@ func (s *arrivalScheduleService) CreateOrReclaimException(
 	staffID int64,
 	resolveStaffID func() (int64, error),
 ) (*careplan.ArrivalException, error) {
-	return s.createOrReclaimException(
+	return s.createOrReclaimOne(
 		ctx,
 		studentID,
 		date,
@@ -405,10 +407,41 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
 	ctx context.Context, schoolClass string, studentID int64, date calendar.Date,
 	arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error),
 ) (*careplan.ArrivalException, error) {
+	authorize, err := s.classStudentCheck(schoolClass, date)
+	if err != nil {
+		return nil, err
+	}
+	return s.createOrReclaimOne(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
+		return authorize(txCtx, studentID)
+	})
+}
+
+// CreateOrReclaimExceptionsForClass runs the class command for several
+// children in one unit of work (#5824), child by child as single commands
+// would: the first refusal or failure ends the report.
+func (s *arrivalScheduleService) CreateOrReclaimExceptionsForClass(
+	ctx context.Context, schoolClass string, studentIDs []int64, date calendar.Date,
+	arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error),
+) error {
+	authorize, err := s.classStudentCheck(schoolClass, date)
+	if err != nil {
+		return err
+	}
+	_, err = s.createOrReclaimException(ctx, exceptionBatch{
+		studentIDs: studentIDs, date: date, value: arrivalTime, reason: reason, staffID: staffID,
+		resolveStaffID: resolveStaffID, authorize: authorize,
+	})
+	return err
+}
+
+// classStudentCheck authorizes the current student row of a school-class
+// write under the student lock.
+func (s *arrivalScheduleService) classStudentCheck(schoolClass string, date calendar.Date) (func(context.Context, int64) error, error) {
 	if s.students == nil || strings.TrimSpace(schoolClass) == "" {
 		return nil, errors.New("class arrival exception: students and school class are required")
 	}
-	return s.createOrReclaimException(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
+	filter := careplan.ArrivalScheduleBulkFilter{SchoolClass: strings.TrimSpace(schoolClass)}
+	return func(txCtx context.Context, studentID int64) error {
 		student, err := s.students.LockByID(txCtx, studentID, date)
 		if err != nil {
 			return err
@@ -416,8 +449,8 @@ func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
 		if student.Alumnus || student.CareEnded {
 			return careplan.ErrBulkStudentNotFound
 		}
-		return validateLockedArrivalStudent(txCtx, student, careplan.ArrivalScheduleBulkFilter{SchoolClass: strings.TrimSpace(schoolClass)})
-	})
+		return validateLockedArrivalStudent(txCtx, student, filter)
+	}, nil
 }
 
 func (s *arrivalScheduleService) UpdateException(
@@ -519,17 +552,19 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
 	studentID int64,
 	date calendar.Date,
 ) (*careplan.StudentArrivalData, error) {
-	data, err := s.data(ctx, studentID)
+	data, err := s.dataWithSchedules(ctx, studentID, s.baselines == nil)
 	if err != nil {
 		return nil, err
 	}
-	// The weekly plan the detail screen renders is the projected one, so the
-	// class time shows up where a child inherits it (#2414).
-	projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, date)
-	if err != nil {
-		return nil, err
+	if s.baselines != nil {
+		// Project class times where a child inherits them (#2414). Without a
+		// baseline reader, data already holds the sorted stored week.
+		projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, date)
+		if err != nil {
+			return nil, err
+		}
+		data.Schedules = projected
 	}
-	data.Schedules = projected
 	return &careplan.StudentArrivalData{
 		Schedules:  data.Schedules,
 		Exceptions: data.Exceptions,
@@ -545,7 +580,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	studentID int64,
 	from, to calendar.Date,
 ) (*careplan.StudentArrivalData, error) {
-	data, err := s.data(ctx, studentID)
+	data, err := s.dataWithSchedules(ctx, studentID, s.baselines == nil)
 	if err != nil {
 		return nil, err
 	}
@@ -553,7 +588,11 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 		return nil, &careplan.ScheduleError{Op: "project arrival schedule range", Err: errors.New("arrival schedule range ends before it starts")}
 	}
 	if s.baselines == nil {
-		return s.GetStudentArrivalDataForDate(ctx, studentID, from)
+		return &careplan.StudentArrivalData{
+			Schedules:  data.Schedules,
+			Exceptions: data.Exceptions,
+			Notes:      data.Notes,
+		}, nil
 	}
 	projection, err := s.baselines.Project(ctx, []int64{studentID}, from, to)
 	if err != nil {

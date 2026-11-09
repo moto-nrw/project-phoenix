@@ -2,8 +2,8 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import { CircleNotchIcon, InfoIcon } from "@phosphor-icons/react/ssr";
 import { useTranslations } from "next-intl";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -15,6 +15,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import type { ChildMasterData, MasterDataChangeInput } from "~/lib/parent-api";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 type IdentityField = "first_name" | "last_name" | "birthday" | "school_class";
 
@@ -34,7 +35,7 @@ export function ChildMasterDataRequestModal({
     recipientIds: string[],
   ) => Promise<void>;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const tError = useTranslations("errorCatalog");
   const datePicker = useLocalizedDatePicker();
   const [firstName, setFirstName] = useState(data.first_name);
@@ -151,20 +152,12 @@ export function ChildMasterDataRequestModal({
           <Button
             type="button"
             size="md"
-            className="w-full gap-2 sm:w-auto"
-            disabled={submitting}
+            className="w-full sm:w-auto"
+            isLoading={submitting}
+            loadingText={t("identityModal.submitting")}
             onClick={() => void submit()}
           >
-            {submitting && (
-              <CircleNotchIcon
-                weight="bold"
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-            )}
-            {submitting
-              ? t("identityModal.submitting")
-              : t("identityModal.submit")}
+            {t("identityModal.submit")}
           </Button>
         </>
       }
@@ -174,22 +167,12 @@ export function ChildMasterDataRequestModal({
         <p className="text-sm leading-6 text-gray-600">
           {t("identityModal.intro")}
         </p>
-        <div className="bg-moto-blue-soft flex items-start gap-2.5 rounded-xl p-3">
-          <InfoIcon
-            size={20}
-            weight="bold"
-            className="text-moto-blue-strong mt-0.5 shrink-0"
-            aria-hidden="true"
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900">
-              {t("identityModal.noticeTitle")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-gray-700">
-              {t("identityModal.noticeBody")}
-            </p>
-          </div>
-        </div>
+        <Alert
+          type="info"
+          announce="off"
+          title={t("identityModal.noticeTitle")}
+          message={t("identityModal.noticeBody")}
+        />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ModalField
             label={t("fields.firstName")}

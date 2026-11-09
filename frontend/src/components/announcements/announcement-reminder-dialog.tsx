@@ -3,9 +3,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { TimeField } from "~/components/ui/time-field";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   berlinClockFromISO,
@@ -236,10 +238,14 @@ export function AnnouncementReminderDialog({
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <span className="mb-1.5 block text-sm font-medium text-gray-700">
+              <FieldLabel
+                htmlFor="announcement-reminder-at"
+                invalid={Boolean(reminderAtError)}
+              >
                 Erinnern am
-              </span>
+              </FieldLabel>
               <DatePicker
+                id="announcement-reminder-at"
                 name="reminder_at"
                 value={day}
                 onChange={setDay}
@@ -268,29 +274,22 @@ export function AnnouncementReminderDialog({
               invalid={Boolean(reminderAtError)}
             />
           </div>
-          <div>
-            <label
-              htmlFor="announcement-reminder-dialog-text"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Erinnerungstext (optional)
-            </label>
-            <textarea
-              id="announcement-reminder-dialog-text"
-              name="reminder_text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={3}
-              maxLength={MAX_REMINDER_TEXT_LENGTH}
-              placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
-              className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-            />
-            <p className="mt-1.5 text-xs text-gray-500">
-              {announcement.delivery_mode === "letter"
+          <Textarea
+            id="announcement-reminder-dialog-text"
+            name="reminder_text"
+            label="Erinnerungstext (optional)"
+            hint={
+              announcement.delivery_mode === "letter"
                 ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
-                : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
-            </p>
-          </div>
+                : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."
+            }
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            maxLength={MAX_REMINDER_TEXT_LENGTH}
+            placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
+            className="resize-y px-4 py-3 text-base"
+          />
         </div>
       </FormModal>
       <ConfirmDeleteModal

@@ -422,10 +422,11 @@ func ParticipationBoundaries(students map[int64]CareStudent, pending map[int64]c
 }
 
 // ParticipatingOn applies the boundaries to one day. Actual presence always
-// wins, and a graduate only remains while actually present.
+// wins; otherwise a graduate and a pending child still waiting for its
+// scheduled care start (#6041, AwaitsCareStartOn) do not take part.
 func ParticipatingOn(
 	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
-	on calendar.Date, actuallyPresent map[int64]bool,
+	on, today calendar.Date, actuallyPresent map[int64]bool,
 ) map[int64]bool {
 	participating := make(map[int64]bool, len(studentIDs))
 	for _, id := range studentIDs {
@@ -437,19 +438,55 @@ func ParticipatingOn(
 		}
 	}
 	for id, student := range students {
-		if student.IsAlumnus() && !actuallyPresent[id] {
+		if !actuallyPresent[id] && (student.IsAlumnus() || student.AwaitsCareStartOn(on, today)) {
 			delete(participating, id)
 		}
 	}
 	return participating
 }
 
-// HistoricalParticipationOn retains alumni before a recorded departure.
-// An alumnus with no dated boundary cannot be placed in a historical period.
-func HistoricalParticipationOn(studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date, on calendar.Date) map[int64]bool {
-	participating := ParticipatingOn(studentIDs, students, boundaries, on, nil)
+// AdministrativelyVisibleOn is the participation the administrative child
+// list shows: retained children (a pending withdrawal task, actual presence)
+// stay, and a pending child waiting for its scheduled care start stays
+// findable for the school to prepare it (#6041), unless care has ended or
+// the child is an alumnus.
+func AdministrativelyVisibleOn(
+	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
+	on, today calendar.Date, retained map[int64]bool,
+) map[int64]bool {
+	visible := ParticipatingOn(studentIDs, students, boundaries, on, today, retained)
 	for _, id := range studentIDs {
-		if boundary, known := boundaries[id]; known && on.Before(boundary) {
+		if boundary, ended := boundaries[id]; ended && !on.Before(boundary) {
+			continue
+		}
+		student := students[id]
+		if !student.IsAlumnus() && student.AwaitsCareStartOn(on, today) {
+			visible[id] = true
+		}
+	}
+	return visible
+}
+
+// HistoricalParticipationOn retains alumni before a recorded departure.
+// An alumnus with no dated boundary cannot be placed in a historical period,
+// and a dated end does not pull a child that still waits for its care start
+// into care. A child recorded as present on the day (attended: Student
+// Presence's attendance or a visit) took part although it waited for its
+// start (#6041 review 3); presence does not reach past the end of care.
+func HistoricalParticipationOn(
+	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
+	on, today calendar.Date, attended map[int64]bool,
+) map[int64]bool {
+	participating := ParticipatingOn(studentIDs, students, boundaries, on, today, nil)
+	for _, id := range studentIDs {
+		student := students[id]
+		boundary, known := boundaries[id]
+		switch {
+		case !student.AwaitsCareStartOn(on, today):
+			if known && on.Before(boundary) {
+				participating[id] = true
+			}
+		case attended[id] && (known && on.Before(boundary) || !known && !student.IsAlumnus()):
 			participating[id] = true
 		}
 	}

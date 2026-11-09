@@ -4,7 +4,7 @@
 // Feldnamen der Prüfung folgen dem Backend ("fields.2.label"), damit Fehler
 // vom Server an derselben Frage landen.
 
-import { normalizeFieldKey } from "~/components/enrollment/form-field-builder";
+import { savedFieldKey } from "~/lib/enrollment-form-field-rules";
 import type { HolidayFormField } from "~/lib/traeger-holiday-form-api";
 
 /** A question as the holiday form stores it: no target, attachment or translation. */
@@ -21,17 +21,14 @@ export function prepareHolidayFieldsForSave(
     if (field.type === "information") {
       return {
         ...common,
-        key:
-          field.key.trim() ||
-          normalizeFieldKey(field.label) ||
-          `infotext_${index + 1}`,
+        key: savedFieldKey(field, index),
         type: "information",
         content: field.content?.trim() ?? "",
       };
     }
     return {
       ...common,
-      key: field.key.trim() || normalizeFieldKey(field.label),
+      key: savedFieldKey(field, index),
       type: field.type,
       required: Boolean(field.required),
       help_text: field.help_text?.trim() ?? "",

@@ -90,6 +90,13 @@ func (r nativeStudentGuardianRepository) FindByGuardianProfileID(ctx context.Con
 	}), out1
 }
 
+func (r nativeStudentGuardianRepository) FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*directory.GuardianRelationshipSnapshot, error) {
+	rows, err := r.rawStudentGuardianRepository.FindByGuardianProfileIDForDeletePreview(ctx, guardianProfileID)
+	return mapRecordSlice(rows, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {
+		return NativeGuardianRelationshipValue(value)
+	}), err
+}
+
 func (r nativeStudentGuardianRepository) FindByStudentAndGuardianForUpdate(ctx context.Context, studentID int64, guardianProfileID int64) (*directory.GuardianRelationshipSnapshot, error) {
 
 	out0, out1 := r.rawStudentGuardianRepository.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)

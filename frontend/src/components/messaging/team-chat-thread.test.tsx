@@ -31,6 +31,12 @@ import { TeamChatThread } from "./team-chat-thread";
 // laufen über den echten Abruf.
 vi.unmock("swr");
 
+// Das Schul-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useTenantSlugSafe: () => null,
+}));
+
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
   useMessagesActivity: vi.fn(),
 }));
@@ -130,6 +136,24 @@ describe("TeamChatThread (#2517)", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(link.className).not.toMatch(/(^|\s)(sm|md|lg|xl):hidden/);
+  });
+
+  it("keeps the one-to-one status line to the message count", async () => {
+    api.fetchThread.mockResolvedValue(thread);
+    render(
+      <TeamChatThread
+        portal={portalFor(api)}
+        threadID="t1"
+        myAccountId="1"
+        back={{ href: "/nachrichten", label: "Zurück zu Nachrichten" }}
+      />,
+      { wrapper: Fresh },
+    );
+
+    await screen.findByText("Hallo");
+
+    expect(screen.getByText("1 Nachricht")).toBeInTheDocument();
+    expect(screen.queryByText("nur Sie beide sehen sie")).toBeNull();
   });
 
   it("keeps the back link when the history fails to load", async () => {

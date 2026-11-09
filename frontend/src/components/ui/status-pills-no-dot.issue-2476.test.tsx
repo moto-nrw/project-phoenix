@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { DataTableStatusBadge } from "./data-table";
 import { LocationBadge } from "./location-badge";
+import { OccupancyBadges } from "./planning/occupancy-badges";
+import { OriginChip } from "./planning/origin-chip";
+import { VisibilityBadge } from "./visibility-badge";
 import { PresenceBadge } from "./presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
+import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 import {
   getLocationBadgeTone,
   LOCATION_COLORS,
@@ -218,4 +222,70 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
       view.unmount();
     },
   );
+});
+
+describe("location pills with a long room name", () => {
+  it("lets the label break instead of squeezing the name beside it", () => {
+    const location = render(
+      <LocationBadge
+        student={{ current_location: "Anwesend - Mehrzweckraum Erdgeschoss" }}
+        displayMode="roomName"
+      />,
+    );
+    expect(
+      location.container.querySelector("[data-location-status]"),
+    ).toHaveClass("whitespace-normal");
+    location.unmount();
+
+    const presence = render(
+      <PresenceBadge student={{ current_location: "Anwesend" }} />,
+    );
+    expect(
+      presence.container.querySelector("[data-presence-state]"),
+    ).toHaveClass("whitespace-normal");
+  });
+});
+
+describe("OriginChip without decorative dot", () => {
+  it("renders the source label as a plain kit pill", () => {
+    render(<OriginChip label="Soll aus Arbeitszeitmodell" />);
+    expectPlainPill(
+      screen.getByText("Soll aus Arbeitszeitmodell"),
+      "Soll aus Arbeitszeitmodell",
+    );
+  });
+});
+
+describe("OccupancyBadges without decorative dot", () => {
+  it("renders the count and the overbooked state as plain pills", () => {
+    render(
+      <OccupancyBadges
+        occupancy={{ count: 66, limit: 45 }}
+        nfcEnabled={false}
+      />,
+    );
+    expectPlainPill(screen.getByText("66 / 45 Kinder"), "66 / 45 Kinder");
+    expectPlainPill(screen.getByText("Überbucht"), "Überbucht");
+  });
+});
+
+describe("RoomStatusBadge without decorative dot", () => {
+  it.each([
+    [true, "Belegt"],
+    [false, "Frei"],
+  ])("renders occupied=%s as a plain pill", (isOccupied, label) => {
+    render(<RoomStatusBadge isOccupied={isOccupied} />);
+    expectPlainPill(screen.getByText(label), label);
+  });
+});
+
+describe("VisibilityBadge without decorative dot", () => {
+  it("carries its eye icon and label, and no dot", () => {
+    render(<VisibilityBadge hint="Hinweis" />);
+    const pill = screen.getByText("Für Eltern sichtbar");
+    expect(pill.textContent).toBe("Für Eltern sichtbar");
+    expect(Array.from(pill.children).map((child) => child.tagName)).toEqual([
+      "svg",
+    ]);
+  });
 });

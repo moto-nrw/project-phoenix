@@ -1,76 +1,17 @@
-import { backendResponseError } from "~/lib/api-helpers.server";
-// Anhänge an Elternmitteilungen (#2890): Liste und Upload.
-//
-// Die maßgebliche Prüfung (Magic Bytes, Entwurfs-Zustand, Obergrenze) macht
-// das Backend. Dieser Proxy spiegelt Größe und Dateityp nur, damit eine
-// offensichtlich falsche Datei den Next.js-Server gar nicht erst verlässt, und
-// reicht den Multipart-Body unverändert weiter.
-
-import type { NextRequest } from "next/server";
-import {
-  createFileUploadHandler,
-  FileValidationError,
-} from "~/lib/file-upload-wrapper.server";
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyFileUpload } from "~/lib/file-upload-wrapper.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import { uncachedAuth } from "~/server/auth";
-import { getServerApiUrl } from "~/lib/server-api-url";
 
 export const GET = proxyGet(
   (p) =>
     `/api/announcement-attachments/${requirePathSegmentParam(p, "announcementId")}`,
 );
 
-interface BackendAttachmentResponse {
-  status?: string;
-  message?: string;
-  data?: unknown;
-}
-
-export const POST = createFileUploadHandler<unknown>(
-  async (request: NextRequest, formData: FormData, token: string) => {
-    const announcementId = extractAnnouncementIdFromUrl(request);
-
-    const file = formData.get("file");
-    if (!file || !(file instanceof File)) {
-      throw new FileValidationError(
-        "Bitte wählen Sie eine Datei aus.",
-        400,
-        "files.file_missing",
-      );
-    }
-
-    const backendUrl = `${getServerApiUrl()}/api/announcement-attachments/${announcementId}`;
-    // Rebuild the form from the in-memory file so the body is re-readable for
-    // the post-refresh retry.
-    const buffer = await file.arrayBuffer();
-    const forwarded = new FormData();
-    forwarded.append(
-      "file",
-      new File([buffer], file.name, { type: file.type }),
-    );
-
-    const sendUpload = (bearer: string) =>
-      fetch(backendUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${bearer}` },
-        body: forwarded,
-      });
-
-    let response = await sendUpload(token);
-    if (response.status === 401) {
-      const refreshed = await uncachedAuth();
-      if (refreshed?.user?.token && refreshed.user.token !== token) {
-        response = await sendUpload(refreshed.user.token);
-      }
-    }
-
-    if (!response.ok) throw await backendResponseError(response);
-
-    const body = (await response.json()) as BackendAttachmentResponse;
-    return body.data ?? {};
-  },
+export const POST = proxyFileUpload(
+  (p) =>
+    `/api/announcement-attachments/${requirePathSegmentParam(p, "announcementId")}`,
   {
+    file: "file",
     maxSizeInMB: 25,
     // OOXML containers are ZIP archives; browsers without the OOXML mapping
     // label them as plain ZIP (or not at all). The extension gate below still
@@ -100,17 +41,3 @@ export const POST = createFileUploadHandler<unknown>(
     ],
   },
 );
-
-// Pulls {announcementId} out of the URL because createFileUploadHandler does
-// not expose `params` to the body callback. Throws so a regex drift can never
-// silently target the wrong announcement.
-function extractAnnouncementIdFromUrl(request: NextRequest): string {
-  const match = request.nextUrl.pathname.match(
-    /\/announcement-attachments\/([^/]+)/,
-  );
-  const id = match?.[1];
-  if (!id) {
-    throw new Error("Could not extract announcement ID from request URL");
-  }
-  return id;
-}

@@ -17,7 +17,6 @@ import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { hasSessionAccess } from "~/lib/session-access";
 import { operatorPath } from "~/lib/operator-url";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
@@ -57,7 +56,6 @@ export default function OperatorLoginPage() {
   const { show: showLoginError, clear: clearLoginError } = formErrors;
   const [sessionExpired, setSessionExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
@@ -133,7 +131,7 @@ export default function OperatorLoginPage() {
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
+        <Loading fullPage />
       </div>
     );
   }
@@ -221,8 +219,6 @@ export default function OperatorLoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Operator"
-      eyebrowClassName="text-gray-700"
       title="Operator Dashboard"
       subtitle="Melden Sie sich an, um Plattformbetrieb, Träger und Schulen zu verwalten."
       variant="operator"
@@ -294,23 +290,17 @@ export default function OperatorLoginPage() {
               <FieldLabel htmlFor="operator-password" required>
                 Passwort
               </FieldLabel>
-              <div className="relative">
-                <Input
-                  id="operator-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  controlSize="compact"
-                  className="pr-10"
-                />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
-                />
-              </div>
+              <Input
+                id="operator-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                controlSize="compact"
+                revealable
+              />
             </div>
           </div>
 

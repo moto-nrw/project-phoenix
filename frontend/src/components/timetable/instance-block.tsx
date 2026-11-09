@@ -5,7 +5,7 @@
  *
  * Die Block-Rezeptur (weiße Fläche, 3px Farbkante, 10-Prozent-Tönung,
  * `cancelled`-Rendering, genau ein Status-Icon) lebt ausschließlich im
- * Kit-Baustein `ui/plan-block.tsx` (siehe plan-design-guards.test.ts). InstanceBlock baut keine eigene
+ * Kit-Baustein `ui/planning/plan-block.tsx` (siehe plan-design-guards.test.ts). InstanceBlock baut keine eigene
  * Farbfläche mehr: es leitet nur die Kategoriefarbe ab, komponiert den
  * datenreichen Fuß (Besetzung als `CoverageIndicator`, Personen-/Kinderzahlen,
  * Spontan-, Abwesend- und Ersatz-Marker) und positioniert den Block absolut in
@@ -22,16 +22,17 @@ import {
   blockPlaceLine,
   blockStaffEntries,
 } from "~/components/timetable/block-staff-names";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
-import { PlanBlock } from "~/components/ui/plan-block";
-import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-style";
-import { OverbookedBadge } from "~/components/ui/occupancy-badges";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
+import { PlanBlock } from "~/components/ui/planning/plan-block";
+import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-colors";
+import { OverbookedBadge } from "~/components/ui/planning/occupancy-badges";
 import {
   formatPresentAgainstLimit,
   type Occupancy,
 } from "~/lib/activity-occupancy";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { useNFCEnabled, useShowTimetableCounts } from "~/lib/tenant-context";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -197,16 +198,14 @@ export function InstanceBlock({
           aria-label={compactStatusDetails.join(", ")}
         >
           {hasCoverageGap && (
-            <span className="bg-moto-orange h-1.5 w-1.5 rounded-full" />
+            <StatusDot className="bg-moto-orange" decorative />
           )}
-          {isActive && (
-            <span className="bg-moto-green h-1.5 w-1.5 rounded-full" />
-          )}
+          {isActive && <StatusDot className="bg-moto-green" decorative />}
           {absentCount > 0 && (
-            <span className="bg-moto-red-strong h-1.5 w-1.5 rounded-full" />
+            <StatusDot className="bg-moto-red-strong" decorative />
           )}
           {hasSubstitute && (
-            <span className="bg-moto-green-strong h-1.5 w-1.5 rounded-full" />
+            <StatusDot className="bg-moto-green-strong" decorative />
           )}
         </span>
       );
@@ -296,13 +295,8 @@ export function InstanceBlock({
       )}
 
       {!isCancelled && (coverage || isActive || !isCompact) && (
-        <span className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
-          {isActive && (
-            <span
-              className="bg-moto-green inline-block h-1.5 w-1.5 rounded-full"
-              aria-label="läuft"
-            />
-          )}
+        <span className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+          {isActive && <StatusDot className="bg-moto-green" label="läuft" />}
           {coverage}
           {/* Vor den Zahlen, damit das Abschneiden schmaler Blöcke es nicht
               frisst; als Kit-Abzeichen in lesbarer Größe. */}
@@ -335,14 +329,14 @@ export function InstanceBlock({
       )}
 
       {!isCompact && !isCancelled && instance.planningTrackName && (
-        <span className="truncate text-[10px] font-medium text-gray-600">
+        <span className="truncate text-xs font-medium text-gray-600">
           {instance.planningTrackName}
         </span>
       )}
 
       {!isCompact && instance.isSpontaneous && !isCancelled && (
         <span
-          className="truncate text-[10px] font-semibold text-gray-600"
+          className="truncate text-xs font-semibold text-gray-600"
           title="Dieser Termin wurde spontan gestartet und war nicht geplant."
         >
           Spontan
@@ -352,7 +346,7 @@ export function InstanceBlock({
       {/* Ohne bekannte Namen bleibt die Sammelzeile; mit Namen zeigt die
           Namenszeile Abwesenheit und Ersatz schon an der Person. */}
       {!isCancelled && !hasStaffNames && (absentCount > 0 || hasSubstitute) && (
-        <span className="flex flex-wrap gap-1 text-[10px]">
+        <span className="flex flex-wrap gap-1 text-xs">
           {absentCount > 0 && (
             <span className="text-moto-red-strong font-semibold">
               {absentCount} abwesend

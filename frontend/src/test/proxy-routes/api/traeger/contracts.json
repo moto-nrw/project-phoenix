@@ -1,0 +1,19 @@
+{
+  "api/traeger/contracts": [
+    "GET traeger /traeger/contracts",
+    "POST traeger /traeger/contracts"
+  ],
+  "api/traeger/contracts/[id]": [
+    "DELETE traeger /traeger/contracts/id%2F1",
+    "GET traeger /traeger/contracts/id%2F1"
+  ],
+  "api/traeger/contracts/candidates": [
+    "GET traeger /traeger/contracts/candidates"
+  ],
+  "api/traeger/contracts/conclusion-modes": [
+    "GET traeger /traeger/contracts/conclusion-modes"
+  ],
+  "api/traeger/contracts/send": [
+    "POST traeger /traeger/contracts/send"
+  ]
+}

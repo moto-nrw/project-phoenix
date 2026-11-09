@@ -28,7 +28,14 @@ type targetedFieldSyncOptions struct {
 	// renewal of a student that already carries consent from a previous year —
 	// without it a guardian who withdraws photo or email-contact consent on the
 	// renewal form stays recorded as consenting (#1663). Implied by Replace.
-	ReplaceConsent         bool
+	ReplaceConsent bool
+	// Scope limits the dispatch to part of the form: a renewal approved
+	// before its care starts applies the weekly plan only at the start
+	// (#6043). The zero value dispatches every target.
+	Scope targetedFieldScope
+	// ScheduleAuthorStaffID names the author of the weekly rows the dispatch
+	// writes; 0 resolves the reviewing account's staff membership instead.
+	ScheduleAuthorStaffID  int64
 	PreviousSnapshot       map[string]any
 	KeepGuardianProfileIDs map[int64]bool
 }
@@ -37,8 +44,8 @@ type targetedFieldSyncOptions struct {
 type targetedFieldSync struct {
 	d          *Decisions
 	ctx        context.Context
-	request    *Request
-	child      *RequestChild
+	request    *enrollment.Request
+	child      *enrollment.RequestChild
 	student    *Student
 	guardian   *GuardianProfile
 	reviewedBy int64
@@ -86,8 +93,8 @@ type pickupScheduleSync struct {
 // somebody an in-progress companion edit.
 func (d *Decisions) applyTargetedFields(
 	ctx context.Context,
-	request *Request,
-	child *RequestChild,
+	request *enrollment.Request,
+	child *enrollment.RequestChild,
 	student *Student,
 	guardian *GuardianProfile,
 	reviewedBy int64,
@@ -136,7 +143,7 @@ func (r *targetedFieldSync) dispatchFields(fields []enrollment.FormField) {
 	}
 	for i := range fields {
 		field := fields[i]
-		if field.Target == "" {
+		if !r.dispatches(field.Target) {
 			continue
 		}
 		raw := fieldRaws[i]
@@ -148,6 +155,11 @@ func (r *targetedFieldSync) dispatchFields(fields []enrollment.FormField) {
 		}
 		r.dispatchField(field, raw)
 	}
+}
+
+// dispatches reports whether this run writes the target.
+func (r *targetedFieldSync) dispatches(target string) bool {
+	return target != "" && r.options.Scope.includes(target)
 }
 
 func (r *targetedFieldSync) dispatchField(field enrollment.FormField, raw any) {
@@ -285,7 +297,7 @@ func (r *targetedFieldSync) applyPickupScheduleField(target string, raw any) {
 	if raw == nil {
 		return
 	}
-	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.reviewedBy, true); err != nil {
+	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.scheduleAuthor(), true); err != nil {
 		r.fieldError(target, err)
 		return
 	}
@@ -328,7 +340,7 @@ func (r *targetedFieldSync) applyArrivalScheduleField(target string, raw any) {
 	if raw == nil {
 		return
 	}
-	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.reviewedBy, false); err != nil {
+	if err := r.d.dispatchWeekdaySchedule(r.ctx, raw, r.student.ID, r.scheduleAuthor(), false); err != nil {
 		r.fieldError(target, err)
 	}
 }
@@ -363,6 +375,11 @@ func (r *targetedFieldSync) applyContactsField(field enrollment.FormField, raw a
 	}
 }
 
+// scheduleAuthor names who the weekly rows of this dispatch are written for.
+func (r *targetedFieldSync) scheduleAuthor() scheduleAuthor {
+	return scheduleAuthor{staffID: r.options.ScheduleAuthorStaffID, reviewerAccountID: r.reviewedBy}
+}
+
 // replaceSchedules: Replace implies schedule replacement; ReplaceSchedules
 // asks for it alone (existing_students re-enrollment).
 func (r *targetedFieldSync) replaceSchedules() bool {
@@ -392,7 +409,7 @@ func (r *targetedFieldSync) finishPickupSchedule() {
 // request_child carries no fresh parent submission, so there is no newly
 // submitted phone number and no profile to enrich.
 func (r *targetedFieldSync) applyGuardianPhone() {
-	if r.request.GuardianPhone == nil || r.guardian == nil {
+	if r.request.GuardianPhone == nil || r.guardian == nil || r.options.Scope == weeklyPlanOnly {
 		return
 	}
 	if err := r.d.createGuardianPhoneNumber(r.ctx, r.guardian.ID, *r.request.GuardianPhone); err != nil {
@@ -429,11 +446,11 @@ func (r *targetedFieldSync) applyExplicitDeparture() {
 // no "Mit anderem Kind" day. Capped server-side (the column is unbounded
 // TEXT).
 func (r *targetedFieldSync) applyCompanionNote() {
-	if r.child == nil || r.child.CustomData == nil ||
+	if r.child == nil || r.options.Scope == withoutWeeklyPlan ||
 		!r.student.AllowedDepartureModes.HasMode(departure.DepartureAccompanied) {
 		return
 	}
-	note := strings.TrimSpace(stringValue(r.child.CustomData[enrollment.TargetStudentDepartureCompanionNote]))
+	note := strings.TrimSpace(stringValue(formValue(r.child.CustomData, enrollment.TargetStudentDepartureCompanionNote)))
 	if note == "" {
 		return
 	}
@@ -488,15 +505,12 @@ func structuredTargetValueHasEntries(raw any) bool {
 
 // readFieldValue pulls the submission value for a field. Guardian-level
 // fields live on the request's custom data; per-child fields on the child's.
-func readFieldValue(request *Request, child *RequestChild, field *enrollment.FormField) any {
+func readFieldValue(request *enrollment.Request, child *enrollment.RequestChild, field *enrollment.FormField) any {
 	if field.AppliesToCh {
-		if child == nil || child.CustomData == nil {
+		if child == nil {
 			return nil
 		}
-		return child.CustomData[field.Key]
+		return formValue(child.CustomData, field.Key)
 	}
-	if request.CustomData == nil {
-		return nil
-	}
-	return request.CustomData[field.Key]
+	return formValue(request.CustomData, field.Key)
 }

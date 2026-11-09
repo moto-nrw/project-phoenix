@@ -49,6 +49,17 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	}
 }
 
+// RenderExpectedUnavailable writes a 503 that no one has to act on: the deployment
+// is set up without what the request needs, as it may be. It reaches neither
+// Sentry nor the ERROR log; the caller writes its own line.
+func RenderExpectedUnavailable(w http.ResponseWriter, r *http.Request, publicErr error, code string) {
+	SkipServerErrorReport(r.Context())
+	response := newErrResponse(http.StatusServiceUnavailable, publicErr)
+	response.Code = code
+	response.Err = nil
+	RenderError(w, r, response)
+}
+
 // ErrUnauthorized is the sentinel for authentication failures.
 var ErrUnauthorized = errors.New("unauthorized")
 
@@ -533,11 +544,6 @@ func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
 		HTTPStatusCode: http.StatusBadGateway,
 		Detail:         clientMsg,
 	}
-}
-
-// ErrorGone returns a 410 Gone error response
-func ErrorGone(err error) render.Renderer {
-	return newErrResponse(http.StatusGone, err)
 }
 
 // ErrorGoneWithCode returns a 410 Gone with a stable error code.

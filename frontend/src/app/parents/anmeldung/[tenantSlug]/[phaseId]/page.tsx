@@ -3,11 +3,12 @@
 import { Suspense, use, useCallback, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { LATE_INVITE_QUERY_PARAM } from "~/lib/enrollment-http";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
-  EnrollmentForm,
+  prefetchedDataFromBootstrap,
   type EnrollmentFormPrefetchedData,
-} from "~/components/enrollment/enrollment-form";
+} from "~/components/enrollment/enrollment-form-config";
 import {
   ParentPage,
   ParentPageHeader,
@@ -21,14 +22,15 @@ import {
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
 } from "~/lib/parent-api";
-import {
-  fetchParentEnrollmentBootstrap,
-  type PublicEnrollmentBootstrap,
-} from "~/lib/enrollment-submission-api";
+import { fetchParentEnrollmentBootstrap } from "~/lib/enrollment-submission-api";
 import { parentPath } from "~/lib/parent-url";
 import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  normalizeCareFacilityTerm,
+  CareFacilityTermScope,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
 
 interface PageProps {
   readonly params: Promise<{ tenantSlug: string; phaseId: string }>;
@@ -57,11 +59,12 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
 }
 
 function ParentEnrollFormPageContent({ params }: PageProps) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectForm");
   const { tenantSlug, phaseId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const lateInviteToken = searchParams.get("late_invite")?.trim();
+  const lateInviteToken = searchParams.get(LATE_INVITE_QUERY_PARAM)?.trim();
   const [loaded, setLoaded] = useState<{
     tenant: TenantInfo;
     prefetchedData: EnrollmentFormPrefetchedData;
@@ -117,14 +120,16 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         }
         setLoaded({
           tenant,
-          prefetchedData: toParentPrefetchedData(bootstrap, profile),
+          // Autofill comes from the parent API only, never from the shared
+          // public bootstrap shape.
+          prefetchedData: prefetchedDataFromBootstrap(bootstrap, { profile }),
           targetPath,
         });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         void showLoadError(err, {
-          object: t("errorObjectForm"),
+          object: loadErrorObject,
           retry: () => setLoadAttempt((n) => n + 1),
         });
       })
@@ -142,7 +147,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     loadAttempt,
     clearLoadError,
     showLoadError,
-    t,
+    loadErrorObject,
     targetPath,
   ]);
 
@@ -167,63 +172,62 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
       tenantSlug={tenantSlug}
       tenant={loading || loadError ? null : (loaded?.tenant ?? null)}
     >
-      <ParentPage>
-        <ParentPageHeader
-          kicker={t("parentEmbeddedKicker")}
-          title={t("formEyebrow")}
-          description={t("parentEmbeddedDescription")}
-          backHref={parentPath("/parents/anmeldung")}
-          backLabel={t("backToParentPicker")}
-        />
-
-        {loading ? (
-          <div className="space-y-5" aria-busy="true">
-            <span className="sr-only">{t("detailsLoading")}</span>
-            <ParentSectionSkeleton rows={4} />
-            <ParentSectionSkeleton rows={5} />
-            <ParentSectionSkeleton rows={3} />
-          </div>
-        ) : loadError || !loaded ? (
-          <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
-        ) : (
-          <EnrollmentForm
-            phaseID={phaseId}
-            gradeLevelMax={loaded.tenant.gradeLevelMax}
-            onSubmitted={handleSubmitted}
-            prefetchedData={loaded.prefetchedData}
-            submitter={submitter}
-            lateInviteToken={lateInviteToken ?? undefined}
-            uploadEndpoint={`/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/uploads`}
-            skipCaptcha
-            localizedCopy
+      <ParentPage
+        header={
+          <ParentPageHeader
+            // The school, and with it its term for the care (#6042), is
+            // known once the tenant loaded; no wording is guessed before.
+            kicker={
+              loaded
+                ? t("parentEmbeddedKicker", {
+                    careTerm: normalizeCareFacilityTerm(
+                      loaded.tenant.careFacilityTerm,
+                    ),
+                  })
+                : undefined
+            }
+            title={t("formEyebrow")}
+            description={t("parentEmbeddedDescription")}
+            backHref={parentPath("/parents/anmeldung")}
+            backLabel={t("backToParentPicker")}
           />
-        )}
+        }
+        loading={
+          loading && (
+            <div className="space-y-5">
+              <ParentSectionSkeleton rows={4} announce={false} />
+              <ParentSectionSkeleton rows={5} announce={false} />
+              <ParentSectionSkeleton rows={3} announce={false} />
+            </div>
+          )
+        }
+        loadingLabel={t("detailsLoading")}
+        error={
+          loading
+            ? null
+            : (loadError ?? (loaded ? null : t("detailsLoadFailed")))
+        }
+      >
+        {loaded ? (
+          // The form names the care of the school it enrolls at (#6042),
+          // not the account's schools the parents shell names (#6082).
+          <CareFacilityTermScope
+            term={normalizeCareFacilityTerm(loaded.tenant.careFacilityTerm)}
+          >
+            <EnrollmentForm
+              phaseID={phaseId}
+              gradeLevelMax={loaded.tenant.gradeLevelMax}
+              onSubmitted={handleSubmitted}
+              prefetchedData={loaded.prefetchedData}
+              submitter={submitter}
+              lateInviteToken={lateInviteToken ?? undefined}
+              uploadEndpoint={`/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/uploads`}
+              skipCaptcha
+              localizedCopy
+            />
+          </CareFacilityTermScope>
+        ) : null}
       </ParentPage>
     </TenantProvider>
   );
-}
-
-function toParentPrefetchedData(
-  bootstrap: PublicEnrollmentBootstrap,
-  profile: Awaited<ReturnType<typeof fetchParentEnrollmentProfile>>,
-): EnrollmentFormPrefetchedData {
-  return {
-    schema: bootstrap.schema,
-    offerings: bootstrap.offerings,
-    careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-    collectGradeLevel: bootstrap.collect_grade_level,
-    careOfferingsEnabled: bootstrap.care_offerings_enabled,
-    captchaConfig: null,
-    legalTexts: bootstrap.legal_texts,
-    // Ignore any profile on the shared bootstrap shape. Parent autofill stays
-    // scoped to the parent API, independent of public metadata transport.
-    profile,
-    lateInvite: bootstrap.late_invite,
-    schoolClass: bootstrap.school_class,
-    // Carry the phase audience so the form can suppress linked-child reuse
-    // on a new_students phase instead of letting the parent adopt an
-    // already-enrolled child the server would reject (#1663).
-    audience: bootstrap.phase.audience,
-    eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
-  };
 }

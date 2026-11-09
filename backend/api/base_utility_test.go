@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
@@ -395,7 +396,7 @@ func mintRateLimitJWT(t *testing.T, tokenAuth *sessiontoken.TokenAuth, claims se
 	if len(claims.Roles) == 0 {
 		claims.Roles = []string{"user"}
 	}
-	token, err := tokenAuth.CreateJWT(claims)
+	token, err := tokentest.CreateJWT(tokenAuth, claims)
 	require.NoError(t, err)
 	return token
 }
@@ -420,9 +421,10 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 	// 1 request/minute refill with burst 3: the refill contributes no tokens
 	// within the test's runtime, so exactly 3 requests per key pass.
 	limiter := customMiddleware.NewRateLimiter(1, 3)
-	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
+	limiter.SetKeyFunc(sessiontoken.RateLimitKey)
 
 	router := chi.NewRouter()
+	router.Use(tokenAuth.Verifier())
 	router.Use(limiter.Middleware())
 	router.Get("/api/students", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -469,9 +471,10 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 
 	const burst = 10
 	limiter := customMiddleware.NewRateLimiter(1, burst)
-	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
+	limiter.SetKeyFunc(sessiontoken.RateLimitKey)
 
 	router := chi.NewRouter()
+	router.Use(tokenAuth.Verifier())
 	router.Use(limiter.Middleware())
 	router.Get("/api/students", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -775,7 +778,7 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	require.NoError(t, err)
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+	resource := NewUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
 		return found, err
 	})

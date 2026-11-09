@@ -125,6 +125,13 @@ type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
 }
 
+// TraegerDocumentReadRetention deletes the reads of the shared Träger
+// documents older than three years for every Träger in the hourly cleanup,
+// also where nobody opens a document any more (#4692).
+type TraegerDocumentReadRetention interface {
+	DeleteExpiredTraegerDocumentReads(ctx context.Context) (int, error)
+}
+
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
 // data Identity & Access owns (#3954): invitations for parents and caterers, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator
@@ -178,6 +185,12 @@ type SettingsResolver interface {
 type OutboxWorkerRunner interface {
 	RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, error)
 	Backlog(ctx context.Context) (int, error)
+}
+
+// EmailDeliveryReconciler compares open mails with the mail provider's own
+// record. Its error is the run's alarm; on plain SMTP it does nothing.
+type EmailDeliveryReconciler interface {
+	ReconcileEmailDelivery(ctx context.Context) error
 }
 
 // OutboxWakeupSource is optionally implemented by an OutboxWorkerRunner

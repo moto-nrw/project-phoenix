@@ -27,6 +27,12 @@ type directoryRecordRow struct {
 
 	EnrolledFrom  *calendar.Date `bun:"enrolled_from"`
 	EnrolledUntil *calendar.Date `bun:"enrolled_until"`
+	// FirstCareFrom is School Membership's first-care bound (#6041).
+	FirstCareFrom *calendar.Date `bun:"first_care_from"`
+	// CarePausedAfter and CareResumedFrom are School Membership's care gap
+	// of a returning child (#6073).
+	CarePausedAfter *calendar.Date `bun:"care_paused_after"`
+	CareResumedFrom *calendar.Date `bun:"care_resumed_from"`
 
 	AddressStreet     *string `bun:"address_street"`
 	AddressCity       *string `bun:"address_city"`
@@ -78,6 +84,15 @@ func (r directoryRecordRow) toDomain(health HealthOpener) (directory.StudentReco
 		AGBAcceptedAt: r.AGBAcceptedAt, DataProcessingAcceptedAt: r.DataProcessingAcceptedAt,
 		EmailContactAcceptedAt: r.EmailContactAcceptedAt,
 	}
+	if r.FirstCareFrom != nil {
+		record.FirstCareFrom = r.FirstCareFrom.String()
+	}
+	if r.CarePausedAfter != nil {
+		record.CarePausedAfter = r.CarePausedAfter.String()
+	}
+	if r.CareResumedFrom != nil {
+		record.CareResumedFrom = r.CareResumedFrom.String()
+	}
 	if r.EnrolledFrom != nil {
 		record.EnrolledFrom = r.EnrolledFrom.String()
 	}
@@ -102,7 +117,8 @@ func directoryRecords(rows []directoryRecordRow, health HealthOpener) ([]directo
 
 const studentRecordColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id,
 	"student".person_id, "student".school_class, "student".group_id, "student".status,
-	"student".enrolled_from, "student".enrolled_until,
+	"student".enrolled_from, "student".enrolled_until, "student".first_care_from,
+	"student".care_paused_after, "student".care_resumed_from,
 	"student".address_street, "student".address_city, "student".address_postal_code,
 	"student".extra_info, "student".health_data, "student".membership_id, "student".pickup_status,
 	"student".departure_days, "student".allowed_departure_modes, "student".pickup_days, "student".bus_days,

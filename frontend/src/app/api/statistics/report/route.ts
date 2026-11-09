@@ -1,14 +1,6 @@
-// app/api/statistics/report/route.ts
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import {
-  apiGet,
-  handleApiError,
-  problemResponse,
-} from "~/lib/api-helpers.server";
-import { ApiResponseError } from "~/lib/api-response-error.server";
-import { auth, uncachedAuth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy for GET /api/statistics/report (Statistik, #2606).
@@ -17,12 +9,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
  * writes the data-access audit row. We forward the whitelisted query
  * parameters and surface the response shape unchanged.
  */
-async function GETHandler(request: NextRequest): Promise<NextResponse> {
-  const session = await auth();
-  if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized", request);
-  }
-
+export const GET = createGetHandler(async (request, token) => {
   const queryParams = new URLSearchParams();
   for (const key of ["from", "to"] as const) {
     const value = request.nextUrl.searchParams.get(key);
@@ -35,35 +22,12 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       if (value) queryParams.append(key, value);
     }
   }
-  const endpoint = `/api/statistics/report?${queryParams.toString()}`;
-
-  try {
-    let envelope: { data: unknown };
-    try {
-      envelope = await apiGet<{ data: unknown }>(endpoint, session.user.token);
-    } catch (apiError) {
-      if (!(apiError instanceof ApiResponseError) || apiError.status !== 401)
-        throw apiError;
-
-      const refreshed = await uncachedAuth();
-      if (
-        !refreshed?.user?.token ||
-        refreshed.user.token === session.user.token
-      ) {
-        throw apiError;
-      }
-      envelope = await apiGet<{ data: unknown }>(
-        endpoint,
-        refreshed.user.token,
-      );
-    }
-    return NextResponse.json(
-      { status: "success", data: envelope.data },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  } catch (apiError) {
-    return handleApiError(apiError, request);
-  }
-}
-
-export const GET = withTenantAuth(GETHandler);
+  const envelope = await apiGet<{ data: unknown }>(
+    `/api/statistics/report?${queryParams.toString()}`,
+    token,
+  );
+  return NextResponse.json(
+    { status: "success", data: envelope.data },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+});

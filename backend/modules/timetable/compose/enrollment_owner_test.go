@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -280,7 +279,7 @@ func TestStudentEnrollmentListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))
@@ -340,13 +339,13 @@ func assertEnrollmentSource(t *testing.T, module timetable.Owner, ctx context.Co
 func createEnrollmentSource(t *testing.T, db *bun.DB, ctx context.Context, studentID int64) int64 {
 	t.Helper()
 	var phaseID, requestID, childID int64
-	suffix := time.Now().UnixNano()
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.phases (tenant_id, name, kind, service_start_date, service_end_date)
-		VALUES (?, ?, 'custom', '2026-09-01', '2027-07-31') RETURNING id`, testpkg.Tenant(t), fmt.Sprintf("Owner source %d", suffix)).Scan(ctx, &phaseID))
+		VALUES (?, ?, 'custom', '2026-09-01', '2027-07-31') RETURNING id`, testpkg.Tenant(t), fmt.Sprintf("Owner source %d", studentID)).Scan(ctx, &phaseID))
+	suffix := fmt.Sprintf("owner-source-%d", phaseID)
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.requests (tenant_id, phase_id, guardian_first_name, guardian_last_name,
 		guardian_email, consent_flags, custom_data, status_token, submitted_at)
 		VALUES (?, ?, 'Owner', 'Source', ?, '{}'::jsonb, '{}'::jsonb, ?, NOW()) RETURNING id`,
-		testpkg.Tenant(t), phaseID, fmt.Sprintf("owner-%d@example.test", suffix), fmt.Sprintf("owner-%d", suffix)).Scan(ctx, &requestID))
+		testpkg.Tenant(t), phaseID, suffix+"@example.test", suffix).Scan(ctx, &requestID))
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.request_children (tenant_id, request_id, first_name, last_name,
 		date_of_birth, status, activation_mode, created_student_id, reviewed_at, sort_order, custom_data)
 		VALUES (?, ?, 'Owner', 'Child', '2018-01-01', 'approved', 'scheduled', ?, NOW(), 0, '{}'::jsonb) RETURNING id`,

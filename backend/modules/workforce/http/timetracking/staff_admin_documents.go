@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -334,9 +334,7 @@ func (rs *StaffAdminResource) downloadStaffDocument(w http.ResponseWriter, r *ht
 		return
 	}
 
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
-		"filename": doc.FilenameDisplay,
-	}))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", doc.FilenameDisplay))
 	w.Header().Set("Content-Type", doc.ContentType)
 	common.ServeFile(w, r, staffDocumentsDir(tenant.FromContext(r.Context()), rs.uploads), doc.FilenameStored, "private, no-store", rs.uploads)
 }

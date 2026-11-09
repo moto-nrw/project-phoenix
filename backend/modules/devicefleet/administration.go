@@ -109,6 +109,23 @@ func (s *administration) GetDeviceByID(ctx context.Context, id int64) (*Device, 
 	return administrationDevicePointer(device), nil
 }
 
+// GetPersistedDeviceRoomName resolves only the current room projection of
+// this transaction's trusted write result. Preserve the former readback's
+// GetDeviceByID wrapper and not-found mapping, not a new HTTP error identity.
+func (s *administration) GetPersistedDeviceRoomName(ctx context.Context, device *Device) (*string, error) {
+	if device == nil || device.ID <= 0 {
+		return nil, &AdministrationError{Op: "GetDeviceByID", Err: errors.New("invalid ID")}
+	}
+	name, err := s.devices.DeviceRoomName(ctx, *device)
+	if err != nil {
+		if errors.Is(err, ErrDeviceNotFound) {
+			return nil, &AdministrationError{Op: "GetDeviceByID", Err: ErrAdministrationDeviceNotFound}
+		}
+		return nil, &AdministrationError{Op: "GetDeviceByID", Err: err}
+	}
+	return name, nil
+}
+
 // GetDeviceByDeviceID retrieves a device by its device ID.
 func (s *administration) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*Device, error) {
 	if deviceID == "" {
@@ -124,21 +141,25 @@ func (s *administration) GetDeviceByDeviceID(ctx context.Context, deviceID strin
 	return administrationDevicePointer(device), nil
 }
 
-// UpdateDevice updates an existing IoT device.
+// UpdateDevice applies a school's edit to an existing IoT device. It writes
+// only the fields that edit owns (device_id, device_type, name,
+// registered_by_id, and status when the caller names one): the API key,
+// last_seen, room, archive and transfer columns belong to other flows, and a
+// key rotation, deactivation or transfer that commits after this unlocked
+// read must not be reverted. An empty status keeps the stored one.
 func (s *administration) UpdateDevice(ctx context.Context, device *Device) error {
 	if device == nil || device.ID <= 0 {
 		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationInvalidDeviceData}
 	}
+	// Read before validation, which defaults an empty status.
+	editsStatus := device.Status != ""
 	if err := validateAdministrationDevice(device); err != nil {
 		return &AdministrationError{Op: "UpdateDevice", Err: err}
 	}
 
-	existing, err := s.devices.FindDevice(ctx, device.ID)
+	existing, err := s.findDevice(ctx, "UpdateDevice", device.ID)
 	if err != nil {
-		if errors.Is(err, ErrDeviceNotFound) {
-			return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
-		}
-		return &AdministrationError{Op: "UpdateDevice", Err: err}
+		return err
 	}
 	if existing.ID <= 0 {
 		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
@@ -154,17 +175,47 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 		}
 	}
 
-	updated, err := s.devices.UpdateDevice(ctx, UpdateDevice{
-		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen,
-		RegisteredByID: device.RegisteredByID, RoomID: device.RoomID, ArchivedAt: device.ArchivedAt,
-		TransferredToDeviceID: device.TransferredToDeviceID,
-	})
+	updated, err := s.writeDeviceEdit(ctx, device, editsStatus)
 	if err != nil {
-		return &AdministrationError{Op: "UpdateDevice", Err: err}
+		return err
 	}
 	*device = *administrationDevicePointer(updated)
 	return nil
+}
+
+// writeDeviceEdit stores the columns a school's edit owns, status only when
+// the edit named one, and returns the device as stored afterwards, including
+// the columns other flows wrote.
+func (s *administration) writeDeviceEdit(ctx context.Context, device *Device, editsStatus bool) (Device, error) {
+	var status *DeviceStatus
+	if editsStatus {
+		value := DeviceStatus(device.Status)
+		status = &value
+	}
+	updated, err := s.devices.ApplyDeviceEdit(ctx, DeviceEdit{
+		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
+		RegisteredByID: device.RegisteredByID, Status: status,
+	})
+	if errors.Is(err, ErrDeviceNotFound) {
+		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
+	}
+	if err != nil {
+		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: err}
+	}
+	return updated, nil
+}
+
+// findDevice loads one device by primary key for op and reports a missing
+// row as ErrAdministrationDeviceNotFound.
+func (s *administration) findDevice(ctx context.Context, op string, id int64) (Device, error) {
+	device, err := s.devices.FindDevice(ctx, id)
+	if errors.Is(err, ErrDeviceNotFound) {
+		return Device{}, &AdministrationError{Op: op, Err: ErrAdministrationDeviceNotFound}
+	}
+	if err != nil {
+		return Device{}, &AdministrationError{Op: op, Err: err}
+	}
+	return device, nil
 }
 
 // DeleteDevice deletes an IoT device by its ID.
@@ -337,6 +388,14 @@ type Administration interface {
 	DeviceAdministration
 	DeviceMonitoring
 	DeviceDiscovery
+	DeviceWriteRoomReadback
+}
+
+// DeviceWriteRoomReadback serves the native write response, not CRUD lookups.
+// Its input must be the unmodified full owner write result in the same tenant
+// transaction. Existing DeviceAdministration and its other callers stay unchanged.
+type DeviceWriteRoomReadback interface {
+	GetPersistedDeviceRoomName(context.Context, *Device) (*string, error)
 }
 
 // DeviceAdministration creates, edits and removes fleet devices.

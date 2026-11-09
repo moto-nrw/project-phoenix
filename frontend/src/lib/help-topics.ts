@@ -126,6 +126,7 @@ export const HELP_TOPICS = {
   leadManageStudent: "angaben-eines-kindes-verwalten",
   studentNotes: "notizen-zu-einem-kind",
   leadInviteGuardians: "eltern-einladen",
+  leadEmailDelivery: "mail-kommt-nicht-an",
   leadEndCare: "betreuung-eines-kindes-beenden",
   leadAccidentReport: "unfall-erfassen",
   leadDeleteStudent: "kind-dauerhaft-loeschen",
@@ -137,6 +138,7 @@ export const HELP_TOPICS = {
   leadSurveys: "umfrage-mit-fragebogen-erstellen",
   leadParentDeclaration: "elternerklaerung-einholen",
   leadMealPlan: "essensplan-veroeffentlichen",
+  leadMealBillingRelease: "mensa-monat-freigeben",
   leadMealOrdering: "mittagessen-fristen-festlegen",
   leadMealCaterer: "caterer-einladen",
   leadBankDetails: "bankverbindungen-einsehen",
@@ -226,13 +228,27 @@ export const HELP_TOPICS = {
   traegerHolidayRegistrationReview: "traeger-ferienanmeldungen-pruefen",
   traegerHolidayContribution: "traeger-ferienbeitrag",
   traegerBillingRun: "ferien-abrechnen",
+  traegerCareMonths: "monatsbeitraege-abrechnen",
+  traegerCareNotices: "jahresbescheide-ausstellen",
+  traegerCareReductions: "ermaessigungen-im-monatsbeitrag",
+  traegerCareMeals: "mensa-abrechnen",
+  traegerCareCostShares: "kostentraeger-im-monatsbeitrag",
+  traegerBillingTerms: "zahlung-und-empfaenger-der-rechnungen",
+  traegerSepaMandates: "lastschrift-und-sepa-mandate",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",
   traegerDocumentTemplates: "vorlagen-des-traegers",
+  traegerDocumentKinds: "rechnung-oder-gebuehrenbescheid",
+  traegerCareContracts: "betreuungsvertraege-senden",
+  traegerCareTimeOverruns: "laenger-als-gebucht",
+  traegerSharedDocuments: "dokumente-fuer-eltern-und-schulen-freigeben",
+  schoolTraegerDocuments: "dokumente-vom-traeger-in-der-ogs",
   traegerSchoolSwitch: "in-eine-schule-wechseln",
   traegerSchoolView: "zahlen-und-stammdaten-einer-schule-ansehen",
   traegerDashboard: "alle-schulen-auf-einen-blick",
+  traegerKeyDateCounts: "stichtagszahlen-der-schulen-ansehen",
+  traegerOccupancy: "belegung-der-schulen-ansehen",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",
@@ -295,6 +311,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/eltern/bankverbindungen": HELP_TOPICS.leadBankDetails,
   "/info-displays": HELP_TOPICS.leadInfoDisplays,
   "/lists": HELP_TOPICS.leadDayLists,
+  "/meal-plan/freigabe": HELP_TOPICS.leadMealBillingRelease,
   "/meal-plan": HELP_TOPICS.leadMealPlan,
   "/parent-announcements": HELP_TOPICS.leadParentAnnouncement,
   "/payroll": HELP_TOPICS.leadPayroll,
@@ -380,9 +397,13 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/anmeldung", HELP_TOPICS.parentEnroll],
   // Der Link eines Trägers zur Ferienanmeldung (#4661).
   ["/ferienanmeldung", HELP_TOPICS.parentHolidayRegistration],
+  // Einen Betreuungsvertrag aus den Dokumenten oder über den Link der Mail
+  // unterschreiben (#4679).
+  ["/documents", HELP_TOPICS.parentDocuments],
+  ["/vertrag-unterschreiben", HELP_TOPICS.parentDocuments],
   // Der Nachweis eines Einverständnisses `/news/<id>/nachweis` gehört zu den
   // Elternbriefen.
-  ["/news/", HELP_TOPICS.parentNews],
+  ["/news", HELP_TOPICS.parentNews],
 ];
 
 /**

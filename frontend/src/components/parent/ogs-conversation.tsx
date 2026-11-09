@@ -1,6 +1,7 @@
 "use client";
 
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import {
   useCallback,
@@ -23,7 +24,8 @@ import {
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -64,6 +66,10 @@ import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import { formatChatTime } from "~/lib/date-helpers";
 import { childrenConcept } from "~/lib/concepts/children";
+import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -108,7 +114,8 @@ export function OgsConversation({
   readonly onAudienceChange?: (next: MessageAudience) => void;
 }) {
   const t = useTranslations("parentOgsMessaging");
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
+  const careTerm = useCareFacilityTerm();
   const locale = useLocale();
   // A child has a team conversation and, once begun, one with the leadership
   // only (#5200). The switch shows one of them and is where the next message
@@ -288,7 +295,7 @@ export function OgsConversation({
   });
 
   const messages = thread?.messages ?? [];
-  const counterpart = thread?.counterpart_name ?? "OGS";
+  const counterpart = thread?.counterpart_name ?? careTerm;
   const leadershipThread = summaries.find(
     (summary) => summary.audience === "leadership",
   );
@@ -473,7 +480,12 @@ export function OgsConversation({
       ref={containerRef}
       className="flex min-h-[20rem] w-full flex-col gap-3 overflow-hidden"
     >
-      <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border">
+      <SectionCard
+        padding="none"
+        overflow="visible"
+        className="flex min-h-0 flex-1 flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
           {showBack ? <BackBar /> : null}
           {loading ? (
@@ -482,7 +494,9 @@ export function OgsConversation({
               aria-hidden="true"
             >
               <Skeleton className="h-5 w-48 max-w-2/3" />
-              {showChild ? <Skeleton className="h-7 w-28 rounded-lg" /> : null}
+              {showChild ? (
+                <Skeleton shape="control" className="h-7 w-28" />
+              ) : null}
             </div>
           ) : (
             <div className="flex items-center justify-between gap-3">
@@ -496,6 +510,7 @@ export function OgsConversation({
                 </h1>
               </div>
               {showChild && thread?.student_name ? (
+                // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- Namensschild des Kindes im Gesprächskopf, kein Hinweis
                 <div
                   className="bg-moto-green-soft inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-900"
                   title={tm("aboutChild", { name: thread.student_name })}
@@ -554,7 +569,7 @@ export function OgsConversation({
               error state when there is nothing to show. Otherwise a flaky
               refetch would wipe a visible conversation. */}
           {loading ? (
-            <ThreadSkeleton />
+            <SkeletonRows rows={3} />
           ) : messages.length > 0 ? (
             messages.map((message, index) => {
               const eventI18n =
@@ -691,15 +706,28 @@ export function OgsConversation({
               Without the conversation nobody knows who would read a message
               (#5200): no composer then; a failed load above offers the retry. */}
           {care.loading || (loading && !thread) ? (
-            <ConversationComposerSkeleton />
+            <div
+              data-testid="parent-conversation-composer-skeleton"
+              aria-hidden="true"
+            >
+              <Skeleton shape="control" className="h-16 w-full" />
+            </div>
           ) : !care.features.notes_enabled ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {tm("writingDisabled")}
-            </p>
+            </InsetPanel>
           ) : !thread ? null : leadershipClosed ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {leadershipClosedText}
-            </p>
+            </InsetPanel>
           ) : (
             <>
               {/* Wer mitliest, steht auch direkt am Schreibfeld: dort fällt
@@ -734,7 +762,7 @@ export function OgsConversation({
             </>
           )}
         </div>
-      </section>
+      </SectionCard>
 
       {/* Structured actions use their own status and request flows, so they do
           not create cards in the conversation. The child-care hook updates its
@@ -799,7 +827,7 @@ function RequestItem({
 }: Readonly<{ message: ParentMessage; locale: string }>) {
   const t = useTranslations("parentOgsMessaging");
   return (
-    <div className="moto-content-surface rounded-2xl border p-4">
+    <InsetPanel tone="white" padding="md">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">
@@ -814,7 +842,7 @@ function RequestItem({
           label={t(parentRequestStatusI18nKey(message.request_status))}
         />
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -880,8 +908,8 @@ function QuickActionPill({
   withMode: boolean;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  const careT = useTranslations("parentChildCare");
-  const todayT = useTranslations("parentToday");
+  const careT = useCareTermTranslations("parentChildCare");
+  const todayT = useCareTermTranslations("parentToday");
   const firstName = childName?.trim().split(/\s+/)[0];
   const label = firstName
     ? action.key === "sick"
@@ -928,7 +956,7 @@ function GroupThreadReference({
   groupThreadId,
   title,
 }: Readonly<{ groupThreadId: string; title?: string }>) {
-  const t = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentGroupThreads");
   return (
     <div className="mb-1 flex justify-end">
       <NavigationLink
@@ -959,7 +987,7 @@ function audienceLabel(
 function EmptyThread({
   description,
 }: Readonly<{ description: string | null }>) {
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
       <h2 className="text-sm font-semibold text-gray-900">
@@ -972,35 +1000,10 @@ function EmptyThread({
   );
 }
 
-function ThreadSkeleton() {
-  return (
-    <div className="space-y-3">
-      <Skeleton className="h-12 w-2/3 rounded-2xl bg-gray-100" />
-      <Skeleton className="ml-auto h-12 w-1/2 rounded-2xl bg-gray-100" />
-      <Skeleton className="h-12 w-3/5 rounded-2xl bg-gray-100" />
-    </div>
-  );
-}
-
-function ConversationComposerSkeleton() {
-  return (
-    <div
-      data-testid="parent-conversation-composer-skeleton"
-      className="moto-content-surface rounded-xl border p-3"
-      aria-hidden="true"
-    >
-      <Skeleton className="h-16 w-full rounded-lg" />
-      <div className="mt-3 flex justify-end">
-        <Skeleton className="h-9 w-24 rounded-lg" />
-      </div>
-    </div>
-  );
-}
-
 // Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite. Er sitzt
 // in der Kopfkarte über dem Titel, wie auf jeder anderen Unterseite.
 function BackBar() {
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
   return (
     <BackLink
       href={parentPath("/parents/messages")}

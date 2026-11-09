@@ -14,6 +14,8 @@
 
 "use client";
 
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import {
@@ -24,24 +26,29 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { Check, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { FormRow } from "~/components/ui/form-row";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { DatabaseSelect } from "~/components/ui/database/database-select";
+import { DatabaseSelect } from "~/components/database/database-select";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import {
+  ChoiceTileListSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { studentService } from "~/lib/api";
-import type { Student } from "~/lib/api";
+import { fetchStudents } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import {
   activeService,
   summarizeStudentMoveResult,
@@ -55,10 +62,11 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { Checkbox } from "~/components/ui/checkbox";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
-const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 
 function canUseAllMoveTargets(session: Session | null): boolean {
   const permissions = session?.user?.permissions ?? [];
@@ -139,7 +147,7 @@ export function StudentsInRoomSection({
     students: Student[];
     pagination?: { total_records: number };
   }>(`room-students-${roomId}`, async () =>
-    studentService.getStudents({
+    fetchStudents({
       roomId,
       pageSize: 200,
     }),
@@ -465,75 +473,82 @@ export function StudentsInRoomSection({
     // Quiet section header to match the other slide-over blocks
     // (Rauminformationen / Belegungshistorie). Section element +
     // aria-label keep the named landmark the tests and a11y tooling expect.
-    <section aria-label="Kinder im Raum" className={DETAIL_CARD_CLASS}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Kinder im Raum
-        </h2>
-        {totalCount > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={openInSearch}
-            aria-label="Alle Kinder öffnen"
-            title="Alle Kinder öffnen"
-            className="shrink-0"
-          >
-            Alle Kinder
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
+    <section aria-label="Kinder im Raum">
+      <SectionCard
+        overflow="visible"
+        title="Kinder im Raum"
+        inlineActions
+        action={
+          totalCount > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={openInSearch}
+              aria-label="Alle Kinder öffnen"
+              title="Alle Kinder öffnen"
+              className="shrink-0"
+            >
+              Alle Kinder
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          ) : undefined
+        }
+      >
+        <p className="text-sm text-gray-600">
+          <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+          {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
+        </p>
+
+        {isTruncated && (
+          <Alert
+            type="warning"
+            announce="polite"
+            className="mt-3"
+            message={
+              <>
+                Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
+                {hiddenCount} weitere{" "}
+                {hiddenCount === 1 ? "Kind ist" : "Kinder sind"} aktuell nicht
+                in dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle zu sehen.
+              </>
+            }
+          />
         )}
-      </div>
-      <p className="text-sm text-gray-600">
-        <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-        {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
-      </p>
 
-      {isTruncated && (
-        <div
-          role="status"
-          className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
-        >
-          Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
-          {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
-          aktuell nicht in dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle
-          zu sehen.
-        </div>
-      )}
-
-      {/* Breathing room between the count + Kindersuche button row and
+        {/* Breathing room between the count + Kindersuche button row and
           the first student card. Without it the button bottom edge sits
           flush with the first card border. Review feedback (#1323). */}
-      <div className="mt-4">
-        {canBulkMove && students.length > 0 ? (
-          <BulkMoveToolbar
-            selectedCount={selectedVisibleCount}
-            totalCount={selectableStudentIds.size}
-            targetValue={targetValue}
-            targetOptions={targetOptions}
-            targetScope={targetScope}
-            state={bulkMoveState}
-            error={moveErrors.error}
-            containerRef={moveToolbarRef}
-            onSelectAll={selectAllVisible}
-            onClearSelection={clearSelection}
-            onTargetChange={changeTarget}
-            onMoveSelected={moveSelectedStudents}
+        <div className="mt-4">
+          {canBulkMove && students.length > 0 ? (
+            <BulkMoveToolbar
+              selectedCount={selectedVisibleCount}
+              totalCount={selectableStudentIds.size}
+              targetValue={targetValue}
+              targetOptions={targetOptions}
+              targetScope={targetScope}
+              state={bulkMoveState}
+              error={moveErrors.error}
+              containerRef={moveToolbarRef}
+              onSelectAll={selectAllVisible}
+              onClearSelection={clearSelection}
+              onTargetChange={changeTarget}
+              onMoveSelected={moveSelectedStudents}
+            />
+          ) : null}
+          <StudentsInRoomBody
+            fromReferrer={fromReferrer}
+            loading={isLoading}
+            loadError={loadError}
+            students={students}
+            selectable={canBulkMove}
+            selectableStudentIds={selectableStudentIds}
+            selectedStudentIds={selectedStudentIds}
+            onToggleStudentSelection={toggleStudentSelection}
+            router={router}
           />
-        ) : null}
-        <StudentsInRoomBody
-          fromReferrer={fromReferrer}
-          loading={isLoading}
-          loadError={loadError}
-          students={students}
-          selectable={canBulkMove}
-          selectableStudentIds={selectableStudentIds}
-          selectedStudentIds={selectedStudentIds}
-          onToggleStudentSelection={toggleStudentSelection}
-          router={router}
-        />
-      </div>
+        </div>
+      </SectionCard>
     </section>
   );
 }
@@ -690,29 +705,23 @@ function BulkMoveToolbar({
   const isMoving = state.type === "loading";
   const canMove = selectedCount > 0 && targetValue.length > 0 && !isMoving;
   const allSelected = totalCount > 0 && selectedCount === totalCount;
-  const hasSelection = selectedCount > 0;
   const noTargets = targetOptions.length === 0;
 
   return (
-    <div
+    <SelectionBar
       ref={containerRef}
-      className={`mb-4 rounded-xl border p-3 transition-shadow ${
-        hasSelection
-          ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
-          : "border-transparent bg-gray-50/80 shadow-none"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-sm font-semibold text-gray-900">
-          <span className="block truncate">
-            {selectedCount > 0
-              ? `${selectedCount} von ${totalCount} ausgewählt`
-              : "Kinder auswählen"}
-          </span>
-          <span className="block text-xs font-medium text-gray-500">
-            {TARGET_SCOPE_HINT[targetScope]}
-          </span>
-        </p>
+      aria-label="Kinder in einen anderen Raum setzen"
+      placement="bottom"
+      className="mb-4 p-3"
+      count={selectedCount}
+      label={
+        selectedCount > 0
+          ? `${selectedCount} von ${totalCount} ausgewählt`
+          : "Kinder auswählen"
+      }
+      description={TARGET_SCOPE_HINT[targetScope]}
+      busy={isMoving}
+      actions={
         <Button
           type="button"
           variant="outline"
@@ -723,9 +732,9 @@ function BulkMoveToolbar({
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
         </Button>
-      </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      }
+    >
+      <FormRow>
         <DatabaseSelect
           id="room-bulk-target"
           name="room-bulk-target"
@@ -740,7 +749,6 @@ function BulkMoveToolbar({
             value: option.value,
             label: option.label,
           }))}
-          className="bg-white text-sm md:text-sm"
         />
         <Button
           type="button"
@@ -754,7 +762,7 @@ function BulkMoveToolbar({
         >
           In Raum setzen
         </Button>
-      </div>
+      </FormRow>
 
       {noTargets ? (
         <p role="status" className="mt-2 text-sm text-gray-600">
@@ -763,7 +771,7 @@ function BulkMoveToolbar({
       ) : null}
 
       <FormErrorAlert message={error} className="mt-2" />
-    </div>
+    </SelectionBar>
   );
 }
 
@@ -821,7 +829,7 @@ function StudentsInRoomBody({
         label="Kinderliste wird geladen"
         testId="students-in-room-skeleton"
       >
-        <ListSkeleton rows={4} avatar={photosEnabled} />
+        <ChoiceTileListSkeleton rows={4} avatar={photosEnabled} />
       </SkeletonRegion>
     );
   }
@@ -834,9 +842,7 @@ function StudentsInRoomBody({
     // room.
     return (
       <div className="flex flex-col gap-2">
-        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
-          Aktuell keine Kinder im Raum.
-        </div>
+        <EmptyState variant="dashed" title="Aktuell keine Kinder im Raum." />
       </div>
     );
   }
@@ -897,30 +903,18 @@ function SelectableStudentRow({
   return (
     <ChoiceTile as="div" selected={isSelected} className="gap-2">
       {selectable ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={isSelected}
-          aria-label={`${fullName} auswählen`}
-          onClick={onToggleSelection}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        <label
+          htmlFor={`room-select-${student.id}`}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
         >
-          <span
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-              isSelected
-                ? "border-gray-900 bg-gray-900"
-                : "border-gray-300 bg-white"
-            }`}
-            aria-hidden="true"
-          >
-            <Check
-              className={`h-3.5 w-3.5 text-white transition-opacity ${
-                isSelected ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          </span>
+          <Checkbox
+            id={`room-select-${student.id}`}
+            checked={isSelected}
+            aria-label={`${fullName} auswählen`}
+            onChange={onToggleSelection}
+          />
           {studentCard}
-        </button>
+        </label>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {studentCard}

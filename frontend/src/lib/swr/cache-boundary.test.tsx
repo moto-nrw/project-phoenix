@@ -78,6 +78,9 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "SWRSeedBoundary",
     "authGeneration",
     "mutate",
+    // A session boundary listener; it hands out neither cache nor mutate
+    // (#4675: the tab-wide refusals of use-traeger-confirmed-resource).
+    "onSWRScopeReset",
     "scopedSWRKey",
     "stampSWRSeeds",
     "tenantSWRScope",
@@ -117,6 +120,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
   "scope-boundary": ["SWRScopeBoundary"],
   "course-waitlist-keys": ["activityWaitlistKeys", "courseWaitlistKeys"],
   "portal-keys": [
+    "STUDENT_KEY_FAMILIES",
     "announcementKeys",
     "catererKeys",
     "dashboardKeys",
@@ -134,6 +138,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "payrollKeys",
     "schoolPortalKeys",
     "schoolSetupKeys",
+    "schoolTraegerDocumentKeys",
     "staffMergeKeys",
     "staffOnboardingKeys",
     "studentKeys",

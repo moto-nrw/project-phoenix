@@ -12,14 +12,17 @@ import { useSession } from "next-auth/react";
 import { Copy, ClipboardPaste, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   useApiErrorDisplay,
@@ -45,6 +48,7 @@ import {
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 import { MealCaterer } from "~/components/meal-plan/meal-caterer";
+import { MealBillingReleaseLink } from "~/components/meal-plan/meal-billing-release-link";
 import { MealOrderWeek } from "~/components/meal-plan/meal-order-week";
 import {
   MealAllergenLegend,
@@ -60,12 +64,12 @@ import {
 const logger = createLogger({ component: "MealPlanPage" });
 
 // Borderless fields that live inside a dish card (the card is the visual
-// boundary, so the textareas stay clean — no box-in-box). field-sizing:content
+// boundary, so the fields stay clean — no box-in-box). field-sizing:content
 // lets them grow so long dish names wrap instead of being clipped.
 const dishFieldClass =
-  "block w-full resize-none border-0 bg-transparent p-0 text-base leading-snug font-medium text-gray-900 placeholder:font-normal placeholder:text-gray-400 focus:ring-0 focus:outline-none [field-sizing:content]";
+  "block w-full resize-none border-0 bg-transparent p-0 text-base leading-snug font-medium text-gray-900 shadow-none ring-0 placeholder:font-normal placeholder:text-gray-400 read-only:bg-transparent read-only:text-gray-900 focus:ring-0 focus:outline-none focus-visible:ring-0 [field-sizing:content]";
 const noteFieldClass =
-  "mt-1.5 block w-full resize-none border-0 bg-transparent p-0 text-sm leading-snug text-gray-500 placeholder:text-gray-400 focus:ring-0 focus:outline-none [field-sizing:content]";
+  "mt-1.5 block w-full resize-none border-0 bg-transparent p-0 text-sm leading-snug text-gray-500 shadow-none ring-0 placeholder:text-gray-400 read-only:bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 [field-sizing:content]";
 
 interface DishDraft {
   clientId?: string;
@@ -553,6 +557,7 @@ export default function MealPlanPage() {
   return (
     <TenantPage
       title="Speiseplan"
+      actions={<MealBillingReleaseLink />}
       stats={statusLine}
       statsLoading={initialLoading}
       loading={initialLoading}
@@ -717,7 +722,7 @@ export default function MealPlanPage() {
                       {canEdit && (
                         <OverflowMenu
                           ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
-                          triggerClassName="!size-7"
+                          triggerSize="sm"
                           matchContainerSelector="[data-meal-day-column]"
                           items={[
                             {
@@ -747,11 +752,13 @@ export default function MealPlanPage() {
 
                   <div className="flex flex-1 flex-col gap-3 p-3">
                     {rows.map((row, idx) => (
-                      <div
+                      <InsetPanel
                         key={row.clientId}
-                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-10 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200 pointer-coarse:pr-12"
+                        tone="white"
+                        padding="md"
+                        className="group relative min-h-20 pr-10 focus-within:outline-2 focus-within:outline-gray-300 pointer-coarse:pr-12"
                       >
-                        <textarea
+                        <Textarea
                           rows={1}
                           className={dishFieldClass}
                           value={row.dish}
@@ -761,7 +768,7 @@ export default function MealPlanPage() {
                             updateDish(date, idx, "dish", e.target.value)
                           }
                         />
-                        <textarea
+                        <Textarea
                           rows={1}
                           className={noteFieldClass}
                           value={row.note}
@@ -805,7 +812,7 @@ export default function MealPlanPage() {
                               <X className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
-                      </div>
+                      </InsetPanel>
                     ))}
 
                     {canEdit && (
@@ -863,40 +870,32 @@ export default function MealPlanPage() {
         />
       ) : null}
 
-      {/* Sticky save bar — only while there are unsaved changes. */}
+      {/* Save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (
-        <div className="sticky bottom-4 z-20">
-          <SectionCard className="shadow-lg" bodyClassName="">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-gray-700">
-                {changedDays.length}{" "}
-                {changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={discard}
-                  disabled={saving}
-                >
-                  Verwerfen
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={handleSave}
-                  disabled={saving}
-                  isLoading={saving}
-                  loadingText="Speichern…"
-                >
-                  Speichern
-                </Button>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
+        <StickyActionBar
+          summary={`${changedDays.length} ${changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}`}
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={discard}
+            disabled={saving}
+          >
+            Verwerfen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleSave}
+            disabled={saving}
+            isLoading={saving}
+            loadingText="Speichern…"
+          >
+            Speichern
+          </Button>
+        </StickyActionBar>
       )}
     </TenantPage>
   );

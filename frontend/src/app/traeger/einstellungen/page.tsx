@@ -1,11 +1,12 @@
 "use client";
 
 // Allgemeine Einstellungen des Trägers (#4652, ADR 0086, #5685): Werte, die
-// für alle Schulen des Trägers gelten, und die Kontaktdaten. Eine Schule kann
-// abweichen, wo die Einstellung das erlaubt; Schul-Abweichungen ändert nur die
-// Schule selbst.
+// für alle Schulen des Trägers gelten, und die Kontaktdaten mit dem Kontakt
+// für Widerrufe (#6200). Eine Schule kann abweichen, wo die Einstellung das
+// erlaubt; Schul-Abweichungen ändert nur die Schule selbst.
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { displayTabLabel } from "~/components/settings/settings-filter";
 import { Alert } from "~/components/ui/alert";
@@ -35,6 +36,12 @@ import {
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
 
+/**
+ * Opens a settings area by its key, e.g. `?bereich=dashboard` from the hints
+ * of the dashboard (#4675). An unknown key opens the first area.
+ */
+const AREA_PARAM = "bereich";
+
 /** Der Bereich mit den Kontaktdaten; er liegt nicht im Einstellungs-Schema. */
 const CONTACT_TAB = "kontakt";
 
@@ -42,6 +49,15 @@ function tabItem(tab: SchemaTab, key: string): ResolvedSetting | undefined {
   return tab.categories
     .flatMap((category) => category.items)
     .find((item) => item.key === key);
+}
+
+/** Der Absender des Briefkopfs, den die Widerrufsbelehrung nennt (#6200). */
+function letterheadText(schema: SettingsSchema): string {
+  const branding = schema.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB);
+  const value = branding
+    ? tabItem(branding, "branding.letterhead_text")?.value
+    : undefined;
+  return typeof value === "string" ? value : "";
 }
 
 function hasWritableSetting(schema: SettingsSchema): boolean {
@@ -53,13 +69,25 @@ function hasWritableSetting(schema: SettingsSchema): boolean {
 }
 
 export default function TraegerSettingsPage() {
+  // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
+  return (
+    <Suspense fallback={<TenantPage title="Allgemein" loading />}>
+      <TraegerSettingsContent />
+    </Suspense>
+  );
+}
+
+function TraegerSettingsContent() {
+  const searchParams = useSearchParams();
   const {
     data: schema,
     isLoading: loading,
     loadError,
     mutate,
   } = useTraegerSettingsSchema();
-  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<string | null>(
+    () => searchParams?.get(AREA_PARAM) ?? null,
+  );
   const refresh = useCallback(() => mutate().catch(() => undefined), [mutate]);
 
   // Save and reset throw the ApiError of a failed request; the field shows
@@ -153,7 +181,8 @@ export default function TraegerSettingsPage() {
       ) : null}
       {schema && contactActive && contact.loaded ? (
         <TraegerContactSection
-          contact={contact.masterData.contact}
+          masterData={contact.masterData}
+          letterheadText={letterheadText(schema)}
           onSaved={contact.refresh}
         />
       ) : null}

@@ -142,6 +142,11 @@ type ChildFeatureFlags struct {
 	// "both", #2267). The portal marks the note field as required instead of
 	// letting the server reject the submission afterwards.
 	ReasonRequired bool
+	// CareFacilityTerm is the school's term for its care („OGS“, „GTS“;
+	// enrollment.care_facility_term, #6082). It is a label, not a capability:
+	// the portal names each child's care with its own school's term, also for
+	// a child whose care has ended.
+	CareFacilityTerm string
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -227,7 +232,7 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		// profile link are written in the same transaction (auth
 		// guardianInvitationService.linkProfileToAccount / enrollment
 		// decisionService.ensureGuardianRoleForTenant), and these endpoints sit
-		// behind ParentMiddleware, which login only reaches once the account
+		// behind ParentScopeMiddleware, which login only reaches once the account
 		// has that role. Log it so the corruption is observable, then degrade
 		// to the anonymous locale rather than failing a read just to render a
 		// language. Any other error is a real fault and must surface unmasked.

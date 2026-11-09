@@ -14,17 +14,16 @@ import { StaffTodayBlock } from "~/components/home/staff-today-block";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import Link from "~/components/ui/navigation-link";
-import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
-import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
+import { ListRow } from "~/components/ui/list-row";
+import { SkeletonRows } from "~/components/ui/skeleton";
+import { HomeCard, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
   HomeMoreRow,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
 import { StatCard } from "~/components/ui/stat-card";
-import { OverbookedBadge } from "~/components/ui/occupancy-badges";
+import { OverbookedBadge } from "~/components/ui/planning/occupancy-badges";
 import { formatChildCount } from "~/lib/activity-occupancy";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import {
@@ -50,6 +49,21 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { schoolyardConcept } from "~/lib/concepts/schoolyard";
 import { transitConcept } from "~/lib/concepts/transit";
 import { utilizationConcept } from "~/lib/concepts/utilization";
+import { StatusDot } from "~/components/ui/status-dot";
+
+// Der Punkt zeigt den Status nur als Farbe. Der Linkname liest ihn vor (#5598).
+const ACTIVITY_STATUS_LABEL: Readonly<Record<string, string>> = {
+  active: "Läuft",
+  full: "Voll",
+  ending_soon: "Endet bald",
+  overbooked: "Überbucht",
+};
+const GROUP_STATUS_LABEL: Readonly<Record<string, string>> = {
+  active: "Aktiv",
+  transitioning: "Im Wechsel",
+  preparing: "In Vorbereitung",
+};
+const UNKNOWN_STATUS_LABEL = "Status unbekannt";
 
 /**
  * Der Inhalt eines Bausteins der Startseite (#2180).
@@ -94,10 +108,8 @@ function ListCard({
   children: ReactNode;
 }>) {
   return (
-    <SectionCard
+    <HomeCard
       title={title}
-      className="flex h-full flex-col"
-      bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept={concept} />}
       inlineActions
       actions={
@@ -109,27 +121,7 @@ function ListCard({
       }
     >
       {children}
-    </SectionCard>
-  );
-}
-
-/**
- * Platzhalterzeilen in der Höhe der echten: drei zweizeilige Blöcke ragen aus
- * einer Karte dieser Höhe heraus, und beim Laden blitzt ein Scrollbalken auf.
- */
-function RowSkeleton() {
-  return (
-    <div className="space-y-2" aria-hidden="true">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-        >
-          <Skeleton className="h-4 w-24 rounded" />
-          <Skeleton className="h-4 flex-1 rounded" />
-        </div>
-      ))}
-    </div>
+    </HomeCard>
   );
 }
 
@@ -142,7 +134,7 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
   return (
     <ListCard title="Letzte Bewegungen" concept={changeHistoryConcept}>
       {data.analyticsLoading ? (
-        <RowSkeleton />
+        <SkeletonRows />
       ) : !activities || activities.length === 0 ? (
         <EmptyState className="py-4" title="Keine aktuellen Bewegungen" />
       ) : (
@@ -154,9 +146,13 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
               // Diese Zeile fuehrt nirgendwohin: eine Bewegung ist ein
               // Ereignis, keine Seite. Darum auch kein Hover-Effekt, der
               // etwas anderes verspricht.
-              <div
+              <ListRow
                 key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
-                className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
+                trailing={
+                  <span className="text-xs text-gray-500">
+                    {formatRecentActivityTime(activity.timestamp)}
+                  </span>
+                }
               >
                 <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
                   <span className="truncate font-medium text-gray-900">
@@ -171,10 +167,7 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
                     </span>
                   )}
                 </p>
-                <span className="flex-shrink-0 text-xs text-gray-500">
-                  {formatRecentActivityTime(activity.timestamp)}
-                </span>
-              </div>
+              </ListRow>
             );
           })}
         </div>
@@ -194,17 +187,16 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
       href={data.tenantPath("/activities")}
     >
       {data.analyticsLoading ? (
-        <RowSkeleton />
+        <SkeletonRows />
       ) : !activities || activities.length === 0 ? (
         <EmptyState className="py-4" title="Keine laufenden Aktivitäten" />
       ) : (
         <div className="space-y-2">
           {shown.map((activity) => (
-            <Link
+            <ListRow
               key={activity.id}
               href={data.tenantPath("/activities")}
-              aria-label={`${activity.name}: Aktivitäten öffnen`}
-              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
+              aria-label={`${activity.name}, ${ACTIVITY_STATUS_LABEL[activity.status] ?? UNKNOWN_STATUS_LABEL}: Aktivitäten öffnen`}
             >
               <p className="min-w-0 flex-1 truncate text-sm">
                 <span className="font-medium text-gray-900">
@@ -226,10 +218,12 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
                 nfcEnabled={nfcEnabled}
                 compact
               />
-              <div
-                className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
-              ></div>
-            </Link>
+              <StatusDot
+                className={`ml-2 ${getActivityStatusColor(activity.status)}`}
+                size="lg"
+                decorative
+              />
+            </ListRow>
           ))}
           <HomeMoreRow
             hidden={hidden}
@@ -266,17 +260,16 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
       href={data.tenantPath("/ogs-groups")}
     >
       {data.analyticsLoading ? (
-        <RowSkeleton />
+        <SkeletonRows />
       ) : !groups || groups.length === 0 ? (
         <EmptyState className="py-4" title="Es läuft gerade nichts" />
       ) : (
         <div className="space-y-2">
           {shown.map((group) => (
-            <Link
+            <ListRow
               key={`${group.type}-${group.name}`}
               href={data.tenantPath("/ogs-groups")}
-              aria-label={`${group.name}: Betreuung öffnen`}
-              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
+              aria-label={`${group.name}, ${GROUP_STATUS_LABEL[group.status] ?? UNKNOWN_STATUS_LABEL}: Betreuung öffnen`}
             >
               <p className="min-w-0 flex-1 truncate text-sm">
                 <span className="font-medium text-gray-900">{group.name}</span>
@@ -299,10 +292,12 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
                 nfcEnabled={nfcEnabled}
                 compact
               />
-              <div
-                className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
-              ></div>
-            </Link>
+              <StatusDot
+                className={`ml-2 ${getGroupStatusColor(group.status)}`}
+                size="lg"
+                decorative
+              />
+            </ListRow>
           ))}
           <HomeMoreRow
             hidden={hidden}

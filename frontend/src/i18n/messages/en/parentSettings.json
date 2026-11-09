@@ -1,7 +1,5 @@
 {
   "eyebrow": "Your account",
-  "title": "Settings",
-  "description": "Choose the language and notifications for your account.",
   "languageTitle": "Language",
   "languageDescription": "Choose the language in which moto is displayed.",
   "appInstallTitle": "Install moto as an app",

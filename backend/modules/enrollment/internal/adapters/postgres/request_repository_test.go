@@ -42,7 +42,7 @@ func uniqueToken(prefix string) string {
 func makeOwnerRequest(phaseID int64, token, email string) *capability.Request {
 	return &capability.Request{
 		PhaseID: phaseID, GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: email,
-		ConsentFlags: []byte("{}"), CustomData: []byte("{}"), StatusToken: token, SubmittedAt: time.Now().UTC(),
+		StatusToken: token, SubmittedAt: time.Now().UTC(),
 	}
 }
 
@@ -718,3 +718,33 @@ const (
 	notifyPerDecisionDigest    = "digest"
 	notifyPerDecisionImmediate = "immediate"
 )
+
+func TestRequestRepository_HasActiveRequestForMatchedStudent_CreatedLink(t *testing.T) {
+	t.Parallel()
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	for _, status := range []string{capability.ChildStatusApproved, capability.ChildStatusRejected, capability.ChildStatusWithdrawn} {
+		studentID := createMatchTestStudent(t, db, tenantID)
+		r := makeOwnerRequest(phaseID, uniqueToken("createdLink"), "anna@example.test")
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.InsertRequest(ctx, r)
+		}))
+		insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", status)
+		var childID int64
+		require.NoError(t, db.NewRaw(`SELECT id FROM enrollment.request_children WHERE request_id = ?`, r.ID).Scan(testpkg.Ctx(t), &childID))
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			if err := repo.LinkCreatedStudent(ctx, childID, studentID); err != nil {
+				return err
+			}
+			has, err := repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
+			require.NoError(t, err)
+			assert.Equal(t, status == capability.ChildStatusApproved, has, "created link with status %s", status)
+			has, err = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, childID)
+			require.NoError(t, err)
+			assert.False(t, has, "the current child must still be excluded")
+			has, err = repo.HasActiveRequestForMatchedStudent(ctx, phaseID+99_999_999, studentID, 0)
+			require.NoError(t, err)
+			assert.False(t, has, "another phase must not collide")
+			return nil
+		}))
+	}
+}

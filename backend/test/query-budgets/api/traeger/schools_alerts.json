@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.schools_alerts",
+  "max": 12,
+  "exact": true,
+  "description": "modules/traegerview — GET /traeger/schools/alerts (#4675): the Träger\nrow, the school IDs of the Träger, the school rows, the six figure reads\nof /today (two rosters, presence, sick days, sick flags, on-site staff)\nand the waiting enrollment children for the whole school set in one\nadministrative transaction, then the Träger transaction scope and the\nTräger's threshold values. Flat in the number of schools.",
+  "route": "GET /traeger/schools/alerts"
+}

@@ -1,32 +1,8 @@
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-interface DecideBody {
-  approve: boolean;
-  reason?: string;
-  /** Rule-added offerings staff unticked for this one approval (#2370). */
-  excluded_offering_ids?: string[];
-  /** Date staff confirmed the switch takes effect on (#2484). */
-  effective_from?: string;
-}
-
-interface BackendEnvelope<T> {
-  data: T;
-}
-
-/**
- * Proxy POST /api/students/offering-change-requests/{requestId}/decide →
- * backend. Approves (applies the dated switch to the child's offerings) or
- * rejects (reason required) one request (#1665).
- */
-export const POST = createPostHandler<unknown, DecideBody>(
-  async (_request, body, token, params) => {
-    const requestId = String(params.requestId);
-    const response = await apiPost<BackendEnvelope<unknown>, DecideBody>(
-      `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+// Approves (applies the dated offering switch) or rejects one request (#1665).
+export const POST = proxyPost(
+  (p) =>
+    `/api/students/offering-change-requests/${requirePathSegmentParam(p, "requestId")}/decide`,
 );

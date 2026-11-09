@@ -53,13 +53,20 @@ func (f *fakeFleet) add(apiKey string, d devicefleet.Device) {
 	f.devices[apiKey] = d
 }
 
-func (f *fakeFleet) FindDeviceByAPIKey(_ context.Context, apiKey string) (devicefleet.Device, error) {
+func (f *fakeFleet) FindDeviceByAPIKey(ctx context.Context, apiKey string, schools ...devicefleet.DeviceCredentialSchoolCheck) (devicefleet.Device, error) {
 	if f.findErr != nil {
 		return devicefleet.Device{}, f.findErr
 	}
 	d, ok := f.devices[apiKey]
 	if !ok {
 		return devicefleet.Device{}, devicefleet.ErrDeviceNotFound
+	}
+	if d.IsActive() && d.TenantID > 0 {
+		for _, school := range schools {
+			if err := school.CheckDeviceSchool(ctx, d.TenantID); err != nil {
+				return d, err
+			}
+		}
 	}
 	return d, nil
 }
@@ -382,14 +389,15 @@ func TestSchoolLookup_Classification(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		schools     fakeSchools
-		wantDeleted bool
-		wantErr     error
-		wantOther   bool
+		name       string
+		schools    fakeSchools
+		wantClosed bool
+		wantErr    error
+		wantOther  bool
 	}{
-		{"active school", fakeSchools{school: &School{}}, false, nil, false},
-		{"soft-deleted school", fakeSchools{school: &School{Deleted: true}}, true, nil, false},
+		{"active school", fakeSchools{school: &School{Active: true}}, false, nil, false},
+		{"inactive school", fakeSchools{school: &School{}}, true, nil, false},
+		{"soft-deleted school", fakeSchools{school: &School{Active: true, Deleted: true}}, true, nil, false},
 		{"nil school", fakeSchools{}, false, device.ErrSchoolNotFound, false},
 		{"sql.ErrNoRows", fakeSchools{err: sql.ErrNoRows}, false, device.ErrSchoolNotFound, false},
 		{"wrapped sql.ErrNoRows", fakeSchools{err: fmt.Errorf("find: %w", sql.ErrNoRows)}, false, device.ErrSchoolNotFound, false},
@@ -403,8 +411,8 @@ func TestSchoolLookup_Classification(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			deleted, err := schoolLookup{schools: tc.schools, errors: devicetest.SchoolErrors()}.IsSchoolDeleted(context.Background(), 100)
-			assert.Equal(t, tc.wantDeleted, deleted)
+			closed, err := schoolLookup{schools: tc.schools, errors: devicetest.SchoolErrors()}.IsSchoolClosed(context.Background(), 100)
+			assert.Equal(t, tc.wantClosed, closed)
 			switch {
 			case tc.wantErr != nil:
 				require.ErrorIs(t, err, tc.wantErr)
@@ -442,8 +450,9 @@ func TestDeviceOnly_SchoolGuard(t *testing.T) {
 		schools  SchoolDirectory
 		wantCode int
 	}{
-		{"active school", fakeSchools{school: &School{}}, http.StatusOK},
-		{"deleted school", fakeSchools{school: &School{Deleted: true}}, http.StatusForbidden},
+		{"active school", fakeSchools{school: &School{Active: true}}, http.StatusOK},
+		{"inactive school", fakeSchools{school: &School{}}, http.StatusForbidden},
+		{"deleted school", fakeSchools{school: &School{Active: true, Deleted: true}}, http.StatusForbidden},
 		{"missing school", fakeSchools{err: sql.ErrNoRows}, http.StatusForbidden},
 		{"transient failure fails open", fakeSchools{err: context.DeadlineExceeded}, http.StatusOK},
 		{"other failure fails closed", fakeSchools{err: errors.New("permission denied")}, http.StatusForbidden},

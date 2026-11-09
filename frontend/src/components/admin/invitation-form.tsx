@@ -11,6 +11,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { authService } from "~/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
 import { formatDate } from "~/lib/date-helpers";
@@ -23,9 +24,12 @@ import {
   type FormerEmploymentPart,
   type PendingInvitation,
 } from "~/lib/invitation-helpers";
+import { looksLikeEmail } from "~/lib/email-format";
 import { createLogger } from "~/lib/logger";
 import { useDebounce } from "~/lib/use-debounce";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "InvitationForm" });
 
@@ -36,9 +40,6 @@ interface InvitationFormProps {
 
 const EMPTY_POSITIONS: readonly string[] = [];
 
-// Only an address that could be complete is worth a lookup; a half-typed one
-// would ask once per keystroke pause.
-const COMPLETE_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FORMER_EMPLOYMENT_DEBOUNCE_MS = 400;
 const FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS = 5_000;
 
@@ -59,7 +60,9 @@ function useFormerEmployment(email: string): {
   } | null>(null);
 
   useEffect(() => {
-    if (!COMPLETE_ADDRESS.test(address)) return;
+    // Only an address that could be complete is worth a lookup; a half-typed
+    // one would ask once per keystroke pause.
+    if (!looksLikeEmail(address)) return;
     let cancelled = false;
     setAnswer(null);
     const controller = new AbortController();
@@ -91,7 +94,7 @@ function useFormerEmployment(email: string): {
   return {
     formerEmployment:
       answer?.address === current ? answer.formerEmployment : null,
-    pending: COMPLETE_ADDRESS.test(current) && answer?.address !== current,
+    pending: looksLikeEmail(current) && answer?.address !== current,
   };
 }
 
@@ -321,24 +324,11 @@ export function InvitationForm({
   const roleError = errors.fieldError("role_id");
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 md:p-6">
-      <div className="mb-4 flex items-center gap-2 md:gap-3">
-        <div className="rounded-xl bg-gray-100 p-2">
-          <Mail
-            className="h-4 w-4 text-gray-600 md:h-5 md:w-5"
-            aria-hidden="true"
-          />
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-            Neue Einladung
-          </h2>
-          <p className="text-xs text-gray-600 md:text-sm">
-            Per E-Mail einladen
-          </p>
-        </div>
-      </div>
-
+    <SectionCard
+      title="Neue Einladung"
+      description="Per E-Mail einladen"
+      icon={Mail}
+    >
       <form
         ref={formRef}
         onSubmit={handleSubmit}
@@ -349,11 +339,11 @@ export function InvitationForm({
 
         {successInfo && (
           <div className="space-y-2">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+            <InsetPanel framed padding="compact">
               <p className="font-mono text-xs break-all text-gray-600">
                 {successInfo.link}
               </p>
-            </div>
+            </InsetPanel>
           </div>
         )}
 
@@ -433,26 +423,19 @@ export function InvitationForm({
         </div>
 
         <div>
-          <Input
-            type="text"
+          <SuggestInput
             id="invitation-position"
             name="position"
             label="Position (optional)"
-            list="invitation-position-suggestions"
             value={form.position ?? ""}
-            onChange={(event) =>
-              handleChange("position")(event.target.value || undefined)
+            onValueChange={(position) =>
+              handleChange("position")(position || undefined)
             }
+            suggestions={existingPositions}
+            listLabel="Vorschläge für die Position"
             placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
             disabled={isSubmitting}
           />
-          {existingPositions.length > 0 && (
-            <datalist id="invitation-position-suggestions">
-              {existingPositions.map((pos) => (
-                <option key={pos} value={pos} />
-              ))}
-            </datalist>
-          )}
         </div>
 
         <Button
@@ -470,6 +453,6 @@ export function InvitationForm({
               : "Einladung senden"}
         </Button>
       </form>
-    </div>
+    </SectionCard>
   );
 }

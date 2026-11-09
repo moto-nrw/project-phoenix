@@ -214,6 +214,19 @@ func (m *absWorkSessionRepoMock) DeleteWorkSessionsOlderThan(ctx context.Context
 }
 
 func (m *wsMockWorkSessionBreakRepository) ListWorkSessionBreaks(ctx context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, error) {
+	if filter.Active != nil && *filter.Active && filter.SessionIDs != nil {
+		result := make([]workforce.WorkSessionBreak, 0)
+		for _, id := range filter.SessionIDs {
+			value, err := m.GetActiveBySessionID(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			if value != nil {
+				result = append(result, WorkSessionBreakToCapability(value))
+			}
+		}
+		return result, nil
+	}
 	if filter.Active != nil && *filter.Active {
 		value, err := m.GetActiveBySessionID(ctx, filter.SessionID)
 		if value == nil {

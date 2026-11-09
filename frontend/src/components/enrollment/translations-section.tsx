@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
@@ -16,7 +18,7 @@ import {
 
 /** One German text the school wrote, with the document that translates it. */
 export interface TranslationTarget {
-  /** Stable per text, e.g. `field:allergies:label`. */
+  /** Stable per text, e.g. `field|3|label` (form-template-translations.ts). */
   readonly id: string;
   /** What the text is, in the editor's own words ("Frage", "Hinweis"). */
   readonly caption: string;
@@ -148,7 +150,7 @@ function TranslationRow({
   const Field = target.multiline ? Textarea : Input;
 
   return (
-    <li className="grid gap-3 rounded-xl border border-gray-200 p-3 sm:grid-cols-2">
+    <InsetPanel as="li" tone="white" className="grid gap-3 sm:grid-cols-2">
       <div className="min-w-0">
         <p className="text-xs font-medium text-gray-500">{target.caption}</p>
         <p className="mt-1 text-sm break-words whitespace-pre-line text-gray-900">
@@ -157,12 +159,9 @@ function TranslationRow({
       </div>
       <div className="min-w-0 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <label
-            htmlFor={fieldId}
-            className="text-xs font-medium text-gray-500"
-          >
+          <FieldLabel htmlFor={fieldId} className="mb-0">
             Übersetzung
-          </label>
+          </FieldLabel>
           <StatusBadge label={badge.label} tone={badge.tone} compact />
         </div>
         <Field
@@ -190,6 +189,6 @@ function TranslationRow({
           </div>
         )}
       </div>
-    </li>
+    </InsetPanel>
   );
 }

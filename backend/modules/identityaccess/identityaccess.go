@@ -24,49 +24,50 @@ import (
 
 var (
 	// ErrAccountNotFound reports a lookup that matched no platform account.
-	ErrAccountNotFound = errors.New("account not found")
+	ErrAccountNotFound = notFoundError("account not found")
 	// ErrTenantRequired reports a tenant-scoped command without a tenant.
-	ErrTenantRequired = errors.New("tenant is required")
+	ErrTenantRequired = tenantRequiredError("tenant is required")
 	// ErrGuardianRoleMissing reports a tenant without a guardian base role.
-	ErrGuardianRoleMissing = errors.New("guardian role not found")
+	ErrGuardianRoleMissing = notFoundError("guardian role not found")
 	// ErrOperatorNotFound reports a lookup or update that matched no operator.
-	ErrOperatorNotFound = errors.New("operator not found")
+	ErrOperatorNotFound = notFoundError("operator not found")
 	// ErrOperatorSessionNotFound reports a lookup that matched no operator
 	// refresh session.
-	ErrOperatorSessionNotFound = errors.New("operator session not found")
+	ErrOperatorSessionNotFound = notFoundError("operator session not found")
 	// ErrOperatorSessionRotated reports a rotation hand-off on a session that
 	// was already rotated or does not exist.
-	ErrOperatorSessionRotated = errors.New("operator session was already rotated or not found")
+	ErrOperatorSessionRotated = conflictError("operator session was already rotated or not found")
 	// ErrAccountSessionNotFound reports a lookup that matched no account
 	// refresh session in the caller's tenant scope.
-	ErrAccountSessionNotFound = errors.New("account session not found")
+	ErrAccountSessionNotFound = notFoundError("account session not found")
 	// ErrAccountSessionRotated reports a rotation hand-off on an account
 	// session that was already rotated or does not exist.
-	ErrAccountSessionRotated = errors.New("account session was already rotated or not found")
+	ErrAccountSessionRotated = conflictError("account session was already rotated or not found")
 )
 
-// ErrorCode maps a capability error to the stable code recorded in metrics.
+// ErrorCode is the stable code metrics record for a capability error: the
+// class its sentinel declares, else "internal".
 func ErrorCode(err error) string {
-	switch {
-	case err == nil:
+	if err == nil {
 		return "none"
-	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
-		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
-		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound),
-		errors.Is(err, ErrOperatorMFACredentialNotFound), errors.Is(err, ErrOperatorMFAChallengeNotFound),
-		errors.Is(err, ErrOperatorTrustedDeviceNotFound), errors.Is(err, ErrOperatorInvitationNotFound),
-		errors.Is(err, ErrOperatorEmailChangeNotFound), errors.Is(err, ErrOperatorPasskeyNotFound),
-		errors.Is(err, ErrOperatorPasskeySessionNotFound), errors.Is(err, ErrAccountPasskeyNotFound),
-		errors.Is(err, ErrAccountPasskeySessionNotFound):
-		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists),
-		errors.Is(err, ErrOperatorMFAChallengeStateChanged):
-		return "conflict"
-	case errors.Is(err, ErrTenantRequired):
-		return "tenant_required"
-	default:
-		return "internal"
 	}
+	var classed *classedError
+	if errors.As(err, &classed) {
+		return classed.class
+	}
+	return "internal"
+}
+
+// classedError is a sentinel that names its metrics class where it is
+// declared, so no list of sentinels has to be kept beside them.
+type classedError struct{ text, class string }
+
+func (e *classedError) Error() string { return e.text }
+
+func notFoundError(text string) error { return &classedError{text: text, class: "not_found"} }
+func conflictError(text string) error { return &classedError{text: text, class: "conflict"} }
+func tenantRequiredError(text string) error {
+	return &classedError{text: text, class: "tenant_required"}
 }
 
 // Account is the platform login fact enrollment acceptance needs: which
@@ -89,6 +90,9 @@ type GuardianTenantAccess struct {
 // GuardianAccessQuery resolves platform accounts. Both lookups return
 // ErrAccountNotFound for an unknown account; e-mail matching is
 // case-insensitive.
+// AccountBatchQuery resolves current, active account addresses in one read.
+type AccountBatchQuery func(context.Context, []int64) (map[int64]Account, error)
+
 type GuardianAccessQuery interface {
 	FindAccount(ctx context.Context, id int64) (Account, error)
 	FindAccountByEmail(ctx context.Context, email string) (Account, error)
@@ -120,221 +124,6 @@ type OperatorMFAAttempts struct {
 	LockedUntil *time.Time
 }
 
-// OperatorSession is one persisted, revocable operator refresh session.
-// Rotation records the hand-off on the predecessor (RotatedAt,
-// ReplacementTokenHash, RecoveryProofHash) so a replay can be detected and a
-// lost response recovered within the rotation grace.
-//
-// Token is the raw value the refresh JWT carries. Only the minting or
-// presenting request knows it; the store keeps TokenHash, its hex SHA-256,
-// and ReplacementTokenHash likewise names the successor by hash (#4902).
-// Listings and revocations return Token empty.
-type OperatorSession struct {
-	ID                   int64
-	OperatorID           int64
-	Token                string
-	TokenHash            string
-	Expiry               time.Time
-	FamilyID             string
-	Generation           int
-	RotatedAt            *time.Time
-	ReplacementTokenHash *string
-	RecoveryProofHash    []byte
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-}
-
-// OperatorQuery resolves operators. Every lookup returns ErrOperatorNotFound
-// for an unknown operator; e-mail matching is exact on the stored,
-// lower-cased address.
-type OperatorQuery interface {
-	FindOperator(ctx context.Context, id int64) (Operator, error)
-	// FindOperatorForUpdate locks the operator row for the caller's
-	// transaction so concurrent credential changes serialize.
-	FindOperatorForUpdate(ctx context.Context, id int64) (Operator, error)
-	FindOperatorByEmail(ctx context.Context, email string) (Operator, error)
-	ListOperators(ctx context.Context) ([]Operator, error)
-}
-
-// OperatorCommand changes operator identity rows. Create and Update validate
-// and normalize the address and display name; Update writes every mutable
-// column and returns ErrOperatorNotFound when the row is gone.
-type OperatorCommand interface {
-	CreateOperator(ctx context.Context, operator Operator) (Operator, error)
-	UpdateOperator(ctx context.Context, operator Operator) (Operator, error)
-	DeleteOperator(ctx context.Context, id int64) error
-	RecordOperatorLogin(ctx context.Context, id int64) error
-	// IncrementOperatorMFAAttempts bumps the failed-attempt counter atomically
-	// and applies the lockout window once threshold is reached.
-	IncrementOperatorMFAAttempts(ctx context.Context, id int64, threshold int, lockout time.Duration) (OperatorMFAAttempts, error)
-	ResetOperatorMFAAttempts(ctx context.Context, id int64) error
-}
-
-// OperatorSessionQuery resolves refresh sessions. Both lookups return
-// ErrOperatorSessionNotFound when nothing matches.
-type OperatorSessionQuery interface {
-	// FindOperatorSessionForUpdate locks the session row for the caller's
-	// transaction; refresh serializes on it before rotating.
-	FindOperatorSessionForUpdate(ctx context.Context, token string) (OperatorSession, error)
-	LatestOperatorSessionInFamily(ctx context.Context, familyID string) (OperatorSession, error)
-}
-
-// OperatorSessionCommand mints, rotates and revokes refresh sessions. The
-// revocations return the deleted sessions so the caller can record its audit
-// evidence in the same transaction.
-type OperatorSessionCommand interface {
-	CreateOperatorSession(ctx context.Context, session OperatorSession) (OperatorSession, error)
-	// MarkOperatorSessionRotated records the hand-off exactly once and returns
-	// ErrOperatorSessionRotated when the session was rotated before.
-	MarkOperatorSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
-	// DeleteExpiredRotatedOperatorSessions drops rotated predecessors of the
-	// family whose refresh JWTs expired before now; earlier ones stay as
-	// replay evidence.
-	DeleteExpiredRotatedOperatorSessions(ctx context.Context, familyID string, now time.Time) error
-	DeleteOperatorSession(ctx context.Context, id int64) error
-	RevokeOperatorSessions(ctx context.Context, operatorID int64) ([]OperatorSession, error)
-	RevokeOperatorSessionFamily(ctx context.Context, familyID string) ([]OperatorSession, error)
-	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error)
-}
-
-// OperatorAccess is the capability operator login, refresh, MFA lockout and
-// session revocation consume (#2720).
-type OperatorAccess interface {
-	OperatorQuery
-	OperatorCommand
-	OperatorSessionQuery
-	OperatorSessionCommand
-}
-
-// AccountSession is one persisted, revocable refresh session of a platform
-// account at one school. A family groups the generations one login produced
-// through rotation; the hand-off (RotatedAt, ReplacementTokenHash,
-// RecoveryProofHash) lets a lost rotation response be recovered within the
-// rotation grace and a replay be detected. FamilyExpiryCap bounds every
-// successor of a family a tenant switch retired.
-//
-// Token is the raw value the refresh JWT carries. Only the minting or
-// presenting request knows it; the store keeps TokenHash, its hex SHA-256,
-// and ReplacementTokenHash likewise names the successor by hash (#4902).
-// Listings and revocations return Token empty.
-type AccountSession struct {
-	ID       int64
-	TenantID int64
-	// OrganizationID is the Träger of a Träger-Portal session (portal scope
-	// org); such a session has no school (ADR 0084).
-	OrganizationID int64
-	AccountID      int64
-	Token          string
-	TokenHash      string
-	Expiry         time.Time
-	Mobile         bool
-	Identifier     *string
-	PortalScope    string
-	MFAVerified    bool
-	FamilyID       string
-	// SwitchedFromFamilyID names the origin of the session's switch lineage:
-	// the login family a school switch descends from, or the Träger family
-	// of an Absprung. It outlives the origin's rows (#5422).
-	SwitchedFromFamilyID string
-	FamilyExpiryCap      *time.Time
-	// LineageDeadline is the transition deadline of a lineage descending
-	// from a family issued before #5422; switches and rotations keep it.
-	LineageDeadline      *time.Time
-	Generation           int
-	RotatedAt            *time.Time
-	ReplacementTokenHash *string
-	RecoveryProofHash    []byte
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-}
-
-// AccountSessionLiveness narrows a listing by expiry.
-type AccountSessionLiveness int
-
-const (
-	// AccountSessionsAny lists sessions regardless of expiry.
-	AccountSessionsAny AccountSessionLiveness = iota
-	// AccountSessionsLive lists sessions whose expiry is in the future.
-	AccountSessionsLive
-	// AccountSessionsExpired lists sessions whose expiry has passed.
-	AccountSessionsExpired
-)
-
-// AccountSessionFilter narrows ListAccountSessions. Zero values do not
-// filter; the caller's tenant scope always applies.
-type AccountSessionFilter struct {
-	AccountID int64
-	FamilyID  string
-	Mobile    *bool
-	Liveness  AccountSessionLiveness
-}
-
-// AccountSessionQuery resolves account refresh sessions. Reads that name no
-// tenant apply the caller's tenant scope: a tenantless caller (login,
-// refresh and logout run before a tenant is known) sees every school's rows.
-// Lookups return ErrAccountSessionNotFound when nothing matches.
-type AccountSessionQuery interface {
-	FindAccountSession(ctx context.Context, token string) (AccountSession, error)
-	// FindAccountSessionForUpdate locks the session row for the caller's
-	// transaction; refresh serializes on it before rotating.
-	FindAccountSessionForUpdate(ctx context.Context, token string) (AccountSession, error)
-	LatestAccountSessionInFamily(ctx context.Context, familyID string) (AccountSession, error)
-	ListAccountSessions(ctx context.Context, filter AccountSessionFilter) ([]AccountSession, error)
-	// CountExpiredAccountSessions counts across every school; the cleanup
-	// preview reports the whole sweep.
-	CountExpiredAccountSessions(ctx context.Context) (int, error)
-	// ListInactiveAccountIDsWithLiveSessions names deactivated accounts that
-	// still hold an un-rotated, unexpired session, so a failed account-wide
-	// wipe can be recovered.
-	ListInactiveAccountIDsWithLiveSessions(ctx context.Context) ([]int64, error)
-	HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)
-}
-
-// AccountSessionCommand mints, rotates, caps and revokes account refresh
-// sessions. Every write joins the caller's transaction; the revocations
-// return the deleted sessions so the caller can record its audit evidence in
-// the same transaction.
-type AccountSessionCommand interface {
-	// CreateAccountSession validates the session and pins it to the caller's
-	// tenant when the session names none.
-	CreateAccountSession(ctx context.Context, session AccountSession) (AccountSession, error)
-	// MarkAccountSessionRotated records the hand-off exactly once and returns
-	// ErrAccountSessionRotated when the session was rotated before.
-	MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
-	// DeleteExpiredRotatedAccountSessions drops rotated predecessors of the
-	// account whose refresh JWTs expired before now; earlier ones stay as
-	// replay evidence.
-	DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error
-	// RetireAccountSessionFamily caps the expiry of the family's live sessions
-	// so a tenant switch hands the replaced session a bounded grace.
-	RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
-	// EnforceAccountSessionCap keeps at most keep live sessions in the portal
-	// group of portalScope and returns the evicted sessions. The session with
-	// the ID minted always stays; zero protects none.
-	EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int, minted int64) ([]AccountSession, error)
-	DeleteAccountSession(ctx context.Context, id int64) error
-	RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]AccountSession, error)
-	// RevokeAccountSessionsInTenant deletes the account's sessions at the
-	// caller's school only and returns ErrTenantRequired without one.
-	RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]AccountSession, error)
-	// RevokeAllAccountSessions deletes the account's sessions at every school.
-	RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]AccountSession, error)
-	// RevokeAccountSessionsCreatedAtOrBefore deletes the sessions that already
-	// existed at cutoff, including their later refresh successors, and keeps
-	// logins that only started afterwards.
-	RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]AccountSession, error)
-	RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]AccountSession, error)
-	DeleteExpiredAccountSessions(ctx context.Context) (int, error)
-}
-
-// AccountSessionAccess is the capability tenant, parent and school login,
-// refresh, switching, logout, session validation and revocation consume
-// (#2720).
-type AccountSessionAccess interface {
-	AccountSessionQuery
-	AccountSessionCommand
-}
-
 // Owner is the Identity & Access capability the owner's composition serves:
 // every public capability above, the role check the staff membership binds
 // and the demo-only capability.
@@ -349,20 +138,19 @@ type Owner interface {
 	StaffAccountQueries
 	GuardianSchools
 	GuardianAccess
-	OperatorAccess
-	OperatorMFARecords
+	OperatorLinkDeliveryRecorder
+	OperatorRecordCleanup
+	OperatorDirectory
+	OperatorSessionLiveness
 	OperatorMFAFlows
-	OperatorTokens
-	OperatorPasskeyRecords
 	OperatorPasskeyFlows
-	AccountPasskeyRecords
 	AccountPasskeyFlows
 	AccountMFA
 	PasswordResets
 	SchoolInvitations
+	SchoolInvitationMailStates
 	SignInDataRetention
 	AccountRetention
-	AccountSessionAccess
 	RFIDQuery
 	AccountProfiles
 	AccountAnalyticsConsent

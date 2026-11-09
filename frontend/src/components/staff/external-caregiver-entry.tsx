@@ -11,8 +11,10 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { looksLikeEmail } from "~/lib/email-format";
 import { createLogger } from "~/lib/logger";
 import { staffService, type ExternalAccess, type Staff } from "~/lib/staff-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ExternalCaregiverEntry" });
 
@@ -69,14 +71,11 @@ function grantableExternalAccess(
   return canGrantView ? ["none", "view", "supervise"] : ["none", "supervise"];
 }
 
-// Deliberately loose: the backend decides; this only catches typing slips.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /** Email check shared by the entry and the invitation dialog. */
 export function emailFieldHint(email: string): string | null {
   const trimmed = email.trim();
   if (!trimmed) return "Bitte E-Mail-Adresse eingeben.";
-  if (!EMAIL_PATTERN.test(trimmed))
+  if (!looksLikeEmail(trimmed))
     return "Bitte eine gültige E-Mail-Adresse eingeben.";
   return null;
 }
@@ -430,41 +429,38 @@ export function ExternalCaregiverEntry({
   }
 
   return (
-    <div
-      ref={panelRef}
-      role="group"
-      aria-label="Externe Person eintragen"
-      className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3"
-    >
-      <p className="text-sm text-gray-600">{EXTERNAL_CAREGIVER_HINT}</p>
-      <FormErrorAlert message={form.error} />
-      <ExternalCaregiverFields
-        form={form}
-        onKeyDown={handleKeyDown}
-        autoFocus
-      />
-      <div className="flex justify-end gap-2">
-        {/* Not "Abbrechen": the dialog below already has one for itself. */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="md"
-          onClick={close}
-          disabled={form.isSaving}
-        >
-          Nicht eintragen
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => void submitAndClose()}
-          isLoading={form.isSaving}
-          loadingText="Wird eingetragen ..."
-        >
-          Eintragen
-        </Button>
-      </div>
+    <div ref={panelRef} role="group" aria-label="Externe Person eintragen">
+      <InsetPanel framed className="space-y-3">
+        <p className="text-sm text-gray-600">{EXTERNAL_CAREGIVER_HINT}</p>
+        <FormErrorAlert message={form.error} />
+        <ExternalCaregiverFields
+          form={form}
+          onKeyDown={handleKeyDown}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          {/* Not "Abbrechen": the dialog below already has one for itself. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={close}
+            disabled={form.isSaving}
+          >
+            Nicht eintragen
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => void submitAndClose()}
+            isLoading={form.isSaving}
+            loadingText="Wird eingetragen ..."
+          >
+            Eintragen
+          </Button>
+        </div>
+      </InsetPanel>
     </div>
   );
 }

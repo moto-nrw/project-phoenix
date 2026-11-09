@@ -24,7 +24,7 @@ type fakeEnrollmentDecisionService struct {
 	studentID int64
 }
 
-func (f *fakeEnrollmentDecisionService) StudentDecisionRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
+func (f *fakeEnrollmentDecisionService) StudentExtraFieldRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
 	f.studentID = studentID
 	return f.summaries, nil
 }
@@ -40,6 +40,15 @@ func (f *fakeEnrollmentFormSchemaService) SchemaVersion(_ context.Context, id in
 		return nil, f.err
 	}
 	return f.schemas[id], nil
+}
+
+func (f *fakeEnrollmentFormSchemaService) StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]capability.SchemaVersionResult, error) {
+	results := make([]capability.SchemaVersionResult, 0, len(ids))
+	for _, id := range ids {
+		schema, err := f.SchemaVersion(ctx, id)
+		results = append(results, capability.SchemaVersionResult{ID: id, Schema: schema, Err: err})
+	}
+	return results, nil
 }
 
 func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing.T) {
@@ -60,7 +69,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 					SchemaID:    &schemaID,
 					PhaseID:     5,
 					SubmittedAt: submittedAt,
-					CustomData: rawEnrollmentJSON(t, map[string]any{
+					CustomData: testFormValues(map[string]any{
 						"guardian_question": "must not leak",
 					}),
 				},
@@ -72,7 +81,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 					{
 						ID:               701,
 						CreatedStudentID: &linkedStudentID,
-						CustomData: rawEnrollmentJSON(t, map[string]any{
+						CustomData: testFormValues(map[string]any{
 							"swimming_level": "safe",
 							"pickup_note":    "Oma darf abholen",
 							"empty":          nil,
@@ -81,7 +90,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 					{
 						ID:               702,
 						CreatedStudentID: &otherStudentID,
-						CustomData: rawEnrollmentJSON(t, map[string]any{
+						CustomData: testFormValues(map[string]any{
 							"swimming_level": "other child",
 						}),
 					},
@@ -187,7 +196,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 				Children: []*capability.RequestChild{
 					{
 						CreatedStudentID: &linkedStudentID,
-						CustomData: rawEnrollmentJSON(t, map[string]any{
+						CustomData: testFormValues(map[string]any{
 							"swimming_level": "safe",
 						}),
 					},
@@ -229,7 +238,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 				Children: []*capability.RequestChild{
 					{
 						CreatedStudentID: &linkedStudentID,
-						CustomData: rawEnrollmentJSON(t, map[string]any{
+						CustomData: testFormValues(map[string]any{
 							"swimming_level": "safe",
 						}),
 					},
@@ -251,13 +260,4 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, "failed to load enrollment extra fields", body.Detail)
 	assert.NotContains(t, rr.Body.String(), "enrollment schema 42 not found")
-}
-
-// rawEnrollmentJSON encodes custom answers the way the Enrollment owner hands
-// them over: as raw JSON.
-func rawEnrollmentJSON(t *testing.T, value map[string]any) json.RawMessage {
-	t.Helper()
-	raw, err := json.Marshal(value)
-	require.NoError(t, err)
-	return raw
 }

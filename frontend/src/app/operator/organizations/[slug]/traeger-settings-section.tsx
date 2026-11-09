@@ -92,7 +92,7 @@ export function TraegerSettingsSection({
   if (isLoading || data === undefined) {
     return (
       <SectionCard title="Einstellungen des Trägers">
-        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton shape="inner" className="h-20 w-full" />
       </SectionCard>
     );
   }

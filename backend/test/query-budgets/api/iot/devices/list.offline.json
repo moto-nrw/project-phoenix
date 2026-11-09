@@ -1,0 +1,7 @@
+{
+  "scenario": "api.iot.devices.list.offline",
+  "max": 5,
+  "exact": true,
+  "description": "GET /api/iot/offline; owner HTTP, N1/N3/N8 distinct real devices/rooms, archive/other-school/filter controls, real tenant transaction/RLS, independent DTO and zero writes; all production statements, fresh existing settings memo per request.",
+  "route": "GET /api/iot/offline"
+}

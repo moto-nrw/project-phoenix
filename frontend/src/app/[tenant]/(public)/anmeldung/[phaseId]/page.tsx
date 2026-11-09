@@ -6,11 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Mail } from "lucide-react";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { useLocale, useTranslations } from "next-intl";
-import {
-  EnrollmentForm,
-  type EnrollmentFormPrefetchedData,
-} from "~/components/enrollment/enrollment-form";
+import { useLocale } from "next-intl";
+import { LATE_INVITE_QUERY_PARAM } from "~/lib/enrollment-http";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import { prefetchedDataFromBootstrap } from "~/components/enrollment/enrollment-form-config";
 import {
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
@@ -19,9 +18,10 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { BackLink } from "~/components/ui/back-link";
+import { SectionCard } from "~/components/ui/section-card";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   fetchPublicEnrollmentBootstrap,
@@ -32,6 +32,8 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -55,12 +57,13 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 }
 
 function EnrollPhaseFormPageContent({ params }: PageProps) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectForm");
   const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const lateInviteToken = searchParams.get("late_invite")?.trim();
+  const lateInviteToken = searchParams.get(LATE_INVITE_QUERY_PARAM)?.trim();
   const { tenantSlug, tenant } = useTenant();
   const tenantPath = useTenantAwarePath();
   const [bootstrap, setBootstrap] = useState<PublicEnrollmentBootstrap | null>(
@@ -89,7 +92,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       .catch((err: unknown) => {
         if (!cancelled) {
           void showLoadError(err, {
-            object: t("errorObjectForm"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -104,7 +107,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
     lateInviteToken,
     phaseId,
     tenantSlug,
-    t,
+    loadErrorObject,
     loadAttempt,
     clearLoadError,
     showLoadError,
@@ -112,35 +115,17 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
 
   const phase = bootstrap ? localizeNamed(bootstrap.phase, locale) : null;
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
-  const prefetchedData = useMemo<
-    EnrollmentFormPrefetchedData | undefined
-  >(() => {
-    if (!bootstrap) return undefined;
-    return {
-      schema: bootstrap.schema,
-      offerings: bootstrap.offerings,
-      careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-      collectGradeLevel: bootstrap.collect_grade_level,
-      careOfferingsEnabled: bootstrap.care_offerings_enabled,
-      captchaConfig: bootstrap.captcha_config,
-      legalTexts: bootstrap.legal_texts,
-      profile: bootstrap.profile ?? null,
-      lateInvite: bootstrap.late_invite,
-      schoolClass: bootstrap.school_class,
-      // Carry the phase audience through so the form can suppress the
-      // existing-child reuse panel on a new_students phase — a signed-in
-      // dual-role guardian on the tenant-public path can have linked
-      // children the server would always reject (#1663). Mirrors the
-      // parent-portal mapper.
-      audience: bootstrap.phase.audience,
-      // Same for the grade restriction, so the grade select offers only the
-      // grades the phase accepts (#1663).
-      eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
-    };
-  }, [bootstrap]);
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
+  const prefetchedData = useMemo(
+    () =>
+      bootstrap
+        ? prefetchedDataFromBootstrap(bootstrap, {
+            profile: bootstrap.profile ?? null,
+            captchaConfig: bootstrap.captcha_config,
+          })
+        : undefined,
+    [bootstrap],
+  );
 
   const handleSubmitted = (statusURL: string) => {
     try {
@@ -164,26 +149,23 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
-          <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
+          <SectionCard>
             <BackLink
               href={tenantPath("/anmeldung")}
               label={t("backToPicker")}
             />
-            <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-              {t("formEyebrow")}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
               {phase?.name ?? t("formTitleFallback")}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
               {t("formDescription")}
             </p>
-          </div>
+          </SectionCard>
 
           {loading ? (
-            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600">
-              {t("detailsLoading")}
-            </div>
+            <SkeletonRegion label={t("detailsLoading")}>
+              <FormSkeleton />
+            </SkeletonRegion>
           ) : loadError || gradeLevelMax === null ? (
             <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
           ) : (
@@ -199,11 +181,8 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
         </section>
 
         <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
-          <section className="moto-content-surface rounded-2xl border p-5">
-            <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-              {t("sideTitleFallback")}
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-gray-900">
+          <SectionCard>
+            <h2 className="text-xl font-semibold text-gray-900">
               {phase?.name ?? t("sideTitleFallback")}
             </h2>
             {phase ? (
@@ -227,7 +206,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
                 {loadError ? t("detailsLoadFailed") : t("detailsLoading")}
               </p>
             )}
-          </section>
+          </SectionCard>
 
           <PublicInfoCard
             icon={<MotoConceptIcon concept={calendarConcept} size={22} />}

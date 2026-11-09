@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Check,
   ChevronRight,
-  Loader2,
   LogIn,
   Minus,
   Plus,
@@ -42,7 +41,8 @@ import { useRowClock } from "~/components/students/student-card-clock";
 import {
   DEPARTURE_MODE_LABELS,
   type DepartureMode,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 /**
  * What changed for today only (#3946): the Gehzeit, the Abholart (#3945) or
@@ -388,10 +388,7 @@ export function StudentCard({
           data-checkin-tap-strip="true"
         >
           {isCheckinPending ? (
-            <Loader2
-              className="h-4 w-4 flex-shrink-0 animate-spin"
-              aria-hidden="true"
-            />
+            <SpinnerIcon className="h-4 w-4 flex-shrink-0" />
           ) : tapStrip.action === "anmelden" ? (
             <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           ) : (
@@ -429,7 +426,7 @@ export function DepartureModeIcon() {
  * Where a row renders: on a Kinderkarte (small grey line under the name) or
  * in a table cell (#3834), where the column header already names the value.
  */
-export type StudentRowVariant = "card" | "cell" | "compact";
+type StudentRowVariant = "card" | "cell" | "compact";
 
 /** Reusable info row for school class or group */
 export function StudentInfoRow({

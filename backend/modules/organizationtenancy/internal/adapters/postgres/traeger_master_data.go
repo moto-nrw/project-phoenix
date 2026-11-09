@@ -41,6 +41,8 @@ type traegerProfileRow struct {
 	ContactName     string     `bun:"contact_name"`
 	ContactPhone    string     `bun:"contact_phone"`
 	ContactEmail    string     `bun:"contact_email"`
+	WithdrawalPhone string     `bun:"withdrawal_phone"`
+	WithdrawalEmail string     `bun:"withdrawal_email"`
 	LogoContentType *string    `bun:"logo_content_type"`
 	LogoWidth       *int       `bun:"logo_width"`
 	LogoHeight      *int       `bun:"logo_height"`
@@ -48,14 +50,18 @@ type traegerProfileRow struct {
 	LogoUpdatedAt   *time.Time `bun:"logo_updated_at"`
 }
 
-func (r traegerProfileRow) toDomain() (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo) {
-	contact := organizationtenancy.TraegerContact{Name: r.ContactName, Phone: r.ContactPhone, Email: r.ContactEmail}
-	if r.LogoContentType == nil || r.LogoWidth == nil || r.LogoHeight == nil || r.LogoSize == nil || r.LogoUpdatedAt == nil {
-		return contact, nil
+func (r traegerProfileRow) toDomain() organizationtenancy.TraegerProfile {
+	profile := organizationtenancy.TraegerProfile{
+		Contact:    organizationtenancy.TraegerContact{Name: r.ContactName, Phone: r.ContactPhone, Email: r.ContactEmail},
+		Withdrawal: organizationtenancy.TraegerWithdrawalContact{Phone: r.WithdrawalPhone, Email: r.WithdrawalEmail},
 	}
-	return contact, &organizationtenancy.TraegerLogo{
+	if r.LogoContentType == nil || r.LogoWidth == nil || r.LogoHeight == nil || r.LogoSize == nil || r.LogoUpdatedAt == nil {
+		return profile
+	}
+	profile.Logo = &organizationtenancy.TraegerLogo{
 		ContentType: *r.LogoContentType, Width: *r.LogoWidth, Height: *r.LogoHeight, SizeBytes: *r.LogoSize, UpdatedAt: *r.LogoUpdatedAt,
 	}
+	return profile
 }
 
 type traegerBankAccountRow struct {
@@ -74,15 +80,32 @@ func (r traegerBankAccountRow) toDomain() organizationtenancy.TraegerBankAccount
 }
 
 const (
-	traegerProfileColumns = `contact_name, contact_phone, contact_email, logo_content_type, logo_width, logo_height,
+	traegerProfileColumns = `contact_name, contact_phone, contact_email, withdrawal_phone, withdrawal_email, logo_content_type, logo_width, logo_height,
 		octet_length(logo) AS logo_size, logo_updated_at`
 	findTraegerProfileQuery = `SELECT ` + traegerProfileColumns + ` FROM platform.traeger_profiles
 		WHERE organization_id = ?`
+	// findTraegerMasterDataQuery joins the Träger's own profile and bank
+	// accounts onto one base row, in the bank account order of
+	// listTraegerBankAccountsQuery.
+	findTraegerMasterDataQuery = `SELECT profile.organization_id IS NOT NULL AS has_profile,
+		profile.contact_name, profile.contact_phone, profile.contact_email,
+		profile.withdrawal_phone, profile.withdrawal_email, profile.logo_content_type,
+		profile.logo_width, profile.logo_height, octet_length(profile.logo) AS logo_size, profile.logo_updated_at,
+		account.id AS bank_account_id, account.id AS bank_id, account.label AS bank_label, account.account_holder AS bank_account_holder,
+		account.iban AS bank_iban, account.bic AS bank_bic, account.bank_name AS bank_bank_name,
+		account.is_default AS bank_is_default, account.updated_at AS bank_updated_at
+		FROM (SELECT ?::bigint AS organization_id) AS traeger
+		LEFT JOIN platform.traeger_profiles AS profile ON profile.organization_id = traeger.organization_id
+		LEFT JOIN platform.traeger_bank_accounts AS account ON account.organization_id = traeger.organization_id
+		ORDER BY account.is_default DESC, account.id`
 	ensureTraegerProfileQuery = `INSERT INTO platform.traeger_profiles (organization_id) VALUES (?)
 		ON CONFLICT (organization_id) DO NOTHING`
 	lockTraegerProfileQuery = findTraegerProfileQuery + ` FOR UPDATE`
 	saveTraegerContactQuery = `UPDATE platform.traeger_profiles
 		SET contact_name = ?, contact_phone = ?, contact_email = ?, updated_by = ?
+		WHERE organization_id = ?`
+	saveTraegerWithdrawalContactQuery = `UPDATE platform.traeger_profiles
+		SET withdrawal_phone = ?, withdrawal_email = ?, updated_by = ?
 		WHERE organization_id = ?`
 	saveTraegerLogoQuery = `UPDATE platform.traeger_profiles
 		SET logo = ?, logo_content_type = ?, logo_width = ?, logo_height = ?, logo_updated_at = CURRENT_TIMESTAMP, updated_by = ?
@@ -117,43 +140,81 @@ const (
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
 )
 
-// FindProfile reads the contact person and the logo description.
-func (s *TraegerMasterDataStore) FindProfile(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error) {
+// traegerMasterDataRow is one bank account of the Träger next to its
+// profile; a Träger without accounts yields one row without them, and one
+// without a profile row has no profile columns.
+type traegerMasterDataRow struct {
+	HasProfile bool `bun:"has_profile"`
+	traegerProfileRow
+	BankAccountID *int64                `bun:"bank_account_id"`
+	BankAccount   traegerBankAccountRow `bun:"embed:bank_"`
+}
+
+// FindMasterData reads the profile and the bank accounts in one statement,
+// so both come from one READ COMMITTED snapshot (#5571, decision E2: one
+// early shared read may replace the former two reads; the read takes no
+// lock).
+func (s *TraegerMasterDataStore) FindMasterData(ctx context.Context, organizationID int64) (organizationtenancy.TraegerProfile, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return organizationtenancy.TraegerContact{}, nil, err
+		return organizationtenancy.TraegerProfile{}, err
+	}
+	var rows []traegerMasterDataRow
+	if err := db.NewRaw(findTraegerMasterDataQuery, organizationID).Scan(ctx, &rows); err != nil {
+		return organizationtenancy.TraegerProfile{}, fmt.Errorf("organization tenancy postgres: find Träger master data: %w", err)
+	}
+	accounts := make([]organizationtenancy.TraegerBankAccount, 0, len(rows))
+	profiles := make([]traegerProfileRow, 0, 1)
+	for i, row := range rows {
+		if i == 0 && row.HasProfile {
+			profiles = append(profiles, row.traegerProfileRow)
+		}
+		if row.BankAccountID != nil {
+			accounts = append(accounts, row.BankAccount.toDomain())
+		}
+	}
+	profile := firstProfile(profiles)
+	profile.BankAccounts = accounts
+	return profile, nil
+}
+
+// FindDocumentContact reads the contact person and the withdrawal contact.
+func (s *TraegerMasterDataStore) FindDocumentContact(ctx context.Context, organizationID int64) (organizationtenancy.TraegerDocumentContact, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return organizationtenancy.TraegerDocumentContact{}, err
 	}
 	var rows []traegerProfileRow
 	if err := db.NewRaw(findTraegerProfileQuery, organizationID).Scan(ctx, &rows); err != nil {
-		return organizationtenancy.TraegerContact{}, nil, fmt.Errorf("organization tenancy postgres: find Träger profile: %w", err)
+		return organizationtenancy.TraegerDocumentContact{}, fmt.Errorf("organization tenancy postgres: find Träger document contact: %w", err)
 	}
-	return firstProfile(rows)
+	profile := firstProfile(rows)
+	return organizationtenancy.TraegerDocumentContact{Contact: profile.Contact, Withdrawal: profile.Withdrawal}, nil
 }
 
 // LockProfile locks the row; create makes it first where it is missing.
-func (s *TraegerMasterDataStore) LockProfile(ctx context.Context, organizationID int64, create bool) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error) {
+func (s *TraegerMasterDataStore) LockProfile(ctx context.Context, organizationID int64, create bool) (organizationtenancy.TraegerProfile, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return organizationtenancy.TraegerContact{}, nil, err
+		return organizationtenancy.TraegerProfile{}, err
 	}
 	if create {
 		if _, err := db.ExecContext(ctx, ensureTraegerProfileQuery, organizationID); err != nil {
-			return organizationtenancy.TraegerContact{}, nil, fmt.Errorf("organization tenancy postgres: create Träger profile: %w", err)
+			return organizationtenancy.TraegerProfile{}, fmt.Errorf("organization tenancy postgres: create Träger profile: %w", err)
 		}
 	}
 	var rows []traegerProfileRow
 	if err := db.NewRaw(lockTraegerProfileQuery, organizationID).Scan(ctx, &rows); err != nil {
-		return organizationtenancy.TraegerContact{}, nil, fmt.Errorf("organization tenancy postgres: lock Träger profile: %w", err)
+		return organizationtenancy.TraegerProfile{}, fmt.Errorf("organization tenancy postgres: lock Träger profile: %w", err)
 	}
-	return firstProfile(rows)
+	return firstProfile(rows), nil
 }
 
-func firstProfile(rows []traegerProfileRow) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error) {
+func firstProfile(rows []traegerProfileRow) organizationtenancy.TraegerProfile {
 	if len(rows) == 0 {
-		return organizationtenancy.TraegerContact{}, nil, nil
+		return organizationtenancy.TraegerProfile{}
 	}
-	contact, logo := rows[0].toDomain()
-	return contact, logo, nil
+	return rows[0].toDomain()
 }
 
 // SaveContact stores the contact person on the locked row.
@@ -164,6 +225,18 @@ func (s *TraegerMasterDataStore) SaveContact(ctx context.Context, organizationID
 	}
 	if _, err := db.ExecContext(ctx, saveTraegerContactQuery, contact.Name, contact.Phone, contact.Email, traegerActor(accountID), organizationID); err != nil {
 		return fmt.Errorf("organization tenancy postgres: save Träger contact: %w", err)
+	}
+	return nil
+}
+
+// SaveWithdrawalContact stores the withdrawal contact on the locked row.
+func (s *TraegerMasterDataStore) SaveWithdrawalContact(ctx context.Context, organizationID, accountID int64, contact organizationtenancy.TraegerWithdrawalContact) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, saveTraegerWithdrawalContactQuery, contact.Phone, contact.Email, traegerActor(accountID), organizationID); err != nil {
+		return fmt.Errorf("organization tenancy postgres: save Träger withdrawal contact: %w", err)
 	}
 	return nil
 }
@@ -181,7 +254,7 @@ func (s *TraegerMasterDataStore) SaveLogo(ctx context.Context, organizationID, a
 	if len(rows) == 0 {
 		return organizationtenancy.TraegerLogo{}, errors.New("organization tenancy postgres: save Träger logo: the profile row is missing")
 	}
-	_, saved := rows[0].toDomain()
+	saved := rows[0].toDomain().Logo
 	if saved == nil {
 		return organizationtenancy.TraegerLogo{}, errors.New("organization tenancy postgres: save Träger logo: no logo stored")
 	}

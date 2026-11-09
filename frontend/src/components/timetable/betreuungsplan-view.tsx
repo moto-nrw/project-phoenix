@@ -50,15 +50,14 @@ import {
 } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { OriginChip } from "~/components/ui/origin-chip";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { PlanLegend } from "~/components/ui/plan-legend";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   useApiErrorDisplay,
@@ -675,7 +674,7 @@ function TimetablesContent() {
       ? "timetable-student-list"
       : null,
     // Nur Name und ID werden gebraucht: die Namens-Projektion (#4996).
-    () => fetchStudents({ page_size: 500, view: "names" }),
+    () => fetchStudents({ pageSize: 500, view: "names" }),
   );
   // Auswahl des Gruppenfilters (#4766). Die Serienansicht filtert nicht.
   const { data: filterGroups } = useSWRAuth(
@@ -1966,29 +1965,23 @@ function TimetablesContent() {
   // Anmeldung verknüpft") aus dem leeren Zwischenstand ableiten — neutraler
   // Platzhalter. Schlägt der Fetch fehl, entfällt der Chip (keine Aussage
   // ist ehrlicher als eine falsche).
-  // Rahmenlos in der Kontextzeile (#2031): dort stehen alle Angaben als ruhiger
-  // Text, eine gerahmte Pille daneben wäre das dritte Formvokabular in einer
-  // Zeile. Als Link bleibt sie unterstrichen bei Hover, sonst reiner Text.
-  const originChipClassName = "border-transparent bg-transparent px-0";
+  // Reiner Text in der Kontextzeile (#2031): dort stehen alle Angaben als
+  // ruhiger Text, eine gerahmte Pille daneben wäre das dritte Formvokabular in
+  // einer Zeile. Als Link unterstrichen bei Hover.
+  const demandOriginTextClass = "text-xs text-gray-600";
   const demandOriginChip =
     !canReadEnrollmentPhases || phasesError ? null : phasesData ===
       undefined ? (
-      <OriginChip
-        label="Bedarf wird ermittelt …"
-        className={originChipClassName}
-      />
+      <span className={demandOriginTextClass}>Bedarf wird ermittelt …</span>
     ) : demandOrigin.href ? (
       <Link
         href={tenantPath(demandOrigin.href)}
-        className="inline-flex hover:underline"
+        className={`${demandOriginTextClass} hover:underline`}
       >
-        <OriginChip
-          label={demandOrigin.label}
-          className={originChipClassName}
-        />
+        {demandOrigin.label}
       </Link>
     ) : (
-      <OriginChip label={demandOrigin.label} className={originChipClassName} />
+      <span className={demandOriginTextClass}>{demandOrigin.label}</span>
     );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der

@@ -3,9 +3,12 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
 
@@ -23,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // NewNotificationConsentTestStore builds Communication's consent capability
@@ -57,6 +61,19 @@ type DeliveryTestModule struct {
 	Notifications           deliveryCompose.Notifier
 	PushSubscriptions       deliveryCompose.PushSubscriptionService
 	NotificationPreferences deliveryCompose.NotificationPreferenceService
+}
+
+// NotificationPreferenceRouterForTests mounts the actual protected resources
+// over the module's real owner stores. The outer host's session-liveness and
+// module-booking middleware are outside this route-sized test root.
+func (m DeliveryTestModule) NotificationPreferenceRouterForTests() chi.Router {
+	router := chi.NewRouter()
+	notifications := NewNotificationHTTP(nil, nil, m.NotificationPreferences)
+	router.Mount("/api/notifications", notifications.Router())
+	router.Mount("/school/notifications", notifications.SchoolRouter())
+	parents := parentAPI.NewResource(parentAPI.ResourceConfig{Preferences: bindParentPreferences(m.NotificationPreferences)})
+	router.Mount("/parent", parents.Router(ParentSessionChain))
+	return router
 }
 
 func NewPushSubscriptionTestService(db transactionruntime.Database, unit tenant.UnitOfWork, vapid deliveryCompose.VAPIDConfig) (deliveryCompose.PushSubscriptionService, error) {
@@ -119,10 +136,29 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, NewNotificationConsentTestStore(db), settings.Settings, db.Pool(), members, securityruntime.HasPermission)
+	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, NewNotificationConsentTestStore(db), owners.DeliveryPreferenceSettings(settings.Settings), db.Pool(), members, securityruntime.HasPermission)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
 	return DeliveryTestModule{Runtime: delivery, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
+}
+
+// deliveryPushTestSettings is the router's tenant gate read.
+type deliveryPushTestSettings interface {
+	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+}
+
+// NewDeliveryTestPushNotifier is the production notification router over the
+// durable Web Push channel with fixed test VAPID keys, so a consumer's test
+// can read the push intents its action stores in the real outbox.
+func NewDeliveryTestPushNotifier(db transactionruntime.Database, unit tenant.UnitOfWork, settings deliveryPushTestSettings, module DeliveryTestModule) (deliveryCompose.Notifier, error) {
+	vapid := deliveryCompose.VAPIDConfig{PublicKey: "pub", PrivateKey: "priv", Subscriber: "mailto:test@example.org"}
+	webPush, err := deliveryCompose.NewTenantDurableWebPushChannel(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()),
+		vapid, deliveryCompose.NewDurablePushOutbox(module.Runtime.Module), slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	return deliveryCompose.NewNotifier(settings, slog.Default(), func(string, string, string, time.Duration, error) {}, webPush), nil
 }

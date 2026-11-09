@@ -80,7 +80,7 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 	activeSettings := NewActiveTestSettings(db, unit, clocks...)
 	activeCaller := NewActiveTestCaller(db, unit, clocks...)
 	activeTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
-	care, _, err := NewCareLifecycleTestModule(db, unit)
+	care, _, err := NewCareLifecycleTestModule(db, unit, clocks...)
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
@@ -146,7 +146,7 @@ func classDayTestMorning(db transactionruntime.Database, hub *realtime.Hub, peop
 	// The absence list (#4793), bound like buildClassDayViews binds it.
 	schoolDays, err := owners.BuildSchoolCalendarRecords(db, func(schoolCalendarCompose.Observation) {}, settings.Settings)
 	mustActiveTestModule(err)
-	return withClassDayAbsenceList(morning, presence, rCare.StudentStatusDay, schoolDays, audits.DataAccessLog, lists.NewRenderer(), settings.Settings, participation, reports)
+	return withClassDayAbsenceList(morning, presence, rCare.StudentStatusDay, schoolDays, audits.DataAccessLog, lists.NewRenderer(), settings.Settings, participation, people)
 }
 
 // classDayTestReports is Enrollment's day roster over the test graph, composed

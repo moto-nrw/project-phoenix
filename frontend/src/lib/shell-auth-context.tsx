@@ -1,12 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useMemo } from "react";
+import {
+  portalAuthPath,
+  portalLoginPath,
+  type HostedPortalKey,
+} from "./portal-paths";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
-import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
-import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
-import { catererAbsoluteUrl, catererPath } from "~/lib/caterer-url";
+import { parentPath } from "~/lib/parent-url";
+import { schoolPath } from "~/lib/school-url";
+import { catererPath } from "~/lib/caterer-url";
 import { traegerPath } from "~/lib/traeger-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
@@ -81,6 +86,16 @@ function behindSessionBarrier(
  * a late response writes back; a failed revocation therefore throws and the
  * caller keeps the session. 401 means nothing is left to revoke.
  */
+/**
+ * Clears the portal's cookie and opens its login on the portal's own host.
+ * Auth.js resolves a callbackUrl against NEXTAUTH_URL, the tenant origin, so
+ * a redirecting signOut would land on the tenant's host root instead.
+ */
+async function signOutToLogin(portal: HostedPortalKey): Promise<void> {
+  await signOut({ redirect: false });
+  window.location.assign(portalLoginPath(portal));
+}
+
 async function revokeSessionFamily(
   path: string,
   signal?: AbortSignal,
@@ -224,7 +239,7 @@ export function TeacherShellProvider({
               // sessionStorage unavailable (e.g. private browsing quota)
             }
             // Record the preview's end before revoking its family (#2893).
-            // Its refresh token is still the admin's (shared.ts), so logout
+            // Its refresh token is still the admin's (staff-preview.ts), so logout
             // needs no intermediate session restore or uncancellable update.
             if (session?.user?.isPreview) {
               try {
@@ -243,7 +258,10 @@ export function TeacherShellProvider({
             // The revocation never waits for push (#5194): the backend drops the
             // family's push subscriptions with it, and the device-side cleanup
             // below stays best-effort with one five-second budget (#5260).
-            await revokeSessionFamily("/api/auth/logout", signal);
+            await revokeSessionFamily(
+              portalAuthPath("tenant", "logout"),
+              signal,
+            );
             void unsubscribePushSilently("tenant", {
               signal,
               timeoutMs: 5000,
@@ -332,7 +350,7 @@ export function OperatorShellProvider({
         behindSessionBarrier(async () => {
           // The operator family is checked on every operator request; revoking
           // it ends this session's tokens at once (#5194).
-          await revokeSessionFamily("/api/operator/auth/logout");
+          await revokeSessionFamily(portalAuthPath("operator", "logout"));
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
@@ -410,7 +428,7 @@ export function SchoolShellProvider({
           // School sessions revoke through the shared scope-preserving
           // /auth/logout (tenant-style), proxied with the school session's
           // refresh token (#5194).
-          await revokeSessionFamily("/api/school/auth/logout");
+          await revokeSessionFamily(portalAuthPath("school", "logout"));
           // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
           // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
           // Gerät fände ein Abo ohne Zuordnung vor.
@@ -419,7 +437,7 @@ export function SchoolShellProvider({
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
+          await signOutToLogin("school");
         }),
         showLogoutError,
       ),
@@ -478,12 +496,12 @@ export function CatererShellProvider({
           } catch {
             // sessionStorage unavailable: the login page shows its notice.
           }
-          await revokeSessionFamily("/api/caterer/auth/logout");
+          await revokeSessionFamily(portalAuthPath("caterer", "logout"));
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
+          await signOutToLogin("caterer");
         }),
         showLogoutError,
       ),
@@ -550,16 +568,12 @@ export function TraegerShellProvider({
             // "session expired" note, which is harmless.
           }
           // Revoke the backend refresh session first (#5194).
-          await revokeSessionFamily("/api/traeger/auth/logout");
+          await revokeSessionFamily(portalAuthPath("traeger", "logout"));
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
-          // origin, and would send the person to the school chooser there. End
-          // the session without its redirect and stay on the Träger host.
-          await signOut({ redirect: false });
-          window.location.assign(traegerPath("/traeger/login"));
+          await signOutToLogin("traeger");
         }),
         showLogoutError,
       ),
@@ -654,13 +668,13 @@ export function ParentShellProvider({
           // Revoke the parent family first (#5194): the revocation never waits
           // for push. The backend drops the family's push subscriptions with
           // it; the device-side cleanup below stays best-effort (#5260).
-          await revokeSessionFamily("/api/parent/auth/logout");
+          await revokeSessionFamily(portalAuthPath("parent", "logout"));
           await unsubscribePushSilently("parent");
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
           clearSessionCache();
-          await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
+          await signOutToLogin("parent");
         }),
         showLogoutError,
       ),

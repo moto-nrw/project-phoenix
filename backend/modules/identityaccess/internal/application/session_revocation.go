@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 type revocationGroup struct {
@@ -89,7 +90,7 @@ func (s *AccountAuthentication) deleteFamilyWithAudit(ctx context.Context, sessi
 // caller's school with audit evidence, or schedules the account-wide wipe an
 // account-wide reason asks for. Tenant-scoped callers pair it with
 // QueuePushCleanup after their transaction.
-func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) (_ []identityaccess.AccountSession, err error) {
+func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) (_ []ports.AccountSession, err error) {
 	if s == nil {
 		return nil, errAccountAuthenticationUnavailable
 	}
@@ -162,7 +163,7 @@ func (s *AccountAuthentication) recordPendingAccountWideWipe(ctx context.Context
 // leave behind: after commit when the caller's transaction has an
 // after-commit queue, immediately without a transaction, and not at all
 // inside a plain transaction whose rollback would otherwise lose them.
-func (s *AccountAuthentication) QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string) {
+func (s *AccountAuthentication) QueuePushCleanup(ctx context.Context, accountID int64, sessions []ports.AccountSession, reason string) {
 	if s == nil {
 		return
 	}
@@ -415,37 +416,8 @@ func (s *AccountAuthentication) deletePushForFamilies(ctx context.Context, accou
 	return nil
 }
 
-// Push portals per persisted portal scope: tenant and org sessions belong to
-// the staff portal; unknown legacy rows may belong to any portal.
-const (
-	pushPortalStaff  = "staff"
-	pushPortalParent = "parent"
-	pushPortalSchool = "school"
-)
-
-func pushPortalsForScope(portalScope string) []string {
-	switch portalScope {
-	case domain.PortalScopeParent:
-		return []string{pushPortalParent}
-	case domain.PortalScopeSchool:
-		return []string{pushPortalSchool}
-	case domain.PortalScopeCaterer:
-		// The caterer portal has no push messages.
-		return nil
-	case domain.PortalScopeUnknown, "":
-		return []string{pushPortalStaff, pushPortalParent, pushPortalSchool}
-	default:
-		return []string{pushPortalStaff}
-	}
-}
-
 func sessionMatchesPushPortal(portalScope, portal string) bool {
-	for _, candidate := range pushPortalsForScope(portalScope) {
-		if candidate == portal {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(domain.PushPortalsOf(portalScope), portal)
 }
 
 func sessionTenantIDsForPortal(sessions []domain.AccountSession, portal string) []int64 {
@@ -468,7 +440,7 @@ func sessionTenantIDsForPortal(sessions []domain.AccountSession, portal string) 
 }
 
 func (s *AccountAuthentication) deletePushUnboundForSessions(ctx context.Context, accountID int64, sessions []domain.AccountSession) error {
-	for _, portal := range []string{pushPortalStaff, pushPortalSchool, pushPortalParent} {
+	for _, portal := range domain.AllPushPortals() {
 		if err := s.deletePushUnboundAtTenants(ctx, accountID, sessionTenantIDsForPortal(sessions, portal), portal); err != nil {
 			return err
 		}
@@ -607,7 +579,7 @@ func (s *AccountAuthentication) runScheduledAccountWipe(txCtx context.Context, a
 func schoolSessions(sessions []domain.AccountSession) []domain.AccountSession {
 	kept := make([]domain.AccountSession, 0, len(sessions))
 	for _, session := range sessions {
-		if session.PortalScope != domain.PortalScopeOrg {
+		if session.KeptAtSchool() {
 			kept = append(kept, session)
 		}
 	}

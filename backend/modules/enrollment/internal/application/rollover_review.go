@@ -10,21 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// allChildStatuses is every status the child model knows. Kept explicit so
-// a future status shows up as a compile-visible gap here rather than a
-// silently mis-counted preview.
-var allChildStatuses = []string{
-	enrollmentNative.ChildStatusSubmitted,
-	enrollmentNative.ChildStatusUnderReview,
-	enrollmentNative.ChildStatusApproved,
-	enrollmentNative.ChildStatusWaitlisted,
-	enrollmentNative.ChildStatusRejected,
-	enrollmentNative.ChildStatusWithdrawn,
-	enrollmentNative.ChildStatusPendingRenewal,
-	enrollmentNative.ChildStatusAutoRenewed,
-	enrollmentNative.ChildStatusPendingAdminReview,
-}
-
 // PreviewPhaseFromSource classifies the source phase's children without
 // writing anything. Shares classifyRolloverGrade with the create path,
 // so the numbers the admin confirms are the numbers the rollover
@@ -45,7 +30,7 @@ func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID in
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: resolve collect grade level: %w", err)
 	}
-	children, err := s.childrenByStatuses(ctx, sourcePhaseID, allChildStatuses)
+	children, err := s.childrenByStatuses(ctx, sourcePhaseID, enrollmentNative.ChildStatuses())
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: list source children: %w", err)
 	}
@@ -81,9 +66,6 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 		return nil, fmt.Errorf("%w: phase_id is required", enrollmentNative.ErrRolloverInvalidRequest)
 	}
 	children, err := s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, []string{enrollmentNative.ChildStatusPendingAdminReview})
-	if err == nil {
-		_, err = childValues(children)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("rollover: list review queue: %w", err)
 	}
@@ -124,16 +106,10 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 // the review rows.
 func (s *Rollovers) reviewQueueContext(ctx context.Context, requestIDs, sourceChildIDs []int64) (map[int64]*enrollmentNative.Request, map[int64]*enrollmentNative.RequestChild, error) {
 	requests, err := s.deps.Requests.RequestsByID(ctx, requestIDs)
-	if err == nil {
-		_, err = requestValues(requests)
-	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("rollover: load review queue requests: %w", err)
 	}
 	sourceChildren, err := s.deps.Children.ChildrenByID(ctx, sourceChildIDs)
-	if err == nil {
-		_, err = childValues(sourceChildren)
-	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("rollover: load review queue source children: %w", err)
 	}
@@ -222,9 +198,20 @@ func renewalInitialStatus(mode string) string {
 // RunDeadlineWorker is the scheduled resolver. The caller (scheduler tick
 // or CLI) wraps it in a tenant transaction so the bulk updates run as
 // phoenix_tenant with RLS scoping to the current tenant.
+//
+// With the decision flow wired, the tick takes the approval gates before its
+// first bulk transition (ADR 0162): its class switches and weekly plans need
+// them, and a tick that had moved children first and waited for the
+// recurrence gate later deadlocked with an approval that holds the gates and
+// waits for one of those children (#6043 review).
 func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enrollmentNative.DeadlineWorkerSummary, error) {
 	if s.deps.Phases == nil || s.deps.Children == nil {
 		return nil, fmt.Errorf("rollover deadline: required repos not wired")
+	}
+	if s.deps.Decisions != nil {
+		if err := s.deps.Decisions.LockApprovalGates(ctx); err != nil {
+			return nil, fmt.Errorf("rollover deadline: lock approval gates: %w", err)
+		}
 	}
 	summary := &enrollmentNative.DeadlineWorkerSummary{}
 	values, err := s.deps.Phases.PhasesWithExpiredRolloverDeadline(ctx, asOf)
@@ -246,6 +233,11 @@ func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enr
 	summary.ClassSwitchesApplied = applied
 	if err != nil {
 		return summary, fmt.Errorf("rollover deadline: apply class switches: %w", err)
+	}
+	applied, err = s.deps.Decisions.ApplyDueWeeklyPlans(ctx, calendar.DateFromTime(asOf))
+	summary.WeeklyPlansApplied = applied
+	if err != nil {
+		return summary, fmt.Errorf("rollover deadline: apply weekly plans: %w", err)
 	}
 	return summary, nil
 }
@@ -385,7 +377,7 @@ func (s *Rollovers) promoteAutoRenewed(ctx context.Context, phase *enrollmentNat
 // savepoint and later rows can still proceed. Direct calls without a
 // transaction are retained for lightweight tests; they do not claim the
 // production atomicity contract documented on RunDeadlineWorker.
-func (s *Rollovers) decideAutoRenewedRow(ctx context.Context, row *RequestChild) error {
+func (s *Rollovers) decideAutoRenewedRow(ctx context.Context, row *enrollmentNative.RequestChild) error {
 	decide := func(decideCtx context.Context) error {
 		_, err := s.deps.Decisions.Decide(decideCtx, enrollmentNative.DecideInput{
 			RequestID: row.RequestID,

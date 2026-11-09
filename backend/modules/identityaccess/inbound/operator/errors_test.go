@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
@@ -32,7 +33,7 @@ func renderOperatorError(t *testing.T, renderer render.Renderer) (int, string) {
 func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {
 	t.Parallel()
 
-	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(operator.ErrOperatorInvalidCredentials))
+	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(identityaccess.ErrOperatorInvalidCredentials))
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.Equal(t, "Invalid email or password", errorText)
 }
@@ -40,7 +41,7 @@ func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {
 func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
 	t.Parallel()
 
-	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(operator.ErrOperatorInactive))
+	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(identityaccess.ErrOperatorInactive))
 	assert.Equal(t, http.StatusForbidden, status)
 	assert.Equal(t, "Operator account is inactive", errorText)
 }
@@ -48,7 +49,7 @@ func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
 func TestAuthErrorRenderer_OperatorNotFound(t *testing.T) {
 	t.Parallel()
 
-	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(operator.ErrOperatorNotFound))
+	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(identityaccess.ErrOperatorNotFound))
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.Equal(t, "Invalid email or password", errorText)
 }
@@ -69,7 +70,7 @@ func TestAuthErrorRenderer_GenericError(t *testing.T) {
 func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
 	t.Parallel()
 
-	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(operator.ErrMFAStatusUnavailable))
+	status, errorText := renderOperatorError(t, operator.AuthErrorRenderer(identityaccess.ErrMFAStatusUnavailable))
 	assert.Equal(t, http.StatusServiceUnavailable, status)
 	assert.Equal(t, "MFA status temporarily unavailable, please retry", errorText)
 }

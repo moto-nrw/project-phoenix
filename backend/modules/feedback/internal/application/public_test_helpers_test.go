@@ -20,6 +20,18 @@ func (s seamStore) Create(ctx context.Context, value domain.Entry) (domain.Entry
 	return value, domain.OperationStats{}, err
 }
 
+func (s seamStore) CreateBatch(ctx context.Context, values []domain.Entry) ([]domain.Entry, domain.OperationStats, error) {
+	entries := make([]domain.Entry, 0, len(values))
+	for _, value := range values {
+		entry, _, err := s.Create(ctx, value)
+		if err != nil {
+			return nil, domain.OperationStats{}, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, domain.OperationStats{}, nil
+}
+
 type seamTransaction struct{}
 
 func (seamTransaction) Run(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }

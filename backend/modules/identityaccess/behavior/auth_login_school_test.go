@@ -10,13 +10,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The pool is closed via t.Cleanup rather than defer throughout this file:
@@ -218,7 +222,7 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	t.Parallel()
 
 	// A school-scope refresh token must round-trip as a school token — a
-	// silent demotion to tenant scope would fail SchoolMiddleware on the
+	// silent demotion to tenant scope would fail SchoolScopeMiddleware on the
 	// next request and dead-end the portal session.
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
@@ -261,11 +265,12 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	require.NoError(t, err)
 	var sessionToken string
 	require.NoError(t, decoded.Get("token", &sessionToken))
-	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(sessiontoken.RefreshClaims{
+	tenantlessRefresh, err := tokentest.CreateRefreshJWT(tokenAuth, tokentest.RefreshClaims{
 		ID:    int(accountID),
 		Token: sessionToken,
 		Scope: schoolScope,
 	})
+
 	require.NoError(t, err)
 
 	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "", "")
@@ -379,7 +384,7 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)
 	assert.Equal(t, "school-challenge-token", result.ChallengeToken)
-	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope,
+	assert.Equal(t, tokentest.MFAChallengeScopeSchool, startedScope,
 		"school login must start the challenge with the school scope")
 	assert.Equal(t, tenantID, startedTenantID)
 }
@@ -395,7 +400,7 @@ func TestIssueSchoolTokens_NoPortalRole_Refused(t *testing.T) {
 	tenantID, _ := newSchoolTenant(t, db)
 	_, accountID := newSchoolAccount(t, db, service, "school-issue-no-role", tenantID)
 
-	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), accountID, tenantID, "", "")
+	_, _, err := issueSchoolTokens(service, context.Background(), accountID, tenantID, "", "")
 
 	require.Error(t, err)
 	var authErr *identityaccess.AuthenticationError
@@ -571,7 +576,7 @@ func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
 	tenantID, _ := newSchoolTenant(t, db)
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue", tenantID)
 
-	accessToken, refreshToken, err := service.IssueSchoolTokensForAuthenticatedAccount(
+	accessToken, refreshToken, err := issueSchoolTokens(service,
 		context.Background(), accountID, tenantID, "", "")
 
 	require.NoError(t, err)
@@ -596,7 +601,7 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue-gates", tenantID)
 
 	t.Run("unknown account", func(t *testing.T) {
-		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, err := issueSchoolTokens(service,
 			context.Background(), missingAccountID, tenantID, "", "")
 
 		require.Error(t, err)
@@ -609,7 +614,7 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 		setAccountActive(t, db, accountID, false)
 		defer setAccountActive(t, db, accountID, true)
 
-		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, err := issueSchoolTokens(service,
 			context.Background(), accountID, tenantID, "", "")
 
 		require.Error(t, err)
@@ -625,7 +630,7 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 		setSchoolActive(t, db, tenantID, false)
 		defer setSchoolActive(t, db, tenantID, true)
 
-		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, err := issueSchoolTokens(service,
 			context.Background(), accountID, tenantID, "", "")
 
 		require.Error(t, err)
@@ -696,9 +701,9 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	require.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
 	require.NotEmpty(t, result.AccessToken)
 
-	claims, err := service.TokenAuth.ParseMFAEnrollmentJWT(result.AccessToken)
+	claims, err := tokentest.ParseMFAEnrollmentJWT(service.TokenAuth, result.AccessToken)
 	require.NoError(t, err)
-	assert.Equal(t, sessiontoken.MFAEnrollmentScopeSchool, claims.Scope,
+	assert.Equal(t, tokenprimitives.PortalSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
 	assert.Equal(t, tenantID, claims.TenantID)
 }
@@ -735,7 +740,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("mfa verify token issue", func(t *testing.T) {
-		_, _, issueErr := service.IssueSchoolTokensForAuthenticatedAccount(
+		_, _, issueErr := issueSchoolTokens(service,
 			context.Background(), accountID, tenantID, "", "")
 
 		require.Error(t, issueErr)
@@ -778,7 +783,7 @@ func TestIssueSchoolTokens_SoftDeletedSchool_Refused(t *testing.T) {
 	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW(), active = true WHERE id = ?", tenantID)
 	require.NoError(t, err)
 
-	_, _, err = service.IssueSchoolTokensForAuthenticatedAccount(
+	_, _, err = issueSchoolTokens(service,
 		context.Background(), accountID, tenantID, "", "")
 
 	require.Error(t, err)
@@ -892,7 +897,7 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status,
 		"the guard must send the login back to the second factor instead of minting")
 	assert.Equal(t, "school-race-challenge", result.ChallengeToken)
-	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope)
+	assert.Equal(t, tokentest.MFAChallengeScopeSchool, startedScope)
 	assert.Empty(t, result.RefreshToken, "no session may be issued for a login that owes a second factor")
 
 	count, err := db.NewSelect().

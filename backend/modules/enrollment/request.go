@@ -7,27 +7,30 @@ import (
 
 // Request is a submission pinned to an immutable schema version.
 type Request struct {
-	ID                       int64           `json:"id"`
-	TenantID                 int64           `json:"tenant_id"`
-	CreatedAt                time.Time       `json:"created_at"`
-	UpdatedAt                time.Time       `json:"updated_at"`
-	SchemaID                 *int64          `json:"schema_id,omitempty"`
-	PhaseID                  int64           `json:"phase_id"`
-	GuardianFirstName        string          `json:"guardian_first_name"`
-	GuardianLastName         string          `json:"guardian_last_name"`
-	GuardianEmail            string          `json:"guardian_email"`
-	GuardianPhone            *string         `json:"guardian_phone,omitempty"`
-	GuardianAccountID        *int64          `json:"guardian_account_id,omitempty"`
-	ConsentFlags             json.RawMessage `json:"consent_flags"`
-	LegalBlocksSnapshot      json.RawMessage `json:"-"`
-	CustomData               json.RawMessage `json:"custom_data"`
-	SubmissionSource         string          `json:"submission_source"`
-	SourceMetadata           json.RawMessage `json:"source_metadata"`
-	StatusToken              string          `json:"status_token"`
-	StatusTokenExpires       *time.Time      `json:"status_token_expires,omitempty"`
-	SubmittedAt              time.Time       `json:"submitted_at"`
-	WithdrawnAt              *time.Time      `json:"withdrawn_at,omitempty"`
-	DecisionNotificationMode *string         `json:"-"`
+	ID                int64      `json:"id"`
+	TenantID          int64      `json:"tenant_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	SchemaID          *int64     `json:"schema_id,omitempty"`
+	PhaseID           int64      `json:"phase_id"`
+	GuardianFirstName string     `json:"guardian_first_name"`
+	GuardianLastName  string     `json:"guardian_last_name"`
+	GuardianEmail     string     `json:"guardian_email"`
+	GuardianPhone     *string    `json:"guardian_phone,omitempty"`
+	GuardianAccountID *int64     `json:"guardian_account_id,omitempty"`
+	ConsentFlags      FormValues `json:"consent_flags"`
+	// LegalBlocksSnapshot is append-only consent evidence (Art. 5 Abs. 2,
+	// Art. 7 Abs. 1 DSGVO): one entry per parent-facing (re)submission. Not
+	// part of the request API.
+	LegalBlocksSnapshot      []LegalBlocksSnapshotEntry `json:"-"`
+	CustomData               FormValues                 `json:"custom_data"`
+	SubmissionSource         string                     `json:"submission_source"`
+	SourceMetadata           FormValues                 `json:"source_metadata"`
+	StatusToken              string                     `json:"status_token"`
+	StatusTokenExpires       *time.Time                 `json:"status_token_expires,omitempty"`
+	SubmittedAt              time.Time                  `json:"submitted_at"`
+	WithdrawnAt              *time.Time                 `json:"withdrawn_at,omitempty"`
+	DecisionNotificationMode *string                    `json:"-"`
 }
 
 type RequestListFilters struct {
@@ -48,6 +51,7 @@ type LegalBlockSnapshot struct {
 	Title       string           `json:"title"`
 	Label       string           `json:"label"`
 	Text        string           `json:"text"`
+	TextSHA256  string           `json:"text_sha256,omitempty"`
 	Required    bool             `json:"required"`
 	Source      string           `json:"source,omitempty"`
 	// Translations records the translated wordings (locale → attribute →
@@ -68,17 +72,13 @@ type LegalBlocksSnapshotEntry struct {
 	SnapshotAt   time.Time            `json:"snapshot_at"`
 	Blocks       []LegalBlockSnapshot `json:"blocks"`
 	ConsentFlags json.RawMessage      `json:"consent_flags"`
+	// FormSchemaID is the form version whose legal blocks the entry holds;
+	// DisplayedFormSchemaID the version the parent's form showed (#4680).
+	// They differ when the school published a new version while the form
+	// was open.
+	FormSchemaID          int64 `json:"form_schema_id,omitempty"`
+	DisplayedFormSchemaID int64 `json:"displayed_form_schema_id,omitempty"`
 }
-
-// RequestStatus values - derived, not stored. Documented here as the
-// canonical source for the derivation logic the request service applies.
-const (
-	RequestStatusSubmitted   = "submitted"    // every child still submitted
-	RequestStatusUnderReview = "under_review" // at least one child under_review, no decisions yet
-	RequestStatusPartial     = "partial"      // some children decided, others pending
-	RequestStatusFinalized   = "finalized"    // all children in a terminal status
-	RequestStatusWithdrawn   = "withdrawn"    // request withdrawn (withdrawn_at set)
-)
 
 const (
 	RequestSourcePublic      = "public"

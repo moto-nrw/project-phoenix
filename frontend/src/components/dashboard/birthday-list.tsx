@@ -1,5 +1,6 @@
 "use client";
 
+import { ListRow } from "~/components/ui/list-row";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -38,7 +39,7 @@ export function BirthdayList({
     return (
       <div className="space-y-2" aria-hidden="true">
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-8 rounded-lg" />
+          <Skeleton key={i} shape="control" className="h-8" />
         ))}
       </div>
     );
@@ -52,46 +53,46 @@ export function BirthdayList({
   return (
     <ul className="space-y-1">
       {groupByDay(celebrations).map(({ date, isToday, entries }) => (
-        <li
-          key={date}
-          className={`flex gap-3 rounded-lg px-2 py-1.5 ${
-            isToday ? "bg-moto-green/10" : ""
-          }`}
-        >
-          <div className="flex h-5 w-20 shrink-0 items-center sm:w-24">
-            {isToday ? (
-              <StatusBadge
-                label="Heute"
-                tone="green"
-                compact
-                title={dayLabel(date)}
-                accessibleLabel={`Heute, ${dayLabel(date)}`}
-              />
-            ) : (
-              <span className="text-sm text-gray-600 tabular-nums">
-                {dayLabel(date)}
-              </span>
-            )}
-          </div>
-          <ul className="min-w-0 flex-1 space-y-1">
-            {entries.map((celebration) => (
-              <li
-                key={`${celebration.kind}-${celebration.id}`}
-                // Der Name hat Vorrang. Auf dem Handy rutschen Gruppe, Klasse
-                // und Alter darunter (die Karte wächst dort mit). In der festen
-                // Rasterzelle ab sm bleibt es eine Zeile, gekürzt wird dann
-                // zuerst die Beschreibung.
-                className="flex min-w-0 flex-wrap items-baseline gap-x-2 sm:flex-nowrap"
-              >
-                <span className="max-w-full truncate text-sm font-medium text-gray-900 sm:shrink-0">
-                  {celebration.name}
+        <li key={date}>
+          <ListRow
+            tone={isToday ? "success" : "neutral"}
+            className="items-start justify-start"
+          >
+            <div className="flex h-5 w-20 shrink-0 items-center sm:w-24">
+              {isToday ? (
+                <StatusBadge
+                  label="Heute"
+                  tone="green"
+                  compact
+                  title={dayLabel(date)}
+                  accessibleLabel={`Heute, ${dayLabel(date)}`}
+                />
+              ) : (
+                <span className="text-sm text-gray-600 tabular-nums">
+                  {dayLabel(date)}
                 </span>
-                <span className="max-w-full min-w-0 truncate text-xs text-gray-500">
-                  {describeCelebration(celebration, today)}
-                </span>
-              </li>
-            ))}
-          </ul>
+              )}
+            </div>
+            <ul className="min-w-0 flex-1 space-y-1">
+              {entries.map((celebration) => (
+                <li
+                  key={`${celebration.kind}-${celebration.id}`}
+                  // Der Name hat Vorrang. Auf dem Handy rutschen Gruppe, Klasse
+                  // und Alter darunter (die Karte wächst dort mit). In der festen
+                  // Rasterzelle ab sm bleibt es eine Zeile, gekürzt wird dann
+                  // zuerst die Beschreibung.
+                  className="flex min-w-0 flex-wrap items-baseline gap-x-2 sm:flex-nowrap"
+                >
+                  <span className="max-w-full truncate text-sm font-medium text-gray-900 sm:shrink-0">
+                    {celebration.name}
+                  </span>
+                  <span className="max-w-full min-w-0 truncate text-xs text-gray-500">
+                    {describeCelebration(celebration, today)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </ListRow>
         </li>
       ))}
     </ul>
