@@ -90,7 +90,6 @@ func TestPayrollWageTypesStayInsideTheirSchool(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, school)
 	other := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, other)
-	testpkg.OwnTenantRows(t, db, school, other)
 	foreign := insertPayrollWageTypes(t, db, other)
 
 	_, err := db.ExecContext(ctx, `INSERT INTO active.payroll_surcharge_rules

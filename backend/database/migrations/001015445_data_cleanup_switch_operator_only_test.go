@@ -15,7 +15,6 @@ func TestDataCleanupSwitchMigrationResetsStoredSwitchOffs(t *testing.T) {
 	ctx := context.Background()
 	switchedOff := testpkg.Tenant(t)
 	switchedOn, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.OwnTenantRows(t, db, switchedOn)
 
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)

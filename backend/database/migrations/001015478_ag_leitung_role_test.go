@@ -60,7 +60,6 @@ func TestAGLeitungRole(t *testing.T) {
 	// A school's own role of that name is not the system role.
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	var ownID int64
 	require.NoError(t, db.NewRaw(`INSERT INTO auth.roles (tenant_id, name, description, is_system, base_role)
 		VALUES (?, 'ag-leitung', 'eigene Rolle', FALSE, 'user') RETURNING id`, tenantID).Scan(ctx, &ownID))

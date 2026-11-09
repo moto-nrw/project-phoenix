@@ -37,7 +37,6 @@ func TestGuestViewOnly(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	var ownID int64
 	require.NoError(t, db.NewRaw(`INSERT INTO auth.roles (tenant_id, name, description, is_system, base_role)
 		VALUES (?, 'guest', 'eigene Rolle', FALSE, 'user') RETURNING id`, tenantID).Scan(ctx, &ownID))

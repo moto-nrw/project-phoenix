@@ -77,9 +77,7 @@ func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.
 	variantTenantID := testpkg.UniqueTestTenantID(t)
 	duplicateTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, variantTenantID)
-	testpkg.OwnTenantRows(t, db, variantTenantID)
 	testpkg.EnsureTestTenant(t, db, duplicateTenantID)
-	testpkg.OwnTenantRows(t, db, duplicateTenantID)
 
 	restored := false
 	require.NoError(t, activityCategoryArchivalDown(ctx, db))
