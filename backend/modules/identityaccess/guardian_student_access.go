@@ -32,8 +32,10 @@ type GuardianStudentAccessGrant struct {
 type GuardianStudentAccess interface {
 	// LockLiveTraegerGuardianAccounts locks live candidates still assigned to
 	// an active school of the Träger until its ambient transaction commits.
-	// Results are unique and ordered by account ID.
-	LockLiveTraegerGuardianAccounts(context.Context, int64, []int64) ([]int64, error)
+	// With a school (a release for one school), it first holds that school
+	// shared and returns nobody once the school is retired. Results are
+	// unique and ordered by account ID.
+	LockLiveTraegerGuardianAccounts(ctx context.Context, organizationID int64, schoolID *int64, candidates []int64) ([]int64, error)
 	// LockLiveGuardianAccount takes a shared account-row lock until the caller's
 	// transaction ends and reports whether the account has not been erased.
 	LockLiveGuardianAccount(context.Context, int64) (bool, error)

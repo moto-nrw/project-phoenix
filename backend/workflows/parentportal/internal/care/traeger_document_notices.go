@@ -91,7 +91,9 @@ type DocumentPushPorts struct {
 	TraegerDocumentNotifier TraegerDocumentNotifier
 	// LockReleaseAccounts locks live candidates of the Träger until the
 	// enqueue transaction commits, excluding accounts erased since discovery.
-	LockReleaseAccounts func(context.Context, int64, []int64) ([]int64, error)
+	// For a release of one school it holds that school too and returns
+	// nobody once the school is retired.
+	LockReleaseAccounts func(ctx context.Context, organizationID int64, schoolID *int64, accounts []int64) ([]int64, error)
 }
 
 // TraegerDocumentNotifier sends the push of a contract or a release through
@@ -175,7 +177,7 @@ func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organization
 		return err
 	}
 	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		return s.enqueueReleaseAccounts(txCtx, organizationID, releaseID, accounts)
+		return s.enqueueReleaseAccounts(txCtx, organizationID, releaseID, audience.SchoolID, accounts)
 	})
 	if err != nil {
 		return fmt.Errorf("parent: fan out release notice: %w", err)
@@ -183,12 +185,14 @@ func (s *Service) NotifyTraegerDocumentRelease(ctx context.Context, organization
 	return nil
 }
 
-func (s *Service) enqueueReleaseAccounts(ctx context.Context, organizationID, releaseID int64, accounts []int64) error {
+func (s *Service) enqueueReleaseAccounts(ctx context.Context, organizationID, releaseID int64, schoolID *int64, accounts []int64) error {
 	// Candidates are sorted by account ID. Lock and revalidate them in that
 	// order, matching demo erasure's exclusive locks. If erasure committed
 	// after discovery, omit its accounts; otherwise it waits for this commit
-	// and then sees every entry this fan-out wrote.
-	live, err := s.LockReleaseAccounts(ctx, organizationID, accounts)
+	// and then sees every entry this fan-out wrote. A release of one school
+	// holds that school first: once it is retired, nobody gets an entry, not
+	// even an account that stays in another school of the Träger.
+	live, err := s.LockReleaseAccounts(ctx, organizationID, schoolID, accounts)
 	if err != nil {
 		return err
 	}

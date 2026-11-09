@@ -200,3 +200,77 @@ func TestDemoErasureDefersUntilTheReleaseFanOutCommits(t *testing.T) {
 	require.Equal(t, 1, f.erase(t))
 	assert.Zero(t, f.accountEntries(t), "the next erasure sees and removes the committed entry")
 }
+
+// schoolRelease turns the fixture's release into a release for the demo
+// school alone and keeps its candidate in a second, open school of the
+// Träger, so the erasure keeps the account (#6342).
+func (f *releaseErasureFixture) schoolRelease(t *testing.T) {
+	t.Helper()
+	own := sharedDocumentTraeger{t: t, db: f.db, organization: f.organization}
+	f.release = own.release(own.document("Elternbrief"), "parents", f.chain.TenantID, nil)
+	second := testpkg.CreateTestSchoolInOrganization(t, f.db, f.organization, "Zweite Schule")
+	testpkg.EnsureAccountTenant(t, f.db, f.chain.AccountID, second)
+}
+
+// A release for the demo school read its candidates before the school was
+// retired and its visitor erased. The account stays for its other school,
+// yet the fan-out adds no entry for the retired school's release afterwards:
+// no later erasure would find it.
+func TestReleaseFanOutSkipsASchoolRetiredAfterItsRead(t *testing.T) {
+	t.Parallel()
+	f := newReleaseErasureFixture(t)
+	f.schoolRelease(t)
+	pause := pausedReleaseRecipients{ReleaseRecipientsPort: f.ports.ReleaseRecipients, collected: make(chan struct{}), resume: make(chan struct{})}
+	f.ports.ReleaseRecipients = pause
+	done := startRelease(t, f)
+	defer func() {
+		if pause.resume != nil {
+			close(pause.resume)
+		}
+		if done != nil {
+			finishRelease(t, &done)
+		}
+	}()
+	waitForRelease(t, pause.collected)
+	require.Equal(t, 1, f.erase(t))
+	require.False(t, f.accountErased(t), "the account stays for its other school")
+	close(pause.resume)
+	pause.resume = nil
+	finishRelease(t, &done)
+	assert.Zero(t, f.accountEntries(t), "the retired school's release adds no entry after the erasure")
+}
+
+// While a fan-out of a release for the demo school is enqueueing, retiring
+// the school waits for it; a retirement that cannot wait (lock timeout)
+// leaves the school open, and the erasure after the commit finds every entry.
+func TestRetiringTheSchoolWaitsForItsReleaseFanOut(t *testing.T) {
+	t.Parallel()
+	f := newReleaseErasureFixture(t)
+	f.schoolRelease(t)
+	pause := pausedReleaseFanOut{ReleaseFanOutPort: f.ports.ReleaseFanOut, inserted: make(chan struct{}), resume: make(chan struct{})}
+	f.ports.ReleaseFanOut = pause
+	done := startRelease(t, f)
+	defer func() {
+		if pause.resume != nil {
+			close(pause.resume)
+		}
+		if done != nil {
+			finishRelease(t, &done)
+		}
+	}()
+	waitForRelease(t, pause.inserted)
+	err := f.db.RunInTx(f.ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '100ms'`); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, f.chain.TenantID)
+		return err
+	})
+	require.ErrorContains(t, err, "lock timeout", "retiring the school waits for the fan-out of its release")
+	close(pause.resume)
+	pause.resume = nil
+	finishRelease(t, &done)
+	require.Equal(t, 1, f.accountEntries(t))
+	require.Equal(t, 1, f.erase(t))
+	assert.Zero(t, f.accountEntries(t), "the erasure removes the committed entry with the school's release")
+}

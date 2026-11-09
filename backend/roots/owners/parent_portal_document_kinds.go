@@ -18,7 +18,7 @@ import (
 
 // NewParentReleaseAccountLocks binds the release workflow to Identity &
 // Access's account locks in the caller's Träger transaction.
-func NewParentReleaseAccountLocks(db transactionruntime.Database) func(context.Context, int64, []int64) ([]int64, error) {
+func NewParentReleaseAccountLocks(db transactionruntime.Database) func(context.Context, int64, *int64, []int64) ([]int64, error) {
 	access, err := identityCompose.NewGuardianStudentAccess(db.Pool(), func(identityCompose.Observation) {})
 	if err != nil {
 		panic(fmt.Sprintf("compose release account locks: %v", err))
