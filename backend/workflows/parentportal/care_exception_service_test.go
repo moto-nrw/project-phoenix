@@ -671,6 +671,68 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 	assert.Equal(t, careplan.ExceptionSourceStaff, list[0].Source)
 }
 
+// TestListCareExceptions_NamesSchoolPartialAbsence proves the parent read
+// carries the time from which the school excused the child on a day (#5698).
+// The sick-note dialog marks that day before submission, because a full-day
+// report on it is refused. A school reason stays with the school.
+func TestListCareExceptions_NamesSchoolPartialAbsence(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Team", "Teilabwesenheit")
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+
+	day := calendar.NewDate(2026, 8, 24).AddDays(2)
+	from := calendar.NormalizeWallClock(time.Date(2000, time.January, 1, 13, 0, 0, 0, time.UTC))
+	staffID := staff.ID
+	reason := "Arzttermin"
+	partial := &careplan.PickupException{
+		StudentID: chain.StudentID, ExceptionDate: careplan.Date(day),
+		PickupTime: &from, ExcusedFrom: &from, ExcusedCreatedBy: &staffID, ExcusedReason: &reason,
+		ExcusedOwnsPickupTime: true, Source: careplan.ExceptionSourceStaff, CreatedBy: staff.ID,
+	}
+	partial.SetTenantID(chain.TenantID)
+	require.NoError(t, api.CreateParentPickupExceptionFixture(ctx, repos.CarePlan(), partial))
+
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
+		calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24).AddDays(30))
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.NotNil(t, list[0].ExcusedFrom, "a school partial absence must name its start time")
+	assert.Equal(t, "13:00", list[0].ExcusedFrom.Format("15:04"))
+	assert.Nil(t, list[0].Reason, "the school's reason is not shown to parents")
+	assert.Equal(t, careplan.ExceptionSourceStaff, list[0].Source)
+}
+
+// TestListCareExceptions_PlainPickupHasNoPartialAbsence keeps an ordinary
+// pickup row free of the partial-absence marker.
+func TestListCareExceptions_PlainPickupHasNoPartialAbsence(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Team", "Abholung")
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+
+	day := calendar.NewDate(2026, 8, 24).AddDays(3)
+	pickupAt := calendar.NormalizeWallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
+	plain := &careplan.PickupException{
+		StudentID: chain.StudentID, ExceptionDate: careplan.Date(day), PickupTime: &pickupAt,
+		Source: careplan.ExceptionSourceStaff, CreatedBy: staff.ID,
+	}
+	plain.SetTenantID(chain.TenantID)
+	require.NoError(t, api.CreateParentPickupExceptionFixture(ctx, repos.CarePlan(), plain))
+
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
+		calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24).AddDays(30))
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Nil(t, list[0].ExcusedFrom)
+}
+
 // TestDeleteCareException_RemovesBothLegs covers the arrival side of the delete
 // path (the pickup-only delete is covered by TestListAndDeleteCareException):
 // A legacy guardian arrival row is no longer part of the parent delete action.

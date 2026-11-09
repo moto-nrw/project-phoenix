@@ -356,6 +356,10 @@ export interface CareException {
   // Die Abholart, die die OGS für diesen Tag eingetragen oder bestätigt hat
   // (#3945). Fehlt sie, gilt die Abholart aus dem Wochenplan.
   readonly departure_mode?: DayDepartureMode;
+  // „HH:MM“, ab der die OGS das Kind an diesem Tag entschuldigt hat (eine
+  // Teil-Abwesenheit). Eine Abmeldung für den ganzen Tag lehnt der Server an
+  // diesem Tag ab; der Dialog nennt ihn deshalb vorher (#5698).
+  readonly excused_from?: string;
 }
 
 // Abholarten, die Eltern für einen einzelnen Tag anfragen können (#3945).
@@ -1946,11 +1950,19 @@ export async function inviteRelatedAccount(
  * Fetches the child's pickup/arrival overrides (today .. +2 months by default),
  * staff- and parent-set alike, so the modal can show what is already in place.
  */
+/**
+ * Without a range the server answers today to two months ahead; the absence
+ * dialog passes its chosen days, which may lie further out (#5698).
+ */
 export async function listCareExceptions(
   studentId: string,
+  range?: { readonly from: string; readonly to: string },
 ): Promise<CareException[]> {
+  const query = range
+    ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+    : "";
   return getJson<CareException[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception${query}`,
   );
 }
 

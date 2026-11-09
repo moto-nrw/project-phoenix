@@ -69,7 +69,8 @@ func (s *ImportService[T]) ImportBatches(ctx context.Context, request importMode
 		return nil, fmt.Errorf("import batch size must be positive")
 	}
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
-		clone := &ImportService[T]{config: scoped.NewRequestScoped(), batchSize: s.batchSize, audit: s.audit, observe: s.observe, fingerprint: s.fingerprint, checkpoints: s.checkpoints, transactions: s.transactions}
+		clone := &ImportService[T]{config: scoped.NewRequestScoped(), batchSize: s.batchSize, audit: s.audit, observe: s.observe, fingerprint: s.fingerprint, checkpoints: s.checkpoints, transactions: s.transactions,
+			boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost}
 		if locker, ok := clone.config.(importConfigLocker); ok {
 			locker.ImportLock().Lock()
 			defer locker.ImportLock().Unlock()
@@ -244,6 +245,16 @@ func (r *batchImportRun[T]) writeBatches(ctx context.Context) (*importModels.Imp
 	for r.position < len(r.order) {
 		attempt := &batchImportAttempt[T]{run: r, next: r.position}
 		err := r.service.transactions.WithinRetry(ctx, attempt.execute)
+		if errors.Is(err, errBatchBoundExceeded) {
+			// E13′: the chunk's transaction died with its connection and
+			// committed nothing, not even its checkpoint. The chunk replays
+			// row by row in a new transaction with the whole retry budget,
+			// over a new config; it takes the import lock and reads the
+			// checkpoint again, so an identical upload that wrote the chunk
+			// meanwhile is caught up.
+			attempt = &batchImportAttempt[T]{run: r, next: r.position, rowPath: true, replayService: r.service.renewed()}
+			err = r.service.transactions.WithinRetry(ctx, attempt.execute)
+		}
 		if err != nil {
 			if attempt.failed != nil {
 				// Rolled-back write counters are not acknowledged; row errors remain visible.
@@ -271,6 +282,20 @@ type batchImportAttempt[T any] struct {
 	run                         *batchImportRun[T]
 	committed, failed, appended *importModels.ImportResult[T]
 	next                        int
+	// rowPath keeps this chunk on the row path for every remaining retry once
+	// its batch attempt fell back (ADR 0067 addendum, point 2, retry budget).
+	rowPath bool
+	// replayService replaces the run's service for a replay in a new
+	// transaction (E13′); it is set only where the attempt is constructed.
+	replayService *ImportService[T]
+}
+
+// service is the import service this attempt writes through.
+func (a *batchImportAttempt[T]) service() *ImportService[T] {
+	if a.replayService != nil {
+		return a.replayService
+	}
+	return a.run.service
 }
 
 func (a *batchImportAttempt[T]) execute(ctx context.Context) (attemptErr error) {
@@ -293,14 +318,15 @@ func (a *batchImportAttempt[T]) execute(ctx context.Context) (attemptErr error) 
 		return nil
 	}
 	// Refresh mutable match caches after a failed attempt before resolving any row again.
-	if err := a.run.service.config.PreloadReferenceData(ctx); err != nil {
+	if err := a.service().config.PreloadReferenceData(ctx); err != nil {
 		return err
 	}
 	a.next = min(a.run.position+a.run.service.batchSize, len(a.run.order))
 	batch := importValidationSlice(a.run.validated, a.run.request.Rows, a.run.order[a.run.position:a.next])
 	batch.StartedAt = time.Now()
 	a.failed = batch
-	if err := a.applyAcceptedRows(ctx, batch); err != nil {
+	batch, err = a.applyChunk(ctx, batch)
+	if err != nil {
 		return err
 	}
 	batch.CompletedAt = time.Now()
@@ -326,8 +352,7 @@ func (a *batchImportAttempt[T]) readCheckpoint(ctx context.Context) (*importMode
 	return catchup, cursor, err
 }
 
-func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, batch *importModels.ImportResult[T]) error {
-	service := a.run.service
+func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, service *ImportService[T], batch *importModels.ImportResult[T]) error {
 	if config, ok := service.config.(interface {
 		BatchWriteConfig(context.Context, []T) ports.ImportConfig[T]
 	}); ok {
@@ -394,15 +419,17 @@ func (s *ImportService[T]) applyBatchRow(ctx context.Context, request importMode
 	if skip {
 		return nil
 	}
+	// A failed write returns and aborts the chunk; the row needs no savepoint.
+	write := importModels.WithBatchRowWrite(ctx)
 	if action == "create" {
-		if _, err := s.config.Create(ctx, *row); err != nil {
+		if _, err := s.config.Create(write, *row); err != nil {
 			recordCreationError(result, rowNum, row, err)
 			return err
 		}
 		result.CreatedCount++
 		return nil
 	}
-	if err := s.config.Update(ctx, *id, *row); err != nil {
+	if err := s.config.Update(write, *id, *row); err != nil {
 		recordUpdateError(result, rowNum, row, err)
 		return err
 	}

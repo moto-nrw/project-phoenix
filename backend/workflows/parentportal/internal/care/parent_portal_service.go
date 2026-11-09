@@ -181,6 +181,12 @@ type CareException struct {
 	// (#3945); nil keeps the weekly plan's. It never makes the Gehzeit of the
 	// day staff-owned: PickupSource stays the pickup leg's own.
 	DepartureMode *string
+	// ExcusedFrom is the time from which the school excused the child on this
+	// day (a manual partial absence). A full-day guardian report on such a day
+	// is refused, so the portal names the day before the guardian submits
+	// (#5698). Nil for every other row, including automatic excusals derived
+	// from a pulled-forward pickup time.
+	ExcusedFrom *time.Time
 }
 
 // Profile carries the parent's explicit parents-portal locale choice.

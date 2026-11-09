@@ -153,6 +153,11 @@ export function PlannedStatusDaysModal({
   const [checkedExistingDays, setCheckedExistingDays] = useState<
     StudentStatusDay[]
   >([]);
+  // Partial excusals found by the same check. A manual one blocks a full-day
+  // status on its day, so those days are named and left out (#5698).
+  const [checkedPartialAbsences, setCheckedPartialAbsences] = useState<
+    StudentPartialAbsence[]
+  >([]);
   const [checkedSelectionKey, setCheckedSelectionKey] = useState("");
   const [conflictCheckRevision, setConflictCheckRevision] = useState(0);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
@@ -323,6 +328,34 @@ export function PlannedStatusDaysModal({
   // Rows the user can clear: same-status days from the parent list plus
   // selection conflicts (including out-of-window dates). Fetched rows that
   // only fall between non-contiguous picks are excluded.
+  // Manual partial excusals on the selection, from the check of exactly
+  // these days plus the detail page's own window. Automatic ones (from a
+  // pulled-forward pickup time) coexist with a full-day status.
+  const partialConflicts = useMemo(() => {
+    if (isPartialExcusal) return EMPTY_PARTIAL_ABSENCES;
+    const byDate = new Map<string, StudentPartialAbsence>();
+    const sources = checkedCurrentSelection
+      ? [...existingPartialAbsences, ...checkedPartialAbsences]
+      : existingPartialAbsences;
+    for (const absence of sources) {
+      if (!absence.auto && candidateDateKeySet.has(absence.date)) {
+        byDate.set(absence.date, absence);
+      }
+    }
+    return Array.from(byDate.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+  }, [
+    candidateDateKeySet,
+    checkedCurrentSelection,
+    checkedPartialAbsences,
+    existingPartialAbsences,
+    isPartialExcusal,
+  ]);
+  const partialConflictDates = useMemo(
+    () => new Set(partialConflicts.map((absence) => absence.date)),
+    [partialConflicts],
+  );
   const removableExistingDays = useMemo(() => {
     const byId = new Map<string, StudentStatusDay>();
     for (const day of activeExistingDays) {
@@ -360,9 +393,14 @@ export function PlannedStatusDaysModal({
   }, [removableExistingDays, status]);
   const selectableDateKeys = useMemo(
     () =>
-      candidateDateKeys.filter((date) => !candidateExistingDayByDate.has(date)),
-    [candidateDateKeys, candidateExistingDayByDate],
+      candidateDateKeys.filter(
+        (date) =>
+          !candidateExistingDayByDate.has(date) &&
+          !partialConflictDates.has(date),
+      ),
+    [candidateDateKeys, candidateExistingDayByDate, partialConflictDates],
   );
+  const blockedDayCount = candidateDateKeys.length - selectableDateKeys.length;
   const hasInvalidRangeOrder =
     rangeStart !== "" && rangeEnd !== "" && rangeEnd < rangeStart;
   const overlappingInstances = useMemo(() => {
@@ -449,6 +487,7 @@ export function PlannedStatusDaysModal({
       hasSelectionTooWide
     ) {
       setCheckedExistingDays([]);
+      setCheckedPartialAbsences([]);
       setCheckedSelectionKey("");
       clearConflictLoadError();
       setIsCheckingConflicts(false);
@@ -460,10 +499,16 @@ export function PlannedStatusDaysModal({
     clearConflictLoadError();
     setIsCheckingConflicts(true);
 
-    const partialLookup =
-      isPartialExcusal && loadPartialAbsences
+    // The partial-excusal read needs users:read. For a full-day status it
+    // only names a blocking day early: without it the save still answers
+    // with the partial-absence conflict, so a failed read must not block.
+    const partialLookup = !loadPartialAbsences
+      ? Promise.resolve(EMPTY_PARTIAL_ABSENCES)
+      : isPartialExcusal
         ? loadPartialAbsences(firstCandidate, lastCandidate)
-        : Promise.resolve(EMPTY_PARTIAL_ABSENCES);
+        : loadPartialAbsences(firstCandidate, lastCandidate).catch(
+            () => EMPTY_PARTIAL_ABSENCES,
+          );
     void Promise.all([
       loadExistingDays(firstCandidate, lastCandidate),
       partialLookup,
@@ -471,6 +516,7 @@ export function PlannedStatusDaysModal({
       .then(([days, partials]) => {
         if (!isCurrent) return;
         setCheckedExistingDays(days);
+        setCheckedPartialAbsences(partials);
         if (isPartialExcusal && candidateDateKeys.length === 1) {
           const existing = partials.find(
             (absence) => absence.date === firstCandidate,
@@ -486,6 +532,7 @@ export function PlannedStatusDaysModal({
       .catch((error: unknown) => {
         if (!isCurrent) return;
         setCheckedExistingDays([]);
+        setCheckedPartialAbsences([]);
         void showConflictLoadError(error, {
           object: "die Prüfung der vorhandenen Einträge",
           retry: () => setConflictCheckRevision((current) => current + 1),
@@ -601,6 +648,7 @@ export function PlannedStatusDaysModal({
     setSelectionMode(next);
     clearSubmitError();
     setCheckedExistingDays([]);
+    setCheckedPartialAbsences([]);
     setCheckedSelectionKey("");
     clearConflictLoadError();
     if (next === "range") {
@@ -655,6 +703,9 @@ export function PlannedStatusDaysModal({
       return;
     }
     setPartialAbsencePendingDeletion(null);
+    setCheckedPartialAbsences((current) =>
+      current.filter((absence) => absence.id !== partialAbsenceId),
+    );
     if (editingPartialAbsenceId === partialAbsenceId) {
       setSelectedDates([]);
       setEditingPartialAbsenceId(null);
@@ -737,6 +788,10 @@ export function PlannedStatusDaysModal({
     latestSubmitRef.current = handleSubmit;
   });
 
+  const listedPartialAbsences = isPartialExcusal
+    ? existingPartialAbsences
+    : partialConflicts;
+
   const footer = (
     <>
       <Button
@@ -759,6 +814,7 @@ export function PlannedStatusDaysModal({
           conflictCheckFailed ||
           hasInvalidRangeOrder ||
           hasSelectionTooWide ||
+          (partialConflicts.length > 0 && selectableDateKeys.length === 0) ||
           (isPartialExcusal &&
             (selectableDateKeys.length !== 1 ||
               !fromTime ||
@@ -926,6 +982,15 @@ export function PlannedStatusDaysModal({
                         const key = toISODate(date);
                         const isSelected = selectedKeys.has(key);
                         const existingDay = activeExistingDayByDate.get(key);
+                        // A manual partial excusal stays selectable here: the
+                        // day is named and skipped, or its excusal removed.
+                        const partialDay = isPartialExcusal
+                          ? undefined
+                          : partialAbsenceByDate.get(key);
+                        const partialFrom =
+                          !existingDay && partialDay && !partialDay.auto
+                            ? partialDay.fromTime
+                            : null;
                         return (
                           <button
                             key={key}
@@ -944,7 +1009,9 @@ export function PlannedStatusDaysModal({
                                 ? capitalizeFirst(
                                     getExistingStatusLabel(existingDay.status),
                                   )
-                                : undefined
+                                : partialFrom
+                                  ? `Ab ${partialFrom} Uhr entschuldigt`
+                                  : undefined
                             }
                           >
                             <span className="block font-semibold">
@@ -953,6 +1020,11 @@ export function PlannedStatusDaysModal({
                             <span className="text-xs">
                               {format(date, "dd.MM.", { locale: de })}
                             </span>
+                            {partialFrom ? (
+                              <span className="mt-1 block text-xs leading-tight font-medium">
+                                ab {partialFrom}
+                              </span>
+                            ) : null}
                             {existingDay ? (
                               <span className="mt-1 block text-sm leading-tight font-medium">
                                 <span className="block">bereits</span>
@@ -1027,11 +1099,21 @@ export function PlannedStatusDaysModal({
                   )}
                 />
               ) : null}
+              {partialConflicts.length > 0 ? (
+                <Alert
+                  type="warning"
+                  message={getPartialConflictMessage(
+                    partialConflicts,
+                    selectableDateKeys.length,
+                    Boolean(onDeletePartialAbsence),
+                  )}
+                />
+              ) : null}
 
               {!isClassTrip && selectedDates.length > 0 && (
                 <div>
                   <p className="mb-2 text-sm font-medium text-gray-900">
-                    {conflictingDays.length > 0
+                    {blockedDayCount > 0
                       ? `${selectableDateKeys.length} von ${candidateDateKeys.length} Tagen werden gespeichert`
                       : selectedDates.length === 1
                         ? "1 Tag ausgewählt"
@@ -1121,13 +1203,13 @@ export function PlannedStatusDaysModal({
                 </div>
               ) : null}
 
-              {isPartialExcusal && existingPartialAbsences.length > 0 ? (
+              {listedPartialAbsences.length > 0 ? (
                 <div>
                   <p className="mb-2 text-sm font-medium text-gray-900">
                     Bereits ab Uhrzeit entschuldigt
                   </p>
                   <div className="space-y-2">
-                    {existingPartialAbsences.map((absence) => (
+                    {listedPartialAbsences.map((absence) => (
                       <div
                         key={absence.id}
                         className="moto-content-surface flex flex-col gap-3 rounded-lg border px-3 py-2 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between"
@@ -1162,18 +1244,29 @@ export function PlannedStatusDaysModal({
                           <OverflowMenu
                             ariaLabel={`Aktionen für Teilentschuldigung vom ${formatDateLabel(absence.date)}`}
                             items={[
-                              {
-                                label: "Bearbeiten",
-                                icon: (
-                                  <Pencil className="h-4 w-4" aria-hidden />
-                                ),
-                                disabled: isSubmitting,
-                                onClick: () =>
-                                  handleEditPartialAbsence(absence),
-                              },
+                              // Editing switches to „Ab Uhrzeit“, which only
+                              // an excusal offers.
+                              ...(isPartialExcusal
+                                ? [
+                                    {
+                                      label: "Bearbeiten",
+                                      icon: (
+                                        <Pencil
+                                          className="h-4 w-4"
+                                          aria-hidden
+                                        />
+                                      ),
+                                      disabled: isSubmitting,
+                                      onClick: () =>
+                                        handleEditPartialAbsence(absence),
+                                    },
+                                  ]
+                                : []),
                               ...(onDeletePartialAbsence && !absence.auto
                                 ? [
-                                    { kind: "separator" } as const,
+                                    ...(isPartialExcusal
+                                      ? [{ kind: "separator" } as const]
+                                      : []),
                                     {
                                       label: "Entfernen",
                                       icon: (
@@ -1353,6 +1446,31 @@ function getConflictMessage(
   }
 
   return `${details}: ${conflictCount} von ${totalCount} Tagen ${conflictCount === 1 ? "hat" : "haben"} bereits einen Status und ${conflictCount === 1 ? "wird" : "werden"} nicht überschrieben. ${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
+}
+
+function getPartialConflictMessage(
+  conflicts: StudentPartialAbsence[],
+  selectableCount: number,
+  canRemove: boolean,
+): string {
+  const [first] = conflicts;
+  const details =
+    conflicts.length === 1 && first
+      ? `${formatCalendarDate(first.date)} ist bereits ab ${first.fromTime} Uhr entschuldigt und wird nicht überschrieben.`
+      : `Bereits ab einer Uhrzeit entschuldigt: ${conflicts
+          .map(
+            (absence) =>
+              `${formatCalendarDate(absence.date)} (ab ${absence.fromTime} Uhr)`,
+          )
+          .join(", ")}. Diese Tage werden nicht überschrieben.`;
+  const saved =
+    selectableCount === 0
+      ? "Es wird nichts gespeichert."
+      : `${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
+  const next = canRemove
+    ? ` Für den ganzen Tag entfernen Sie zuerst die Teilentschuldigung unten.`
+    : "";
+  return `${details} ${saved}${next}`;
 }
 
 function getSaveConflictMessage(conflicts: StudentStatusDay[]): string {

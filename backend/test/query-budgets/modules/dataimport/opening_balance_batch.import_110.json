@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.opening_balance_batch.import_110",
-  "max": 5861,
+  "max": 5641,
   "exact": false,
-  "description": "110-row opening-balance create like opening_balance_batch.import in two write transactions. Measured by TestOpeningBalanceImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+  "description": "110-row opening-balance create like opening_balance_batch.import in two write transactions. Measured by TestOpeningBalanceImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). The batch path writes each row without a row savepoint, because a failed row aborts its whole chunk (#5552, ADR 0067 addendum step 3)."
 }

@@ -791,6 +791,26 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.CreateClassListEntries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryBatches.CreateClassListEntries",
+      "reason": "Read-only target already reviewed as query: school-membership reaches tenant.TenantFromContext (tenant-runtime) through *modules/schoolmembership/internal/application.Service.CreateClassListEntries. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The batch form of CreateClassListEntry (#5827) reaches the same read-only target.",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.MatchClassListEntries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryBatches.MatchClassListEntries",
+      "reason": "Read-only target already reviewed as query: school-membership reaches tenant.TenantFromContext (tenant-runtime) through *modules/schoolmembership/internal/application.Service.MatchClassListEntries. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). The batch form of ListClassListEntries (#5827) reaches the same read-only target.",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.classListEntryStudents.IsEnrolledStudent",
       "classification": "query",
       "effect": "query",
@@ -1965,6 +1985,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.CreateClassListEntries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.CreateClassListEntries",
+      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.CreateClassListEntries. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). The batch form of CreateClassListEntry (#5827) reaches the same read-only target.",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.CreateClassListEntry",
       "classification": "query",
       "effect": "query",
@@ -2310,6 +2340,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.MarkNextRetiredStaffErased",
       "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.MarkNextRetiredStaffErased. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.MatchClassListEntries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.MatchClassListEntries",
+      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.MatchClassListEntries. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). The batch form of ListClassListEntries (#5827) reaches the same read-only target.",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"

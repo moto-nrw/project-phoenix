@@ -254,6 +254,28 @@ func (r *PostgresUnitOfWork) AcquireLock(ctx context.Context, key string, shared
 	return err
 }
 
+// BoundStatements runs fn with statement_timeout set to limit for the active
+// transaction and restores the previous value after fn succeeds. Reading the
+// previous value and setting the new one share one statement, restoring takes
+// the second. When fn fails, the caller's enclosing savepoint rollback undoes
+// the setting (tenant.WithStatementTimeout).
+func (r *PostgresUnitOfWork) BoundStatements(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
+	tx, err := savepointTx(ctx)
+	if err != nil {
+		return err
+	}
+	var previous, applied string
+	if err := tx.NewRaw(`SELECT current_setting('statement_timeout'), set_config('statement_timeout', ?, true)`,
+		fmt.Sprintf("%dms", limit.Milliseconds())).Scan(ctx, &previous, &applied); err != nil {
+		return err
+	}
+	if err := fn(ctx); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `SELECT set_config('statement_timeout', ?, true)`, previous)
+	return err
+}
+
 func savepointTx(ctx context.Context) (*bun.Tx, error) {
 	tx, ok := transactionFromContext(ctx)
 	if !ok {

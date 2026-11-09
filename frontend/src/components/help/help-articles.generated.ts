@@ -536,6 +536,7 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
       "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Dann ist das Kind heute krank gemeldet oder entschuldigt.",
       "Fehlt `Ab Uhrzeit`? Dann dürfen Sie nur ganze Tage entschuldigen.",
       "Steht beim Tag `Automatisch (Abholzeit)`? Dann kommt die Entschuldigung aus der früheren Abholzeit. Ändern Sie dafür die Abholzeit des Tages.",
+      "Ist ein gewählter Tag schon `Ab Uhrzeit` entschuldigt? Dann nennt das Fenster den Tag und speichert nur die anderen Tage. Für den ganzen Tag entfernen Sie zuerst unter `Bereits ab Uhrzeit entschuldigt` die Teilentschuldigung.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -6940,6 +6941,7 @@ export const parentReportAbsenceTopic =
         "Manche OGS bestätigen jede Meldung erst. Dann steht `Freigabe ausstehend`, und Ihr Kind gilt bis dahin als erwartet.",
         "Am Kind steht danach `Krank` oder `Entschuldigt` mit den Tagen.",
         "Wurde eine Anfrage abgelehnt, steht dort `Abgelehnt`.",
+        "Hat die OGS einen Tag schon ab einer Uhrzeit entschuldigt? Dann nennt das Fenster diesen Tag. moto meldet nur die anderen Tage. Soll Ihr Kind den ganzen Tag fehlen, schreiben Sie der OGS.",
       ],
       troubleshootingDetails: [
         "moto meldet, für einen Tag liege schon eine Abmeldung vor? Prüfen Sie die bestehende Meldung mit `Anfrage bearbeiten`.",
