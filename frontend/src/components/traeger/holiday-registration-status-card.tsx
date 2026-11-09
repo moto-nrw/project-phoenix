@@ -586,15 +586,17 @@ export function HolidayRegistrationStatusCard({
             action={
               <span className="flex flex-wrap gap-3">
                 {duplicateIds.map((id) => (
-                  <NavigationLink
+                  // A kit link button: 44 px by finger, in the notice's colour.
+                  <ButtonLink
                     key={id}
                     href={traegerPath(
                       `/traeger/ferien/${periodId}/anmeldungen/${id}`,
                     )}
-                    className="font-medium underline"
+                    variant="link_tone"
+                    size="compact"
                   >
                     Anmeldung Nr. {id} öffnen
-                  </NavigationLink>
+                  </ButtonLink>
                 ))}
               </span>
             }

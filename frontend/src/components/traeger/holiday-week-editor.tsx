@@ -82,8 +82,10 @@ function TimeModelRow({
           name={`${field}.starts_at`}
           label="Beginn"
           required
-          hint="z. B. 08:00"
-          placeholder="08:00"
+          // The example shows once, under an empty field; a filled field
+          // needs none.
+          hint={model.startsAt ? "" : "z. B. 08:00"}
+          placeholder=""
           value={model.startsAt}
           invalid={Boolean(startsError)}
           describedBy={startsError ? `${field}.starts_at-error` : undefined}
@@ -96,8 +98,8 @@ function TimeModelRow({
           name={`${field}.ends_at`}
           label="Ende"
           required
-          hint="z. B. 13:00"
-          placeholder="13:00"
+          hint={model.endsAt ? "" : "z. B. 13:00"}
+          placeholder=""
           value={model.endsAt}
           invalid={Boolean(endsError)}
           describedBy={endsError ? `${field}.ends_at-error` : undefined}

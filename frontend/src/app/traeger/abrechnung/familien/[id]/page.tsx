@@ -104,10 +104,12 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
           ) : null}
           {document.payment && document.payment.kind !== "family" ? (
             <span className="mt-1 flex max-w-80 min-w-0">
+              {/* The cost bearer's full name: it wraps, a tooltip would
+                  stay out of reach by finger. */}
               <StatusBadge
                 label={paymentLabel(document.payment)}
                 tone={PAYMENT_TONES[document.payment.kind]}
-                truncate
+                wrap
               />
             </span>
           ) : null}
@@ -274,7 +276,7 @@ export default function TraegerBillingFamilyPage() {
                         key={`${payment.kind}-${payment.costBearerName}`}
                         label={paymentLabel(payment)}
                         tone={PAYMENT_TONES[payment.kind]}
-                        truncate
+                        wrap
                       />
                     ))}
                   </span>

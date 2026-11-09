@@ -224,11 +224,16 @@ function columns(
                   {childSchoolLabel(child, names)}
                 </span>
                 {child.duplicateRegistrationIds.length > 0 ? (
-                  <StatusBadge
-                    tone="orange"
-                    label="Mögliche Doppelanmeldung"
-                    title={`Auch in Anmeldung Nr. ${child.duplicateRegistrationIds.join(", ")}`}
-                  />
+                  <>
+                    <StatusBadge
+                      tone="orange"
+                      label="Mögliche Doppelanmeldung"
+                    />
+                    {/* Visible, not only a tooltip: a finger has no hover. */}
+                    <span className="text-sm text-gray-600">
+                      auch in Nr. {child.duplicateRegistrationIds.join(", ")}
+                    </span>
+                  </>
                 ) : null}
               </div>
               <ul className="text-xs text-gray-500">

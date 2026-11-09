@@ -7,7 +7,7 @@
 import { type ReactNode, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import {
   DataField,
   DataGrid,
@@ -17,7 +17,6 @@ import {
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -175,15 +174,17 @@ export function HolidayRegistrationChildCard({
             action={
               <span className="flex flex-wrap gap-3">
                 {child.duplicateRegistrationIds.map((id) => (
-                  <NavigationLink
+                  // A kit link button: 44 px by finger, in the notice's colour.
+                  <ButtonLink
                     key={id}
                     href={traegerPath(
                       `/traeger/ferien/${period.id}/anmeldungen/${id}`,
                     )}
-                    className="font-medium underline"
+                    variant="link_tone"
+                    size="compact"
                   >
                     Anmeldung Nr. {id} öffnen
-                  </NavigationLink>
+                  </ButtonLink>
                 ))}
               </span>
             }
