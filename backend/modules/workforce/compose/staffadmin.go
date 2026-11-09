@@ -29,8 +29,7 @@ type StaffAdminDependencies struct {
 	// against; nil means the wall clock. Tests pin it.
 	Now    func() time.Time
 	Logger *slog.Logger
-	// BankData seals and opens the bank and tax section with the bank ring
-	// (BANK_DATA_KEYS, #6332); required.
+	// BankData seals and opens the bank and tax section (BANK_DATA_KEYS, #6332).
 	BankData workforce.BankDataCipher
 }
 
@@ -63,8 +62,7 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 
 // --- documents --------------------------------------------------------------
 
-// NewStaffBankDataRekey builds the maintenance-only backfill and rekey of
-// the staff bank and tax values (#6332); never bind it to HTTP.
+// NewStaffBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
 func NewStaffBankDataRekey(cipher workforce.BankDataRekeyCipher) workforce.StaffBankDataRekey {
 	return application.NewStaffBankDataRekey(postgres.NewStaffBankRekeyStore(), cipher)
 }

@@ -47,8 +47,8 @@ type PeopleServices struct {
 // the guardian rows and Identity & Access's invitation reads, which need
 // only the database: the People Directory module serves it as its guardian
 // provider (#2663), and Identity & Access is composed over the module.
-func BuildGuardianService(db transactionruntime.Database, people PeopleRows, audit AuditOwner, bankData BankDataCipher) (peoplePorts.GuardianService, error) {
-	if bankData == nil {
+func BuildGuardianService(db transactionruntime.Database, people PeopleRows, audit AuditOwner, env RootEnvironment) (peoplePorts.GuardianService, error) {
+	if env.BankData == nil {
 		return nil, fmt.Errorf("guardian service: the bank data cipher is required")
 	}
 	invitations, err := identityaccessCompose.NewGuardianInvitationReads(db.Pool())
@@ -62,7 +62,7 @@ func BuildGuardianService(db transactionruntime.Database, people PeopleRows, aud
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audit.Persistence.GuardianFinancialChange),
 		DataAccessLog:          NewGuardianDataAccessLog(audit.Persistence.DataAccessLog),
-		BankData:               bankData,
+		BankData:               env.BankData,
 		RolePresets: peoplePorts.GuardianRolePresetFuncs{
 			Default: securityruntime.DefaultStudentGuardianRole, Presets: securityruntime.StudentGuardianRolePreset,
 		}}, db.Pool()), nil

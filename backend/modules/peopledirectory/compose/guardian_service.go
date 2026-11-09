@@ -31,8 +31,7 @@ func (t guardianTransactions) WithTenantTx(ctx context.Context, fn func(context.
 
 func (guardianTransactions) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
-// NewGuardianBankDataRekey builds the maintenance-only backfill and rekey of
-// the guardian bank values (#6332); never bind it to HTTP.
+// NewGuardianBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
 func NewGuardianBankDataRekey(cipher peopledirectory.BankDataRekeyCipher) peopledirectory.GuardianBankDataRekey {
 	return application.NewGuardianBankDataRekey(boundaryBinding.NewGuardianBankRekeyStore(), cipher)
 }

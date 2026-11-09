@@ -89,8 +89,9 @@ func rewriteStaffBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID int
 
 // maintenanceSchoolTransaction requires the school transaction of exactly
 // this school and drops its request role back to the maintenance login. Only
-// a superuser login proceeds: an HTTP login never gains the bypass. Role and
-// lock timeout die with the transaction.
+// a superuser login proceeds: an HTTP login never gains the bypass. The
+// replica role keeps the updated_at trigger from touching the timestamps of
+// a pure rewrap. Role, replica role and lock timeout die with the transaction.
 func maintenanceSchoolTransaction(ctx context.Context, schoolID int64) (bun.IDB, error) {
 	if schoolID <= 0 || tenant.FromContext(ctx) != schoolID {
 		return nil, errors.New("workforce postgres: the school transaction of this school is required")
@@ -103,7 +104,7 @@ func maintenanceSchoolTransaction(ctx context.Context, schoolID int64) (bun.IDB,
 	if !ok {
 		return nil, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
 	}
-	if _, err := tx.ExecContext(ctx, "RESET ROLE; SET LOCAL lock_timeout = '5s'"); err != nil {
+	if _, err := tx.ExecContext(ctx, "RESET ROLE; SET LOCAL lock_timeout = '5s'; SET LOCAL session_replication_role = replica"); err != nil {
 		tenant.MarkRollback(ctx)
 		return nil, err
 	}

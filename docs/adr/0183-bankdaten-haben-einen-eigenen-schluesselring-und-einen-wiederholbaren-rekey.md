@@ -161,3 +161,15 @@ versiegelt sonst mit dem Bankring. Der Scanner zählt den nativen, eingebetteten
 `Seal`-Aufruf; das ist keine ungeschützte Repository-Durchreiche. Die Evidenz
 benennt genau diesen Quelltext. Selektoren, Ausnahmen und die bisherigen
 Owner-Pass-through-Floors werden nicht erhöht oder gelockert.
+
+## Ergänzung 09.11.2026: Bankdaten von Eltern und Personal (#6332)
+
+[ADR 0186](0186-bankdaten-von-eltern-und-personal-liegen-versiegelt-im-bankring.md)
+versiegelt `users.guardian_financial_data` und `users.staff_financial_data` mit
+demselben Bankring. `bank-data-rekey` hat dafür die Form `--school ID`, mit den
+Quellen `guardian_financial` und `staff_financial`. Sie gilt neben
+`--organization ID`; genau eine der beiden Optionen ist erforderlich. Im
+Rollout kommt nach Schritt 4 je Umgebung der Schulblock aus ADR 0186 hinzu,
+zweimal vollständig und mit `changed_total=0`. Schritt 5 (Legacy-Ring leeren,
+Abschlusslauf ohne Legacy) umfasst dann beide Blöcke. Die Klartextspalten
+entfernt erst ein späteres Release (Migration 1.15.836).

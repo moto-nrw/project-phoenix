@@ -38,7 +38,7 @@ func (r nativeGuardianPaymentRepository) Create(ctx context.Context, value *dire
 	row := guardianPaymentRow(value)
 	err := r.raw.Create(ctx, row)
 	if value != nil && row != nil {
-		value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt = row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt
+		*value = *nativeGuardianPayment(row)
 	}
 	return err
 }
@@ -46,7 +46,7 @@ func (r nativeGuardianPaymentRepository) Update(ctx context.Context, value *dire
 	row := guardianPaymentRow(value)
 	err := r.raw.Update(ctx, row)
 	if value != nil && row != nil {
-		value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt = row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt
+		*value = *nativeGuardianPayment(row)
 	}
 	return err
 }
