@@ -49,8 +49,10 @@ never use `git commit --no-verify`.)
 
 ## Keep the stack current
 
-When `development` moves, merge it into the **parent** branch, then merge the
-parent into the child. Merging `development` straight into the child pulls its
+Fetch base changes to inspect them; a moving base or `BEHIND` status alone does
+not require updating the stack. When actual conflicts require an update, merge
+`development` into the **parent** branch, then merge the parent into the child.
+Merging `development` straight into the child pulls its
 commits into the child's diff, because GitHub diffs from the merge-base with the
 parent branch.
 
@@ -60,6 +62,11 @@ Merge bottom-up. Through the API a stacked PR needs the asynchronous endpoint,
 `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge-async`; the synchronous
 `PUT …/merge` behind `gh pr merge` refuses a stacked PR. The web UI merge button
 takes the right path on its own.
+
+Set the asynchronous request's `sha` field to the reviewed and checked PR head.
+The [merge API](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request-asynchronously)
+requires that head to match and cancels the merge if it changes before execution.
+Confirm the merged state; an accepted request or queue entry is not a merge.
 
 ## Endpoints
 

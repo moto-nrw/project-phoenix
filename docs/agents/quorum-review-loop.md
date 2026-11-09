@@ -1,13 +1,47 @@
 # quorum Review Loop
 
+## Merge policy
+
+When implementation and merge are authorized, that authorization includes the
+implementing delegate. After self-review and a successful `quorum babysit`, the
+implementer merges without waiting for a separate orchestrator approval or a
+mandatory third review. Keep Quorum's review/fix loop and stopping conditions;
+do not cap its rounds. Request another review only for a concrete unresolved
+concern or an explicit user requirement.
+
+Run `BASE_UPDATE=conflicts quorum babysit <pr-number>`: Quorum otherwise updates
+a branch whenever it is behind, even without conflicts. This setting changes
+only base-update behavior; the review/fix loop stays as configured.
+
+Before merging, fetch the PR's base and check mergeability. Fetching updates
+remote references; it does not merge or rebase the base into the PR. Update the
+branch to resolve actual conflicts (`DIRTY`), not merely because it is `BEHIND`
+or the base has advanced. For stacks, follow the
+[stacked-PR workflow](../../.agents/skills/stacked-pr/SKILL.md#keep-the-stack-current).
+Check new migration numbers against the fetched base and open PRs without
+merging the base just to inspect them. Check relevant interactions with recent
+base changes; investigate concrete integration risks without routine sync commits.
+
+The final check still applies: the PR is ready, its current head has passed
+required local checks and CI, review blockers are resolved, and it is
+conflict-free. A skipped draft run is not evidence of passing CI. Unknown
+mergeability or blocked checks must be resolved before merging. Bind ordinary
+merges to the checked head with `gh pr merge --match-head-commit <SHA>`; for
+stacks, use the [asynchronous merge endpoint](../../.agents/skills/stacked-pr/SKILL.md#merge)
+with its `sha` field set to that head. If the head changes, check that revision
+before retrying. Branch protection remains binding. After a
+conflict fix or other code change, run affected checks and the review loop again.
+Confirm the merged state and report it to the orchestrator for tracking.
+
 ## Devbox bootstrap and temporary profiles
 
 Before its first Devbox call, `.envrc` sources
 [`scripts/devbox-tmpdir.sh`](../../scripts/devbox-tmpdir.sh). With no non-empty
 caller `TMPDIR`, this creates private (0700) `moto-nix-tmp` inside the
 repository's Git common directory (`.git` in the main checkout). All worktrees
-share this temp namespace, so new reviews also sweep older review leftovers. Keep checkouts on disk; Linux tmpfs/ramfs checkouts fail with an
-instruction to supply a disk-backed `TMPDIR`. macOS keeps its existing system
+share this temp namespace, so new reviews also sweep older review leftovers.
+Keep the namespace on disk; Linux rejects tmpfs/ramfs and asks for an explicit,
+disk-backed `TMPDIR`. macOS keeps its existing system
 `TMPDIR`; an unset value uses the same repo-local fallback. Explicit values,
 including `/tmp`, are respected. Local dotenv overrides are loaded afterwards;
 set a custom bootstrap `TMPDIR` in the invoking environment, before direnv.
@@ -16,7 +50,8 @@ No shell profile or machine configuration is changed.
 This protects against [NixOS/nix#10404](https://github.com/NixOS/nix/issues/10404):
 a fresh Quorum worktree needs its own Devbox profile even when packages already
 exist in the shared Nix store. Keep automatic installation enabled. After
-bootstrap, Node from the installed profile runs [`scripts/cleanup-devbox-tmp.mjs`](../../scripts/cleanup-devbox-tmp.mjs).
+bootstrap, Node from the installed profile runs
+[`scripts/cleanup-devbox-tmp.mjs`](../../scripts/cleanup-devbox-tmp.mjs).
 It only sweeps the repository's private default temp namespace, never
 `/tmp`, a caller's custom `TMPDIR`, symlinked directories or foreign-owned trees.
 Only `nix-<pid>-<number>` directories with a dead creator PID are candidates.
@@ -28,8 +63,8 @@ exception requires `/proc/<pid>` to be absent and **every entry** in the tree to
 have unchanged mtime and ctime for over 60 minutes. This covers hosts where
 `ptrace_scope` hides unrelated processes. It is a grace-period policy, not proof
 that inaccessible processes hold no references. Cleanup runs on the next
-successful bootstrap (or explicit `node scripts/cleanup-devbox-tmp.mjs` invocation), including after an earlier
-error or interruption; it is not a background service. Concurrent sweeps tolerate
+successful bootstrap (or explicit `node scripts/cleanup-devbox-tmp.mjs`
+invocation), including after an earlier error or interruption; it is not a background service. Concurrent sweeps tolerate
 already removed trees. Persistent Nix-store and Devbox caches remain intact.
 
 `--no-direnv` bypasses Quorum's bootstrap entirely. Use it only with a separately
@@ -59,7 +94,7 @@ branch**, not the PR head. Check for a local override before relying on this
 gate. To verify a gate change before it merges, pass the command explicitly:
 
 ```bash
-quorum babysit <pr-number> --test-cmd 'scripts/run-go-toolchain.sh scripts/test-changed.sh --fast'
+BASE_UPDATE=conflicts quorum babysit <pr-number> --test-cmd 'scripts/run-go-toolchain.sh scripts/test-changed.sh --fast'
 ```
 
 With a shared admission gate such as `~/bin/agent-heavy`, wrap only the
