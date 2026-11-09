@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -25,12 +24,4 @@ func (c HolidayTestSchoolCalendar) HolidayNoCareDays(_ context.Context, schoolID
 		}
 	}
 	return result, nil
-}
-
-// TraegerTestCalendarSchools names fixed schools of a Träger with their
-// federal state, for the Träger calendar's route tests.
-type TraegerTestCalendarSchools []traegercalendar.SchoolState
-
-func (s TraegerTestCalendarSchools) TraegerSchools(context.Context, int64) ([]traegercalendar.SchoolState, error) {
-	return s, nil
 }
