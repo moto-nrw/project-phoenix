@@ -108,8 +108,8 @@ type PortalNavIconProps =
 interface PortalBottomNavItemProps {
   readonly label: string;
   /**
-   * The shown name of the active target where `label` is too long for the
-   * bar; `label` stays its accessible name and must contain this text.
+   * The shown name where `label` is too long for the bar; `label` stays the
+   * accessible name and must contain it as a whole word (axe).
    */
   readonly shortLabel?: string;
   readonly active: boolean;
