@@ -190,6 +190,9 @@ func TestSavepointControlStatusAtTheEdges(t *testing.T) {
 		want   map[string]int
 		target error
 		rows   int
+		// unit derives the unit's own context from the request's; nil runs
+		// the unit on the request context.
+		unit func(request context.Context) (context.Context, context.CancelFunc)
 	}{
 		{name: "B1_connection_lost_in_savepoint", script: func(context.CancelFunc) txStep { return inSavepoint(terminate) }, want: all(http.StatusInternalServerError), target: tenant.ErrSavepointRollback},
 		{name: "B2b_backend_terminated_outside_savepoint", script: func(context.CancelFunc) txStep { return terminate }, want: all(http.StatusInternalServerError)},
@@ -209,6 +212,25 @@ func TestSavepointControlStatusAtTheEdges(t *testing.T) {
 			return context.WithTimeout(rig.ctx, 300*time.Millisecond)
 		},
 			want: all(http.StatusRequestTimeout)},
+		// B6: the unit's own context (a child of the live request's) ends
+		// inside the savepoint: the failed rollback is E19 → 500, not 499/408.
+		{name: "B6_unit_cancelled_in_savepoint_request_alive", script: func(cancelUnit context.CancelFunc) txStep {
+			return inSavepoint(func(ctx context.Context, tx bun.Tx) error {
+				cancelUnit()
+				_, err := tx.ExecContext(ctx, `SELECT 1`)
+				return err
+			})
+		}, unit: func(ctx context.Context) (context.Context, context.CancelFunc) { return context.WithCancel(ctx) },
+			want: all(http.StatusInternalServerError), target: tenant.ErrSavepointRollback},
+		{name: "B6_unit_deadline_in_savepoint_request_alive", script: func(context.CancelFunc) txStep {
+			return inSavepoint(func(ctx context.Context, tx bun.Tx) error {
+				_, err := tx.ExecContext(ctx, `SELECT pg_sleep(5)`)
+				return err
+			})
+		}, unit: func(ctx context.Context) (context.Context, context.CancelFunc) {
+			return context.WithTimeout(ctx, 300*time.Millisecond)
+		},
+			want: all(http.StatusInternalServerError), target: tenant.ErrSavepointRollback},
 		{name: "C3_commit_applied_bad_conn", site: testpkg.FaultCommitApplied, kind: "bad_conn", want: unavailable, rows: 1},
 		{name: "C5_request_cancelled_before_commit", script: func(cancel context.CancelFunc) txStep {
 			return func(context.Context, bun.Tx) error { cancel(); return nil }
@@ -224,11 +246,19 @@ func TestSavepointControlStatusAtTheEdges(t *testing.T) {
 				ctx, cancel = c.ctx()
 			}
 			defer cancel()
+			unitCtx, cancelUnit := ctx, cancel
+			if c.unit != nil {
+				unitCtx, cancelUnit = c.unit(ctx)
+				defer cancelUnit()
+			}
 			var script txStep
 			if c.script != nil {
-				script = c.script(cancel)
+				script = c.script(cancelUnit)
 			}
-			err := rig.unitError(t, ctx, script)
+			err := rig.unitError(t, unitCtx, script)
+			if c.unit != nil {
+				require.NoError(t, ctx.Err(), "the request context is still alive")
+			}
 			require.Error(t, err)
 			if c.site != testpkg.FaultNone {
 				require.True(t, rig.probe.Faults.Fired())

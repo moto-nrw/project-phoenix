@@ -80,8 +80,8 @@ func (e *rollbackDiagnostic) Unwrap() error { return e.err }
 // serialization failures. The UnitOfWork uses it only when the outer command
 // explicitly opts into replay.
 func IsRetryableTransactionError(err error) bool {
-	var state interface{ Field(byte) string }
-	return errors.As(err, &state) && (state.Field('C') == "40P01" || state.Field('C') == "40001")
+	state, ok := operationAs[interface{ Field(byte) string }](err)
+	return ok && (state.Field('C') == "40P01" || state.Field('C') == "40001")
 }
 
 func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context, any) error) error {

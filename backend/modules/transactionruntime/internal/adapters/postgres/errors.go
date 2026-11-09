@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql/driver"
-	"errors"
 	"net"
 	"strings"
 
@@ -17,20 +16,18 @@ func IsTransientDatabaseError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if operationIs(err, context.Canceled) || operationIs(err, context.DeadlineExceeded) {
 		return false
 	}
-	if errors.Is(err, driver.ErrBadConn) {
+	if operationIs(err, driver.ErrBadConn) {
 		return true
 	}
 
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if _, ok := operationAs[net.Error](err); ok {
 		return true
 	}
 
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := operationAs[pgdriver.Error](err); ok {
 		code := pgErr.Field('C')
 		return len(code) >= 2 && code[:2] == "08"
 	}
@@ -48,8 +45,7 @@ func IsConstraintViolation(err error) bool {
 	}
 
 	// Primary: typed pgdriver.Error with structured SQLSTATE code
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := operationAs[pgdriver.Error](err); ok {
 		code := pgErr.Field('C') // SQLSTATE code
 		return code == "23503" || code == "23502"
 	}
@@ -58,15 +54,4 @@ func IsConstraintViolation(err error) bool {
 	msg := operationText(err)
 	return strings.Contains(msg, "violates foreign key constraint") ||
 		strings.Contains(msg, "violates not-null constraint")
-}
-
-// operationText is the text the textual fallbacks read: the operation's own
-// error. An attached ROLLBACK failure (rollbackDiagnostic) is diagnostics in
-// the full text and must not classify the operation (#6316).
-func operationText(err error) string {
-	var diagnostic *rollbackDiagnostic
-	if errors.As(err, &diagnostic) {
-		return diagnostic.err.Error()
-	}
-	return err.Error()
 }

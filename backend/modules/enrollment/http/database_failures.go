@@ -20,16 +20,14 @@ type DatabaseFailures struct {
 	SavepointRollback func(error) bool
 }
 
-// savepointControlFailed reports a savepoint rollback the database failed
-// while the request was still alive. Such a transaction was untrusted, so
-// the answer is 500 ahead of any business, constraint or transient rule
-// (E19, #6316). A cancelled or expired request keeps its existing answer:
-// the savepoint failed because the request ended.
+// savepointControlFailed reports a savepoint rollback that failed while the
+// request was still alive. Such a transaction was untrusted, so the answer is
+// 500 ahead of any cancellation, business, constraint or transient rule (E19,
+// #6316), also when the rollback failed with a context error of its own, for
+// example an inner deadline. Only the request's own context decides on
+// 499/408 (requestEnded).
 func (f DatabaseFailures) savepointControlFailed(r *http.Request, err error) bool {
-	if f.SavepointRollback == nil || !f.SavepointRollback(err) || r.Context().Err() != nil {
-		return false
-	}
-	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
+	return f.SavepointRollback != nil && f.SavepointRollback(err) && r.Context().Err() == nil
 }
 
 // requestEnded answers a database failure of a request whose own context

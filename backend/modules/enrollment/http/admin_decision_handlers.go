@@ -660,12 +660,12 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 		return
 	}
 	switch {
+	case rs.Failures.savepointControlFailed(r, err):
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	case errors.Is(err, context.Canceled):
 		common.RenderError(w, r, common.ErrorClientClosed(err))
 	case errors.Is(err, context.DeadlineExceeded):
 		common.RenderError(w, r, common.ErrorRequestTimeout(err))
-	case rs.Failures.savepointControlFailed(r, err):
-		common.RenderError(w, r, common.ErrorInternalServer(err))
 	case errors.Is(err, capability.ErrDecisionRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
 	case errors.Is(err, capability.ErrRestoreNothingWithdrawn):
@@ -689,9 +689,9 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 
 func (rs *Resource) decideErrorRules(r *http.Request) []common.ErrorRule {
 	return []common.ErrorRule{
+		{Match: func(err error) bool { return rs.Failures.savepointControlFailed(r, err) }, Render: common.ErrorInternalServer},
 		{Target: context.Canceled, Render: common.ErrorClientClosed},
 		{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
-		{Match: func(err error) bool { return rs.Failures.savepointControlFailed(r, err) }, Render: common.ErrorInternalServer},
 		{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
 		{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
 		{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},

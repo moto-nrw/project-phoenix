@@ -21,13 +21,19 @@ var ErrSavepointControl = errors.New("savepoint control failed")
 var ErrSavepointRollback = errors.New("savepoint rollback failed")
 
 // SavepointRollbackFailure marks err, a savepoint-control failure of a
-// rollback, with ErrSavepointRollback. Its text stays err's text.
+// rollback, with ErrSavepointRollback. Its text stays err's text, and
+// database classifiers skip it as attached diagnostics.
 func SavepointRollbackFailure(err error) error { return savepointRollbackFailure{err} }
 
 type savepointRollbackFailure struct{ error }
 
 func (f savepointRollbackFailure) Unwrap() error      { return f.error }
 func (savepointRollbackFailure) Is(target error) bool { return target == ErrSavepointRollback }
+
+// CleanupDiagnostic marks the failure as diagnostics attached to the
+// operation's error: database classifiers (retry, connectivity, constraint,
+// unique) read the operation's own result only (#6316).
+func (savepointRollbackFailure) CleanupDiagnostic() {}
 
 // operationSavepointName is internal and fixed, so no caller-controlled SQL
 // identifier is interpolated. PostgreSQL permits nested savepoints with the
