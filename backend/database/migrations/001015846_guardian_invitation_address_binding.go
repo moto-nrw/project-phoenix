@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const guardianInvitationAddressBindingVersion = "1.15.844"
+const guardianInvitationAddressBindingVersion = "1.15.846"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

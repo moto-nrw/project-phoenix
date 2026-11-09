@@ -166,7 +166,7 @@ func (s *Store) ListPendingGuardianApprovals(ctx context.Context) ([]domain.Guar
 // profiles that is still going somewhere: not accepted, not expired, and
 // either redeemable or waiting for a staff decision. One tenant-scoped read
 // backs the whole guardian list. A legacy link without a recorded recipient
-// counts too, also after it ran out: the address binding (1.15.844) ended it,
+// counts too, also after it ran out: the address binding (1.15.846) ended it,
 // nobody can redeem it, and the list shows it as a dead link until the
 // sign-in data retention removes it (#6294).
 func (s *Store) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error) {

@@ -12,7 +12,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Coverage for 1.15.844 (#6294): every unbound legacy link ends regardless of
+// Coverage for 1.15.846 (#6294): every unbound legacy link ends regardless of
 // mutable timestamps. Pending requests and bound links survive a rerun, and
 // Down ends bound links whose profile address changed.
 func TestGuardianInvitationAddressBinding(t *testing.T) {
