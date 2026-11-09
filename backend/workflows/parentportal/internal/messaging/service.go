@@ -19,9 +19,12 @@ import (
 type Child = care.Child
 
 // ChildResolver is the port to the guardian-child resolution, which checks the
-// relationship's parent-portal permission.
+// relationship's parent-portal permission. WithPermittedChild is the same
+// check followed by a read of the child's school in one transaction (ADR
+// 0161), for read routes only.
 type ChildResolver interface {
 	ResolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error)
+	WithPermittedChild(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, read func(context.Context, *Child) error) error
 }
 
 // ConversationCore is the consumer-owned port for Communication's shared
@@ -145,4 +148,10 @@ func (s *Service) resolveOwnedChild(ctx context.Context, accountID, studentID in
 
 func (s *Service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error) {
 	return s.Children.ResolvePermittedChild(ctx, accountID, studentID, permission)
+}
+
+// withOwnedChild checks the child with parent_portal.access and runs read in
+// the same transaction under the child's school.
+func (s *Service) withOwnedChild(ctx context.Context, accountID, studentID int64, between func(*Child) error, read func(context.Context, *Child) error) error {
+	return s.Children.WithPermittedChild(ctx, accountID, studentID, care.GuardianPermissionPortalAccess, between, read)
 }
