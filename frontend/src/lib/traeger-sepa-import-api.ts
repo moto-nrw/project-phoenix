@@ -33,7 +33,7 @@ export type ImportRowStatus =
   "ready" | "clarify" | "duplicate" | "conflict" | "invalid" | "imported";
 
 /** Header of the column each field comes from; "" leaves it unmapped. */
-export type ImportColumns = Readonly<Record<ImportField, string>>;
+type ImportColumns = Readonly<Record<ImportField, string>>;
 
 export interface ImportMapping {
   readonly columns: ImportColumns;
@@ -65,7 +65,7 @@ export interface ImportRow {
   readonly hints: readonly string[];
 }
 
-export type ImportCounts = Readonly<Record<ImportRowStatus, number>>;
+type ImportCounts = Readonly<Record<ImportRowStatus, number>>;
 
 export interface ImportResult {
   readonly encoding: string;
@@ -166,7 +166,7 @@ function mapRow(row: BackendRow): ImportRow {
   };
 }
 
-export function mapImportResult(result: BackendResult): ImportResult {
+function mapImportResult(result: BackendResult): ImportResult {
   return {
     encoding: result.encoding,
     delimiter: result.delimiter,
