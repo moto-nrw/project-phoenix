@@ -1,0 +1,7 @@
+{
+  "scenario": "operator.beleg_retention.overview",
+  "max": 18,
+  "exact": true,
+  "description": "GET /operator/organizations/{id}/beleg-retention; N active suspensions of the Träger (#4720, ADR 0184). N=3/8 cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit and the administrative transaction. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor.",
+  "route": "GET /operator/organizations/{id}/beleg-retention"
+}
