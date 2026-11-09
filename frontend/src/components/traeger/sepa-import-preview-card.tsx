@@ -171,10 +171,10 @@ export function SepaImportPreviewCard({
       header: "Familie",
       render: (row) => (
         <span className="block min-w-0">
-          <span className="block font-medium text-gray-900">
+          <span className="block font-medium wrap-anywhere text-gray-900">
             {importPayerName(row)}
           </span>
-          <span className="block text-xs text-gray-500">
+          <span className="block text-xs wrap-anywhere text-gray-500">
             {row.reference || "–"}
           </span>
         </span>

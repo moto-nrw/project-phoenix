@@ -90,6 +90,19 @@ func (c *importCheck) cell(cells []string, field string) string {
 	return cells[position]
 }
 
+// textCell reads a column the answer repeats and the mandate keeps
+// readable. An IBAN there (a column mapped by mistake) is refused and never
+// repeated: an IBAN leaves moto only masked and is stored only sealed
+// (ADR 0171).
+func (c *importCheck) textCell(row *parentbilling.SEPAMandateImportRow, cells []string, field string) (string, bool) {
+	value := c.cell(cells, field)
+	if sepa.ValidIBAN(sepa.Compact(value)) {
+		addProblem(row, field, parentbilling.ImportProblemInvalid)
+		return "", true
+	}
+	return value, false
+}
+
 func addProblem(row *parentbilling.SEPAMandateImportRow, field, problem string) {
 	row.Problems = append(row.Problems, parentbilling.SEPAMandateImportProblem{Field: field, Code: problem})
 }
@@ -110,8 +123,10 @@ func (c *importCheck) row(cells []string, line int) importCandidate {
 // readMandate reads the reference and the signing date.
 func (c *importCheck) readMandate(candidate *importCandidate, cells []string) {
 	row := &candidate.row
-	row.Reference = c.cell(cells, parentbilling.ImportFieldReference)
+	var refused bool
+	row.Reference, refused = c.textCell(row, cells, parentbilling.ImportFieldReference)
 	switch {
+	case refused:
 	case row.Reference == "":
 		addProblem(row, parentbilling.ImportFieldReference, parentbilling.ImportProblemMissing)
 	case !sepa.ValidMandateReference(row.Reference):
@@ -145,8 +160,10 @@ func (c *importCheck) readDate(row *parentbilling.SEPAMandateImportRow, cells []
 // valid IBAN shows, masked; an invalid one is never repeated.
 func (c *importCheck) readAccount(candidate *importCandidate, cells []string) {
 	row := &candidate.row
-	row.AccountHolder = c.cell(cells, parentbilling.ImportFieldAccountHolder)
+	var refused bool
+	row.AccountHolder, refused = c.textCell(row, cells, parentbilling.ImportFieldAccountHolder)
 	switch length := len([]rune(row.AccountHolder)); {
+	case refused:
 	case length == 0:
 		addProblem(row, parentbilling.ImportFieldAccountHolder, parentbilling.ImportProblemMissing)
 	case length > parentbilling.MaxAccountHolderLength:

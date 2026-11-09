@@ -291,3 +291,17 @@ func TestImportCheckUsesTheExpiryRuleOfTheDebitFile(t *testing.T) {
 	unused := check.row(importRow("SJR-F", "08.11.2023", importIBAN, "c@example.org", importCreditor, "FRST", ""), 4)
 	assert.Equal(t, []string{"signed_on:expired"}, problemCodes(unused.row), "never collected: 36 months from the signature")
 }
+
+// A column mapped by mistake never repeats an IBAN as reference or account
+// holder: the row is invalid and the value stays out of the answer.
+func TestImportCheckNeverRepeatsAnIBANInATextField(t *testing.T) {
+	t.Parallel()
+	check := newTestImportCheck(nil, nil)
+	cells := importRow(importIBAN, "01.02.2026", importIBAN, "a@example.org", importCreditor, "FRST", "")
+	cells[3] = "DE89 3704 0044 0532 0130 00"
+	row := check.row(cells, 2)
+	assert.Equal(t, parentbilling.ImportRowInvalid, row.row.Status)
+	assert.ElementsMatch(t, []string{"reference:invalid", "account_holder:invalid"}, problemCodes(row.row))
+	assert.Empty(t, row.row.Reference)
+	assert.Empty(t, row.row.AccountHolder)
+}
