@@ -79,7 +79,7 @@ type StudentStatusDay struct {
 	Note *string `json:"note,omitempty"`
 }
 
-// StudentStatusCounts is the effective dashboard absence count of one day.
+// StudentStatusCounts is the effective dashboard absence buckets of one day.
 // SickIDs and ExcusedIDs are the active students of each bucket, before the
 // dashboard drops the checked-in ones (place before status, #6371).
 type StudentStatusCounts struct {

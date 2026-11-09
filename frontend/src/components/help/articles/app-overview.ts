@@ -81,7 +81,7 @@ export function appOverviewTopic(): HelpTopic {
       "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein angemeldetes Kind zählt immer bei `Anwesend`, auch wenn es krank gemeldet ist.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein Kind, das da ist, zählt immer bei `Anwesend`, auch mit Krankmeldung.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [

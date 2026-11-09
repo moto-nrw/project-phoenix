@@ -868,7 +868,6 @@ export function isNotCheckedInLocation(location?: string | null): boolean {
 
 const CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
   LOCATION_STATUSES.PRESENT,
-  LOCATION_STATUSES.UNPLANNED_PRESENT,
   LOCATION_STATUSES.SCHOOLYARD,
   LOCATION_STATUSES.TRANSIT,
 ]);
