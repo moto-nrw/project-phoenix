@@ -38,9 +38,13 @@ type StudentStatusDayFilter struct {
 }
 
 type StudentStatusCounts struct {
-	Sick    int
-	Excused int
-	Total   int
+	// SickIDs and ExcusedIDs are the active students in the sick and the
+	// excused bucket (a class trip counts as excused), in roster order. The
+	// buckets read the status only; a consumer that knows who is checked in
+	// drops those children (place before status, #6371).
+	SickIDs    []int64
+	ExcusedIDs []int64
+	Total      int
 	// UnaccountedIDs are the counted active students in neither bucket: the
 	// children the dashboard splits into present, at school and at home.
 	UnaccountedIDs []int64

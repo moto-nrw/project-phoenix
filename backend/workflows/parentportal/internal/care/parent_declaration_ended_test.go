@@ -69,7 +69,7 @@ func (s *declarationSetup) requireEndedWithRevocation(t *testing.T) {
 
 func TestDeclaration_WithdrawnDeclarationKeepsOwnConsentRevocable(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 	require.True(t, created)
@@ -115,7 +115,7 @@ func TestDeclaration_WithdrawnDeclarationKeepsOwnConsentRevocable(t *testing.T) 
 
 func TestDeclaration_ExpiredDeclarationStaysFindableForRevocation(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestDeclaration_ExpiredDeclarationStaysFindableForRevocation(t *testing.T) 
 
 func TestDeclaration_DeactivatedDeclarationKeepsOwnConsentRevocable(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
@@ -142,7 +142,7 @@ func TestDeclaration_DeactivatedDeclarationKeepsOwnConsentRevocable(t *testing.T
 
 func TestDeclaration_WithdrawnDeclarationRefusesNewAnswers(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestDeclaration_WithdrawnDeclarationRefusesNewAnswers(t *testing.T) {
 
 func TestDeclaration_WithdrawnDeclarationWithoutAnswersStaysHidden(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 
 	s.unpublishDeclaration(t)
 
@@ -174,7 +174,7 @@ func TestDeclaration_WithdrawnDeclarationWithoutAnswersStaysHidden(t *testing.T)
 
 func TestDeclaration_WithdrawnDeclarationRevocationNeedsPortalAccess(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
@@ -193,7 +193,7 @@ func TestDeclaration_WithdrawnDeclarationRevocationNeedsPortalAccess(t *testing.
 
 func TestDeclaration_EndedDeclarationShowsOnlyAnsweredChildren(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	sibling := testpkg.CreateTestStudent(t, s.db, "Mia", "Schneider", "2b")
 	link := &testpkg.StudentGuardian{
 		StudentID: sibling.ID, GuardianProfileID: s.chain.GuardianProfileID, RelationshipType: "parent",
@@ -225,53 +225,66 @@ func TestDeclaration_EndedDeclarationShowsOnlyAnsweredChildren(t *testing.T) {
 	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "an own answer for one child opens nothing for another")
 }
 
-func TestDeclaration_EndedDeclarationAnsweredOnlyOnAnOlderVersionLeavesTheFeed(t *testing.T) {
+// TestDeclaration_EndedDeclarationAnsweredOnlyOnAnOlderVersion: the school
+// corrected the text and withdrew the new version before this guardian
+// answered it. A consent to the old wording stays revocable and is shown with
+// that wording (#6303); a refusal of it leaves no card.
+func TestDeclaration_EndedDeclarationAnsweredOnlyOnAnOlderVersion(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
-	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
-	require.NoError(t, err)
-
-	// Staff correct the text: a second version asks everybody again, then
-	// they withdraw it before this guardian answers it.
-	s.unpublishDeclaration(t)
-	freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
-
-	assert.Nil(t, s.feedItem(t, s.chain.AccountID), "no empty card about wording the guardian never answered")
-	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
-	require.ErrorIs(t, err, parentportal.ErrDeclarationVersionChanged)
-	assert.Len(t, s.history(t), 1)
-}
-
-func TestDeclaration_EndedDeclarationOffersNoRevocationWithoutARevocableConsent(t *testing.T) {
-	t.Parallel()
-	for name, tc := range map[string]struct {
-		revocable bool
-		answer    string
-	}{
-		"consent the school made final": {revocable: false, answer: parentportal.DeclarationActionAgreed},
-		"refusal":                       {revocable: true, answer: parentportal.DeclarationActionDeclined},
-	} {
+	for name, answer := range map[string]string{"consent": parentportal.DeclarationActionAgreed, "refusal": parentportal.DeclarationActionDeclined} {
 		t.Run(name, func(t *testing.T) {
-			s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, tc.revocable, false), nil)
-			_, _, err := s.submit(s.chain.AccountID, tc.answer)
+			testpkg.OwnTenant(t)
+			s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
+			_, _, err := s.submit(s.chain.AccountID, answer)
 			require.NoError(t, err)
 
 			s.unpublishDeclaration(t)
+			v2 := freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
 
 			item := s.feedItem(t, s.chain.AccountID)
-			require.NotNil(t, item, "the answer stays findable with its proof")
-			require.Len(t, item.Declaration.Children, 1)
-			assert.Empty(t, item.Declaration.Children[0].AllowedActions)
-			_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
-			require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed)
-			assert.Len(t, s.history(t), 1)
+			if answer == parentportal.DeclarationActionDeclined {
+				assert.Nil(t, item, "no empty card about wording the guardian never agreed to")
+				_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+				require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed, "a refusal is no consent to revoke")
+				assert.Len(t, s.history(t), 1)
+				return
+			}
+			require.NotNil(t, item)
+			assert.Equal(t, s.version.ID, item.Declaration.Version.ID, "the card shows the wording agreed to")
+			assert.Equal(t, s.version.Body, item.Body)
+			assert.NotEqual(t, v2.Body, item.Body)
+			assert.Equal(t, []string{parentportal.DeclarationActionRevoked}, item.Declaration.Children[0].AllowedActions)
+			_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+			require.NoError(t, err)
+			assert.True(t, created)
+			assert.Nil(t, s.feedItem(t, s.chain.AccountID), "nothing is left to revoke")
 		})
 	}
 }
 
+// TestDeclaration_EndedDeclarationOffersNoRevocationWithoutAConsent: a refusal
+// is no consent to revoke. A consent the school once marked as not revocable
+// is revocable since #6303 (TestDeclaration_EveryConsentIsRevocable).
+func TestDeclaration_EndedDeclarationOffersNoRevocationWithoutAConsent(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionDeclined)
+	require.NoError(t, err)
+
+	s.unpublishDeclaration(t)
+
+	item := s.feedItem(t, s.chain.AccountID)
+	require.NotNil(t, item, "the answer stays findable with its proof")
+	require.Len(t, item.Declaration.Children, 1)
+	assert.Empty(t, item.Declaration.Children[0].AllowedActions)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed)
+	assert.Len(t, s.history(t), 1)
+}
+
 func TestDeclaration_WithdrawnDeclarationRevocationStillAsksForThePassword(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, true), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true), nil)
 	const secret = "richtig"
 	confirm := func(_ context.Context, given string) error {
 		if given != secret {
@@ -302,7 +315,7 @@ func TestDeclaration_WithdrawnPermissionShowsOwnRevocationInFeed(t *testing.T) {
 	t.Parallel()
 	for name, ended := range map[string]bool{"live declaration": false, "withdrawn declaration": true} {
 		t.Run(name, func(t *testing.T) {
-			s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+			s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 			_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 			require.NoError(t, err)
 			revokeDeclarationPermission(t, s.db, s.chain.AccountID)
@@ -331,18 +344,4 @@ func TestDeclaration_WithdrawnPermissionShowsOwnRevocationInFeed(t *testing.T) {
 			assert.Empty(t, child.AllowedActions)
 		})
 	}
-}
-
-func TestDeclaration_WithdrawnPermissionOffersNoRevocationOfAFinalConsent(t *testing.T) {
-	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
-	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
-	require.NoError(t, err)
-	revokeDeclarationPermission(t, s.db, s.chain.AccountID)
-
-	child := s.feedDeclaration(t, s.chain.AccountID).Children[0]
-	require.NotNil(t, child.MyAction)
-	assert.Empty(t, child.AllowedActions)
-	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
-	require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed)
 }

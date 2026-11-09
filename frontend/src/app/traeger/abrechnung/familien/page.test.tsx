@@ -85,6 +85,21 @@ describe("TraegerBillingFamiliesPage", () => {
     expect(screen.getAllByText("107,50 €").length).toBeGreaterThan(0);
   });
 
+  it("names the open sum a claim before payment", async () => {
+    // #6348: moto sees no incoming payment. The open sum is what the
+    // invoices still ask for, never a checked arrear.
+    renderPage();
+    await screen.findAllByText("Sabine Schneider");
+
+    expect(screen.getAllByText("Offene Forderung").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "Stand vor Zahlungseingang. Zahlungen sieht moto nicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("mit offener Forderung")).toBeInTheDocument();
+  });
+
   it("finds a family by its debtor number", async () => {
     renderPage();
     await screen.findAllByText("Tom Berger");

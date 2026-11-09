@@ -4,6 +4,7 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "~/lib/utils";
+import { useSheetAboveKeyboard } from "./hooks/useSheetAboveKeyboard";
 import {
   OVERLAY_BACKDROP_CLASS,
   OVERLAY_BACKDROP_TINT_CLASS,
@@ -72,11 +73,17 @@ const DrawerContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
   const direction = React.useContext(DrawerDirectionContext);
+  const sheetRef = React.useRef<HTMLDivElement | null>(null);
+  useSheetAboveKeyboard(sheetRef, direction === "bottom");
   return (
     <DrawerPortal>
       <DrawerOverlay />
       <DrawerPrimitive.Content
-        ref={ref}
+        ref={(node) => {
+          sheetRef.current = node;
+          if (typeof ref === "function") ref(node);
+          else if (ref) ref.current = node;
+        }}
         className={cn(
           `${Z_LAYER.sheet} border-0 bg-white`,
           directionContentClasses[direction],

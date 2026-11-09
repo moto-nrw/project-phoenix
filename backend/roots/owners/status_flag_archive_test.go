@@ -86,7 +86,7 @@ func (s statusFlagSuite) dashboardSick(t *testing.T, date calendar.Date) int {
 	s.inTenant(t, func(ctx context.Context) error {
 		counts, err := s.days.CountEffectiveDashboardAbsences(ctx, date)
 		if counts != nil {
-			sick = counts.Sick
+			sick = len(counts.SickIDs)
 		}
 		return err
 	})

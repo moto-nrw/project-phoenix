@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import { useState, Suspense, useMemo, useCallback } from "react";
 import { UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { sessionIdentityKey } from "~/lib/session-access";
@@ -95,7 +95,11 @@ import {
   phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import {
+  AT_LEAST_LG,
+  BELOW_MD,
+  useMediaQuery,
+} from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
@@ -271,13 +275,7 @@ function MeinRaumPageContent() {
     schulhofHeadActionsApply(openRoomLayout, schulhofStatus.activeGroupId);
 
   // Desktop detection — sidebar handles room switching at lg+
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= 1024);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const isDesktop = useMediaQuery(AT_LEAST_LG);
 
   const openRoomIds = useMemo(
     () => new Set(openRooms.map((room) => room.roomId)),
