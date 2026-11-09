@@ -28,25 +28,12 @@ import (
 // the parents' contributions, and the number closes once a child is
 // accepted, when the contract carries it.
 
-// familyChildrenSettings books the contracts and the parents'
-// contributions unless asks is false.
-type familyChildrenSettings struct {
-	stubTakeoverSettings
-	asks bool
-}
+// familyChildrenPurpose stands in for the Träger's sibling rule: asks
+// tells whether a rule counts the family at the school.
+type familyChildrenPurpose struct{ asks bool }
 
-func (s familyChildrenSettings) HasTenantOverride(ctx context.Context, key string) (bool, error) {
-	if strings.HasPrefix(key, "module.") {
-		return true, nil
-	}
-	return s.stubTakeoverSettings.HasTenantOverride(ctx, key)
-}
-
-func (s familyChildrenSettings) ResolveBool(ctx context.Context, key string) (bool, error) {
-	if key == "module.vertraege" || key == "module.elternbeitraege" {
-		return s.asks, nil
-	}
-	return s.stubTakeoverSettings.ResolveBool(ctx, key)
+func (p familyChildrenPurpose) FamilyChildrenAsked(context.Context, int64) (bool, error) {
+	return p.asks, nil
 }
 
 type familyChildrenEnv struct {
@@ -57,7 +44,7 @@ type familyChildrenEnv struct {
 func setupFamilyChildren(t *testing.T, asks bool) familyChildrenEnv {
 	t.Helper()
 	env := setupTakeoverLockTest(t)
-	settings := familyChildrenSettings{asks: asks}
+	settings := stubTakeoverSettings{}
 	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, env.db), owners.NewTestAuditStore(testpkg.NewDatabase(t, env.db)))
 	require.NoError(t, err)
 	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, env.db))
@@ -70,6 +57,7 @@ func setupFamilyChildren(t *testing.T, asks bool) familyChildrenEnv {
 		Notifications: NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: settings,
 		FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
+		FamilyChildrenPurpose: familyChildrenPurpose{asks: asks},
 	})
 	resource := enrollmentAPI.NewResource(nil, nil, newFixtureRequestRoot(intake), nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
@@ -171,7 +159,7 @@ func TestFamilyChildrenOnTheStatusPageStayInTheOwnRegistration(t *testing.T) {
 	assert.Equal(t, 2, *env.stored(t, env.token))
 }
 
-func TestFamilyChildrenAreAskedOnlyWithContractsAndContributions(t *testing.T) {
+func TestFamilyChildrenAreAskedOnlyWhereTheTraegerCountsThem(t *testing.T) {
 	t.Parallel()
 	env := setupFamilyChildren(t, false)
 	rec := env.get(t, "/requests/"+env.token+"/family-children")

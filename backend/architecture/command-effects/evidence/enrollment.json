@@ -1249,6 +1249,54 @@
       "target_owner": "timetable-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "5e99a0c32a0b93e5d96391c05788d1d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "9147df733ce42cb585a7e788e4ac2295",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "3da0f01fa5dc7103f999dec7dc59be49",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "5ef7eacdcd721237208d9b69daac04e5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContributionRules.ListContributionRules",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "07945b1422e6c5c8c1f27132deccb67f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose.NewContributionRules",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "e181bfd5dbd03dbe71b56c5ebc4936d8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.EnrollmentGuardianAutofill.LoadForTenant",
       "binding_digest": "0710e7ee6567ea4b76fa2aaf9bc29ebd",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.GuardianAutofillReader.LoadForTenant",
@@ -4590,14 +4638,6 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.EnrollmentEnabled",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.EnrollmentEnabled",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.FamilyChildrenAsked",
-      "binding_digest": "e45529bfb87e490463989373305f6d2c",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.FamilyChildrenAsked",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.FamilyChildrenAsked",
       "target_owner": "settings-platform"
     },
     {

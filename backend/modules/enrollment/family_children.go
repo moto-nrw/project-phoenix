@@ -17,8 +17,9 @@ import (
 // Invariants:
 //   - The status link reads and writes only its own registration, while it
 //     is valid (unexpired, school still books the Online-Anmeldung).
-//   - The page asks only where the number has a use: the school booked the
-//     contracts and the parents' contributions.
+//   - The page asks only where the number has a use: a sibling rule of the
+//     school's Träger counts the family for this school
+//     (FamilyChildrenPurpose).
 //   - The parents can state and correct the number until a child of the
 //     registration is accepted; from then on the contract carries it.
 
@@ -48,4 +49,11 @@ type RegistrationFamilyChildren struct {
 type IntakeFamilyChildren interface {
 	FamilyChildrenByStatusToken(ctx context.Context, token string) (RegistrationFamilyChildren, error)
 	StateFamilyChildrenByStatusToken(ctx context.Context, token string, children int) (RegistrationFamilyChildren, error)
+}
+
+// FamilyChildrenPurpose tells whether the Träger of a school counts the
+// children of the family: a current care sibling rule that counts them and
+// applies to the school (#6335). A failed read asks nothing.
+type FamilyChildrenPurpose interface {
+	FamilyChildrenAsked(ctx context.Context, schoolID int64) (bool, error)
 }

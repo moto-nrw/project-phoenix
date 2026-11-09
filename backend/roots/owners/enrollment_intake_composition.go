@@ -24,7 +24,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges, Uploads: src.Uploads, Signatures: EnrollmentSignatures{Ledger: SignatureLedger()},
 		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
-		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
+		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger, FamilyChildrenPurpose: src.FamilyChildrenPurpose,
 	})
 }
 
@@ -159,6 +159,9 @@ type EnrollmentIntakeSources struct {
 	FrontendURL string
 	ParentsURL  string
 	Logger      *slog.Logger
+	// FamilyChildrenPurpose asks for the children of the family where the
+	// school's Träger counts them (#6335); nil asks nowhere.
+	FamilyChildrenPurpose enrollmentOwner.FamilyChildrenPurpose
 }
 
 // EnrollmentChangeRequestSources are the owners and retained repositories the

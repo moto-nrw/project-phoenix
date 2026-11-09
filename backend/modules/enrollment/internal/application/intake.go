@@ -150,9 +150,6 @@ type IntakeSettings interface {
 	// CareFacilityTerm is the school's term for its care in fixed parent
 	// texts (enrollment.care_facility_term, #6042).
 	CareFacilityTerm(ctx context.Context) (string, error)
-	// FamilyChildrenAsked reports whether the status page asks for the
-	// children of the family (#6335); false on any failure.
-	FamilyChildrenAsked(ctx context.Context) bool
 	// LegalSettings resolves the tenant-wide legal texts and toggles. A
 	// toggle without a tenant override is off.
 	LegalSettings(ctx context.Context) (LegalSettings, error)
@@ -227,6 +224,9 @@ type IntakeDependencies struct {
 	// FamilyChildren stores the number of children the parents state on the
 	// status page of their registration (#6335). Nil refuses the statement.
 	FamilyChildren IntakeFamilyChildrenStore
+	// FamilyChildrenPurpose tells whether the school's Träger counts the
+	// number (#6335). Nil asks nowhere.
+	FamilyChildrenPurpose enrollmentNative.FamilyChildrenPurpose
 	// Random fills the status and late-invite tokens; Fingerprint hashes a
 	// late-invite token into its stored identity.
 	Random      func([]byte) error

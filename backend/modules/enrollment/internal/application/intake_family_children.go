@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -48,6 +49,7 @@ func (s *Intake) familyChildren(ctx context.Context, token string, children *int
 	}); err != nil {
 		return enrollmentNative.RegistrationFamilyChildren{}, err
 	}
+	asked := s.familyChildrenAsked(ctx, req.TenantID)
 	var result enrollmentNative.RegistrationFamilyChildren
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	err := s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
@@ -56,7 +58,7 @@ func (s *Intake) familyChildren(ctx context.Context, token string, children *int
 			return err
 		}
 		result = enrollmentNative.RegistrationFamilyChildren{Children: locked.FamilyChildren, StatedAt: locked.FamilyChildrenStatedAt,
-			Asked: s.deps.Settings.FamilyChildrenAsked(txCtx)}
+			Asked: asked}
 		result.CanState = result.Asked && familyChildrenOpen(locked, requestChildren)
 		if children == nil {
 			return nil
@@ -97,4 +99,24 @@ func familyChildrenOpen(req *enrollmentNative.Request, children []*enrollmentNat
 		}
 	}
 	return open
+}
+
+// familyChildrenAsked asks the Träger's purpose outside the school's
+// transaction; a failed read asks nothing.
+func (s *Intake) familyChildrenAsked(ctx context.Context, schoolID int64) bool {
+	if s.deps.FamilyChildrenPurpose == nil {
+		return false
+	}
+	asked, err := s.deps.FamilyChildrenPurpose.FamilyChildrenAsked(ctx, schoolID)
+	if err != nil {
+		logger := s.logger()
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("enrollment: read whether the Träger counts the family",
+			"school_id", schoolID,
+			"error", err.Error())
+		return false
+	}
+	return asked
 }

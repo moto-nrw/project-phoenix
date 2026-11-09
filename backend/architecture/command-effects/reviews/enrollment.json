@@ -1698,6 +1698,67 @@
       "target_owner": "timetable-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/organizationtenancy.Capability.FindSchool through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the school and its Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/organizationtenancy.Query.FindSchool through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the school and its Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/organizationtenancy.SchoolQuery.FindSchool through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the school and its Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/parentbilling.ContributionRules.ListContributionRules through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the contribution rules of the Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContributionRules.ListContributionRules",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Reviewed construction helper: enrollment reaches modules/parentbilling/compose.NewContributionRules (parent-billing) while binding roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335); it only builds the rules capability over the owner's store. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose.NewContributionRules",
+      "target_owner": "parent-billing"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335), which reads the sibling rules of the school's Träger in that Träger's own read transaction, outside the school transaction of the status link, to ask for the children of the family only where a rule counts them. No write.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.EnrollmentGuardianAutofill.LoadForTenant",
       "classification": "query",
       "effect": "query",
@@ -6136,16 +6197,6 @@
       "reason": "Read-only newly exposed target: enrollment reaches modules/settings.EnrollmentIntakeValues.EnrollmentEnabled (settings-platform) through roots/owners.enrollmentIntakeSettings.EnrollmentEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.EnrollmentEnabled",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.FamilyChildrenAsked",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.FamilyChildrenAsked",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings.EnrollmentIntakeValues.FamilyChildrenAsked (settings-platform) through roots/owners.enrollmentIntakeSettings.FamilyChildrenAsked to ask for the children of the family only where the school booked contracts and contributions (#6335). No persistent, lock or scope effect.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.FamilyChildrenAsked",
       "target_owner": "settings-platform"
     },
     {
