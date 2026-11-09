@@ -5,12 +5,20 @@ import (
 	"time"
 )
 
-// CleanupRunLedger keeps when a nightly cleanup job last succeeded for a
-// school (#3950). Both methods join the tenant transaction in ctx, so a
-// recorded success commits or rolls back together with the cleanup itself.
+// CleanupRunLedger keeps, per nightly cleanup job and school, when the job
+// last succeeded (#3950) and how many runs failed in a row since (#6327).
+// Every method joins the tenant transaction in ctx: a recorded success
+// commits or rolls back together with the cleanup itself.
 type CleanupRunLedger interface {
-	LastCleanupSucceeded(ctx context.Context, jobID string) (time.Time, bool, error)
+	// CleanupRun returns the last success, zero while the job never
+	// succeeded for the school, the failed runs in a row since, and the last
+	// of them, zero without failures.
+	CleanupRun(ctx context.Context, jobID string) (lastSuccess time.Time, failures int, lastFailure time.Time, err error)
+	// RecordCleanupSucceeded stores the success and ends the failure streak.
 	RecordCleanupSucceeded(ctx context.Context, jobID string, at time.Time) error
+	// RecordCleanupFailed stores the streak of failures ending with the
+	// failed run at at. It never replaces a later failure or success.
+	RecordCleanupFailed(ctx context.Context, jobID string, failures int, at time.Time) error
 }
 
 // RetentionStep is one owner's deletion in the nightly cleanup of a school

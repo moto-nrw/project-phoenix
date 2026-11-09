@@ -61,5 +61,5 @@ func AssertRestrictedDemoUnit(t *testing.T, db *bun.DB) {
 	}))
 	regular := NewDatabase(t, db)
 	ctx = tenant.WithUnitOfWork(t.Context(), regular.UnitOfWork())
-	require.ErrorContains(t, tenant.WithinAdmin(ctx, func(context.Context) error { return nil }), "permission denied to set role")
+	require.Equal(t, "42501", PostgresSQLState(tenant.WithinAdmin(ctx, func(context.Context) error { return nil })))
 }

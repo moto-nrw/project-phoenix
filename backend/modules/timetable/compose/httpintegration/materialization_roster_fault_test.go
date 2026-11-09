@@ -52,7 +52,7 @@ func TestMaterializationRosterReadFailurePersistsNothing(t *testing.T) {
 
 	result, err := s.svc.MaterializeForTenant(s.ctx, from, from, timetable.MaterializationSourceManual)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "permission denied for table persons")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 	t.Logf("FAULT own transaction: err=%v created=%d", err, createdOf(result))
 	require.Empty(t, listInstancesForDate(t, s.db, first.ID, from))
 	require.Empty(t, listInstancesForDate(t, s.db, s.template.ID, from))
@@ -63,7 +63,7 @@ func TestMaterializationRosterReadFailurePersistsNothing(t *testing.T) {
 		return nil
 	})
 	require.Error(t, swallowed)
-	require.Contains(t, swallowed.Error(), "permission denied for table persons")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(swallowed))
 	t.Logf("FAULT ambient transaction: err=%v created=%d commit=%v", swallowed, createdOf(result), commitErr)
 	require.Empty(t, listInstancesForDate(t, s.db, first.ID, from), "the aborted transaction keeps no occurrence")
 	require.Empty(t, listInstancesForDate(t, s.db, s.template.ID, from))

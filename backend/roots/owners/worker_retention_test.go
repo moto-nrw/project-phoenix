@@ -667,8 +667,7 @@ func TestCleanupIntentRetentionRefusesAYoungCutoff(t *testing.T) {
 	}
 	require.ErrorContains(t, inSchool(`SELECT documents.delete_finished_file_cleanups(?, CURRENT_TIMESTAMP)`, school),
 		"cleanup intent cutoff exceeds retention window")
-	require.ErrorContains(t, inSchool(`DELETE FROM documents.file_cleanup WHERE id = ?`, recent),
-		"permission denied for table file_cleanup", "the tenant role keeps no direct DELETE on the intents")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(inSchool(`DELETE FROM documents.file_cleanup WHERE id = ?`, recent)), "the tenant role keeps no direct DELETE on the intents")
 	assert.True(t, suite.exists(t, "documents.file_cleanup", recent))
 }
 

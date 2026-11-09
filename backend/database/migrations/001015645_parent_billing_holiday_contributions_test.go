@@ -103,14 +103,14 @@ func TestParentBillingTablesFollowTheTraegerPolicy(t *testing.T) {
 			_, err := tx.ExecContext(ctx, statement, own)
 			return err
 		})
-		assert.ErrorContains(t, err, "permission denied", "a frozen contribution never changes: %s", statement)
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a frozen contribution never changes: %s", statement)
 	}
 	err = asRequestRole("app.current_org_id", fmt.Sprint(foreign), func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.contribution_rules (organization_id, service, kind, valid_from, note)
 			VALUES (?, 'holiday', 'benefits_exemption', '2027-01-01', 'Vermerk')`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot write a rule of another Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot write a rule of another Träger")
 
 	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_registrations WHERE id = ?`, registration)
 	require.NoError(t, err)
