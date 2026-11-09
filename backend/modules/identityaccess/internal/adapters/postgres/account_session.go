@@ -409,6 +409,26 @@ func (s *Store) DeleteAccountSessionsByFamily(ctx context.Context, familyID stri
 	return accountSessionsToDomain(rows), stats, nil
 }
 
+func (s *Store) DeleteAccountSessionsExceptFamily(ctx context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []accountSessionRow
+	query := db.NewDelete().Model((*accountSessionRow)(nil)).Where(`"token".account_id = ?`, accountID)
+	if keepFamilyID != "" {
+		query = query.Where(`"token".family_id <> ?`, keepFamilyID)
+	}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, fmt.Errorf("identity access postgres: delete account sessions except family: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	return accountSessionsToDomain(rows), stats, nil
+}
+
 // DeleteAccountSessionsByAccount with a cutoff deletes sessions that already
 // existed at cutoff: sessions created then, later refresh successors of
 // those families, and empty-family legacy rows. New logins after cutoff keep

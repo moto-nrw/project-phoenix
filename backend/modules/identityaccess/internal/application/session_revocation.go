@@ -319,6 +319,24 @@ func (s *AccountAuthentication) deleteAllAccountSessionsInCtx(ctx context.Contex
 	return sessions, nil
 }
 
+// revokeOtherSessionsWithAudit deletes every session of the account at
+// every school except the family keepFamilyID names, records the evidence on
+// the caller's transaction and queues the push cleanup of the revoked
+// families. An account's own password change keeps the session it is made
+// in (#6289).
+func (s *AccountAuthentication) revokeOtherSessionsWithAudit(ctx context.Context, accountID int64, keepFamilyID, reason, ipAddress, userAgent string) error {
+	revoked, err := s.sessions.RevokeOtherAccountSessions(ctx, accountID, keepFamilyID)
+	if err != nil {
+		return err
+	}
+	sessions := domainAccountSessions(revoked)
+	if err := s.auditRevokedSessions(ctx, sessions, reason, ipAddress, userAgent); err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, accountID, sessions, reason)
+	return nil
+}
+
 // RevokeAllTokensWithReason revokes every session of the account: an
 // account-wide reason schedules the wipe, any other reason deletes the
 // sessions at the caller's school inside its transaction.

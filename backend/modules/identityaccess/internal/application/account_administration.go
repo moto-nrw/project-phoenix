@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -13,16 +14,17 @@ import (
 // Operation names the administration flows report. They are the envelope
 // the retained consumers read, so their text is part of the contract.
 const (
-	opGetAccount         = "get account"
-	opUpdateAccount      = "update account"
-	opListAccounts       = "list accounts"
-	opAccountsByRole     = "get accounts by role"
-	opActivateAccount    = "activate account"
-	opDeactivateAccount  = "deactivate account"
-	opHashPassword       = "hash password"
-	opVerifyPassword     = "verify password"
-	opValidatePassword   = "validate password"
-	opRevokeOnDeactivate = "revoke tokens during account deactivation"
+	opGetAccount                = "get account"
+	opUpdateAccount             = "update account"
+	opListAccounts              = "list accounts"
+	opAccountsByRole            = "get accounts by role"
+	opActivateAccount           = "activate account"
+	opDeactivateAccount         = "deactivate account"
+	opHashPassword              = "hash password"
+	opVerifyPassword            = "verify password"
+	opValidatePassword          = "validate password"
+	opRevokeOnDeactivate        = "revoke tokens during account deactivation"
+	opRevokeAfterPasswordChange = "revoke access after password change"
 )
 
 // AccountAdministration administers platform accounts (#3332): the account
@@ -228,12 +230,20 @@ func (a *AccountAdministration) setActiveInTransaction(ctx context.Context, acco
 	return nil
 }
 
-// ChangeAccountPassword replaces the account holder's own credential. The
+// ownPasswordChangeReason names the revocation an account's own password
+// change records, as the caterer's and the operator's do.
+const ownPasswordChangeReason = "password_change"
+
+// changeAccountPassword replaces the account holder's own credential. The
 // current password is the authorization, so the read is unscoped: an
 // account holder proves who they are with the credential, not with a
-// school membership.
-func (a *AccountAdministration) changeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
-	account, found, _, err := a.store.FindAccountRecord(ctx, accountID)
+// school membership. The new hash, the spent reset links, the revoked
+// remembered devices and the end of every other session commit together
+// (#6289): whoever held the old password, a session, a reset link or a
+// remembered device keeps nothing of it. The session the change is made in
+// stays signed in.
+func (a *AccountAdministration) changeAccountPassword(ctx context.Context, change identityaccess.OwnPasswordChange) error {
+	account, found, _, err := a.store.FindAccountRecord(ctx, change.AccountID)
 	if err != nil {
 		return failed(opGetAccount, err)
 	}
@@ -243,23 +253,38 @@ func (a *AccountAdministration) changeAccountPassword(ctx context.Context, accou
 	if account.PasswordHash == "" {
 		return failed(opVerifyPassword, identityaccess.ErrInvalidCredentials)
 	}
-	valid, verifyErr := a.verifier.VerifyPassword(currentPassword, account.PasswordHash)
+	valid, verifyErr := a.verifier.VerifyPassword(change.CurrentPassword, account.PasswordHash)
 	if verifyErr != nil || !valid {
 		return failed(opVerifyPassword, identityaccess.ErrInvalidCredentials)
 	}
-	if strengthErr := a.passwords.ValidatePasswordStrength(newPassword); strengthErr != nil {
+	if strengthErr := a.passwords.ValidatePasswordStrength(change.NewPassword); strengthErr != nil {
 		return failed(opValidatePassword, strengthErr)
 	}
-	hash, hashErr := a.passwords.HashPassword(newPassword)
+	hash, hashErr := a.passwords.HashPassword(change.NewPassword)
 	if hashErr != nil {
 		return failed(opHashPassword, hashErr)
 	}
-	written, _, err := a.store.UpdateAccountPasswordHash(ctx, accountID, hash)
+	// The update locks the account row that refresh, logout and every mint
+	// take first, so no rotation commits between it and the revocation.
+	written, _, err := a.store.UpdateAccountPasswordHash(ctx, change.AccountID, hash)
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}
 	if !written {
 		return failed(opUpdateAccount, domain.ErrAccountNotFound)
+	}
+	return a.revokeAfterPasswordChange(ctx, change)
+}
+
+func (a *AccountAdministration) revokeAfterPasswordChange(ctx context.Context, change identityaccess.OwnPasswordChange) error {
+	if _, err := a.store.RevokePasswordResetTokens(ctx, change.AccountID); err != nil {
+		return failed(opRevokeAfterPasswordChange, err)
+	}
+	if _, err := a.store.RevokeAccountTrustedDevices(ctx, change.AccountID, time.Now()); err != nil {
+		return failed(opRevokeAfterPasswordChange, err)
+	}
+	if err := a.auth.revokeOtherSessionsWithAudit(ctx, change.AccountID, change.SessionFamilyID, ownPasswordChangeReason, change.IPAddress, change.UserAgent); err != nil {
+		return failed(opRevokeAfterPasswordChange, err)
 	}
 	return nil
 }
@@ -367,10 +392,10 @@ func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, 
 	})
 }
 
-func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
+func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, change identityaccess.OwnPasswordChange) error {
 	return runFlowErr(ctx, a.flow(), func(ctx context.Context) error {
 		return globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
-			return a.changeAccountPassword(txCtx, accountID, currentPassword, newPassword)
+			return a.changeAccountPassword(txCtx, change)
 		})
 	})
 }

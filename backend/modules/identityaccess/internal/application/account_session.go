@@ -375,6 +375,25 @@ func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64)
 	return accountSessions(result), nil
 }
 
+// RevokeOtherAccountSessions deletes the account's sessions at every school
+// except the family keepFamilyID names.
+func (s *Service) RevokeOtherAccountSessions(ctx context.Context, accountID int64, keepFamilyID string) ([]ports.AccountSession, error) {
+	var result []domain.AccountSession
+	err := s.run(ctx, s.tx.RunAdmin, "revoke_other_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
+		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsExceptFamily(txCtx, accountID, keepFamilyID)
+		stats.Add(queryStats)
+		if deleteErr != nil {
+			return deleteErr
+		}
+		result = deleted
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("identity access: revoke other account sessions: %w", MapError(err))
+	}
+	return accountSessions(result), nil
+}
+
 func (s *Service) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunAdmin, "revoke_account_sessions_created_at_or_before", func(txCtx context.Context, stats *domain.OperationStats) error {

@@ -79,12 +79,25 @@ func (r *AccountMFARecords) RevokeTrustedDevice(ctx context.Context, id int64, r
 }
 
 func (r *AccountMFARecords) RevokeAllTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) error {
-	db, err := r.store.database(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = db.NewRaw("UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL", revokedAt, accountID).Exec(ctx)
+	_, err := r.store.RevokeAccountTrustedDevices(ctx, accountID, revokedAt)
 	return err
+}
+
+// RevokeAccountTrustedDevices revokes the account's remembered devices at
+// every school and in every portal.
+func (s *Store) RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewRaw("UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL", revokedAt, accountID).Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, err
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
 }
 
 func (r *AccountMFARecords) RevokeTenantTrustedDevices(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error {

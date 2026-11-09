@@ -701,6 +701,20 @@ func (s *fakeStore) DeleteAccountSessionsByAccount(ctx context.Context, accountI
 	return deleted, stats(), nil
 }
 
+func (s *fakeStore) DeleteAccountSessionsExceptFamily(_ context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var deleted []domain.AccountSession
+	for id, session := range s.sessions {
+		if session.AccountID != accountID || (keepFamilyID != "" && session.FamilyID == keepFamilyID) {
+			continue
+		}
+		deleted = append(deleted, session)
+		delete(s.sessions, id)
+	}
+	return deleted, stats(), nil
+}
+
 func (s *fakeStore) DeleteAccountSessionsByTenant(_ context.Context, tenantID int64) ([]domain.AccountSession, domain.OperationStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

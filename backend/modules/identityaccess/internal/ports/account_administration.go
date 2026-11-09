@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -41,6 +42,11 @@ type AccountAdministrationStore interface {
 	// UpdateAccountPasswordHash replaces the credential of the account
 	// holder; found=false when the row is gone or erased.
 	UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error)
+	// RevokePasswordResetTokens spends every reset link of the account.
+	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
+	// RevokeAccountTrustedDevices revokes the account's remembered devices
+	// at every school and in every portal.
+	RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error)
 	// FindAnalyticsConsent reads the holder's usage analytics answer (#4901);
 	// found=false when the row is gone or erased.
 	FindAnalyticsConsent(ctx context.Context, id int64) (domain.AnalyticsConsent, bool, domain.OperationStats, error)
