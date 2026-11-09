@@ -10,13 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// openSickReportStatuses are the statuses a sick report blocks its range
-// with; declined and cancelled entries take no plan effect.
-var openSickReportStatuses = []string{
-	workforce.AbsenceStatusReported, workforce.AbsenceStatusRequested,
-	workforce.AbsenceStatusQuestion, workforce.AbsenceStatusApproved,
-}
-
 // SickReportAbsences is the one Workforce absence read the materializer's
 // sick-report port needs.
 type SickReportAbsences interface {
@@ -40,7 +33,7 @@ type timetableSickReports struct {
 func (r timetableSickReports) OpenSickReports(ctx context.Context, from, to calendar.Date) ([]timetable.SickReport, error) {
 	rows, err := r.absences.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
 		Types:       []string{workforce.AbsenceTypeSick},
-		Statuses:    openSickReportStatuses,
+		Statuses:    workforce.RangeBlockingAbsenceStatuses(),
 		OverlapFrom: from.String(),
 		OverlapTo:   to.String(),
 	})
