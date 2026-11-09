@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,4 +81,14 @@ func checkCareExclusionMigration(t *testing.T, ctx context.Context, pool *bun.DB
 	assert.Empty(t, services(legacyExclude), "the down migration takes the services off again")
 	assert.Empty(t, services(mealOnly))
 	require.NoError(t, mapCareExclusionsOntoServices(ctx, db))
+}
+
+// TestCareInvoiceExclusionErasureExtendsTheErasureOf843 keeps the erasure of
+// 1.15.864 the erasure of 1.15.843 with the statement of #6346 and nothing
+// else, before the exclusions of the school's contracts go.
+func TestCareInvoiceExclusionErasureExtendsTheErasureOf843(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, 1, strings.Count(demoVisitorErasureOutboxKindsSQL, careInvoiceExclusionErasureAnchor))
+	assert.Equal(t, strings.Replace(demoVisitorErasureOutboxKindsSQL, careInvoiceExclusionErasureAnchor,
+		careInvoiceExclusionErasureStatement+careInvoiceExclusionErasureAnchor, 1), demoVisitorErasureCareInvoiceExclusionsSQL)
 }
