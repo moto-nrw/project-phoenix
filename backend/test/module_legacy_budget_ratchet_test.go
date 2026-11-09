@@ -250,7 +250,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0188: the guardian bank backfill/rekey constructor of
 // modules/peopledirectory/compose (+6), the staff bank cipher dependency and
 // backfill/rekey constructor of modules/workforce/compose (+7).
-const moduleComposeBudgetTotal = 13170
+const moduleComposeBudgetTotal = 13167
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
