@@ -83,6 +83,11 @@ fi
 [ ${#STAGES[@]} -gt 0 ] || STAGES=(typecheck vitest go-tests devloop-native)
 [ -f "$ROOT/frontend/package.json" ] && [ -d "$ROOT/backend" ] || die "$ROOT is not a project-phoenix checkout"
 
+# Bash's `time` keyword cannot be exec'd; resolve the external program only.
+TIME_BIN=$(type -P time) || die "external time not found in PATH; run this command in Devbox (devbox run -- ...)"
+"$TIME_BIN" -p -o /dev/null true >/dev/null 2>&1 ||
+  die "time must support -p -o; run this command in Devbox (devbox run -- ...)"
+
 GO_LEAF=${DEV_BENCH_GO_LEAF:-modules/workforce/http/timetracking}
 GO_CENTRAL=${DEV_BENCH_GO_CENTRAL:-sharedkernel/calendar}
 FE_FILE=${DEV_BENCH_FE_FILE:-src/lib/date-helpers.ts}
@@ -232,10 +237,10 @@ measure() { # stage dir command...
     # shellcheck disable=SC2016 # expanded by the inner shell.
     (cd "$dir" && exec "$HEAVY" ${GATE_LIGHT:+--light} -- /bin/sh -c \
       'perl -MTime::HiRes=time -e "printf q(%.2f), time" >"$1"; shift; exec "$@"' \
-      sh "$admitf" /usr/bin/time -p -o "$timef" "$@") >"$log" 2>&1 </dev/null &
+      sh "$admitf" "$TIME_BIN" -p -o "$timef" "$@") >"$log" 2>&1 </dev/null &
   else
     printf '%s' "$start" >"$admitf"
-    (cd "$dir" && exec /usr/bin/time -p -o "$timef" "$@") >"$log" 2>&1 </dev/null &
+    (cd "$dir" && exec "$TIME_BIN" -p -o "$timef" "$@") >"$log" 2>&1 </dev/null &
   fi
   pid=$!
   MEASURED=$pid
