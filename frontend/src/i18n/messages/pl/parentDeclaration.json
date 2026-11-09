@@ -47,6 +47,7 @@
   "oneIsEnough": "Wystarczy jedna odpowiedź.",
   "ownAnyway": "Nadal możesz odpowiedzieć samodzielnie.",
   "cannotSubmit": "Tutaj nie możesz odpowiedzieć za {name}. Robią to osoby sprawujące opiekę prawną.",
+  "cannotSubmitAnymore": "Nie możesz już udzielić nowej odpowiedzi dla {name}.",
   "myAction": "Twoja odpowiedź: {action}, {date}",
   "myActionNoDate": "Twoja odpowiedź: {action}",
   "proof": "Zobacz potwierdzenie",

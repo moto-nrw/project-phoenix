@@ -471,13 +471,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (p declarationPolicyBinding) ActionAllowed(revocable bool, deadline *time.Time, canSubmit bool, latest string, action string, now time.Time) bool {\n\tresult0 := p.callbacks.ActionAllowed(revocable, deadline, canSubmit, latest, action, now)\n\treturn result0\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "workflows/parentportal/declarationPolicyBinding.ActionAllowed",
-      "owner": "workflows/parentportal"
-    },
-    {
-      "build": "production",
       "evidence": "func (p declarationPolicyBinding) AllowedActions(revocable bool, deadline *time.Time, canSubmit bool, latest string, now time.Time) []string {\n\tresult0 := p.callbacks.AllowedActions(revocable, deadline, canSubmit, latest, now)\n\treturn result0\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/declarationPolicyBinding.AllowedActions",

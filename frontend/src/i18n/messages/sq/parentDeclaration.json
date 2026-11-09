@@ -47,6 +47,7 @@
   "oneIsEnough": "Mjafton një përgjigje.",
   "ownAnyway": "Mund të përgjigjeni edhe vetë.",
   "cannotSubmit": "Këtu nuk mund të përgjigjeni për {name}. Këtë e bëjnë personat me kujdestari.",
+  "cannotSubmitAnymore": "Nuk mund të jepni më përgjigje të re për {name}.",
   "myAction": "Përgjigjja juaj: {action}, {date}",
   "myActionNoDate": "Përgjigjja juaj: {action}",
   "proof": "Shiko vërtetimin",

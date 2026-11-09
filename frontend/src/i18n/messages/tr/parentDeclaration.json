@@ -47,6 +47,7 @@
   "oneIsEnough": "Bir yanıt yeterlidir.",
   "ownAnyway": "Yine de kendiniz yanıtlayabilirsiniz.",
   "cannotSubmit": "{name} için burada yanıt veremezsiniz. Bunu velayet sahibi kişiler yapar.",
+  "cannotSubmitAnymore": "{name} için artık yeni yanıt veremezsiniz.",
   "myAction": "Yanıtınız: {action}, {date}",
   "myActionNoDate": "Yanıtınız: {action}",
   "proof": "Belgeyi görüntüle",

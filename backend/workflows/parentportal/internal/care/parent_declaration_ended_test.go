@@ -293,3 +293,56 @@ func TestDeclaration_WithdrawnDeclarationRevocationStillAsksForThePassword(t *te
 	require.NoError(t, submit(parentportal.DeclarationActionRevoked, secret))
 	assert.Len(t, s.history(t), 2)
 }
+
+// A guardian who lost parent_portal.declarations.submit keeps the revocation
+// of their own consent (TestDeclaration_WithdrawnPermissionAllowsOwnRevocation).
+// The feed must offer exactly what the write path accepts, or the guardian
+// never finds it.
+func TestDeclaration_WithdrawnPermissionShowsOwnRevocationInFeed(t *testing.T) {
+	t.Parallel()
+	for name, ended := range map[string]bool{"live declaration": false, "withdrawn declaration": true} {
+		t.Run(name, func(t *testing.T) {
+			s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+			_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+			require.NoError(t, err)
+			revokeDeclarationPermission(t, s.db, s.chain.AccountID)
+			if ended {
+				s.unpublishDeclaration(t)
+			}
+
+			item := s.feedItem(t, s.chain.AccountID)
+			require.NotNil(t, item)
+			require.Len(t, item.Declaration.Children, 1)
+			child := item.Declaration.Children[0]
+			assert.False(t, child.CanSubmit, "no new answers without the permission")
+			require.NotNil(t, child.MyAction, "the guardian sees their own answer")
+			assert.Equal(t, parentportal.DeclarationActionAgreed, *child.MyAction)
+			assert.Equal(t, []string{parentportal.DeclarationActionRevoked}, child.AllowedActions)
+
+			_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionDeclined)
+			require.Error(t, err, "the feed offers no refusal, and the write path takes none")
+			_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+			require.NoError(t, err, "the write path takes what the feed offers")
+			assert.True(t, created)
+
+			child = s.feedItem(t, s.chain.AccountID).Declaration.Children[0]
+			require.NotNil(t, child.MyAction)
+			assert.Equal(t, parentportal.DeclarationActionRevoked, *child.MyAction)
+			assert.Empty(t, child.AllowedActions)
+		})
+	}
+}
+
+func TestDeclaration_WithdrawnPermissionOffersNoRevocationOfAFinalConsent(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	require.NoError(t, err)
+	revokeDeclarationPermission(t, s.db, s.chain.AccountID)
+
+	child := s.feedDeclaration(t, s.chain.AccountID).Children[0]
+	require.NotNil(t, child.MyAction)
+	assert.Empty(t, child.AllowedActions)
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed)
+}

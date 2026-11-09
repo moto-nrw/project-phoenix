@@ -47,6 +47,7 @@
   "oneIsEnough": "Eine Antwort genügt.",
   "ownAnyway": "Sie können trotzdem selbst antworten.",
   "cannotSubmit": "Für {name} können Sie hier nicht antworten. Das machen die sorgeberechtigten Personen.",
+  "cannotSubmitAnymore": "Für {name} können Sie nicht mehr neu antworten.",
   "myAction": "Ihre Antwort: {action} am {date} Uhr",
   "myActionNoDate": "Ihre Antwort: {action}",
   "proof": "Nachweis ansehen",

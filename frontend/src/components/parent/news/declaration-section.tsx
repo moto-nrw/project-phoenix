@@ -522,7 +522,11 @@ function DeclarationChildCard({
 
       {!child.can_submit && (
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          {t("cannotSubmit", { name: child.first_name })}
+          {/* A guardian who answered before keeps their answer and its
+              withdrawal, even without the right to declare (#6290). */}
+          {child.my_action
+            ? t("cannotSubmitAnymore", { name: child.first_name })
+            : t("cannotSubmit", { name: child.first_name })}
         </p>
       )}
 

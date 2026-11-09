@@ -47,6 +47,7 @@
   "oneIsEnough": "One answer is enough.",
   "ownAnyway": "You can still answer yourself.",
   "cannotSubmit": "You cannot answer here for {name}. The guardians with custody do this.",
+  "cannotSubmitAnymore": "You can no longer give a new answer for {name}.",
   "myAction": "Your answer: {action} on {date}",
   "myActionNoDate": "Your answer: {action}",
   "proof": "View proof",

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -249,6 +250,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err != nil {
 		return nil, false, err
 	}
+	mayDeclare := signer != nil
 	if signer == nil && in.Action == DeclarationActionRevoked {
 		signer, err = repo.HoldHistoricalDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
 		if err != nil {
@@ -267,7 +269,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 		return mine, false, nil
 	}
 	now := time.Now()
-	if err := checkDeclarationAction(s.Declarations, rules, mine, in.Action, now); err != nil {
+	if err := checkDeclarationAction(s.Declarations, rules, mayDeclare, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
 	signatureID, err := s.recordDeclarationSignature(ctx, target.tenantID, accountID, version, signer, in, requiresSignature, now)
@@ -309,14 +311,15 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 	return feedDeclarationRules(a.Declaration, a.ResponseDeadline), version, a.Declaration.RequiresSignature, nil
 }
 
-// checkDeclarationAction maps a refused action to the error the portal can
+// checkDeclarationAction enforces the actions the feed offers
+// (declarationActionsFor) and maps a refused one to the error the portal can
 // explain: the deadline for a late answer, otherwise "not possible".
-func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mine *DeclarationSubmission, action string, now time.Time) error {
+func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mayDeclare bool, mine *DeclarationSubmission, action string, now time.Time) error {
 	myLatest := ""
 	if mine != nil {
 		myLatest = mine.Action
 	}
-	if policy.ActionAllowed(rules.Revocable, rules.Deadline, true, myLatest, action, now) {
+	if slices.Contains(declarationActionsFor(policy, rules, mayDeclare, myLatest, now), action) {
 		return nil
 	}
 	if policy.Closed(rules.Deadline, now) && action != DeclarationActionRevoked {

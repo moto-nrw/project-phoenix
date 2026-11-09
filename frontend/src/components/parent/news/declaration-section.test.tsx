@@ -842,3 +842,44 @@ describe("an Einverständnis the school ended (#6290)", () => {
     );
   });
 });
+
+describe("a guardian who may no longer declare (#6290)", () => {
+  it("keeps the own answer and its withdrawal", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({
+                can_submit: false,
+                state: "no_signer",
+                my_action: "agreed",
+                my_submitted_at: "2026-09-09T08:30:00Z",
+                allowed_actions: ["revoked"],
+              }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Für Mia können Sie nicht mehr neu antworten."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihre Antwort: Zugestimmt am 09.09.2026, 10:30 Uhr"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Zustimmen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Das machen die sorgeberechtigten Personen/),
+    ).not.toBeInTheDocument();
+  });
+});
