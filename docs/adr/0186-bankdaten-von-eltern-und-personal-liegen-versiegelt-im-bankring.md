@@ -34,6 +34,11 @@ den Standardantworten weiter unmaskiert angezeigt.
    Reveal, Export der Bankverbindungen und der Änderungsvergleich öffnen die
    Werte. Reveal und Export bleiben auditiert. Geöffnet wird erst nach dem
    Zugriffsprotokoll. Fehlermeldungen enthalten keine Werte.
+   Der Owner bestätigt Lesen und Zugriffsaudit in einer eigenen Schultransaktion,
+   bevor er entschlüsselt. Eine äußere Request-Transaktion und ihre Commit-Hooks
+   werden dabei nicht übernommen. So bleibt auch ein fehlgeschlagener Leseversuch
+   dauerhaft protokolliert. Die vier Eltern-Leserouten öffnen deshalb keine
+   zusätzliche HTTP-Transaktion; ihr SQL-Budget bleibt unverändert.
 5. Schreiber speichern nie Klartext. Der Adapter setzt die Klartextspalten bei
    jedem Schreiben auf NULL. Bis zum Backfill liest der Adapter Zeilen ohne
    Chiffrat aus den Klartextspalten. Das ist nur der Übergang bis Migration 1.15.838.

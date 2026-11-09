@@ -2,6 +2,8 @@ package contracttest_test
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -10,6 +12,31 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGuardianPaymentAccessAuditSurvivesCallerRollback(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupGuardianService(t, db)
+	ctx := testpkg.Ctx(t)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "audited-failure")
+	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("bank-audit-%d@example.test", testpkg.Tenant(t)))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, db, service.UpdateGuardianPayment, profile.ID,
+		peoplePorts.GuardianPaymentInput{IBAN: strPtr("DE89370400440532013000")}, actor.ID, ""))
+	_, err := db.NewRaw(`UPDATE users.guardian_financial_data SET iban_sealed = ? WHERE guardian_profile_id = ?`,
+		[]byte("damaged IBAN"), profile.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	err = testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		_, err := service.RevealGuardianPayment(txCtx, profile.ID, actor.ID, "admin")
+		return err // The caller rolls back on the decryption error.
+	})
+	require.Error(t, err)
+	var count int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM audit.data_access_log
+WHERE tenant_id = ? AND resource_type = 'guardian_financial_reveal' AND metadata->>'guardian_profile_id' = ?`,
+		testpkg.Tenant(t), fmt.Sprint(profile.ID)).Scan(ctx, &count))
+	assert.Equal(t, 1, count)
+}
 
 type storedGuardianBank struct {
 	IBAN                *string `bun:"iban"`
