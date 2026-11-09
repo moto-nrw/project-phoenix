@@ -53,7 +53,7 @@ export function traegerDocumentTemplatesTopic(): HelpTopic {
       "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
       "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
       "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-      "Die Vorlage `Bescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
+      "Die Vorlage `Gebührenbescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
       "moto nutzt die Vorlagen für das Bestätigungsschreiben der Ferien, den Betreuungsvertrag, die Ferienrechnung und den Gebührenbescheid. Welches Schreiben ein Lauf ausstellt, legen Sie unter `Dokumentarten` fest. Die anderen Dokumente folgen.",
     ],
     differences: [

@@ -126,32 +126,43 @@ export function TraegerLetterheadPreview({
       {letterFacts ? (
         // Wie im PDF: links das Anschriftfeld, rechts Nummern, Daten und die
         // Ansprechperson des Trägers.
-        <div className="mt-6 grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <address
-            aria-label="Anschrift"
-            role="group"
-            className="min-w-0 wrap-anywhere text-gray-900 not-italic"
-          >
-            {(recipient ?? []).map((line, index) => (
-              <p key={`${index}-${line}`}>{line}</p>
-            ))}
-          </address>
-          {/* Eine Druckansicht, kein Feldgitter: jede Zeile Bezeichnung
+        // The preview's own width decides the columns: beside the editor it
+        // is half the page wide even on a laptop.
+        <div className="@container mt-6">
+          <div className="grid gap-6 @lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <address
+              aria-label="Anschrift"
+              role="group"
+              className="min-w-0 wrap-anywhere text-gray-900 not-italic"
+            >
+              {(recipient ?? []).map((line, index) => (
+                // Postcode and town stay on one line.
+                <p key={`${index}-${line}`}>
+                  {line.replace(/^(\d{4,5}) /, "$1\u00A0")}
+                </p>
+              ))}
+            </address>
+            {/* Eine Druckansicht, kein Feldgitter: jede Zeile Bezeichnung
               und Wert wie im Infoblock des PDFs. */}
-          <div
-            role="group"
-            aria-label="Angaben zum Schreiben"
-            className="min-w-0 space-y-0.5 text-sm"
-          >
-            {letterFacts.map((fact) => (
-              <p key={fact.label} className="flex justify-between gap-4">
-                {/* A number or date stays whole; the label wraps instead. */}
-                <span className="min-w-0 text-gray-500">{fact.label}</span>
-                <span className="shrink-0 text-right whitespace-nowrap text-gray-900 tabular-nums">
-                  {fact.value}
-                </span>
-              </p>
-            ))}
+            <div
+              role="group"
+              aria-label="Angaben zum Schreiben"
+              className="min-w-0 space-y-0.5 text-sm"
+            >
+              {letterFacts.map((fact) => (
+                // The label stays whole; a value that does not fit beside it
+                // moves to its own line instead of overprinting it.
+                <p
+                  key={fact.label}
+                  className="flex flex-wrap justify-between gap-x-4"
+                >
+                  <span className="shrink-0 text-gray-500">{fact.label}</span>
+                  <span className="ml-auto min-w-0 text-right wrap-anywhere text-gray-900 tabular-nums">
+                    {fact.value}
+                  </span>
+                </p>
+              ))}
+            </div>
           </div>
         </div>
       ) : (

@@ -107,6 +107,36 @@ function StatedCell({ family }: Readonly<{ family: FamilyChildren }>) {
   );
 }
 
+/**
+ * What the Monatslauf counts until the office checks, per kind of entry: an
+ * expired number no longer counts, a changed or expiring one still does.
+ */
+function checkCardText(
+  toCheck: readonly FamilyChildren[],
+  missing: number,
+): string {
+  const expired = toCheck.some((family) => family.status === "expired");
+  const stillValid = toCheck.some(
+    (family) => family.status === "changed" || family.status === "expiring",
+  );
+  return [
+    stillValid
+      ? "Bei geänderten oder bald ablaufenden Zahlen zählt der Monatslauf bis zu Ihrer Prüfung die bisher bestätigte Zahl."
+      : null,
+    expired
+      ? "Eine abgelaufene Kinderzahl gilt nicht mehr: Bis Sie neu prüfen, zählt der Monatslauf nur die Kinder mit Vertrag."
+      : null,
+    toCheck.some((family) => family.status === "stated")
+      ? "Eine neue Angabe der Eltern zählt erst, wenn Sie sie bestätigen."
+      : null,
+    missing > 0
+      ? `Ohne Angabe (${missing === 1 ? "1 Familie" : `${missing} Familien`}) zählen ebenfalls nur die Kinder mit Vertrag.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export default function TraegerKinderzahlPage() {
   const today = berlinTodayISO();
   const [data, setData] = useState<FamilyChildrenSet | null>(null);
@@ -345,7 +375,7 @@ export default function TraegerKinderzahlPage() {
           titleBadge={
             <StatusBadge tone="orange" label={`${toCheck.length} offen`} />
           }
-          description={`Bis Sie prüfen, zählt der Monatslauf die bisher bestätigte Zahl. Ohne sie zählen nur die Kinder mit Vertrag.${missing > 0 ? ` So auch bei ${missing === 1 ? "der 1 Familie" : `den ${missing} Familien`} ohne Angabe.` : ""}`}
+          description={checkCardText(toCheck, missing)}
           leading={
             <TriangleAlert
               className="text-moto-orange-strong mt-0.5 size-5 shrink-0"

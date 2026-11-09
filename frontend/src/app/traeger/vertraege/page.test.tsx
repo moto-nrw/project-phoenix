@@ -269,7 +269,7 @@ describe("TraegerVertraegePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "In den Einstellungen ändern" }),
-    ).toHaveAttribute("href", "/einstellungen");
+    ).toHaveAttribute("href", "/einstellungen?bereich=enrollment");
   });
 
   it("does not offer manual drafts for schools concluding at acceptance and says why each child waits", async () => {

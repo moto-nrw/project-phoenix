@@ -267,7 +267,8 @@ export function HolidayWeekEditor({
             <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
             <p className="text-sm text-gray-500">
               Zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“, jedes mit eigenem
-              Preis.
+              Preis. Ein gebuchtes Zeitmodell archivieren Sie: die Buchungen
+              bleiben. Ein ungebuchtes entfernen Sie mit „×“.
             </p>
           </div>
           {week.timeModels.every((model) => model.archived) ? (

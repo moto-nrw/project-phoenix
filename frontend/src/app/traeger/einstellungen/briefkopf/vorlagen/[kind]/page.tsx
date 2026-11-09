@@ -405,23 +405,25 @@ function TemplateEditorPage({
                     />
                   ) : null}
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={saving || previewing || !previewStale}
-                      isLoading={previewing}
-                      loadingText="Vorschau lädt…"
-                      onClick={() => void showPreview()}
-                    >
-                      Vorschau zeigen
-                    </Button>
-                    {/* Says why the button rests: nothing new to show. */}
-                    {!previewStale && !previewing ? (
-                      <span className="text-sm text-gray-600">
-                        Die Vorschau ist aktuell.
-                      </span>
-                    ) : null}
+                    {/* The note stands right beside the button it explains. */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        disabled={saving || previewing || !previewStale}
+                        isLoading={previewing}
+                        loadingText="Vorschau lädt…"
+                        onClick={() => void showPreview()}
+                      >
+                        Vorschau zeigen
+                      </Button>
+                      {!previewStale && !previewing ? (
+                        <span className="text-sm text-gray-600">
+                          Die Vorschau ist aktuell.
+                        </span>
+                      ) : null}
+                    </div>
                     {canEdit && changed ? (
                       <EditActions
                         onCancel={() => {

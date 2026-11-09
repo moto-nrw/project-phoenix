@@ -450,7 +450,9 @@ export function SepaMandatesCard({
         <span className="block min-w-0" data-analytics-block>
           {/* Groups may wrap on a phone; a group itself never breaks. */}
           <span className="block font-mono text-gray-900 tabular-nums md:whitespace-nowrap">
-            {mandate.ibanMasked}
+            {/* The last two groups are the digits that tell accounts apart:
+                they stay together. */}
+            {mandate.ibanMasked.replace(/ (\S+)$/, "\u00A0$1")}
           </span>
           <span className="block truncate text-sm text-gray-500">
             {mandate.accountHolder}
@@ -472,7 +474,7 @@ export function SepaMandatesCard({
           </span>
           {mandate.revokedOn ? null : (
             <span className="block text-sm text-gray-500">
-              Nächste Abbuchung: {nextDebitLabel(mandate)}
+              Art der nächsten Abbuchung: {nextDebitLabel(mandate)}
             </span>
           )}
         </span>

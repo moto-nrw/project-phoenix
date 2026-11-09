@@ -51,7 +51,7 @@ export function traegerDocumentKindsTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt die Rolle `Verwaltung`. Bitten Sie eine Person mit dieser Rolle, die Belehrung einzutragen.",
-      "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
+      "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Gebührenbescheid` ein. Danach können Sie freigeben.",
       "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
     ],
     related: [

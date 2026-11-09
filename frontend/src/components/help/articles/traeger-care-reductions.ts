@@ -24,7 +24,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
           "Es gibt vier Arten: Einkommensstufen, Geschwister, Alleinerziehende und Höchstbetrag. Der Monatslauf rechnet sie in dieser Reihenfolge.",
         steps: [
           "Wählen Sie `Preise und Ermäßigungen` und dann den Reiter `Ermäßigungen`.",
-          "Wählen Sie bei der Art den Knopf `Regel anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
+          "Wählen Sie bei der Art den Knopf `Geschwisterregel anlegen`, `Regel für Alleinerziehende anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
           "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
           "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
           "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",

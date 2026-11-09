@@ -66,7 +66,9 @@ function EvidenceCell({
   return (
     <div className="min-w-0">
       <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
-        {level ? level.name : "Alleinerziehend"}
+        {/* Under the column „Alleinerziehend“ the value is a yes, not the
+            column's name again. */}
+        {level ? level.name : "Ja"}
         {starts ? (
           <StatusBadge
             tone="blue"

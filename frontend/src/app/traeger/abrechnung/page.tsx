@@ -72,6 +72,8 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
       ]
         .filter(Boolean)
         .join(" · "),
+    // The line names itself; „Betreuung“ in front would only label the dates.
+    stackedLabel: false,
   },
   {
     key: "status",

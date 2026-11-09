@@ -58,7 +58,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
     result:
       "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
     notes: [
-      "Alle Mandate sehen Sie unter `Familien und Zahlung` im Reiter `Lastschrift`.",
+      "Die Mandate sehen Sie unter `Familien und Zahlung` im Reiter `Lastschrift`. Die Liste zeigt zuerst die gültigen; mit `Alle` sehen Sie auch die widerrufenen.",
       "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
       "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Kontodaten stehen dort nicht.",
     ],

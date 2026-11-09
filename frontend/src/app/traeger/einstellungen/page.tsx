@@ -185,7 +185,13 @@ function TraegerSettingsContent() {
       {schema && contact.loaded ? (
         // Stays mounted while another tab is open: a typed contact that is
         // not saved yet survives a switch of the tab.
-        <div className={contactActive ? "contents" : "hidden"}>
+        <div
+          className={
+            contactActive
+              ? "compact:gap-4 flex flex-col gap-6 max-sm:gap-3"
+              : "hidden"
+          }
+        >
           <TraegerContactSection
             masterData={contact.masterData}
             letterheadText={letterheadText(schema)}

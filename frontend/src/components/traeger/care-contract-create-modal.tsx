@@ -10,7 +10,7 @@
 import { SectionLabel } from "~/components/ui/section-label";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -20,6 +20,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   type ContractCandidate,
   type CreateResult,
@@ -219,6 +220,28 @@ export function CareContractCreateModal({
           <EmptyState
             title="Jede angenommene Anmeldung hat einen Vertrag."
             description="Neue Anmeldungen erscheinen hier, sobald die Schule sie annimmt."
+          />
+        ) : null}
+        {candidates.some(
+          (candidate) =>
+            candidate.templateIssue === "acceptance_missing" ||
+            candidate.templateIssue === "acceptance_changed",
+        ) ? (
+          // The per-child advice names the switch; this says once what the
+          // switch does for the whole school, and where it is.
+          <Alert
+            type="info"
+            message="„Später verschicken“ gilt für jede spätere Annahme der Schule: Danach erstellen und senden Sie alle Verträge dieser Schule hier."
+            actionLayout="responsive"
+            action={
+              <ButtonLink
+                href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
+                variant="ghost_tone"
+                size="compact"
+              >
+                Einstellung öffnen
+              </ButtonLink>
+            }
           />
         ) : null}
         {candidates.length > 0 && ready.length === 0 ? (

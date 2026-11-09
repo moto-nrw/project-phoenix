@@ -10913,7 +10913,7 @@ export const traegerCareReductionsTopic =
             "Es gibt vier Arten: Einkommensstufen, Geschwister, Alleinerziehende und Höchstbetrag. Der Monatslauf rechnet sie in dieser Reihenfolge.",
           steps: [
             "Wählen Sie `Preise und Ermäßigungen` und dann den Reiter `Ermäßigungen`.",
-            "Wählen Sie bei der Art den Knopf `Regel anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
+            "Wählen Sie bei der Art den Knopf `Geschwisterregel anlegen`, `Regel für Alleinerziehende anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
             "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
             "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
             "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
@@ -11137,7 +11137,7 @@ export const traegerDocumentKindsTopic =
       ],
       troubleshootingDetails: [
         "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt die Rolle `Verwaltung`. Bitten Sie eine Person mit dieser Rolle, die Belehrung einzutragen.",
-        "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
+        "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Gebührenbescheid` ein. Danach können Sie freigeben.",
         "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
       ],
       related: [
@@ -11201,7 +11201,7 @@ export const traegerDocumentTemplatesTopic =
         "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
         "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
         "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-        "Die Vorlage `Bescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
+        "Die Vorlage `Gebührenbescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
         "moto nutzt die Vorlagen für das Bestätigungsschreiben der Ferien, den Betreuungsvertrag, die Ferienrechnung und den Gebührenbescheid. Welches Schreiben ein Lauf ausstellt, legen Sie unter `Dokumentarten` fest. Die anderen Dokumente folgen.",
       ],
       differences: [
@@ -12012,7 +12012,7 @@ export const traegerSepaMandatesTopic =
       result:
         "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
       notes: [
-        "Alle Mandate sehen Sie unter `Familien und Zahlung` im Reiter `Lastschrift`.",
+        "Die Mandate sehen Sie unter `Familien und Zahlung` im Reiter `Lastschrift`. Die Liste zeigt zuerst die gültigen; mit `Alle` sehen Sie auch die widerrufenen.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Kontodaten stehen dort nicht.",
       ],

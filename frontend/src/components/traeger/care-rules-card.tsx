@@ -33,8 +33,9 @@ const KIND_ICONS = {
 
 const CREATE_LABELS: Record<CareRuleKind, string> = {
   income_level: "Stufe anlegen",
-  sibling: "Regel anlegen",
-  single_parent: "Regel anlegen",
+  // Two buttons on one page may not share a name.
+  sibling: "Geschwisterregel anlegen",
+  single_parent: "Regel für Alleinerziehende anlegen",
   cap: "Höchstbetrag anlegen",
 };
 

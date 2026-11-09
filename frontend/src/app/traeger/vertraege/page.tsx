@@ -513,15 +513,23 @@ export default function TraegerVertraegePage() {
       {data && data.modes.length > 0 ? (
         <SectionCard
           title="Wann gilt der Vertrag?"
-          description={conclusionDescription(data.modes)}
+          // Closed, the card shows only its title: the explanation would
+          // push the contracts down again.
+          description={
+            (rulesOpen ?? !isPhone)
+              ? conclusionDescription(data.modes)
+              : undefined
+          }
           // On a phone the rule card starts closed: the contracts come first.
           collapsible
           collapsed={!(rulesOpen ?? !isPhone)}
           onCollapsedChange={(collapsed) => setRulesOpen(!collapsed)}
           action={
             hasPermission(session, "traeger_overview:read") ? (
+              // Straight to the tab that holds „Wann gilt der
+              // Betreuungsvertrag?“, not the first tab of the settings.
               <ButtonLink
-                href={traegerPath("/traeger/einstellungen")}
+                href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
                 variant="surface"
                 size="compact"
               >
