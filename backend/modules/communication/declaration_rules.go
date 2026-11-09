@@ -16,10 +16,9 @@ var ErrDeclarationInvalid = errors.New("declaration: invalid settings")
 
 // DeclarationRules are the settings the rules need.
 type DeclarationRules struct {
-	Kind      string
-	Signers   string
-	Revocable bool
-	Deadline  *time.Time
+	Kind     string
+	Signers  string
+	Deadline *time.Time
 }
 
 // Closed reports whether the deadline has passed at now.
@@ -76,25 +75,28 @@ func DeclarationChildState(rules DeclarationRules, eligible []int64, latest map[
 // DeclarationAllowedActions lists what an eligible guardian may do next given
 // their own latest action on the current version. Repeating the latest
 // action is not listed: it would change nothing.
+//
+// A given consent can always be revoked, also after the deadline: withdrawing
+// a consent must be as easy as giving it (Art. 7 Abs. 3 DSGVO, #6303). No
+// school setting makes a consent final.
 func DeclarationAllowedActions(rules DeclarationRules, canSubmit bool, myLatest string, now time.Time) []string {
 	if !canSubmit {
 		return []string{}
 	}
+	if myLatest == DeclarationActionAgreed {
+		// A consent is withdrawn by revoking it, not by a second answer, so
+		// the two ways of saying no never appear side by side.
+		return []string{DeclarationActionRevoked}
+	}
 	actions := []string{}
 	if !rules.Closed(now) {
-		revocableConsent := rules.Revocable && myLatest == DeclarationActionAgreed
 		for _, action := range []string{DeclarationActionAgreed, DeclarationActionDeclined} {
 			// After a revocation the guardian may consent again, as with the
-			// photo consent; a revocation is not a lock-out. A revocable
-			// consent is withdrawn by revoking it, not by a second answer, so
-			// the two ways of saying no never appear side by side.
-			if action != myLatest && (action != DeclarationActionDeclined || !revocableConsent) {
+			// photo consent; a revocation is not a lock-out.
+			if action != myLatest {
 				actions = append(actions, action)
 			}
 		}
-	}
-	if rules.Revocable && myLatest == DeclarationActionAgreed {
-		actions = append(actions, DeclarationActionRevoked)
 	}
 	return actions
 }

@@ -25,7 +25,7 @@ import (
 )
 
 func signedConsent() communication.ParentDeclarationSettings {
-	settings := consent(communication.DeclarationSignersAny, false, false)
+	settings := consent(communication.DeclarationSignersAny, false)
 	settings.RequiresSignature = true
 	return settings
 }
@@ -95,7 +95,7 @@ func TestDeclarationSignature_RefusalNeedsNoSignature(t *testing.T) {
 
 func TestDeclarationSignature_UnsignedConsentIgnoresASignature(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	submission, _, err := s.submitSigned(s.chain.AccountID, parentportal.DeclarationActionAgreed, drawnSignature(t))
 	require.NoError(t, err)
 	assert.Nil(t, submission.SignatureID)

@@ -1059,13 +1059,10 @@ function AnnouncementFormModal({
   const [defaultOptionsUntouched, setDefaultOptionsUntouched] = useState(
     () => isPollForm && announcement === null,
   );
-  // Einverständnis settings (#3430). There is only one kind, consent; it can
-  // be withdrawn unless the school decides otherwise.
+  // Einverständnis settings (#3430). There is only one kind, consent; parents
+  // can always withdraw it (#6303).
   const [declarationSigners, setDeclarationSigners] =
     useState<DeclarationSigners>(announcement?.declaration_signers ?? "any");
-  const [declarationRevocable, setDeclarationRevocable] = useState(
-    announcement?.declaration_revocable ?? true,
-  );
   const [declarationRequiresPassword, setDeclarationRequiresPassword] =
     useState(announcement?.declaration_requires_password ?? false);
   const [declarationRequiresSignature, setDeclarationRequiresSignature] =
@@ -1331,7 +1328,6 @@ function AnnouncementFormModal({
             // The only kind; sent explicitly so the payload says what it is.
             declaration_kind: "consent" as const,
             declaration_signers: declarationSigners,
-            declaration_revocable: declarationRevocable,
             declaration_requires_password: declarationRequiresPassword,
             declaration_requires_signature: declarationRequiresSignature,
           }
@@ -1680,26 +1676,6 @@ function AnnouncementFormModal({
                     </fieldset>
 
                     <label
-                      htmlFor="declaration-revocable"
-                      className="flex cursor-pointer items-start gap-3"
-                    >
-                      <Checkbox
-                        id="declaration-revocable"
-                        checked={declarationRevocable}
-                        onChange={(e) =>
-                          setDeclarationRevocable(e.target.checked)
-                        }
-                      />
-                      <span className="text-sm text-gray-800">
-                        <span className="block">Widerruf erlauben</span>
-                        <span className="block text-xs text-gray-500">
-                          Eltern können eine Zustimmung später zurücknehmen,
-                          auch nach der Frist.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label
                       htmlFor="declaration-signature"
                       className="flex cursor-pointer items-start gap-3"
                     >
@@ -1761,9 +1737,7 @@ function AnnouncementFormModal({
                           dropdownPlacement="down"
                           hint={
                             isDeclarationForm
-                              ? declarationRevocable
-                                ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
-                                : "Danach können Eltern nicht mehr antworten."
+                              ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
                               : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."
                           }
                         />
