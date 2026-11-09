@@ -25,10 +25,14 @@ func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 		return []*ExcusedAbsenceRequest{}, nil
 	}
 	// Show rejected/withdrawn requests for two weeks so a parent learns the
-	// outcome, while pending ones show regardless of age.
-	recentSince := time.Now().AddDate(0, 0, -14)
+	// outcome, while pending ones show regardless of age. The window starts
+	// when the child check is done, as it did before the handoff.
+	var recentSince time.Time
 	var out []*ExcusedAbsenceRequest
-	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, _ *Child) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(*Child) error {
+		recentSince = time.Now().AddDate(0, 0, -14)
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		rows, err := s.ExcusedRequests.ListForStudent(txCtx, studentID, recentSince)
 		if err != nil {
 			return fmt.Errorf("parent: list excused requests: %w", err)

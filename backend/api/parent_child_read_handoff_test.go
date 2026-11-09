@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,6 +36,8 @@ import (
 type childReadRig struct {
 	db     *bun.DB
 	router chi.Router
+	// childCheckDelay slows the child lookup of the administrative part.
+	childCheckDelay *atomic.Int64
 }
 
 func newChildReadRig(t *testing.T) childReadRig {
@@ -70,9 +73,10 @@ func newChildReadRigOn(t *testing.T, db *bun.DB) childReadRig {
 	require.NoError(t, err)
 	meals, err := owners.BuildServeMealPlan(database, mealSettings, owners.NewStudentRootReads(people.Student), directory, schoolCalendar)
 	require.NoError(t, err)
+	childCheckDelay := &atomic.Int64{}
 	portal := portalCompose.New(WithParentEnrollmentBudgetReads(portalCompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(), GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{}, Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{}, Logger: slog.Default(), Now: now,
-		ChildRepo: repos.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(people.Student), PersonRepo: owners.NewParentPersonReads(people.Person), GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile), GuardianPhoneRepo: owners.NewParentGuardianPhoneReads(people.GuardianPhoneNumber), StudentGuardianRepo: owners.NewParentStudentGuardianReads(people.StudentGuardian),
+		ChildRepo: owners.ParentChildReadsWithDelay(repos.ParentChildReads(), childCheckDelay), StudentRepo: owners.NewParentStudentReads(people.Student), PersonRepo: owners.NewParentPersonReads(people.Person), GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile), GuardianPhoneRepo: owners.NewParentGuardianPhoneReads(people.GuardianPhoneNumber), StudentGuardianRepo: owners.NewParentStudentGuardianReads(people.StudentGuardian),
 		Settings: settings.Settings, CareRequests: module.CareRequests, OfferingChanges: owners.NewParentOfferingChangeRequests(module.OfferingChanges), CareOfferingRepo: owners.NewParentCareOfferingReads(catalog), MealPlan: meals, CareProfiles: profiles, People: owners.MustNewPeopleDirectory(database), CarePlan: owners.NewParentCarePlanCommands(repos.CareExceptions, nil), CareExceptions: owners.NewParentCareExceptions(repos.CareExceptions), CarePlanPolicy: owners.NewParentCarePlanPolicy(), DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions), ChangeRequestRepo: owners.NewParentDataRequestReads(repos.CareExceptions), ExcusedRequests: owners.NewParentExcusedAbsenceRequests(repos.ExcusedRequests), StudentConsents: owners.NewParentStudentConsents(NewStudentConsents(database)),
 		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(sharing.FamilyProtection), ParentRequestShares: owners.BindParentRequestShareRecords(sharing.ParentRequestShare), ParentRequestEvents: owners.NewParentRequestEvents(sharing.ParentRequestEvent),
 	}, enrollment))
@@ -81,7 +85,7 @@ func newChildReadRigOn(t *testing.T, db *bun.DB) childReadRig {
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Use(RequestSettingsCacheMiddleware, RequestIdentityCacheMiddleware)
 	router.Mount("/parent", parentHTTP.NewResource(parentHTTP.ResourceConfig{Parent: portal}).Router(ParentSessionChain))
-	return childReadRig{db: db, router: router}
+	return childReadRig{db: db, router: router, childCheckDelay: childCheckDelay}
 }
 
 type childReadSettings interface {
@@ -504,4 +508,35 @@ func TestParentChildReadsFailAFailedStartOnce(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, rec.Code, "%s: %s", name, rec.Body.String())
 		require.Equal(t, "general.server", childReadCode(t, rec), name)
 	}
+}
+
+// TestParentExcusedRequestsStartTheirWindowAfterTheChildCheck: the two-week
+// window of decided requests starts when the child check is done, as before
+// the handoff. With a slow child check, a request decided just inside the
+// window at the time of the request is outside it once the check is done.
+// The production code reads the system clock, so the test uses it too.
+func TestParentExcusedRequestsStartTheirWindowAfterTheChildCheck(t *testing.T) {
+	t.Parallel()
+	rig := newChildReadRig(t)
+	family := rig.family(t)
+	path := childReadRoutes(family.StudentID, family.requestID)["excused_requests"]
+	decide := func(at time.Time) string {
+		var id int64
+		require.NoError(t, rig.db.NewRaw(`INSERT INTO active.excused_absence_requests (tenant_id,student_id,submitted_by,dates,note,absence_status,status,reviewed_at) VALUES (?,?,?,'["2026-08-03"]'::jsonb,'Fenster','excused','rejected',?) RETURNING id`, family.TenantID, family.StudentID, family.AccountID, at).Scan(context.Background(), &id))
+		return fmt.Sprintf(`"id":"%d"`, id)
+	}
+	const margin, slow = 2 * time.Second, 4 * time.Second
+	window := 14 * 24 * time.Hour
+
+	inside := decide(time.Now().Add(margin - window))
+	rec, _ := rig.get(t, path, family.token)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), inside, "inside the window without a delay")
+
+	rig.childCheckDelay.Store(int64(slow))
+	t.Cleanup(func() { rig.childCheckDelay.Store(0) })
+	leaving := decide(time.Now().Add(margin - window))
+	rec, _ = rig.get(t, path, family.token)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NotContains(t, rec.Body.String(), leaving, "the window starts after the slow child check")
 }
