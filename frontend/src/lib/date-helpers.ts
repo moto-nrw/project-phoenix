@@ -324,6 +324,33 @@ export function berlinDateTimeISO(date: Date, time: string): string {
 }
 
 /**
+ * The autumn clock change: the morning of this Berlin day is 13 hours long,
+ * so 02:00–02:59 happens twice. On the spring day it is 11 hours and that
+ * hour does not exist.
+ */
+function berlinDayRepeatsAnHour(day: Date): boolean {
+  const midnight = Date.parse(berlinDateTimeISO(day, "00:00"));
+  const noon = Date.parse(berlinDateTimeISO(day, "12:00"));
+  return noon - midnight > 12 * 60 * 60 * 1000;
+}
+
+/**
+ * Why a valid "HH:MM" time has no single Berlin instant on this day (daylight
+ * saving switch), worded for the person who typed it; null when it has one.
+ */
+export function berlinWallClockProblem(day: Date, time: string): string | null {
+  try {
+    berlinDateTimeISO(day, time);
+    return null;
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return berlinDayRepeatsAnHour(day)
+      ? "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen."
+      : "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.";
+  }
+}
+
+/**
  * The Berlin wall-clock time ("08:00") of an instant, for seeding a time field
  * from a moment written by `berlinDateTimeISO`. Returns "" for an unparseable
  * value so a malformed timestamp renders as an empty field, not a crash.

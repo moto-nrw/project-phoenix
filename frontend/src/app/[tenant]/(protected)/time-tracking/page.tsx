@@ -79,8 +79,11 @@ import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
+  berlinClockFromISO,
+  berlinDateTimeISO,
   berlinDayStart,
   berlinTodayISO,
+  berlinWallClockProblem,
   formatDate,
   parseISODate,
   toISODate,
@@ -184,16 +187,6 @@ const DAY_NAMES_LONG = [
   "Samstag",
   "Sonntag",
 ];
-
-function extractTimeFromISO(isoString: string): string {
-  try {
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) return "";
-    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-  } catch {
-    return "";
-  }
-}
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
 
@@ -1992,17 +1985,6 @@ function getEditModalTitle(hasSession: boolean, hasAbsence: boolean): string {
   return "Eintrag bearbeiten";
 }
 
-/** Build ISO timestamp from date and time string with local timezone */
-function buildIsoTimestamp(date: Date, time: string): string | undefined {
-  if (!time) return undefined;
-  const dateStr = toISODate(date);
-  const tzOffset = -new Date().getTimezoneOffset();
-  const tzSign = tzOffset >= 0 ? "+" : "-";
-  const tzH = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, "0");
-  const tzM = String(Math.abs(tzOffset) % 60).padStart(2, "0");
-  return `${dateStr}T${time}:00${tzSign}${tzH}:${tzM}`;
-}
-
 // Shared Abbrechen/confirm footer for every Modal on this page — six
 // hand-rolled copies of the same two <button> elements before. Uses the kit
 // Button at size "md", the modal-footer height documented in the UI-kit rule.
@@ -2226,9 +2208,9 @@ function EditSessionModal({
 
   useEffect(() => {
     if (session && isOpen) {
-      setStartTime(extractTimeFromISO(session.checkInTime));
+      setStartTime(berlinClockFromISO(session.checkInTime));
       setEndTime(
-        session.checkOutTime ? extractTimeFromISO(session.checkOutTime) : "",
+        session.checkOutTime ? berlinClockFromISO(session.checkOutTime) : "",
       );
       setBreakMins(session.breakMinutes.toString());
       setStatus(session.status);
@@ -2320,6 +2302,27 @@ function EditSessionModal({
   const hasInvalidTimeRange =
     startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes;
 
+  // Times are school times on the session's own day: the offset comes from
+  // that day, not from today (#6293). A field left as prefilled is not sent,
+  // so a reason-only edit never rewrites the stored instants. The session's
+  // own date, not the clicked day: they may differ.
+  const sessionDay = session ? parseISODate(session.date) : null;
+  const startChanged =
+    session !== null && startTime !== berlinClockFromISO(session.checkInTime);
+  const endChanged =
+    session !== null &&
+    endTime !==
+      (session.checkOutTime ? berlinClockFromISO(session.checkOutTime) : "");
+  const startProblem =
+    sessionDay && startChanged && startTime
+      ? berlinWallClockProblem(sessionDay, startTime)
+      : null;
+  const endProblem =
+    sessionDay && endChanged && endTime
+      ? berlinWallClockProblem(sessionDay, endTime)
+      : null;
+  const hasUnresolvableTime = startProblem !== null || endProblem !== null;
+
   const handleBreakDurationChange = (breakId: string, minutes: number) => {
     setBreakDurations((prev) => {
       const next = new Map(prev);
@@ -2329,20 +2332,19 @@ function EditSessionModal({
   };
 
   const handleSave = async () => {
-    if (!session) return;
-    if (hasInvalidTimeRange) return;
+    if (!session || !sessionDay) return;
+    if (hasInvalidTimeRange || hasUnresolvableTime) return;
     setSaving(true);
     formErrors.clear();
     try {
-      // Use session's actual date, not the clicked day (they may differ)
-      const parts = session.date.split("-");
-      const sessionDate = new Date(
-        Number(parts[0]),
-        Number(parts[1]) - 1,
-        Number(parts[2]),
-      );
-      const checkInTime = buildIsoTimestamp(sessionDate, startTime);
-      const checkOutTime = buildIsoTimestamp(sessionDate, endTime);
+      const checkInTime =
+        startChanged && startTime
+          ? berlinDateTimeISO(sessionDay, startTime)
+          : undefined;
+      const checkOutTime =
+        endChanged && endTime
+          ? berlinDateTimeISO(sessionDay, endTime)
+          : undefined;
 
       if (hasIndividualBreaks) {
         // Build breaks array with only changed durations
@@ -2455,7 +2457,11 @@ function EditSessionModal({
       onConfirm={handleSave}
       confirmLabel={saving ? "Speichern…" : "Speichern"}
       confirmDisabled={
-        saving || !startTime || !notes.trim() || hasInvalidTimeRange
+        saving ||
+        !startTime ||
+        !notes.trim() ||
+        hasInvalidTimeRange ||
+        hasUnresolvableTime
       }
     />
   );
@@ -2539,7 +2545,7 @@ function EditSessionModal({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  error={formErrors.fieldError("check_in_time")}
+                  error={startProblem ?? formErrors.fieldError("check_in_time")}
                 />
                 <Input
                   id="edit-end"
@@ -2552,7 +2558,7 @@ function EditSessionModal({
                   error={
                     hasInvalidTimeRange
                       ? "Das Ende muss nach dem Beginn liegen."
-                      : formErrors.fieldError("check_out_time")
+                      : (endProblem ?? formErrors.fieldError("check_out_time"))
                   }
                 />
               </div>
