@@ -15,11 +15,7 @@ vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
 
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
-import {
-  HolidayCapacityModal,
-  HolidayWeekPlacesCard,
-  holidayWeekFill,
-} from "./holiday-week-places";
+import { HolidayWeekPlacesCard, holidayWeekFill } from "./holiday-week-places";
 
 const FULL_WEEK: HolidayWeekPlaces = {
   weekId: "51",
@@ -69,13 +65,16 @@ describe("holidayWeekFill", () => {
 
 describe("HolidayWeekPlacesCard", () => {
   it("shows the filled places and the waiting list in its order, each child linking to its registration", () => {
-    const onChange = vi.fn();
+    const onEdit = vi.fn();
     render(
       <HolidayWeekPlacesCard
         periodId="7"
         week={FULL_WEEK}
         hostSchoolName="OGS am Berg"
-        onChangeCapacity={onChange}
+        editing={false}
+        onEdit={onEdit}
+        onCancel={vi.fn()}
+        onSaved={vi.fn()}
       />,
     );
     expect(screen.getByText("Voll")).toBeInTheDocument();
@@ -92,7 +91,7 @@ describe("HolidayWeekPlacesCard", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Plätze für die Woche .* ändern/ }),
     );
-    expect(onChange).toHaveBeenCalledWith(FULL_WEEK);
+    expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
   it("says that nobody waits in a week without a waiting list", () => {
@@ -101,7 +100,10 @@ describe("HolidayWeekPlacesCard", () => {
         periodId="7"
         week={{ ...FULL_WEEK, capacity: null, waitlist: [] }}
         hostSchoolName="OGS am Berg"
-        onChangeCapacity={vi.fn()}
+        editing={false}
+        onEdit={vi.fn()}
+        onCancel={vi.fn()}
+        onSaved={vi.fn()}
       />,
     );
     expect(
@@ -111,7 +113,7 @@ describe("HolidayWeekPlacesCard", () => {
   });
 });
 
-describe("HolidayCapacityModal", () => {
+describe("HolidayWeekPlacesCard editing its places", () => {
   beforeEach(() => {
     mockSetCapacity.mockReset();
   });
@@ -121,10 +123,13 @@ describe("HolidayCapacityModal", () => {
     const onSaved = vi.fn();
     render(
       <ToastProvider>
-        <HolidayCapacityModal
+        <HolidayWeekPlacesCard
           periodId="7"
           week={FULL_WEEK}
-          onClose={vi.fn()}
+          hostSchoolName="OGS am Berg"
+          editing
+          onEdit={vi.fn()}
+          onCancel={vi.fn()}
           onSaved={onSaved}
         />
       </ToastProvider>,
@@ -153,10 +158,13 @@ describe("HolidayCapacityModal", () => {
     mockSetCapacity.mockResolvedValue({ movedUp: [] });
     render(
       <ToastProvider>
-        <HolidayCapacityModal
+        <HolidayWeekPlacesCard
           periodId="7"
           week={FULL_WEEK}
-          onClose={vi.fn()}
+          hostSchoolName="OGS am Berg"
+          editing
+          onEdit={vi.fn()}
+          onCancel={vi.fn()}
           onSaved={vi.fn()}
         />
       </ToastProvider>,

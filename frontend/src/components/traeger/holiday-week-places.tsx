@@ -15,7 +15,7 @@ import {
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FormModal } from "~/components/ui/form-modal";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FramedList } from "~/components/ui/framed-list";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ListRowLink } from "~/components/ui/list-row-link";
@@ -58,17 +58,26 @@ function waitingLabel(count: number): string {
   return count === 1 ? "1 Kind wartet" : `${count} Kinder warten`;
 }
 
-/** Eine Woche mit Belegung, Warteliste und dem Knopf für die Plätze. */
+/**
+ * Eine Woche mit Belegung und Warteliste. „Plätze ändern“ schaltet die Karte
+ * selbst in den Bearbeiten-Zustand; die Plätze werden in ihr festgelegt.
+ */
 export function HolidayWeekPlacesCard({
   periodId,
   week,
   hostSchoolName,
-  onChangeCapacity,
+  editing,
+  onEdit,
+  onCancel,
+  onSaved,
 }: Readonly<{
   periodId: string;
   week: HolidayWeekPlaces;
   hostSchoolName: string;
-  onChangeCapacity: (week: HolidayWeekPlaces) => void;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSaved: (movedUp: number) => void;
 }>) {
   const fill = holidayWeekFill(week);
   const title = formatHolidayWeek(week.startsOn, week.endsOn);
@@ -78,113 +87,133 @@ export function HolidayWeekPlacesCard({
       titleBadge={<StatusBadge label={fill.label} tone={fill.tone} size="xs" />}
       description={hostSchoolName}
       action={
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          onClick={() => onChangeCapacity(week)}
-          aria-label={`Plätze für die Woche ${title} ändern`}
-        >
-          Plätze ändern
-        </Button>
+        editing ? undefined : (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={onEdit}
+            aria-label={`Plätze für die Woche ${title} ändern`}
+          >
+            Plätze ändern
+          </Button>
+        )
       }
     >
-      <div className="space-y-5">
-        {week.capacity === null ? (
-          <p className="text-sm text-gray-700">
-            <span className="font-semibold text-gray-900">{week.placed}</span>{" "}
-            {week.placed === 1 ? "Kind ist" : "Kinder sind"} angemeldet. Es gibt
-            keine Grenze.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-gray-700">
-              <span className="font-semibold text-gray-900">{week.placed}</span>{" "}
-              von {week.capacity} Plätzen vergeben
-            </p>
-            <ProgressBar
-              value={Math.min(week.placed, week.capacity)}
-              max={Math.max(week.capacity, 1)}
-              label={`${week.placed} von ${week.capacity} Plätzen vergeben`}
-              tone={week.placed >= week.capacity ? "orange" : "green"}
-              size="md"
-            />
-          </div>
-        )}
-        {week.waitlist.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            Niemand steht auf der Warteliste.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            <SectionLabel as="h3">
-              Warteliste · {waitingLabel(week.waitlist.length)}
-            </SectionLabel>
-            <FramedList maxHeight="md">
-              {week.waitlist.map((entry) => (
-                <ListRowLink
-                  key={`${entry.registrationId}-${entry.childId}`}
-                  href={traegerPath(
-                    `/traeger/ferien/${periodId}/anmeldungen/${entry.registrationId}`,
-                  )}
-                  icon={
-                    <IconTile
-                      icon={
-                        <span className="text-sm font-semibold tabular-nums">
-                          {entry.position}
-                        </span>
-                      }
-                      size="sm"
-                      shape="round"
-                      tone="orange"
-                    />
-                  }
-                  title={`${entry.childFirstName} ${entry.childLastName}`}
-                  subtitle={`Eingegangen am ${formatBerlinDate(entry.submittedAt)} · ${entry.timeModelName}`}
-                  badge={
-                    <StatusBadge
-                      label={
-                        HOLIDAY_REGISTRATION_STATUS_LABELS[
-                          entry.registrationStatus
-                        ]
-                      }
-                      tone={
-                        HOLIDAY_REGISTRATION_STATUS_TONES[
-                          entry.registrationStatus
-                        ]
-                      }
-                      size="xs"
-                    />
-                  }
-                  aria-label={`Platz ${entry.position} der Warteliste: ${entry.childFirstName} ${entry.childLastName}, Anmeldung öffnen`}
-                />
-              ))}
-            </FramedList>
-          </div>
-        )}
-      </div>
+      {editing ? (
+        <HolidayCapacityEditor
+          periodId={periodId}
+          week={week}
+          onCancel={onCancel}
+          onSaved={onSaved}
+        />
+      ) : (
+        <HolidayWeekPlacesReadout periodId={periodId} week={week} />
+      )}
     </SectionCard>
   );
 }
 
-/** Die Plätze einer Woche festlegen: eine Zahl oder ohne Grenze. */
-export function HolidayCapacityModal({
+function HolidayWeekPlacesReadout({
   periodId,
   week,
-  onClose,
+}: Readonly<{ periodId: string; week: HolidayWeekPlaces }>) {
+  return (
+    <div className="space-y-5">
+      {week.capacity === null ? (
+        <p className="text-sm text-gray-700">
+          <span className="font-semibold text-gray-900">{week.placed}</span>{" "}
+          {week.placed === 1 ? "Kind ist" : "Kinder sind"} angemeldet. Es gibt
+          keine Grenze.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-700">
+            <span className="font-semibold text-gray-900">{week.placed}</span>{" "}
+            von {week.capacity} Plätzen vergeben
+          </p>
+          <ProgressBar
+            value={Math.min(week.placed, week.capacity)}
+            max={Math.max(week.capacity, 1)}
+            label={`${week.placed} von ${week.capacity} Plätzen vergeben`}
+            tone={week.placed >= week.capacity ? "orange" : "green"}
+            size="md"
+          />
+        </div>
+      )}
+      {week.waitlist.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          Niemand steht auf der Warteliste.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <SectionLabel as="h3">
+            Warteliste · {waitingLabel(week.waitlist.length)}
+          </SectionLabel>
+          <FramedList maxHeight="md">
+            {week.waitlist.map((entry) => (
+              <ListRowLink
+                key={`${entry.registrationId}-${entry.childId}`}
+                href={traegerPath(
+                  `/traeger/ferien/${periodId}/anmeldungen/${entry.registrationId}`,
+                )}
+                icon={
+                  <IconTile
+                    icon={
+                      <span className="text-sm font-semibold tabular-nums">
+                        {entry.position}
+                      </span>
+                    }
+                    size="sm"
+                    shape="round"
+                    tone="orange"
+                  />
+                }
+                title={`${entry.childFirstName} ${entry.childLastName}`}
+                subtitle={`Eingegangen am ${formatBerlinDate(entry.submittedAt)} · ${entry.timeModelName}`}
+                badge={
+                  <StatusBadge
+                    label={
+                      HOLIDAY_REGISTRATION_STATUS_LABELS[
+                        entry.registrationStatus
+                      ]
+                    }
+                    tone={
+                      HOLIDAY_REGISTRATION_STATUS_TONES[
+                        entry.registrationStatus
+                      ]
+                    }
+                    size="xs"
+                  />
+                }
+                aria-label={`Platz ${entry.position} der Warteliste: ${entry.childFirstName} ${entry.childLastName}, Anmeldung öffnen`}
+              />
+            ))}
+          </FramedList>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Die Plätze einer Woche festlegen: eine Zahl oder ohne Grenze. */
+function HolidayCapacityEditor({
+  periodId,
+  week,
+  onCancel,
   onSaved,
 }: Readonly<{
   periodId: string;
-  week: HolidayWeekPlaces | null;
-  onClose: () => void;
+  week: HolidayWeekPlaces;
+  onCancel: () => void;
   onSaved: (movedUp: number) => void;
 }>) {
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const toast = useToast();
-  const [limited, setLimited] = useState(week?.capacity !== null);
+  const [limited, setLimited] = useState(week.capacity !== null);
   const [value, setValue] = useState(
-    String(week?.capacity ?? Math.max(week?.placed ?? 0, 1)),
+    String(week.capacity ?? Math.max(week.placed, 1)),
   );
   const [saving, setSaving] = useState(false);
   const capacity = Number.parseInt(value, 10);
@@ -193,11 +222,10 @@ export function HolidayCapacityModal({
     (Number.isInteger(capacity) &&
       capacity >= 0 &&
       capacity <= HOLIDAY_WEEK_CAPACITY_MAX);
-  const waiting = week?.waitlist.length ?? 0;
-  const placed = week?.placed ?? 0;
+  const waiting = week.waitlist.length;
+  const placed = week.placed;
 
   async function submit() {
-    if (!week) return;
     if (!valid) {
       formErrors.invalid("Bitte geben Sie eine Zahl von 0 bis 10.000 ein.", {
         capacity: "Bitte eine Zahl von 0 bis 10.000.",
@@ -226,100 +254,90 @@ export function HolidayCapacityModal({
     }
   }
 
-  const title = week ? formatHolidayWeek(week.startsOn, week.endsOn) : "";
   const moving = limited
     ? Math.min(waiting, Math.max(0, (valid ? capacity : placed) - placed))
     : waiting;
   return (
-    <FormModal
-      isOpen={week !== null}
-      onClose={onClose}
-      closeDisabled={saving}
-      isBackdropDismissDisabled
-      title={`Plätze für ${title}`}
-      size="md"
-      error={formErrors.error}
-      footer={
-        <EditActions
-          onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
-          saving={saving}
-          disabled={!valid}
-          saveLabel="Plätze speichern"
-          stretchOnPhone
-        />
-      }
+    <form
+      ref={formRef}
+      noValidate
+      aria-label="Plätze dieser Woche"
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
     >
-      <form
-        ref={formRef}
-        noValidate
-        className="space-y-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <SwitchRow
-          framed
-          label="Plätze begrenzen"
-          description="Ohne Grenze bekommt jedes angemeldete Kind einen Platz."
-          checked={limited}
-          onCheckedChange={setLimited}
-        />
-        {limited ? (
-          <div className="space-y-2">
-            <SectionLabel as="p">Plätze in dieser Woche</SectionLabel>
-            <NumberStepper
-              id="holiday-week-capacity"
-              name="capacity"
-              inputMode="numeric"
-              value={value}
-              onChange={(event) =>
-                setValue(event.target.value.replace(/\D/g, ""))
-              }
-              onStep={(delta) =>
-                setValue(
-                  String(
-                    Math.min(
-                      HOLIDAY_WEEK_CAPACITY_MAX,
-                      Math.max(
-                        0,
-                        (Number.isNaN(capacity) ? 0 : capacity) + delta,
-                      ),
+      <FormErrorAlert message={formErrors.error} />
+      <SwitchRow
+        framed
+        label="Plätze begrenzen"
+        description="Ohne Grenze bekommt jedes angemeldete Kind einen Platz."
+        checked={limited}
+        onCheckedChange={setLimited}
+      />
+      {limited ? (
+        <div className="space-y-2">
+          <SectionLabel as="p">Plätze in dieser Woche</SectionLabel>
+          <NumberStepper
+            id="holiday-week-capacity"
+            name="capacity"
+            inputMode="numeric"
+            value={value}
+            onChange={(event) =>
+              setValue(event.target.value.replace(/\D/g, ""))
+            }
+            onStep={(delta) =>
+              setValue(
+                String(
+                  Math.min(
+                    HOLIDAY_WEEK_CAPACITY_MAX,
+                    Math.max(
+                      0,
+                      (Number.isNaN(capacity) ? 0 : capacity) + delta,
                     ),
                   ),
-                )
-              }
-              decrementLabel="Einen Platz weniger"
-              incrementLabel="Einen Platz mehr"
-              canDecrement={capacity > 0}
-              canIncrement={capacity < HOLIDAY_WEEK_CAPACITY_MAX}
-              aria-label="Plätze in dieser Woche"
-              error={formErrors.fieldError("capacity")}
-            />
-            <p className="text-sm text-gray-600">
-              Die Plätze gelten für alle Zeitmodelle dieser Woche zusammen.
-            </p>
-          </div>
-        ) : null}
-        {moving > 0 ? (
-          <Alert
-            type="info"
-            message={
-              moving === 1
-                ? "1 Kind rückt beim Speichern von der Warteliste nach. Seine Eltern bekommen eine E-Mail."
-                : `${moving} Kinder rücken beim Speichern von der Warteliste nach. Ihre Eltern bekommen eine E-Mail.`
+                ),
+              )
             }
+            decrementLabel="Einen Platz weniger"
+            incrementLabel="Einen Platz mehr"
+            canDecrement={capacity > 0}
+            canIncrement={capacity < HOLIDAY_WEEK_CAPACITY_MAX}
+            aria-label="Plätze in dieser Woche"
+            error={formErrors.fieldError("capacity")}
           />
-        ) : null}
-        {limited && valid && capacity < placed ? (
-          <Alert
-            type="warning"
-            message={`${placed} Kinder haben schon einen Platz. Sie behalten ihn. Neue Anmeldungen kommen auf die Warteliste.`}
-          />
-        ) : null}
-      </form>
-    </FormModal>
+          <p className="text-sm text-gray-600">
+            Die Plätze gelten für alle Zeitmodelle dieser Woche zusammen.
+          </p>
+        </div>
+      ) : null}
+      {moving > 0 ? (
+        <Alert
+          type="info"
+          message={
+            moving === 1
+              ? "1 Kind rückt beim Speichern von der Warteliste nach. Seine Eltern bekommen eine E-Mail."
+              : `${moving} Kinder rücken beim Speichern von der Warteliste nach. Ihre Eltern bekommen eine E-Mail.`
+          }
+        />
+      ) : null}
+      {limited && valid && capacity < placed ? (
+        <Alert
+          type="warning"
+          message={`${placed} Kinder haben schon einen Platz. Sie behalten ihn. Neue Anmeldungen kommen auf die Warteliste.`}
+        />
+      ) : null}
+      <EditActions
+        onCancel={onCancel}
+        saveType="submit"
+        saving={saving}
+        cancelDisabled={saving}
+        disabled={!valid}
+        saveLabel="Plätze speichern"
+        stretchOnPhone
+      />
+    </form>
   );
 }
 

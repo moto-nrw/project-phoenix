@@ -71,3 +71,35 @@ func TestHolidayPlaceErasureExtendsTheErasureOf843(t *testing.T) {
 	assert.Equal(t, demoVisitorErasureOutboxKindsSQL,
 		strings.Replace(holidayPlaceErasureSQL, holidayPlaceErasureKinds, holidayReceiptErasureKind, 1))
 }
+
+// A base line frozen before 1.15.850 gets the id of its week only where one
+// week of its period has its dates (#4699). Parallel weeks of the same dates
+// at two host schools leave it NULL: a wrong id would let a later move up
+// price the replacement on top of it.
+func TestHolidayContributionLinesNameTheirWeekOnlyWhenUnique(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	f := newHolidaySharedAnswersFixture(t, db)
+	parallel, _ := f.insertWeek(t, f.own, f.period, f.home, "2020-07-06", "2020-07-10")
+	child := f.register(t, holidaySharedRegistration{organization: f.own, period: f.period, version: 1, status: "confirmed", homeSchool: f.home, bookings: [][2]int64{{f.ended, f.endedModel}}})
+	var contribution int64
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.holiday_contributions
+			(organization_id, holiday_period_id, holiday_registration_id, holiday_registration_child_id, total_cents)
+		SELECT organization_id, holiday_period_id, holiday_registration_id, id, 9000
+		FROM enrollment.holiday_registration_children WHERE id = ? RETURNING id`, child).Scan(ctx, &contribution))
+	_, err := db.ExecContext(ctx, `INSERT INTO parent_billing.holiday_contribution_lines
+			(organization_id, holiday_contribution_id, position, kind, amount_cents, week_starts_on, week_ends_on, time_model_name)
+		VALUES (?0, ?1, 1, 'base', 4500, '2020-07-06', '2020-07-10', 'bis 13 Uhr'),
+			(?0, ?1, 2, 'base', 4500, '2099-07-06', '2099-07-10', 'bis 13 Uhr')`, f.own, contribution)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, holidayContributionLineWeeksSQL)
+	require.NoError(t, err)
+	var weeks []int64
+	require.NoError(t, db.NewRaw(`SELECT COALESCE(holiday_period_week_id, 0) FROM parent_billing.holiday_contribution_lines
+		WHERE holiday_contribution_id = ? ORDER BY position`, contribution).Scan(ctx, &weeks))
+	require.Len(t, weeks, 2)
+	assert.Zero(t, weeks[0], "the dates of week %d and %d are the same, the line names neither", f.ended, parallel)
+	assert.Equal(t, f.open, weeks[1], "the one week with the line's dates")
+}

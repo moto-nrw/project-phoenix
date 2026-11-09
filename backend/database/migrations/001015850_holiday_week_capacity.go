@@ -70,20 +70,13 @@ ALTER TABLE enrollment.holiday_registration_audit
 
 -- A base line of a frozen contribution names the week it prices by its id,
 -- so a booking is priced at most once even when the Büro later moves the
--- dates of its week (#4699). Lines frozen before take the id of the week
--- with their dates; a line whose week has moved since keeps NULL and is
--- matched by its dates as before.
+-- dates of its week (#4699). Lines frozen before take the id of the one
+-- week of their period with their dates; a line whose week has moved since,
+-- or whose dates several parallel weeks share, keeps NULL and is matched by
+-- its dates as before.
 ALTER TABLE parent_billing.holiday_contribution_lines ADD COLUMN IF NOT EXISTS holiday_period_week_id BIGINT;
 COMMENT ON COLUMN parent_billing.holiday_contribution_lines.holiday_period_week_id IS
 	'The week a base line prices (#4699), without a foreign key: the line keeps its price when the week goes.';
-UPDATE parent_billing.holiday_contribution_lines AS line
-SET holiday_period_week_id = week.id
-FROM parent_billing.holiday_contributions AS contribution
-JOIN enrollment.holiday_period_weeks AS week
-	ON week.organization_id = contribution.organization_id AND week.holiday_period_id = contribution.holiday_period_id
-WHERE line.kind = 'base' AND line.holiday_period_week_id IS NULL
-	AND contribution.organization_id = line.organization_id AND contribution.id = line.holiday_contribution_id
-	AND week.starts_on = line.week_starts_on AND week.ends_on = line.week_ends_on;
 `
 
 const holidayWeekCapacityDownSQL = `
@@ -386,6 +379,23 @@ const (
 		holidayHostSQL5
 )
 
+// holidayContributionLineWeeksSQL gives the base lines frozen before the
+// id of their week, where one week of their period has their dates.
+const holidayContributionLineWeeksSQL = `
+UPDATE parent_billing.holiday_contribution_lines AS line
+SET holiday_period_week_id = week.id
+FROM parent_billing.holiday_contributions AS contribution
+JOIN enrollment.holiday_period_weeks AS week
+	ON week.organization_id = contribution.organization_id AND week.holiday_period_id = contribution.holiday_period_id
+WHERE line.kind = 'base' AND line.holiday_period_week_id IS NULL
+	AND contribution.organization_id = line.organization_id AND contribution.id = line.holiday_contribution_id
+	AND week.starts_on = line.week_starts_on AND week.ends_on = line.week_ends_on
+	AND NOT EXISTS (
+		SELECT 1 FROM enrollment.holiday_period_weeks AS parallel
+		WHERE parallel.organization_id = week.organization_id AND parallel.holiday_period_id = week.holiday_period_id
+			AND parallel.id <> week.id AND parallel.starts_on = week.starts_on AND parallel.ends_on = week.ends_on);
+`
+
 // The parents of a registration get a mail when a booking moves up from the
 // waiting list (#4699). It is a mail of the Träger, so the CHECK of 1.15.843
 // declares its kind and the demo erasure deletes it with the registration it
@@ -422,6 +432,9 @@ func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 		}
 		if _, err := tx.ExecContext(ctx, holidayHostPlacedSQL); err != nil {
 			return fmt.Errorf("let the host school read only placed holiday bookings: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, holidayContributionLineWeeksSQL); err != nil {
+			return fmt.Errorf("name the week of frozen holiday contribution lines: %w", err)
 		}
 		return nil
 	}); err != nil {

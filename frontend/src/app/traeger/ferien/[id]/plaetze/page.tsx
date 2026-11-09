@@ -13,7 +13,6 @@ import {
 } from "~/components/traeger/holiday-period-head";
 import { schoolNames } from "~/components/traeger/holiday-registration-format";
 import {
-  HolidayCapacityModal,
   HolidayWeekPlacesCard,
   WaitlistFact,
 } from "~/components/traeger/holiday-week-places";
@@ -41,7 +40,7 @@ export default function TraegerHolidayPlacesPage() {
   const { schools } = useTraegerSchools();
   const names = useMemo(() => schoolNames(schools), [schools]);
   const [weeks, setWeeks] = useState<readonly HolidayWeekPlaces[] | null>(null);
-  const [editing, setEditing] = useState<HolidayWeekPlaces | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const placesLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = placesLoad;
 
@@ -128,22 +127,16 @@ export default function TraegerHolidayPlacesPage() {
               periodId={id}
               week={week}
               hostSchoolName={names.get(week.hostSchoolId) ?? "Schule"}
-              onChangeCapacity={setEditing}
+              editing={editing === week.weekId}
+              onEdit={() => setEditing(week.weekId)}
+              onCancel={() => setEditing(null)}
+              onSaved={() => {
+                setEditing(null);
+                void load();
+              }}
             />
           ))}
         </div>
-      ) : null}
-      {editing ? (
-        <HolidayCapacityModal
-          key={editing.weekId}
-          periodId={id}
-          week={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            void load();
-          }}
-        />
       ) : null}
     </TenantPage>
   );
