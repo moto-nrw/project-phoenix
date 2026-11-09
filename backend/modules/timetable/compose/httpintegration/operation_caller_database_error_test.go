@@ -50,7 +50,7 @@ func TestOperationCallerDatabaseFailureReachesDirectoryFallback(t *testing.T) {
 				_, err = operations.PlannedNow(txCtx, account.ID, false, calendar.NewDate(2026, 11, 6), time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC), timetable.PlannedNowOptions{})
 				return err
 			})
-			require.ErrorContains(t, identity.err, "canceling statement due to lock timeout")
+			require.Equal(t, "55P03", testpkg.PostgresSQLState(identity.err))
 			require.ErrorIs(t, err, fallbackErr)
 		})
 	}
