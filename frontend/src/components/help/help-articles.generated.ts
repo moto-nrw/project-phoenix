@@ -5866,7 +5866,8 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
  * `/parents/documents` (#4671, #4678, #4679, #4692): Schreiben und Verträge
  * des Trägers, den Betreuungsvertrag unterschreiben, und Dokumente, die der
  * Träger für Eltern freigegeben hat; die Kündigung eines Vertrags (#4682);
- * die Nachricht `Neues Dokument vom Träger` für alle drei Arten (#5941).
+ * die Nachricht `Neues Dokument vom Träger` für alle drei Arten (#5941); das
+ * Lastschrift-Mandat erteilen und widerrufen (#4696).
  */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
@@ -5911,6 +5912,19 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
           "Wählen Sie `Angabe senden`.",
         ],
       },
+      {
+        title: "Lastschrift-Mandat erteilen",
+        description:
+          "Mit dem Mandat erlauben Sie Ihrem Träger, Beiträge abzubuchen. Wie Sie bezahlen, steht auf Ihrer Rechnung. Das geht nur, wenn Ihr Träger es in der App anbietet. Sonst fehlt der Knopf `Lastschrift`.",
+        steps: [
+          "Wählen Sie beim Vertrag `Lastschrift`.",
+          "Prüfen Sie den `Kontoinhaber`. Tragen Sie die `IBAN` und Ihre Anschrift ein.",
+          "Wählen Sie `Weiter`.",
+          "Lesen Sie den Text des Mandats.",
+          "Setzen Sie den Haken bei `Ich bin Inhaberin oder Inhaber dieses Kontos.`",
+          "Wählen Sie `Mandat erteilen`.",
+        ],
+      },
     ],
     steps: [],
     result:
@@ -5925,6 +5939,8 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Sie dürfen Anmeldungen nur ansehen? Wählen Sie beim Vertrag `Kinder in Ihrer Familie`. Dort sehen Sie die Angabe und die bestätigte Zahl. Sie können die Zahl nicht ändern.",
       "Ihre Angabe zur Kinderzahl prüft der Träger. Bis dahin steht `Wird geprüft`. Hat er sie bestätigt, steht `Bestätigt`. Erst dann zählt sie für die Ermäßigung.",
+      "Nach dem Mandat steht beim Vertrag `Lastschrift erteilt`. Unter `Lastschrift` sehen Sie Ihr Konto, die Mandatsreferenz und den Text. Mit `Als Datei speichern` legen Sie den Text bei Ihren Unterlagen ab.",
+      "Sie möchten ein anderes Konto nutzen oder keine Lastschrift mehr? Wählen Sie unter `Lastschrift` den Knopf `Mandat widerrufen`. Ab der nächsten Rechnung bucht Ihr Träger nichts mehr ab. Danach können Sie ein neues Mandat erteilen.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Bei einem freigegebenen Dokument steht `Vom Träger für Eltern freigegeben`. Es gilt für alle Eltern, für die der Träger es freigegeben hat, zum Beispiel für eine Gruppe. Diese Dokumente kommen nicht per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein neues Dokument da ist? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Das gilt für Schreiben, Verträge und freigegebene Dokumente.",
@@ -5937,6 +5953,9 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
       "Das Dokument ist da, aber es kam keine Nachricht? Prüfen Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger`. Schickt der Träger dasselbe Dokument noch einmal, kommt keine zweite Nachricht.",
+      "Unter `Lastschrift` steht `Lastschrift hier nicht möglich`? Ihr Träger nimmt das Mandat nicht in der App an. Fragen Sie ihn nach einem Formular auf Papier.",
+      "Unter `Lastschrift` steht `Neues Mandat nötig`? Mit diesem Mandat ist keine weitere Abbuchung möglich. Widerrufen Sie es und erteilen Sie ein neues. Ohne dieses Recht fragen Sie die Schule.",
+      "Sie sehen das Mandat, aber `Mandat widerrufen` fehlt? Das Mandat erteilen und widerrufen nur Eltern, die das Kind auch anmelden dürfen. Das Recht vergibt die Schule.",
       "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],
     related: [
@@ -12192,6 +12211,16 @@ export const traegerSepaMandatesTopic =
           ],
         },
         {
+          title: "Mandat in der Eltern-App erlauben",
+          description:
+            "Eltern können das Mandat dann selbst bei ihrem Vertrag erteilen und widerrufen. Sie bestätigen den Text als Kontoinhaber. Fragen Sie vorher Ihre Bank, ob sie Mandate annimmt, die online bestätigt wurden. Einschalten darf, wer im Träger-Büro das Recht `Einstellungen` hat.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Allgemein`.",
+            "Öffnen Sie den Bereich `Monatsbeitrag`.",
+            "Schalten Sie `Lastschrift-Mandat in der Eltern-App` ein.",
+          ],
+        },
+        {
           title: "Bestehende Mandate importieren",
           description:
             "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
@@ -12220,6 +12249,8 @@ export const traegerSepaMandatesTopic =
         "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
       notes: [
         "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
+        "Ein Mandat aus der Eltern-App hat die Herkunft `von den Eltern`. moto speichert dazu den bestätigten Text mit Prüfsumme, das Konto der Eltern und die Uhrzeit. Widerrufen die Eltern in der App, gilt das ab dem nächsten Monatslauf.",
+        "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
         "Beim Import übernimmt moto nur Zeilen mit dem Stand `Bereit`. Zeilen mit Fehlern oder Konflikten bleiben draußen. Korrigieren Sie die Datei und laden Sie sie noch einmal: Was schon da ist, zeigt moto als `Schon vorhanden`.",

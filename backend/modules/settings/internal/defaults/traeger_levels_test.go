@@ -51,6 +51,8 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		config.KeyParentBillingDatevClientNumber, config.KeyParentBillingDatevConsultantNumber,
 		config.KeyParentBillingDatevFiscalYearStart, config.KeyParentBillingDatevLocked,
 		config.KeyParentBillingDatevRevenueAccount, config.KeyParentBillingDebtorNumberOnConfirm,
+		// The SEPA mandate in the parents portal (#4696).
+		config.KeyParentBillingOnlineMandate,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 		config.KeyTraegerAlertChildrenPerStaff, config.KeyTraegerAlertOpenEnrollments, config.KeyTraegerAlertSickPercent,
 	}

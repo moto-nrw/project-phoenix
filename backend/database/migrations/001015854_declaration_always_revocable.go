@@ -14,7 +14,7 @@ func init() {
 		Version:     declarationAlwaysRevocableVersion,
 		Description: "Einverständnisse sind immer widerrufbar: Einstellung declaration_revocable entfällt (#6303)",
 		DependsOn: []string{
-			demoVisitorErasureOutboxKindsVersion, // the newest migration on the branch when this one was numbered
+			parentBillingOnlineSEPAMandatesVersion, // the newest migration before this one
 		},
 	})
 	Migrations.MustRegister(declarationAlwaysRevocableUp, declarationAlwaysRevocableDown)
