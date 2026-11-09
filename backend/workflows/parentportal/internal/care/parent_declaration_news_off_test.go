@@ -7,6 +7,7 @@ package care_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -119,4 +120,54 @@ func TestDeclaration_EveryConsentIsRevocable(t *testing.T) {
 	_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
 	require.NoError(t, err)
 	assert.True(t, created)
+}
+
+// TestDeclaration_ParentNewsOffHidesOtherGuardiansAndForeignChildren: the
+// news-off exception reaches only the own consent for the own child, never
+// another guardian's answer, another family's child or a consent to an older
+// wording.
+func TestDeclaration_ParentNewsOffHidesOtherGuardiansAndForeignChildren(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAll, false), nil)
+	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
+	other := testpkg.CreateTestParentGuardianChain(t, s.db)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	require.NoError(t, err)
+	_, _, err = s.submit(co.AccountID, parentportal.DeclarationActionDeclined)
+	require.NoError(t, err)
+
+	off := s.withParentNewsOff(t)
+
+	item := off.feedItem(t, s.chain.AccountID)
+	require.NotNil(t, item)
+	require.Len(t, item.Declaration.Children, 1)
+	assert.Equal(t, []string{parentportal.DeclarationActionRevoked}, item.Declaration.Children[0].AllowedActions)
+	assert.Empty(t, item.Declaration.Children[0].OtherSigners, "with parent news off the other guardian's answer stays hidden")
+
+	_, _, err = off.svc.SubmitDeclaration(off.ctx, other.AccountID, s.announcement.ID, parentportal.DeclarationInput{
+		StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: parentportal.DeclarationActionRevoked,
+	}, nil)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "another family's guardian cannot revoke for this child")
+	assert.Len(t, s.history(t), 2)
+}
+
+func TestDeclaration_ParentNewsOffKeepsNoConsentToAnOlderWording(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	require.NoError(t, err)
+	// The school corrects the text: version 2 asks everybody again.
+	s.unpublishDeclaration(t)
+	v2 := freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
+	now := time.Now().Add(-time.Minute)
+	require.NoError(t, testpkg.TenantCommand2(t, s.seedCtx, testpkg.SetupTestDB(t), s.repo.SetPublished, s.announcement.ID, &now))
+
+	off := s.withParentNewsOff(t)
+
+	assert.Nil(t, off.feedItem(t, s.chain.AccountID), "a consent to an older wording is no consent to show")
+	_, _, err = off.svc.SubmitDeclaration(off.ctx, s.chain.AccountID, s.announcement.ID, parentportal.DeclarationInput{
+		StudentID: s.chain.StudentID, VersionID: v2.ID, Action: parentportal.DeclarationActionRevoked,
+	}, nil)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "nothing of the school shows while parent news is off")
+	assert.Len(t, s.history(t), 1)
 }

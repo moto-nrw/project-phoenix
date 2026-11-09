@@ -74,10 +74,11 @@ func endNewsOffDeclarations(items []*AnnouncementFeedItem, scope AnnouncementFee
 }
 
 // onlyGivenConsentsWithNewsOff keeps, for a school with parent news off, only
-// the children whose guardian gave their consent: switching the module off
-// shows nothing else of that school, not a refusal, a revocation or another
-// child (data minimization, #6303). withoutEmptyEndedDeclarations then drops
-// the declarations left without a child.
+// the children whose guardian gave their consent, without the answers of
+// other guardians: switching the module off shows nothing else of that
+// school, not a refusal, a revocation, another child or another person
+// (data minimization, #6303). withoutEmptyEndedDeclarations then drops the
+// declarations left without a child.
 func onlyGivenConsentsWithNewsOff(items []*AnnouncementFeedItem, scope AnnouncementFeedScope) []*AnnouncementFeedItem {
 	for _, item := range items {
 		if item.Declaration == nil || slices.Contains(scope.TenantIDs, item.TenantID) {
@@ -86,6 +87,7 @@ func onlyGivenConsentsWithNewsOff(items []*AnnouncementFeedItem, scope Announcem
 		given := item.Declaration.Children[:0]
 		for _, child := range item.Declaration.Children {
 			if child.MyAction != nil && *child.MyAction == DeclarationActionAgreed {
+				child.OtherSigners = []DeclarationSignerState{}
 				given = append(given, child)
 			}
 		}

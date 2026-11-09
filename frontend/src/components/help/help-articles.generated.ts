@@ -6807,7 +6807,7 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
-      "Fehlt `Zustimmung widerrufen`? Dann hat die Schule den Text geändert. Ihre alte Zustimmung gilt nicht für den neuen Text.",
+      "Fehlt `Zustimmung widerrufen`? Dann hat die Schule den Text geändert. Ihre alte Zustimmung gilt nicht für den neuen Text. Fehlt das ganze Einverständnis, haben Sie für das Kind vielleicht keinen Zugang mehr. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,

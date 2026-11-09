@@ -176,7 +176,7 @@ func declarationAdmitsAction(a *ParentAnnouncement, action string) bool {
 // shows takes only a revocation, and only from a guardian who answered for
 // the child before. Anybody else learns nothing about it, not even that it
 // exists. For a revocation it returns the guardian's own latest action for
-// the child, which the parent news gate needs.
+// the child on the current version, which the parent news gate needs.
 func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) (string, error) {
 	if !declarationAdmitsAction(a, action) {
 		return "", ErrAnnouncementNotFound
@@ -184,29 +184,40 @@ func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnoun
 	if action != DeclarationActionRevoked {
 		return "", nil
 	}
-	latest, err := s.ownLatestDeclarationAction(ctx, accountID, a.ID, studentID)
+	answered, onCurrent, err := s.ownDeclarationHistory(ctx, a, accountID, studentID)
 	if err != nil {
 		return "", err
 	}
-	if latest == "" && !announcementIsLive(a) {
+	if !answered && !announcementIsLive(a) {
 		return "", ErrAnnouncementNotFound
 	}
-	return latest, nil
+	return onCurrent, nil
 }
 
-// ownLatestDeclarationAction returns the account's newest action for the
-// child on this announcement, or "" when it never declared.
-func (s *Service) ownLatestDeclarationAction(ctx context.Context, accountID, announcementID, studentID int64) (string, error) {
-	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{announcementID}, []int64{studentID})
+// ownDeclarationHistory reports whether the account ever declared for the
+// child on this announcement and its newest action on the current version
+// ("" when none): a consent to an older wording is no consent to the current
+// one, as in the feed.
+func (s *Service) ownDeclarationHistory(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64) (bool, string, error) {
+	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{a.ID}, []int64{studentID})
 	if err != nil {
-		return "", fmt.Errorf("parent: load declaration history: %w", err)
+		return false, "", fmt.Errorf("parent: load declaration history: %w", err)
 	}
+	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, a.GetTenantID(), a.ID)
+	if err != nil {
+		return false, "", fmt.Errorf("parent: load declaration version: %w", err)
+	}
+	answered, onCurrent := false, ""
 	for _, sub := range history { // newest first
-		if sub.AccountID != nil && *sub.AccountID == accountID {
-			return sub.Action, nil
+		if sub.AccountID == nil || *sub.AccountID != accountID {
+			continue
+		}
+		answered = true
+		if onCurrent == "" && version != nil && sub.VersionID == version.ID {
+			onCurrent = sub.Action
 		}
 	}
-	return "", nil
+	return answered, onCurrent, nil
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the
