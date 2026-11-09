@@ -18,6 +18,8 @@
 //     cannot deadlock against an ascending day-lock writer.
 //   - I8: a series roster change that adds a person to already planned
 //     occurrences plans them absent on their full sick days.
+//   - I9: merging overlapping reports moves every stamp of a merged report to
+//     the survivor, also the stamps a concurrent materialization writes.
 //
 // The sick reports run through the real Workforce absence writes and their
 // cascade; the blocks through the real materializer and instance lifecycle.
@@ -396,7 +398,14 @@ func (e *sickCascadeEnv) expectBlockedUntilRelease(t *testing.T, release chan st
 // read the reports before or after the write committed.
 func (e *sickCascadeEnv) awaitDayLockWaiter(t *testing.T, date calendar.Date, done <-chan error) (bool, error) {
 	t.Helper()
-	key := timetable.SubstituteDayLockKey(e.tenantID, date)
+	return e.awaitLockWaiter(t, timetable.SubstituteDayLockKey(e.tenantID, date), "advisory", done)
+}
+
+// awaitLockWaiter blocks until a transaction whose statement contains needle
+// waits for a lock of waitEvent ("advisory", "transactionid"), or until done
+// delivers first, at most three seconds.
+func (e *sickCascadeEnv) awaitLockWaiter(t *testing.T, needle, waitEvent string, done <-chan error) (bool, error) {
+	t.Helper()
 	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 		select {
 		case err := <-done:
@@ -405,8 +414,8 @@ func (e *sickCascadeEnv) awaitDayLockWaiter(t *testing.T, date calendar.Date, do
 		}
 		var waiting int
 		require.NoError(t, e.db.NewRaw(`SELECT count(*) FROM pg_stat_activity
-			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = 'advisory'
-			  AND query LIKE '%' || ? || '%'`, key).Scan(context.Background(), &waiting))
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = ?
+			  AND query LIKE '%' || ? || '%'`, waitEvent, needle).Scan(context.Background(), &waiting))
 		if waiting > 0 {
 			return false, nil
 		}
@@ -549,4 +558,59 @@ func TestSickReport_SeriesRosterChangeWaitsForConcurrentReport(t *testing.T) {
 	require.NoError(t, <-aligned)
 
 	assertSickStamp(t, e.templateRow(t, templateID, e.sub.ID, stampWeekOne), absenceID, "added beside the open report")
+}
+
+// I9: a materialization stamps week two for report S and holds its day locks
+// while a bridging report merges S into P. The merge waits for the
+// materialization (the staff row lock the absence write takes conflicts with
+// the key share the materialized rows hold), then moves the materialized
+// stamp to P instead of leaving it on the deleted S.
+func TestSickReport_MergeMovesStampsOfConcurrentMaterialization(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	survivorID := e.createSickAbsence(t, stampWeekOne, stampWeekOne)
+	mergedID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+
+	materialized := make(chan struct{})
+	release := make(chan struct{})
+	materializationDone := make(chan error, 1)
+	go func() {
+		materializationDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			if _, err := e.timetable.Materialization.MaterializeForTenant(ctx, stampWeekTwo, stampWeekTwo, timetable.MaterializationSourceManual); err != nil {
+				return err
+			}
+			close(materialized)
+			<-release
+			return nil
+		})
+	}()
+	select {
+	case <-materialized:
+	case err := <-materializationDone:
+		require.FailNow(t, "materialization failed before it held its days", "%v", err)
+	}
+
+	mergeDone := make(chan error, 1)
+	go func() {
+		mergeDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			_, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+				AbsenceType: "sick", DateStart: stampWeekOne.String(), DateEnd: stampWeekTwo.String(),
+			})
+			return err
+		})
+	}()
+	if returned, err := e.awaitLockWaiter(t, "users.staff", "transactionid", mergeDone); returned {
+		close(release)
+		require.NoError(t, <-materializationDone)
+		require.FailNow(t, "merge did not wait for the materialization", "returned early: %v", err)
+	}
+	close(release)
+	require.NoError(t, <-materializationDone)
+	require.NoError(t, <-mergeDone)
+
+	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, stampWeekTwo), survivorID, "materialized row of the merged report")
+	_, err := e.shifts.FindStaffAbsence(e.ctx, mergedID)
+	require.Error(t, err, "the merged report is gone")
 }
