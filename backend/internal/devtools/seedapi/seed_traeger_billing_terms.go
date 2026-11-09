@@ -116,6 +116,26 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 			}
 		}
 	}
+	if len(invoices) == 0 {
+		return nil
+	}
+	return seedImportedMandate(client, auth, invoices[0].FamilyEmail, invoices[0].Recipient.LastName)
+}
+
+// seedImportedMandate takes over the mandate of the first family from a CSV
+// export of another program (#6198), so the demo shows the import log and a
+// mandate with the origin "import". The family pays by transfer anyway. A
+// repeated seed finds the mandate again and takes over nothing.
+func seedImportedMandate(client *Client, auth AuthRef, familyEmail, lastName string) error {
+	csv := "Mandatsreferenz;Unterschriftsdatum;IBAN;Kontoinhaber;E-Mail;Lastschriftart;Letzter Einzug\r\n" +
+		fmt.Sprintf("OGS-2024-0001;15.08.2024;%s;Familie %s;%s;Folgelastschrift;01.10.2026\r\n", demoIBAN(9200), lastName, familyEmail)
+	mapping := `{"columns":{"reference":"Mandatsreferenz","signed_on":"Unterschriftsdatum","iban":"IBAN","bic":"",` +
+		`"account_holder":"Kontoinhaber","payer":"E-Mail","creditor_id":"","sequence":"Lastschriftart",` +
+		`"last_collected_on":"Letzter Einzug"},"payer_key":"email","creditor_from_traeger":true}`
+	if _, err := client.PostFileWithAuthFields(auth, "/traeger/sepa-mandates/imports", "file", "ogs-connect-mandate.csv",
+		[]byte(csv), map[string]string{"mapping": mapping}); err != nil {
+		return fmt.Errorf("import the SEPA mandate of a family: %w", err)
+	}
 	return nil
 }
 

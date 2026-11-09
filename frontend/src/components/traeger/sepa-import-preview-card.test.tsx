@@ -1,0 +1,131 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
+import {
+  SepaImportPreviewCard,
+  importableCount,
+} from "./sepa-import-preview-card";
+
+function row(line: number, overrides: Partial<ImportRow>): ImportRow {
+  return {
+    line,
+    status: "ready",
+    reference: `OGS-${line}`,
+    signedOn: "2024-08-15",
+    ibanMasked: "DE•• •••• •••• •••• ••30 00",
+    bic: "",
+    accountHolder: "Eva Beispiel",
+    contractId: "7",
+    payerFirstName: "Eva",
+    payerLastName: `Beispiel ${line}`,
+    sequence: "recurring",
+    lastCollectedOn: "2026-10-01",
+    mandateId: null,
+    problems: [],
+    hints: [],
+    ...overrides,
+  };
+}
+
+const result: ImportResult = {
+  encoding: "windows-1252",
+  delimiter: ";",
+  headers: ["Mandatsreferenz"],
+  mapping: {
+    columns: {
+      reference: "Mandatsreferenz",
+      signed_on: "",
+      iban: "",
+      bic: "",
+      account_holder: "",
+      payer: "",
+      creditor_id: "",
+      sequence: "",
+      last_collected_on: "",
+    },
+    payerKey: "email",
+    creditorFromTraeger: true,
+  },
+  unmapped: [],
+  creditorId: "DE98ZZZ09999999999",
+  applied: false,
+  counts: {
+    ready: 1,
+    clarify: 1,
+    duplicate: 0,
+    conflict: 0,
+    invalid: 1,
+    imported: 0,
+  },
+  rows: [
+    row(2, {}),
+    row(3, {
+      status: "clarify",
+      sequence: "",
+      lastCollectedOn: null,
+      problems: [{ field: "sequence", code: "sequence_unknown" }],
+    }),
+    row(4, {
+      status: "invalid",
+      ibanMasked: "",
+      payerFirstName: "",
+      payerLastName: "",
+      problems: [{ field: "iban", code: "invalid" }],
+    }),
+  ],
+};
+
+describe("SepaImportPreviewCard", () => {
+  it("counts only ready rows until the office answers the open one", () => {
+    expect(importableCount(result, {})).toBe(1);
+    expect(importableCount(result, { 3: "recurring" })).toBe(2);
+  });
+
+  it("asks the open row and names the problem without the value", () => {
+    const onAnswer = vi.fn();
+    render(
+      <SepaImportPreviewCard
+        result={result}
+        answers={{}}
+        applying={false}
+        onAnswer={onAnswer}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByText("Die Datei sagt nicht, ob schon abgebucht wurde.")
+        .length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("IBAN stimmt nicht.").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "1 Mandat übernehmen" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/Noch 1 Zeile offen/)).toBeInTheDocument();
+
+    const question = screen.getAllByRole("group", {
+      name: "Zeile 3: Wurde schon abgebucht?",
+    })[0];
+    expect(question).toBeDefined();
+    fireEvent.click(screen.getAllByRole("button", { name: "Ja" })[0]!);
+    expect(onAnswer).toHaveBeenCalledWith(3, "recurring");
+  });
+
+  it("filters the rows with problems", () => {
+    render(
+      <SepaImportPreviewCard
+        result={result}
+        answers={{ 3: "first" }}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "2 Mandate übernehmen" }),
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fehler 1" }));
+    expect(screen.getAllByText("Fehlerhaft").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Beispiel 2")).toHaveLength(0);
+    expect(screen.getAllByText("Eva Beispiel").length).toBeGreaterThan(0);
+  });
+});

@@ -8,5 +8,12 @@
   ],
   "api/traeger/sepa-mandates/[id]/revoke": [
     "POST traeger /traeger/sepa-mandates/id%2F1/revoke"
+  ],
+  "api/traeger/sepa-mandates/imports": [
+    "GET traeger /traeger/sepa-mandates/imports",
+    "POST traeger /traeger/sepa-mandates/imports"
+  ],
+  "api/traeger/sepa-mandates/imports/preview": [
+    "POST traeger /traeger/sepa-mandates/imports/preview"
   ]
 }

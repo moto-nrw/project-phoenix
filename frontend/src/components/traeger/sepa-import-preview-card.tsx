@@ -1,0 +1,257 @@
+"use client";
+
+// Vorschau des Mandatsimports (#6198): jede Zeile der Datei mit ihrem Stand,
+// der Familie, dem Konto (nur verdeckt) und dem, was sie aufhält. Zeilen, bei
+// denen die Datei nicht sagt, ob schon abgebucht wurde, beantwortet das Büro
+// hier; moto rät das nie. Übernommen werden nur die bereiten Zeilen.
+
+import { useMemo, useState } from "react";
+import { Button } from "~/components/ui/button";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { formatDate } from "~/lib/date-helpers";
+import type { MandateSequence } from "~/lib/traeger-sepa-api";
+import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
+import {
+  IMPORT_STATUS,
+  type ImportFilter,
+  importHintText,
+  importPayerName,
+  importProblemText,
+  matchesImportFilter,
+} from "./sepa-import-format";
+
+type Answers = Readonly<Record<number, MandateSequence>>;
+
+const ANSWER_ITEMS: { value: MandateSequence; label: string }[] = [
+  { value: "first", label: "Nein" },
+  { value: "recurring", label: "Ja" },
+];
+
+/** Wie viele Zeilen übernommen würden: bereit plus beantwortet. */
+export function importableCount(
+  result: ImportResult,
+  answers: Answers,
+): number {
+  return result.rows.filter(
+    (row) =>
+      row.status === "ready" ||
+      (row.status === "clarify" && answers[row.line] !== undefined),
+  ).length;
+}
+
+function SequenceCell({
+  row,
+  answer,
+  onAnswer,
+}: Readonly<{
+  row: ImportRow;
+  answer: MandateSequence | undefined;
+  onAnswer: (line: number, sequence: MandateSequence) => void;
+}>) {
+  if (row.status === "clarify") {
+    return (
+      <SegmentedControl
+        ariaLabel={`Zeile ${row.line}: Wurde schon abgebucht?`}
+        items={ANSWER_ITEMS}
+        value={answer ?? null}
+        onChange={(sequence) => onAnswer(row.line, sequence)}
+      />
+    );
+  }
+  if (row.sequence === "") return <span className="text-gray-400">–</span>;
+  return (
+    <span className="block">
+      <span className="text-gray-900">
+        {row.sequence === "recurring"
+          ? "Ja, Folgelastschrift"
+          : "Nein, Erstlastschrift"}
+      </span>
+      {row.lastCollectedOn ? (
+        <span className="block text-xs text-gray-500">
+          zuletzt {formatDate(row.lastCollectedOn)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
+  const lines = [
+    ...row.problems.map(importProblemText),
+    ...row.hints.map(importHintText),
+  ];
+  if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
+  if (lines.length === 0) return <span className="text-gray-400">–</span>;
+  return (
+    <ul className="space-y-0.5 text-sm text-gray-700">
+      {lines.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
+export function SepaImportPreviewCard({
+  result,
+  answers,
+  applying,
+  onAnswer,
+  onApply,
+}: Readonly<{
+  result: ImportResult;
+  answers: Answers;
+  applying: boolean;
+  onAnswer: (line: number, sequence: MandateSequence) => void;
+  onApply: () => void;
+}>) {
+  const [filter, setFilter] = useState<ImportFilter>("all");
+  const counts = result.counts;
+  const importable = importableCount(result, answers);
+  const openQuestions = counts.clarify - (importable - counts.ready);
+  const shown = useMemo(
+    () => result.rows.filter((row) => matchesImportFilter(row, filter)),
+    [result.rows, filter],
+  );
+  const filters: { value: ImportFilter; label: string }[] = [
+    { value: "all", label: `Alle ${result.rows.length}` },
+    { value: "ready", label: `Bereit ${counts.ready + counts.imported}` },
+    { value: "clarify", label: `Bitte klären ${counts.clarify}` },
+    { value: "problems", label: `Fehler ${counts.conflict + counts.invalid}` },
+    { value: "duplicate", label: `Schon vorhanden ${counts.duplicate}` },
+  ];
+
+  const columns: DataTableColumn<ImportRow>[] = [
+    {
+      key: "line",
+      header: "Zeile",
+      render: (row) => (
+        <span className="text-gray-500 tabular-nums">{row.line}</span>
+      ),
+      sortValue: (row) => row.line,
+      stacked: "hidden",
+    },
+    {
+      key: "family",
+      header: "Familie",
+      render: (row) => (
+        <span className="block min-w-0">
+          <span className="block font-medium text-gray-900">
+            {importPayerName(row)}
+          </span>
+          <span className="block text-xs text-gray-500">
+            {row.reference || "–"}
+          </span>
+        </span>
+      ),
+      sortValue: (row) => importPayerName(row),
+      stacked: "title",
+    },
+    {
+      key: "status",
+      header: "Stand",
+      render: (row) => (
+        <StatusBadge
+          tone={IMPORT_STATUS[row.status].tone}
+          label={IMPORT_STATUS[row.status].label}
+        />
+      ),
+      stacked: "meta",
+    },
+    {
+      key: "signed",
+      header: "Unterschrieben",
+      render: (row) => (row.signedOn ? formatDate(row.signedOn) : "–"),
+      sortValue: (row) => row.signedOn,
+    },
+    {
+      key: "account",
+      header: "Konto",
+      render: (row) => (
+        <span className="block">
+          <span className="block font-mono text-sm text-gray-900">
+            {row.ibanMasked || "–"}
+          </span>
+          <span className="block text-xs text-gray-500">
+            {row.accountHolder || "–"}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "sequence",
+      header: "Schon abgebucht?",
+      render: (row) => (
+        <SequenceCell
+          row={row}
+          answer={answers[row.line]}
+          onAnswer={onAnswer}
+        />
+      ),
+    },
+    {
+      key: "notes",
+      header: "Hinweis",
+      render: (row) => <NotesCell row={row} />,
+    },
+  ];
+
+  return (
+    <SectionCard
+      title="Prüfen und übernehmen"
+      description="So würde moto jede Zeile übernehmen. Geändert wird erst, wenn Sie übernehmen."
+      padding="none"
+      footer={
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-gray-600">
+            {openQuestions > 0
+              ? `Noch ${openQuestions} ${openQuestions === 1 ? "Zeile" : "Zeilen"} offen. Offene Zeilen bleiben draußen.`
+              : "Zeilen mit Fehlern bleiben draußen. Sie können die Datei später korrigiert noch einmal laden."}
+          </p>
+          <Button
+            type="button"
+            variant="success"
+            size="md"
+            onClick={onApply}
+            disabled={importable === 0}
+            isLoading={applying}
+            loadingText="Wird übernommen …"
+          >
+            {importable === 1
+              ? "1 Mandat übernehmen"
+              : `${importable} Mandate übernehmen`}
+          </Button>
+        </div>
+      }
+    >
+      <div className="border-b border-gray-100 px-5 py-3 max-sm:px-4">
+        <SegmentedControl
+          ariaLabel="Zeilen zeigen"
+          items={filters}
+          value={filter}
+          onChange={setFilter}
+        />
+      </div>
+      {shown.length === 0 ? (
+        <EmptyState
+          variant="compact"
+          title="Keine Zeilen"
+          description="In dieser Auswahl gibt es keine Zeile."
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={[...shown]}
+          getRowKey={(row) => row.line}
+          caption="Zeilen der Datei"
+          stackedOnMobile
+          stackedLayout="lines"
+          dense
+        />
+      )}
+    </SectionCard>
+  );
+}
