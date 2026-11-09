@@ -327,7 +327,7 @@ shots:
       - warten_auf: 'text=Entscheidung speichern'
       # Die Karte des Kindes oben: Name, Angebote und die Entscheidung mit
       # allen Knöpfen stehen auf beiden Geräten ganz im Bild.
-      - scrollen: 'article:has-text("Luka Berisha")'
+      - scrollen: 'xpath=//h3[normalize-space()="Luka Berisha"][following-sibling::div[contains(., "Geburtsdatum")]]/ancestor::section[1]'
 
   # --- Elternkommunikation --------------------------------------------------
   # Website: Elternbrief mit Rückmeldung; Stand der Einverständnisse
