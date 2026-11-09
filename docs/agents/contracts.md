@@ -902,7 +902,12 @@ hands out. Exactly one function writes the account credential
 `TestAccountCredentialHasOneWriter` rejects a second writer): every password
 write (own change, caterer change, reset, restore by invitation) and every MFA
 reset moves the generation on, only the first credential of a new account
-keeps it. Reset links and remembered devices record their generation
+keeps it. The database enforces it for every writer: the trigger
+`auth.account_credential_moves_generation` refuses a change of `password_hash`
+or `is_password_otp` that does not raise the generation in the same
+statement, except the first password of an account without one; clearing the
+credential (the erasures) raises it itself, and it never moves back. Reset
+links and remembered devices record their generation
 (`credential_generation`, migration 1.15.828) and count only while it is the
 account's current one, at every school, so no write needs to revoke them; a
 reset writes by compare-and-swap on its link's generation. A sign-in records the generation
