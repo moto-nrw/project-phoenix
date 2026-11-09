@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The erasure of 1.15.867 is the erasure of 1.15.843 with the outbox copies
+// The erasure of 1.15.869 is the erasure of 1.15.843 with the outbox copies
 // of the sent originals of the Jahresbescheide deleted right before the
 // notices, and nothing else changed (#6347).
 func TestCareNoticeLetterErasureIsTheErasureOf843WithTheOriginals(t *testing.T) {
