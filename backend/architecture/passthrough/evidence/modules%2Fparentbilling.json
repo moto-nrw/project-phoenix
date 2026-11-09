@@ -2,9 +2,44 @@
   "sites": [
     {
       "build": "production",
+      "evidence": "func (rs *BelegRetentionResource) LiftSuspension(w http.ResponseWriter, r *http.Request) {\n\torganizationID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tsuspensionID, ok := common.ParseInt64IDWithError(w, r, \"suspensionId\", \"invalid suspension ID\")\n\tif !ok {\n\t\treturn\n\t}\n\trs.write(w, r, BelegRetentionSuspensionLift, \"suspension\", func(ctx context.Context, operatorID int64) error {\n\t\treturn rs.retention.LiftSuspension(ctx, organizationID, suspensionID, operatorID)\n\t}, func() {\n\t\tcommon.RespondNoContent(w, r)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/http/BelegRetentionResource.LiftSuspension",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *BelegRetentionResource) RecordInstruction(w http.ResponseWriter, r *http.Request) {\n\tvar req instructionRequest\n\torganizationID, ok := decodeBelegRetention(w, r, \u0026req)\n\tif !ok {\n\t\treturn\n\t}\n\tvar instruction capability.RetentionInstruction\n\trs.write(w, r, BelegRetentionInstruction, req.BelegType, func(ctx context.Context, operatorID int64) error {\n\t\tvar err error\n\t\tinstruction, err = rs.retention.RecordInstruction(ctx, organizationID, operatorID, capability.NewRetentionInstruction(req))\n\t\treturn err\n\t}, func() {\n\t\tcommon.Respond(w, r, http.StatusCreated, instruction, \"Instruction recorded\")\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordInstruction",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *BelegRetentionResource) RecordSuspension(w http.ResponseWriter, r *http.Request) {\n\tvar req suspensionRequest\n\torganizationID, ok := decodeBelegRetention(w, r, \u0026req)\n\tif !ok {\n\t\treturn\n\t}\n\tvar suspension capability.RetentionSuspension\n\trs.write(w, r, BelegRetentionSuspension, req.BelegType, func(ctx context.Context, operatorID int64) error {\n\t\tvar err error\n\t\tsuspension, err = rs.retention.RecordSuspension(ctx, organizationID, operatorID, capability.NewRetentionSuspension(req))\n\t\treturn err\n\t}, func() {\n\t\tcommon.Respond(w, r, http.StatusCreated, suspension, \"Suspension recorded\")\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordSuspension",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
       "evidence": "func (r *Renderer) CombineLetters(letters [][]byte, title, filenameBase string) (parentbilling.BillingLetterFile, error) {\n\tfile, err := r.letters.CombineLetters(letters, title, filenameBase)\n\tif errors.Is(err, lists.ErrNoLetters) {\n\t\treturn parentbilling.BillingLetterFile{}, fmt.Errorf(\"%w: %w\", parentbilling.ErrBillingLettersMissing, err)\n\t}\n\tif err != nil {\n\t\treturn parentbilling.BillingLetterFile{}, err\n\t}\n\treturn parentbilling.BillingLetterFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/parentbilling/internal/adapters/rendering/Renderer.CombineLetters",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *BelegRetention) LiftSuspension(ctx context.Context, organizationID, suspensionID, operatorID int64) error {\n\tif err := r.store.LiftSuspension(ctx, organizationID, suspensionID, operatorID); err != nil {\n\t\treturn err\n\t}\n\treturn r.evaluate(ctx, organizationID, r.today())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/BelegRetention.LiftSuspension",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *BelegRetention) RecordSuspension(ctx context.Context, organizationID, operatorID int64, input parentbilling.NewRetentionSuspension) (parentbilling.RetentionSuspension, error) {\n\tinput.Reason, input.Scope, input.Responsible = strings.TrimSpace(input.Reason), strings.TrimSpace(input.Scope), strings.TrimSpace(input.Responsible)\n\tif err := ValidateRetentionSuspension(input, r.today()); err != nil {\n\t\treturn parentbilling.RetentionSuspension{}, err\n\t}\n\tsuspension, err := r.store.InsertSuspension(ctx, organizationID, operatorID, input)\n\tif err != nil {\n\t\treturn parentbilling.RetentionSuspension{}, err\n\t}\n\treturn suspension, r.evaluate(ctx, organizationID, r.today())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/BelegRetention.RecordSuspension",
       "owner": "modules/parentbilling"
     },
     {

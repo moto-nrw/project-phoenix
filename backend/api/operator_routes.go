@@ -13,7 +13,9 @@ import (
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
+	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // The operator router mounts the operator routes of Identity & Access,
@@ -150,6 +152,7 @@ func operatorRouter(
 		identityRoutes.mountInvitationRoutes(r)
 		mountOperatorAnnouncementRoutes(r, announcementRoutes, provisioningRoutes)
 		mountOperatorBillingRoutes(r, billing)
+		mountOperatorBelegRetentionRoutes(r, provisioningRoutes)
 	})
 
 	return r
@@ -327,6 +330,18 @@ func mountOperatorTraegerSettingsRoutes(r chi.Router, provisioning *provisioning
 	r.Get("/organizations/{id}/traeger-settings/schema", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerSettings, traeger.GetTraegerSettingsSchema))
 	r.Put("/organizations/{id}/traeger-settings/values/{key}", traeger.SetTraegerSettingValue)
 	r.Delete("/organizations/{id}/traeger-settings/values/{key}", traeger.ResetTraegerSettingValue)
+}
+
+// mountOperatorBelegRetentionRoutes serves the retention of the Belege of a
+// Träger to the moto team (#4720, ADR 0184): the instructions, suspensions,
+// clarification list and deletion log under the operator read audit, and
+// the writes with their operator audit entry.
+func mountOperatorBelegRetentionRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
+	retention := parentBillingHTTP.NewBelegRetentionResource(owners.NewBelegRetention(nil), provisioning.RecordBelegRetentionChange, operatorIDFromSession)
+	r.Get("/organizations/{id}/beleg-retention", provisioning.AuditReadAccess(organizationtenancy.ReadBelegRetention, retention.Overview))
+	r.Post("/organizations/{id}/beleg-retention/instructions", retention.RecordInstruction)
+	r.Post("/organizations/{id}/beleg-retention/suspensions", retention.RecordSuspension)
+	r.Delete("/organizations/{id}/beleg-retention/suspensions/{suspensionId}", retention.LiftSuspension)
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the

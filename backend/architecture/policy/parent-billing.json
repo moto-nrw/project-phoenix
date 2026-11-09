@@ -259,6 +259,22 @@
     {
       "name": "parent_billing.sepa_mandates",
       "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_deletions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_retention_instructions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_retention_suspensions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_retentions",
+      "write_owner": "parent-billing"
     }
   ],
   "rules": [

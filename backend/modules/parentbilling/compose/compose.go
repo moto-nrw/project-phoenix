@@ -94,3 +94,9 @@ func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.Bank
 func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher) parentbilling.SEPADebits {
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
 }
+
+// NewBelegRetention builds the retention of the Belege of every Träger
+// (#4720, ADR 0184) over the contracts the root binds; nil today: Berlin day.
+func NewBelegRetention(contracts parentbilling.RetainedContracts, today func() calendar.Date) parentbilling.BelegRetention {
+	return application.NewBelegRetention(postgres.NewStore(), contracts, today)
+}
