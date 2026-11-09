@@ -5,20 +5,20 @@
 
 import { apiErrorFromResponse, transportFetch } from "./api-error";
 
-export interface SepaMandateCreditor {
+interface SepaMandateCreditor {
   readonly name: string;
   readonly address: string;
   readonly creditorId: string;
 }
 
-export interface SepaMandatePrefill {
+interface SepaMandatePrefill {
   readonly accountHolder: string;
   readonly street: string;
   readonly postalCode: string;
   readonly city: string;
 }
 
-export interface SepaMandateProof {
+interface SepaMandateProof {
   readonly channel: string;
   readonly version: string;
   readonly textSha256: string;
