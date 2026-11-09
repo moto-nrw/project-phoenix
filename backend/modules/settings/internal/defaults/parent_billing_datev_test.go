@@ -33,8 +33,10 @@ func TestParentBillingDatevSettings(t *testing.T) {
 			invalid: []string{"999", "1000", "0123", "12345678", "12 34"},
 		},
 		config.KeyParentBillingDatevClientNumber:   {valid: []string{"1", "55003", "99999"}, invalid: []string{"0", "100000", "1a"}},
-		config.KeyParentBillingDatevRevenueAccount: {valid: []string{"85", "4400", "44000000"}, invalid: []string{"440000000", "44-00"}},
+		config.KeyParentBillingDatevRevenueAccount: {valid: []string{"85", "0085", "4400", "44000000"}, invalid: []string{"0", "0000", "44-00", " 4400"}},
 	}
+	assert.Equal(t, 8, *config.GetDefinition(config.KeyParentBillingDatevRevenueAccount).Validation.MaxLength,
+		"a Sachkonto has at most 8 digits")
 	for key, values := range patterns {
 		pattern := regexp.MustCompile(*config.GetDefinition(key).Validation.Pattern)
 		for _, value := range values.valid {

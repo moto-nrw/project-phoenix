@@ -21,7 +21,14 @@ func init() {
 var (
 	datevConsultantPattern = `^(100[1-9]|10[1-9]\d|1[1-9]\d{2}|[2-9]\d{3}|[1-9]\d{4,6})$`
 	datevClientPattern     = `^[1-9]\d{0,4}$`
-	datevAccountPattern    = `^\d{1,8}$`
+	// The revenue account is digits and not zero; DATEV refuses an account
+	// of zeros (Konto ^(?!0{1,9}$)(\d{1,9})$). Its length limit is
+	// datevAccountMaxLength; that it fits the Sachkontenlänge is a
+	// cross-field rule the Träger level cannot hold (ADR 0086), so the
+	// export check names it.
+	datevAccountPattern = `^0*[1-9][0-9]*$`
+	// datevAccountMaxLength: a Sachkonto has at most 8 digits.
+	datevAccountMaxLength = 8
 )
 
 var datevAccountLengthOptions = &config.SelectOptions{Static: []config.SelectOption{
@@ -85,7 +92,7 @@ var parentBillingDatevDefinitions = func() []config.Definition {
 
 	revenue := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevRevenueAccount, 60, "Erlöskonto für Elternbeiträge",
 		"Auf dieses Sachkonto bucht moto die Elternbeiträge. Es hat höchstens so viele Ziffern wie Ihre Sachkonten.")
-	revenue.Validation = &config.ValidationRules{Pattern: &datevAccountPattern, AllowEmpty: true}
+	revenue.Validation = &config.ValidationRules{Pattern: &datevAccountPattern, AllowEmpty: true, MaxLength: &datevAccountMaxLength}
 
 	locked := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevLocked, 70, "Buchungen festschreiben",
 		"Ist das an, sind die Buchungen nach dem Einlesen in DATEV festgeschrieben. Ihr Steuerbüro kann sie dann nicht mehr ändern.")
