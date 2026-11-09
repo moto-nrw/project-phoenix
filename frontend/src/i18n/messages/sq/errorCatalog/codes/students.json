@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
   "offering_change_date_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "offering_changes_no_enrollment": "Fëmija nuk ka më një regjistrim të vlefshëm. Refuzoni: {object}.",
-  "partial_absence_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "partial_absence_conflict": "Fëmija është tashmë i justifikuar nga një orë e caktuar në një ditë të zgjedhur. Fillimisht hiqni justifikimin e pjesshëm te „Entschuldigen” dhe „Ab Uhrzeit”.",
   "partial_absence_requires_dedicated_action": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "photo_consent_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "photo_consent_withdrawn": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

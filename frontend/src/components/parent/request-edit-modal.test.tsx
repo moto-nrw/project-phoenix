@@ -224,6 +224,36 @@ describe("RequestEditModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  // #5698: the school excused one of the days from a time; the generic
+  // "changed in the meantime" text would send the parent in circles.
+  it("names a day the school already excused from a time", async () => {
+    updateExcused.mockRejectedValue(
+      new ApiError("conflict", 409, { code: "care.care_exception_conflict" }),
+    );
+    render(
+      <RequestEditModal
+        studentId="1"
+        request={{
+          type: "excused",
+          id: "req-1",
+          dates: ["2026-09-01"],
+          note: "Zahnarzt",
+        }}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await screen.findByText("Geändert am 24.08.2026");
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+
+    expect(
+      await within(screen.getByRole("dialog")).findByText(
+        "Für einen der Tage hat die OGS schon eine Abwesenheit ab einer Uhrzeit eingetragen. Diesen Tag können Sie hier nicht melden.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("checks an empty value before sending and marks the field", async () => {
     render(
       <RequestEditModal

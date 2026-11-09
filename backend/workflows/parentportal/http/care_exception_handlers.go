@@ -94,6 +94,10 @@ type CareExceptionResponse struct {
 	// DepartureMode is the Abholart of the day the OGS set or approved
 	// (#3945); omitted when the weekly plan applies.
 	DepartureMode *string `json:"departure_mode,omitempty"`
+	// ExcusedFrom is the "HH:MM" from which the school excused the child on
+	// this day. A full-day guardian report on such a day is refused, so the
+	// absence dialog names the day up front (#5698). Omitted otherwise.
+	ExcusedFrom *string `json:"excused_from,omitempty"`
 }
 
 // PickupChangeRequestResponse carries the stored ask. PickupTime and
@@ -167,6 +171,7 @@ func toCareExceptionResponse(c *parentService.CareException) CareExceptionRespon
 		PickupAbsent:  c.PickupAbsent,
 		ArrivalAbsent: c.ArrivalAbsent,
 		DepartureMode: c.DepartureMode,
+		ExcusedFrom:   formatCareExceptionTime(c.ExcusedFrom),
 	}
 }
 

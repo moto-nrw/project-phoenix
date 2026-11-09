@@ -95,6 +95,7 @@ export function absencesTopic(): HelpTopic {
       "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Dann ist das Kind heute krank gemeldet oder entschuldigt.",
       "Fehlt `Ab Uhrzeit`? Dann dürfen Sie nur ganze Tage entschuldigen.",
       "Steht beim Tag `Automatisch (Abholzeit)`? Dann kommt die Entschuldigung aus der früheren Abholzeit. Ändern Sie dafür die Abholzeit des Tages.",
+      "Ist ein gewählter Tag schon `Ab Uhrzeit` entschuldigt? Dann nennt das Fenster den Tag und speichert nur die anderen Tage. Für den ganzen Tag entfernen Sie zuerst unter `Bereits ab Uhrzeit entschuldigt` die Teilentschuldigung.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
