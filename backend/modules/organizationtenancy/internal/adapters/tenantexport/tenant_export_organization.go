@@ -20,14 +20,16 @@ func (r *exportRun) subjectID() int64 {
 }
 
 func (r *exportRun) requireSubject(ctx context.Context) error {
-	query, missing := `SELECT EXISTS (SELECT 1 FROM platform.schools WHERE id = ?)`, "tenant export: school unavailable"
-	if r.options.OrganizationID > 0 {
-		query, missing = `SELECT EXISTS (SELECT 1 FROM platform.organizations WHERE id = ?)`, "tenant export: Träger unavailable"
-		r.manifest.Package = "organization"
-	}
 	var exists bool
-	if err := r.tx.NewRaw(query, r.subjectID()).Scan(ctx, &exists); err != nil || !exists {
-		return errors.New(missing)
+	if r.options.OrganizationID > 0 {
+		r.manifest.Package = "organization"
+		if err := r.tx.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.organizations WHERE id = ?)`, r.options.OrganizationID).Scan(ctx, &exists); err != nil || !exists {
+			return errors.New("tenant export: Träger unavailable")
+		}
+		return nil
+	}
+	if err := r.tx.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.schools WHERE id = ?)`, r.options.SchoolID).Scan(ctx, &exists); err != nil || !exists {
+		return errors.New("tenant export: school unavailable")
 	}
 	return nil
 }

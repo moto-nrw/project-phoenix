@@ -31,6 +31,28 @@ func projectedColumnsOf(table organizationtenancy.LifecycleTable) []string {
 	return columns
 }
 
+// ownerModelColumns describes the columns the owners of the table write in
+// place of its sealed and container columns.
+func ownerModelColumns(table organizationtenancy.LifecycleTable, columns []exportSchemaColumn) ([]organizationtenancy.ExportColumn, error) {
+	var owned []organizationtenancy.ExportColumn
+	for _, sealed := range sealedColumnsOf(table) {
+		col, ok := schemaColumn(columns, sealed)
+		if !ok {
+			return nil, exportTableError(table.Name)
+		}
+		owned = append(owned, organizationtenancy.ExportColumn{Name: table.OpenSealedColumns[sealed], Type: "text", UDT: "text", Nullable: col.Nullable == "YES"})
+	}
+	for _, container := range projectedColumnsOf(table) {
+		col, ok := schemaColumn(columns, container)
+		if !ok {
+			return nil, exportTableError(table.Name)
+		}
+		// A withheld value is null, whatever the container allows.
+		owned = append(owned, organizationtenancy.ExportColumn{Name: table.ProjectedColumns[container], Type: col.Type, UDT: col.UDT, Nullable: true})
+	}
+	return owned, nil
+}
+
 func schemaColumn(columns []exportSchemaColumn, name string) (exportSchemaColumn, bool) {
 	for _, col := range columns {
 		if col.Name == name {

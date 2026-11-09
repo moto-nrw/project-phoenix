@@ -49,12 +49,36 @@
       "target_owner": "operator-dashboard-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ExportFields.ProjectExportField",
+      "binding_digest": "3d0bff6900865862a421b54587104cc5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportProjectedFields.ProjectExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ExportFields.ProjectExportField",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",
+      "binding_digest": "31a91b9f1ef52df22484a6e845db0eb2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
       "binding_digest": "b1693a98a9cdcb61faeb50e3a9be5772",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
       "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
+      "binding_digest": "cbcc6121bd9c1ba3b7f4cc07d2e9d050",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
+      "target_owner": "student-directory-view"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",

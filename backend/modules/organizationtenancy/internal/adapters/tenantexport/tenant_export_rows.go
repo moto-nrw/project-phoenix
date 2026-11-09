@@ -36,21 +36,11 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 			model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: col.Name, Type: col.Type, UDT: col.UDT, Nullable: col.Nullable == "YES"})
 		}
 	}
-	for _, sealed := range sealedColumnsOf(table) {
-		col, ok := schemaColumn(columns, sealed)
-		if !ok {
-			return model, exportTableError(table.Name)
-		}
-		model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: table.OpenSealedColumns[sealed], Type: "text", UDT: "text", Nullable: col.Nullable == "YES"})
+	owned, err := ownerModelColumns(table, columns)
+	if err != nil {
+		return model, err
 	}
-	for _, container := range projectedColumnsOf(table) {
-		col, ok := schemaColumn(columns, container)
-		if !ok {
-			return model, exportTableError(table.Name)
-		}
-		// A withheld value is null, whatever the container allows.
-		model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: table.ProjectedColumns[container], Type: col.Type, UDT: col.UDT, Nullable: true})
-	}
+	model.Columns = append(model.Columns, owned...)
 	relations := r.schema.relations[table.Name]
 	for _, rel := range relations {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {

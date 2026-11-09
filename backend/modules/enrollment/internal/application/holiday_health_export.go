@@ -24,14 +24,18 @@ var errHolidayHealthExportField = errors.New("enrollment: not a sealed holiday h
 
 // OpenExportField answers the opened value; the error never names it.
 func (f *HolidayHealthExportFields) OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error) {
-	if column != "health_data" || f.cipher == nil {
+	return openHolidayHealthExport(f.cipher, table, column, row, sealed)
+}
+
+func openHolidayHealthExport(cipher enrollment.HolidayHealthCipher, table, column string, row map[string]json.RawMessage, sealed []byte) (string, error) {
+	if column != "health_data" || cipher == nil {
 		return "", errHolidayHealthExportField
 	}
 	context, ok := holidayHealthExportContext(table, row)
 	if !ok {
 		return "", errHolidayHealthExportField
 	}
-	plain, err := f.cipher.Open(sealed, context)
+	plain, err := cipher.Open(sealed, context)
 	if err != nil {
 		return "", enrollment.ErrHolidayHealthUnreadable
 	}
