@@ -61,6 +61,11 @@ const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked
 const CodeParentBillingDirectDebitWithoutMandate = "parent_billing.direct_debit_without_mandate"
 const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_invalid"
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
+const CodeParentBillingExportFileNumberStartLocked = "parent_billing.export_file_number_start_locked"
+const CodeParentBillingExportInvoiceNotFound = "parent_billing.export_invoice_not_found"
+const CodeParentBillingExportMappingInvalid = "parent_billing.export_mapping_invalid"
+const CodeParentBillingExportRunEmpty = "parent_billing.export_run_empty"
+const CodeParentBillingExportRunNotFound = "parent_billing.export_run_not_found"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
 const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
 const CodeParentBillingFamilyChildrenInvalid = "parent_billing.family_children_invalid"
@@ -165,6 +170,11 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDirectDebitWithoutMandate, "business_rejection"},
 	{CodeParentBillingDocumentKindInvalid, "input"},
 	{CodeParentBillingDueDatesInvalid, "input"},
+	{CodeParentBillingExportFileNumberStartLocked, "business_rejection"},
+	{CodeParentBillingExportInvoiceNotFound, "business_rejection"},
+	{CodeParentBillingExportMappingInvalid, "input"},
+	{CodeParentBillingExportRunEmpty, "business_rejection"},
+	{CodeParentBillingExportRunNotFound, "business_rejection"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},
 	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
 	{CodeParentBillingFamilyChildrenInvalid, "input"},

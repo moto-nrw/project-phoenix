@@ -1,0 +1,263 @@
+package parentbillinghttp
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// FinanceExportResource serves the finance exports of the Elternabrechnung
+// (#4693) at /traeger/finance-exports: the field mapping and the start of
+// the file numbers, the released runs with their exports, the export
+// protocol and the Sollstellung of a run behind the Träger right
+// "Finanz-Export", and the history of an invoice behind the right
+// "Abrechnung". Every route runs in the Träger transaction of the session's
+// Träger; a download answers its file only after its protocol entry
+// committed with it.
+type FinanceExportResource struct {
+	exports        capability.FinanceExports
+	requireExport  common.Middleware
+	requireBilling common.Middleware
+}
+
+// NewFinanceExportResource builds the resource.
+func NewFinanceExportResource(exports capability.FinanceExports, requireExport, requireBilling common.Middleware) *FinanceExportResource {
+	if exports == nil || requireExport == nil || requireBilling == nil {
+		panic("parent billing http: the finance exports and the right checks are required")
+	}
+	return &FinanceExportResource{exports: exports, requireExport: requireExport, requireBilling: requireBilling}
+}
+
+// Router returns the routes mounted at /traeger/finance-exports.
+func (rs *FinanceExportResource) Router(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	protectedTraegerRoutes(r, func(r chi.Router, withTx common.Middleware) {
+		export := r.With(rs.requireExport, withTx)
+		export.Get("/settings", rs.settings)
+		export.Put("/settings/sollstellung", rs.saveMapping)
+		export.Delete("/settings/sollstellung", rs.resetMapping)
+		export.Put("/settings/file-number-start", rs.setStart)
+		export.Get("/runs", rs.runs)
+		export.Get("/files", rs.files)
+		export.Get("/runs/{kind}/{id}/sollstellung", rs.sollstellung)
+		r.With(rs.requireBilling, withTx).Get("/invoice-history/{kind}/{id}", rs.history)
+	})
+	return r
+}
+
+// exportRunKinds maps the path segment of a run to its kind.
+var exportRunKinds = map[string]string{
+	"care-runs":     capability.DebitRunCare,
+	"holiday-runs":  capability.DebitRunHoliday,
+	"notice-months": capability.DebitRunNotice,
+}
+
+// historyKinds maps the path segment of an invoice to its kind.
+var historyKinds = map[string]string{
+	"care-invoices":     capability.HistoryCareInvoice,
+	"holiday-documents": capability.HistoryHolidayDocument,
+}
+
+// SollstellungMappingRequest is the body of PUT …/settings/sollstellung.
+type SollstellungMappingRequest struct {
+	capability.SollstellungMapping
+}
+
+// Bind accepts the body; the owner validates the mapping.
+func (req *SollstellungMappingRequest) Bind(*http.Request) error { return nil }
+
+// FileNumberStartRequest is the body of PUT …/settings/file-number-start.
+type FileNumberStartRequest struct {
+	Start int64 `json:"start"`
+}
+
+// Bind accepts the body; the owner validates the start.
+func (req *FileNumberStartRequest) Bind(*http.Request) error { return nil }
+
+// ExportRunsResponse is the answer of GET …/runs.
+type ExportRunsResponse struct {
+	Runs []capability.ExportRun `json:"runs"`
+}
+
+// ExportFilesResponse is the answer of GET …/files.
+type ExportFilesResponse struct {
+	Files []capability.ExportProtocolEntry `json:"files"`
+}
+
+func (rs *FinanceExportResource) settings(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	settings, err := rs.exports.ExportSettings(r.Context(), reviewer)
+	if err != nil {
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, settings, "Export settings retrieved successfully")
+}
+
+func (rs *FinanceExportResource) saveMapping(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	req := &SollstellungMappingRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportMappingInvalid))
+		return
+	}
+	settings, err := rs.exports.SaveSollstellungMapping(r.Context(), reviewer, req.SollstellungMapping)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, settings, "Sollstellung mapping saved successfully")
+}
+
+func (rs *FinanceExportResource) resetMapping(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	settings, err := rs.exports.ResetSollstellungMapping(r.Context(), reviewer)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, settings, "Sollstellung mapping reset successfully")
+}
+
+func (rs *FinanceExportResource) setStart(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	req := &FileNumberStartRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportMappingInvalid))
+		return
+	}
+	settings, err := rs.exports.SetExportFileNumberStart(r.Context(), reviewer, req.Start)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, settings, "Export file number start set successfully")
+}
+
+func (rs *FinanceExportResource) runs(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	runs, err := rs.exports.ExportRuns(r.Context(), reviewer)
+	if err != nil {
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ExportRunsResponse{Runs: runs}, "Export runs retrieved successfully")
+}
+
+// files lists the protocol; ?run_kind=care-runs&run_id=… narrows it to a run.
+func (rs *FinanceExportResource) files(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	kind, runID := "", int64(0)
+	if segment := r.URL.Query().Get("run_kind"); segment != "" {
+		var known bool
+		kind, known = exportRunKinds[segment]
+		id, err := strconv.ParseInt(r.URL.Query().Get("run_id"), 10, 64)
+		if !known || err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrExportRunNotFound, common.CodeParentBillingExportRunNotFound))
+			return
+		}
+		runID = id
+	}
+	files, err := rs.exports.ExportProtocol(r.Context(), reviewer, kind, runID)
+	if err != nil {
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ExportFilesResponse{Files: files}, "Export protocol retrieved successfully")
+}
+
+// sollstellung answers the Sollstellung of a run; it leaves the server only
+// in this answer and is never stored or cached. Its number and protocol
+// entry commit with the answer, or neither does.
+func (rs *FinanceExportResource) sollstellung(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	kind, known := exportRunKinds[chi.URLParam(r, "kind")]
+	id, err := common.ParseIDParam(r, "id")
+	if !known || err != nil {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrExportRunNotFound, common.CodeParentBillingExportRunNotFound))
+		return
+	}
+	file, err := rs.exports.SollstellungFile(r.Context(), reviewer, kind, id)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderExportError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Entry.FileName))
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(file.Data)
+}
+
+func (rs *FinanceExportResource) history(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	kind, known := historyKinds[chi.URLParam(r, "kind")]
+	id, err := common.ParseIDParam(r, "id")
+	if !known || err != nil {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrExportInvoiceNotFound, common.CodeParentBillingExportInvoiceNotFound))
+		return
+	}
+	history, err := rs.exports.InvoiceHistory(r.Context(), reviewer, kind, id)
+	if err != nil {
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, history, "Invoice history retrieved successfully")
+}
+
+// renderExportError answers a refused export.
+func renderExportError(w http.ResponseWriter, r *http.Request, err error) {
+	var fields validation.Errors
+	switch {
+	case errors.As(err, &fields):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportMappingInvalid))
+	case errors.Is(err, capability.ErrExportRunNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingExportRunNotFound))
+	case errors.Is(err, capability.ErrExportRunEmpty):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingExportRunEmpty))
+	case errors.Is(err, capability.ErrExportFileNumberStartLocked):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingExportFileNumberStartLocked))
+	case errors.Is(err, capability.ErrExportInvoiceNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingExportInvoiceNotFound))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
+}

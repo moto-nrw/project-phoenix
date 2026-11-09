@@ -103,6 +103,7 @@ type FamilyBillingRequest struct {
 	PayerAddress    *capability.PostalAddress `json:"payer_address"`
 	PaymentMethod   string                    `json:"payment_method"`
 	DueDay          *int                      `json:"due_day"`
+	DebtorNumber    string                    `json:"debtor_number"`
 }
 
 // Bind accepts the body; the Owner validates the deviation.

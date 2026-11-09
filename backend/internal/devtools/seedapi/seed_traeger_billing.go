@@ -88,6 +88,9 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID 
 			return 0, fmt.Errorf("download the list of the cost bearer: %w", err)
 		}
 	}
+	if err := seedSollstellung(client, auth, runID); err != nil {
+		return 0, err
+	}
 	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction, overview downloaded\n", run.PreviewCount)
 	return runID, nil
 }

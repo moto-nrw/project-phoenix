@@ -55,7 +55,8 @@ import (
 // right (#6219),
 // and the SEPA mandates and the creditor at /traeger/sepa-mandates and
 // /traeger/sepa-creditor behind the same right (#4695), and the SEPA direct
-// debit file of the issued runs at /traeger/sepa-debits (#4697).
+// debit file of the issued runs at /traeger/sepa-debits (#4697), and the
+// finance exports with their protocol at /traeger/finance-exports (#4693).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
@@ -86,6 +87,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/sepa-creditor", mandates.CreditorRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-mandates", mandates.MandateRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-debits", NewSEPADebitHTTP(settings, bankData).Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/finance-exports", NewFinanceExportHTTP().Router(ProtectedTraegerRoutes))
 }
 
 // NewSEPADebitHTTP binds the SEPA direct debit file of the issued runs
