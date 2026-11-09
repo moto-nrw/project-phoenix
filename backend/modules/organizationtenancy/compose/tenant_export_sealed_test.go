@@ -30,18 +30,30 @@ func (refusingSealedFields) OpenExportField(string, string, map[string]json.RawM
 	return "", errors.New("wrong key")
 }
 
-// A return without the bank keys, or with a key that does not open the
-// value, must not complete: neither ciphertext nor a gap goes out (#3838).
+// A return without the key rings, with a key that does not open the value,
+// or without the owner of one sealed table must not complete: neither
+// ciphertext nor a gap goes out (#3838, #6328).
 func TestTenantExportRefusesSealedValuesItCannotOpen(t *testing.T) {
 	t.Parallel()
 	db, catalog, a, b := exportFixture(t)
 	uploads := fixtureUploads(t, db, catalog, a, b)
-	for name, sealed := range map[string]organizationtenancy.TenantExportSealedFields{"without keys": nil, "wrong key": refusingSealedFields{}} {
-		exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, sealed)
+	bankOnly := organizationtenancy.TenantExportSealedFieldsByTable{
+		"parent_billing.sepa_mandates": openedSealedFields{}, "parent_billing.sepa_debits": openedSealedFields{},
+	}
+	for name, tt := range map[string]struct {
+		sealed organizationtenancy.TenantExportSealedFields
+		names  string
+	}{
+		"without keys":         {nil, `(parent_billing\.sepa_|enrollment\.holiday_|users\.student_care_profiles)`},
+		"wrong key":            {refusingSealedFields{}, `(parent_billing\.sepa_|enrollment\.holiday_|users\.student_care_profiles)`},
+		"without health owner": {bankOnly, `cannot open a sealed value of (enrollment\.holiday_|users\.student_care_profiles)`},
+	} {
+		exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, tt.sealed)
 		require.NoError(t, err)
 		out := filepath.Join(t.TempDir(), "export")
 		err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads})
-		require.ErrorContains(t, err, "parent_billing.sepa_", name)
+		require.Error(t, err, name)
+		require.Regexp(t, tt.names, err.Error(), name)
 		require.NoFileExists(t, filepath.Join(out, "COMPLETE"), name)
 	}
 }

@@ -191,8 +191,14 @@ func assertPersonReview(t *testing.T, out string, hasUnassigned bool) {
 	}
 	require.NotEmpty(t, review.Items)
 	marked := map[string]map[int64]bool{}
+	require.Contains(t, review.Checks, "article-9-health-data-only-for-the-requesting-subject-and-recipient")
 	for _, item := range review.Items {
 		require.Contains(t, item.Rules, "third-party-review")
+		switch item.Table {
+		case "users.student_care_profiles", "enrollment.holiday_guests", "enrollment.holiday_registrations", "enrollment.holiday_registration_children":
+			// Opened health information is marked as a special category (#6328).
+			require.Contains(t, item.Rules, "special-category-health-data", item.Table)
+		}
 		if marked[item.Table] == nil {
 			marked[item.Table] = map[int64]bool{}
 		}

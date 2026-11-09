@@ -4,15 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
+	studentDirectoryViewCompose "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -119,15 +122,13 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 		return errors.New("tenant export: database unavailable")
 	}
 	defer func() { _ = db.Close() }()
-	// The return carries the IBAN and account holder of SEPA mandates, not
-	// their ciphertext (#3838); without the bank ring the export refuses.
-	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
+	sealed, err := tenantExportSealedFields()
 	if err != nil {
-		return errors.New("tenant export: BANK_DATA_KEYS / BANK_DATA_LEGACY_KEYS configuration invalid")
+		return err
 	}
 	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
 		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	}, parentBillingCompose.NewSEPAExportFields(bankData))
+	}, sealed)
 	if err != nil {
 		return err
 	}
@@ -140,4 +141,33 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), message)
 	return err
+}
+
+// tenantExportSealedFields binds each field-sealed table to the owner that
+// sealed it (#3838): the return carries IBAN, account holder and health
+// information as entered, not their ciphertext. Without either key ring of
+// the source installation the export refuses (ADR 0184, ADR 0185).
+func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByTable, error) {
+	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
+	if err != nil {
+		return nil, errors.New("tenant export: BANK_DATA_KEYS / BANK_DATA_LEGACY_KEYS configuration invalid")
+	}
+	healthKeys := strings.TrimSpace(viper.GetString("health_data_keys"))
+	if healthKeys == "" {
+		return nil, errors.New("tenant export: HEALTH_DATA_KEYS is required to open the health information")
+	}
+	healthData, err := securityRuntimeCompose.NewFieldCipher(healthKeys)
+	if err != nil {
+		return nil, errors.New("tenant export: HEALTH_DATA_KEYS configuration invalid")
+	}
+	sepa := parentBillingCompose.NewSEPAExportFields(bankData)
+	holiday := enrollmentCompose.NewHolidayHealthExportFields(healthData)
+	return organizationtenancy.TenantExportSealedFieldsByTable{
+		"parent_billing.sepa_mandates":             sepa,
+		"parent_billing.sepa_debits":               sepa,
+		"users.student_care_profiles":              studentDirectoryViewCompose.NewReader(healthData),
+		"enrollment.holiday_registrations":         holiday,
+		"enrollment.holiday_registration_children": holiday,
+		"enrollment.holiday_guests":                holiday,
+	}, nil
 }

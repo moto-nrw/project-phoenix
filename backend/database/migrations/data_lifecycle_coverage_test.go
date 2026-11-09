@@ -51,7 +51,7 @@ func readLifecycleCatalog(t *testing.T) lifecycleCatalog {
 // Names are a conservative tripwire, not a proof that JSON/free text contains
 // no secrets. Opaque settings, delivery and credential containers are reviewed
 // and explicitly excluded in the catalog, even without a suspicious name.
-var lifecycleSecretName = regexp.MustCompile(`(^|_)(hash|token|secret|password|api_key|code|credential|pin|key|sealed)(_|$)|^token|^secret|^password|^api_key`)
+var lifecycleSecretName = regexp.MustCompile(`(^|_)(hash|token|secret|password|api_key|code|credential|pin|key|sealed|health_data)(_|$)|^token|^secret|^password|^api_key`)
 
 func TestEveryTableHasDataLifecycleClassification(t *testing.T) {
 	t.Parallel()

@@ -3,6 +3,7 @@ package organizationtenancy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 )
 
@@ -24,6 +25,19 @@ type TenantExporter interface {
 // error that names no value. Only the administrative export CLI binds it.
 type TenantExportSealedFields interface {
 	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
+}
+
+// TenantExportSealedFieldsByTable routes each table to the owner that sealed
+// its values: bank data to Parent Billing, health data to its owners (#3838).
+// A table without an owner here does not open, so the export refuses it.
+type TenantExportSealedFieldsByTable map[string]TenantExportSealedFields
+
+func (owners TenantExportSealedFieldsByTable) OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error) {
+	owner := owners[table]
+	if owner == nil {
+		return "", errors.New("tenant export: no owner opens the sealed values of " + table)
+	}
+	return owner.OpenExportField(table, column, row, sealed)
 }
 
 type TenantExportOptions struct {

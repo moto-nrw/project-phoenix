@@ -67,7 +67,7 @@ func (r *exportRun) openSealedValue(table, column string, row map[string]json.Ra
 		return json.RawMessage("null"), nil
 	}
 	if r.sealed == nil {
-		return nil, errors.New("tenant export: " + table + " holds sealed values; bind the bank data keys to open them")
+		return nil, errors.New("tenant export: " + table + " holds sealed values; bind the key ring that opens them")
 	}
 	sealed, err := hex.DecodeString(*encoded)
 	if err != nil {
