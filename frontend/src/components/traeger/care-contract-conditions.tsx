@@ -124,7 +124,9 @@ export function CareContractConditions({
     ...new Set(offerings.map((offering) => offering.schoolName)),
   ];
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    // Each card ends after its content: the offer list does not stretch to
+    // the height of the full legal texts beside it.
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
       <SectionCard
         title="Angebote"
         description="Wählen Sie ein Angebot. Seine Bedingungen gelten für jeden neuen Vertrag."

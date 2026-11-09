@@ -171,6 +171,7 @@ export default function TraegerSchoolPage() {
           <Button
             type="button"
             variant="surface"
+            size="md"
             className="gap-2"
             aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
             title="Öffnet in einem neuen Tab"

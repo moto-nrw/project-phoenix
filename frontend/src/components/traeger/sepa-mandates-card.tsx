@@ -419,7 +419,7 @@ export function SepaMandatesCard({
                 href={traegerPath(
                   `/traeger/abrechnung/lastschrift/${mandate.contractId}`,
                 )}
-                className="font-medium text-gray-900 underline-offset-2 hover:underline"
+                className="font-medium text-gray-900 underline-offset-2 hover:underline md:whitespace-nowrap"
               >
                 {mandateFamily(mandate)}
               </NavigationLink>

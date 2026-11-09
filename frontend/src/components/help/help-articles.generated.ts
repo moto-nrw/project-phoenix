@@ -10055,7 +10055,7 @@ export const traegerBillingRunTopic =
             "Wählen Sie `Lauf starten`.",
             "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
             "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
-            "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
+            "Die Beträge je Kind blenden Sie mit `Aufschlüsselung zeigen` unter allen Rechnungen ein. Auf dem Handy sehen Sie sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
           ],
         },
         {

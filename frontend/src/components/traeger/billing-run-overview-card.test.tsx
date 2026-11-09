@@ -451,7 +451,6 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     });
     fireEvent.click(toggle);
 
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(toggle).toHaveTextContent("Aufschlüsselung ausblenden");
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
     // One child: its sum is the invoice amount, no second total line.

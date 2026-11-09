@@ -91,7 +91,7 @@ function leftForChild(
 
 function invoicesDescription(released: boolean, canPreview: boolean) {
   if (!released) {
-    return "Je Familie eine Rechnung. „Aufschlüsselung zeigen“ blendet die Beträge je Kind unter jeder Rechnung ein; auf dem Handy stehen sie im Menü der Zeile.";
+    return "Je Familie eine Rechnung.";
   }
   const overview =
     "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
@@ -467,12 +467,13 @@ export function BillingRunOverviewCard({
           />
         ) : !canPreview && run.documents.length > 0 ? (
           // Table only: the phone rows keep the breakdown in their menu.
+          // The label names the next step; a second state attribute would
+          // make screen readers say it twice.
           <Button
             type="button"
             variant="outline"
             size="md"
             className="max-md:hidden"
-            aria-expanded={breakdownShown}
             onClick={() => setBreakdownShown((shown) => !shown)}
           >
             {breakdownShown

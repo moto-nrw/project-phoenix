@@ -64,7 +64,7 @@ function runColumns(
       key: "month",
       header: "Monat",
       render: (run) => (
-        <span className="font-medium text-gray-900">
+        <span className="font-medium whitespace-nowrap text-gray-900">
           {formatMonth(run.billingMonth)}
         </span>
       ),
@@ -87,7 +87,7 @@ function runColumns(
       key: "schools",
       header: "Schulen",
       render: (run) => (
-        <span className="text-gray-700">
+        <span className="whitespace-nowrap text-gray-700">
           {runSchoolsLabel(run.schoolIds, schools)}
         </span>
       ),
@@ -107,10 +107,13 @@ function runColumns(
       key: "invoices",
       header: "Rechnungen",
       render: (run) =>
+        // A preview has no invoices yet: say so instead of an empty dash.
         run.documentCount === null ? (
-          "–"
+          <span className="whitespace-nowrap text-gray-600">
+            noch nicht ausgestellt
+          </span>
         ) : (
-          <span className="tabular-nums">
+          <span className="whitespace-nowrap tabular-nums">
             {invoiceCountLabel(run.documentCount)} ·{" "}
             {formatEuro(run.totalCents ?? 0)}
           </span>
@@ -120,7 +123,11 @@ function runColumns(
     {
       key: "issued",
       header: "Ausgestellt am",
-      render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
+      render: (run) => (
+        <span className="whitespace-nowrap">
+          {run.issuedOn ? formatDate(run.issuedOn) : "–"}
+        </span>
+      ),
       stacked: "hidden",
     },
     {

@@ -68,10 +68,17 @@ function ContractChildrenCell({
       <p className="text-sm text-gray-900">
         {childrenLabel(family.children.length)}
       </p>
+      {/* A child with its school stays on one line; the list wraps between
+          children. */}
       <p className="mt-0.5 text-sm text-gray-600">
-        {family.children
-          .map((child) => `${child.childFirstName} (${child.schoolName})`)
-          .join(", ")}
+        {family.children.map((child, index) => (
+          <span key={child.contractId}>
+            {index > 0 ? ", " : null}
+            <span className="whitespace-nowrap">
+              {`${child.childFirstName} (${child.schoolName})`}
+            </span>
+          </span>
+        ))}
       </p>
     </div>
   );

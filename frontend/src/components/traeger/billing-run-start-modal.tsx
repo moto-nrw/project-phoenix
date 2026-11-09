@@ -5,6 +5,7 @@
 // Liste, starten den Lauf und öffnen danach seine Vorschau.
 
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
@@ -164,9 +165,13 @@ function RunStartModal({
           }}
           wrapLabels
         />
-        <p className="text-sm text-gray-600">
-          {isBlocked && blocked ? blocked.hint : hint}
-        </p>
+        {/* A choice with a run in preview is a state to see, not a hint
+            to read past: a notice, as in the monthly start dialog. */}
+        {isBlocked && blocked ? (
+          <Alert type="info" message={blocked.hint} />
+        ) : (
+          <p className="text-sm text-gray-600">{hint}</p>
+        )}
       </form>
     </FormModal>
   );
