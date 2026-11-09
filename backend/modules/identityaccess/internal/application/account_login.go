@@ -213,6 +213,9 @@ func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, em
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
 		return domain.LoginAccount{}, failed("login", identityaccess.ErrAccountInactive)
 	}
+	// The session is minted in a later transaction; the mint holds the
+	// password to the hash it was checked against (#6289).
+	account.CheckedPasswordHash = account.PasswordHash
 	return account, nil
 }
 

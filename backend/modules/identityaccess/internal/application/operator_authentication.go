@@ -169,7 +169,7 @@ func (s *OperatorAuthentication) validateCredentials(ctx context.Context, email,
 }
 
 func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operator domain.Operator, ipAddress string) (*domain.OperatorLoginResult, error) {
-	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, ipAddress)
+	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, operator.PasswordHash, ipAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 		return "", "", errOperatorAuthenticationUnavailable
 	}
 	defer func() { err = operatorError(err) }()
-	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, ipAddress)
+	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, "", ipAddress)
 	return access, refresh, err
 }
 
@@ -194,8 +194,10 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 // the login and writes the login audit row in one administrative
 // transaction, and signs the pair inside it: an operator deactivated after
 // the credential check gets no session, and a login that cannot be recorded
-// issues none either.
-func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
+// issues none either. checkedHash is the hash a password sign-in verified;
+// a password rotated since then ended every session, so the old password
+// earns no new one (#6289). Other channels pass none.
+func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, checkedHash, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
 	session := s.newRefreshSession(operatorID, "", 0)
 	entry := domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
@@ -205,6 +207,9 @@ func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID 
 		var err error
 		if operator, err = s.activeOperator(txCtx, operatorID); err != nil {
 			return err
+		}
+		if checkedHash != "" && checkedHash != operator.PasswordHash {
+			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(session)); err != nil {
 			return fmt.Errorf("failed to persist operator refresh token: %w", err)

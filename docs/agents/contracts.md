@@ -894,6 +894,10 @@ issues no session. An account's own password change (`POST /auth/password`,
 at every school and portal ends, its reset links are spent and its remembered
 devices revoked; only the family of the access token the change is made with
 stays signed in. The caterer's own change ends its current session too.
+A redeemed reset link and an operator's password change revoke the remembered
+devices as well. A password sign-in that checked the old password before a
+change committed gets no session: the mint compares the checked hash with the
+stored one under the account (operator) lock.
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
