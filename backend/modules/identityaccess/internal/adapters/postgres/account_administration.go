@@ -216,6 +216,23 @@ func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, hash st
 	return execManageableAccountWrite(ctx, query, "update account password hash")
 }
 
+// RevokeAccountTrustedDevices revokes the account's remembered devices at
+// every school and in every portal: an own password change ends them (#6289).
+func (s *Store) RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewRaw("UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL", revokedAt, accountID).Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("identity access postgres: revoke account trusted devices: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
+}
+
 func execManageableAccountWrite(ctx context.Context, query *bun.UpdateQuery, operation string) (bool, domain.OperationStats, error) {
 	started := time.Now()
 	result, err := query.Exec(ctx)

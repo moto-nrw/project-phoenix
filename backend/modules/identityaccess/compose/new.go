@@ -155,7 +155,7 @@ func newCommandTransactions(attach func(context.Context) context.Context) applic
 }
 
 func newLifecycleAndRoles(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, dependencies Dependencies, runtime tenantRuntime) (*application.AccountAdministration, *application.AccountLifecycle, *application.RoleAdministration, error) {
-	administration, err := newAccountAdministration(store, postgres.NewAccountMFARecords(store), auth, dependencies.Sessions, dependencies.Lifecycle, runtime)
+	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle, runtime)
 	if err != nil {
 		return nil, nil, nil, err
 	}

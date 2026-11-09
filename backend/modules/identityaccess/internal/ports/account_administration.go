@@ -7,12 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// AccountTrustedDevices revokes an account's remembered devices at every
-// school and in every portal; an own password change ends them (#6289).
-type AccountTrustedDevices interface {
-	RevokeAllTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) error
-}
-
 // AccountAdministrationStore is the persistence port over the auth.accounts
 // row the account administration reads and writes (#3332). Ordinary management
 // reads and writes carry the caller's visibility
@@ -50,6 +44,9 @@ type AccountAdministrationStore interface {
 	UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error)
 	// RevokePasswordResetTokens spends every reset link of the account.
 	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
+	// RevokeAccountTrustedDevices revokes the account's remembered devices
+	// at every school and in every portal.
+	RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error)
 	// FindAnalyticsConsent reads the holder's usage analytics answer (#4901);
 	// found=false when the row is gone or erased.
 	FindAnalyticsConsent(ctx context.Context, id int64) (domain.AnalyticsConsent, bool, domain.OperationStats, error)

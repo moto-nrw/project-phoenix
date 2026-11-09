@@ -14,7 +14,6 @@ import (
 // comes from the school directory the session dependencies already bind.
 func newAccountAdministration(
 	store internalports.AccountAdministrationStore,
-	devices internalports.AccountTrustedDevices,
 	auth *application.AccountAuthentication,
 	sessions *identityBindingPorts.SessionDependencies,
 	deps *LifecycleDependencies,
@@ -31,7 +30,6 @@ func newAccountAdministration(
 	}
 	return application.NewAccountAdministration(auth, application.AccountAdministrationDependencies{
 		Store:     store,
-		Devices:   devices,
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
 		Runtime:   runtime,

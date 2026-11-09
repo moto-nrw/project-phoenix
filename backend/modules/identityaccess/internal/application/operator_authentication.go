@@ -653,12 +653,8 @@ func (s *OperatorAuthentication) rejectOperatorLineage(txCtx context.Context, se
 }
 
 func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, operatorID int64, refreshTokenValue string, proof domain.RecoveryProof) (accessToken, refreshToken string, recovered, rejectAfterCommit bool, err error) {
-	// The operator row first, then the session: the order every command
-	// that ends the operator's sessions (deactivation, password change)
-	// takes, so a rotation either commits before such a command reads the
-	// sessions or reads the operator after it committed (#6289).
-	if _, err := s.operators.findOperatorForUpdate(txCtx, operatorID); err != nil && !errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to find operator: %w", err)
+	if err := s.lockOperatorBeforeSession(txCtx, operatorID); err != nil {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, err
 	}
 	session, err := s.operators.findOperatorSessionForUpdate(txCtx, refreshTokenValue)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
@@ -701,6 +697,18 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	}
 	accessToken, refreshToken, err = s.mintRotatedOperatorSession(txCtx, operator, session, recovered, proof, now)
 	return accessToken, refreshToken, recovered, rejectAfterCommit, err
+}
+
+// lockOperatorBeforeSession takes the operator row before the refresh reads
+// its session: the order every command that ends the operator's sessions
+// (deactivation, password change) takes, so a rotation either commits before
+// such a command reads the sessions or reads the operator after it committed
+// (#6289). A missing operator is refused later, after the session checks.
+func (s *OperatorAuthentication) lockOperatorBeforeSession(txCtx context.Context, operatorID int64) error {
+	if _, err := s.operators.findOperatorForUpdate(txCtx, operatorID); err != nil && !errors.Is(err, identityaccess.ErrOperatorNotFound) {
+		return fmt.Errorf("failed to find operator: %w", err)
+	}
+	return nil
 }
 
 // activeOperator locks the operator inside a session transaction and

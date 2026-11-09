@@ -308,7 +308,7 @@ func (s *AccountAuthentication) completeAccountWideWipes(ctx context.Context, pe
 }
 
 func (s *AccountAuthentication) deleteAllAccountSessionsInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]domain.AccountSession, error) {
-	revoked, err := s.sessions.RevokeAllAccountSessions(ctx, accountID)
+	revoked, err := s.sessions.RevokeAllAccountSessions(ctx, accountID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +325,7 @@ func (s *AccountAuthentication) deleteAllAccountSessionsInCtx(ctx context.Contex
 // families. An account's own password change keeps the session it is made
 // in (#6289).
 func (s *AccountAuthentication) revokeOtherSessionsWithAudit(ctx context.Context, accountID int64, keepFamilyID, reason, ipAddress, userAgent string) error {
-	revoked, err := s.sessions.RevokeOtherAccountSessions(ctx, accountID, keepFamilyID)
+	revoked, err := s.sessions.RevokeAllAccountSessions(ctx, accountID, keepFamilyID)
 	if err != nil {
 		return err
 	}
