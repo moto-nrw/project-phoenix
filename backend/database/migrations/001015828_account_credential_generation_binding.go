@@ -14,7 +14,7 @@ func init() {
 		Version:     accountCredentialGenerationBindingVersion,
 		Description: "Credential-Stand der Konten: Reset-Links und gemerkte Geräte daran gebunden, jede Credential-Änderung erhöht ihn (#6289)",
 		DependsOn: []string{
-			parentBillingSEPADebitsVersion, // the last migration before this one
+			parentBillingSEPAMandateImportsVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(accountCredentialGenerationBindingUp, accountCredentialGenerationBindingDown)
