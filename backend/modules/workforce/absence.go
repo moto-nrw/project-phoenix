@@ -29,6 +29,13 @@ const (
 	AbsenceStatusCanceled  = "canceled"
 )
 
+// RangeBlockingAbsenceStatuses are the statuses with which an absence holds
+// its range: an overlapping entry merges with it or conflicts, and a sick
+// report takes plan effect. Declined and canceled entries do neither.
+func RangeBlockingAbsenceStatuses() []string {
+	return []string{AbsenceStatusReported, AbsenceStatusRequested, AbsenceStatusQuestion, AbsenceStatusApproved}
+}
+
 // Date columns a retention cleanup may address on staff absences.
 const (
 	StaffAbsenceDateStart = "date_start"
