@@ -65,6 +65,52 @@ exit 0
   return { root, env, run, lines, status, results };
 }
 
+test('missing external time fails before dispatch with Devbox guidance', t => {
+  const f = fixture(t);
+  const path = join(f.root, 'empty-bin');
+  mkdirSync(path);
+  const result = f.run(['--', 'never', '/usr/bin/touch', join(f.root, 'dispatched')], { PATH: path });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /external time.*not found.*Devbox/);
+  assert.equal(existsSync(join(f.root, 'dispatched')), false);
+  assert.equal(existsSync(join(f.root, 'tmp/dev-bench')), false);
+});
+
+test('time without -p -o support fails before dispatch with Devbox guidance', t => {
+  const f = fixture(t);
+  writeFileSync(join(f.root, 'bin/time'), '#!/bin/sh\nexit 2\n', { mode: 0o755 });
+  const result = f.run(['--', 'never', 'touch', join(f.root, 'dispatched')]);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /time.*support -p -o.*Devbox/);
+  assert.equal(existsSync(join(f.root, 'dispatched')), false);
+  assert.equal(existsSync(join(f.root, 'tmp/dev-bench')), false);
+});
+
+for (const gated of [false, true]) {
+  test(`external time from PATH measures the command (${gated ? 'gated' : 'ungated'})`, t => {
+    const f = fixture(t);
+    const realTime = spawnSync('/bin/bash', ['-c', 'type -P time'], { encoding: 'utf8' }).stdout.trim();
+    assert.ok(realTime, 'Run these fixtures in Devbox to provide GNU time');
+    // A space in the executable path also checks quoting through the gate.
+    const path = join(f.root, 'time tools');
+    mkdirSync(path);
+    writeFileSync(join(path, 'time'), `#!/bin/sh
+printf '%s\\n' "$*" >> "$FIXTURE_ROOT/time-calls"
+exec "${realTime}" "$@"
+`, { mode: 0o755 });
+    const gate = join(f.root, 'bin/gate');
+    writeFileSync(gate, '#!/bin/sh\n[ "$1" = --status ] && exit 0\nshift\nexec "$@"\n', { mode: 0o755 });
+    const result = f.run([...(gated ? ['--heavy'] : []), '--', 'fine', 'true'], {
+      PATH: `${path}:${f.env.PATH}`, AGENT_HEAVY: gate,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const calls = readFileSync(join(f.root, 'time-calls'), 'utf8').trim().split('\n');
+    assert.equal(calls.length, 2, 'both capability check and measurement must use PATH time');
+    assert.match(calls.at(-1), /^-p -o .* true$/);
+    assert.match(f.results(), /^fine\t[0-9.]+\t[0-9.]+\t[0-9.]+\t\d+\t-?\d+\t-\tok\t/m);
+  });
+}
+
 test('a failing measured command fails the run and marks its row', t => {
   const f = fixture(t);
   const result = f.run(['--', 'broken', 'false']);
