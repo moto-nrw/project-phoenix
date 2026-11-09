@@ -12,5 +12,5 @@ type PastMealDay = mealplan.PastMealDay
 // NewParticipationHistory is the dev CLI's past-registration writer.
 func NewParticipationHistory() mealplan.ParticipationHistory {
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
-	return application.NewParticipationHistory(store, TransactionFunc(tenant.NewTransactionRunner().RunInTx))
+	return application.NewParticipationHistory(store, transaction{})
 }

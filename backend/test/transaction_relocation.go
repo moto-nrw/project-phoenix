@@ -25,6 +25,9 @@ func transactionScopeSubset(current, previous map[string]string, moves map[strin
 			return fmt.Errorf("transaction register changed reason: %s", key)
 		}
 		oldKey, err := originalReceiverTransactionKey(key, current, previous, receiverRemoved)
+		if oldKey == "" && err == nil {
+			oldKey = originalSeedMealTransactionKey(key, current, previous)
+		}
 		if err != nil {
 			return err
 		}

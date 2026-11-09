@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
       "classification": "query",
       "effect": "query",
@@ -142,6 +153,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
       "classification": "query",
       "effect": "query",
@@ -253,6 +275,28 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Available",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Available",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
       "classification": "query",
       "effect": "query",
@@ -333,6 +377,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearDay",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearDay",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearDay",
       "classification": "query",
       "effect": "query",
@@ -340,6 +395,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ClearDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -423,6 +489,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
       "classification": "query",
       "effect": "query",
@@ -503,6 +580,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ConfirmOrder",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ConfirmOrder",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ConfirmOrder",
       "classification": "query",
       "effect": "query",
@@ -510,6 +598,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ConfirmOrder. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -560,6 +659,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.DailyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -643,6 +753,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
       "classification": "query",
       "effect": "query",
@@ -680,6 +801,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.Participation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -723,6 +855,28 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.RegistrationAvailable",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.RegistrationAvailable",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceDay",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceDay",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceDay",
       "classification": "query",
       "effect": "query",
@@ -730,6 +884,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ReplaceDay. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -813,6 +978,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
       "classification": "query",
       "effect": "query",
@@ -890,6 +1066,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -973,6 +1160,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
       "classification": "query",
       "effect": "query",
@@ -1053,6 +1251,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
       "classification": "query",
       "effect": "query",
@@ -1110,6 +1319,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.SetParticipationForWeek. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1173,6 +1393,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Week",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Week",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Week",
       "classification": "query",
       "effect": "query",
@@ -1180,6 +1411,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.Week. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1230,6 +1472,27 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through *modules/mealplan/internal/application.Service.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.ParticipationHistory.RecordParticipationHistory",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.ParticipationHistory.RecordParticipationHistory",
+      "reason": "Reads only the validated school identity from the ambient context to scope the owner-private history insert; no foreign persistence, locking or transaction changes (#6343).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1313,6 +1576,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
       "classification": "query",
       "effect": "query",
@@ -1393,6 +1667,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
       "classification": "query",
       "effect": "query",
@@ -1443,6 +1728,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
       "classification": "query",
       "effect": "query",
@@ -1483,6 +1779,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
       "classification": "query",
       "effect": "query",
@@ -1520,6 +1827,28 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ParticipationBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.RegistrationAvailable",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.RegistrationAvailable",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1603,6 +1932,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
       "classification": "query",
       "effect": "query",
@@ -1680,6 +2020,17 @@
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.ReplaceScheduleBySchool. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1763,6 +2114,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
       "classification": "query",
       "effect": "query",
@@ -1843,6 +2205,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
       "classification": "query",
       "effect": "query",
@@ -1903,6 +2276,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
       "classification": "query",
       "effect": "query",
@@ -1948,6 +2332,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
       "reason": "Read-only target already reviewed as query: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan.Capability.WeeklyList. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.InsertParticipationHistory",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.ParticipationHistoryStore.InsertParticipationHistory",
+      "reason": "Reads only the validated school identity from the ambient context to scope the owner-private history insert; no foreign persistence, locking or transaction changes (#6343).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
@@ -2067,7 +2461,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed for ADR 0189: the shared transaction adapter and application-owned bound settings preserve this target and its classified effect.",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
       "target_owner": "settings-platform"
@@ -2077,7 +2471,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Int (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Int (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed for ADR 0189: the shared transaction adapter and application-owned bound settings preserve this target and its classified effect.",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
       "target_owner": "settings-platform"
@@ -2087,7 +2481,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.String (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.String (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed for ADR 0189: the shared transaction adapter and application-owned bound settings preserve this target and its classified effect.",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
       "target_owner": "settings-platform"
@@ -2097,7 +2491,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveMany (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveMany (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed for ADR 0189: the shared transaction adapter and application-owned bound settings preserve this target and its classified effect.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveMany",
       "target_owner": "settings-platform"
@@ -2107,7 +2501,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealPlanEnabled",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed for ADR 0189: the shared transaction adapter and application-owned bound settings preserve this target and its classified effect.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform"
@@ -2117,7 +2511,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealRegistrationEnabled",
-      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed for ADR 0189: the shared transaction adapter and application-owned bound settings preserve this target and its classified effect.",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform"
@@ -2280,6 +2674,17 @@
       "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.UpsertParticipationOverrides. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/compose.transaction.Run",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Transaction.Run",
+      "reason": "Platform scope protocol through the shared Meal Plan transaction adapter: joins the ambient school unit or starts one for the validated school. ADR 0189 extracts the existing constructor binding without adding a transaction boundary; ADR 0098 classifies this platform participation.",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     }
   ]

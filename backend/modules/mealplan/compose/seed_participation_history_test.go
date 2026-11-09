@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealcompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -35,8 +33,8 @@ func TestSeedParticipationHistoryPreservesDecisionsAndTenant(t *testing.T) {
 	history := mealcompose.NewParticipationHistory()
 	days := []mealplan.PastMealDay{{StudentID: student.ID, Date: day}, {StudentID: student.ID, Date: day.AddDays(1)}, {StudentID: other.ID, Date: day}}
 	for range 2 {
-		require.NoError(t, tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
-			return history.RecordParticipationHistory(tenant.WithTenantID(adminCtx, school), days)
+		require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+			return history.RecordParticipationHistory(testpkg.ContextForTenant(adminCtx, school), days)
 		}))
 	}
 	var rows []struct {
