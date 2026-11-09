@@ -48,7 +48,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       {
         title: "Mandat in der Eltern-App erlauben",
         description:
-          "Eltern können das Mandat dann selbst bei ihrem Vertrag erteilen und widerrufen. Sie bestätigen den Text als Kontoinhaber. Fragen Sie vorher Ihre Bank, ob sie Mandate annimmt, die online bestätigt wurden.",
+          "Eltern können das Mandat dann selbst bei ihrem Vertrag erteilen und widerrufen. Sie bestätigen den Text als Kontoinhaber. Fragen Sie vorher Ihre Bank, ob sie Mandate annimmt, die online bestätigt wurden. Einschalten darf, wer im Träger-Büro das Recht `Einstellungen` hat.",
         steps: [
           "Wählen Sie unten in der Navigation `Einstellungen` und dann `Allgemein`.",
           "Öffnen Sie den Bereich `Monatsbeitrag`.",

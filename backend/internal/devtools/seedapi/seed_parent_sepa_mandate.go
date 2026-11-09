@@ -79,41 +79,58 @@ func seedParentMandateOf(client *Client, auth AuthRef, email string) (bool, erro
 	}
 	for _, contract := range inbox.Data {
 		path := fmt.Sprintf("/parent/me/documents/%s/contracts/%s/sepa-mandate", contract.OrganizationID, contract.ID)
-		raw, err := client.GetWithAuth(auth, path)
-		if err != nil {
+		holder, open := seedOpenMandate(client, auth, path)
+		if !open {
 			continue
 		}
-		var view seedParentMandateView
-		if err := json.Unmarshal(raw, &view); err != nil {
-			return false, fmt.Errorf("read the SEPA mandate of contract %s: %w", contract.ID, err)
-		}
-		if !view.Data.CanManage || view.Data.CreditorMissing || (len(view.Data.Mandate) > 0 && string(view.Data.Mandate) != "null") {
-			continue
-		}
-		holder := view.Data.Prefill.AccountHolder
-		if holder == "" {
-			holder = "Erika Muster"
-		}
-		input := map[string]any{"account_holder": holder, "iban": demoIBAN(9300), "street": "Lindenstraße 12",
-			"postal_code": "75175", "city": "Pforzheim"}
-		raw, err = client.PostWithAuth(auth, path+"/preview", input)
-		if err != nil {
-			return false, fmt.Errorf("read the mandate text of contract %s: %w", contract.ID, err)
-		}
-		var text struct {
-			Data struct {
-				Reference  string `json:"reference"`
-				TextSHA256 string `json:"text_sha256"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &text); err != nil {
-			return false, fmt.Errorf("read the mandate text of contract %s: %w", contract.ID, err)
-		}
-		input["reference"], input["text_sha256"], input["holder_confirmed"] = text.Data.Reference, text.Data.TextSHA256, true
-		if _, err := client.PostWithAuth(auth, path, input); err != nil {
+		if err := seedGrantMandate(client, auth, path, holder); err != nil {
 			return false, fmt.Errorf("give the SEPA mandate of contract %s: %w", contract.ID, err)
 		}
 		return true, nil
 	}
 	return false, nil
+}
+
+// seedOpenMandate tells whether the contract takes a new mandate from the
+// parent, with the proposed account holder.
+func seedOpenMandate(client *Client, auth AuthRef, path string) (string, bool) {
+	raw, err := client.GetWithAuth(auth, path)
+	if err != nil {
+		return "", false
+	}
+	var view seedParentMandateView
+	if json.Unmarshal(raw, &view) != nil {
+		return "", false
+	}
+	inForce := len(view.Data.Mandate) > 0 && string(view.Data.Mandate) != "null"
+	if !view.Data.CanManage || view.Data.CreditorMissing || inForce {
+		return "", false
+	}
+	if view.Data.Prefill.AccountHolder == "" {
+		return "Erika Muster", true
+	}
+	return view.Data.Prefill.AccountHolder, true
+}
+
+// seedGrantMandate previews the text and confirms exactly that text, like
+// the parents do.
+func seedGrantMandate(client *Client, auth AuthRef, path, holder string) error {
+	input := map[string]any{"account_holder": holder, "iban": demoIBAN(9300), "street": "Lindenstraße 12",
+		"postal_code": "75175", "city": "Pforzheim"}
+	raw, err := client.PostWithAuth(auth, path+"/preview", input)
+	if err != nil {
+		return fmt.Errorf("read the mandate text: %w", err)
+	}
+	var text struct {
+		Data struct {
+			Reference  string `json:"reference"`
+			TextSHA256 string `json:"text_sha256"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return fmt.Errorf("read the mandate text: %w", err)
+	}
+	input["reference"], input["text_sha256"], input["holder_confirmed"] = text.Data.Reference, text.Data.TextSHA256, true
+	_, err = client.PostWithAuth(auth, path, input)
+	return err
 }
