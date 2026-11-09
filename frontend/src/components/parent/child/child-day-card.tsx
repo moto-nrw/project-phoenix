@@ -20,6 +20,7 @@ import { pickupConcept } from "~/lib/concepts/pickup";
 import { homeConcept } from "~/lib/concepts/home";
 import { presentConcept } from "~/lib/concepts/present";
 import { unknownConcept } from "~/lib/concepts/unknown";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 /**
  * Die Tageskarte eines Kindes. Das Herzstueck der Eltern-App: auf der
@@ -110,7 +111,7 @@ export function ChildDayCard({
   /** Reserviert Status und Aktionen, bis Tagesdaten und Funktionen feststehen. */
   loading?: boolean;
 }>) {
-  const t = useTranslations("parentToday");
+  const t = useCareTermTranslations("parentToday");
   const locale = useLocale();
   const todayDateISO = useBerlinToday();
   const todayDateLabel = useMemo(
@@ -306,7 +307,7 @@ function ChildDayActions({
   onPickup?: () => void;
   display: "compact" | "detailed";
 }>) {
-  const t = useTranslations("parentToday");
+  const t = useCareTermTranslations("parentToday");
   if (!features) return null;
 
   const canReportAbsence =

@@ -4,7 +4,7 @@
   "download": "Pobierz jako PDF",
   "downloading": "Tworzenie …",
   "integrityOk": "Tekst i odpowiedzi nie zmieniły się od publikacji.",
-  "integrityBroken": "Uwaga: zapisany wpis został później zmieniony. Skontaktuj się z OGS.",
+  "integrityBroken": "Uwaga: zapisany wpis został później zmieniony. Skontaktuj się z {careTerm}.",
   "notFound": "Dla tego dziecka nie ma jeszcze potwierdzenia. Powstanie, gdy odpowiesz na prośbę o zgodę.",
   "generated": "Utworzono {date}",
   "child": "Dziecko",

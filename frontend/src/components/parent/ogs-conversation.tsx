@@ -66,6 +66,10 @@ import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import { formatChatTime } from "~/lib/date-helpers";
 import { childrenConcept } from "~/lib/concepts/children";
+import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -110,7 +114,8 @@ export function OgsConversation({
   readonly onAudienceChange?: (next: MessageAudience) => void;
 }) {
   const t = useTranslations("parentOgsMessaging");
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
+  const careTerm = useCareFacilityTerm();
   const locale = useLocale();
   // A child has a team conversation and, once begun, one with the leadership
   // only (#5200). The switch shows one of them and is where the next message
@@ -290,7 +295,7 @@ export function OgsConversation({
   });
 
   const messages = thread?.messages ?? [];
-  const counterpart = thread?.counterpart_name ?? "OGS";
+  const counterpart = thread?.counterpart_name ?? careTerm;
   const leadershipThread = summaries.find(
     (summary) => summary.audience === "leadership",
   );
@@ -903,8 +908,8 @@ function QuickActionPill({
   withMode: boolean;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  const careT = useTranslations("parentChildCare");
-  const todayT = useTranslations("parentToday");
+  const careT = useCareTermTranslations("parentChildCare");
+  const todayT = useCareTermTranslations("parentToday");
   const firstName = childName?.trim().split(/\s+/)[0];
   const label = firstName
     ? action.key === "sick"
@@ -951,7 +956,7 @@ function GroupThreadReference({
   groupThreadId,
   title,
 }: Readonly<{ groupThreadId: string; title?: string }>) {
-  const t = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentGroupThreads");
   return (
     <div className="mb-1 flex justify-end">
       <NavigationLink
@@ -982,7 +987,7 @@ function audienceLabel(
 function EmptyThread({
   description,
 }: Readonly<{ description: string | null }>) {
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
       <h2 className="text-sm font-semibold text-gray-900">
@@ -998,7 +1003,7 @@ function EmptyThread({
 // Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite. Er sitzt
 // in der Kopfkarte über dem Titel, wie auf jeder anderen Unterseite.
 function BackBar() {
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
   return (
     <BackLink
       href={parentPath("/parents/messages")}

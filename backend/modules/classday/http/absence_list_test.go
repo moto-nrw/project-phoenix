@@ -396,6 +396,52 @@ func TestAbsenceListKeepsAKnownNewChildOutBeforeItsStartAfterActivation(t *testi
 	assert.Equal(t, halfYearBefore.Totals, halfYearAfter.Totals)
 }
 
+// A child's care ended on 31 October; on 7 November the school resumes it
+// for 1 February (#6073). Read afterwards, the days between the end and the
+// resumption stay out of the list, also with an absence entered after the
+// end, while a day with recorded attendance in the gap still counts.
+func TestAbsenceListLeavesOutTheCareGapOfAResumedChild(t *testing.T) {
+	t.Parallel()
+	f := setupMorningAttendanceFixture(t, "2099-11-09")
+	child := testpkg.CreateTestStudent(t, f.db, "Wieder", "Aufgenommen", f.class)
+	clock := calendar.Date("2099-10-20").BerlinMidnight()
+	membership, err := rootAPI.NewSchoolMembershipTestModule(testpkg.NewDatabase(t, f.db), func() time.Time { return clock })
+	require.NoError(t, err)
+	_, err = membership.EndCare(testpkg.Ctx(t), []int64{child.ID}, "2099-10-31")
+	require.NoError(t, err)
+	clock = calendar.Date("2099-11-07").BerlinMidnight().Add(10 * time.Hour)
+	resumed, err := membership.ResumeCare(testpkg.Ctx(t), child.ID, "2100-02-01", "pending", "2099-11-07")
+	require.NoError(t, err)
+	require.True(t, resumed)
+	insertMorningMark(t, f.db, f.tenantID, child.ID, "2099-11-03", "absent")
+	read := func() map[int64]absenceListCounts {
+		t.Helper()
+		rec := f.do(t, http.MethodGet, "/absence-list?class="+f.class+"&from=2099-11-01&to=2099-11-06", "", classDayReadPermission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var envelope struct {
+			Data absenceListBody `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+		counts := map[int64]absenceListCounts{}
+		for _, row := range envelope.Data.Children {
+			counts[row.StudentID] = row.absenceListCounts
+		}
+		return counts
+	}
+	require.NotContains(t, read(), child.ID, "the gap between the end and the resumption is no care")
+
+	attended := calendar.Date("2099-11-04")
+	checkIn := attended.BerlinMidnight().Add(12 * time.Hour)
+	checkOut := checkIn.Add(4 * time.Hour)
+	device := testpkg.CreateTestDevice(t, f.db, fmt.Sprintf("absence-gap-%d", child.ID))
+	staff := testpkg.CreateTestStaff(t, f.db, "Ganztag", fmt.Sprintf("Luecke-%d", child.ID))
+	testpkg.CreateTestAttendanceForDate(t, f.db, child.ID, staff.ID, device.ID, attended, checkIn, &checkOut)
+	insertMorningMark(t, f.db, f.tenantID, child.ID, attended.String(), "present")
+	counts := read()
+	require.Contains(t, counts, child.ID, "a day the child was cared for in the gap keeps its row")
+	assert.Equal(t, absenceListCounts{}, counts[child.ID], "only the attended day counts; the absence of a day without care stays out")
+}
+
 func TestAbsenceListPreservesDatedAlumni(t *testing.T) {
 	t.Parallel()
 	f := setupMorningAttendanceFixture(t, morningMonday)

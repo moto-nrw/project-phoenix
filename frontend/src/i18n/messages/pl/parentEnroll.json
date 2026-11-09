@@ -1,7 +1,7 @@
 {
   "errorObject": "lista okresów zapisów",
   "back": "Wróć do portalu dla rodziców",
-  "kicker": "Zapis na opiekę w OGS",
+  "kicker": "Zapis na opiekę w {careTerm}",
   "title": "Nowy zapis",
   "description": "Proszę wybrać szkołę i okres zapisów, aby zapisać dziecko.",
   "loading": "Wczytywanie okresów zapisów …",

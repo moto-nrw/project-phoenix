@@ -1,7 +1,7 @@
 {
   "kicker": "Rückmeldung",
   "title": "Feedback",
-  "productTeamNotice": "Ihr Feedback geht direkt an das Produktteam von moto, das die App entwickelt. Die OGS Ihres Kindes sieht diese Beiträge nicht.",
+  "productTeamNotice": "Ihr Feedback geht direkt an das Produktteam von moto, das die App entwickelt. Die {careTerm} Ihres Kindes sieht diese Beiträge nicht.",
   "pseudonymNotice": "Sie erscheinen für alle nur als „Elternteil“, auch für das Produktteam.",
   "schoolLabel": "Schule",
   "sortLabel": "Sortierung",
@@ -17,7 +17,7 @@
   "noSchoolsDescription": "Sobald Ihr Kind an einer Schule angemeldet ist, können Sie hier Feedback geben.",
   "loadError": "Das Feedback konnte nicht geladen werden.",
   "retry": "Erneut laden",
-  "formHint": "Dieser Beitrag geht an das Produktteam von moto, nicht an die OGS. Andere Eltern Ihrer Schule können ihn lesen und bewerten.",
+  "formHint": "Dieser Beitrag geht an das Produktteam von moto, nicht an die {careTerm}. Andere Eltern Ihrer Schule können ihn lesen und bewerten.",
   "deleteTitle": "Beitrag löschen?",
   "deleteBody": "Dieser Beitrag und alle Stimmen werden unwiderruflich gelöscht.",
   "deleteSuccess": "Beitrag wurde gelöscht.",

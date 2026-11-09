@@ -1,7 +1,7 @@
 {
   "errorObject": "the list of enrollment phases",
   "back": "Back to the parent portal",
-  "kicker": "Enrollment for after-school care",
+  "kicker": "Enrollment for care at the {careTerm}",
   "title": "New enrollment",
   "description": "Choose a school and enrollment phase to register your child.",
   "loading": "Loading enrollment phases …",

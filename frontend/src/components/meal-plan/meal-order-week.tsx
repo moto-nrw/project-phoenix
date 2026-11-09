@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { CalendarRange, FileSpreadsheet, FileText } from "lucide-react";
 
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -21,6 +21,7 @@ import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { useExportRun } from "~/hooks/use-export-run";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   downloadMealDeliveries,
   downloadMealMonth,
@@ -50,7 +51,7 @@ export function MealOrderWeek({
   canExportMonth: boolean;
   refreshVersion?: number;
 }>) {
-  const t = useTranslations("mealOrders");
+  const t = useCareTermTranslations("mealOrders");
   const locale = useLocale();
   const [days, setDays] = useState<MealOrderDay[]>([]);
   const [loading, setLoading] = useState(true);

@@ -48,7 +48,7 @@ func BuildParentAnnouncements(
 	return communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
 		Repo: messaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(module), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
-		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
+		Series: BindCommunicationNotificationSeries(notifications.Notifier), Preferences: notifications.Preferences,
 		Deliveries: announcementDeliveryAdapter{module: module, outcomes: outcomes}, ParentsURL: env.Links.ParentsURL,
 		Fingerprints: SecurityFingerprints{}, Signatures: CommunicationSignatures{Ledger: SignatureLedger()},
 		Logger: env.Logger.With("service", "announcement"),

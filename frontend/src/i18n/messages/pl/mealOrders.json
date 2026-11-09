@@ -6,7 +6,7 @@
   "meals": "Posiłki",
   "byClass": "Według klasy",
   "changes": "Zmiany po terminie",
-  "closed": "Świetlica zamknięta",
+  "closed": "{careTerm} zamknięta",
   "open": "Otwarte",
   "deadline": "Termin",
   "ordered": "Zamówione",

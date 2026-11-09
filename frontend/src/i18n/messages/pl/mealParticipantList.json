@@ -2,7 +2,7 @@
   "title": "Lista dzienna dla kuchni",
   "description": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym dniu.",
   "cutoff": "Termin zamówienia na ten dzień: {date}.",
-  "closedDay": "W tym dniu świetlica jest zamknięta. Nie ma obiadu.",
+  "closedDay": "W tym dniu {careTerm} jest zamknięta. Nie ma obiadu.",
   "child": "Dziecko",
   "class": "Klasa",
   "dateAria": "Data: {date}",

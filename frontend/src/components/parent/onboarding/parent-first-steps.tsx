@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ProgressBar } from "~/components/ui/progress-bar";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   buildHelpHref,
   HELP_TOPICS,
@@ -61,7 +61,7 @@ export function ParentFirstSteps({
   childCount: number;
   newsEnabled: boolean;
 }>) {
-  const t = useTranslations("parentFirstSteps");
+  const t = useCareTermTranslations("parentFirstSteps");
   const pathname = usePathname();
   const [state, setState] = useState<ParentFirstStepsState | null>(null);
   const [view, setView] = useState<View>("beacon");

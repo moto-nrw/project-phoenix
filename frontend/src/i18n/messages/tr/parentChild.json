@@ -2,16 +2,16 @@
   "switcherLabel": "Çocuk seçin",
   "overviewKicker": "Çocuklara genel bakış",
   "overviewDescription": "Bakım, bilgiler ve kişileri görmek için bir çocuk seçin.",
-  "ogsLabel": "OGS",
+  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Bakım sona erdi",
-    "body": "Çocuğunuz bu OGS'de artık bakım almıyor. Önceki her şeyi görmeye devam edebilirsiniz. Yeni bildirimler artık mümkün değil."
+    "body": "Çocuğunuz bu {careTerm}'de artık bakım almıyor. Önceki her şeyi görmeye devam edebilirsiniz. Yeni bildirimler artık mümkün değil."
   },
   "notFound": "Bu adres için hesabınızda bir çocuk yok. Lütfen çocuğunuzu genel bakıştan seçin.",
-  "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir.",
+  "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun {careTerm}'si bunu ayarlayabilir.",
   "sections": {
     "today": "Bugün",
-    "care": "OGS'de bakım",
+    "care": "{careTerm}'de bakım",
     "data": "Çocuk bilgileri",
     "people": "Veliler ve teslim almaya yetkili kişiler"
   },
@@ -45,7 +45,7 @@
     "pickupUnknown": "Teslim alma saati şu anda görüntülenemiyor"
   },
   "care": {
-    "weekTitle": "OGS haftalık planınız",
+    "weekTitle": "{careTerm} haftalık planınız",
     "absenceTitle": "Devamsızlıklar"
   },
   "consents": {
@@ -81,7 +81,7 @@
     "grantButton": "Fotoğraf iznini yeniden ver",
     "grantButtonShort": "Yeniden ver",
     "grantConfirmTitle": "Fotoğraf izni yeniden verilsin mi?",
-    "grantConfirmBody": "OGS bundan sonra yeniden fotoğraf kaydedebilir.",
+    "grantConfirmBody": "{careTerm} bundan sonra yeniden fotoğraf kaydedebilir.",
     "grantConfirmButton": "İzin ver",
     "granting": "Kaydediliyor",
     "grantSuccess": "Fotoğraf izni yeniden verildi.",

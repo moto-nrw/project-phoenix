@@ -28,6 +28,7 @@ type childFeatureSettings struct {
 	news               bool
 	guardianManagement bool
 	reasonPolicy       string
+	careTerm           string
 }
 
 // childFeatureSettingKeys lists the settings ChildFeatures batch-resolves.
@@ -49,6 +50,7 @@ func childFeatureSettingKeys() []string {
 		KeyParentNewsEnabled,
 		KeyParentGuardianManagementEnabled,
 		KeyParentRequestReasonPolicy,
+		KeyEnrollmentCareFacilityTerm,
 	}
 }
 
@@ -201,6 +203,9 @@ func (r childSettingResolver) resolvePortalSettings(out *childFeatureSettings) e
 	}
 	if out.reasonPolicy, err = r.resolveString(KeyParentRequestReasonPolicy); err != nil {
 		return fmt.Errorf("parent: resolve reason policy: %w", err)
+	}
+	if out.careTerm, err = r.resolveString(KeyEnrollmentCareFacilityTerm); err != nil {
+		return fmt.Errorf("parent: resolve care facility term: %w", err)
 	}
 	return nil
 }

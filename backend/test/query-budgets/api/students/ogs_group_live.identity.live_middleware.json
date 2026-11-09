@@ -1,7 +1,7 @@
 {
   "scenario": "api.students.ogs_group_live.identity.live_middleware",
-  "max": 39,
+  "max": 43,
   "exact": true,
-  "description": "OGS live N3/N8, cold/warm requests through native JWT, live-session, tenant and request-memo middleware.",
+  "description": "OGS live N3/N8, cold/warm requests through native JWT, live-session, tenant and request-memo middleware. Restores the measured pre-7e1548adb7 bound: that commit lowered the budget without removing any statements; normalized SQL is unchanged across it.",
   "route": "GET /api/students/ogs-group-live"
 }

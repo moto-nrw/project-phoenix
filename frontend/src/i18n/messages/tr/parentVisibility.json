@@ -1,4 +1,4 @@
 {
-  "ogs": "OGS için görünür",
-  "ogsDescription": "Bu bilgileri OGS'niz görebilir."
+  "ogs": "{careTerm} için görünür",
+  "ogsDescription": "Bu bilgileri {careTerm}'niz görebilir."
 }

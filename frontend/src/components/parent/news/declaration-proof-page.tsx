@@ -32,6 +32,8 @@ import {
   type ParentDeclarationProof,
 } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 const logger = createLogger({ component: "ParentDeclarationProof" });
 
@@ -44,7 +46,7 @@ const SIGNER_ROLES = new Set([
 export function DeclarationProofPage({
   announcementId,
 }: Readonly<{ announcementId: string }>) {
-  const t = useTranslations("parentDeclarationProof");
+  const t = useCareTermTranslations("parentDeclarationProof");
   const studentId = useSearchParams().get("student") ?? "";
   const [proof, setProof] = useState<ParentDeclarationProof | null>(null);
   // A missing proof is a state, not an error: it gets its own sentence.
@@ -167,9 +169,14 @@ function ProofDocument({
   proof: ParentDeclarationProof;
   studentId: string;
 }>) {
-  const t = useTranslations("parentDeclarationProof");
+  // Der Nachweis gehört zu einer Schule; der Hinweis nennt ihre Betreuung.
+  const { termOfSchool } = useParentCareTerms();
+  const t = useCareTermTranslations(
+    "parentDeclarationProof",
+    termOfSchool(proof.school_name),
+  );
   const td = useTranslations("parentDeclaration");
-  const tRoles = useTranslations("parentChildDetail.guardians.roles");
+  const tRoles = useCareTermTranslations("parentChildDetail.guardians.roles");
   const locale = useLocale();
   const at = (iso: string) => formatChatDateTime(iso, locale);
   // Only guardians with custody can declare; other roles have no label here.

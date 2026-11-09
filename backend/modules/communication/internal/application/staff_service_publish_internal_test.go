@@ -167,6 +167,19 @@ func (f *fakeNotifier) NotifyDurably(_ context.Context, event communication.Noti
 	return len(event.Audience.GuardianAccountIDs), nil
 }
 
+// NotifyEachDurably answers a series as consecutive NotifyDurably calls.
+func (f *fakeNotifier) NotifyEachDurably(ctx context.Context, events []communication.NotificationEvent) ([]int, error) {
+	receipts := make([]int, 0, len(events))
+	for _, event := range events {
+		count, err := f.NotifyDurably(ctx, event)
+		if err != nil {
+			return receipts, err
+		}
+		receipts = append(receipts, count)
+	}
+	return receipts, nil
+}
+
 func (f *fakeOutbox) Enqueue(_ context.Context, req communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
 	if f.enqueueErr != nil {
 		return nil, f.enqueueErr

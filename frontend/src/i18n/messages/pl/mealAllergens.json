@@ -4,7 +4,7 @@
   "marksShort": "Alergeny: {letters}",
   "marksLabel": "Zawiera: {names}",
   "noneThisWeek": "Na ten tydzień nie podano alergenów.",
-  "source": "Te informacje pochodzą od szkoły lub firmy cateringowej. Danie bez litery nie musi być wolne od alergenów. W razie pytań prosimy zwrócić się do OGS.",
+  "source": "Te informacje pochodzą od szkoły lub firmy cateringowej. Danie bez litery nie musi być wolne od alergenów. W razie pytań prosimy zwrócić się do {careTerm}.",
   "names": {
     "gluten": "Zboża zawierające gluten",
     "crustaceans": "Skorupiaki",

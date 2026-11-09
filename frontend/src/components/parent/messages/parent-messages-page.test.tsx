@@ -9,7 +9,10 @@ vi.mock("next-auth/react", () => ({
     },
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ApiError } from "~/lib/api-error";
 import { NextIntlClientProvider } from "next-intl";

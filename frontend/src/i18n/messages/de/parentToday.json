@@ -3,8 +3,8 @@
   "sectionTitle": "Heute",
   "sectionDescription": "Tagesstatus und wichtige Aktionen auf einen Blick.",
   "statusLabel": "Aktueller Status",
-  "atOgs": "In der OGS",
-  "notAtOgs": "Nicht in der OGS",
+  "atOgs": "In der {careTerm}",
+  "notAtOgs": "Nicht in der {careTerm}",
   "state": {
     "present": "Seit {time} Uhr da",
     "presentNoTime": "Heute da",
@@ -30,7 +30,7 @@
     "pickupHint": "Abholzeit für einen Tag anpassen",
     "message": "Nachrichten schreiben",
     "messageCompact": "Nachricht schreiben",
-    "messageHint": "OGS für {name} kontaktieren",
+    "messageHint": "{careTerm} für {name} kontaktieren",
     "pickupWithMode": "Abholung für {name} ändern",
     "pickupCompactWithMode": "Abholung ändern",
     "pickupHintWithMode": "Abholzeit oder Abholart für einen Tag ändern"

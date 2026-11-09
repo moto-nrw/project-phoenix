@@ -73,3 +73,6 @@ func (groupThreadTestSettings) ParentMessageStaffNameVisible(context.Context) (b
 func (groupThreadTestSettings) ParentMessageLeadershipEnabled(context.Context) (bool, error) {
 	return false, nil
 }
+func (groupThreadTestSettings) CareFacilityTerm(context.Context) (string, error) {
+	return "OGS", nil
+}

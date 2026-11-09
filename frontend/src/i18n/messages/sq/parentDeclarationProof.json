@@ -4,7 +4,7 @@
   "download": "Shkarko si PDF",
   "downloading": "Po krijohet …",
   "integrityOk": "Teksti dhe përgjigjet nuk kanë ndryshuar që nga publikimi.",
-  "integrityBroken": "Kujdes: Një regjistrim i ruajtur u ndryshua më vonë. Ju lutemi kontaktoni OGS-në.",
+  "integrityBroken": "Kujdes: Një regjistrim i ruajtur u ndryshua më vonë. Ju lutemi kontaktoni {careTerm}-në.",
   "notFound": "Për këtë fëmijë nuk ka ende vërtetim. Ai krijohet sapo t’i përgjigjeni një kërkese për pëlqim.",
   "generated": "Krijuar më {date}",
   "child": "Fëmija",

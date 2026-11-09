@@ -1,9 +1,9 @@
 {
   "button": "Anfrage teilen",
   "title": "Anfrage mit anderen teilen",
-  "privacyHint": "Nur ausgewählte Sorgeberechtigte sehen Ihre Anfrage und die Antwort der OGS.",
+  "privacyHint": "Nur ausgewählte Sorgeberechtigte sehen Ihre Anfrage und die Antwort der {careTerm}.",
   "recipientLegend": "Anfrage teilen (optional)",
-  "protected": "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
+  "protected": "Diese Anfrage bleibt privat. Die {careTerm} hat den Familienschutz eingeschaltet.",
   "noRecipients": "Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App.",
   "loading": "Empfänger werden geladen …",
   "save": "Auswahl speichern",

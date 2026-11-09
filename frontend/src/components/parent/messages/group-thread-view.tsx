@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import {
@@ -40,6 +40,8 @@ import {
   parentReadersLine,
 } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 const logger = createLogger({ component: "ParentGroupThreadView" });
 
@@ -63,10 +65,14 @@ function childName(child: GroupThreadChild): string {
 export function ParentGroupThreadView({
   groupThreadId,
 }: Readonly<{ groupThreadId: string }>) {
-  const t = useTranslations("parentGroupThreads");
-  const tm = useTranslations("parentMessages");
-  const locale = useLocale();
   const [thread, setThread] = useState<GroupThreadData | null>(null);
+  // Eine Gruppennachricht kommt von einer Schule: ihre Texte nennen die
+  // Betreuung so, wie diese Schule sie nennt (#6082).
+  const { termOfSchool } = useParentCareTerms();
+  const threadTerm = termOfSchool(thread?.school_name);
+  const t = useCareTermTranslations("parentGroupThreads", threadTerm);
+  const tm = useCareTermTranslations("parentMessages", threadTerm);
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   // Children of the thread the guardian may write for (notes.write).
   const [writable, setWritable] = useState<GroupThreadChild[] | null>(null);
