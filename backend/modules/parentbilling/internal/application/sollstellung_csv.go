@@ -35,9 +35,9 @@ var (
 	sollEncodings  = []string{parentbilling.SollEncodingUTF8BOM, parentbilling.SollEncodingUTF8, parentbilling.SollEncodingWindows1252}
 )
 
-// sollTextFields are the fields with free text of a person; a value that a
+// sollTextFields are the fields with text or identifiers; a value that a
 // spreadsheet would read as a formula gets a leading apostrophe there.
-var sollTextFields = []string{parentbilling.SollFieldRecipientName, parentbilling.SollFieldRecipientStreet,
+var sollTextFields = []string{parentbilling.SollFieldInvoiceNumber, parentbilling.SollFieldRecipientName, parentbilling.SollFieldRecipientStreet,
 	parentbilling.SollFieldRecipientCity, parentbilling.SollFieldChildName, parentbilling.SollFieldSchoolName,
 	parentbilling.SollFieldMandateReference, parentbilling.SollFieldDebtorNumber, parentbilling.SollFieldConstant}
 

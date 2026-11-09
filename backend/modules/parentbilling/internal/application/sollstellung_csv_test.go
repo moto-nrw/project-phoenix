@@ -85,6 +85,21 @@ func TestSollstellungWindows1252(t *testing.T) {
 	assert.Equal(t, "Jürgen ?ukasz\r\n", string(text))
 }
 
+func TestSollstellungInvoiceNumbersAreNoFormulas(t *testing.T) {
+	t.Parallel()
+	pattern, err := normalizeNumberPattern("-{N}-2")
+	require.NoError(t, err)
+	mapping := parentbilling.SollstellungMapping{Columns: []parentbilling.SollstellungColumn{
+		{Field: parentbilling.SollFieldInvoiceNumber},
+		{Field: parentbilling.SollFieldAmount},
+	}, Delimiter: ";", DecimalSeparator: ",", Encoding: parentbilling.SollEncodingUTF8}
+	data, err := renderSollstellung(mapping, []parentbilling.ExportInvoice{{
+		Number: formatInvoiceNumber(pattern, 2026, 1), TotalCents: -7800,
+	}}, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "'-1-2;-78,00\r\n", string(data))
+}
+
 // A column header of the Träger's mapping that starts like a formula is
 // written as text, as every text cell is: Excel reads "=HYPERLINK(...)" in
 // a quoted CSV field as a formula too (quorum review of 1bb006b1ac).
