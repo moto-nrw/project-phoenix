@@ -127,3 +127,48 @@ func TestCredentialGenerationNeverMovesBack(t *testing.T) {
 	_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = 1 WHERE id = ?`, id).Exec(ctx)
 	require.ErrorContains(t, err, "never moves back")
 }
+
+// A rollback must not revive what the binding had already ended: Down drops
+// the generation column and a later Up backfills the account's current
+// generation, which would make a link or device of an older credential
+// current again. Down therefore spends every link and revokes every device
+// that no longer matches its account before the column goes.
+func TestCredentialBindingRollbackKeepsStaleArtifactsEnded(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	id := credentialAccount(t, db, true)
+	artifact := func(label string) (link, device int64) {
+		require.NoError(t, db.NewRaw(`INSERT INTO auth.password_reset_tokens (account_id, token, expiry, credential_generation)
+			VALUES (?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), NOW() + interval '1 hour',
+				(SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING id`, id, label, id).Scan(ctx, &link))
+		require.NoError(t, db.NewRaw(`INSERT INTO auth.mfa_trusted_devices (account_id, tenant_id, token_hash, expires_at, credential_generation)
+			VALUES (?, ?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), NOW() + interval '30 days',
+				(SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING id`, id, tenantID, label, id).Scan(ctx, &device))
+		return link, device
+	}
+	staleLink, staleDevice := artifact("before-the-change")
+	_, err := db.NewRaw(`UPDATE auth.accounts SET password_hash = 'changed', mfa_reset_generation = mfa_reset_generation + 1 WHERE id = ?`, id).Exec(ctx)
+	require.NoError(t, err)
+	currentLink, currentDevice := artifact("after-the-change")
+
+	require.NoError(t, accountCredentialGenerationBindingDown(ctx, db))
+	require.NoError(t, accountCredentialGenerationBindingUp(ctx, db))
+
+	usable := func(link, device int64) (bool, bool) {
+		var linkUsable, deviceUsable bool
+		require.NoError(t, db.NewRaw(`SELECT NOT used AND credential_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id)
+			FROM auth.password_reset_tokens WHERE id = ?`, link).Scan(ctx, &linkUsable))
+		require.NoError(t, db.NewRaw(`SELECT revoked_at IS NULL AND credential_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id)
+			FROM auth.mfa_trusted_devices WHERE id = ?`, device).Scan(ctx, &deviceUsable))
+		return linkUsable, deviceUsable
+	}
+	linkUsable, deviceUsable := usable(staleLink, staleDevice)
+	assert.False(t, linkUsable, "a link of the old credential stays spent through Down and Up")
+	assert.False(t, deviceUsable, "a device of the old credential stays revoked through Down and Up")
+	linkUsable, deviceUsable = usable(currentLink, currentDevice)
+	assert.True(t, linkUsable, "a link of the current credential survives the rollback")
+	assert.True(t, deviceUsable, "a device of the current credential survives the rollback")
+}

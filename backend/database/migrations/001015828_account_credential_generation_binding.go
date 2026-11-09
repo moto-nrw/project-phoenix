@@ -91,7 +91,19 @@ CREATE TRIGGER accounts_credential_moves_generation
 	FOR EACH ROW EXECUTE FUNCTION auth.account_credential_moves_generation();
 `
 
+// accountCredentialGenerationBindingDownSQL ends for good what the binding
+// had already ended before the column goes: a link or device of an older
+// credential is spent or revoked, so a later Up, whose backfill takes the
+// account's current generation, cannot make it current again.
 const accountCredentialGenerationBindingDownSQL = `
+UPDATE auth.password_reset_tokens AS link SET used = TRUE
+	FROM auth.accounts AS account
+	WHERE account.id = link.account_id AND link.used = FALSE
+		AND link.credential_generation <> account.mfa_reset_generation;
+UPDATE auth.mfa_trusted_devices AS device SET revoked_at = statement_timestamp()
+	FROM auth.accounts AS account
+	WHERE account.id = device.account_id AND device.revoked_at IS NULL
+		AND device.credential_generation <> account.mfa_reset_generation;
 DROP TRIGGER IF EXISTS accounts_credential_moves_generation ON auth.accounts;
 DROP FUNCTION IF EXISTS auth.account_credential_moves_generation();
 ALTER TABLE auth.mfa_trusted_devices DROP COLUMN IF EXISTS credential_generation;
