@@ -2,8 +2,10 @@ package behavior_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -101,4 +103,37 @@ func TestOwnPasswordChangeRefusedKeepsEveryAccess(t *testing.T) {
 
 	require.NoError(t, f.module.VerifyAccessSession(ctx, other), "a refused change ends no session")
 	assert.Len(t, liveTokens(t, f.db, f.accountID), 2)
+}
+
+// TestCatererPasswordChangeRevokesRememberedDevices extends #6289 to the
+// caterer's own change (#4496): it already ends every session and spends the
+// reset links, and a remembered device no longer skips the second factor
+// either.
+func TestCatererPasswordChangeRevokesRememberedDevices(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	caterers := module.Caterers()
+	school := testpkg.Tenant(t)
+	staff := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("caterer-devices-staff-%d@example.com", time.Now().UnixNano()), testpkg.NewTestPassword())
+	email := fmt.Sprintf("kueche-devices-%d@example.com", time.Now().UnixNano())
+	acceptance, err := accept(t, db, caterers, school, invite(t, db, caterers, school, staff.ID, email), identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+	forgetCaterer(t, db, acceptance)
+	t.Cleanup(func() {
+		_, cleanupErr := db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		require.NoError(t, cleanupErr)
+	})
+	ctx := testpkg.Ctx(t)
+	mfa, _, _ := newTestMFAService(t)
+	require.NoError(t, mfa.EnrollMFA(ctx, acceptance.AccountID))
+	device, _, err := mfa.IssueTrustedDevice(ctx, acceptance.AccountID, school, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	require.NoError(t, err)
+	require.NotEmpty(t, device)
+
+	require.NoError(t, caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, catererPassword, testpkg.NewTestPassword(), "192.0.2.20", "test"))
+
+	trusted, err := mfa.VerifyTrustedDevice(ctx, acceptance.AccountID, school, device)
+	require.NoError(t, err)
+	assert.False(t, trusted, "a remembered device no longer skips the second factor")
 }

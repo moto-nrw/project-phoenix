@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -15,8 +16,8 @@ const catererPasswordChangeReason = "password_change"
 // ChangeCatererPassword replaces a signed-in caterer's password (#4496).
 // The current password is checked like a login: a wrong one counts towards
 // the account's lock, and a locked account is refused. The new password,
-// the spent reset links and the end of every session of the account commit
-// together, as after a password reset.
+// the spent reset links, the revoked remembered devices (#6289) and the end
+// of every session of the account commit together.
 func (c *CatererAccess) ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error {
 	return catererError(c.changePassword(c.attach(ctx), accountID, currentPassword, newPassword, ipAddress, userAgent))
 }
@@ -102,6 +103,9 @@ func (c *CatererAccess) changePasswordInTx(ctx context.Context, accountID int64,
 		return nil, domain.ErrAccountNotFound
 	}
 	if _, err := c.store.RevokePasswordResetTokens(ctx, accountID); err != nil {
+		return nil, err
+	}
+	if _, err := c.store.RevokeAccountTrustedDevices(ctx, accountID, time.Now()); err != nil {
 		return nil, err
 	}
 	return nil, c.auth.revokeAccountWideInContext(ctx, accountID, catererPasswordChangeReason, ipAddress, userAgent)

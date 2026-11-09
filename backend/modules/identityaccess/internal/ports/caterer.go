@@ -51,6 +51,8 @@ type CatererStore interface {
 	// RevokePasswordResetTokens spends the links mailed before it.
 	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
 	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
+	// RevokeAccountTrustedDevices ends the remembered devices with them (#6289).
+	RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error)
 	// ListCatererAccountSecurity lists every caterer account and whether its
 	// second factor is on, for the operator (#4497). It runs in an
 	// administrative transaction only.
