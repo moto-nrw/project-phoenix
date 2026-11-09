@@ -83,6 +83,15 @@ export function HolidayRegistrationChildCard({
   const [saving, setSaving] = useState(false);
   const saveErrors = useApiFormError();
   const cancelled = registration.status === "cancelled";
+  // The child's answers to the questions of the Träger (#5198); those to
+  // health questions stand in the Gesundheit box.
+  const answers = registration.childAnswers[child.id] ?? {};
+  const answered = answeredQuestions(registration.form.fields, true, answers);
+  const otherAnswers = answered.filter((field) => !field.health);
+  const healthAnswers = answered.filter((field) => field.health);
+  const healthFields = Boolean(
+    health && (health.allergies || health.medication || health.healthNotes),
+  );
 
   const save = async () => {
     if (!draft) return;
@@ -219,7 +228,14 @@ export function HolidayRegistrationChildCard({
           </InfoSection>
         )}
 
-        <ChildAnswers registration={registration} childId={child.id} />
+        {otherAnswers.length > 0 ? (
+          <InfoSection title="Weitere Angaben">
+            <HolidayRegistrationAnswers
+              questions={otherAnswers}
+              answers={answers}
+            />
+          </InfoSection>
+        ) : null}
 
         {healthHidden ? (
           <InfoSection title="Gesundheit">
@@ -229,45 +245,42 @@ export function HolidayRegistrationChildCard({
           </InfoSection>
         ) : null}
 
-        {health &&
-        (health.allergies || health.medication || health.healthNotes) ? (
+        {healthFields || healthAnswers.length > 0 ? (
           <InfoSection title="Gesundheit">
-            <DataGrid>
-              {health.allergies ? (
-                <DataField label="Allergien" fullWidth>
-                  <InfoText>{health.allergies}</InfoText>
-                </DataField>
+            <div className="space-y-4">
+              {health && healthFields ? (
+                <DataGrid>
+                  {health.allergies ? (
+                    <DataField label="Allergien" fullWidth>
+                      <InfoText>{health.allergies}</InfoText>
+                    </DataField>
+                  ) : null}
+                  {health.medication ? (
+                    <DataField label="Medikamente" fullWidth>
+                      <InfoText>{health.medication}</InfoText>
+                    </DataField>
+                  ) : null}
+                  {health.healthNotes ? (
+                    <DataField label="Weitere Hinweise" fullWidth>
+                      <InfoText>{health.healthNotes}</InfoText>
+                    </DataField>
+                  ) : null}
+                </DataGrid>
               ) : null}
-              {health.medication ? (
-                <DataField label="Medikamente" fullWidth>
-                  <InfoText>{health.medication}</InfoText>
-                </DataField>
+              {/* The answers to health questions stand with the health
+                  fields: whoever reads this box before the holiday week
+                  sees an intolerance asked by the form too. */}
+              {healthAnswers.length > 0 ? (
+                <HolidayRegistrationAnswers
+                  questions={healthAnswers}
+                  answers={answers}
+                />
               ) : null}
-              {health.healthNotes ? (
-                <DataField label="Weitere Hinweise" fullWidth>
-                  <InfoText>{health.healthNotes}</InfoText>
-                </DataField>
-              ) : null}
-            </DataGrid>
+            </div>
           </InfoSection>
         ) : null}
       </div>
     </SectionCard>
-  );
-}
-
-/** The child's answers to the questions of the Träger (#5198). */
-function ChildAnswers({
-  registration,
-  childId,
-}: Readonly<{ registration: HolidayRegistrationDetail; childId: string }>) {
-  const answers = registration.childAnswers[childId] ?? {};
-  const questions = answeredQuestions(registration.form.fields, true, answers);
-  if (questions.length === 0) return null;
-  return (
-    <InfoSection title="Weitere Angaben">
-      <HolidayRegistrationAnswers questions={questions} answers={answers} />
-    </InfoSection>
   );
 }
 

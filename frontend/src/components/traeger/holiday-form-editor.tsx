@@ -27,6 +27,7 @@ import {
 } from "~/components/enrollment/draft-documents";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
+import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -190,6 +191,7 @@ export function HolidayFormEditor({
     }
   };
 
+  const isPhone = useMediaQuery("(max-width: 639px)");
   const familyFields = fields.filter((field) => !field.applies_to_child);
   const childFields = fields.filter((field) => field.applies_to_child);
 
@@ -207,7 +209,8 @@ export function HolidayFormEditor({
       saving={saving}
       cancelDisabled={uploading}
       disabled={!dirty || uploading}
-      cancelLabel="Änderungen verwerfen"
+      // A phone keeps both buttons on one line under the long list.
+      cancelLabel={isPhone ? "Verwerfen" : "Änderungen verwerfen"}
       saveLabel="Als neue Version speichern"
     />
   );

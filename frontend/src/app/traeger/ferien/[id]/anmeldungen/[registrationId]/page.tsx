@@ -317,7 +317,8 @@ export default function TraegerHolidayRegistrationPage() {
       schoolsFailure,
     );
   const names = schoolNames(schools);
-  // The health answers stand beside the other answers, marked "(Gesundheit)".
+  // The health answers join the registration's answers, marked
+  // "(Gesundheit)"; a child's stand in its Gesundheit box.
   const view = registration
     ? withHolidayHealthAnswers(registration, health)
     : null;

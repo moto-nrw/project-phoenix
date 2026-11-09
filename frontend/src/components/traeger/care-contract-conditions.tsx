@@ -26,6 +26,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { createLogger } from "~/lib/logger";
 import {
@@ -226,6 +227,7 @@ function ConditionsForm({
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
   const [saving, setSaving] = useState(false);
+  const isPhone = useMediaQuery("(max-width: 639px)");
   useEffect(() => {
     onSavingChange(saving);
   }, [saving, onSavingChange]);
@@ -281,7 +283,8 @@ function ConditionsForm({
           saving={saving}
           cancelDisabled={!dirty}
           saveLabel="Bedingungen speichern"
-          cancelLabel="Änderungen verwerfen"
+          // A phone keeps both buttons on one line under the legal texts.
+          cancelLabel={isPhone ? "Verwerfen" : "Änderungen verwerfen"}
         />
       }
     >
