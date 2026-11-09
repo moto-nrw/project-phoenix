@@ -276,7 +276,7 @@ const invoicePaymentTermsSQL = `SELECT
 	(SELECT COALESCE(jsonb_agg(to_jsonb(family) ORDER BY family.family_email), '[]'::jsonb)
 		FROM (SELECT id, family_email, care_contract_id, recipient_kind, second_first_name, second_last_name,
 				payer_first_name, payer_last_name, payer_email, payer_street, payer_postal_code, payer_city,
-				payment_method, due_day, updated_at
+				payment_method, due_day, debtor_number, updated_at
 			FROM parent_billing.family_billing WHERE organization_id = ?0) AS family) AS families,
 	(SELECT COALESCE(jsonb_object_agg(payment_method, due_on), '{}'::jsonb)
 		FROM parent_billing.run_due_dates
@@ -437,7 +437,7 @@ func (s *Store) SetFamilyDebtorNumbers(ctx context.Context, organizationID, acco
 		On("CONFLICT (organization_id, family_email) DO UPDATE").
 		Set("debtor_number = EXCLUDED.debtor_number").Set("updated_by_account_id = EXCLUDED.updated_by_account_id").
 		Set("updated_at = CURRENT_TIMESTAMP").
-		Where("family_billing.debtor_number IS NULL").
+		Where("family_billing_row.debtor_number IS NULL").
 		Returning("id, care_contract_id").Scan(ctx, &saved); err != nil {
 		return fmt.Errorf("set the debtor numbers of the families: %w", err)
 	}

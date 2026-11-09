@@ -54,7 +54,14 @@ func (r exportRunRow) run() parentbilling.ExportRun {
 }
 
 // exportRunsQuery lists the released runs with an invoice, newest first.
-const exportRunsQuery = `WITH released AS (
+const exportRunsQuery = `SELECT released.run_kind, released.run_id, released.care_month, released.period_name, released.issued_on,
+	released.invoice_count, released.total_cents,
+	(SELECT COUNT(*) FROM parent_billing.export_files AS file
+		WHERE file.organization_id = ?0 AND file.run_kind = released.run_kind AND file.run_id = released.run_id) AS exports,
+	last.id AS last_id, last.file_number AS last_number, last.file_name AS last_name, last.content_sha256 AS last_sha,
+	last.invoice_count AS last_count, last.total_cents AS last_total, last.exported_by_account_id AS last_account_id,
+	last.exported_at AS last_exported_at
+FROM (
 	SELECT 'care' AS run_kind, run.id AS run_id, run.billing_month AS care_month, NULL::text AS period_name, run.issued_on,
 		run.document_count AS invoice_count, run.total_cents, run.released_at
 	FROM parent_billing.care_runs AS run
@@ -63,15 +70,7 @@ const exportRunsQuery = `WITH released AS (
 	SELECT 'holiday', run.id, NULL::date, run.period_name, run.issued_on, run.document_count, run.total_cents, run.released_at
 	FROM parent_billing.runs AS run
 	WHERE run.organization_id = ?0 AND run.status = 'released'
-)
-SELECT released.run_kind, released.run_id, released.care_month, released.period_name, released.issued_on,
-	released.invoice_count, released.total_cents,
-	(SELECT COUNT(*) FROM parent_billing.export_files AS file
-		WHERE file.organization_id = ?0 AND file.run_kind = released.run_kind AND file.run_id = released.run_id) AS exports,
-	last.id AS last_id, last.file_number AS last_number, last.file_name AS last_name, last.content_sha256 AS last_sha,
-	last.invoice_count AS last_count, last.total_cents AS last_total, last.exported_by_account_id AS last_account_id,
-	last.exported_at AS last_exported_at
-FROM released
+) AS released
 LEFT JOIN LATERAL (
 	SELECT file.* FROM parent_billing.export_files AS file
 	WHERE file.organization_id = ?0 AND file.run_kind = released.run_kind AND file.run_id = released.run_id

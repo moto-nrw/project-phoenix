@@ -132,6 +132,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/sepa-mandates/{id}"}:                  notCaptured,
 	{http.MethodPost, "/traeger/sepa-mandates/{id}/revoke"}:          notCaptured,
 	{http.MethodPost, "/traeger/sepa-debits/{kind}/{id}/submission"}: notCaptured,
+	// The field mapping of the Sollstellung and the start of the file
+	// numbers (#4693) belong to the Träger, no school to count them for.
+	{http.MethodPut, "/traeger/finance-exports/settings/sollstellung"}:      notCaptured,
+	{http.MethodDelete, "/traeger/finance-exports/settings/sollstellung"}:   notCaptured,
+	{http.MethodPut, "/traeger/finance-exports/settings/file-number-start"}: notCaptured,
 	// The import of existing mandates (#6198) belongs to the Träger, not to
 	// a school; the preview stores nothing.
 	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,
