@@ -1,6 +1,7 @@
 package studentpresence
 
 import (
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -64,4 +65,33 @@ func latestReportedStatusDay(current, row *absencerecords.StudentStatusDay) *abs
 
 func statusDayReportedPtr(v time.Time) *time.Time {
 	return &v
+}
+
+// Place before status (#6371): a child with an open check-in counts as present
+// in every view of its day, exactly once. A sick, excused or class-trip status
+// of that day stays a hint at the child and enters no absence figure, status
+// filter or status group. A child without an open check-in keeps its status.
+
+// IsCheckedInLocation reports whether a resolved location is an open
+// check-in: a room ("Anwesend - <Raum>"), "Anwesend", the schoolyard or on
+// the way. "Abwesend", "Schule", "Im Unterricht" and the empty location of a
+// dated list are not.
+func IsCheckedInLocation(location string) bool {
+	switch location {
+	case "Anwesend", YardLocationLabel, "Unterwegs":
+		return true
+	}
+	return strings.HasPrefix(location, "Anwesend - ")
+}
+
+// WithoutCheckedIn keeps the children of a status figure who have no open
+// check-in, in their order: the status of a checked-in child is only a hint.
+func WithoutCheckedIn(studentIDs []int64, checkedIn map[int64]bool) []int64 {
+	result := make([]int64, 0, len(studentIDs))
+	for _, id := range studentIDs {
+		if !checkedIn[id] {
+			result = append(result, id)
+		}
+	}
+	return result
 }

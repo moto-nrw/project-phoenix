@@ -1,18 +1,19 @@
 "use client";
 
+import { BELOW_XL } from "~/lib/hooks/use-media-query";
 import { useCallback, useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "sidebar-collapsed";
 // Same-document writes don't fire the cross-tab "storage" event, so toggles
 // broadcast this custom event to wake up every mounted consumer.
 const LOCAL_CHANGE_EVENT = "sidebar-collapsed-change";
-// Unterhalb von 1280px (Tailwind xl) startet die Leiste eingeklappt, solange
-// der Nutzer nie selbst umgeschaltet hat (#2825). Unter 1024px ist die
+// Unterhalb von Tailwinds xl (80rem) startet die Leiste eingeklappt, solange
+// der Nutzer nie selbst umgeschaltet hat (#2825). Unter lg (64rem) ist die
 // Seitenleiste ohnehin komplett ausgeblendet (mobile Bottom-Nav).
 // Positiv auf den schmalen Viewport formuliert: nur ein sicher erkannter
 // schmaler Viewport klappt ein; Umgebungen, deren matchMedia nichts weiß
 // (jsdom-Stub: immer false), bleiben beim Server-Default "ausgeklappt".
-const NARROW_VIEWPORT_QUERY = "(max-width: 1279.98px)";
+const NARROW_VIEWPORT_QUERY = BELOW_XL;
 
 // Fallback when localStorage is not writable (private mode, blocked site
 // data, full quota): the toggle still works for the lifetime of the document.

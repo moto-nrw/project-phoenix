@@ -222,19 +222,15 @@ func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission mas
 // one linked parent cannot read another guardian's private email/phone/address
 // old/new values.
 func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*StudentDataChangeRequest, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
 	var out []*StudentDataChangeRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, _ *Child) error {
 		rows, listErr := s.ChangeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
-			return listErr
+			return fmt.Errorf("parent: list master data requests: %w", listErr)
 		}
 		visibility, visibilityErr := s.RequestSharing.LoadRequestShareVisibility(txCtx, studentID)
 		if visibilityErr != nil {
-			return visibilityErr
+			return fmt.Errorf("parent: list master data requests: %w", visibilityErr)
 		}
 		out = make([]*StudentDataChangeRequest, 0, len(rows))
 		for _, row := range rows {
@@ -244,8 +240,8 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		}
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list master data requests: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -259,15 +255,8 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 func (s *Service) EditMasterDataRequest(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
 ) (*StudentDataChangeRequest, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
-	if err != nil {
-		return nil, err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return nil, err
-	}
 	var out *StudentDataChangeRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionMasterDataRequest, (*Child).RequireCareRunning, func(txCtx context.Context, _ *Child) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr

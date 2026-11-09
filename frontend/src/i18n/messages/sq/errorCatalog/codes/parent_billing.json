@@ -101,5 +101,7 @@
   "sepa_import_file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_import_mapping_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_import_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "beleg_retention_basis_cites_statute": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "beleg_retention_basis_cites_statute": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "online_mandate_disabled": "Ofruesi juaj nuk e pranon tani mandatin e debitimit direkt në aplikacion.",
+  "sepa_mandate_text_changed": "Teksti i mandatit ka ndryshuar. Ju lutemi lexojeni dhe konfirmojeni përsëri."
 }

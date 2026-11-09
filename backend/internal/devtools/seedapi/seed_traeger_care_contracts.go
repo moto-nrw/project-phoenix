@@ -25,9 +25,11 @@ type seedTraegerCareContractsStep struct{}
 func (seedTraegerCareContractsStep) Name() string { return "Seeding the Träger care contracts" }
 
 // seedCareContractTemplate is the contract template of every demo offering.
+// The special termination note names the cases only: moto always offers it
+// to the half year (#4682, #6349), so a date in the note would contradict it.
 var seedCareContractTemplate = map[string]any{
 	"term_kind": "school_year", "notice_months": 1, "notice_to": "month_end",
-	"special_termination": true, "special_termination_note": "Bei Umzug, Schulwechsel oder Verlust des Arbeitsplatzes können Sie zum Ende des Folgemonats kündigen.",
+	"special_termination": true, "special_termination_note": "Bei Umzug, Schulwechsel oder Verlust des Arbeitsplatzes.",
 	"statute_required": true, "statute_title": "Satzung über die Elternbeiträge für die Offene Ganztagsschule",
 	"statute_url":      "https://ganztag-quartier.example.test/satzung",
 	"contract_partner": "Ganztag im Quartier e. V.",

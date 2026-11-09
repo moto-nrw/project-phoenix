@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { releaseFakeTimers } from "~/test/clock";
+import { AT_LEAST_MD, BELOW_MD } from "~/lib/hooks/use-media-query";
 import { ToastProvider, useToast } from "./ToastContext";
 
 // Helper to create a wrapper with ToastProvider
@@ -25,7 +26,7 @@ describe("ToastContext", () => {
     Object.defineProperty(globalThis, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
-        matches: query === "(min-width: 768px)", // Desktop by default
+        matches: query === AT_LEAST_MD, // Desktop by default
         media: query,
         onchange: null,
         addListener: vi.fn(), // Deprecated
@@ -178,7 +179,7 @@ describe("ToastContext", () => {
 
     it("renders mobile notifications as non-blocking toast bars", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -215,7 +216,7 @@ describe("ToastContext", () => {
 
     it("uses the document language for mobile toast labels", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -337,7 +338,7 @@ describe("ToastContext", () => {
       }) => {
         vi.mocked(globalThis.matchMedia).mockImplementation(
           (query: string) => ({
-            matches: query === "(max-width: 767px)",
+            matches: query === BELOW_MD,
             media: query,
             onchange: null,
             addListener: vi.fn(),
@@ -377,7 +378,7 @@ describe("ToastContext", () => {
 
     it("keeps remaining mobile toast bars visible after dismissing one", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -420,7 +421,7 @@ describe("ToastContext", () => {
 
     it("runs a mobile toast action without blocking the page", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),

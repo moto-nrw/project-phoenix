@@ -90,7 +90,7 @@ func absenceDecisionOutcome(absenceStatus string, approve bool, reason string) a
 // than committing a half-applied absence.
 func (w *ExcusedRequests) storeDecision(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent, input careplan.ExcusedRequestDecideInput, reason string) (absenceDecision, error) {
 	if input.Approve {
-		if err := w.validateAbsenceApproval(ctx, req, student); err != nil {
+		if err := w.validateAbsenceApproval(ctx, req, student, input.ReplacePartialAbsences); err != nil {
 			return absenceDecision{}, err
 		}
 		if err := w.applyAbsenceRequest(ctx, req); err != nil {
@@ -293,7 +293,9 @@ func (w *ExcusedRequests) correctAbsenceDays(ctx context.Context, req *careplan.
 	if !approve {
 		return w.revertApprovedAbsence(ctx, req)
 	}
-	if err := w.validateAbsenceApproval(ctx, req, student); err != nil {
+	// A correction never replaces a partial absence: that stays the
+	// deliberate choice of a pending decision.
+	if err := w.validateAbsenceApproval(ctx, req, student, false); err != nil {
 		return err
 	}
 	return w.applyAbsenceRequest(ctx, req)

@@ -355,6 +355,15 @@ func TestDemoErasureRegisterOnlyFalls(t *testing.T) {
 	}
 	raised := withBudget([]byte(strings.Replace(string(source), string(firstEntry), string(firstEntry)+"\t\"demo.new_table\": \"kept\",\n", 1)), count+1)
 	lowered := withBudget([]byte(strings.Replace(string(source), string(firstEntry), "", 1)), count-1)
+	// The outbox kind register of #6342 starts empty with budget 0.
+	outboxRaised := []byte(strings.NewReplacer(
+		"var demoErasureOutboxKindExceptions = map[string]string{}",
+		"var demoErasureOutboxKindExceptions = map[string]string{\"platform.push_outbox new_kind\": \"kept\"}",
+		"const demoErasureOutboxKindExceptionBudget = 0", "const demoErasureOutboxKindExceptionBudget = 1",
+	).Replace(string(source)))
+	if string(outboxRaised) == string(source) {
+		t.Fatal("the register file declares no empty demoErasureOutboxKindExceptions with budget 0")
+	}
 	for _, tt := range []struct {
 		name      string
 		candidate []byte
@@ -365,6 +374,10 @@ func TestDemoErasureRegisterOnlyFalls(t *testing.T) {
 		{"raised with a new entry", raised, []string{
 			fmt.Sprintf("constant demoErasureExceptionBudget: %d -> %d", count, count+1),
 			fmt.Sprintf("demoErasureExceptions: %d -> %d entries", count, count+1),
+		}},
+		{"outbox kind register raised with a new entry", outboxRaised, []string{
+			"constant demoErasureOutboxKindExceptionBudget: 0 -> 1",
+			"demoErasureOutboxKindExceptions: 0 -> 1 entries",
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

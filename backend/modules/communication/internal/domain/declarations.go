@@ -7,7 +7,6 @@ import "time"
 type DeclarationSettings struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 }

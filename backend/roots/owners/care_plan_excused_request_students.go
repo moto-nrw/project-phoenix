@@ -31,6 +31,8 @@ type ExcusedRequestWiring struct {
 	Notifier    carePlanCompose.AbsenceNotifier
 	Ledger      carePlanCompose.RequestLedger
 	Shares      carePlanCompose.ShareVisibility
+	// PartialAbsences is Care Plan's own partial-absence command (#5698).
+	PartialAbsences careplan.PartialAbsenceService
 }
 
 // NewExcusedAbsenceRequests composes the Care Plan excused-absence workflow
@@ -52,7 +54,7 @@ func NewExcusedAbsenceRequests(wiring ExcusedRequestWiring) (*carePlanCompose.Ex
 		Today:   today,
 		Observe: wiring.Observe, Logger: wiring.Logger,
 		Messenger: wiring.Messenger, Broadcaster: wiring.Broadcaster, Notifier: wiring.Notifier,
-		Ledger: wiring.Ledger, Shares: wiring.Shares,
+		Ledger: wiring.Ledger, Shares: wiring.Shares, PartialAbsences: wiring.PartialAbsences,
 	})
 }
 

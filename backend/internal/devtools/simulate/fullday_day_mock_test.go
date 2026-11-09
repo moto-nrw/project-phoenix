@@ -97,8 +97,11 @@ type mockDay struct {
 	room     map[string]float64
 	sessions map[string]float64
 	running  map[int]bool
-	calls    []stampedCall
-	failed   []stampedCall
+	// attendance is the Berlin day of each tag's attendance; the server
+	// keeps it per day, so a checkout finds only today's (#5511).
+	attendance map[string]string
+	calls      []stampedCall
+	failed     []stampedCall
 }
 
 func (d *mockDay) inRoom(room float64) int {
@@ -116,13 +119,15 @@ func (d *mockDay) inRoom(room float64) int {
 // mockMensaPlaces children.
 func clockedDayServer(t *testing.T, clock *fakeClock) (*simulationHTTPTestServer, func() []stampedCall) {
 	t.Helper()
-	day := &mockDay{room: map[string]float64{}, sessions: map[string]float64{}, running: map[int]bool{}}
+	day := &mockDay{room: map[string]float64{}, sessions: map[string]float64{}, running: map[int]bool{}, attendance: map[string]string{}}
 	var state *SeedState
 	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		body := map[string]any{}
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		call := stampedCall{Method: r.Method, Path: r.URL.Path, Clock: clock.Now().In(simulationBerlin).Format("15:04"),
+		now := clock.Now().In(simulationBerlin)
+		call := stampedCall{Method: r.Method, Path: r.URL.Path, Day: now.Format(isoDate), Clock: now.Format("15:04"),
 			Caller: strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), Body: body}
+		defer clock.answered(call.Path)
 		day.mu.Lock()
 		defer day.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
@@ -238,6 +243,7 @@ func (d *mockDay) blockAttendance(call stampedCall, state *SeedState) (int, any)
 		return simulationHTTPStatusForbidden, map[string]string{"code": "timetable.operation_forbidden"}
 	}
 	tag := tagOf(int64(studentID))
+	d.attendance[tag] = call.Day
 	if action == "check-out" {
 		delete(d.room, tag)
 		return simulationHTTPStatusOK, map[string]any{}
@@ -261,6 +267,12 @@ func (d *mockDay) scan(call stampedCall) (int, any) {
 			return simulationHTTPStatusConflict, map[string]string{"code": codeRoomCapacityExceeded}
 		}
 		d.room[tag] = room
+		d.attendance[tag] = call.Day
+	case call.Body["action"] == "confirm":
+		d.attendance[fmt.Sprint(call.Body["rfid"])] = call.Day
+	case call.Body["action"] == "confirm_daily_checkout" && d.attendance[fmt.Sprint(call.Body["rfid"])] != call.Day:
+		// ConfirmDailyCheckout reads today's attendance only.
+		return simulationHTTPStatusNotFound, map[string]string{"code": "iot.no_attendance_record_today"}
 	case call.Body["action"] == "checkout" || call.Body["action"] == "confirm_daily_checkout":
 		delete(d.room, fmt.Sprint(call.Body["rfid"]))
 		delete(d.room, tag)

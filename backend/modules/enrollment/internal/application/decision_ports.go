@@ -254,7 +254,10 @@ type DecisionDependencies struct {
 	// IsTransient reports a database failure worth one more attempt of a
 	// decision that opened its own unit. Nil never retries.
 	IsTransient func(error) bool
-	ParentsURL  string
-	Logger      *slog.Logger
-	Today       func() calendar.Date
+	// IsSavepointRollback reports a savepoint whose rollback failed in the
+	// unit: its state is unknown, so the decision is not replayed (E19).
+	IsSavepointRollback func(error) bool
+	ParentsURL          string
+	Logger              *slog.Logger
+	Today               func() calendar.Date
 }

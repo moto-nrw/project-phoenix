@@ -70,8 +70,10 @@ type SchoolView struct {
 //     same rule the operator billing report captures (#4673).
 //   - ChildrenPresent are the children with an open attendance of the day or
 //     an open room visit, as on the school's own dashboard.
-//   - ChildrenSick are the counted children with the live sick flag or an
-//     uncleared sick day, as on the school's own dashboard.
+//   - ChildrenSick are the counted children who are not present and have
+//     the live sick flag or a sick day that stands for the day (active or
+//     archived at its end), as on the school's own dashboard. A present child
+//     counts as present only (place before status, #6371).
 //   - StaffTotal are the staff members without a current external caregiver
 //     record, as on the school's time tracking dashboard.
 //   - StaffPresent are those of them on site. Home office does not count.

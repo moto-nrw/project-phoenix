@@ -61,9 +61,10 @@ type groupLiveSessions interface {
 }
 
 // groupLiveStatusDays is the Student Presence read of the scheduled day
-// statuses.
+// statuses that stand for a day: active, or archived at the end of their day
+// (#6291), as the day log and the class day read them.
 type groupLiveStatusDays interface {
-	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // groupLiveGroups is the School Structure read of the groups, their rooms
@@ -391,7 +392,7 @@ func (p groupLivePresence) EffectiveStatuses(ctx context.Context, studentIDs []i
 	if err != nil {
 		return nil, err
 	}
-	rows, err := p.statusDays.FindActiveByStudentIDsAndDate(ctx, studentIDs, day)
+	rows, err := p.statusDays.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}

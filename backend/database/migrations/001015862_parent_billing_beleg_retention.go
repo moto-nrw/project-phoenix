@@ -7,14 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingBelegRetentionVersion = "1.15.828"
+const parentBillingBelegRetentionVersion = "1.15.862"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingBelegRetentionVersion,
 		Description: "Belege des Trägers: Weisung, Aussetzung, Frist je Beleg, Klärungsliste und Löschprotokoll (#4720)",
 		DependsOn: []string{
-			parentBillingSEPADebitsVersion, // the newest migration on development and the debits the retention keeps
+			parentBillingSEPADebitsVersion,    // the debits the retention keeps
+			declarationAlwaysRevocableVersion, // the newest migration on development
 		},
 	})
 	Migrations.MustRegister(parentBillingBelegRetentionUp, parentBillingBelegRetentionDown)

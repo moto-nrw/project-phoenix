@@ -30146,7 +30146,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
-      "binding_digest": "9d3694a913352550529245e607944588",
+      "binding_digest": "b730da5cf95514c03f326c62c886d1b0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.RangeBlockingAbsenceStatuses",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "binding_digest": "9e5c46b6949a41bb3f173b56c4eb5e90",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",

@@ -1207,6 +1207,68 @@
         }
       }
     },
+    "libxml2@2.15.4": {
+      "last_modified": "2026-11-06T15:06:19Z",
+      "resolved": "github:NixOS/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601#libxml2",
+      "source": "devbox-search",
+      "version": "2.15.4",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "bin",
+              "path": "/nix/store/ppvyx2plhp99p1rq10isn4m4rhbhvzyz-libxml2-2.15.4-bin",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/1ggqq9s1lq5pnbir0b61bcxxi6wgfxjq-libxml2-2.15.4-dev"
+            },
+            {
+              "name": "out",
+              "path": "/nix/store/5pdi5bq35qs6av37wsaf6qkkbghwhhvz-libxml2-2.15.4"
+            }
+          ],
+          "store_path": "/nix/store/ppvyx2plhp99p1rq10isn4m4rhbhvzyz-libxml2-2.15.4-bin"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "bin",
+              "path": "/nix/store/yhxjyv1dlsis3qqxn3ipzpjr2419q13l-libxml2-2.15.4-bin",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/784ck43jaigj3sm9mq4rx673fzynq4q8-libxml2-2.15.4-dev"
+            },
+            {
+              "name": "out",
+              "path": "/nix/store/3biijnc5zjs4zscval0a0qn0gszd5fyh-libxml2-2.15.4"
+            }
+          ],
+          "store_path": "/nix/store/yhxjyv1dlsis3qqxn3ipzpjr2419q13l-libxml2-2.15.4-bin"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "bin",
+              "path": "/nix/store/d6ar9rr2bbwdrjdj2y7pfbppf8q1wydn-libxml2-2.15.4-bin",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/6gsdl0abbpjsxcrf2p83jkmkgwa5x6jd-libxml2-2.15.4-dev"
+            },
+            {
+              "name": "out",
+              "path": "/nix/store/m5s1ak7s1swmhmy64yqvya342g0603s7-libxml2-2.15.4"
+            }
+          ],
+          "store_path": "/nix/store/d6ar9rr2bbwdrjdj2y7pfbppf8q1wydn-libxml2-2.15.4-bin"
+        }
+      }
+    },
     "lsof@latest": {
       "last_modified": "2026-11-06T15:06:19Z",
       "resolved": "github:NixOS/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601#lsof",

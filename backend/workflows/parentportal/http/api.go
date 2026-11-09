@@ -144,7 +144,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Group(func(r chi.Router) {
 		configureSession(r)
 
-		rs.mountAccountRoutes(r)
+		rs.mountAccountRoutes(r, authRateLimiter)
 		rs.mountCalendarRoutes(r)
 		rs.mountEnrollmentRoutes(r)
 		rs.mountChildStatusRoutes(r)

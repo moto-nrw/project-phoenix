@@ -29,7 +29,9 @@ func (r *recordingStatusFlagArchive) ArchiveStudentStatusFlags(_ context.Context
 }
 
 // The Worker names the flag; the root archives the sick flag as a sick day
-// and the excused flag as an excused day, both from the end-of-day source.
+// and the excused flag as an excused day, from the end-of-day source for the
+// flags reported before the bound, and carries a flag into a new day with the
+// OGS's own source as the fallback.
 func TestEndOfDayStatusFlagArchiveBindsCarePlanStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -38,23 +40,31 @@ func TestEndOfDayStatusFlagArchiveBindsCarePlanStatuses(t *testing.T) {
 	date := calendar.NewDate(2026, time.October, 16)
 	reported := date.BerlinMidnight().Add(18 * time.Hour)
 
-	affected, err := archive.ArchiveEndOfDayStatusFlag(context.Background(), "sick", "sick_since", date, reported)
+	affected, err := archive.ArchiveEndOfDayStatusFlag(context.Background(), "sick", "sick_since", reported, date, reported)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
-	_, err = archive.ArchiveEndOfDayStatusFlag(context.Background(), "excused", "excused_since", date, reported)
+	_, err = archive.ArchiveEndOfDayStatusFlag(context.Background(), "excused", "excused_since", reported, date, reported)
+	require.NoError(t, err)
+	_, err = archive.CarryStatusFlag(context.Background(), "sick", "sick_since", date, reported)
 	require.NoError(t, err)
 
-	require.Len(t, carePlan.archives, 2)
+	require.Len(t, carePlan.archives, 3)
 	assert.Equal(t, careplan.StatusFlagArchive{
 		FlagColumn: "sick", SinceColumn: "sick_since", Status: "sick",
-		Date: careplan.Date(date), ReportedFallback: reported, Source: "end_of_day",
+		Date: careplan.Date(date), ReportedFallback: reported, Source: "end_of_day", Before: reported,
 	}, carePlan.archives[0])
 	assert.Equal(t, "excused", carePlan.archives[1].Status)
 	assert.Equal(t, "end_of_day", carePlan.archives[1].Source)
+	assert.Equal(t, careplan.StatusFlagArchive{
+		FlagColumn: "sick", SinceColumn: "sick_since", Status: "sick",
+		Date: careplan.Date(date), ReportedFallback: reported, Source: "manual", Before: date.BerlinMidnight(), Carry: true,
+	}, carePlan.archives[2])
 
-	_, err = archive.ArchiveEndOfDayStatusFlag(context.Background(), "trip", "trip_since", date, reported)
+	_, err = archive.ArchiveEndOfDayStatusFlag(context.Background(), "trip", "trip_since", reported, date, reported)
 	require.ErrorContains(t, err, `unsupported status flag column "trip"`)
-	assert.Len(t, carePlan.archives, 2, "an unknown flag never reaches Care Plan")
+	_, err = archive.CarryStatusFlag(context.Background(), "trip", "trip_since", date, reported)
+	require.ErrorContains(t, err, `unsupported status flag column "trip"`)
+	assert.Len(t, carePlan.archives, 3, "an unknown flag never reaches Care Plan")
 }
 
 type endedSessions struct {
