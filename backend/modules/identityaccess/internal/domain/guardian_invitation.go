@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -10,6 +11,11 @@ import (
 // this way is not best-effort any more: the flow gives up its writes
 // instead of committing half of them.
 var ErrTransactionUnusable = errors.New("transaction state is unusable")
+
+// ErrGuardianInvitationAddressChanged refuses a link whose address is no
+// longer the guardian's: the profile address changed after the link was
+// issued (#6294).
+var ErrGuardianInvitationAddressChanged = errors.New("the guardian's address changed after the invitation was issued")
 
 // The guardian invitation lifecycle (#2722): the token a guardian redeems
 // for their parents-portal account. The relative access flows in
@@ -38,4 +44,11 @@ func (i GuardianInvitation) Redeemable(now time.Time) error {
 	default:
 		return ErrInvitationNotFound
 	}
+}
+
+// GuardianInvitationAddress is the form an invitation stores its address in:
+// the comparison ignores case and surrounding blanks, as every guardian
+// address lookup does.
+func GuardianInvitationAddress(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }

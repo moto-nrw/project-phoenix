@@ -61,13 +61,14 @@ export function traegerCareMonthsTopic(): HelpTopic {
       {
         title: "Vorschau prüfen und Rechnungen ausschließen",
         description:
-          "Sie können eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
+          "Sie können eine Rechnung aus diesem Lauf nehmen. Sie kommt im nächsten Lauf dieses Monats wieder. Hat ein Kind eine Rechnung für die Betreuung und eine eigene `Mensa-Rechnung`, schließen Sie jede für sich aus.",
         steps: [
           "Wählen Sie bei `Monatslauf` den Knopf `Prüfliste` und dann `Excel` oder `CSV`. Die Liste hat je Position eine Zeile. Rechnungsnummern stehen noch nicht darin.",
           "Stimmt eine Rechnung noch nicht, wählen Sie in ihrer Zeile das Menü mit den drei Punkten und dann `Ausschließen`.",
+          "Prüfen Sie im Fenster, welche Rechnung Sie ausschließen. Dort steht zum Beispiel `Mensa-Rechnung` und darunter, ob die Betreuungsrechnung des Kindes im Lauf bleibt. Steht die Mensa auf der Rechnung der Betreuung, wird sie mit ausgeschlossen.",
           "Schreiben Sie bei `Grund`, warum, zum Beispiel „Kündigung wird noch geprüft“. Wählen Sie `Ausschließen`.",
-          "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer.",
-          "Mit `Wieder aufnehmen` nehmen Sie sie zurück in den Lauf.",
+          "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer. Die andere Rechnung des Kindes bleibt im Lauf.",
+          "Mit `Wieder aufnehmen` nehmen Sie genau diese Rechnung zurück in den Lauf.",
           "Sind alle Rechnungen ausgeschlossen, wählen Sie trotzdem `Lauf freigeben`. Der Lauf schließt ohne Rechnungen und gibt die Schulen wieder frei. Die Gründe bleiben im Verlauf. Ein neuer Lauf kann diese Kinder abrechnen.",
           "Das Rechnungsdatum ändern Sie bei `Rechnungsdatum` mit `Ändern`.",
         ],

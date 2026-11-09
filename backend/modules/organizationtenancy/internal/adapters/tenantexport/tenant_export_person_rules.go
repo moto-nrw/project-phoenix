@@ -124,6 +124,7 @@ func (r *exportRun) writePersonReview() error {
 		Status: "internal-review-only-not-approved-for-handover", UnassignedObjects: r.person.unassignedObjects,
 		RequiredChecks: []string{
 			"school-order-identity-authority-and-subject-ids",
+			"article-9-health-data-only-for-the-requesting-subject-and-recipient",
 			"all-items-redacted-or-lawfully-released-by-school",
 			"indirect-references-in-unselected-school-rows-and-unassigned-originals",
 			"catalog-excluded-columns-and-tables-lawful-context-without-credentials",
@@ -136,6 +137,12 @@ func (r *exportRun) writePersonReview() error {
 
 func (r *exportRun) personReviewItems() []personReviewItem {
 	var items []personReviewItem
+	health := make(map[string]bool)
+	for _, table := range r.catalog.Tables {
+		if _, ok := table.OpenSealedColumns["health_data"]; ok {
+			health[table.Name] = true
+		}
+	}
 	for _, model := range r.models {
 		var row int64
 		for _, node := range r.person.rows[model.Name] {
@@ -143,7 +150,14 @@ func (r *exportRun) personReviewItems() []personReviewItem {
 				continue
 			}
 			row++
-			items = append(items, personReviewItem{Table: model.Name, Row: row, Rules: personReviewRules(model, node)})
+			rules := personReviewRules(model, node)
+			if health[model.Name] {
+				// Opened health information is a special category (Art. 9
+				// GDPR, #6328): a row of a sibling or another guest must not
+				// reach the requester with it.
+				rules = append(rules, "special-category-health-data")
+			}
+			items = append(items, personReviewItem{Table: model.Name, Row: row, Rules: rules})
 		}
 	}
 	return items

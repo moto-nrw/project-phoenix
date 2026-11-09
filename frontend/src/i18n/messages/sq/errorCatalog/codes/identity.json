@@ -10,6 +10,7 @@
   "demo_school_preparing": "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
   "demo_session": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
   "email_already_exists": "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+  "guardian_invitation_address_changed": "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
   "invalid_credentials": "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
   "invitation_account_login_required": "Për këtë adresë e-maili ekziston tashmë një llogari. Fillimisht hyni me të dhe pastaj hapeni përsëri ftesën.",
   "invitation_account_mismatch": "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",

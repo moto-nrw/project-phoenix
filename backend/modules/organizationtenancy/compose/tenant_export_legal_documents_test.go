@@ -38,7 +38,7 @@ func TestTenantExportRequiresFormLegalDocumentOriginal(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), form).Exec(t.Context())
 	require.NoError(t, err)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
 	require.NoError(t, err)
 	uploads := t.TempDir()
 	// A missing namespace must not silently turn into a completed export.
@@ -67,7 +67,7 @@ func TestTenantExportRequiresEmbeddedFormAttachments(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	school, form, request := legalDocumentExportFixture(t, db)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
 	require.NoError(t, err)
 	cases := []struct {
 		name, table, column, payload string
@@ -109,7 +109,7 @@ func TestTenantExportRejectsForeignLegalDocumentReferences(t *testing.T) {
 	dir := filepath.Join(uploads, "enrollment-form-legal-documents")
 	require.NoError(t, os.Mkdir(dir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte("synthetic foreign original"), 0o600))
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
 	require.NoError(t, err)
 	for _, prefix := range []string{"/uploads/", "/api/public/"} {
 		blocks, err := json.Marshal([]map[string]string{{"document_url": prefix + "enrollment-form-legal-documents/" + filename}})

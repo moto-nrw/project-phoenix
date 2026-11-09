@@ -56,7 +56,7 @@ den Standardantworten weiter unmaskiert angezeigt.
    Ausgabe: Quelle und Mengen (`guardian_financial`, `staff_financial`).
 7. Der Mandantenexport schließt die Chiffrate aus (`excludeSecretColumns`) und
    exportiert die Maske. Das Öffnen versiegelter Spalten für die Mandantenrückgabe
-   regeln #6329 (ADR 0184) und #6317 (ADR 0185) für die SEPA-Tabellen. Diese
+   regeln #6329 (ADR 0192) und #6317 (ADR 0185) für die SEPA-Tabellen. Diese
    Tabellen ziehen nach, sobald dieser Mechanismus auf `development` liegt.
 8. Kein Blind-Index (Entscheidung 2). Kein Pfad sucht nach IBAN. Die Eindeutigkeit
    hängt an `guardian_profile_id` bzw. `staff_id`.

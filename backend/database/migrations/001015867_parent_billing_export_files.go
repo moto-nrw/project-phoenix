@@ -14,10 +14,12 @@ func init() {
 		Version:     parentBillingExportFilesVersion,
 		Description: "Elternabrechnung: Exportprotokoll, Dateinummer je Träger, Sollstellung mit Feldzuordnung, Debitorennummer der Familie (#4693)",
 		DependsOn: []string{
-			parentBillingBelegRetentionVersion,   // the newest migration on development (1.15.862); its Beleg deletion cascades to export_file_invoices
-			demoVisitorErasureOutboxKindsVersion, // its erasure already removes these export files
-			parentBillingSEPADebitsVersion,       // the PAIN.008 file the protocol records too
-			parentBillingCareNoticesVersion,      // the Jahresbescheide whose installments a PAIN.008 file collects
+			guardianInvitationAddressBindingVersion,   // the newest migration on development (1.15.865)
+			parentBillingBelegRetentionVersion,        // its Beleg deletion cascades to export_file_invoices
+			parentBillingCareInvoiceExclusionsVersion, // its demo erasure keeps removing these export files
+			demoVisitorErasureOutboxKindsVersion,      // its erasure already removes these export files
+			parentBillingSEPADebitsVersion,            // the PAIN.008 file the protocol records too
+			parentBillingCareNoticesVersion,           // the Jahresbescheide whose installments a PAIN.008 file collects
 		},
 	})
 	Migrations.MustRegister(parentBillingExportFilesUp, parentBillingExportFilesDown)

@@ -10,6 +10,7 @@
   "demo_school_preparing": "The demo school is being prepared. Please try again in a moment.",
   "demo_session": "You cannot access {object}. Please contact the school.",
   "email_already_exists": "There is already an account for this email address. Please use a different address.",
+  "guardian_invitation_address_changed": "This link is no longer valid. Please ask the school for a new invitation.",
   "invalid_credentials": "The email address or the password is not correct. Please check your entry.",
   "invitation_account_login_required": "There is already an account for this email address. Please sign in with it first and then open the invitation again.",
   "invitation_account_mismatch": "You are signed in with a different account. Please sign in with the invited email address.",
