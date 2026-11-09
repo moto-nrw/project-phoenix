@@ -15,9 +15,8 @@ import (
 // ArchiveStudentStatusFlags closes or carries the status days the live
 // status flags stand for (see careplan.StatusFlagArchive). An archived day
 // keeps the row the report wrote: its status, source and visibility stay as
-// they were (#6291). Only a day without a row gets an end-of-day row, and a
-// row someone cleared is restored as such, since the flag kept the status
-// standing that day.
+// they were (#6291), and a day someone cleared stays cleared. Only a day
+// without any row gets an end-of-day row.
 func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, carePlanCompose.RequestStoreStats, error) {
 	if !statusFlagColumnsMatch(value) {
 		return 0, carePlanCompose.RequestStoreStats{}, fmt.Errorf("status flag columns do not match status %q", value.Status)
@@ -40,9 +39,7 @@ func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value ca
 	rows, ids := statusFlagArchiveRows(value, students)
 	started := time.Now()
 	_, err = db.NewInsert().Model(&rows).ModelTableExpr("active.student_status_days").
-		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").Set("reported_at = EXCLUDED.reported_at").
-		Set("cleared_at = EXCLUDED.cleared_at").Set("source = EXCLUDED.source").
-		Where("student_status_days.cleared_at IS NOT NULL").Exec(ctx)
+		On("CONFLICT (tenant_id, student_id, date, status) DO NOTHING").Exec(ctx)
 	stats := requestStats(started, int64(len(rows)))
 	if err != nil {
 		return 0, stats, requestDBError("archive status flag", err)
@@ -52,18 +49,18 @@ func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value ca
 }
 
 // carryStatusFlags gives every flagged student an active row for the carried
-// day, from the source of the flag's latest earlier day. A day that already
-// has a row keeps it; a new row books the day's slots like any status day.
+// day. The row is the OGS's own (manual): the status stands because of the
+// school's clear mode, not because of a new report, so a check-in that clears
+// reported days (planned, parent, school) leaves it alone and the class day
+// does not show it as entered by the school. A day that already has a row
+// keeps it; a new row books the day's slots like any status day.
 func (s *statusDayStore) carryStatusFlags(ctx context.Context, db bun.IDB, tenantID int64, value careplan.StatusFlagArchive, students []StatusStudent) (int64, carePlanCompose.RequestStoreStats, error) {
 	ids := make([]int64, 0, len(students))
 	for _, student := range students {
 		ids = append(ids, student.ID)
 	}
 	slices.Sort(ids)
-	sources, stats, err := s.latestStatusDaySources(ctx, db, tenantID, ids, value.Status, value.Date)
-	if err != nil {
-		return 0, stats, err
-	}
+	var stats carePlanCompose.RequestStoreStats
 	for _, studentID := range slices.Compact(ids) {
 		if err := LockExceptionDay(ctx, db, tenantID, studentID, string(value.Date)); err != nil {
 			return 0, stats, fmt.Errorf("lock carried student status day: %w", err)
@@ -71,13 +68,9 @@ func (s *statusDayStore) carryStatusFlags(ctx context.Context, db bun.IDB, tenan
 	}
 	rows := make([]studentStatusDayRow, 0, len(students))
 	for _, student := range students {
-		source := value.Source
-		if earlier, ok := sources[student.ID]; ok && earlier != statusSourceEndDay {
-			source = earlier
-		}
 		rows = append(rows, studentStatusDayRow{
 			TenantID: student.TenantID, StudentID: student.ID, Date: calendarDate(value.Date), Status: value.Status,
-			ReportedAt: statusFlagReportedAt(value, student), Source: source,
+			ReportedAt: statusFlagReportedAt(value, student), Source: value.Source,
 		})
 	}
 	var inserted []struct {
@@ -85,7 +78,7 @@ func (s *statusDayStore) carryStatusFlags(ctx context.Context, db bun.IDB, tenan
 		StudentID int64 `bun:"student_id"`
 	}
 	started := time.Now()
-	err = db.NewInsert().Model(&rows).ModelTableExpr("active.student_status_days").
+	err := db.NewInsert().Model(&rows).ModelTableExpr("active.student_status_days").
 		On("CONFLICT (tenant_id, student_id, date, status) DO NOTHING").Returning("id, student_id").Scan(ctx, &inserted)
 	writeStats := requestStats(started, int64(len(inserted)))
 	stats.Queries += writeStats.Queries
@@ -100,35 +93,6 @@ func (s *statusDayStore) carryStatusFlags(ctx context.Context, db bun.IDB, tenan
 		}
 	}
 	return int64(len(inserted)), stats, nil
-}
-
-// latestStatusDaySources returns, per student, the source of the latest
-// standing day of the status before date.
-func (s *statusDayStore) latestStatusDaySources(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, status string, date careplan.Date) (map[int64]string, carePlanCompose.RequestStoreStats, error) {
-	var rows []struct {
-		StudentID int64  `bun:"student_id"`
-		Source    string `bun:"source"`
-	}
-	query := withTenant(db.NewSelect().TableExpr(`active.student_status_days AS "student_status_day"`).
-		DistinctOn(`"student_status_day".student_id`).
-		ColumnExpr(`"student_status_day".student_id, "student_status_day".source`).
-		Where(`"student_status_day".student_id IN (?)`, bun.List(studentIDs)).
-		Where(`"student_status_day".status = ?`, status).
-		Where(`"student_status_day".date < ?`, calendarDate(date)).
-		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay).
-		OrderExpr(`"student_status_day".student_id ASC`).OrderExpr(`"student_status_day".date DESC`).
-		OrderExpr(`"student_status_day".reported_at DESC`), "student_status_day", tenantID)
-	started := time.Now()
-	err := query.Scan(ctx, &rows)
-	stats := requestStats(started, int64(len(rows)))
-	if err != nil {
-		return nil, stats, requestDBError("find latest student status day sources", err)
-	}
-	sources := make(map[int64]string, len(rows))
-	for _, row := range rows {
-		sources[row.StudentID] = row.Source
-	}
-	return sources, stats, nil
 }
 
 // statusFlagColumnsMatch rejects an archive whose flag and since columns do
@@ -171,14 +135,19 @@ func (s *statusDayStore) lockedStatusFlagStudents(ctx context.Context, status st
 }
 
 // statusFlagsReportedBefore keeps the flags reported before the archive's
-// bound; a flag without a since timestamp always counts as reported before.
+// bound. A flag without a since timestamp has no day of its own: a carry
+// keeps it, an archive takes it only when the run is on the archived day
+// itself (after its end), so it is never dated onto an earlier day.
 func statusFlagsReportedBefore(value careplan.StatusFlagArchive, students []StatusStudent) []StatusStudent {
 	if value.Before.IsZero() {
 		return students
 	}
 	return slices.DeleteFunc(students, func(student StatusStudent) bool {
 		since := statusFlagSince(value, student)
-		return since != nil && !since.Before(value.Before)
+		if since == nil {
+			return !value.Carry && calendar.DateFromTime(value.ReportedFallback) != calendar.Date(value.Date)
+		}
+		return !since.Before(value.Before)
 	})
 }
 

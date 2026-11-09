@@ -279,17 +279,48 @@ func TestStatusFlagClearCarriesFlagsThatOutlastTheirDay(t *testing.T) {
 }
 
 // TestCheckAndRunStatusFlagClear_SkipsACoveredBoundary — once every school
-// has run for the latest boundary, a poll opens no school transaction.
+// has run for the latest boundary, a poll reaches no school and no archive.
 func TestCheckAndRunStatusFlagClear_SkipsACoveredBoundary(t *testing.T) {
 	t.Parallel()
 	now := berlinTime(2026, time.November, 10, 12, 0)
-	s := unitScheduler(&unitSchedulerDependencies{settings: endOfDayModes(), now: func() time.Time { return now }})
+	archives := &statusFlagArchives{}
+	s := unitScheduler(&unitSchedulerDependencies{studentStatusDayRepo: archives, settings: endOfDayModes(), now: func() time.Time { return now }})
 	s.statusFlagPass.Store(statusFlagBoundary(now).Unix())
 
-	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(context.Background(), task)
+	s.checkAndRunStatusFlagClear(context.Background(), &ScheduledTask{Name: "status-flag-clear"})
+
+	assert.Empty(t, archives.take(), "a covered boundary runs nothing")
 	_, present := s.lastStatusFlagClear.Load(schedulerUnitTenantID)
-	assert.False(t, present, "no school runs for a boundary the pass covered")
+	assert.False(t, present)
+}
+
+// TestRunStatusFlagClear_PassThatReachesNoSchoolStaysDue — when the
+// school settings cannot be loaded, no school runs; the boundary stays due
+// and the next poll runs it.
+func TestRunStatusFlagClear_PassThatReachesNoSchoolStaysDue(t *testing.T) {
+	t.Parallel()
+	now := berlinTime(2026, time.November, 11, 0, 0)
+	archives := &statusFlagArchives{}
+	failing := true
+	s := unitScheduler(&unitSchedulerDependencies{studentStatusDayRepo: archives, settings: endOfDayModes(), now: func() time.Time { return now }, logger: slog.Default()})
+	loader := s.minuteSnapshotLoader
+	s.minuteSnapshotLoader = func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+		if failing {
+			return nil, errors.New("settings unavailable")
+		}
+		return loader(ctx)
+	}
+	task := &ScheduledTask{Name: "status-flag-clear"}
+
+	s.checkAndRunStatusFlagClear(context.Background(), task)
+	assert.Empty(t, archives.take())
+	assert.Zero(t, s.statusFlagPass.Load(), "a pass that reached no school is not done")
+
+	failing = false
+	s.minuteSnapshotLoad = nil
+	s.checkAndRunStatusFlagClear(context.Background(), task)
+	assert.Len(t, archives.take(), 2, "the next poll runs the boundary")
+	assert.Equal(t, now.Unix(), s.statusFlagPass.Load())
 }
 
 // TestRunStatusFlagClear_MissingArchiveKeepsTheSchoolDue — without the Care

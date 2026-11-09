@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -87,8 +88,9 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 }
 
 // runStatusFlagClear evaluates each school's clear modes at now, at most once
-// per school and boundary. The pass counts as done when no school failed; a
-// failed school stays due and is retried at the next poll.
+// per school and boundary. The pass counts as done only when every school it
+// reached committed its run; a failed school, a failed commit or a pass that
+// reached no school leaves the boundary due for the next poll.
 func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask, now time.Time) {
 	task.mu.Lock()
 	if task.Running {
@@ -107,7 +109,9 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask,
 	defer cancel()
 
 	var failed atomic.Bool
-	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
+	var reached sync.Map
+	completed := s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
+		reached.Store(tenantID, struct{}{})
 		if last, ok := s.lastStatusFlagClear.Load(tenantID); ok {
 			if at, ok := last.(time.Time); ok && !statusFlagClearDue(now, at, true) {
 				return nil
@@ -127,9 +131,28 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask,
 		}
 		return nil
 	})
-	if !failed.Load() {
+	if !failed.Load() && statusFlagPassComplete(&reached, completed) {
 		s.statusFlagPass.Store(statusFlagBoundary(now).Unix())
 	}
+}
+
+// statusFlagPassComplete reports whether the pass reached a school and every
+// school it reached is among the committed ones.
+func statusFlagPassComplete(reached *sync.Map, completed []int64) bool {
+	committed := make(map[int64]bool, len(completed))
+	for _, id := range completed {
+		committed[id] = true
+	}
+	reachedAny := false
+	all := true
+	reached.Range(func(key, _ any) bool {
+		reachedAny = true
+		if id, ok := key.(int64); !ok || !committed[id] {
+			all = false
+		}
+		return all
+	})
+	return reachedAny && all
 }
 
 // rollStatusFlag applies one flag's clear mode at now: end_of_day archives
@@ -143,7 +166,10 @@ func (s *Scheduler) rollStatusFlag(ctx context.Context, tenantID int64, mode, fl
 	if mode != clearModeEndOfDay {
 		carried, err := s.studentStatusDayRepo.CarryStatusFlag(ctx, flagColumn, sinceColumn, calendar.DateFromTime(now), now)
 		if err != nil {
-			s.logStatusFlagFailure(tenantID, flagColumn, err)
+			s.getLogger().Error(flagColumn+" status carry failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
 			return false
 		}
 		if carried > 0 {

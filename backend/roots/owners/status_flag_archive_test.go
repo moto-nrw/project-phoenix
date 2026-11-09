@@ -109,7 +109,12 @@ func TestEndOfDayArchiveKeepsStatusAndSourceOfTheDay(t *testing.T) {
 	reported := testpkg.CreateTestStudent(t, s.db, "Sina", "Schule", "3a")
 	flagOnly := testpkg.CreateTestStudent(t, s.db, "Fritz", "Flag", "3a")
 	evening := testpkg.CreateTestStudent(t, s.db, "Emil", "Abend", "3a")
+	withdrawn := testpkg.CreateTestStudent(t, s.db, "Wanda", "Zurück", "3a")
 	s.report(t, reported.ID, day, "sick", "school", berlinAt(day, 8, 0))
+	s.report(t, withdrawn.ID, day, "sick", "parent", berlinAt(day, 7, 0))
+	_, err := s.db.ExecContext(context.Background(), `UPDATE active.student_status_days SET cleared_at = ?, source = 'manual' WHERE student_id = ?`, berlinAt(day, 9, 0), withdrawn.ID)
+	require.NoError(t, err)
+	s.flag(t, withdrawn.ID, "sick", berlinAt(day, 7, 0))
 	s.flag(t, reported.ID, "sick", berlinAt(day, 8, 0))
 	s.flag(t, flagOnly.ID, "sick", berlinAt(day, 9, 0))
 	s.flag(t, evening.ID, "sick", berlinAt(day, 18, 30))
@@ -124,6 +129,8 @@ func TestEndOfDayArchiveKeepsStatusAndSourceOfTheDay(t *testing.T) {
 	assert.Equal(t, [2]string{"sick", "school"}, standing[reported.ID], "the archive keeps the school's report")
 	assert.Equal(t, [2]string{"sick", "end_of_day"}, standing[flagOnly.ID])
 	assert.NotContains(t, standing, evening.ID, "a report after the end of the day is not archived yet")
+	assert.NotContains(t, s.standing(t, day, withdrawn.ID), withdrawn.ID, "a withdrawn day stays withdrawn")
+	assert.False(t, s.flagged(t, withdrawn.ID, "sick"))
 	assert.False(t, s.flagged(t, reported.ID, "sick"))
 	assert.False(t, s.flagged(t, flagOnly.ID, "sick"))
 	assert.True(t, s.flagged(t, evening.ID, "sick"))
@@ -165,9 +172,12 @@ func TestEndOfDayArchiveDatesTheFlagOnItsBerlinDayAcrossDST(t *testing.T) {
 }
 
 // With manual or next_checkin the flag outlasts its day. The midnight run
-// lets it stand for the new day with the source of the report, so the views
-// that read rows show what the group view and the dashboard show from the
-// flag; a flag of the new day and a carried day are not written twice.
+// lets it stand for the new day, so the views that read rows show what the
+// group view and the dashboard show from the flag. The carried day is the
+// OGS's own: a check-in clears reported days (planned, parent, school) and
+// must not end a status the school keeps until staff lift it, and the class
+// day must not credit the new day to the parents. A flag of the new day and a
+// carried day are not written twice.
 func TestStatusFlagCarryStandsForTheNewDay(t *testing.T) {
 	t.Parallel()
 	s := newStatusFlagSuite(t)
@@ -189,7 +199,7 @@ func TestStatusFlagCarryStandsForTheNewDay(t *testing.T) {
 	}
 
 	standing := s.standing(t, day, carried.ID, today.ID)
-	assert.Equal(t, [2]string{"sick", "parent"}, standing[carried.ID])
+	assert.Equal(t, [2]string{"sick", "manual"}, standing[carried.ID])
 	assert.Equal(t, [2]string{"sick", "manual"}, standing[today.ID], "the day's own report stays as it is")
 	assert.True(t, s.flagged(t, carried.ID, "sick"), "the carry keeps the flag")
 	assert.Equal(t, [2]string{"sick", "parent"}, s.standing(t, yesterday, carried.ID)[carried.ID])
@@ -197,4 +207,33 @@ func TestStatusFlagCarryStandsForTheNewDay(t *testing.T) {
 	var rows int
 	require.NoError(t, s.db.NewRaw(`SELECT COUNT(*) FROM active.student_status_days WHERE student_id = ? AND date = ?`, carried.ID, day).Scan(context.Background(), &rows))
 	assert.Equal(t, 1, rows, "a second run writes no second day")
+}
+
+// A flag without a since timestamp has no day of its own. A run before the
+// end of the day leaves it standing instead of dating it onto yesterday; the
+// run after the end of the day archives it onto that day.
+func TestEndOfDayArchiveDatesAFlagWithoutTimestampOnTheRunsDay(t *testing.T) {
+	t.Parallel()
+	s := newStatusFlagSuite(t)
+	day := calendar.NewDate(2026, time.November, 10)
+	child := testpkg.CreateTestStudent(t, s.db, "Nora", "Ohnezeit", "2a")
+	_, err := s.db.ExecContext(context.Background(), `UPDATE users.student_care_profiles SET sick = true, sick_since = NULL
+		WHERE membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ?)`, child.ID)
+	require.NoError(t, err)
+
+	morning := berlinAt(day, 10, 0)
+	s.inTenant(t, func(ctx context.Context) error {
+		_, err := s.days.ArchiveEndOfDayStatusFlag(ctx, "sick", "sick_since", day.BerlinMidnight(), day.AddDays(-1), morning)
+		return err
+	})
+	assert.True(t, s.flagged(t, child.ID, "sick"), "a morning run leaves it")
+	assert.Empty(t, s.standing(t, day.AddDays(-1), child.ID))
+
+	endOfDay := berlinAt(day, 18, 0)
+	s.inTenant(t, func(ctx context.Context) error {
+		_, err := s.days.ArchiveEndOfDayStatusFlag(ctx, "sick", "sick_since", endOfDay, day, endOfDay)
+		return err
+	})
+	assert.False(t, s.flagged(t, child.ID, "sick"))
+	assert.Equal(t, [2]string{"sick", "end_of_day"}, s.standing(t, day, child.ID)[child.ID])
 }
