@@ -244,7 +244,7 @@ func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token
 		}
 		// A link issued for an earlier address shows nothing of the profile:
 		// its holder may not be the guardian (#6294).
-		if !invitation.AddressedTo(profile.Email) {
+		if !identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
 			return failed(opGuardianInviteValidate, domain.ErrGuardianInvitationAddressChanged)
 		}
 		result = identityaccess.GuardianInvitationPreview{
@@ -522,7 +522,7 @@ func (l *AccountLifecycle) acceptGuardianAtSchool(txCtx context.Context, invitat
 	if !found {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
 	}
-	if !invitation.AddressedTo(profile.Email) {
+	if !identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrGuardianInvitationAddressChanged)
 	}
 	email := invitation.Email
@@ -540,7 +540,7 @@ func (l *AccountLifecycle) acceptGuardianAtSchool(txCtx context.Context, invitat
 	if !found {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
 	}
-	if !invitation.AddressedTo(profile.Email) {
+	if !identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrGuardianInvitationAddressChanged)
 	}
 	if grantErr := l.grantGuardianAccess(invitationCtx, invitation, profile, account); grantErr != nil {

@@ -3,6 +3,7 @@ package identityaccess
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -64,6 +65,12 @@ type GuardianInvitation struct {
 	// Email is the address the current link was issued for, normalized
 	// (#6294).
 	Email string
+}
+
+// AddressedTo reports whether the invitation's link was issued for the
+// address. A link without an address belongs to nobody (#6294).
+func (i GuardianInvitation) AddressedTo(email string) bool {
+	return i.Email != "" && i.Email == strings.ToLower(strings.TrimSpace(email))
 }
 
 // ApprovalAllowsRedemption reports whether the invitation's approval state

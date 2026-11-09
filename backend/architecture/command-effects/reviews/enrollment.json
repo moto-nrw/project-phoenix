@@ -5883,6 +5883,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "reason": "Pure value predicate owned by Identity \u0026 Access; enrollment eligibility and invitation redemption share GuardianInvitation.AddressedTo to compare the recorded recipient with the current address. No mutation or locking read.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.AddressedTo",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
       "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption",

@@ -397,7 +397,7 @@ func workingBulkInvitations(profile domain.GuardianProfile, open []domain.Guardi
 		if !invitation.ExpiresAt.After(now) {
 			continue
 		}
-		if invitation.IsPendingApproval() || invitation.AddressedTo(profile.Email) {
+		if invitation.IsPendingApproval() || identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
 			working = append(working, invitation)
 		}
 	}

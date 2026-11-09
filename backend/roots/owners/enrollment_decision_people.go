@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
@@ -322,10 +321,10 @@ func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitatio
 	}
 	address := ""
 	if profile := profiles[profileID]; profile != nil && profile.Email != nil {
-		address = strings.ToLower(strings.TrimSpace(*profile.Email))
+		address = *profile.Email
 	}
 	for _, invitation := range invitations {
-		if invitation.Email != "" && invitation.Email == address && invitation.ApprovalAllowsRedemption() {
+		if invitation.AddressedTo(address) && invitation.ApprovalAllowsRedemption() {
 			return true, nil
 		}
 	}

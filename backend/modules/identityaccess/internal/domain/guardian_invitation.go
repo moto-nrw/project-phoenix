@@ -52,9 +52,3 @@ func (i GuardianInvitation) Redeemable(now time.Time) error {
 func GuardianInvitationAddress(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
-
-// AddressedTo reports whether the invitation's link was issued for the
-// address. A link without an address belongs to nobody (#6294).
-func (i GuardianInvitation) AddressedTo(email string) bool {
-	return i.Email != "" && i.Email == GuardianInvitationAddress(email)
-}
