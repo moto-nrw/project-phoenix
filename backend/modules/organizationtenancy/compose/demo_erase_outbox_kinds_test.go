@@ -261,3 +261,88 @@ func TestDemoErasureDefersWhileTheReleasePushOfTheSchoolIsHeld(t *testing.T) {
 		JOIN platform.traeger_document_releases AS release ON release.id = push.related_entity_id
 		WHERE push.kind = 'traeger_document_release' AND release.school_id = ? FOR UPDATE OF push`)
 }
+
+// exportProtocolOf6361 is the export protocol of 1.15.840 (#6361, not yet
+// on development), with the columns that migration gives it. The test
+// creates it only where it does not exist yet; once 840 is merged, the real
+// tables answer.
+const exportProtocolOf6361 = `
+CREATE TABLE IF NOT EXISTS parent_billing.export_files (
+	id BIGSERIAL PRIMARY KEY,
+	organization_id BIGINT NOT NULL REFERENCES platform.organizations(id) ON DELETE CASCADE,
+	file_number BIGINT NOT NULL,
+	format VARCHAR(32) NOT NULL,
+	run_kind VARCHAR(16) NOT NULL,
+	run_id BIGINT NOT NULL,
+	file_name VARCHAR(255) NOT NULL,
+	content_sha256 CHAR(64) NOT NULL,
+	invoice_count INTEGER NOT NULL,
+	total_cents BIGINT NOT NULL,
+	reference VARCHAR(35),
+	exported_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
+	exported_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	submitted_at TIMESTAMPTZ,
+	submitted_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
+	CONSTRAINT uq_export_files_organization UNIQUE (organization_id, id)
+);
+CREATE TABLE IF NOT EXISTS parent_billing.export_file_invoices (
+	id BIGSERIAL PRIMARY KEY,
+	organization_id BIGINT NOT NULL,
+	export_file_id BIGINT NOT NULL,
+	care_invoice_id BIGINT,
+	document_id BIGINT,
+	care_notice_id BIGINT,
+	CONSTRAINT fk_export_file_invoices_file FOREIGN KEY (organization_id, export_file_id)
+		REFERENCES parent_billing.export_files (organization_id, id) ON DELETE CASCADE,
+	CONSTRAINT fk_export_file_invoices_care_invoice FOREIGN KEY (organization_id, care_invoice_id)
+		REFERENCES parent_billing.care_invoices (organization_id, id) ON DELETE CASCADE,
+	CONSTRAINT fk_export_file_invoices_care_notice FOREIGN KEY (organization_id, care_notice_id)
+		REFERENCES parent_billing.care_notices (organization_id, id) ON DELETE CASCADE
+);`
+
+// exportFileOf writes a file of the export protocol, downloaded by account,
+// that held the monthly invoice (kind "invoice") or the Jahresbescheid
+// (kind "notice") of the school, and returns its id.
+func exportFileOf(t *testing.T, db *bun.DB, schoolID, accountID int64, kind string, number int64) int64 {
+	t.Helper()
+	held := `SELECT organization_id, id, NULL::bigint FROM parent_billing.care_invoices WHERE school_id = ?0 ORDER BY id LIMIT 1`
+	if kind == "notice" {
+		held = `SELECT organization_id, NULL::bigint, id FROM parent_billing.care_notices WHERE school_id = ?0 ORDER BY id LIMIT 1`
+	}
+	var id int64
+	require.NoError(t, db.NewRaw(`WITH held(organization_id, care_invoice_id, care_notice_id) AS (`+held+`),
+		file AS (
+			INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
+				content_sha256, invoice_count, total_cents, exported_by_account_id)
+			SELECT organization_id, ?2, 'sollstellung', 'care', 1, 'sollstellung-' || ?2 || '.csv', repeat('a', 64), 1, 3200, ?1
+			FROM held RETURNING organization_id, id)
+		INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, care_invoice_id, care_notice_id)
+		SELECT file.organization_id, file.id, held.care_invoice_id, held.care_notice_id FROM file, held
+		RETURNING export_file_id`, schoolID, accountID, number).Scan(t.Context(), &id))
+	return id
+}
+
+// The export files of #6361 that held an invoice or a Jahresbescheid of the
+// retired demo school go with the visitor; a file of a regular school
+// stays. 1.15.843 keeps this statement of 1.15.840 so that neither
+// migration drops the other's erasure, whichever installs the function last.
+func TestDemoErasureErasesTheExportFilesOf6361(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	_, err := db.ExecContext(t.Context(), exportProtocolOf6361)
+	require.NoError(t, err)
+	retiredID, _ := testpkg.CreateTestTenant(t, db)
+	regularID, _ := testpkg.CreateTestTenant(t, db)
+	retired, regular := leaveVisitorTraces(t, db, retiredID), leaveVisitorTraces(t, db, regularID)
+	for _, accountID := range []int64{retired.caregiver, retired.parent} {
+		onlyInSchools(t, db, accountID, retiredID)
+	}
+	invoiceFile := exportFileOf(t, db, retiredID, retired.caregiver, "invoice", 1)
+	noticeFile := exportFileOf(t, db, retiredID, retired.caregiver, "notice", 2)
+	regularFile := exportFileOf(t, db, regularID, regular.caregiver, "invoice", 1)
+
+	retireVisitorOrder(t, db, retiredID, retired)
+
+	assert.Equal(t, []int64{regularFile}, remainingIDs(t, db, "parent_billing.export_files", invoiceFile, noticeFile, regularFile),
+		"the files of the retired school go, the file of a regular school stays")
+}

@@ -17,7 +17,11 @@ import (
 //   - the receipt mail of a holiday registration (#4662) goes with the
 //     registration it names;
 //   - each statement on a row of the Träger names the kinds it erases, so the
-//     guard of #6342 can tell a kind that no statement erases.
+//     guard of #6342 can tell a kind that no statement erases;
+//   - the export files of 1.15.840 (#6361, not yet merged) go before the
+//     invoices they held, once their table exists: 840 replaces the function
+//     with 823 plus that statement, so the later of 840 and 843 has to keep
+//     the statements of the other one.
 //
 // The rest of the function is unchanged.
 const demoVisitorErasureOutboxKindsSQL = `
@@ -275,6 +279,23 @@ const demoVisitorErasureOutboxKindsSQL = `
 						AND push.kind = 'parent_billing_document'
 						AND push.related_entity_type = 'parent_billing_document'
 						AND push.related_entity_id = letter.id;
+					-- A file of the export protocol that held an invoice or a
+					-- Jahresbescheid of the school goes with it (#4693). The
+					-- protocol comes with 1.15.840 (#6361); whichever of the two
+					-- migrations installs this function last, the statement is
+					-- here, and it runs once the table exists.
+					IF to_regclass('parent_billing.export_files') IS NOT NULL THEN
+						DELETE FROM parent_billing.export_files AS file
+						USING parent_billing.export_file_invoices AS held
+						WHERE held.organization_id = file.organization_id
+							AND held.export_file_id = file.id
+							AND (held.care_invoice_id IN (
+									SELECT invoice.id FROM parent_billing.care_invoices AS invoice
+									WHERE invoice.school_id = ANY (hidden_schools))
+								OR held.care_notice_id IN (
+									SELECT notice.id FROM parent_billing.care_notices AS notice
+									WHERE notice.school_id = ANY (hidden_schools)));
+					END IF;
 					DELETE FROM parent_billing.care_invoices
 					WHERE school_id = ANY (hidden_schools);
 					-- A child a release held back keeps its name in the run's
