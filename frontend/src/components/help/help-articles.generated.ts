@@ -3612,6 +3612,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Sie haben die `E-Mail` nach der Einladung geändert? Dann gilt der alte Link nicht mehr. Wählen Sie `Erneut einladen`. Der neue Link geht an die neue Adresse.",
       "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -5359,6 +5360,7 @@ export const parentAccountProblemTopic =
       notes: ["Ein Einladungslink lässt sich nur einmal benutzen."],
       differences: [
         "`Diese Einladung ist abgelaufen oder wurde bereits verwendet.` Fragen Sie nach einer neuen.",
+        "`Dieser Link gilt nicht mehr.` Bitten Sie Ihre OGS um eine neue Einladung.",
         "`Für diese E-Mail existiert bereits ein Konto.` Melden Sie sich direkt an.",
         "`Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.` Prüfen Sie die Liste unter dem Feld.",
       ],

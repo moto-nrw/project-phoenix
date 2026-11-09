@@ -21,7 +21,8 @@ import (
 // the corrected address.
 func TestUpdateGuardianContact_EmailCorrectionEndsTheMailedLink(t *testing.T) {
 	t.Parallel()
-	svc, db := buildGuardianService(t)
+	svc, _ := buildGuardianService(t)
+	db := testpkg.SetupTestDB(t) // the package pool the service runs on
 	invitations, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
 		Outbox: api.NewCapturingOutbox(),
 	})

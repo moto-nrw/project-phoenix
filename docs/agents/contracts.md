@@ -928,7 +928,12 @@ stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
 CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
 A refresh successor is HMAC-derived from the presented token, so hand-off
 recovery recomputes it. A resend or guardian approval mails a new link and
-voids the previous one; listings return no token. Do not run an old backend
+voids the previous one; listings return no token. A guardian link also
+stores the normalized address it was issued for (migration 1.15.832, #6294):
+validate and accept answer 410 `identity.guardian_invitation_address_changed`
+without profile data once the profile address differs, and accept holds the
+profile row lock the contact edits take. Every new guardian token sets the
+address on file. Do not run an old backend
 against the migrated schema; migration rollback requires a forward fix. Tenant switching preserves proof only from the presented
 account's live same-portal session family, read under the account lock shared with
 MFA reset. Missing, expired, revoked, unverified or foreign-portal families
