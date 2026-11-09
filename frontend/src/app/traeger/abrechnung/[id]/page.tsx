@@ -26,7 +26,10 @@ import {
   debitsHaltRelease,
   holidayDebitItems,
 } from "~/components/traeger/care-debit-hints";
-import { ReleaseOpenPoints } from "~/components/traeger/release-open-points";
+import {
+  type OpenPoint,
+  ReleaseOpenPoints,
+} from "~/components/traeger/release-open-points";
 import {
   BillingCostTakeoverCard,
   runCostTakeovers,
@@ -216,7 +219,13 @@ export default function TraegerBillingRunPage() {
   const runDebitHints = preview
     ? debitHints(holidayDebitItems(run.documents))
     : [];
-  const debitPoints = debitOpenPoints(runDebitHints);
+  // The early debit is fixed by a later due date, the rest at the mandates.
+  const earlyPoints = debitOpenPoints(
+    runDebitHints.filter((hint) => hint.dueTooSoon),
+  );
+  const mandatePoints = debitOpenPoints(
+    runDebitHints.filter((hint) => !hint.dueTooSoon),
+  );
   // The release refuses a direct debit without mandate: no button for it.
   const releaseHalted = debitsHaltRelease(runDebitHints);
   const carriedCount = preview
@@ -230,14 +239,29 @@ export default function TraegerBillingRunPage() {
         0,
       )
     : 0;
-  const openPoints = [
-    ...debitPoints,
-    carriedCount > 0
-      ? carriedCount === 1
-        ? "1 übernommene Korrektur aus einer stornierten Rechnung."
-        : `${carriedCount} übernommene Korrekturen aus stornierten Rechnungen.`
-      : null,
-  ].filter((point): point is string => point !== null);
+  // A carried correction already counts in its new invoice: a fact of the
+  // summary, not an open point that turns the release into a warning.
+  const openPoints: OpenPoint[] = [
+    ...earlyPoints.map((text) => ({
+      text,
+      action: run ? (
+        <ButtonLink
+          href={traegerPath(`/traeger/abrechnung/${run.id}/faelligkeiten`)}
+          variant="ghost_tone"
+          size="compact"
+        >
+          Fälligkeiten ändern
+        </ButtonLink>
+      ) : undefined,
+    })),
+    ...mandatePoints.map((text) => ({ text })),
+  ];
+  const carriedNote =
+    carriedCount === 0
+      ? ""
+      : carriedCount === 1
+        ? " Darin enthalten: 1 übernommene Korrektur aus einer stornierten Rechnung."
+        : ` Darin enthalten: ${carriedCount} übernommene Korrekturen aus stornierten Rechnungen.`;
   const releaseWarns = paymentTextGaps > 0 || openPoints.length > 0;
   // The run sum is what the families pay; cost bearers pay their share
   // apart, so the summary names both.
@@ -345,6 +369,7 @@ export default function TraegerBillingRunPage() {
                 {takeoverCents > 0
                   ? ` Kostenträger übernehmen zusätzlich ${formatEuro(takeoverCents)}.`
                   : ""}
+                {carriedNote}
               </p>
               {paymentTextGaps > 0 ? (
                 <Alert
@@ -353,22 +378,7 @@ export default function TraegerBillingRunPage() {
                   message={`${invoicesWithoutDebtorNumber(paymentTextGaps)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.`}
                 />
               ) : null}
-              <ReleaseOpenPoints
-                points={openPoints}
-                action={
-                  runDebitHints.some((hint) => hint.dueTooSoon) ? (
-                    <ButtonLink
-                      href={traegerPath(
-                        `/traeger/abrechnung/${run.id}/faelligkeiten`,
-                      )}
-                      variant="ghost_tone"
-                      size="compact"
-                    >
-                      Fälligkeiten ändern
-                    </ButtonLink>
-                  ) : undefined
-                }
-              />
+              <ReleaseOpenPoints points={openPoints} />
             </ConfirmationModal>
           </>
         ) : null

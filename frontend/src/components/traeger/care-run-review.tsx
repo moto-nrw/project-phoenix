@@ -31,6 +31,7 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 import { invoiceCountLabel } from "./care-billing-format";
 import {
+  type DebitHint,
   type DebitItem,
   careDebitItems,
   debitHints,
@@ -260,7 +261,14 @@ function DebitHintsCard({
   const creditorMissing = hints.some(
     (hint) => hint.item.payment?.debitGap === "creditor_missing",
   );
-  const shown = expanded ? hints : hints.slice(0, DEBIT_HINTS_SHOWN);
+  // Open rows first; a family that pays by transfer is information only.
+  const isTransfer = (hint: DebitHint) =>
+    !hint.dueTooSoon && hint.item.payment?.method === "transfer";
+  const ordered = [
+    ...hints.filter((hint) => !isTransfer(hint)),
+    ...hints.filter(isTransfer),
+  ];
+  const shown = expanded ? ordered : ordered.slice(0, DEBIT_HINTS_SHOWN);
   // A debit that comes too early is fixed once for the whole run, by a later
   // date: the card says it once and carries the one way there. A family
   // that falls back to a transfer needs nothing before the release: it is
@@ -296,11 +304,15 @@ function DebitHintsCard({
     <SectionCard
       title="Lastschrift"
       titleBadge={
-        <span className="text-sm font-normal text-gray-600 tabular-nums">
-          {open > 0
-            ? `${familiesLabel(open)} offen`
-            : familiesLabel(hints.length)}
-        </span>
+        open > 0 ? (
+          <span className="text-moto-orange-strong text-sm font-medium tabular-nums">
+            {`${familiesLabel(open)} offen`}
+          </span>
+        ) : (
+          <span className="text-sm font-normal text-gray-600 tabular-nums">
+            {familiesLabel(hints.length)}
+          </span>
+        )
       }
       description={description}
       actions={

@@ -172,8 +172,12 @@ export function CareRunMealsCard({
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">
           {[
+            // Across schools the months add up school-months, no span of
+            // time: the badge names the schools instead.
             open.length > 0
-              ? `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
+              ? bySchool.size > 1
+                ? `Freigabe fehlt an ${bySchool.size} Schulen`
+                : `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
               : null,
             expired.length > 0
               ? `${expired.length} nicht mehr abrechenbar`

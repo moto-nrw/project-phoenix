@@ -34,6 +34,7 @@ import {
 import { usePrenotificationDays } from "~/components/traeger/use-prenotification-days";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
 import {
+  type OpenPoint,
   ReleaseOpenPoints,
   familiesLabel,
 } from "~/components/traeger/release-open-points";
@@ -273,7 +274,16 @@ export default function TraegerCareRunPage() {
   const dueDatesHref = run
     ? `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`
     : "";
-  const debitPoints = debitOpenPoints(runDebitHints, earliestDebit);
+  // The early debit is fixed by a later due date, the rest at the mandates:
+  // apart, so each point carries its own way.
+  const earlyPoints = debitOpenPoints(
+    runDebitHints.filter((hint) => hint.dueTooSoon),
+    earliestDebit,
+  );
+  const mandatePoints = debitOpenPoints(
+    runDebitHints.filter((hint) => !hint.dueTooSoon),
+    earliestDebit,
+  );
   // The release refuses a direct debit without mandate: no button for it.
   const releaseHalted = debitsHaltRelease(runDebitHints);
   const uncounted = preview ? (run.uncountedFamilies ?? 0) : 0;
@@ -290,9 +300,32 @@ export default function TraegerCareRunPage() {
     0,
   );
   const releaseOpenPoints = [
-    ...debitPoints,
+    ...earlyPoints.map((text): OpenPoint => ({
+      text,
+      action: (
+        <ButtonLink
+          href={traegerPath(dueDatesHref)}
+          variant="ghost_tone"
+          size="compact"
+        >
+          Fälligkeiten ändern
+        </ButtonLink>
+      ),
+    })),
+    ...mandatePoints,
     uncounted > 0
-      ? `${familiesLabel(uncounted)} ohne bestätigte Kinderzahl.`
+      ? {
+          text: `${familiesLabel(uncounted)} ohne bestätigte Kinderzahl.`,
+          action: (
+            <ButtonLink
+              href={traegerPath("/traeger/abrechnung/kinderzahl")}
+              variant="ghost_tone"
+              size="compact"
+            >
+              Kinderzahl prüfen
+            </ButtonLink>
+          ),
+        }
       : null,
     mealOpen > 0
       ? mealOpen === 1
@@ -306,7 +339,7 @@ export default function TraegerCareRunPage() {
         ? "1 Kind ohne Preis. Es kommt nicht in diesen Lauf."
         : `${unpriced} Kinder ohne Preis. Sie kommen nicht in diesen Lauf.`
       : null,
-  ].filter((point): point is string => point !== null);
+  ].filter((point): point is string | OpenPoint => point !== null);
 
   return (
     <TenantPage
@@ -396,20 +429,7 @@ export default function TraegerCareRunPage() {
                 neuen Lauf nach, wenn ein Vertrag beendet ist.
               </p>
             ) : null}
-            <ReleaseOpenPoints
-              points={releaseOpenPoints}
-              action={
-                tooEarly ? (
-                  <ButtonLink
-                    href={traegerPath(dueDatesHref)}
-                    variant="ghost_tone"
-                    size="compact"
-                  >
-                    Fälligkeiten ändern
-                  </ButtonLink>
-                ) : undefined
-              }
-            />
+            <ReleaseOpenPoints points={releaseOpenPoints} />
           </ConfirmationModal>
         ) : null
       }
