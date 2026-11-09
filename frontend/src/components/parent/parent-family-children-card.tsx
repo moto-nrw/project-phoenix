@@ -104,8 +104,11 @@ export function ParentFamilyChildrenCard({
 
   const date = (value: string | null) =>
     value ? formatDate(value, false, locale) : "";
-  // A school that does not use the number does not ask for it.
+  // A school that does not use the number does not ask for it, and a
+  // registration that ended without an accepted child (rejected, withdrawn)
+  // leads to no contract that could carry it.
   if (family && !family.asked) return null;
+  if (family && enrollment && !family.canState && !family.accepted) return null;
 
   return (
     <SectionCard

@@ -28,6 +28,12 @@ export interface ParentFamilyChildren {
   readonly canState: boolean;
   /** The page asks for the number at all; false hides the card. */
   readonly asked: boolean;
+  /**
+   * A registration whose child is accepted: its contract carries the number.
+   * A closed registration without an accepted child (rejected, withdrawn)
+   * shows no card.
+   */
+  readonly accepted: boolean;
 }
 
 interface BackendFamilyChildren {
@@ -45,6 +51,7 @@ interface BackendRegistrationFamilyChildren {
   stated_at: string | null;
   asked: boolean;
   can_state: boolean;
+  accepted: boolean;
 }
 
 function path(source: FamilyChildrenSource): string {
@@ -68,6 +75,7 @@ function mapContract(data: BackendFamilyChildren): ParentFamilyChildren {
     validUntil: data.valid_until,
     canState: data.can_state,
     asked: true,
+    accepted: true,
   };
 }
 
@@ -84,6 +92,7 @@ function mapRegistration(
     validUntil: null,
     canState: data.can_state,
     asked: data.asked,
+    accepted: data.accepted,
   };
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -60,6 +61,9 @@ func (s *Intake) familyChildren(ctx context.Context, token string, children *int
 		result = enrollmentNative.RegistrationFamilyChildren{Children: locked.FamilyChildren, StatedAt: locked.FamilyChildrenStatedAt,
 			Asked: asked}
 		result.CanState = result.Asked && familyChildrenOpen(locked, requestChildren)
+		result.Accepted = slices.ContainsFunc(requestChildren, func(child *enrollmentNative.RequestChild) bool {
+			return child.Status == enrollmentNative.ChildStatusApproved
+		})
 		if children == nil {
 			return nil
 		}

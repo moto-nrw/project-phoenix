@@ -81,6 +81,7 @@ type familyChildrenEnvelope struct {
 		Children *int `json:"children"`
 		Asked    bool `json:"asked"`
 		CanState bool `json:"can_state"`
+		Accepted bool `json:"accepted"`
 	} `json:"data"`
 }
 
@@ -153,6 +154,7 @@ func TestFamilyChildrenOnTheStatusPageStayInTheOwnRegistration(t *testing.T) {
 	rec = env.get(t, "/requests/"+env.token+"/family-children")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.False(t, decodeFamilyChildren(t, rec).Data.CanState)
+	assert.True(t, decodeFamilyChildren(t, rec).Data.Accepted, "the contract of the accepted child carries the number")
 	rec = env.put(t, env.token, `{"children":5}`)
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "enrollment.family_children_closed")
@@ -170,4 +172,23 @@ func TestFamilyChildrenAreAskedOnlyWhereTheTraegerCountsThem(t *testing.T) {
 	rec = env.put(t, env.token, `{"children":3}`)
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Nil(t, env.stored(t, env.token), "a school that does not use the number stores none")
+}
+
+// A withdrawn registration takes no number and promises no contract: it is
+// closed without an accepted child.
+func TestFamilyChildrenOfAWithdrawnRegistrationAreClosed(t *testing.T) {
+	t.Parallel()
+	env := setupFamilyChildren(t, true)
+	req := httptest.NewRequest(http.MethodPost, "/requests/"+env.token+"/withdraw", nil)
+	rec := httptest.NewRecorder()
+	env.router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+
+	rec = env.get(t, "/requests/"+env.token+"/family-children")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	read := decodeFamilyChildren(t, rec)
+	assert.False(t, read.Data.CanState)
+	assert.False(t, read.Data.Accepted)
+	rec = env.put(t, env.token, `{"children":3}`)
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 }

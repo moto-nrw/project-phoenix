@@ -35,11 +35,15 @@ func (s *Signatures) StateLinkFamilyChildren(ctx context.Context, link string, c
 
 // linkFamily reads, or with children stores, the number of the family of an
 // open link's contract in the link's Träger transaction. Every link
-// openLink refuses is refused here.
+// openLink refuses is refused here. The contract's row is not locked: the
+// number changes no contract, and the Elternabrechnung takes its own lock of
+// the monthly billing. Holding the row while waiting for that lock would
+// deadlock with the Abrechnung, which holds the lock and needs the row for
+// the key of the number (40P01, #6335).
 func (s *Signatures) linkFamily(ctx context.Context, organizationID int64, token string, children *int) (carecontract.FamilyChildren, error) {
 	var result carecontract.FamilyChildren
 	err := s.withinLink(ctx, organizationID, func(txCtx context.Context) error {
-		target, err := s.openLink(txCtx, organizationID, token, s.clock.now())
+		target, err := s.openLinkContract(txCtx, organizationID, token, s.clock.now(), false)
 		if err != nil {
 			return err
 		}

@@ -42,6 +42,9 @@ type RegistrationFamilyChildren struct {
 	Asked bool `json:"asked"`
 	// CanState: the parents may state or correct it now.
 	CanState bool `json:"can_state"`
+	// Accepted: a child of the registration is accepted, so its contract
+	// carries the number from now on.
+	Accepted bool `json:"accepted"`
 }
 
 // IntakeFamilyChildren serves the number on the status page. Each operation

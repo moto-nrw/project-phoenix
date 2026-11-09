@@ -19,6 +19,7 @@ const family: ParentFamilyChildren = {
   validUntil: null,
   canState: false,
   asked: true,
+  accepted: true,
 };
 
 const inbox = { kind: "inbox", organizationId: "4", contractId: "75" } as const;
@@ -156,5 +157,29 @@ describe("ParentFamilyChildrenCard", () => {
     expect(
       screen.getByText(/Der Träger prüft sie, wenn Ihr Vertrag kommt/),
     ).toBeInTheDocument();
+  });
+
+  it("shows nothing once a registration ended without an accepted child", async () => {
+    const enrollment = { kind: "enrollment", token: "tok" } as const;
+    mocks.fetch.mockResolvedValue({
+      ...family,
+      statedChildren: 3,
+      confirmedChildren: null,
+      confirmedAt: null,
+      canState: false,
+      accepted: false,
+    });
+    render(
+      <div data-testid="host">
+        <ParentFamilyChildrenCard source={enrollment} />
+      </div>,
+      { wrapper: ToastProvider },
+    );
+    await vi.waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith(enrollment),
+    );
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("host")).toBeEmptyDOMElement(),
+    );
   });
 });

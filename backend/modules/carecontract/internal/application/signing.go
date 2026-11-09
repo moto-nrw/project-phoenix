@@ -91,7 +91,14 @@ type linkTarget struct {
 // unused and unexpired, its contract must wait for a signature, and the
 // PDF it was sent with must still be the contract's PDF. Only failed link
 // validation answers ErrSigningLinkInvalid; operational errors stay retryable.
+// The contract's row stays locked until the transaction ends.
 func (s *Signatures) openLink(ctx context.Context, organizationID int64, token string, now time.Time) (linkTarget, error) {
+	return s.openLinkContract(ctx, organizationID, token, now, true)
+}
+
+// openLinkContract is openLink; lockContract false reads the contract
+// without its row lock, for a caller that does not change the contract.
+func (s *Signatures) openLinkContract(ctx context.Context, organizationID int64, token string, now time.Time, lockContract bool) (linkTarget, error) {
 	link, err := s.store.SigningLink(ctx, organizationID, s.ports.Links.Tokens.Fingerprint(token))
 	if err != nil {
 		return linkTarget{}, err
@@ -99,7 +106,7 @@ func (s *Signatures) openLink(ctx context.Context, organizationID int64, token s
 	if link.UsedAt != nil || !link.ExpiresAt.After(now) {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}
-	record, err := s.store.Contract(ctx, organizationID, link.ContractID, true)
+	record, err := s.store.Contract(ctx, organizationID, link.ContractID, lockContract)
 	if errors.Is(err, carecontract.ErrContractNotFound) {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}

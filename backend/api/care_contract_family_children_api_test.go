@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -186,4 +187,57 @@ func TestRegistrationAsksWhereTheTraegersRuleCountsTheFamily(t *testing.T) {
 		map[string]any{"sibling_from_child": 2, "discount_basis_points": 5000, "counts_family_children": true}))
 	assert.True(t, asks(other), "a rule that counts the family at the school")
 	assert.False(t, asks(school), "a school the counting rule does not name")
+}
+
+// A statement on the link and a confirmation of the Abrechnung run at the
+// same time (#6335). The Abrechnung holds the lock of the monthly billing
+// and needs the contract's row for the key of the number; the link takes
+// the same billing lock. With the contract's row locked by the link while it
+// waits for the billing lock, PostgreSQL aborts one of them with 40P01.
+// The link must therefore read the contract without its row lock: both
+// finish.
+func TestFamilyChildrenOnTheLinkDoNotDeadlockWithTheAbrechnung(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Kinderzahl Link parallel")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	contract, link := sentCareContract(t, f, f.child)
+	ctx := context.Background()
+
+	// The Abrechnung's side: the billing lock first, as ConfirmFamilyChildren
+	// takes it, then the row that references the contract.
+	office, err := f.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = office.Rollback() }()
+	_, err = office.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.care_billing:' || ?::text, 0))`,
+		f.office.organization)
+	require.NoError(t, err)
+
+	done := make(chan int, 1)
+	go func() {
+		rec := publicSigning(t, f.traeger, http.MethodPut, link+"/family-children", map[string]any{"children": 3})
+		done <- rec.Code
+	}()
+	// Wait until the link's statement waits for the billing lock.
+	require.Eventually(t, func() bool {
+		var waiting int
+		require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted
+			AND ((classid::bigint << 32) | objid::bigint) = hashtextextended('parent_billing.care_billing:' || ?::text, 0)`,
+			f.office.organization).Scan(ctx, &waiting))
+		return waiting > 0
+	}, 30*time.Second, 50*time.Millisecond, "the link waits for the billing lock")
+
+	_, err = office.ExecContext(ctx, `INSERT INTO parent_billing.family_child_counts (organization_id, family_email, care_contract_id,
+		confirmed_children, valid_from, confirmed_at) VALUES (?, 'andere.familie@example.org', ?, 2, DATE '2027-08-01', NOW())`,
+		f.office.organization, contract)
+	require.NoError(t, err, "the Abrechnung reaches the contract's row while the link waits (no 40P01)")
+	require.NoError(t, office.Commit())
+	select {
+	case code := <-done:
+		assert.Equal(t, http.StatusOK, code, "the link's statement finishes after the Abrechnung")
+	case <-time.After(60 * time.Second):
+		t.Fatal("the link's statement never finished")
+	}
+	children, _, found := familyNumber(t, f, f.office.organization, "erika.muster@example.org")
+	require.True(t, found)
+	assert.Equal(t, 3, *children)
 }
