@@ -531,6 +531,98 @@ describe("CustomSelect", () => {
     }
   });
 
+  it("brings the trigger and its open menu back when content above pushes them out of view", () => {
+    // #6356: recipients that load after the calendar's Wiederholung menu
+    // opened grew the lists above the field. The trigger slid below the
+    // drawer's visible area without a scroll event, the menu followed it, and
+    // its options sat outside the viewport where no click could reach them.
+    const observers: {
+      callback: ResizeObserverCallback;
+      targets: Element[];
+    }[] = [];
+    class RecordingResizeObserver {
+      private readonly entry: (typeof observers)[number];
+      constructor(callback: ResizeObserverCallback) {
+        this.entry = { callback, targets: [] };
+        observers.push(this.entry);
+      }
+      observe(target: Element) {
+        this.entry.targets.push(target);
+      }
+      unobserve() {}
+      disconnect() {
+        this.entry.targets = [];
+      }
+    }
+    vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+    window.innerHeight = 720;
+    let triggerTop = 500;
+    const rectSpy = vi
+      .spyOn(HTMLButtonElement.prototype, "getBoundingClientRect")
+      .mockImplementation(
+        () =>
+          ({
+            top: triggerTop,
+            bottom: triggerTop + 40,
+            left: 40,
+            right: 300,
+            width: 260,
+            height: 40,
+            x: 40,
+            y: triggerTop,
+            toJSON: () => ({}),
+          }) as DOMRect,
+      );
+    const scrollIntoViewMock = vi.fn(function (this: Element) {
+      // The browser scrolls the drawer body so the trigger is visible again.
+      if (this.getAttribute("role") === "combobox") triggerTop = 600;
+    });
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    try {
+      render(
+        <div data-testid="drawer-body" style={{ overflowY: "auto" }}>
+          <div data-testid="drawer-content">
+            <CustomSelect
+              value=""
+              options={options}
+              onChange={vi.fn()}
+              ariaLabel="Wiederholung"
+            />
+          </div>
+        </div>,
+      );
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      const listbox = screen.getByRole("listbox");
+      expect(listbox.style.top).toBe("544px");
+
+      const watching = observers.filter((entry) => entry.targets.length > 0);
+      expect(watching.flatMap((entry) => entry.targets)).toEqual([
+        screen.getByTestId("drawer-content"),
+      ]);
+
+      // Content above grows: the trigger is now below the 720 px viewport.
+      triggerTop = 1060;
+      scrollIntoViewMock.mockClear();
+      act(() => {
+        for (const entry of watching) entry.callback([], {} as ResizeObserver);
+      });
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        block: "nearest",
+        inline: "nearest",
+      });
+      expect(scrollIntoViewMock.mock.contexts).toContain(trigger);
+      // The menu sits at the trigger's restored place, inside the viewport.
+      expect(listbox.style.top).toBe(`${600 + 40 + 4}px`);
+    } finally {
+      rectSpy.mockRestore();
+      Element.prototype.scrollIntoView = vi.fn();
+      vi.unstubAllGlobals();
+    }
+  });
+
   describe("scroll behaviour in long lists", () => {
     const longOptions = Array.from({ length: 40 }, (_, index) => ({
       value: `opt-${index}`,
