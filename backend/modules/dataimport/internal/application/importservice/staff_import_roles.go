@@ -22,8 +22,7 @@ import (
 //   - The exact name ranks before a display-name alias: validateRole asks
 //     findRole for the alias only when the name itself has no candidate.
 //   - Several candidates of the same rank leave the choice to the single read
-//     itself, whose pick among them is not fixed today; #6234 decides a
-//     tie-break.
+//     itself, which chooses the smallest ID among them (#6234).
 //
 // Both reads stay inside the validation transaction; one snapshot per
 // validation transaction is what the addendum allows (point 6).
