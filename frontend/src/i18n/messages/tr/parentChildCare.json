@@ -24,6 +24,7 @@
     "overlapError": "Bu günlerden biri için zaten açık bir mazeret bildirimi var.",
     "schoolPartialTitle": "{count, plural, one {Bir gün için {careTerm} kurumuna talep gider} other {# gün için {careTerm} kurumuna talep gider}}",
     "schoolPartialDay": "{date}: saat {time} itibarıyla mazeretli",
+    "schoolSickDay": "{date}: {careTerm} tarafından hasta bildirildi",
     "schoolPartialRequest": "{count, plural, one {{careTerm} buraya zaten bir kayıt girdi. Bu gün hakkında o karar verir.} other {{careTerm} buraya zaten bir kayıt girdi. Bu günler hakkında o karar verir.}} O zamana kadar onun kaydı geçerlidir.",
     "freeDaysCount": "{count, plural, one {{total} günden # gün doğrudan bildirilir.} other {{total} günden # gün doğrudan bildirilir.}}",
     "schoolPartialConflict": "{careTerm} günlerden biri için az önce bir kayıt girdi. Lütfen bildirimi tekrar gönderin.",

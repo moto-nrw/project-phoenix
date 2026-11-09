@@ -386,6 +386,24 @@ func TestExcusedRequestPartialAbsenceConflicts(t *testing.T) {
 	assert.NoError(t, err, "a partial absence no longer blocks the request")
 }
 
+// A request whose first day has passed can still be approved one by one, so
+// the queue names its partial absence too (#5698).
+func TestExcusedRequestPartlyPastNamesPartialAbsence(t *testing.T) {
+	t.Parallel()
+	f := newExcusedFixture(t)
+	f.createPending(t, []careplan.Date{excusedPast, excusedIn3Days}, "Arzttermin")
+	f.createManualPartialAbsence(t, excusedIn3Days)
+
+	require.NoError(t, f.inTenant(t, func(ctx context.Context) error {
+		items, _, err := f.requests.ListPending(ctx, careplan.RequestQueueFilter{})
+		require.NoError(t, err)
+		require.Len(t, items, 1)
+		assert.Equal(t, careplan.BulkIneligiblePast, items[0].BulkIneligibleReason)
+		assert.Equal(t, map[string]string{excusedIn3Days.String(): "13:30"}, items[0].PartialAbsenceFromByDate)
+		return nil
+	}))
+}
+
 func TestExcusedRequestPastRequestsMarkDoneInsteadOfApprove(t *testing.T) {
 	t.Parallel()
 	f := newExcusedFixture(t)

@@ -751,6 +751,9 @@ function knownSickErrorKey(err: unknown): string | null {
 }
 
 const NO_CARE_EXCEPTIONS: readonly CareException[] = [];
+const NO_STATUS_DAYS: readonly StatusDay[] = [];
+/** A day the school already holds: from a time, or (`time` null) sick. */
+type SchoolDay = { readonly date: string; readonly time: string | null };
 // "Mittwoch, 11.11.2026": parents plan absences by weekday.
 const SCHOOL_DAY_FORMAT = {
   weekday: "long",
@@ -771,6 +774,7 @@ export function SickNoteModal({
   excusedEnabled = true,
   reasonRequired = true,
   careExceptions = NO_CARE_EXCEPTIONS,
+  sickDays = NO_STATUS_DAYS,
 }: Readonly<{
   studentId?: string;
   onClose: () => void;
@@ -791,6 +795,11 @@ export function SickNoteModal({
    * OGS (`excused_from`) geht die Meldung als Anfrage an die OGS (#5698).
    */
   careExceptions?: readonly CareException[];
+  /**
+   * Die Abwesenheiten, die Eltern sehen. Eine Krankmeldung der OGS
+   * (`source` nicht `parent`) ist ein Schuleintrag wie eine Teil-Abwesenheit.
+   */
+  sickDays?: readonly StatusDay[];
 }>) {
   const t = useCareTermTranslations("parentChildCare");
   const locale = useLocale();
@@ -835,9 +844,19 @@ export function SickNoteModal({
       ),
     [careExceptions, reloadedExceptions],
   );
-  const schoolDays = dates.flatMap((date) => {
+  const schoolSickDates = useMemo(
+    () =>
+      new Set(
+        sickDays
+          .filter((day) => day.source !== "parent")
+          .map((day) => day.date),
+      ),
+    [sickDays],
+  );
+  const schoolDays = dates.flatMap((date): SchoolDay[] => {
     const time = schoolExcusedFrom.get(date);
-    return time ? [{ date, time }] : [];
+    if (time) return [{ date, time }];
+    return schoolSickDates.has(date) ? [{ date, time: null }] : [];
   });
   const freeDayCount = dates.length - schoolDays.length;
   const noteMissing = reason.trim() === "";
@@ -1029,14 +1048,22 @@ export function SickNoteModal({
                 <ul className="space-y-0.5 tabular-nums">
                   {schoolDays.map((day) => (
                     <li key={day.date}>
-                      {t("sick.schoolPartialDay", {
-                        date: formatCalendarDate(
-                          day.date,
-                          locale,
-                          SCHOOL_DAY_FORMAT,
-                        ),
-                        time: day.time,
-                      })}
+                      {day.time
+                        ? t("sick.schoolPartialDay", {
+                            date: formatCalendarDate(
+                              day.date,
+                              locale,
+                              SCHOOL_DAY_FORMAT,
+                            ),
+                            time: day.time,
+                          })
+                        : t("sick.schoolSickDay", {
+                            date: formatCalendarDate(
+                              day.date,
+                              locale,
+                              SCHOOL_DAY_FORMAT,
+                            ),
+                          })}
                     </li>
                   ))}
                 </ul>

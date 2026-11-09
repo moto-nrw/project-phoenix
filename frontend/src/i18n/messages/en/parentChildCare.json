@@ -24,6 +24,7 @@
     "overlapError": "One of these days already has an open absence request.",
     "schoolPartialTitle": "{count, plural, one {A request goes to the {careTerm} for one day} other {A request goes to the {careTerm} for # days}}",
     "schoolPartialDay": "{date}: excused from {time}",
+    "schoolSickDay": "{date}: reported sick by the {careTerm}",
     "schoolPartialRequest": "{count, plural, one {The {careTerm} has already entered something here. It decides about this day.} other {The {careTerm} has already entered something here. It decides about these days.}} Until then, its entry applies.",
     "freeDaysCount": "{count, plural, one {# of {total} days is reported directly.} other {# of {total} days are reported directly.}}",
     "schoolPartialConflict": "The {careTerm} has just entered something for one of the days. Please send the report again.",

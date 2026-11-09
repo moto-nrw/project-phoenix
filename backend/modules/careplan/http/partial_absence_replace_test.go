@@ -69,10 +69,22 @@ func TestStatusDayReplacesConfirmedPartialAbsence(t *testing.T) {
 
 	code, body = post(map[string]any{"status": "sick", "dates": days, "replace_partial_absence_dates": days}, []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, code, "no absence right, no replacement: %s", body)
+	// An absence-only role may report the day but not remove the partial
+	// absence: that needs the same right as deleting it (#2232).
+	code, body = post(map[string]any{"status": "sick", "dates": days, "replace_partial_absence_dates": []string{replaceDay.String()}}, []string{"users:read", "users:absence"})
+	assert.Equal(t, http.StatusForbidden, code, "absence-only role, no replacement: %s", body)
 	assert.Equal(t, 1, partialAbsenceCount(t, tc, student.ID, account.ID, replaceDay))
 
+	// A second partial absence the caller did not confirm still refuses the
+	// write, and the confirmed one is not removed by the refused request.
+	createPartialAbsence(t, tc, student.ID, account.ID, free)
 	code, body = post(map[string]any{"status": "sick", "dates": days, "replace_partial_absence_dates": []string{replaceDay.String()}}, []string{"admin:*"})
+	require.Equal(t, http.StatusConflict, code, body)
+	assert.Equal(t, 1, partialAbsenceCount(t, tc, student.ID, account.ID, replaceDay), "a refused write keeps the confirmed partial absence")
+	code, body = post(map[string]any{"status": "sick", "dates": days, "replace_partial_absence_dates": days}, []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, code, body)
+	assert.Zero(t, partialAbsenceCount(t, tc, student.ID, account.ID, free))
+
 	assert.Zero(t, partialAbsenceCount(t, tc, student.ID, account.ID, replaceDay), "the partial absence is gone")
 	rows, err := tc.statusDays.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, replaceDay, free)
 	require.NoError(t, err)

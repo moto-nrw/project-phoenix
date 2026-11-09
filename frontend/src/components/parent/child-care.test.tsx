@@ -1219,6 +1219,38 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     ).toBeInTheDocument();
   });
 
+  it("zählt eine Krankmeldung der OGS als Schuleintrag", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        sickDays={[
+          {
+            id: "1",
+            student_id: "7",
+            date: "2026-09-10",
+            status: "sick",
+            reported_at: "2026-09-08T10:00:00Z",
+            source: "planned",
+          },
+        ]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "Für einen Tag geht eine Anfrage an die OGS",
+    );
+    expect(notice).toHaveTextContent(
+      /10\.09\.2026: von der OGS krank gemeldet/,
+    );
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
+  });
+
   it("übersieht Abholzeiten ohne Teil-Abwesenheit", () => {
     render(
       <SickNoteModal

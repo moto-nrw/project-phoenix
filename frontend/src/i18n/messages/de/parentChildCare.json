@@ -24,6 +24,7 @@
     "overlapError": "Für einen dieser Tage liegt bereits eine offene Abmeldung vor.",
     "schoolPartialTitle": "{count, plural, one {Für einen Tag geht eine Anfrage an die {careTerm}} other {Für # Tage geht eine Anfrage an die {careTerm}}}",
     "schoolPartialDay": "{date}: entschuldigt ab {time} Uhr",
+    "schoolSickDay": "{date}: von der {careTerm} krank gemeldet",
     "schoolPartialRequest": "{count, plural, one {Hier hat die {careTerm} schon etwas eingetragen. Sie entscheidet über diesen Tag.} other {Hier hat die {careTerm} schon etwas eingetragen. Sie entscheidet über diese Tage.}} Bis dahin gilt ihr Eintrag.",
     "freeDaysCount": "{count, plural, one {# von {total} Tagen wird direkt gemeldet.} other {# von {total} Tagen werden direkt gemeldet.}}",
     "schoolPartialConflict": "Die {careTerm} hat gerade etwas für einen der Tage eingetragen. Bitte senden Sie die Meldung noch einmal.",

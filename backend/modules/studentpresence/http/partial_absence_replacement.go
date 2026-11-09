@@ -4,6 +4,7 @@ import (
 	context "context"
 	errors "errors"
 	"fmt"
+	http "net/http"
 	slices "slices"
 
 	render "github.com/go-chi/render"
@@ -25,10 +26,12 @@ type PartialAbsenceReplacer interface {
 // every manual partial absence then refuses the write as before.
 //
 // Removing a partial absence is the same write as deleting it, so the caller
-// also needs the partial-absence write gate (the "excused" status gate).
+// also needs the partial-absence write gate: full write access to the child
+// and the "excused" status gate. An absence-only role does not have it (#2232).
 func (rs *Resource) partialAbsenceReplacement(
-	ctx context.Context, userPermissions []string, student *peopleModule.StudentState, rawDates []string, requested []calendar.Date,
+	r *http.Request, userPermissions []string, student *peopleModule.StudentState, rawDates []string, requested []calendar.Date,
 ) (func(context.Context, int64) error, render.Renderer) {
+	ctx := r.Context()
 	if len(rawDates) == 0 {
 		return nil, nil
 	}
@@ -43,6 +46,9 @@ func (rs *Resource) partialAbsenceReplacement(
 	}
 	if rs.PartialAbsences == nil {
 		return nil, common.ErrorInternalServer(errors.New("partial absence replacement is not configured"))
+	}
+	if !rs.checkStudentFullAccess(r, student) {
+		return nil, common.ErrorForbidden(errors.New("full access required to replace partial absences"))
 	}
 	if ok, authErr := rs.canManageStudentStatus(ctx, userPermissions, student, absencerecords.StudentStatusDayExcused); !ok {
 		if authErr == nil {

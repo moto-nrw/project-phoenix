@@ -24,6 +24,7 @@
     "overlapError": "Për një nga këto ditë ekziston tashmë një kërkesë mungese e hapur.",
     "schoolPartialTitle": "{count, plural, one {Për një ditë i dërgohet një kërkesë {careTerm}} other {Për # ditë i dërgohet një kërkesë {careTerm}}}",
     "schoolPartialDay": "{date}: i justifikuar nga ora {time}",
+    "schoolSickDay": "{date}: {careTerm} e ka shënuar si të sëmurë",
     "schoolPartialRequest": "{count, plural, one {{careTerm} ka shënuar tashmë diçka këtu. Ajo vendos për këtë ditë.} other {{careTerm} ka shënuar tashmë diçka këtu. Ajo vendos për këto ditë.}} Deri atëherë vlen shënimi i saj.",
     "freeDaysCount": "{count, plural, one {# nga {total} ditë njoftohet drejtpërdrejt.} other {# nga {total} ditë njoftohen drejtpërdrejt.}}",
     "schoolPartialConflict": "{careTerm} sapo shënoi diçka për një nga ditët. Ju lutemi dërgojeni njoftimin edhe një herë.",

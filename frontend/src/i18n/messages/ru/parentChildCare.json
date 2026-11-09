@@ -24,6 +24,7 @@
     "overlapError": "На один из этих дней уже есть открытая заявка об отсутствии.",
     "schoolPartialTitle": "{count, plural, one {На # день запрос уйдёт в {careTerm}} few {На # дня запрос уйдёт в {careTerm}} many {На # дней запрос уйдёт в {careTerm}} other {На # дня запрос уйдёт в {careTerm}}}",
     "schoolPartialDay": "{date}: освобождён с {time}",
+    "schoolSickDay": "{date}: {careTerm} отметила болезнь",
     "schoolPartialRequest": "{count, plural, one {{careTerm} уже внесла запись на этот день. Решение принимает она.} few {{careTerm} уже внесла записи на эти дни. Решение принимает она.} many {{careTerm} уже внесла записи на эти дни. Решение принимает она.} other {{careTerm} уже внесла записи на эти дни. Решение принимает она.}} До тех пор действует её запись.",
     "freeDaysCount": "{count, plural, one {# из {total} дней сообщается сразу.} few {# из {total} дней сообщаются сразу.} many {# из {total} дней сообщаются сразу.} other {# из {total} дня сообщаются сразу.}}",
     "schoolPartialConflict": "{careTerm} только что внесла запись на один из дней. Пожалуйста, отправьте сообщение ещё раз.",

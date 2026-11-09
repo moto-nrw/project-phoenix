@@ -24,6 +24,7 @@
     "overlapError": "Na jeden z tych dni jest już zgłoszone zwolnienie.",
     "schoolPartialTitle": "{count, plural, one {Na jeden dzień trafi prośba do {careTerm}} few {Na # dni trafi prośba do {careTerm}} many {Na # dni trafi prośba do {careTerm}} other {Na # dnia trafi prośba do {careTerm}}}",
     "schoolPartialDay": "{date}: zwolnione od {time}",
+    "schoolSickDay": "{date}: zgłoszone jako chore przez {careTerm}",
     "schoolPartialRequest": "{count, plural, one {{careTerm} wpisała już coś na ten dzień. To ona decyduje o tym dniu.} few {{careTerm} wpisała już coś na te dni. To ona decyduje o tych dniach.} many {{careTerm} wpisała już coś na te dni. To ona decyduje o tych dniach.} other {{careTerm} wpisała już coś na te dni. To ona decyduje o tych dniach.}} Do tego czasu obowiązuje jej wpis.",
     "freeDaysCount": "{count, plural, one {# z {total} dni zostanie zgłoszony bezpośrednio.} few {# z {total} dni zostaną zgłoszone bezpośrednio.} many {# z {total} dni zostanie zgłoszonych bezpośrednio.} other {# z {total} dni zostanie zgłoszone bezpośrednio.}}",
     "schoolPartialConflict": "{careTerm} właśnie wpisała coś na jeden z tych dni. Proszę wysłać zgłoszenie jeszcze raz.",

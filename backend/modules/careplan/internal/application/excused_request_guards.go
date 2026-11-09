@@ -80,15 +80,21 @@ type absenceEligibility struct {
 // approval. It takes the already-resolved status view so the queue reads the
 // child's current days exactly once per request, whichever branch decides.
 func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date, facts absenceReviewFacts) (absenceEligibility, error) {
+	beyondCare := requestExtendsBeyondCare(req, &student)
+	// The card names the partial absences whenever a single approval is
+	// still possible, also when an earlier day of the request has passed.
+	var partialFrom map[string]string
+	if !beyondCare && !parentRequestIsPast(excusedScopeEnd(req), today) {
+		var err error
+		if partialFrom, err = facts.manualPartialAbsences(ctx, w, req.StudentID, req.Dates); err != nil {
+			return absenceEligibility{}, err
+		}
+	}
 	if !absenceBulkEligible(req.Dates, today) {
-		return absenceEligibility{code: careplan.BulkIneligiblePast, text: "Mindestens ein Tag ist vorbei."}, nil
+		return absenceEligibility{code: careplan.BulkIneligiblePast, text: "Mindestens ein Tag ist vorbei.", partialFrom: partialFrom}, nil
 	}
-	if requestExtendsBeyondCare(req, &student) {
+	if beyondCare {
 		return absenceEligibility{code: careplan.BulkIneligibleChildUnavailable, text: "Mindestens ein Tag liegt nach dem Betreuungsende."}, nil
-	}
-	partialFrom, err := facts.manualPartialAbsences(ctx, w, req.StudentID, req.Dates)
-	if err != nil {
-		return absenceEligibility{}, err
 	}
 	if len(partialFrom) > 0 {
 		// Replacing a partial absence is a deliberate single decision.

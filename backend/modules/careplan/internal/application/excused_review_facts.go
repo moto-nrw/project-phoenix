@@ -44,12 +44,12 @@ func (w *ExcusedRequests) loadAbsenceReviewFacts(ctx context.Context, rows []car
 			facts.statusDays[day.StudentID] = append(facts.statusDays[day.StudentID], day)
 		}
 	}
-	// Past days and days beyond care end short-circuit before the partial
-	// absence read. Do not include those requests in its batch either.
+	// Fully past requests and days beyond care end short-circuit before the
+	// partial absence read. Do not include those requests in its batch either.
 	partialRows := make([]careplan.ExcusedAbsenceRequest, 0, len(rows))
 	for _, row := range rows {
 		student := students[row.StudentID]
-		if absenceBulkEligible(row.Dates, today) && !requestExtendsBeyondCare(&row, &student) {
+		if !parentRequestIsPast(excusedScopeEnd(&row), today) && !requestExtendsBeyondCare(&row, &student) {
 			partialRows = append(partialRows, row)
 		}
 	}
