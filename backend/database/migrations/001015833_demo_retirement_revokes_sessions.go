@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -201,17 +200,105 @@ func demoRetirementRevokesSessionsUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// demoRetirementOf734SQL is the retirement of 1.15.734, without the deferral
-// note that migration also created.
-func demoRetirementOf734SQL() string {
-	return demoSchoolRetirementWithoutWaitSQL[strings.Index(demoSchoolRetirementWithoutWaitSQL,
-		"CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools"):]
-}
+// demoRetirementOf734SQL is platform.retire_expired_demo_schools as
+// 1.15.734 left it, without the deferral note that migration also created.
+const demoRetirementOf734SQL = `
+		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
+		RETURNS TABLE(hidden INTEGER, erased INTEGER)
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		SET lock_timeout = '100ms'
+		AS $$
+		DECLARE
+			target_name TEXT;
+			targets TEXT[];
+			hidden_count INTEGER := 0;
+			changed INTEGER;
+			tried INTEGER := 0;
+		BEGIN
+			hidden := 0;
+			erased := 0;
+			IF NOT pg_try_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0)) THEN
+				RAISE LOG 'demo school retirement skipped: another run holds the run lock';
+				RETURN NEXT;
+				RETURN;
+			END IF;
+			BEGIN
+				-- Orders deferred less often come first, so orders that stay
+				-- locked never starve the others of the budget.
+				SELECT COALESCE(array_agg(target.name ORDER BY COALESCE(ordered.erasure_deferrals, 0), target.name), '{}'::TEXT[]) INTO targets
+				FROM (
+					SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS named(name)
+					UNION
+					SELECT state.name
+					FROM platform.demo_school_states AS state
+					JOIN platform.schools AS school ON school.id = state.tenant_id
+					WHERE state.status = 'ready'
+						AND state.first_name <> ''
+						AND school.deleted_at IS NULL
+						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
+				) AS target
+				LEFT JOIN platform.demo_school_states AS ordered ON ordered.name = target.name;
+			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+				RAISE LOG 'demo school retirement skipped this run (SQLSTATE %): a table it reads is locked', SQLSTATE;
+				RETURN NEXT;
+				RETURN;
+			END;
+			FOREACH target_name IN ARRAY targets
+			LOOP
+				-- The retirement has a budget of its own: it starts no order after
+				-- 200 ms, so the erasure keeps its turn. Each lock wait ends after
+				-- 100 ms; an order already started is finished, so the run time is
+				-- bounded, not cut off. The rest is found again.
+				IF tried >= 50 OR clock_timestamp() - statement_timestamp() > INTERVAL '200 milliseconds' THEN
+					RAISE LOG 'demo school retirement ends this run at its budget: % schools hidden, the rest stays open', hidden_count;
+					EXIT;
+				END IF;
+				tried := tried + 1;
+				BEGIN
+					-- Only an order still open to visitors or still waiting is
+					-- retired here. A hidden or failed order is the erasure's, which
+					-- takes the same locks: one order, one deferral a run.
+					PERFORM 1 FROM platform.demo_school_states AS state
+					LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
+					WHERE state.name = target_name
+						AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+						AND (school.id IS NULL OR school.deleted_at IS NULL);
+					IF NOT FOUND THEN
+						CONTINUE;
+					END IF;
+					PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
+					PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
+					IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
+						CONTINUE;
+					END IF;
+					UPDATE platform.schools AS school SET deleted_at = NOW()
+						FROM platform.demo_school_states AS state
+						WHERE state.name = target_name
+							AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+							AND school.id = state.tenant_id AND school.deleted_at IS NULL;
+					GET DIAGNOSTICS changed = ROW_COUNT;
+					UPDATE platform.demo_school_states AS state SET status = 'failed'
+						WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
+							AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
+					hidden_count := hidden_count + changed;
+				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+					PERFORM platform.defer_demo_order(target_name, 'retirement', SQLSTATE);
+				END;
+			END LOOP;
+			hidden := hidden_count;
+			erased := platform.erase_closed_demo_visitors();
+			RETURN NEXT;
+		END;
+		$$;
+`
 
 // demoRetirementRevokesSessionsDown reinstalls the retirement of 1.15.734 and
 // drops the revocation. Sessions it ended stay ended.
 func demoRetirementRevokesSessionsDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, demoRetirementOf734SQL()); err != nil {
+	if _, err := db.ExecContext(ctx, demoRetirementOf734SQL); err != nil {
 		return fmt.Errorf("restore the demo school retirement of 1.15.734: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS auth.revoke_school_sessions(BIGINT)`); err != nil {

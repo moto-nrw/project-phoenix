@@ -18,7 +18,9 @@ func TestDemoRetirementRevokesSessionsChangesOnlyTheHiding(t *testing.T) {
 	t.Parallel()
 	declared := "\t\t\ttried INTEGER := 0;\n"
 	hiding := "\t\t\t\t\t\t\tAND school.id = state.tenant_id AND school.deleted_at IS NULL;\n\t\t\t\t\tGET DIAGNOSTICS changed = ROW_COUNT;\n"
-	of734 := demoRetirementOf734SQL()
+	of734 := demoSchoolRetirementWithoutWaitSQL[strings.Index(demoSchoolRetirementWithoutWaitSQL,
+		"CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools"):]
+	assert.Equal(t, of734, strings.TrimLeft(demoRetirementOf734SQL, "\n\t"), "the down restores the retirement of 1.15.734")
 	require.Equal(t, 1, strings.Count(of734, declared))
 	require.Equal(t, 1, strings.Count(of734, hiding))
 	expected := strings.Replace(of734, declared, declared+"\t\t\thidden_school BIGINT;\n", 1)
@@ -96,4 +98,33 @@ func TestDemoRetiredSchoolSessionsBackfill(t *testing.T) {
 	assert.Zero(t, schoolSessionCount(t, db, retiredDemo), "a demo school hidden before loses its sessions")
 	assert.Equal(t, 1, schoolSessionCount(t, db, openDemo), "an open demo school keeps them")
 	assert.Equal(t, 1, schoolSessionCount(t, db, deletedSchool), "a deleted school without demo origin is not touched")
+}
+
+// Down restores the retirement of 1.15.734 and drops the revocation, also a
+// second time; Up then installs both again.
+func TestDemoRetirementRevokesSessionsRoundTrip(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	revocationExists := func() bool {
+		var exists bool
+		require.NoError(t, db.NewRaw(`SELECT to_regprocedure('auth.revoke_school_sessions(bigint)') IS NOT NULL`).Scan(ctx, &exists))
+		return exists
+	}
+	retirementRevokes := func() bool {
+		var definition string
+		require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.retire_expired_demo_schools(text[])'::regprocedure)`).Scan(ctx, &definition))
+		return strings.Contains(definition, "auth.revoke_school_sessions")
+	}
+	require.True(t, revocationExists())
+	require.True(t, retirementRevokes())
+
+	for range 2 {
+		require.NoError(t, demoRetirementRevokesSessionsDown(ctx, db))
+		assert.False(t, revocationExists())
+		assert.False(t, retirementRevokes())
+	}
+	require.NoError(t, demoRetirementRevokesSessionsUp(ctx, db))
+	assert.True(t, revocationExists())
+	assert.True(t, retirementRevokes())
 }
