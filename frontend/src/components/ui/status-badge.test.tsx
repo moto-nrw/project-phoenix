@@ -85,6 +85,15 @@ describe("StatusBadge", () => {
     expect(pill.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
+  // #5617: ein Umriss-Dreieck verschmiert bei 12 px auf 1x-Bildschirmen, das
+  // Ausrufezeichen wird zum Fleck. Das Standardsymbol ist deshalb gefüllt.
+  it("draws the warning icon filled, not as an outline", () => {
+    render(<StatusBadge label="12 offen" tone="warning" />);
+    const svg = screen.getByText("12 offen").querySelector("svg");
+    expect(svg).toHaveAttribute("fill", "currentColor");
+    expect(svg).toHaveClass("h-3", "w-3", "shrink-0");
+  });
+
   it("lets a caller replace the warning icon", () => {
     render(
       <StatusBadge label="Gesperrt" tone="warning" icon={CheckCircleIcon} />,

@@ -277,7 +277,6 @@ function figureColumns(
             <StatusBadge
               tone="warning"
               size="xs"
-              icon={TriangleAlert}
               label={String(school.figures.childrenSick)}
               accessibleLabel=", erreicht Ihre Grenze"
             />
@@ -298,7 +297,6 @@ function figureColumns(
             <StatusBadge
               tone="warning"
               size="xs"
-              icon={TriangleAlert}
               label={String(school.figures.staffPresent)}
               accessibleLabel=", erreicht Ihre Grenze"
             />
@@ -331,7 +329,6 @@ function figureColumns(
               <StatusBadge
                 tone="warning"
                 size="xs"
-                icon={TriangleAlert}
                 label={formatRatio(school.figures.careRatio)}
                 accessibleLabel=", erreicht Ihre Grenze"
               />
@@ -362,7 +359,6 @@ function figureColumns(
               <StatusBadge
                 tone="warning"
                 size="xs"
-                icon={TriangleAlert}
                 label={String(open)}
                 accessibleLabel=", erreicht Ihre Grenze"
               />
