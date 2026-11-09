@@ -290,8 +290,8 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 // absent — in both cases only the provenance stamp is cleared so the deleted
 // report stops owning them, and the admin resolves the rest manually.
 func (s *sickCascade) ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error {
-	// Keyed purely by the provenance stamps, so the reported range is not read
-	// and a malformed one must not block the reversal.
+	// Keyed by the provenance stamps; the reported range only widens the day
+	// locks, so a malformed one must not block the reversal.
 	report := stampScope(in)
 	if err := s.lockSickReversalStaffWrites(ctx, report); err != nil {
 		return err
@@ -442,7 +442,7 @@ func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[calen
 			continue
 		}
 		if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
-			return fmt.Errorf("sick reconcile: day lock %s: %w", day.String(), err)
+			return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
 		}
 	}
 	return nil

@@ -451,7 +451,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			lifecycle, err = BuildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
-				WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
+				WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service, NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {

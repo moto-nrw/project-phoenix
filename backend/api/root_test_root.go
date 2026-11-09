@@ -291,7 +291,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			lifecycle, err = owners.BuildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
-				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
+				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service, owners.NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {

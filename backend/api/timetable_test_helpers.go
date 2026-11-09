@@ -167,7 +167,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
 		StaffRepo: owners.NewTimetableStaff(members.Staff), ActiveGroupRepo: presence.ActiveGroup, SupervisorRepo: presence.GroupSupervisor,
 		Presence: owners.NewLoggedStudentPresence(db, logger), ActiveService: ender, CareDayLocks: carePlan,
-		Materialization: materialization, RecurrenceLock: recurrenceLock,
+		Materialization: materialization, SickReports: owners.NewTimetableSickReports(owners.MustNewWorkforce(db)), RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Logger: logger, Now: now,
 	}, lifecycleRows, careDay, nil, settings.Settings, hub)
 	if err != nil {

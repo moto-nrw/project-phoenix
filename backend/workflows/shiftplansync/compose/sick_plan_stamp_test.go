@@ -12,6 +12,10 @@
 //   - I5: a materialization and a concurrent sick-report write serialize on
 //     the day locks (recurrence → days ascending): no new block keeps the
 //     sick person present, none keeps the stamp of a deleted report.
+//   - I6: an edit that adds a person or moves a block takes the sick state
+//     of the block's date; a stamp never lands outside its report's days.
+//   - I7: deleting a report takes all its day locks once, ascending, so it
+//     cannot deadlock against an ascending day-lock writer.
 //
 // The sick reports run through the real Workforce absence writes and their
 // cascade; the blocks through the real materializer and instance lifecycle.
@@ -189,13 +193,22 @@ func TestSickReport_EditedBlockKeepsStampSoShortenedReportRestoresPresence(t *te
 
 func (e *sickCascadeEnv) updateInstance(t *testing.T, instanceID, templateID int64, staffIDs []int64) {
 	t.Helper()
+	e.updateInstanceOn(t, instanceID, templateID, staffIDs, "")
+}
+
+// updateInstanceOn edits a planned block; a non-empty date moves it.
+func (e *sickCascadeEnv) updateInstanceOn(t *testing.T, instanceID, templateID int64, staffIDs []int64, date calendar.Date) {
+	t.Helper()
 	instances, err := testpkg.TenantQuery1(t, e.ctx, e.db, e.repos.InstanceReads().GetActivityInstancesByID, []int64{instanceID})
 	require.NoError(t, err)
 	instance := instances[instanceID]
 	require.NotNil(t, instance)
 	e.inTx(t, func(ctx context.Context) error {
+		if date == "" {
+			date = instance.Date
+		}
 		_, err := e.timetable.Instance.UpdatePlanned(ctx, instanceID, timetable.UpdateInstanceInput{
-			Date:            instance.Date,
+			Date:            date,
 			StartTime:       instance.StartTime,
 			EndTime:         instance.EndTime,
 			Title:           instance.Title + " (bearbeitet)",
@@ -205,6 +218,41 @@ func (e *sickCascadeEnv) updateInstance(t *testing.T, instanceID, templateID int
 		}, nil)
 		return err
 	})
+}
+
+// I6: the edit adds a sick person, and moves blocks onto and off a sick day.
+func TestSickReport_EditTakesSickStateOfTheBlocksDate(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	e.materialize(t, stampWeekOne, stampWeekThree)
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	var substituteSickID int64
+	e.inTx(t, func(ctx context.Context) error {
+		created, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.sub.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+			AbsenceType: "sick", DateStart: stampWeekOne.String(), DateEnd: stampWeekOne.String(),
+		})
+		if err == nil {
+			substituteSickID = created.ID
+		}
+		return err
+	})
+
+	weekOne := e.templateRow(t, templateID, e.subject.ID, stampWeekOne)
+	e.updateInstance(t, weekOne.InstanceID, templateID, []int64{e.subject.ID, e.sub.ID})
+	assertSickStamp(t, e.templateRow(t, templateID, e.sub.ID, stampWeekOne), substituteSickID, "sick person added by the edit")
+	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, stampWeekOne), "healthy person kept by the edit")
+
+	sickDay := e.templateRow(t, templateID, e.subject.ID, stampWeekTwo)
+	assertSickStamp(t, sickDay, absenceID, "cascade marked the sick day")
+	movedOff := stampWeekTwo.AddDays(1)
+	e.updateInstanceOn(t, sickDay.InstanceID, templateID, []int64{e.subject.ID}, movedOff)
+	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, movedOff), "block moved off the sick day")
+
+	weekThree := e.templateRow(t, templateID, e.subject.ID, stampWeekThree)
+	e.updateInstanceOn(t, weekThree.InstanceID, templateID, []int64{e.subject.ID}, stampWeekTwo)
+	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, stampWeekTwo), absenceID, "block moved onto the sick day")
 }
 
 // I1 + I3 for a re-plan.
@@ -329,14 +377,93 @@ func (e *sickCascadeEnv) expectBlockedUntilRelease(t *testing.T, release chan st
 		_, err := e.timetable.Materialization.MaterializeForTenant(e.ctx, stampWeekOne, stampWeekOne, timetable.MaterializationSourceManual)
 		materialized <- err
 	}()
-	select {
-	case err := <-materialized:
+	if returned, err := e.awaitDayLockWaiter(t, stampWeekOne, materialized); returned {
 		close(release)
 		require.NoError(t, <-writeDone)
 		require.FailNow(t, "materialization did not wait for the sick report's day lock", "returned early: %v", err)
-	case <-time.After(300 * time.Millisecond):
 	}
 	close(release)
 	require.NoError(t, <-writeDone)
 	require.NoError(t, <-materialized)
+}
+
+// awaitDayLockWaiter blocks until a transaction waits for the day lock of
+// date in this test's tenant, or until done delivers first. It reports
+// whether done delivered, with its value.
+func (e *sickCascadeEnv) awaitDayLockWaiter(t *testing.T, date calendar.Date, done <-chan error) (bool, error) {
+	t.Helper()
+	key := timetable.SubstituteDayLockKey(e.tenantID, date)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-done:
+			return true, err
+		default:
+		}
+		var waiting int
+		require.NoError(t, e.db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = 'advisory'
+			  AND query LIKE '%' || ? || '%'`, key).Scan(context.Background(), &waiting))
+		if waiting > 0 {
+			return false, nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	require.FailNow(t, "no transaction waited for the day lock", "%s", key)
+	return false, nil
+}
+
+// lockDay takes the day lock the Timetable owner's adapter takes.
+func lockDay(ctx context.Context, tx bun.Tx, tenantID int64, date calendar.Date) error {
+	_, err := tx.NewRaw("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", timetable.SubstituteDayLockKey(tenantID, date)).Exec(ctx)
+	return err
+}
+
+// I7: a stamp outside the report's range (left by an older edit) is cleared
+// under its day lock taken in the same ascending pass as the range days. A
+// writer that holds the earlier day and then takes the later one, the
+// documented ascending order, must not deadlock against the deletion.
+func TestSickReport_DeletionTakesItsDayLocksAscending(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	e.materialize(t, stampWeekOne, stampWeekTwo)
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	outside := e.templateRow(t, templateID, e.subject.ID, stampWeekOne)
+	_, err := e.db.NewRaw(`UPDATE schedule.instance_staff SET is_absent = TRUE, absence_reason = ?, sick_absence_id = ? WHERE id = ? AND tenant_id = ?`,
+		timetable.SickBlockAbsenceReason, absenceID, outside.ID, e.tenantID).Exec(e.ctx)
+	require.NoError(t, err)
+
+	holding := make(chan struct{})
+	proceed := make(chan struct{})
+	writerDone := make(chan error, 1)
+	go func() {
+		writerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, tx bun.Tx) error {
+			if err := lockDay(ctx, tx, e.tenantID, stampWeekOne); err != nil {
+				return err
+			}
+			close(holding)
+			<-proceed
+			return lockDay(ctx, tx, e.tenantID, stampWeekTwo)
+		})
+	}()
+	<-holding
+	deletionDone := make(chan error, 1)
+	go func() {
+		deletionDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return e.absences.SickReports.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
+		})
+	}()
+	if returned, err := e.awaitDayLockWaiter(t, stampWeekOne, deletionDone); returned {
+		close(proceed)
+		require.NoError(t, <-writerDone)
+		require.FailNow(t, "deletion did not wait for the stamped day", "returned early: %v", err)
+	}
+	close(proceed)
+	require.NoError(t, <-writerDone, "ascending writer must not deadlock")
+	require.NoError(t, <-deletionDone, "deletion must not deadlock")
+
+	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, stampWeekOne), "stamp outside the range")
+	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, stampWeekTwo), "sick day of the deleted report")
 }

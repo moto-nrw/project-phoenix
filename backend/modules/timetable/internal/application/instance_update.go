@@ -55,7 +55,8 @@ func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID
 	if err := s.consumeMovedSlot(ctx, origSlot, req); err != nil {
 		return nil, err
 	}
-	if err := s.replaceInstanceAssignments(ctx, instance, req.StaffIDs, req.StudentIDs, actorAccountID); err != nil {
+	moved := origSlot.Date != calendar.Date(instance.Date)
+	if err := s.replaceInstanceAssignments(ctx, instance, moved, req.StaffIDs, req.StudentIDs, actorAccountID); err != nil {
 		return nil, err
 	}
 	// A lingering acknowledgement is cleared only when the edit left the
@@ -188,7 +189,10 @@ func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ct
 //     it describes the person, so it follows a staff member who stays even
 //     when the membership changes, always with its provenance stamp. Only
 //     the stamp lets a shortened or deleted report release the row (#6292).
-func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, staffIDs, studentIDs []int64, actorAccountID *int64) error {
+//     A staff member the edit adds, and every row of a block moved to
+//     another date, takes the sick report of the block's date instead; the
+//     day locks the edit holds serialize that read with the sick cascade.
+func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, moved bool, staffIDs, studentIDs []int64, actorAccountID *int64) error {
 	prior, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update instance: load existing staff", Err: err}
@@ -204,6 +208,10 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 			return err
 		}
 	}
+	sickDays, err := s.sickDaysOn(ctx, calendar.Date(instance.Date))
+	if err != nil {
+		return err
+	}
 	if err := s.lockRosterCareDays(ctx, instance, studentIDs); err != nil {
 		return err
 	}
@@ -216,6 +224,9 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	tenantID := tenant.FromContext(ctx)
 	for _, staffID := range newStaffIDs {
 		row := recreatedStaffRow(instance.ID, staffID, priorByStaff[staffID], rosterUnchanged)
+		if priorByStaff[staffID] == nil || moved {
+			applySickReportOfDay(row, sickDays[staffDay{staffID: staffID, date: calendar.Date(instance.Date)}])
+		}
 		row.SetTenantID(tenantID)
 		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "update instance: assign staff", Err: err}

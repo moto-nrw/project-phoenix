@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -11,18 +12,34 @@ import (
 
 // The calendar days a sick report reaches and the day locks it takes on them.
 
-// lockReportedDays takes the day locks of the report's future sick days
-// before the reversal reads its stamps. A materialization holding a day has
-// stamped its new rows for this report and commits them first; one waiting
-// for the day reads the reports after the deletion and stamps nothing
-// (#6292). The reversal itself is keyed by the stamps: a malformed range
-// locks nothing rather than blocking it.
+// lockReportedDays takes, once and ascending, the day locks of the report's
+// future sick days and of every day it already stamped, before the reversal
+// reads its stamps. A materialization or edit holding such a day stamps its
+// new rows for this report and commits first; one waiting for the day reads
+// the reports after the deletion and stamps nothing (#6292). New stamps land
+// only on the report's sick days, so the set is complete; taking it in one
+// ascending pass keeps the per-day clears below from locking out of order.
+// The reversal itself is keyed by the stamps: a malformed range adds no days
+// rather than blocking it.
 func (s *sickCascade) lockReportedDays(ctx context.Context, in workforce.SickCascadeInput) error {
-	report, err := parseSickReport(in)
-	if err != nil {
-		return nil //nolint:nilerr // the stamps, not the range, drive the reversal
+	days := make(map[calendar.Date]bool)
+	if report, err := parseSickReport(in); err == nil {
+		days = dateSet(sickCascadeDays(report))
 	}
-	return s.acquireCascadeDayLocks(ctx, dateSet(sickCascadeDays(report)))
+	rows, err := s.loadStampedBlockRows(ctx, in.AbsenceID)
+	if err != nil {
+		return err
+	}
+	if len(rows) > 0 {
+		instances, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
+		if err != nil {
+			return fmt.Errorf("sick clear: load stamped instances: %w", err)
+		}
+		for _, instance := range instances {
+			days[instance.Date] = true
+		}
+	}
+	return s.acquireCascadeDayLocks(ctx, days)
 }
 
 // sickCascadeDays expands the absence range into the full sick days, skipping
