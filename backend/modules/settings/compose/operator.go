@@ -61,3 +61,6 @@ func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 func (operatorSettingsRuntime) Today() configModel.CalendarDate {
 	return configSvc.OperatorSettingToday()
 }
+
+// NewExportFields projects setting values for the return export (#3838); only the administrative export CLI binds it, never HTTP.
+func NewExportFields() settings.ExportFields { return configSvc.SettingExportFields{} }

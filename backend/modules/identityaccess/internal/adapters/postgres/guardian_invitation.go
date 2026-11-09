@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -39,8 +40,11 @@ type guardianInvitationRow struct {
 	ApprovedAt                  *time.Time `bun:"approved_at"`
 	ProfileCreatedForInvitation bool       `bun:"profile_created_for_invitation,notnull"`
 	RoleUpgrade                 bool       `bun:"role_upgrade,notnull"`
-	CreatedAt                   time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt                   time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	// Email is the address the link in the token column was issued for
+	// (#6294); it changes only together with the token.
+	Email     string    `bun:"email,nullzero"`
+	CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 // LockGuardianAccountEmail closes the missing-row gap before the account lookup.
@@ -64,7 +68,7 @@ func (r guardianInvitationRow) toDomain() domain.GuardianInvitation {
 		ExpiresAt: r.ExpiresAt, AcceptedAt: r.AcceptedAt, EmailSentAt: r.EmailSentAt, EmailError: r.EmailError,
 		StudentID: r.StudentID, RequestedByAccountID: r.RequestedByAccountID, ApprovalStatus: r.ApprovalStatus,
 		ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt, ProfileCreatedForInvitation: r.ProfileCreatedForInvitation,
-		RoleUpgrade: r.RoleUpgrade, CreatedAt: r.CreatedAt,
+		RoleUpgrade: r.RoleUpgrade, CreatedAt: r.CreatedAt, Email: r.Email,
 	}
 }
 
@@ -82,8 +86,13 @@ func guardianInvitationRowOf(invitation domain.GuardianInvitation) guardianInvit
 		RequestedByAccountID: invitation.RequestedByAccountID, ApprovalStatus: invitation.ApprovalStatus,
 		ApprovedBy: invitation.ApprovedBy, ApprovedAt: invitation.ApprovedAt,
 		ProfileCreatedForInvitation: invitation.ProfileCreatedForInvitation, RoleUpgrade: invitation.RoleUpgrade,
+		Email: invitation.Email,
 	}
 }
+
+// errGuardianInvitationWithoutAddress refuses a link that names no address:
+// nobody could redeem it (#6294).
+var errGuardianInvitationWithoutAddress = errors.New("identity access postgres: a guardian invitation link needs the address it is issued for")
 
 func guardianTenantFilter[Q tenantFilterable[Q]](scope TenantScope, query Q) Q {
 	return scopeTenantQuery(scope, query, `"guardian_invitation".tenant_id = ?`)
@@ -156,7 +165,10 @@ func (s *Store) ListPendingGuardianApprovals(ctx context.Context) ([]domain.Guar
 // ListOpenGuardianInvitations returns every invitation of the requested
 // profiles that is still going somewhere: not accepted, not expired, and
 // either redeemable or waiting for a staff decision. One tenant-scoped read
-// backs the whole guardian list.
+// backs the whole guardian list. A legacy link without a recorded recipient
+// counts too, also after it ran out: the address binding (1.15.865) ended it,
+// nobody can redeem it, and the list shows it as a dead link until the
+// sign-in data retention removes it (#6294).
 func (s *Store) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error) {
 	if len(guardianProfileIDs) == 0 {
 		return nil, nil
@@ -169,7 +181,7 @@ func (s *Store) ListOpenGuardianInvitations(ctx context.Context, guardianProfile
 	err = guardianTenantFilter(s.scope(ctx), db.NewSelect().Model(&rows).
 		Where(`"guardian_invitation".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs)).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
-		Where(`"guardian_invitation".expires_at > ?`, now).
+		Where(`("guardian_invitation".expires_at > ? OR "guardian_invitation".email IS NULL)`, now).
 		Where(`"guardian_invitation".approval_status IN (?)`, bun.List([]string{
 			domain.GuardianInvitationApprovalNotRequired,
 			domain.GuardianInvitationApprovalApproved,
@@ -220,6 +232,9 @@ func (s *Store) InsertGuardianInvitation(ctx context.Context, invitation domain.
 	if err != nil {
 		return domain.GuardianInvitation{}, err
 	}
+	if invitation.Email == "" {
+		return domain.GuardianInvitation{}, errGuardianInvitationWithoutAddress
+	}
 	row := guardianInvitationRowOf(invitation)
 	row.ID = 0
 	if row.ApprovalStatus == "" {
@@ -234,8 +249,9 @@ func (s *Store) InsertGuardianInvitation(ctx context.Context, invitation domain.
 }
 
 // UpdateGuardianInvitation writes every mutable column of the invitation. The
-// token is replaced only when the invitation carries a new raw one; an
-// invitation read from the store carries none and keeps its link.
+// token and the address it is bound to are replaced only when the invitation
+// carries a new raw token; an invitation read from the store carries none and
+// keeps its link.
 //
 // Callers read the invitation without a lock, so the write is conditional on
 // the state they read: the row must still be unaccepted and still carry
@@ -248,7 +264,11 @@ func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.
 		"student_id", "requested_by_account_id", "approval_status", "approved_by", "approved_at",
 		"profile_created_for_invitation", "role_upgrade"}
 	if row.TokenHash != "" {
-		columns = append(columns, "token")
+		// A new link names the address it is mailed to (#6294).
+		if row.Email == "" {
+			return errGuardianInvitationWithoutAddress
+		}
+		columns = append(columns, "token", "email")
 	}
 	scope := s.scope(ctx)
 	rows, _, err := s.exec(ctx, "update guardian invitation", func(db bun.IDB) executor {

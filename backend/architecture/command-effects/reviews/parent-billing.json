@@ -71,6 +71,16 @@
       "target_owner": "document-rendering"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
+      "reason": "#3838 / ADR 0183: the tenant-export CLI binds Security Runtime's bank ring directly to Parent Billing's export opener. Pure in-memory authentication, sealing or the empty ring marker; no database write, locking read or audit mutation.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
       "classification": "query",
       "effect": "query",
@@ -81,6 +91,16 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "reason": "#3838 / ADR 0183: the tenant-export CLI binds Security Runtime's bank ring directly to Parent Billing's export opener. Pure in-memory authentication, sealing or the empty ring marker; no database write, locking read or audit mutation.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "classification": "query",
       "effect": "query",
@@ -88,6 +108,16 @@
       "reason": "ADR 0183 (#6252): the owner-neutral root bank-value port binds only Security Runtime bank crypto. Pure in-memory authentication or sealing; no database write, locking read or audit mutation.",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "reason": "#3838 / ADR 0183: the tenant-export CLI binds Security Runtime's bank ring directly to Parent Billing's export opener. Pure in-memory authentication, sealing or the empty ring marker; no database write, locking read or audit mutation.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
     },
     {

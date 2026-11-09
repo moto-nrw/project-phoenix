@@ -32,6 +32,11 @@ func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, schoolC
 	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, schoolCalendar)
 }
 
+// NewHolidayHealthExportFields opens the sealed health information for the return export (#3838, #6328); only the administrative export CLI binds it, never HTTP.
+func NewHolidayHealthExportFields(health enrollment.HolidayHealthCipher) enrollment.HolidayHealthExportFields {
+	return applicationNative.NewHolidayHealthExportFields(health)
+}
+
 // NewHolidayHostParticipants builds the hosting school's participant lists (ADR 0116).
 func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, health enrollment.HolidayHealthCipher, students enrollment.HolidayStudentIdentities, today func() calendar.Date) enrollment.HolidayHostParticipants {
 	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, health, students, today)

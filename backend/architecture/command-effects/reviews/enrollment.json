@@ -2002,6 +2002,16 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "reason": "#3838 / #6328: the tenant-export CLI binds Security Runtime's health ring (HEALTH_DATA_KEYS) directly to Enrollment's export opener. Pure in-memory authenticated decryption bound to the row context; no database access, write, locking read or audit mutation.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Open",
       "classification": "query",
       "effect": "query",
@@ -2009,6 +2019,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0084 and ADR 0116 addenda (#4722): Enrollment seals and opens the holiday health information with Security Runtime's field cipher, a pure computation over the root's key ring.",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "reason": "#3838 / #6328: same health ring binding as Open; the export opener never seals, the method exists on the bound cipher. Pure in-memory encryption; no database access, write, locking read or audit mutation.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
       "target_owner": "security-runtime"
     },
     {
@@ -5954,7 +5974,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Pure value predicate owned by Identity \u0026 Access; enrollment eligibility and invitation redemption share GuardianInvitation.AddressedTo to compare the recorded recipient with the current address. No mutation or locking read.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.AddressedTo",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption",
       "target_owner": "identity-access"
@@ -5964,10 +5994,20 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.Owner.ListOpenGuardianInvitations. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.Owner.ListOpenGuardianInvitations. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",
       "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs. Reads the current profile address to compare it with the recipient a link was issued for (#6294); no mutation or locking read at this terminal.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs",
+      "target_owner": "people-directory"
     },
     {
       "adr": "0067",

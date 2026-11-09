@@ -2,6 +2,8 @@ package organizationtenancy
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 )
 
@@ -17,8 +19,56 @@ type TenantExporter interface {
 	Export(context.Context, TenantExportOptions) error
 }
 
+// TenantExportSealedFields opens a field-sealed value of an exported row
+// (#3838). The owner of the table binds each value to its row, so it gets the
+// row as exported and the raw sealed bytes; it answers the plaintext or an
+// error that names no value. Only the administrative export CLI binds it.
+type TenantExportSealedFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
+}
+
+// TenantExportSealedFieldsByTable routes each table to the owner that sealed
+// its values: bank data to Parent Billing, health data to its owners (#3838).
+// A table without an owner here does not open, so the export refuses it.
+type TenantExportSealedFieldsByTable map[string]TenantExportSealedFields
+
+func (owners TenantExportSealedFieldsByTable) OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error) {
+	owner := owners[table]
+	if owner == nil {
+		return "", errors.New("tenant export: no owner opens the sealed values of " + table)
+	}
+	return owner.OpenExportField(table, column, row, sealed)
+}
+
+// TenantExportProjectedFields projects a reviewed value out of an untyped
+// container column for the return export (#3838): the owner keeps what is
+// customer data and drops every secret. It gets the row as exported and the
+// raw JSON of the column; it answers the JSON to write, null when nothing of
+// the value may leave. Only the administrative export CLI binds it.
+type TenantExportProjectedFields interface {
+	ProjectExportField(table, column string, row map[string]json.RawMessage, raw json.RawMessage) (json.RawMessage, error)
+}
+
+// TenantExportProjectedFieldsByTable routes each table to the owner that
+// knows which parts of its container are secret.
+type TenantExportProjectedFieldsByTable map[string]TenantExportProjectedFields
+
+func (owners TenantExportProjectedFieldsByTable) ProjectExportField(table, column string, row map[string]json.RawMessage, raw json.RawMessage) (json.RawMessage, error) {
+	owner := owners[table]
+	if owner == nil {
+		return nil, errors.New("tenant export: no owner projects the values of " + table)
+	}
+	return owner.ProjectExportField(table, column, row, raw)
+}
+
 type TenantExportOptions struct {
-	SchoolID int64
+	// SchoolID or OrganizationID, exactly one. A school package carries the
+	// school's data and, as before, the data of its Träger. A Träger package
+	// (#3838) carries only the Träger's own tables, its schools' master rows
+	// and the accounts of its Träger office: everything a school holds goes
+	// in the package of that school.
+	SchoolID       int64
+	OrganizationID int64
 	// Person optionally derives an INTERNAL review workspace: kind:<profile ID>,
 	// guardian:<profile ID>, staff:<school membership ID>. Never hand it over
 	// without the completeness and third-party review in the runbook.
@@ -34,7 +84,10 @@ type TenantExportOptions struct {
 // ExportManifest contains no row contents or original object names. Original
 // names and their mapping live in objects.jsonl, inside the protected export.
 type ExportManifest struct {
-	ReviewRequired bool             `json:"reviewRequired,omitempty"`
+	ReviewRequired bool `json:"reviewRequired,omitempty"`
+	// Package is "organization" for a Träger package; a school package has
+	// none, as in format version 1 before it.
+	Package        string           `json:"package,omitempty"`
 	FormatVersion  int              `json:"formatVersion"`
 	CatalogVersion int              `json:"catalogVersion"`
 	CatalogSHA256  string           `json:"catalogSHA256"`
