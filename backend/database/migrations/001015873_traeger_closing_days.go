@@ -7,16 +7,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerClosingDaysVersion = "1.15.865"
+const traegerClosingDaysVersion = "1.15.873"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerClosingDaysVersion,
 		Description: "Schulkalender: Schließtage des Trägers für ausgewählte Schulen (#4702)",
 		DependsOn: []string{
-			parentBillingOnlineSEPAMandatesVersion, // the newest migration on development
-			closingDaysVersion,                     // the school closing days these extend
-			traegerHolidayPeriodsVersion,           // the Träger policy this table follows (ADR 0105)
+			parentBillingBelegRetentionVersion, // the newest migration on development
+			closingDaysVersion,                 // the school closing days these extend
+			traegerHolidayPeriodsVersion,       // the Träger policy this table follows (ADR 0105)
 		},
 	})
 	Migrations.MustRegister(traegerClosingDaysUp, traegerClosingDaysDown)

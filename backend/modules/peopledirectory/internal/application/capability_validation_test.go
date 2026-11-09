@@ -69,6 +69,15 @@ func (e *recordingEngine) Create(_ context.Context, input peopledirectory.Create
 	e.created = input
 	return peopledirectory.Person{FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID}, domain.OperationStats{}, nil
 }
+func (e *recordingEngine) CreatePersons(_ context.Context, inputs []peopledirectory.CreatePerson) ([]peopledirectory.Person, domain.OperationStats, error) {
+	e.calls++
+	persons := make([]peopledirectory.Person, len(inputs))
+	for i, input := range inputs {
+		e.created = input
+		persons[i] = peopledirectory.Person{FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID}
+	}
+	return persons, domain.OperationStats{}, nil
+}
 func (e *recordingEngine) FindByID(context.Context, int64, string) (peopledirectory.Person, bool, domain.OperationStats, error) {
 	return peopledirectory.Person{ID: 7}, true, domain.OperationStats{}, nil
 }

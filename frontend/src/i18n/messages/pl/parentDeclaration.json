@@ -7,7 +7,7 @@
   "deadline": "Termin do {date}",
   "closed": "Termin minął",
   "ended": "Zgoda zakończona",
-  "endedNote": "Szkoła zakończyła tę prośbę o zgodę. Nie możesz już udzielić nowej odpowiedzi.",
+  "endedNote": "Szkoła nie zbiera już tutaj odpowiedzi. Nie możesz już udzielić nowej odpowiedzi.",
   "passwordNote": "Zanim odpowiesz, moto poprosi o Twoje hasło.",
   "signatureNote": "Aby wyrazić zgodę, podpisz się palcem lub myszą.",
   "state": {
@@ -54,6 +54,7 @@
   "othersTitle": "Inne osoby sprawujące opiekę prawną",
   "otherOpen": "jeszcze brak odpowiedzi",
   "revokeHint": "Możesz wycofać swoją zgodę. Szkoła od razu to zobaczy.",
+  "revokeAnytime": "Możesz w każdej chwili wycofać swoją zgodę.",
   "closedNoAction": "Termin minął. Nie możesz już odpowiedzieć.",
   "confirmTitle": "Sprawdź swoją odpowiedź",
   "confirmBody": "Twoja odpowiedź dla {name}: {action}.",
@@ -89,5 +90,10 @@
     "uncertainReload": "Aktualny stan jest ładowany ponownie. Sprawdź go, zanim odpowiesz jeszcze raz.",
     "signatureRequired": "Podpisz się i dotknij „Potwierdź podpis”."
   },
-  "errorObjectAnswer": "odpowiedź"
+  "errorObjectAnswer": "odpowiedź",
+  "earlierConsent": {
+    "title": "Zgoda na wersję {version}: {date}.",
+    "note": "Szkoła później zmieniła tekst. Twoja zgoda na ten tekst obowiązuje, dopóki jej nie wycofasz.",
+    "endsToo": "Kończy to również Twoją zgodę na wersję {version}."
+  }
 }

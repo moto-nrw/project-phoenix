@@ -9,6 +9,7 @@ type (
 	AnnouncementFeedDeclaration      = messaging.AnnouncementFeedDeclaration
 	AnnouncementFeedDeclarationChild = messaging.AnnouncementFeedDeclarationChild
 	DeclarationAttachmentDigest      = messaging.DeclarationAttachmentDigest
+	DeclarationEarlierConsent        = messaging.DeclarationEarlierConsent
 	DeclarationChild                 = messaging.DeclarationChild
 	DeclarationSigner                = messaging.DeclarationSigner
 	DeclarationSignerContext         = messaging.DeclarationSignerContext

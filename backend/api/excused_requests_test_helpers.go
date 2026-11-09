@@ -28,6 +28,8 @@ type ExcusedRequestTestOptions struct {
 	Scope    carePlanCompose.ReviewScopeResolver
 	Logger   *slog.Logger
 	Today    func() timezone.Date
+	// PartialAbsences lets an approval replace partial absences (#5698).
+	PartialAbsences careplan.PartialAbsenceService
 }
 
 // ExcusedRequestTestPeople are the People Directory rows the workflow binds.
@@ -53,6 +55,6 @@ func NewTestExcusedAbsenceRequests(
 	}
 	return owners.NewExcusedAbsenceRequestService(
 		options.CarePlan, people.Students, people.Persons, scope, emitter, broadcaster,
-		people.Events, nil, nil, nil, options.Logger, options.Today,
+		people.Events, nil, nil, nil, options.Logger, options.Today, options.PartialAbsences,
 	)
 }

@@ -41,17 +41,18 @@ type ExcusedAbsenceRequests = application.ExcusedRequests
 // and Today are required. Effect ports may be nil; the workflow then skips
 // that effect, exactly like the legacy service tolerated unwired effects.
 type ExcusedRequestDependencies struct {
-	CarePlan    careplan.Capability
-	Students    ExcusedRequestStudents
-	Scope       ReviewScopeResolver
-	Today       func() careplan.Date
-	Observe     func(Observation)
-	Logger      *slog.Logger
-	Messenger   RequestMessenger
-	Broadcaster StaffBroadcaster
-	Notifier    AbsenceNotifier
-	Ledger      RequestLedger
-	Shares      ShareVisibility
+	CarePlan        careplan.Capability
+	Students        ExcusedRequestStudents
+	Scope           ReviewScopeResolver
+	Today           func() careplan.Date
+	Observe         func(Observation)
+	Logger          *slog.Logger
+	Messenger       RequestMessenger
+	Broadcaster     StaffBroadcaster
+	Notifier        AbsenceNotifier
+	Ledger          RequestLedger
+	Shares          ShareVisibility
+	PartialAbsences careplan.PartialAbsenceService
 }
 
 // NewExcusedAbsenceRequests composes the excused-absence workflow over the
@@ -66,9 +67,8 @@ func NewExcusedAbsenceRequests(deps ExcusedRequestDependencies) (*ExcusedAbsence
 	}
 	return application.NewExcusedRequests(application.ExcusedRequestDependencies{
 		CarePlan: deps.CarePlan, Students: deps.Students, Scope: deps.Scope, Hooks: TenantHooks{},
-		Today: deps.Today, Observe: observe, Logger: deps.Logger,
-		Messenger: deps.Messenger, Broadcaster: deps.Broadcaster, Notifier: deps.Notifier,
-		Ledger: deps.Ledger, Shares: deps.Shares,
+		Today: deps.Today, Observe: observe, Logger: deps.Logger, Messenger: deps.Messenger, Broadcaster: deps.Broadcaster, Notifier: deps.Notifier,
+		Ledger: deps.Ledger, Shares: deps.Shares, PartialAbsences: deps.PartialAbsences,
 	})
 }
 

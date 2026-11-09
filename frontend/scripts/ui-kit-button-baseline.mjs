@@ -100,7 +100,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [824, 857, 957, 1138],
+    lines: [816, 849, 949, 1130],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -144,7 +144,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [995],
+    lines: [1035],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {

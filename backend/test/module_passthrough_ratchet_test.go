@@ -260,7 +260,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modules/studentpresence (+1).
 // Raised by ADR 0172: the document contact read of modules/organizationtenancy (+1).
 // Raised by ADR 0182: the effective notice dues read of modules/parentbilling (+1).
-const modulePassthroughOwnerBudgetTotal = 1403
+// Raised by ADR 0184: the suspensions of the Beleg retention of
+// modules/parentbilling, which validate and evaluate the Träger again (+2).
+const modulePassthroughOwnerBudgetTotal = 1405
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -306,7 +308,9 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0167: the payment terms read (+1).
 	// Raised by ADR 0182: the effective notice dues read, which validates the
 	// month and resolves the change level onto the public contract (+1).
-	"modules/parentbilling":    9,
+	// Raised by ADR 0184: recording and lifting a suspension of the Beleg
+	// retention, which validate and evaluate the Träger again (+2).
+	"modules/parentbilling":    11,
 	"modules/peopledirectory":  205,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,

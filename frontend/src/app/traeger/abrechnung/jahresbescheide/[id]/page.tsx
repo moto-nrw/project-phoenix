@@ -340,6 +340,13 @@ export default function TraegerCareNoticeRunPage() {
             <StatCard
               label="Gesamtbetrag aller Bescheide"
               value={formatEuro(run.previewCents)}
+              // A released notice is a claim before any payment: moto sees
+              // no incoming money, the bookkeeping does (#6348).
+              hint={
+                preview
+                  ? undefined
+                  : "Forderung vor Zahlungseingang. Zahlungen sieht moto nicht."
+              }
             />
             <StatCard
               label="Zu-/Abgang gegenüber bisher"
