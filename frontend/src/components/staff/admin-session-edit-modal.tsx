@@ -17,6 +17,10 @@ import {
   berlinWallClockProblem,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  STORED_END_NOT_CLEARABLE_HINT,
+  TIME_REQUIRED_HINT,
+} from "~/lib/time-tracking-helpers";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import { staffSessionService } from "~/lib/staff-api";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -109,14 +113,24 @@ export function AdminSessionEditModal({
   const storedCheckOut = extractTime(session?.check_out_time ?? null);
   const checkInChanged = mode !== "edit" || checkIn !== storedCheckIn;
   const checkOutChanged = mode !== "edit" || checkOut !== storedCheckOut;
-  const checkInProblem =
-    checkInChanged && checkIn ? berlinWallClockProblem(date, checkIn) : null;
-  const checkOutProblem =
-    checkOutChanged && checkOut ? berlinWallClockProblem(date, checkOut) : null;
+  // Every reason the save stays blocked stands at its field (#6293).
+  const checkInProblem = !checkIn
+    ? TIME_REQUIRED_HINT
+    : checkInChanged
+      ? berlinWallClockProblem(date, checkIn)
+      : null;
+  const checkOutMissing = storedCheckOut
+    ? STORED_END_NOT_CLEARABLE_HINT
+    : TIME_REQUIRED_HINT;
+  const checkOutProblem = !checkOut
+    ? checkOutMissing
+    : ((checkOutChanged ? berlinWallClockProblem(date, checkOut) : null) ??
+      (checkIn && checkIn >= checkOut
+        ? "Das Ende muss nach dem Beginn liegen."
+        : null));
 
   const notesValid = notes.trim().length > 0;
-  const timesValid =
-    checkIn < checkOut && checkInProblem === null && checkOutProblem === null;
+  const timesValid = checkInProblem === null && checkOutProblem === null;
   const breakMinutes = parseBreakMinutes(breakMinutesStr);
   const breakValid = breakMinutes !== null;
 
@@ -131,8 +145,7 @@ export function AdminSessionEditModal({
     if (!timesValid) {
       formErrors.invalid("Bitte prüfen Sie die Uhrzeiten.", {
         ...(checkInProblem ? { check_in_time: checkInProblem } : {}),
-        check_out_time:
-          checkOutProblem ?? "Das Ende muss nach dem Beginn liegen.",
+        ...(checkOutProblem ? { check_out_time: checkOutProblem } : {}),
       });
       return;
     }

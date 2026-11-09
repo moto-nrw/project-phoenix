@@ -3142,6 +3142,25 @@ describe("TimeTrackingPage", () => {
       },
     );
 
+    it("explains an empty start instead of a silently blocked save", async () => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      await openEdit(summerSession());
+      clickQuickEditReason("Zeitkorrektur");
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "" },
+      });
+
+      expect(
+        screen.getByText("Bitte eine Uhrzeit eintragen."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Start")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      const saveButtons = screen.getAllByText("Speichern");
+      expect(saveButtons[saveButtons.length - 1]!).toBeDisabled();
+    });
+
     it("explains instead of silently keeping a cleared end", async () => {
       setTestClock("2026-11-09T12:00:00+01:00");
       await openEdit(summerSession());

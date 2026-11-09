@@ -142,6 +142,8 @@ import {
   formatDuration,
   formatTime,
   getWeekDays,
+  STORED_END_NOT_CLEARABLE_HINT,
+  TIME_REQUIRED_HINT,
   balanceSessionEnd,
   calculateNetMinutes,
   indexWorkSessionMinutesByBerlinDate,
@@ -2322,12 +2324,11 @@ function EditSessionModal({
     sessionDay && endChanged && endTime
       ? berlinWallClockProblem(sessionDay, endTime)
       : null;
-  // The backend keeps a stored end when the field is left out and has no way
-  // to remove it, so a cleared end would silently stay (#6293).
+  // Every reason the save stays blocked stands at its field (#6293).
+  const startMissingProblem =
+    session !== null && !startTime ? TIME_REQUIRED_HINT : null;
   const endClearedProblem =
-    endChanged && !endTime && initialEnd
-      ? "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen."
-      : null;
+    endChanged && !endTime && initialEnd ? STORED_END_NOT_CLEARABLE_HINT : null;
   const hasUnresolvableTime =
     startProblem !== null || endProblem !== null || endClearedProblem !== null;
 
@@ -2553,7 +2554,11 @@ function EditSessionModal({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  error={startProblem ?? formErrors.fieldError("check_in_time")}
+                  error={
+                    startMissingProblem ??
+                    startProblem ??
+                    formErrors.fieldError("check_in_time")
+                  }
                 />
                 <Input
                   id="edit-end"

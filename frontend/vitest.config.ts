@@ -64,6 +64,10 @@ const schoolDateTestFiles = [
   "src/app/[tenant]/(protected)/students/[id]/page.test.tsx",
   "src/app/[tenant]/(protected)/staff/[id]/page.permissions.test.tsx",
   "src/components/staff/sick-report-modal.test.tsx",
+  // Browser outside Germany, school times stay Berlin (#6293).
+  "src/components/staff/admin-session-edit-modal.timezone.test.tsx",
+  "src/components/staff/staff-session-table.timezone.test.tsx",
+  "src/components/time-tracking/edit-history-accordion.timezone.test.tsx",
 ];
 
 // Shared desktop viewport and resource isolation for every DOM project.

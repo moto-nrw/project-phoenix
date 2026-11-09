@@ -201,6 +201,37 @@ describe("AdminSessionEditModal", () => {
       expect(payload.check_out_time).toBeUndefined();
     });
 
+    // Every reason the save button is blocked for stands at its field.
+    it.each([
+      [
+        "a cleared stored end",
+        "check_out_time",
+        "",
+        "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen.",
+      ],
+      ["an empty start", "check_in_time", "", "Bitte eine Uhrzeit eintragen."],
+      [
+        "an end before the start",
+        "check_out_time",
+        "07:00",
+        "Das Ende muss nach dem Beginn liegen.",
+      ],
+    ])("explains %s at the field", (_label, field, value, message) => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      renderEdit(summerSession);
+      const input = document.querySelector<HTMLInputElement>(
+        `input[name="${field}"]`,
+      )!;
+      fireEvent.change(input, { target: { value } });
+
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      const save = screen.getByRole("button", { name: "Änderungen speichern" });
+      expect(save).toBeDisabled();
+      fireEvent.click(save);
+      expect(mocks.updateSession).not.toHaveBeenCalled();
+    });
+
     it("blocks a time the switch day repeats", () => {
       setTestClock("2026-11-09T12:00:00+01:00");
       renderEdit({

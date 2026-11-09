@@ -631,6 +631,16 @@ export function formatDuration(minutes: number | null | undefined): string {
   return `${hours}h ${mins}min`;
 }
 
+/** A time field the person emptied (#6293). */
+export const TIME_REQUIRED_HINT = "Bitte eine Uhrzeit eintragen.";
+
+/**
+ * An emptied end of a stored block: the backend keeps a stored end when the
+ * field is left out and has no way to remove it (#6293).
+ */
+export const STORED_END_NOT_CLEARABLE_HINT =
+  "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen.";
+
 /**
  * Formats ISO timestamp as Berlin wall-clock time, whatever the browser's zone
  * @param isoString - ISO 8601 timestamp
