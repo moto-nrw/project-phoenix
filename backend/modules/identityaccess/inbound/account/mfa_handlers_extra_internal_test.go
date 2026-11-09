@@ -250,6 +250,25 @@ func TestMFAEnrollStart_ReturnsTheChallengeToken(t *testing.T) {
 	assert.Equal(t, "enroll-challenge", body.ChallengeToken)
 }
 
+// The enrollment start is bound to the credential generation its token
+// names (#6289): the handler hands exactly that generation on.
+func TestMFAEnrollStart_PassesTheTokensCredentialGeneration(t *testing.T) {
+	t.Parallel()
+
+	svc := newStubMFAService()
+	rs := &Resource{ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
+	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil)
+	r = r.WithContext(testutil.WithEnrollmentClaims(r.Context(), testutil.MFAEnrollmentClaims{
+		AccountID: 42, Scope: tokenprimitives.PortalTenant, TenantID: 70010001,
+		CredentialGeneration: 7, MFAEnrollmentPending: true,
+	}))
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollStart(rr, r)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, []int64{7}, svc.StartedCredentialGenerations)
+}
+
 // The confirm redeems the presented challenge pinned to the enrollment
 // token's account and school; a confirm without a challenge token is
 // refused before any code is compared.

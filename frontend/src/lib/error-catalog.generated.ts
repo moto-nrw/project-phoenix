@@ -1755,6 +1755,8 @@ export const ERROR_CATALOG = {
         "Bitte buchen Sie höchstens {limit} Einträge auf einmal um.",
       "workforce.replacement_outside_origin":
         "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
+      "workforce.session_check_in_in_future":
+        "Der Beginn darf nicht in der Zukunft liegen. Bitte prüfen Sie den Beginn.",
       "workforce.session_not_found": "Eintrag nicht gefunden.",
       "workforce.session_not_owned":
         "Sie können nur eigene Einträge bearbeiten.",

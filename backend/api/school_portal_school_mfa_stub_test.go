@@ -32,7 +32,7 @@ func stubSchoolMFA(runtime schoolportal.MFARuntime) schoolportal.MFARuntime {
 		}
 	}
 	if runtime.StartChallenge == nil {
-		runtime.StartChallenge = func(context.Context, int64, int64, net.IP) (string, error) {
+		runtime.StartChallenge = func(context.Context, int64, int64, net.IP, int64) (string, error) {
 			return "", errStubMFAUnexpectedCall
 		}
 	}

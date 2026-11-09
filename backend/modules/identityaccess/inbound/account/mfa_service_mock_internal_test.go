@@ -12,6 +12,9 @@ import (
 // account MFA capability (#3331). A nil field answers the zero value, so a
 // test configures only the calls it cares about.
 type MFAServiceMock struct {
+	// StartedCredentialGenerations records the credential generation of
+	// every StartMFAChallenge call (#6289).
+	StartedCredentialGenerations   []int64
 	IsRequiredFn                   func(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
 	ResolveMFAPolicyFn             func(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
 	ResolveMFAPolicyInTxFn         func(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
@@ -99,7 +102,8 @@ func (m *MFAServiceMock) AccountBelongsToSchool(ctx context.Context, accountID, 
 	return false, nil
 }
 
-func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
+func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error) {
+	m.StartedCredentialGenerations = append(m.StartedCredentialGenerations, credentialGeneration)
 	if m.StartMFAChallengeFn != nil {
 		return m.StartMFAChallengeFn(ctx, accountID, tenantID, scope, ip)
 	}

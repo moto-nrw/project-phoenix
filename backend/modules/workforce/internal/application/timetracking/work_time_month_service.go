@@ -208,7 +208,13 @@ func balanceSessionEnd(session *WorkSession, now time.Time, today calendar.Date)
 		return end
 	}
 	if session.Date.Before(today.AddDays(-1)) {
-		if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
+		staleEnd := session.Date.EndOfDay()
+		// A row filed on a day before its check-in (written before #6288
+		// validated edits) ends right after its check-in instead.
+		if floor := session.CheckInTime.Add(time.Second); staleEnd.Before(floor) {
+			staleEnd = floor
+		}
+		if staleEnd.Before(end) {
 			return staleEnd
 		}
 	}

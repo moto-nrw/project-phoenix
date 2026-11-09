@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -117,8 +118,8 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 		if err != nil {
 			return fmt.Errorf("parent: load declaration: %w", err)
 		}
-		if !declarationActionAnnouncementIsLive(a, action) {
-			return ErrAnnouncementNotFound
+		if err := s.requireDeclarationOpenFor(adminCtx, a, accountID, studentID, action); err != nil {
+			return err
 		}
 		children, err := s.AnnouncementRepo.DeclarationChildrenForAccount(adminCtx, accountID, []int64{announcementID})
 		if err != nil {
@@ -144,18 +145,55 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 	return target, nil
 }
 
-// declarationActionAnnouncementIsLive permits withdrawing an existing consent
-// after expiry, but never revives a withdrawn, inactive or not-yet-published
-// announcement. New agreements and refusals still require the normal live
-// announcement window.
-func declarationActionAnnouncementIsLive(a *ParentAnnouncement, action string) bool {
-	if action != DeclarationActionRevoked {
-		return a != nil && a.IsDeclaration() && announcementIsLive(a)
-	}
-	if a == nil || !a.IsDeclaration() || !a.Active || a.PublishedAt == nil {
+// declarationAdmitsAction reports whether the announcement, as the school
+// left it, takes this action at all. It keeps a revocation possible whatever the
+// school did with the declaration afterwards: expired, withdrawn (unpublished)
+// or deactivated. Withdrawing a consent must stay as easy as giving it
+// (Art. 7 Abs. 3 DSGVO, #6290). Whether there is a consent to revoke is the
+// declaration policy's decision on the guardian's own history. New agreements
+// and refusals still require the live announcement window.
+func declarationAdmitsAction(a *ParentAnnouncement, action string) bool {
+	if a == nil || !a.IsDeclaration() {
 		return false
 	}
-	return !a.PublishedAt.After(time.Now())
+	return action == DeclarationActionRevoked || announcementIsLive(a)
+}
+
+// requireDeclarationOpenFor answers 404 unless the declaration takes this
+// action. A live declaration takes every action; one the school no longer
+// shows takes only a revocation, and only from a guardian who answered for
+// the child before. Anybody else learns nothing about it, not even that it
+// exists.
+func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) error {
+	if !declarationAdmitsAction(a, action) {
+		return ErrAnnouncementNotFound
+	}
+	if announcementIsLive(a) {
+		return nil
+	}
+	answered, err := s.answeredDeclarationBefore(ctx, accountID, a.ID, studentID)
+	if err != nil {
+		return err
+	}
+	if !answered {
+		return ErrAnnouncementNotFound
+	}
+	return nil
+}
+
+// answeredDeclarationBefore reports whether the account has declared for the
+// child on this announcement before.
+func (s *Service) answeredDeclarationBefore(ctx context.Context, accountID, announcementID, studentID int64) (bool, error) {
+	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{announcementID}, []int64{studentID})
+	if err != nil {
+		return false, fmt.Errorf("parent: load declaration history: %w", err)
+	}
+	for _, sub := range history {
+		if sub.AccountID != nil && *sub.AccountID == accountID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the
@@ -212,6 +250,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err != nil {
 		return nil, false, err
 	}
+	mayDeclare := signer != nil
 	if signer == nil && in.Action == DeclarationActionRevoked {
 		signer, err = repo.HoldHistoricalDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
 		if err != nil {
@@ -230,7 +269,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 		return mine, false, nil
 	}
 	now := time.Now()
-	if err := checkDeclarationAction(s.Declarations, rules, mine, in.Action, now); err != nil {
+	if err := checkDeclarationAction(s.Declarations, rules, mayDeclare, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
 	signatureID, err := s.recordDeclarationSignature(ctx, target.tenantID, accountID, version, signer, in, requiresSignature, now)
@@ -254,7 +293,7 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 	if err != nil {
 		return declarationRules{}, nil, false, fmt.Errorf("parent: reload declaration: %w", err)
 	}
-	if !declarationActionAnnouncementIsLive(a, in.Action) {
+	if !declarationAdmitsAction(a, in.Action) {
 		return declarationRules{}, nil, false, ErrAnnouncementNotFound
 	}
 	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)
@@ -272,14 +311,15 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 	return feedDeclarationRules(a.Declaration, a.ResponseDeadline), version, a.Declaration.RequiresSignature, nil
 }
 
-// checkDeclarationAction maps a refused action to the error the portal can
+// checkDeclarationAction enforces the actions the feed offers
+// (declarationActionsFor) and maps a refused one to the error the portal can
 // explain: the deadline for a late answer, otherwise "not possible".
-func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mine *DeclarationSubmission, action string, now time.Time) error {
+func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mayDeclare bool, mine *DeclarationSubmission, action string, now time.Time) error {
 	myLatest := ""
 	if mine != nil {
 		myLatest = mine.Action
 	}
-	if policy.ActionAllowed(rules.Revocable, rules.Deadline, true, myLatest, action, now) {
+	if slices.Contains(declarationActionsFor(policy, rules, mayDeclare, myLatest, now), action) {
 		return nil
 	}
 	if policy.Closed(rules.Deadline, now) && action != DeclarationActionRevoked {

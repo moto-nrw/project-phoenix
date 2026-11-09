@@ -29,7 +29,7 @@ func TestConcurrentMFACodeRequestsRespectIdentityLimit(t *testing.T) {
 			} else {
 				account := testpkg.CreateTestAccount(t, db, "challenge-race")
 				start = func() error {
-					_, err := module.MFA.StartMFAChallenge(t.Context(), account.ID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, nil)
+					_, err := module.MFA.StartMFAChallenge(t.Context(), account.ID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, nil, 0)
 					return err
 				}
 			}

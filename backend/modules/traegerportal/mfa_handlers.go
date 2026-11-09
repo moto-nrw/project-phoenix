@@ -35,8 +35,9 @@ type MFARuntime struct {
 	VerifyChallengeForOwner func(ctx context.Context, challengeToken, code string, accountID int64) (VerifiedChallenge, error)
 	// ResendChallenge re-issues the code and answers with the renewed JWT.
 	ResendChallenge func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
-	// StartChallenge mails the enrollment code and names its row.
-	StartChallenge func(ctx context.Context, accountID int64, ip net.IP) (string, error)
+	// StartChallenge mails the enrollment code and names its row; it is bound
+	// to the credential generation the enrollment token names (#6289).
+	StartChallenge func(ctx context.Context, accountID int64, ip net.IP, credentialGeneration int64) (string, error)
 	Enroll         func(ctx context.Context, accountID int64) error
 }
 
@@ -116,7 +117,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountID := claims.AccountID
-	challengeToken, err := rs.mfa.StartChallenge(r.Context(), accountID, common.ParseClientIP(r))
+	challengeToken, err := rs.mfa.StartChallenge(r.Context(), accountID, common.ParseClientIP(r), claims.CredentialGeneration)
 	if err != nil {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return

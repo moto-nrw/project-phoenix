@@ -66,8 +66,8 @@ func (c ComposedAccountMFA) TrustedDeviceDays(ctx context.Context, tenantID int6
 	return c.Flows.TrustedDeviceDays(c.ctx(ctx), tenantID)
 }
 
-func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	token, err := c.Flows.StartChallenge(c.ctx(ctx), accountID, tenantID, scope, ip)
+func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error) {
+	token, err := c.Flows.StartBoundChallenge(c.ctx(ctx), accountID, tenantID, scope, ip, credentialGeneration)
 	return token, MFAError(err)
 }
 
@@ -234,7 +234,7 @@ func (g CapabilityGate) VerifyTrustedDevice(ctx context.Context, accountID, tena
 	return g.Capability.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
 }
 
-func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {
+func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error) {
 	if g.Capability == nil {
 		return "", errMFANotComposed
 	}
@@ -242,7 +242,7 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 	if !ok || !portal.Challenge {
 		return "", identityaccess.ErrMFAUnsupportedScope
 	}
-	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress))
+	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress), credentialGeneration)
 }
 
 func (g CapabilityGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {

@@ -278,6 +278,13 @@ func (s *fakeOperatorTokenStore) RedeemOperatorEmailChange(_ context.Context, to
 	return domain.OperatorEmailChange{}, false, stats(), nil
 }
 
+func (s *fakeOperatorTokenStore) RevokeOperatorTrustedDevices(_ context.Context, _ int64, _ time.Time) (domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.record("RevokeOperatorTrustedDevices")
+	return stats(), nil
+}
+
 func (s *fakeOperatorTokenStore) RevokeOperatorEmailChanges(_ context.Context, operatorID int64) (domain.OperationStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

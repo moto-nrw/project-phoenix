@@ -345,18 +345,32 @@ func (s *Store) ListLiveAccountSessionsForCap(ctx context.Context, accountID int
 	return accountSessionsToDomain(rows), stats, nil
 }
 
-func (s *Store) DeleteAccountSessionsByID(ctx context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error) {
+func (s *Store) EvictAccountSessions(ctx context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	if len(ids) == 0 && len(familyIDs) == 0 {
+		return nil, domain.OperationStats{}, nil
+	}
+	selected := func(q *bun.DeleteQuery) *bun.DeleteQuery {
+		if len(ids) > 0 {
+			q = q.WhereOr(`"token".id IN (?)`, bun.List(ids))
+		}
+		if len(familyIDs) > 0 {
+			q = q.WhereOr(`"token".family_id IN (?)`, bun.List(familyIDs))
+		}
+		return q
+	}
 	var rows []accountSessionRow
-	query := withTenantFilterUnlessAdmin(s.scope(ctx), db.NewDelete().Model((*accountSessionRow)(nil)).Where(`"token".id IN (?)`, bun.List(ids))).Returning("*")
+	query := withTenantFilterUnlessAdmin(s.scope(ctx), db.NewDelete().Model((*accountSessionRow)(nil)).
+		Where(`"token".account_id = ?`, accountID).
+		WhereGroup(" AND ", selected)).Returning("*")
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return nil, stats, fmt.Errorf("identity access postgres: delete account sessions by id: %w", err)
+		return nil, stats, fmt.Errorf("identity access postgres: evict account sessions: %w", err)
 	}
 	stats.Rows = int64(len(rows))
 	return accountSessionsToDomain(rows), stats, nil
@@ -390,6 +404,26 @@ func (s *Store) DeleteAccountSessionsByFamily(ctx context.Context, familyID stri
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: delete account sessions by family: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	return accountSessionsToDomain(rows), stats, nil
+}
+
+func (s *Store) DeleteAccountSessionsExceptFamily(ctx context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []accountSessionRow
+	query := db.NewDelete().Model((*accountSessionRow)(nil)).Where(`"token".account_id = ?`, accountID)
+	if keepFamilyID != "" {
+		query = query.Where(`"token".family_id <> ?`, keepFamilyID)
+	}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, fmt.Errorf("identity access postgres: delete account sessions except family: %w", err)
 	}
 	stats.Rows = int64(len(rows))
 	return accountSessionsToDomain(rows), stats, nil
