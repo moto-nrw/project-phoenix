@@ -307,7 +307,7 @@ function columns(
                   {debtorNumber && registration.debtorNumber ? (
                     <div className="text-sm text-gray-600">
                       Debitorennummer{" "}
-                      <span className="font-mono text-gray-900">
+                      <span className="font-mono whitespace-nowrap text-gray-900">
                         {registration.debtorNumber}
                       </span>
                     </div>
