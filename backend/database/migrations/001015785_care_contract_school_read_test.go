@@ -55,7 +55,7 @@ func TestCareContractSchoolReadIsReadOnly(t *testing.T) {
 	}
 	_, err := asSchool(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id) VALUES (?, ?, 78)`,
 		organization, school)
-	assert.ErrorContains(t, err, "row-level security", "a school adds no contract")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a school adds no contract")
 	var status string
 	require.NoError(t, db.NewRaw(`SELECT status FROM care_contract.contracts WHERE id = ?`, contract).Scan(ctx, &status))
 	assert.Equal(t, "versendet", status)

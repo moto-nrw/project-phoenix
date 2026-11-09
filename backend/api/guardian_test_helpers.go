@@ -16,6 +16,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/spf13/viper"
 )
 
 type GuardianTestModule struct {
@@ -52,13 +53,17 @@ func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
+	bankData, err := BankDataCipher(viper.GetString("bank_data_keys"), "")
+	if err != nil {
+		return GuardianTestModule{}, err
+	}
 	guardian := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
 		GuardianInvitations: owners.NewGuardianInvitationReads(auth.AccountAuthentication),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: owners.NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: owners.NewGuardianDataAccessLog(audits.DataAccessLog),
-		RolePresets: owners.GuardianRolePresets}, db.Pool())
+		BankData: bankData, RolePresets: owners.GuardianRolePresets}, db.Pool())
 	people, err := owners.NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted}, photos)
 	if err != nil {
 		return GuardianTestModule{}, err

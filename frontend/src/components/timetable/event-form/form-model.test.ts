@@ -5,6 +5,7 @@ import type { TimetableTemplate } from "~/lib/timetable-types";
 import {
   emptyForm,
   formFromSeries,
+  isSeriesNotesOnlyEdit,
   parseMaxParticipants,
   plannedStudentIds,
   sourceScopesOverlap,
@@ -291,5 +292,46 @@ describe("withSourcePrefill", () => {
     });
 
     expect(form.weekdays).toEqual([3]);
+  });
+});
+
+describe("isSeriesNotesOnlyEdit (#6141)", () => {
+  const initial = { ...emptyForm("2026-08-03"), seriesNotes: "Alt" };
+
+  it("is true when only the Wochennotiz changed", () => {
+    expect(
+      isSeriesNotesOnlyEdit({ ...initial, seriesNotes: "Neu" }, initial),
+    ).toBe(true);
+  });
+
+  it("is true when the Wochennotiz is cleared", () => {
+    expect(
+      isSeriesNotesOnlyEdit({ ...initial, seriesNotes: "" }, initial),
+    ).toBe(true);
+  });
+
+  it("is false when nothing changed", () => {
+    expect(isSeriesNotesOnlyEdit({ ...initial }, initial)).toBe(false);
+  });
+
+  it("is false when only surrounding whitespace of the Wochennotiz changed", () => {
+    expect(
+      isSeriesNotesOnlyEdit({ ...initial, seriesNotes: " Alt\n" }, initial),
+    ).toBe(false);
+  });
+
+  it("is false when another field changed together with the Wochennotiz", () => {
+    expect(
+      isSeriesNotesOnlyEdit(
+        { ...initial, seriesNotes: "Neu", studentIds: ["4"] },
+        initial,
+      ),
+    ).toBe(false);
+    expect(
+      isSeriesNotesOnlyEdit(
+        { ...initial, seriesNotes: "Neu", startTime: "07:30" },
+        initial,
+      ),
+    ).toBe(false);
   });
 });

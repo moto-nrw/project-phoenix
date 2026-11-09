@@ -17,7 +17,8 @@ import (
 )
 
 // NewTenantRuntime binds tenant, Träger and admin transactions under their database roles,
-// savepoints, advisory locks and retry-safe deadlock/serialization replay.
+// savepoints, advisory locks and retry-safe deadlock/serialization replay,
+// plus the one-way admin-to-tenant handoff of ADR 0161.
 // It hands context to repositories and Audit; pool waits reach the observer.
 func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := postgres.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
@@ -25,7 +26,8 @@ func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	return runtime.WithTraegerTransaction(unitOfWork.WithinTraeger), nil
+	runtime = runtime.WithTraegerTransaction(unitOfWork.WithinTraeger)
+	return runtime.WithAdminThenTenantTransaction(unitOfWork.WithinAdminThenTenant), nil
 }
 
 // NewDemoTenantRuntime retains phoenix_demo for school and global queue/expiry
