@@ -250,7 +250,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0188: the guardian bank backfill/rekey constructor of
 // modules/peopledirectory/compose (+6), the staff bank cipher dependency and
 // backfill/rekey constructor of modules/workforce/compose (+7).
-const moduleComposeBudgetTotal = 13167
+// ADR 0191: the constructor of the stored originals of the Jahresbescheide
+// of modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13172
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -331,8 +333,10 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0171: the constructor of the SEPA mandates (+5);
 	// ADR 0182: the constructor of the Jahresbescheide (+7);
 	// ADR 0181: the constructor of the SEPA direct debit file (+5);
-	// ADR 0183: rekey constructor (+5).
-	"modules/parentbilling/compose":               96,
+	// ADR 0183: rekey constructor (+5);
+	// ADR 0191: the constructor of the stored originals of the
+	// Jahresbescheide (+5).
+	"modules/parentbilling/compose":               101,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).

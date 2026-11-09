@@ -77,8 +77,7 @@ func NewCareFeeNotices(contracts parentbilling.CareContracts, schools parentbill
 
 // NewCareNoticeLetters builds the stored originals of the Jahresbescheide and their mail and print (#6347) over the ports the root binds.
 func NewCareNoticeLetters(letterheads parentbilling.BillingLetterheads, contracts parentbilling.CareContracts, post parentbilling.BillingLetterPost, noticePost parentbilling.CareNoticeLetterPost) parentbilling.CareNoticeLetterService {
-	ports := application.CareNoticeLetterPorts{Letterheads: letterheads, Recipients: contracts, Post: post, NoticePost: noticePost}
-	return application.NewCareNoticeLetters(postgres.NewStore(), ports, rendering.NewRenderer(), rendering.NewRenderer())
+	return application.NewCareNoticeLetters(postgres.NewStore(), application.CareNoticeLetterPorts{Letterheads: letterheads, Recipients: contracts, Post: post, NoticePost: noticePost}, rendering.NewRenderer(), rendering.NewRenderer())
 }
 
 // NewSEPAMandates builds the SEPA mandates and the creditor of the Träger (#4695, ADR 0171) over the contracts and the field cipher the root binds.
