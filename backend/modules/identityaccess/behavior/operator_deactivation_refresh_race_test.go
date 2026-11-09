@@ -19,7 +19,7 @@ import (
 // waits for the rotation, then deletes its successor with the rest.
 func TestOperatorDeactivationCatchesAConcurrentRefresh(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockRacePool(t)
 	identity := buildOperatorIdentity(t, db)
 	ctx := context.Background()
 	actor := testpkg.CreateTestOperator(t, db)

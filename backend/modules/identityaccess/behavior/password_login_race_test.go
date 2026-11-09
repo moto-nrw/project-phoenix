@@ -20,7 +20,7 @@ import (
 // credential it checked with the stored one.
 func TestPasswordLoginRacingAPasswordChangeMintsNothing(t *testing.T) {
 	t.Parallel()
-	f := newSwitchLineageFixture(t, "password-login-race")
+	f := newSwitchLineageFixtureOn(t, "password-login-race", lockRacePool(t))
 	ctx := testpkg.Ctx(t)
 	var email string
 	require.NoError(t, f.db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, f.accountID).Scan(ctx, &email))

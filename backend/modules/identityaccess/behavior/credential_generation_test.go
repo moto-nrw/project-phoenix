@@ -25,6 +25,18 @@ import (
 // password write moves that state on. These tests drive each binding against
 // a password change that commits in between.
 
+// lockRacePool is a private pool on the package database for a test that
+// holds a lock while two commands queue behind it: such a test keeps four
+// connections at once (holder, two waiting commands, the wait poll), and on
+// the shared pool, sized -parallel plus four, several of them starve each
+// other's commands of a connection instead of the lock they wait for.
+func lockRacePool(t *testing.T) *bun.DB {
+	t.Helper()
+	db := testpkg.SetupClosableTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	return db
+}
+
 // credentialFixture is an account with a password and an e-mail factor at
 // its school, over a module that composes the second factor.
 type credentialFixture struct {
@@ -38,7 +50,7 @@ type credentialFixture struct {
 
 func newCredentialFixture(t *testing.T, prefix string) credentialFixture {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	db := lockRacePool(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(nil)...)
 	tenantID := testpkg.Tenant(t)
 	email := fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano())
