@@ -69,7 +69,7 @@ type ControlSize = "sm" | "md" | "lg";
 // uses a real 1px border. Matching py-3 would leave it 2px taller than the
 // input next to it.
 const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
-  sm: "px-3 py-2 text-sm",
+  sm: "px-3 py-2 text-sm pointer-coarse:min-h-11 pointer-coarse:text-base",
   md: "h-10 px-3 py-2 text-sm pointer-coarse:h-11 pointer-coarse:text-base",
   lg: "px-4 py-[11px] text-base",
 };

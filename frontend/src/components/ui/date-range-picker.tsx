@@ -57,12 +57,13 @@ interface DateRangePickerProps {
 // on each month has a fixed one; the single month on a phone fills the panel.
 // The cells touch: the range band runs through them without a gap.
 const RANGE_MONTHS_CLASS = "flex flex-col gap-4 sm:flex-row";
-const RANGE_MONTH_CLASS = "w-full sm:w-56";
+// By finger a month gets 7 × 44 px and every day 44 px of height.
+const RANGE_MONTH_CLASS = "w-full sm:w-56 pointer-coarse:sm:w-80";
 const RANGE_CLASSNAMES = {
   ...DAY_PICKER_CLASSNAMES,
   months: RANGE_MONTHS_CLASS,
   month: RANGE_MONTH_CLASS,
-  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative",
+  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative pointer-coarse:h-11",
 };
 
 // The look of `DAY_PICKER_CLASSNAMES.selected`. Important because the day marks
@@ -437,7 +438,7 @@ export function RangeCalendarInline({
               key={preset.label}
               type="button"
               onClick={() => handlePreset(preset)}
-              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
+              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 pointer-coarse:min-h-11"
             >
               {preset.label}
             </button>
