@@ -575,42 +575,44 @@ export function ListboxDropdown<K extends string>({
       }
       updateMenuPosition();
     };
-    // A layout change can push the trigger out of the visible area while the
-    // menu is open: recipients that load late grow the lists above the
-    // calendar's Wiederholung field by hundreds of pixels (#6356). The menu
-    // follows its trigger, so both would sit below the viewport, unreachable,
-    // and a scroll inside the menu cannot bring them back. Return the trigger
-    // to view first ("nearest" is a no-op while it is visible), then place the
-    // menu. On open the trigger is visible already (it was just clicked or
-    // focused), and a scroll by the person stays theirs: handleScroll only
-    // follows.
-    const keepTriggerInView = () => {
-      buttonRef.current?.scrollIntoView({
-        block: "nearest",
-        inline: "nearest",
-      });
-      updateMenuPosition();
-    };
     updateMenuPosition();
-    window.addEventListener("resize", keepTriggerInView);
+    window.addEventListener("resize", updateMenuPosition);
     window.addEventListener("scroll", handleScroll, true);
-    // The trigger moves when content of its scroll container changes size,
-    // without any scroll or resize event and without this component
-    // rendering again.
-    const trigger = buttonRef.current;
-    const scrollParent = trigger ? scrollParentOf(trigger) : null;
-    const contentObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(keepTriggerInView);
-    const observed = scrollParent ? scrollParent.children : [document.body];
-    for (const element of observed) contentObserver?.observe(element);
     return () => {
-      contentObserver?.disconnect();
-      window.removeEventListener("resize", keepTriggerInView);
+      window.removeEventListener("resize", updateMenuPosition);
       window.removeEventListener("scroll", handleScroll, true);
     };
   }, [open, options, updateMenuPosition]);
+
+  // A layout change can push the trigger out of the visible area while the
+  // menu is open, without any scroll or resize event: recipients that load
+  // late grow the lists above the calendar's Wiederholung field by hundreds of
+  // pixels (#6356). The menu follows its trigger, so both would sit below the
+  // viewport, unreachable, and a scroll inside the menu cannot bring them
+  // back. When content of the trigger's scroll container changes size, return
+  // the trigger to view ("nearest" is a no-op while it is visible), then place
+  // the menu. Only an actual size change counts: the observer's first report
+  // after observe() is skipped, and this effect does not depend on `options`,
+  // so opening and re-rendering never scroll, and a scroll by the person
+  // stays theirs.
+  useEffect(() => {
+    if (!open || typeof ResizeObserver === "undefined") return;
+    const trigger = buttonRef.current;
+    if (!trigger) return;
+    let initialReport = true;
+    const observer = new ResizeObserver(() => {
+      if (initialReport) {
+        initialReport = false;
+        return;
+      }
+      trigger.scrollIntoView({ block: "nearest", inline: "nearest" });
+      updateMenuPosition();
+    });
+    const scrollParent = scrollParentOf(trigger);
+    const content = scrollParent ? scrollParent.children : [document.body];
+    for (const element of content) observer.observe(element);
+    return () => observer.disconnect();
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) {
