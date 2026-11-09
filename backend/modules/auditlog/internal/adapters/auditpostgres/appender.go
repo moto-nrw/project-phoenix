@@ -29,6 +29,39 @@ func (a *Appender) Append(ctx context.Context, event any) error {
 	return wrapDatabase("append "+table, err)
 }
 
+// AppendAll inserts class-list entry changes in one statement with the same
+// columns as Append; any other event type is appended one by one.
+func (a *Appender) AppendAll(ctx context.Context, events []any) error {
+	rows := make([]*auditModels.ClassListEntryChange, 0, len(events))
+	var db bun.IDB
+	for _, event := range events {
+		change, ok := event.(*classlist.ClassListEntryChange)
+		if !ok {
+			return a.appendEach(ctx, events)
+		}
+		prepared, err := a.prepare(ctx, change)
+		if err != nil {
+			return err
+		}
+		db = prepared
+		rows = append(rows, classListChangeRow(change))
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	_, err := db.NewInsert().Model(&rows).ModelTableExpr("audit.class_list_entry_changes").Exec(ctx)
+	return wrapDatabase("append audit.class_list_entry_changes", err)
+}
+
+func (a *Appender) appendEach(ctx context.Context, events []any) error {
+	for _, event := range events {
+		if err := a.Append(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // AppendOnce appends an event subject to its database uniqueness constraint
 // and reports whether this call inserted the row.
 func (a *Appender) AppendOnce(ctx context.Context, event any) (bool, error) {

@@ -930,6 +930,8 @@ aus der Messung abgeleitet, nicht gemessen.
 
 Der Rechte-Read läuft einmal je Validierung, spätestens bei der ersten Zeile mit Rollenprüfung (lazy), damit Pfade ohne Rollenprüfung keinen Read zahlen.
 
+Sammel-Writes laufen als begrenzter Versuch (Entscheidung E13 vom 09.11.2026, präzisiert als E13′); bei Zeitüberschreitung ist die Chunk-Transaktion verloren (pgdriver schließt die Verbindung bei 57014, pgdriver v1.3.0 `error.go:55–82`), der Chunk läuft in einer neuen Transaktion zeilenweise ohne Grenze, mit vollem Retry-Budget; Ergebnis und Status wie Zeilenpfad.
+
 2, 3 und 4 sind unabhängig. 5 und 6 brauchen 4; 7 braucht 5.
 
 Jeder Schritt prüft:

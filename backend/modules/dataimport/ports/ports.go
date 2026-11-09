@@ -165,6 +165,18 @@ type ClassListMembership interface {
 	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
 }
 
+// ClassListEntryBatches is the School Membership batch slice of the
+// class-list chunk executor (#5827).
+type ClassListEntryBatches interface {
+	CreateClassListEntries(context.Context, []CreateClassListEntry) ([]ClassListEntry, error)
+	MatchClassListEntries(context.Context, []ClassListEntryFields) ([][]ClassListEntry, error)
+}
+
+// AuditBatchCommand appends many events at once, all or nothing.
+type AuditBatchCommand interface {
+	AppendAll(context.Context, []any) error
+}
+
 // Workforce contract: the personnel record.
 type (
 	StaffMasterData    = workforce.StaffMasterData

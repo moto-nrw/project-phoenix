@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -103,22 +104,34 @@ func TestImportBatchesRefusedRowKeepsTheRowPathOutcome(t *testing.T) {
 		{"class list", "users.class_list_entries", "creation_failed", classListAt(db)},
 		{"opening balance", "active.staff_balance_adjustments", "creation_failed", openingBalanceAt(db)},
 	}
+	// The subtests run concurrently without t.Parallel: this test holds the
+	// package's one isolated clone (test/database_scope.go), and parallel
+	// subtests would wait for -parallel slots that other top-level tests hold
+	// while they wait for that clone, a deadlock until the test timeout.
+	slots := make(chan struct{}, 4)
+	var running sync.WaitGroup
 	for _, c := range cases {
 		for _, p := range positions {
-			t.Run(fmt.Sprintf("%s/%s/k%d_of_%d", c.name, c.table, p.k, p.n), func(t *testing.T) {
-				t.Parallel()
-				testpkg.OwnTenant(t)
-				outcome := c.run(t, p.n, p.k)
-				committed := 0
-				if p.k > 100 {
-					committed = 100 // the first chunk committed before row k's chunk failed
-				}
-				require.Equal(t, committed, outcome.created+outcome.updated, "acknowledged counters")
-				require.Equal(t, committed, outcome.persisted, "only earlier chunks persist")
-				require.Equal(t, map[int][]string{p.k + 1: {c.code + ": injected owner write failure"}}, trimFailures(outcome.failures))
-			})
+			slots <- struct{}{}
+			running.Add(1)
+			go func() {
+				defer running.Done()
+				defer func() { <-slots }()
+				t.Run(fmt.Sprintf("%s/%s/k%d_of_%d", c.name, c.table, p.k, p.n), func(t *testing.T) {
+					testpkg.OwnTenant(t)
+					outcome := c.run(t, p.n, p.k)
+					committed := 0
+					if p.k > 100 {
+						committed = 100 // the first chunk committed before row k's chunk failed
+					}
+					require.Equal(t, committed, outcome.created+outcome.updated, "acknowledged counters")
+					require.Equal(t, committed, outcome.persisted, "only earlier chunks persist")
+					require.Equal(t, map[int][]string{p.k + 1: {c.code + ": injected owner write failure"}}, trimFailures(outcome.failures))
+				})
+			}()
 		}
 	}
+	running.Wait()
 }
 
 // trimFailures keeps the code and the injected cause of each message.

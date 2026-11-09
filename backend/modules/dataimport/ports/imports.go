@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -95,6 +96,40 @@ type ImportRuntime struct {
 	Audit        AuditCommand
 	Observe      func(importModels.ImportObservation)
 	Fingerprint  func([]byte) string
+	// BoundStatements runs a callback with a statement timeout for the
+	// current transaction (tenant.WithStatementTimeout). Without it every
+	// chunk takes the row path: a bundled write runs only as a bounded
+	// attempt (decision E13, ADR 0067 addendum of 2026-11-08).
+	BoundStatements func(context.Context, time.Duration, func(context.Context) error) error
+	// BatchStatementLimit overrides DefaultBatchStatementLimit; tests use it
+	// to scale the bound down with the driver's read timeout.
+	BatchStatementLimit time.Duration
+	// ConnectionLost classifies a broken connection (the root binds the
+	// transaction runtime's classifier): a batch attempt that hits one is
+	// neither replayed nor retried.
+	ConnectionLost func(error) bool
+}
+
+// ChunkWriter is the batch form of an import config for the chunk executor
+// (#5827, ADR 0067 addendum of 2026-11-08, point 2). Rows whose keys repeat
+// within a chunk never share a segment.
+type ChunkWriter[T any] interface {
+	// ChunkWriterReady reports whether the batch commands are bound.
+	ChunkWriterReady() bool
+	// ChunkKey names the input key of a row; rows with equal keys depend on
+	// each other.
+	ChunkKey(T) string
+	// ResolveChunk reads the existing records of a segment's rows in one
+	// protected read and returns a config whose FindExisting answers from it.
+	// On error the executor falls back to FindExisting per row.
+	ResolveChunk(context.Context, []T) (ImportConfig[T], error)
+	// RefusesChunk reads, before the batch command, whether the row path
+	// would refuse one of the rows (a fachliche refusal, ADR F5); a read
+	// failure is returned as error.
+	RefusesChunk(context.Context, []T) (bool, error)
+	// CreateChunk creates the rows of one segment through batch commands,
+	// all or nothing; it issues the owner writes only.
+	CreateChunk(context.Context, []T) error
 }
 
 // StudentImportDeps are the consumer-owned ports of the student import.
@@ -127,9 +162,12 @@ type StudentImportDeps struct {
 type ClassListImportDeps struct {
 	Transactions importModels.Transactions
 	Membership   ClassListMembership
-	Persons      PersonDirectory
-	Students     StudentDirectory
-	Audit        AuditCommand
+	// Batches is School Membership's batch slice; without it every chunk
+	// takes the row path.
+	Batches  ClassListEntryBatches
+	Persons  PersonDirectory
+	Students StudentDirectory
+	Audit    AuditCommand
 }
 
 // RelationshipResolver preloads and resolves the names in an upload.
