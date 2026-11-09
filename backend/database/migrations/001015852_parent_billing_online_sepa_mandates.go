@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingOnlineSEPAMandatesVersion = "1.15.842"
+const parentBillingOnlineSEPAMandatesVersion = "1.15.852"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingOnlineSEPAMandatesVersion,
 		Description: "Elternabrechnung: Nachweis des SEPA-Mandats, das Eltern in der Eltern-App erteilen (#4696)",
 		DependsOn: []string{
-			staffFinancialDataSealedVersion,  // the newest migration on development
-			parentBillingSEPAMandatesVersion, // the mandates the proof belongs to
+			demoVisitorErasureOutboxKindsVersion, // the newest migration on development
+			parentBillingSEPAMandatesVersion,     // the mandates the proof belongs to
 		},
 	})
 	Migrations.MustRegister(parentBillingOnlineSEPAMandatesUp, parentBillingOnlineSEPAMandatesDown)
