@@ -300,3 +300,34 @@ func TestStudentChunkReplaySeesAParallelChange(t *testing.T) {
 	require.Equal(t, 7, replayed.Created)
 	require.Contains(t, strings.Join(replayed.RowErrors, "\n"), "7 error duplicate already_exists")
 }
+
+// TestStudentChunkKeysTrimLikeTheImport: the import trims every name cell
+// with strings.TrimSpace before it searches and creates, so "Anna\t" and
+// "Anna" are one child. Their keys must split them into two segments: the
+// second row already exists, as on the row path.
+func TestStudentChunkKeysTrimLikeTheImport(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	rows := namedStudentBatch("Leerraum", 7)
+	rows[0].FirstName, rows[6].FirstName = "Anna\t", "Anna"
+	run := func(t *testing.T, options api.ImportTestOptions) (studentOutcome, importModels.ImportObservation) {
+		testpkg.OwnTenant(t)
+		module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
+		require.NoError(t, err)
+		actor := newImporter(t, db)
+		upload := awaitStudents(t, uploadStudents(t, module, db, actor, rows, "whitespace.csv"))
+		require.NoError(t, upload.err)
+		return studentOutcomeOf(t, db, upload.result), (*module.Observations)[0]
+	}
+	var batch, rowPath studentOutcome
+	t.Run("batch path", func(t *testing.T) {
+		var observation importModels.ImportObservation
+		batch, observation = run(t, api.ImportTestOptions{})
+		require.Positive(t, commandCount(observation, "create_persons"))
+		require.Zero(t, observation.BatchFallbacks)
+	})
+	t.Run("row path", func(t *testing.T) { rowPath, _ = run(t, api.ImportTestOptions{RowPathOnly: true}) })
+	require.Equal(t, rowPath, batch)
+	require.Equal(t, 6, batch.Created)
+	require.Contains(t, strings.Join(batch.RowErrors, "\n"), "8 error duplicate already_exists")
+}

@@ -12,6 +12,8 @@ func TestMatchKeyIsCoarserThanTheOwnerMatch(t *testing.T) {
 		{"Kai", "Kai"},           // the Kelvin sign is NFC K
 		{"Å", "Å"},               // the Ångström sign is NFC Å
 		{"  Müller ", "Müller"}, // spaces and decomposition
+		{"Anna\t", "Anna"},       // the import trims any whitespace before search and create
+		{"\u00a0Anna", "anna"},   // no-break space
 		{"ẞ", "ß"},               // capital sharp s
 	} {
 		if matchKey(equal[0]) != matchKey(equal[1]) {
