@@ -36,6 +36,10 @@ var errBatchBoundExceeded = errors.New("data import: batch attempt exceeded its 
 // review R1, R2; fault table in the PR).
 var errBatchCommand = errors.New("data import: batch command failed")
 
+// errChunkRollbackFailed ends the upload when the chunk savepoint could not
+// be rolled back after a failed attempt.
+var errChunkRollbackFailed = errors.New("data import: chunk rollback failed")
+
 // errChunkRefused is the refusal RefusesChunk reported.
 var errChunkRefused = errors.New("data import: the row path would refuse a row of the chunk")
 
@@ -57,9 +61,11 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 		return batch, a.applyAcceptedRows(ctx, service, batch)
 	}
 	entered := false
+	var attemptErr error
 	err := service.transactions.Savepoint(ctx, func(ctx context.Context) error {
 		entered = true
-		return a.applySegments(ctx, writer, batch)
+		attemptErr = a.applySegments(ctx, writer, batch)
+		return attemptErr
 	})
 	if err == nil {
 		return batch, nil
@@ -67,13 +73,22 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 	if !entered {
 		return batch, err
 	}
-	if batchCommandFailed(err) && boundExceeded(err) {
+	// E13′ only when the batch command itself ended with 57014, the bound at
+	// work; a 57014 of any other statement (the rollback, the bound, a row)
+	// follows the general rules below.
+	if batchCommandFailed(attemptErr) && boundExceeded(attemptErr) {
 		// E13′: pgdriver closes the connection on 57014, so the chunk's
 		// transaction is lost; writeBatches replays the chunk row by row in
 		// a new one.
 		a.rowPath = true
 		a.run.observation.BatchFallbacks++
 		return batch, fmt.Errorf("%w: %w", errBatchBoundExceeded, err)
+	}
+	if attemptErr != nil && errors.Is(err, importModels.ErrSavepointControl) && !errors.Is(attemptErr, importModels.ErrSavepointControl) {
+		// ROLLBACK TO SAVEPOINT itself failed, so the transaction is lost:
+		// 500, no retry, no replay (#5827 review R3). The cause stays in the
+		// text only, so no SQLSTATE in it can start a retry.
+		return batch, fmt.Errorf("%w: %v", errChunkRollbackFailed, err)
 	}
 	if errors.Is(err, importModels.ErrSavepointControl) || (service.connectionLost != nil && service.connectionLost(err)) {
 		// The savepoint itself failed or the connection broke: nothing can
@@ -84,10 +99,16 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 	if !batchCommandFailed(err) {
 		return batch, err
 	}
+	return a.replayChunk(ctx, service, batch, err)
+}
+
+// replayChunk replays the chunk row by row in the same transaction after its
+// batch command failed and the savepoint rolled back.
+func (a *batchImportAttempt[T]) replayChunk(ctx context.Context, service *ImportService[T], batch *importModels.ImportResult[T], cause error) (*importModels.ImportResult[T], error) {
 	a.rowPath = true
 	a.run.observation.BatchFallbacks++
 	var state interface{ Field(byte) string }
-	if errors.As(err, &state) && state.Field('C') == "40P01" {
+	if errors.As(cause, &state) && state.Field('C') == "40P01" {
 		a.run.observation.Deadlocks++
 	}
 	// The chunk result is rebuilt from the validation results, as a new

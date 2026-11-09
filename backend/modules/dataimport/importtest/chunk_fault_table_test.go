@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -45,7 +46,10 @@ type faultCase struct {
 	nth           int32
 	err           error
 	refuseRow     bool // the third row is refused, so the batch command fails
-	want          faultOutcome
+	// prefix2 and err2 inject a second fault after the first one.
+	prefix2 string
+	err2    error
+	want    faultOutcome
 }
 
 const (
@@ -67,12 +71,20 @@ func runFaultTable(t *testing.T, cases []faultCase) {
 	dsn := testpkg.IsolatedTestDSN(t)
 	installRefusedMarkers(t, db)
 	for _, c := range cases {
-		t.Run(c.point+" × "+c.err.Error(), func(t *testing.T) {
+		name := c.point
+		if c.err != nil {
+			name += " × " + c.err.Error()
+		}
+		if c.err2 != nil {
+			name += " then " + c.err2.Error()
+		}
+		t.Run(name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			armed := &atomic.Bool{}
+			armed, armed2 := &atomic.Bool{}, &atomic.Bool{}
 			pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(faultConnector{
 				Connector: pgdriver.NewConnector(pgdriver.WithDSN(dsn)), armed: armed, prefix: c.prefix,
 				nth: c.nth, err: c.err, matches: &atomic.Int32{},
+				prefix2: c.prefix2, err2: c.err2, armed2: armed2,
 			})))
 			t.Cleanup(func() { _ = pool.Close() })
 			module, err := api.NewImportTestModule(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool))
@@ -82,15 +94,19 @@ func runFaultTable(t *testing.T, cases []faultCase) {
 			if c.refuseRow {
 				rows[2].LastName = "Refused"
 			}
-			armed.Store(true)
+			armed.Store(c.prefix != "")
+			armed2.Store(c.prefix2 != "")
 			upload := awaitUpload(t, uploadClassList(t, module, pool, actor, rows, "fault.csv"))
 			require.False(t, armed.Load(), "the fault fired")
+			require.False(t, armed2.Load(), "the second fault fired")
 			observation := (*module.Observations)[0]
 			got := faultOutcome{retries: observation.BatchesRetried, fallbacks: observation.BatchFallbacks,
 				entries: countIn(t, db, `SELECT count(*) FROM users.class_list_entries WHERE tenant_id = ?`)}
 			var state interface{ Field(byte) string }
 			switch {
 			case upload.err == nil:
+			case strings.Contains(upload.err.Error(), "chunk rollback failed"):
+				got.failsWith = "rollback failed"
 			case errors.Is(upload.err, driver.ErrBadConn):
 				got.failsWith = "bad connection"
 			case errors.As(upload.err, &state):
@@ -108,6 +124,7 @@ func runFaultTable(t *testing.T, cases []faultCase) {
 func TestChunkFaultsOutsideTheBatchCommandBehaveLikeTheRowPath(t *testing.T) {
 	t.Parallel()
 	retried := faultOutcome{retries: 1, entries: 5}
+	lost := faultOutcome{failsWith: "rollback failed"}
 	runFaultTable(t, []faultCase{
 		{point: "bound set", prefix: boundSet, err: injectedSQLState("40P01"), want: retried},
 		{point: "bound set", prefix: boundSet, err: injectedSQLState("40001"), want: retried},
@@ -123,7 +140,17 @@ func TestChunkFaultsOutsideTheBatchCommandBehaveLikeTheRowPath(t *testing.T) {
 		// The first RELEASE is ResolveChunk's protected read, the second the chunk's.
 		{point: "chunk release", prefix: release, nth: 2, err: injectedSQLState("40P01"), want: retried},
 		{point: "chunk release", prefix: release, nth: 2, err: driver.ErrBadConn, want: faultOutcome{failsWith: "bad connection"}},
-		{point: "chunk rollback after a refused batch", prefix: rollbackTo, err: driver.ErrBadConn, refuseRow: true, want: faultOutcome{failsWith: "bad connection"}},
+		// A failed ROLLBACK TO SAVEPOINT loses the transaction: 500, no retry,
+		// no replay, whatever either failure was (#5827 review R3).
+		{point: "chunk rollback after a refused batch", prefix: rollbackTo, err: driver.ErrBadConn, refuseRow: true, want: lost},
+		{point: "batch command", prefix: batchMerge, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: lost},
+		{point: "batch command", prefix: batchMerge, err: injectedSQLState("40001"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: lost},
+		{point: "refused batch, rollback", refuseRow: true, prefix2: rollbackTo, err2: injectedSQLState("40P01"), want: lost},
+		{point: "refused batch, rollback", refuseRow: true, prefix2: rollbackTo, err2: injectedSQLState("40001"), want: lost},
+		// E13′ needs the batch command itself to end with 57014; a 57014 of the
+		// rollback is a failed rollback like any other.
+		{point: "refused batch, rollback", refuseRow: true, prefix2: rollbackTo, err2: injectedSQLState("57014"), want: lost},
+		{point: "batch command without SQLSTATE", prefix: batchMerge, err: errors.New("injected batch failure"), prefix2: rollbackTo, err2: injectedSQLState("57014"), want: lost},
 		// The first person read is ResolveChunk's, the second the student guard's.
 		{point: "student guard read", prefix: personRead, nth: 2, err: injectedSQLState("40P01"), want: retried},
 		{point: "student guard read", prefix: personRead, nth: 2, err: driver.ErrBadConn, want: faultOutcome{failsWith: "bad connection"}},
@@ -146,6 +173,9 @@ func TestChunkFaultsInTheBatchCommandReplay(t *testing.T) {
 		{point: "batch command", prefix: batchMerge, err: injectedSQLState("40P01"), want: replayed},
 		{point: "batch command", prefix: batchMerge, err: injectedSQLState("40001"), want: replayed},
 		{point: "batch command", prefix: batchMerge, err: injectedSQLState("57014"), want: replayed},
+		// The batch command's own 57014 is E13′ even though its rollback fails,
+		// as it does when pgdriver has closed the connection.
+		{point: "batch command", prefix: batchMerge, err: injectedSQLState("57014"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: replayed},
 		{point: "batch command", prefix: batchMerge, err: injectedSQLState("55P03"), want: replayed},
 		{point: "batch command", prefix: batchMerge, err: injectedSQLState("23514"), want: replayed},
 		{point: "batch command", prefix: batchMerge, err: driver.ErrBadConn, want: faultOutcome{failsWith: "bad connection"}},

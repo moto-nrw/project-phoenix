@@ -352,6 +352,11 @@ type faultConnector struct {
 	nth     int32
 	err     error
 	matches *atomic.Int32
+	// A second, independent rule fails the first statement starting with
+	// prefix2 with err2 once armed2 is set (a fault after a fault).
+	prefix2 string
+	err2    error
+	armed2  *atomic.Bool
 }
 
 func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -368,6 +373,9 @@ type faultConn struct {
 }
 
 func (c *faultConn) fail(query string) error {
+	if second := c.connector; second.armed2 != nil && strings.HasPrefix(strings.TrimSpace(query), second.prefix2) && second.armed2.CompareAndSwap(true, false) {
+		return second.err2
+	}
 	if !c.connector.armed.Load() || !strings.HasPrefix(strings.TrimSpace(query), c.connector.prefix) {
 		return nil
 	}
