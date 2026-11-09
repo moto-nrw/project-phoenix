@@ -12,7 +12,7 @@ export const BELEG_TYPES = [
 
 export type BelegType = (typeof BELEG_TYPES)[number];
 
-export const BELEG_TYPE_LABELS: Record<BelegType, string> = {
+const BELEG_TYPE_LABELS: Record<BelegType, string> = {
   holiday_document: "Ferienrechnungen, Stornos und Gutschriften",
   care_invoice: "Monatsrechnungen mit Storno",
   care_notice: "Jahresbescheide",
