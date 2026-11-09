@@ -132,6 +132,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/sepa-mandates/{id}"}:                  notCaptured,
 	{http.MethodPost, "/traeger/sepa-mandates/{id}/revoke"}:          notCaptured,
 	{http.MethodPost, "/traeger/sepa-debits/{kind}/{id}/submission"}: notCaptured,
+	// The import of existing mandates (#6198) belongs to the Träger, not to
+	// a school; the preview stores nothing.
+	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,
+	{http.MethodPost, "/traeger/sepa-mandates/imports/preview"}: notCaptured,
 	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,

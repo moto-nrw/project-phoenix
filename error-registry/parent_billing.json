@@ -513,6 +513,30 @@
       "legacy": "parent_billing.sepa_creditor_invalid"
     },
     {
+      "code": "parent_billing.sepa_import_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_import_changed"
+    },
+    {
+      "code": "parent_billing.sepa_import_file_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_import_file_invalid"
+    },
+    {
+      "code": "parent_billing.sepa_import_file_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_import_file_too_large"
+    },
+    {
+      "code": "parent_billing.sepa_import_mapping_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_import_mapping_invalid"
+    },
+    {
       "code": "parent_billing.sepa_mandate_invalid",
       "class": "input",
       "parameters": [],

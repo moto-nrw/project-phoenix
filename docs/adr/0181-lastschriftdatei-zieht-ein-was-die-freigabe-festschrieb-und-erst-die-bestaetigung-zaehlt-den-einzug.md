@@ -98,6 +98,13 @@ ohne Eintrag im Exportprotokoll; der folgt mit
    übernommen, #6198) und in moto noch nicht eingezogen ist, zählt ab dem Tag
    der Übernahme: moto kennt seinen letzten Einzug nicht und darf es nicht
    allein wegen eines alten Unterschriftsdatums als verfallen werten.
+   Das ist eine **Annahme**: Sie unterstellt, dass das Mandat bis kurz vor
+   der Übernahme genutzt wurde. Liegt der letzte Einzug bekanntermaßen
+   länger zurück, gibt das Büro ihn beim Import an (Spalte „Letzte
+   Abbuchung“, #6198), damit die 36 Monate ab diesem Tag zählen; ist das
+   nicht möglich oder der Verfall schon erreicht, holt es ein neues Mandat
+   ein. Der Import lehnt ein Mandat ab, dessen Verfall nach dieser Regel
+   schon erreicht ist, und zeigt beim fehlenden Datum einen offenen Hinweis.
    `ResolveDebit` prüft am Rechnungsdatum und behandelt ein verfallenes
    Mandat wie ein fehlendes (`debit_gap = mandate_expired`: Hinweis plus
    Überweisung oder Sperre der Freigabe, ADR 0171 Punkt 8); die Datei prüft
