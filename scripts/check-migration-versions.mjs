@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const directory = 'backend/database/migrations/';
-const migration = /^backend\/database\/migrations\/(\d{9})_.+\.go$/;
+const migration = /^backend\/database\/migrations\/(\d{1,14})_.+\.go$/;
 function version(path) {
   return path.endsWith('_test.go') ? null : migration.exec(path)?.[1] ?? null;
 }
@@ -37,7 +37,9 @@ export function checkMigrationVersions({ cwd, base = 'origin/development', head 
       .split('\0').map(version).filter(Boolean).sort().at(-1);
     for (const file of new Set(added)) {
       const number = version(file);
-      if (number && highest && number <= highest) {
+      if (number && number.length !== 9) {
+        errors.push(`${file}: Migrationsnummer ${number} muss neun Ziffern haben (höchste auf ${ref}: ${highest ?? 'keine'}). Auf eine höhere freie neunstellige Nummer umnummerieren.`);
+      } else if (number && highest && number <= highest) {
         errors.push(`${file}: Migrationsnummer ${number} muss größer als ${highest} sein (höchste auf ${ref}). Migration auf eine höhere freie Nummer umnummerieren.`);
       }
     }

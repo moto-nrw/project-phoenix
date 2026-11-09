@@ -138,3 +138,16 @@ test('local development release accepts promoted migrations but rejects stale lo
   assert.equal(errors.length, 1);
   assert.match(errors[0], /001015840.*001015843.*origin\/development/);
 });
+
+
+test('alternate Bun prefix lengths cannot bypass the nine-digit guard', t => {
+  const f = fixture(t);
+  for (const number of ['000002', '0010157991']) f.add(migration(number));
+  f.commit();
+  const result = f.run();
+  assert.equal(result.status, 1);
+  for (const number of ['000002', '0010157991']) assert.ok(result.stderr.includes(migration(number)));
+  assert.match(result.stderr, /neun Ziffern/);
+  assert.match(result.stderr, /origin\/development: 001015800/);
+  assert.match(result.stderr, /umnummerieren/);
+});
