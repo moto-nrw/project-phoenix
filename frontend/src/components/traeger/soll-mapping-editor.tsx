@@ -181,6 +181,7 @@ export function SollMappingEditor({
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
   const fieldError = (name: string) => formErrors.fieldError(name) ?? undefined;
+  const decimalError = fieldError("decimal_separator");
 
   const set = (patch: Partial<SollMapping>) =>
     setDraft((current) => ({ ...current, ...patch }));
@@ -304,16 +305,19 @@ export function SollMappingEditor({
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <FieldLabel id="soll-decimal">Beträge</FieldLabel>
+              {/* A form error focuses the first option after this field. */}
+              <input
+                type="hidden"
+                name="decimal_separator"
+                value={draft.decimalSeparator}
+              />
               <SegmentedControl
                 ariaLabel="Beträge"
                 items={SOLL_DECIMALS}
                 value={draft.decimalSeparator}
                 onChange={(decimalSeparator) => set({ decimalSeparator })}
               />
-              <FieldErrorHint
-                id="soll-decimal-error"
-                message={fieldError("decimal_separator")}
-              />
+              <FieldErrorHint id="soll-decimal-error" message={decimalError} />
             </div>
             <div className="flex flex-col gap-2">
               <FieldLabel id="soll-date">Datum</FieldLabel>
