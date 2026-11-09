@@ -785,3 +785,56 @@ func TestCareMealExclusionLeavesOutOnlyTheChosenInvoice(t *testing.T) {
 	assert.Equal(t, "care", again.Invoices[0].Service)
 	assert.Equal(t, int64(7750), again.Invoices[0].TotalCents)
 }
+
+// Mia's care and her Mensa invoice of its own cost the same, 77,50 € each.
+// Switching the exclusion from one to the other keeps the count and the sum
+// of the release, so only the fingerprint tells the two reviewed states
+// apart (#6346): a release of the state with the Mensa invoice left out is
+// refused once the care invoice is the one left out, and the state shown
+// now releases.
+func TestCareExclusionSwitchBetweenEqualInvoicesChangesTheFingerprint(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Ausschluss gleicher Betrag")
+	db := testpkg.SetupTestDB(t)
+	school := f.office.schools[0]
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-11-01", "flat", 7750))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	setTerms(t, f.traeger, f.office.token, "meal", map[string]any{"payment_method": "transfer", "due_days": 14, "bundle_with": ""})
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 1)
+	run := f.startRun(t, careMonth)
+	exclusion := func(path, service string, extra map[string]any) careExclusionRun {
+		body := map[string]any{"contract_id": mia, "service": service}
+		for key, value := range extra {
+			body[key] = value
+		}
+		return decodeExclusionRun(t, traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, path), body))
+	}
+	release := func(state careExclusionRun) *httptest.ResponseRecorder {
+		return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"),
+			map[string]any{"document_count": state.PreviewCount, "total_cents": state.PreviewCents, "fingerprint": state.Fingerprint})
+	}
+
+	mealOut := exclusion("/exclusions", "meal", map[string]any{"reason": "Essenszahl wird geprüft"})
+	require.Len(t, mealOut.Invoices, 2, "the care and the Mensa invoice of Mia")
+	require.Equal(t, int64(7750), mealOut.Invoices[0].TotalCents)
+	require.Equal(t, int64(7750), mealOut.Invoices[1].TotalCents, "both invoices cost the same")
+	exclusion("/inclusions", "meal", nil)
+	careOut := exclusion("/exclusions", "care", map[string]any{"reason": "Kündigung wird geprüft"})
+	require.Equal(t, []string{"meal"}, mealOut.excludedServices())
+	require.Equal(t, []string{"care"}, careOut.excludedServices())
+	require.Equal(t, mealOut.PreviewCount, careOut.PreviewCount, "the count of the release stays")
+	require.Equal(t, mealOut.PreviewCents, careOut.PreviewCents, "the sum of the release stays")
+	require.NotEqual(t, mealOut.Fingerprint, careOut.Fingerprint, "the fingerprint names which invoice is left out")
+
+	rec = release(mealOut)
+	assert.Equal(t, http.StatusConflict, rec.Code, "a release of the state with the Mensa invoice left out: %s", rec.Body.String())
+	rec = release(careOut)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var issued []string
+	require.NoError(t, f.db.NewRaw(`SELECT service FROM parent_billing.care_invoices WHERE run_id = ?`, run.ID).
+		Scan(context.Background(), &issued))
+	assert.Equal(t, []string{"meal"}, issued, "the release issues the state shown: the Mensa invoice, without the care")
+}

@@ -29,7 +29,7 @@ import (
 //     Mensa invoice of its own of a contract stays in the run when its care
 //     invoice is excluded, and the other way round. An excluded invoice is
 //     not issued and comes back in the next run of the month. An exclusion
-//     recorded before #6346 named only the contract; migration 1.15.854 maps
+//     recorded before #6346 named only the contract; migration 1.15.865 maps
 //     it onto both services, as it was in force.
 //   - The release issues exactly the reviewed preview: its fingerprint
 //     covers schools, invoice date, rule, exclusions and every amount,

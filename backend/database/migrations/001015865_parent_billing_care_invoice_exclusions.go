@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCareInvoiceExclusionsVersion = "1.15.854"
+const parentBillingCareInvoiceExclusionsVersion = "1.15.865"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingCareInvoiceExclusionsVersion,
-		Description: "Elternabrechnung: Ausschluss im Monatslauf je Rechnung, Bestandsausschlüsse gelten für Betreuung und Mensa (#6346)",
+		Description: "Elternabrechnung: Ausschluss im Monatslauf je Rechnung, Bestandsausschlüsse gelten für Betreuung und Mensa, Demo-Löschung nimmt die Verträge aus der Freigabe (#6346)",
 		DependsOn: []string{
-			demoVisitorErasureOutboxKindsVersion, // the newest migration before this one
+			demoVisitorErasureOutboxKindsVersion, // the erasure this one extends, and the newest migration before it here
 			parentBillingCareReviewVersion,       // the trail actions exclude and include
 		},
 	})
@@ -44,8 +44,15 @@ SET details = details - 'services'
 WHERE action IN ('exclude', 'include') AND details ? 'services';
 `
 
+// parentBillingCareInvoiceExclusionsUp maps the exclusions of before onto
+// both services and installs the demo erasure that takes the retired
+// school's contracts out of the release entries, which since #6346 also
+// name them in excluded_invoices (rule 23 of the demo erasure, #6372).
 func parentBillingCareInvoiceExclusionsUp(ctx context.Context, db *bun.DB) error {
-	return mapCareExclusionsOntoServices(ctx, db)
+	if err := mapCareExclusionsOntoServices(ctx, db); err != nil {
+		return err
+	}
+	return installCareInvoiceExclusionErasure(ctx, db)
 }
 
 // mapCareExclusionsOntoServices is the up migration on any handle, so its
@@ -58,6 +65,9 @@ func mapCareExclusionsOntoServices(ctx context.Context, db bun.IDB) error {
 }
 
 func parentBillingCareInvoiceExclusionsDown(ctx context.Context, db *bun.DB) error {
+	if err := installOutboxKindErasure(ctx, db); err != nil {
+		return err
+	}
 	return takeServicesOffCareExclusions(ctx, db)
 }
 
