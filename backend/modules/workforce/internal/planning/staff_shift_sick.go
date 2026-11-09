@@ -1,0 +1,72 @@
+package planning
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// A single shift write planned after a sick report takes the state the sick
+// cascade gives the shifts that existed when the report came in (#6302): a
+// created or moved shift on a full sick day of its staff member is cancelled
+// with the report's stamp, and a sick person cannot cover a gap. Past days
+// stay history, as the cascade leaves them.
+
+// WithStaffShiftSickReports binds the sick reports a created or moved shift
+// takes its day's state from. Without it (unit tests) nobody is sick.
+func WithStaffShiftSickReports(reader SickReportReader) StaffShiftOption {
+	return func(s *staffShiftService) { s.sickReports = reader }
+}
+
+// WithStaffShiftToday overrides the calendar-day clock the sick-state guard
+// compares against. A nil clock keeps the default.
+func WithStaffShiftToday(today func() calendar.Date) StaffShiftOption {
+	return func(s *staffShiftService) {
+		if today != nil {
+			s.today = today
+		}
+	}
+}
+
+func (s *staffShiftService) todayDate() calendar.Date {
+	if s.today == nil {
+		return calendar.TodayDate()
+	}
+	return s.today()
+}
+
+// sickAbsenceOn names the sick report that makes day a full sick day of the
+// staff member, zero when there is none or the day is past. The caller holds
+// the staff member's shift lock.
+func (s *staffShiftService) sickAbsenceOn(ctx context.Context, staffID int64, day calendar.Date) (int64, error) {
+	if s.sickReports == nil || day.Before(s.todayDate()) {
+		return 0, nil
+	}
+	days, err := sickDaysIn(ctx, s.sickReports, staffID, day, day)
+	if err != nil {
+		return 0, err
+	}
+	return days[day], nil
+}
+
+// applySickStateOfDay gives a newly placed shift the sick state of its day.
+// A cover by a sick person is refused, as the Betreuungsplan refuses a sick
+// substitute. A plain shift on a full sick day is cancelled with the
+// report's stamp. A shift the caller already cancels keeps that decision and
+// its reason, as the cascade leaves an admin's cancellation alone.
+func (s *staffShiftService) applySickStateOfDay(ctx context.Context, shift *workforce.ShiftRecord) error {
+	if shift.Cancelled && shift.OriginShiftID == nil {
+		return nil
+	}
+	absenceID, err := s.sickAbsenceOn(ctx, shift.StaffID, shift.Date)
+	if err != nil || absenceID == 0 {
+		return err
+	}
+	if shift.OriginShiftID != nil {
+		return withReason(fmt.Errorf("%w: replacement staff member is absent on %s", ErrShiftInvalid, shift.Date), workforce.ErrReplacementStaffAbsent)
+	}
+	applySickReport(shift, absenceID)
+	return nil
+}

@@ -112,7 +112,7 @@ type staffShiftSeriesService struct {
 	nonWorkingDays SeriesNonWorkingDayReader
 	// sickReports cancels the occurrences on a staff member's full sick days
 	// (#6302). Nil plans every occurrence.
-	sickReports SeriesSickReportReader
+	sickReports SickReportReader
 }
 
 // NewStaffShiftSeriesService creates a new staff shift series service.
@@ -323,7 +323,7 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	if err != nil {
 		return result, err
 	}
-	sickDays, err := s.sickDaysOf(ctx, series.StaffID, from, to)
+	sickDays, err := sickDaysIn(ctx, s.sickReports, series.StaffID, from, to)
 	if err != nil {
 		return result, err
 	}

@@ -66,6 +66,9 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	if !staffShiftMoveChanged(existing, &moved) {
 		return existing, nil
 	}
+	if err := s.applyMovedSickState(ctx, existing, &moved); err != nil {
+		return nil, err
+	}
 	if err := s.validateMove(ctx, existing, &moved); err != nil {
 		return nil, err
 	}
@@ -153,6 +156,16 @@ func movedShift(existing *workforce.ShiftRecord, input MoveShiftInput) workforce
 		moved.UpdatedBy = &input.ActorStaffID
 	}
 	return moved
+}
+
+// applyMovedSickState gives a shift moved to another person or day the sick
+// state of its new day (#6302). A time change on the same day keeps the row's
+// state, so a presence an admin restored on a sick day stays.
+func (s *staffShiftService) applyMovedSickState(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
+	if moved.StaffID == existing.StaffID && moved.Date == existing.Date {
+		return nil
+	}
+	return s.applySickStateOfDay(ctx, moved)
 }
 
 // validateMove checks the moved row's shape, type, origin link and overlap.

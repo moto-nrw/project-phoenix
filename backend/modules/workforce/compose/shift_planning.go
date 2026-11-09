@@ -151,8 +151,8 @@ type ShiftPlanningDependencies struct {
 	// Broadcaster and Logger are optional.
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
-	// Today overrides the calendar-day clock the materializer compares
-	// against; nil keeps timezone.TodayDate.
+	// Today overrides the calendar-day clock the materializer and the sick
+	// state of shift writes compare against; nil keeps timezone.TodayDate.
 	Today func() calendar.Date
 }
 
@@ -189,10 +189,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	logger := deps.Logger
 	shiftTypes := planning.NewShiftTypeService(deps.Workforce, logger)
 
-	shiftOptions := []planning.StaffShiftOption{
-		planning.WithStaffShiftSeriesExceptions(deps.Workforce),
-		planning.WithStaffShiftBroadcaster(deps.Broadcaster),
-	}
+	shiftOptions := planning.ShiftOptions(deps.Workforce, deps.Broadcaster, deps.Today)
 	if deps.ShiftMoveAudit != nil {
 		shiftOptions = append(shiftOptions, planning.WithStaffShiftDeviationEvents(deps.ShiftMoveAudit))
 	}

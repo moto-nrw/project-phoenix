@@ -1,0 +1,187 @@
+// Hermetic integration tests for single shift writes after a sick report
+// (#6302), the Dienstplan side of #6300's precedent.
+//
+// Invariants:
+//   - W1: a shift created for a full sick day of its staff member is in the
+//     state the cascade gives a shift created before the report, and the
+//     report's deletion reactivates it alike. Past days stay history; a
+//     shift the planner cancels herself keeps her reason.
+//   - W2: a shift moved to a sick person or onto a sick day takes that day's
+//     sick state; a time change on the same day keeps the row's state.
+//   - W3: a sick person cannot cover a cancelled shift
+//     (workforce.ErrReplacementStaffAbsent).
+//   - W4: a shift a sick report cancels is checked for overlap as planned,
+//     so the report's deletion can reactivate every shift it cancelled.
+//
+// No lock is added: every read runs under the staff member's shift lock the
+// write already holds.
+package compose_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// planShift creates one shift through the planning service.
+func (e *sickCascadeEnv) planShift(t *testing.T, staffID int64, date calendar.Date, start, end string, mutate func(*workforce.StaffShiftInput)) (workforce.StaffShift, error) {
+	t.Helper()
+	input := workforce.StaffShiftInput{StaffID: staffID, Date: date.String(), StartTime: clock(start), EndTime: clock(end), ActorStaffID: e.admin.ID}
+	if mutate != nil {
+		mutate(&input)
+	}
+	var created workforce.PlannedShift
+	var createErr error
+	e.inTx(t, func(ctx context.Context) error {
+		created, createErr = e.Planning.CreateShift(ctx, workforce.CreateStaffShift{StaffShiftInput: input})
+		return nil
+	})
+	return created.StaffShift, createErr
+}
+
+func (e *sickCascadeEnv) mustPlanShift(t *testing.T, staffID int64, date calendar.Date, start, end string) workforce.StaffShift {
+	t.Helper()
+	shift, err := e.planShift(t, staffID, date, start, end, nil)
+	require.NoError(t, err)
+	return shift
+}
+
+func (e *sickCascadeEnv) moveShift(t *testing.T, shift workforce.StaffShift, targetStaffID int64, date calendar.Date, start, end string) workforce.StaffShift {
+	t.Helper()
+	var moved workforce.PlannedShift
+	e.inTx(t, func(ctx context.Context) error {
+		var err error
+		moved, err = e.Planning.MoveShift(ctx, workforce.MoveStaffShift{
+			ShiftID: shift.ID, SourceStaffID: shift.StaffID, TargetStaffID: targetStaffID,
+			Date: date.String(), StartTime: clock(start), EndTime: clock(end), ActorStaffID: e.admin.ID,
+		})
+		return err
+	})
+	return moved.StaffShift
+}
+
+// W1: created before and after the report, the shifts end up alike.
+func TestSickReport_CreatedShiftMatchesShiftPlannedBefore(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	before := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "08:00", "10:00")
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+
+	after := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "13:00", "15:00")
+	healthy := e.mustPlanShift(t, e.subject.ID, stampWeekOne, "08:00", "10:00")
+
+	assertSickCancelled(t, after, absenceID, "created on the sick day")
+	assert.Equal(t, sickStateOf(e.reloadShift(t, before.ID)), sickStateOf(e.reloadShift(t, after.ID)), "same state as the shift planned before")
+	assertPlanned(t, healthy, "created on a healthy day")
+
+	e.deleteSickAbsence(t, absenceID)
+	assertPlanned(t, e.reloadShift(t, after.ID), "deleted report")
+	assert.Equal(t, sickStateOf(e.reloadShift(t, before.ID)), sickStateOf(e.reloadShift(t, after.ID)), "same state after the deletion")
+}
+
+// W1: a past day is history, as the cascade leaves it.
+func TestSickReport_CreatedShiftOnPastSickDayStaysPlanned(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	yesterday := calendar.NewDate(2026, 8, 23)
+	absenceID := e.createSickAbsence(t, stampWeekOne, stampWeekOne)
+	_, err := e.db.NewRaw(`UPDATE active.staff_absences SET date_start = ? WHERE id = ? AND tenant_id = ?`, yesterday, absenceID, e.tenantID).Exec(e.ctx)
+	require.NoError(t, err)
+
+	assertPlanned(t, e.mustPlanShift(t, e.subject.ID, yesterday, "08:00", "10:00"), "past sick day")
+	assertSickCancelled(t, e.mustPlanShift(t, e.subject.ID, stampWeekOne, "08:00", "10:00"), absenceID, "future sick day")
+}
+
+// W1: a planner's own cancellation keeps its reason and takes no stamp.
+func TestSickReport_CreatedCancelledShiftKeepsPlannersReason(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	reason := "Fortbildung"
+
+	shift, err := e.planShift(t, e.subject.ID, stampWeekTwo, "08:00", "10:00", func(in *workforce.StaffShiftInput) {
+		in.Cancelled, in.ChangeReason = true, &reason
+	})
+	require.NoError(t, err)
+
+	assert.True(t, shift.Cancelled)
+	assert.Nil(t, shift.SickAbsenceID, "no stamp on the planner's cancellation")
+	if assert.NotNil(t, shift.ChangeReason) {
+		assert.Equal(t, reason, *shift.ChangeReason)
+	}
+}
+
+// W2: moving a shift to a sick person, or the sick person's shift onto a
+// sick day, cancels it; a time change on the sick day keeps a presence the
+// planner restored.
+func TestSickReport_MovedShiftTakesSickStateOfItsNewDay(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	restored := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "13:00", "15:00")
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	e.inTx(t, func(ctx context.Context) error {
+		_, err := e.Planning.ApplyCancellation(ctx, workforce.CancelStaffShift{ShiftID: restored.ID, Cancelled: false, ActorStaffID: e.admin.ID})
+		return err
+	})
+	require.False(t, e.reloadShift(t, restored.ID).Cancelled, "planner restored the presence")
+
+	colleagues := e.mustPlanShift(t, e.admin.ID, stampWeekTwo, "08:00", "10:00")
+	ownHealthy := e.mustPlanShift(t, e.subject.ID, stampWeekOne, "16:00", "17:00")
+
+	assertSickCancelled(t, e.moveShift(t, colleagues, e.subject.ID, stampWeekTwo, "08:00", "10:00"), absenceID, "moved to the sick person")
+	assertSickCancelled(t, e.moveShift(t, ownHealthy, e.subject.ID, stampWeekTwo, "16:00", "17:00"), absenceID, "moved onto the sick day")
+	assertPlanned(t, e.moveShift(t, e.reloadShift(t, restored.ID), e.subject.ID, stampWeekTwo, "13:30", "15:00"), "time change on the same day")
+}
+
+// W3: a sick person cannot cover a gap; a healthy day can.
+func TestSickReport_SickPersonCannotCoverAShift(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	cover := func(origin workforce.StaffShift) error {
+		var err error
+		e.inTx(t, func(ctx context.Context) error {
+			_, err = e.Planning.ApplyCancellation(ctx, workforce.CancelStaffShift{
+				ShiftID: origin.ID, Cancelled: true, ActorStaffID: e.admin.ID,
+				Replacements: []workforce.ShiftReplacement{{StaffID: e.subject.ID, StartTime: clock("08:00"), EndTime: clock("10:00")}},
+			})
+			return nil
+		})
+		return err
+	}
+
+	err := cover(e.mustPlanShift(t, e.admin.ID, stampWeekTwo, "08:00", "10:00"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, workforce.ErrReplacementStaffAbsent), "refusal names the absent cover: %v", err)
+	assert.True(t, errors.Is(err, workforce.ErrInvalidStaffShift), "refusal is an input error: %v", err)
+
+	require.NoError(t, cover(e.mustPlanShift(t, e.admin.ID, stampWeekOne, "08:00", "10:00")), "healthy day")
+}
+
+// W4: a second shift in the window of a shift the report cancelled is refused
+// like an overlap with a planned shift, so the report can still be deleted.
+func TestSickReport_CreatedSickShiftCannotOverlapAnotherSickShift(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	before := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "08:00", "12:00")
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+
+	_, err := e.planShift(t, e.subject.ID, stampWeekTwo, "10:00", "14:00", nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, workforce.ErrStaffShiftOverlap), "overlap refusal: %v", err)
+	assertSickCancelled(t, e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "13:00", "15:00"), absenceID, "free window")
+
+	e.deleteSickAbsence(t, absenceID)
+	assertPlanned(t, e.reloadShift(t, before.ID), "deleted report")
+}

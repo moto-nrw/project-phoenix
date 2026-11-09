@@ -127,6 +127,10 @@ type staffShiftService struct {
 	// which staff members an operation serializes on (e.g. that a dropped cover's
 	// staff is folded into the cancellation lock set, #1841). Nil in production.
 	lockObserver func(staffIDs []int64)
+	// sickReports and today give a created or moved shift the sick state of
+	// its day (#6302). A nil reader plans everybody healthy.
+	sickReports SickReportReader
+	today       func() calendar.Date
 }
 
 // NewStaffShiftService creates a new staff shift service. lockStaffShifts is
@@ -293,8 +297,13 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*work
 // shift does not take place, so it neither blocks other shifts nor is blocked
 // by them (#1841): a replacement or a shortened return can reuse the freed
 // window.
+//
+// A shift cancelled by a sick report is checked as planned, against planned
+// shifts and other shifts a sick report cancelled: deleting or shortening the
+// report reactivates them all, which must not collide (#6302).
 func (s *staffShiftService) checkOverlap(ctx context.Context, shift *workforce.ShiftRecord) error {
-	if shift.Cancelled {
+	sickCancelled := shift.Cancelled && shift.SickAbsenceID != nil
+	if shift.Cancelled && !sickCancelled {
 		return nil
 	}
 	existing, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{StaffID: shift.StaffID, From: shift.Date.String(), To: shift.Date.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime)})
@@ -303,7 +312,7 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *workforce.S
 		return err
 	}
 	for _, other := range existing {
-		if other.ID == shift.ID || other.Cancelled {
+		if other.ID == shift.ID || (other.Cancelled && (!sickCancelled || other.SickAbsenceID == nil)) {
 			continue
 		}
 		if shift.Overlaps(other) {
@@ -473,6 +482,9 @@ func (s *staffShiftService) createShift(ctx context.Context, shift *workforce.Sh
 	// the locks so a concurrent reactivation cannot flip the origin active before
 	// the replacement is inserted (#1841).
 	if err := s.validateOriginLink(ctx, shift); err != nil {
+		return nil, err
+	}
+	if err := s.applySickStateOfDay(ctx, shift); err != nil {
 		return nil, err
 	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
