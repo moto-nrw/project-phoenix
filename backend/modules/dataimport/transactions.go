@@ -2,6 +2,7 @@ package dataimport
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -26,6 +27,11 @@ type Transactions interface {
 	AcquireLock(context.Context, string) error
 	Observe(context.Context, func(TransactionObservation)) context.Context
 }
+
+// ErrSavepointControl marks a failure to open, roll back or release a
+// savepoint. The transaction is no longer usable, so the chunk executor
+// returns it instead of replaying the chunk.
+var ErrSavepointControl = errors.New("data import: savepoint control failed")
 
 // batchRowWriteKey marks one row's owner writes in ImportBatches. There a
 // failed row write aborts the whole chunk, so the savepoint every config opens

@@ -79,7 +79,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/calendar_test_helpers.go:NewCalendarTestModule":                 63,
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":        61,
 	"api/guardians_composition.go:NewGuardiansResource":                  106,
-	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           82,
+	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           80,
 	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,

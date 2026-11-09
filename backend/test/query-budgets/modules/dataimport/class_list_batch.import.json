@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.class_list_batch.import",
-  "max": 60,
+  "max": 21,
   "exact": false,
-  "description": "Ten-row class-list create with name and class; each entry leaves its audit change. Measured by TestClassListImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). The batch path writes each row without a row savepoint, because a failed row aborts its whole chunk (#5552, ADR 0067 addendum step 3)."
+  "description": "Ten-row class-list create with name and class; each entry leaves its audit change. Measured by TestClassListImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). Since #5827 each chunk is one batch attempt in SAVEPOINT chunk: one protected read of entries, names and students, the student guard, and one bounded batch command for entries and audit changes (decision E13/E13')."
 }

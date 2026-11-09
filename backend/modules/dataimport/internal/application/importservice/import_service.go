@@ -42,6 +42,13 @@ type ImportService[T any] struct {
 	observe      func(importModels.ImportObservation)
 	fingerprint  func([]byte) string
 	checkpoints  audit.ImportCheckpointReader
+	// boundStatements and batchLimit bound every batch write of the chunk
+	// executor (decision E13); without boundStatements chunks take the row path.
+	boundStatements func(context.Context, time.Duration, func(context.Context) error) error
+	batchLimit      time.Duration
+	// connectionLost classifies a broken connection, after which a batch
+	// attempt is neither replayed nor retried.
+	connectionLost func(error) bool
 	// config keeps request-specific reference data after PreloadReferenceData.
 	// Serialize processing while that mutable configuration is shared.
 	importMu sync.Mutex
@@ -77,6 +84,31 @@ func NewImportService[T any](config ports.ImportConfig[T], runtime ports.ImportR
 		observe:      runtime.Observe,
 		fingerprint:  runtime.Fingerprint,
 		checkpoints:  checkpoints,
+
+		boundStatements: runtime.BoundStatements,
+		batchLimit:      batchLimitOf(runtime),
+		connectionLost:  runtime.ConnectionLost,
+	}
+}
+
+func batchLimitOf(runtime ports.ImportRuntime) time.Duration {
+	if runtime.BatchStatementLimit > 0 {
+		return runtime.BatchStatementLimit
+	}
+	return DefaultBatchStatementLimit
+}
+
+// renewed is the service over a new request-scoped config, for a replay
+// that must not see what the first preload left behind.
+func (s *ImportService[T]) renewed() *ImportService[T] {
+	config := s.config
+	if scoped, ok := config.(requestScopedConfig[T]); ok {
+		config = scoped.NewRequestScoped()
+	}
+	return &ImportService[T]{
+		config: config, transactions: s.transactions, batchSize: s.batchSize, audit: s.audit, observe: s.observe,
+		fingerprint: s.fingerprint, checkpoints: s.checkpoints,
+		boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost,
 	}
 }
 
