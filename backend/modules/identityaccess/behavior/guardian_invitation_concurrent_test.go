@@ -256,3 +256,95 @@ func TestGuardianInvitationAcceptanceAtDeletedSchoolCreatesNoAccount(t *testing.
 	assert.Zero(t, accounts, "the new account is rolled back")
 	assert.Nil(t, testpkg.GuardianInvitationByID(t, env.db, invitation.ID).AcceptedAt)
 }
+
+// Create and Accept of guardian invitations lock in one order: account,
+// then school, then profile (#6305, #6294). A third transaction holds the
+// guardian's account; an acceptance queues for it first, a new invitation
+// for the same profile second. Once the account is free, the acceptance
+// takes school and profile while the creation still waits for the account:
+// a creation that held the profile while it waited would close a cycle with
+// the acceptance and end one of them with a deadlock (40P01).
+func TestGuardianInvitationCreateAndAcceptShareLockOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+		Outbox: api.NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	_, creator := testpkg.CreateTestPersonWithAccount(t, db, "Inviter", "CreateAccept")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "create-and-accept")
+	account := testpkg.CreateTestAccountWithPassword(t, db, *profile.Email, strongTestPassword)
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	var holderPID int
+	require.NoError(t, holder.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &holderPID))
+	_, err = holder.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+	var workers sync.WaitGroup
+	defer func() {
+		_ = holder.Rollback()
+		cancel()
+		workers.Wait()
+	}()
+	waitersOfHolder := func() int {
+		var waiting int
+		if scanErr := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND ? = ANY(pg_blocking_pids(pid))`, holderPID).Scan(ctx, &waiting); scanErr != nil {
+			return 0
+		}
+		return waiting
+	}
+
+	accepted := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		_, acceptErr := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{
+			Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+		})
+		accepted <- acceptErr
+	}()
+	require.Eventually(t, func() bool { return waitersOfHolder() == 1 }, 10*time.Second, 10*time.Millisecond,
+		"the acceptance queues for the account first")
+	created := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		_, createErr := service.CreateGuardianInvitation(testpkg.TenantContext(testpkg.Tenant(t)), identityaccess.GuardianInvitationRequest{
+			GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+		})
+		created <- createErr
+	}()
+	require.Eventually(t, func() bool {
+		var waiting []string
+		if scanErr := db.NewRaw(`SELECT left(query, 160) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> ?`, holderPID).Scan(ctx, &waiting); scanErr != nil {
+			return false
+		}
+		return len(waiting) == 2
+	}, 10*time.Second, 200*time.Millisecond, "the creation queues second")
+	require.NoError(t, holder.Rollback())
+
+	for _, result := range []struct {
+		name string
+		ch   chan error
+	}{{"acceptance", accepted}, {"creation", created}} {
+		select {
+		case err := <-result.ch:
+			assert.NotContains(t, fmt.Sprint(err), "40P01", "%s must not deadlock", result.name)
+			if result.name == "acceptance" {
+				assert.NoError(t, err, "the acceptance queued first succeeds")
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}

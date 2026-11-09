@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -184,6 +185,34 @@ func (s *partialAbsenceService) DeletePartialAbsence(ctx context.Context, except
 		}
 		return s.removeManual(txCtx, row)
 	})
+}
+
+// ReplaceManualPartialAbsences runs in the caller's tenant unit of work.
+func (s *partialAbsenceService) ReplaceManualPartialAbsences(ctx context.Context, studentID int64, dates []calendar.Date) error {
+	sorted := slices.Clone(dates)
+	slices.SortFunc(sorted, calendar.Date.Compare)
+	sorted = slices.Compact(sorted)
+	// Ascending date order, student row first: the order every full-day
+	// status writer uses, so a replacement cannot deadlock with them.
+	for _, date := range sorted {
+		if err := s.tx.LockStudentAndExceptionDay(ctx, studentID, date.String()); err != nil {
+			return err
+		}
+	}
+	for _, date := range sorted {
+		if err := s.replaceDay(ctx, studentID, date); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *partialAbsenceService) replaceDay(ctx context.Context, studentID int64, date calendar.Date) error {
+	row, err := s.pickups.FindByStudentIDAndDate(ctx, studentID, date)
+	if err != nil || row == nil || !row.HasManualPartialAbsence() {
+		return err
+	}
+	return s.removeManual(ctx, row)
 }
 
 func (s *partialAbsenceService) removeManual(ctx context.Context, row *careplan.PickupException) error {

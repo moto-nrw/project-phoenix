@@ -42,6 +42,7 @@
   "rebooking_sick_report": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "rebooking_too_many": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "replacement_outside_origin": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "replacement_staff_absent": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "session_note_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "session_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "session_not_owned": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",

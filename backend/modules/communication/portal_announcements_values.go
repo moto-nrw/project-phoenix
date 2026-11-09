@@ -31,6 +31,13 @@ type PortalAnnouncementFeedItem struct {
 	// Ended marks an answered declaration the school no longer shows (#6290).
 	Ended bool `json:"-"`
 }
+
+// PortalAnnouncementFeedScope is the guardian's feed scope. TenantIDs are the schools with parent
+// news on: their whole feed shows. SystemOnlyTenantIDs are all the guardian's
+// schools: they contribute system-authored rows and the declarations the
+// guardian answered, so a given consent stays revocable when the school
+// switches parent news off (#6303). The parent flow narrows those to the own
+// given consents.
 type PortalAnnouncementFeedScope struct {
 	TenantIDs           []int64
 	SystemOnlyTenantIDs []int64

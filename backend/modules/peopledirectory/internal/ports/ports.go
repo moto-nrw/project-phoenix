@@ -13,6 +13,9 @@ import (
 // only deliberate exception and requires an admin transaction.
 type Store interface {
 	Create(context.Context, peopledirectory.CreatePerson) (peopledirectory.Person, domain.OperationStats, error)
+	// CreatePersons inserts the persons in input order in one statement; the
+	// result is index-aligned with the input.
+	CreatePersons(context.Context, []peopledirectory.CreatePerson) ([]peopledirectory.Person, domain.OperationStats, error)
 	Update(context.Context, peopledirectory.UpdatePerson) (peopledirectory.Person, domain.OperationStats, error)
 	FindByID(ctx context.Context, id int64, lock string) (peopledirectory.Person, bool, domain.OperationStats, error)
 	FindByAccount(context.Context, int64) (peopledirectory.Person, bool, domain.OperationStats, error)

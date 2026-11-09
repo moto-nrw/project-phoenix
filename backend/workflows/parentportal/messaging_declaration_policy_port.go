@@ -12,7 +12,7 @@ type DeclarationPolicyCallbacks struct {
 	CanonicalContent func(pA DeclarationVersion) []byte
 	Closed           func(deadline *time.Time, now time.Time) bool
 	ChildState       func(signers string, deadline *time.Time, eligible []int64, latest map[int64]string, now time.Time) string
-	AllowedActions   func(revocable bool, deadline *time.Time, canSubmit bool, latest string, now time.Time) []string
+	AllowedActions   func(deadline *time.Time, canSubmit bool, latest string, now time.Time) []string
 	OwesAction       func(deadline *time.Time, canSubmit bool, latest string, state string, now time.Time) bool
 }
 
@@ -36,8 +36,8 @@ func (p declarationPolicyBinding) ChildState(signers string, deadline *time.Time
 	result0 := p.callbacks.ChildState(signers, deadline, eligible, latest, now)
 	return result0
 }
-func (p declarationPolicyBinding) AllowedActions(revocable bool, deadline *time.Time, canSubmit bool, latest string, now time.Time) []string {
-	result0 := p.callbacks.AllowedActions(revocable, deadline, canSubmit, latest, now)
+func (p declarationPolicyBinding) AllowedActions(deadline *time.Time, canSubmit bool, latest string, now time.Time) []string {
+	result0 := p.callbacks.AllowedActions(deadline, canSubmit, latest, now)
 	return result0
 }
 func (p declarationPolicyBinding) OwesAction(deadline *time.Time, canSubmit bool, latest string, state string, now time.Time) bool {

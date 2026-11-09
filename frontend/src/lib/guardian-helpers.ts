@@ -120,8 +120,11 @@ export interface BackendGuardianPickerResponse {
 // "active_no_access" = has a login account, but this child's link carries no
 // portal access (restrictive contact role, #2172) · "pending" = invited, not
 // yet accepted · "none" = info on file, no account (can be invited).
+// "link_invalid": no account, and the last invitation link ended unused
+// (address changed after it was mailed, or ended by the address binding,
+// #6294). A new invitation is needed.
 export type GuardianAccountStatus =
-  "active" | "active_no_access" | "pending" | "none";
+  "active" | "active_no_access" | "pending" | "link_invalid" | "none";
 
 // Guardian with Relationship (for student detail view)
 export interface GuardianWithRelationship extends Guardian {

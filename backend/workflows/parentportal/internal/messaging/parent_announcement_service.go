@@ -53,8 +53,9 @@ var (
 // ListAnnouncements returns the guardian's parent-news feed: published, active,
 // unexpired announcements they are targeted by across all their children's
 // schools, newest-published first, each with the guardian's read/ack state.
-// Schools that have turned the news feature off are excluded so the feed agrees
-// with the unread badge. Cross-tenant.
+// Schools that have turned the news feature off contribute only their system
+// notices and the guardian's own given consents, which stay revocable (#6303).
+// Cross-tenant.
 func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
@@ -72,7 +73,7 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 		if err != nil {
 			return err
 		}
-		out = rows
+		out = endNewsOffDeclarations(rows, scope)
 		if err := s.attachPollData(adminCtx, accountID, rows); err != nil {
 			return err
 		}
@@ -83,7 +84,7 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: list announcements: %w", txErr)
 	}
-	return withoutEmptyEndedDeclarations(out), nil
+	return withoutEmptyEndedDeclarations(presentEndedDeclarations(onlyGivenConsentsWithNewsOff(out, scope))), nil
 }
 
 // attachPollData loads the answer options and the guardian's answerable children

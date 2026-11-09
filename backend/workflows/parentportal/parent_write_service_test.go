@@ -408,10 +408,14 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	assert.False(t, sick, "a future-only sick note must not flip today's live flag")
 }
 
-func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
+// A staff-entered partial absence stays when a family reports the whole day:
+// the report for that day becomes a request the school decides, and a free
+// day in the same report is written directly (#5698). This replaced the
+// earlier contract that refused the whole report with care_exception_conflict.
+func TestSubmitSickNote_PartialAbsenceDayBecomesRequest(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildWriteService(t, true, true)
+	svc, _, _, db := buildAbsenceApprovalServices(t, false, false)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
@@ -432,18 +436,29 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	pickup.TenantID = chain.TenantID
 	require.NoError(t, api.CreateParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), repos.CarePlan(), pickup))
 
-	_, err := svc.SubmitSickNote(
+	free := date.AddDays(1)
+	result, err := svc.SubmitSickNote(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]calendar.Date{date}, "Fieber", absencerecords.StudentStatusDaySick,
+		[]calendar.Date{date, free}, "Fieber", absencerecords.StudentStatusDaySick,
 		nil,
 	)
-	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
+	require.NoError(t, err)
+	require.Len(t, result.StatusDays, 1)
+	assert.Equal(t, free, result.StatusDays[0].Date)
+	require.NotNil(t, result.PendingRequest)
+	assert.Equal(t, []calendar.Date{date}, result.PendingRequest.Dates)
 
 	rows, findErr := repos.StudentStatusDay.FindActiveByStudentAndDateRange(
 		testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date,
 	)
 	require.NoError(t, findErr)
-	assert.Empty(t, rows)
+	assert.Empty(t, rows, "the school's day keeps its partial absence until the school decides")
+	partial, findErr := repos.CarePlan().ListPickupExceptions(testpkg.TenantContext(chain.TenantID), careplan.StudentScheduleFilter{
+		StudentIDs: []int64{chain.StudentID}, From: careplan.Date(date), To: careplan.Date(date),
+	})
+	require.NoError(t, findErr)
+	require.Len(t, partial, 1)
+	assert.True(t, partial[0].HasManualPartialAbsence())
 }
 
 func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
@@ -618,10 +633,13 @@ func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrEmptyNote)
 }
 
-func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
+// A class trip the school planned stays when a family reports the child sick
+// for that day: the report becomes a request the school decides (#5698). This
+// replaced the earlier contract in which the family's report cleared the trip.
+func TestSubmitSickNote_SchoolClassTripBecomesRequest(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildWriteService(t, true, true)
+	svc, _, _, db := buildAbsenceApprovalServices(t, false, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	statusRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StudentStatusDay
@@ -637,13 +655,14 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []calendar.Date{date}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
-	require.Len(t, sickResult.StatusDays, 1)
-	assert.Equal(t, absencerecords.StudentStatusDaySick, sickResult.StatusDays[0].Status)
+	assert.Empty(t, sickResult.StatusDays)
+	require.NotNil(t, sickResult.PendingRequest)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, sickResult.PendingRequest.AbsenceStatus)
 
 	activeRows, err := statusRepo.FindActiveByStudentAndDateRange(ctx, chain.StudentID, date, date)
 	require.NoError(t, err)
 	require.Len(t, activeRows, 1)
-	assert.Equal(t, absencerecords.StudentStatusDaySick, activeRows[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDayClassTrip, activeRows[0].Status)
 }
 
 // --- ListSickDays ---

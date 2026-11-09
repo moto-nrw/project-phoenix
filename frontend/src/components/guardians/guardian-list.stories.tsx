@@ -117,3 +117,11 @@ export const ReadOnly: Story = {
     readOnly: true,
   },
 };
+
+// #6294: the link ended unused (address changed, or ended by the address
+// binding); the list asks for a new invitation instead of "Einladung offen".
+export const DeadInvitationLink: Story = {
+  args: {
+    guardians: [{ ...pendingGuardian, accountStatus: "link_invalid" }],
+  },
+};

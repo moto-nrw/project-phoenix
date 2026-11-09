@@ -13,7 +13,10 @@ import {
 
 import { ChevronRight } from "lucide-react";
 
-import { useResolvedMediaQuery } from "~/lib/hooks/use-media-query";
+import {
+  AT_LEAST_MD,
+  useResolvedMediaQuery,
+} from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -825,7 +828,7 @@ export function DataTable<T>({
   // (server render, hydration) both stay and CSS picks one, so nothing jumps.
   // Match Tailwind's md query exactly, including fractional widths and the
   // browser's default font size. A max-width in px can leave a CSS/JS gap.
-  const desktop = useResolvedMediaQuery("(min-width: 48rem)");
+  const desktop = useResolvedMediaQuery(AT_LEAST_MD);
   const showStacked = stackedOnMobile && desktop !== true;
   const showTable = !stackedOnMobile || desktop !== false;
 

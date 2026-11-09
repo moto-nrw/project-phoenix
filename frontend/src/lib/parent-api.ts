@@ -1229,12 +1229,29 @@ export interface ParentDeclarationChild {
     readonly action: ParentDeclarationAction | null;
     readonly submitted_at: string | null;
   }[];
+  /**
+   * This guardian's consent to an older wording that still stands after the
+   * school changed the text (#6303). It stays revocable; null without one.
+   */
+  readonly earlier_consent?: ParentDeclarationEarlierConsent | null;
+}
+
+/** A standing consent to an older wording of an Einverständnis. */
+interface ParentDeclarationEarlierConsent {
+  readonly version: {
+    readonly id: string;
+    readonly version_no: number;
+    readonly content_hash: string;
+    readonly title: string;
+    readonly body: string;
+  };
+  readonly submitted_at: string;
+  readonly allowed_actions: readonly ParentDeclarationAction[];
 }
 
 export interface ParentDeclaration {
   readonly kind: "consent";
   readonly signers: "any" | "all";
-  readonly revocable: boolean;
   readonly requires_password: boolean;
   /** Agreeing needs a signature with finger, pen or mouse (#4785). */
   readonly requires_signature: boolean;
@@ -2524,6 +2541,10 @@ export interface ParentDocument {
    * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
    */
   readonly can_withdraw_contract?: boolean;
+  readonly sepa_mandate?: {
+    readonly enabled: boolean;
+    readonly collection_eligible: boolean;
+  };
 }
 
 /**

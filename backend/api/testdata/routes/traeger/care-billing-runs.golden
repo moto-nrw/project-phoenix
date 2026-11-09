@@ -1,4 +1,3 @@
-DELETE /traeger/care-billing-runs/{id}/exclusions/{contractID}
 GET /traeger/care-billing-runs/
 GET /traeger/care-billing-runs/schools
 GET /traeger/care-billing-runs/{id}
@@ -10,6 +9,7 @@ GET /traeger/care-billing-runs/{id}/review-export
 POST /traeger/care-billing-runs/
 POST /traeger/care-billing-runs/{id}/amendments
 POST /traeger/care-billing-runs/{id}/exclusions
+POST /traeger/care-billing-runs/{id}/inclusions
 POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation
 POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail
 POST /traeger/care-billing-runs/{id}/letters

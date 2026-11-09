@@ -8,9 +8,13 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /parent/me/documents/{organizationId}/contracts/{contractId}/family-children
 	GET /parent/me/documents/{organizationId}/contracts/{contractId}/notice
 	GET /parent/me/documents/{organizationId}/contracts/{contractId}/pdf
+	GET /parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate
 	GET /parent/me/documents/{organizationId}/contracts/{contractId}/signing
 	GET /parent/me/documents/{organizationId}/shared/{documentId}/file
 	GET /parent/me/documents/{organizationId}/{documentId}/pdf
 	POST /parent/me/documents/{organizationId}/contracts/{contractId}/notice
+	POST /parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate
+	POST /parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate/preview
+	POST /parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate/revoke
 	POST /parent/me/documents/{organizationId}/contracts/{contractId}/sign
 	PUT /parent/me/documents/{organizationId}/contracts/{contractId}/family-children

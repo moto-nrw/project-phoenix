@@ -101,6 +101,9 @@ type StaffImportConfig struct {
 	namedRoles          []int64
 	rolePermissions     map[int64][]string
 	rolePermissionsRead bool
+	// rolePermissionsLost is a failed savepoint statement of that read: the
+	// validation transaction can no longer be trusted (E19).
+	rolePermissionsLost error
 	// schoolName is the tenant's display name, shown in invitation emails.
 	schoolName string
 

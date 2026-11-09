@@ -107,6 +107,8 @@ func runFaultTable(t *testing.T, cases []faultCase) {
 			case upload.err == nil:
 			case strings.Contains(upload.err.Error(), "chunk rollback failed"):
 				got.failsWith = "rollback failed"
+			case strings.Contains(upload.err.Error(), "a savepoint of the write failed"):
+				got.failsWith = "savepoint lost"
 			case errors.Is(upload.err, driver.ErrBadConn):
 				got.failsWith = "bad connection"
 			case errors.As(upload.err, &state):
@@ -125,6 +127,7 @@ func TestChunkFaultsOutsideTheBatchCommandBehaveLikeTheRowPath(t *testing.T) {
 	t.Parallel()
 	retried := faultOutcome{retries: 1, entries: 5}
 	lost := faultOutcome{failsWith: "rollback failed"}
+	savepointLost := faultOutcome{failsWith: "savepoint lost"}
 	runFaultTable(t, []faultCase{
 		{point: "bound set", prefix: boundSet, err: injectedSQLState("40P01"), want: retried},
 		{point: "bound set", prefix: boundSet, err: injectedSQLState("40001"), want: retried},
@@ -158,6 +161,16 @@ func TestChunkFaultsOutsideTheBatchCommandBehaveLikeTheRowPath(t *testing.T) {
 		// row (ADR F3), with no retry and no replay.
 		{point: "ResolveChunk entry read", prefix: matchRead, err: injectedSQLState("40P01"), want: faultOutcome{entries: 5}},
 		{point: "ResolveChunk person read", prefix: personRead, nth: 1, err: injectedSQLState("40P01"), want: faultOutcome{entries: 5}},
+		// A failed savepoint statement of that read ends the upload instead
+		// (E19): 500, no retry, no replay, no fallback onto the transaction.
+		{point: "ResolveChunk entry read, rollback", prefix: matchRead, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: savepointLost},
+		{point: "ResolveChunk entry read, rollback", prefix: matchRead, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: injectedSQLState("40P01"), want: savepointLost},
+		{point: "ResolveChunk entry read, rollback", prefix: matchRead, err: errors.New("injected read failure"), prefix2: rollbackTo, err2: injectedSQLState("57014"), want: savepointLost},
+		{point: "ResolveChunk entry read, release after rollback", prefix: matchRead, err: injectedSQLState("40P01"), prefix2: release, err2: injectedSQLState("40001"), want: savepointLost},
+		// The second SAVEPOINT is ResolveChunk's, the first RELEASE too.
+		{point: "ResolveChunk savepoint", prefix: savepoint, nth: 2, err: injectedSQLState("40P01"), want: savepointLost},
+		{point: "ResolveChunk savepoint", prefix: savepoint, nth: 2, err: driver.ErrBadConn, want: savepointLost},
+		{point: "ResolveChunk release", prefix: release, nth: 1, err: injectedSQLState("40P01"), want: savepointLost},
 		{point: "checkpoint", prefix: checkpoint, err: injectedSQLState("40P01"), want: retried},
 		{point: "checkpoint", prefix: checkpoint, err: driver.ErrBadConn, want: faultOutcome{failsWith: "bad connection"}},
 	})
@@ -180,6 +193,11 @@ func TestChunkFaultsInTheBatchCommandReplay(t *testing.T) {
 		{point: "batch command", prefix: batchMerge, err: injectedSQLState("23514"), want: replayed},
 		{point: "batch command", prefix: batchMerge, err: driver.ErrBadConn, want: faultOutcome{failsWith: "bad connection"}},
 		{point: "batch command audit", prefix: batchAudit, err: injectedSQLState("40P01"), want: replayed},
+		// The bundled audit runs under the same bound: its own 57014 is E13′.
+		{point: "batch command audit", prefix: batchAudit, err: injectedSQLState("57014"), want: replayed},
+		{point: "batch command audit", prefix: batchAudit, err: injectedSQLState("57014"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: replayed},
+		{point: "batch command audit", prefix: batchAudit, err: injectedSQLState("23514"), want: replayed},
+		{point: "batch command audit", prefix: batchAudit, err: errors.New("injected audit failure"), want: replayed},
 		{point: "batch command audit", prefix: batchAudit, err: driver.ErrBadConn, want: faultOutcome{failsWith: "bad connection"}},
 	})
 }

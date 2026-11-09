@@ -443,6 +443,13 @@ func (TenantTransactionRuntime) WithinAdminThenTenant(ctx context.Context, disco
 	return tenant.WithinAdminThenTenant(ctx, discover, fn)
 }
 
+// AmbientScope reports an open unit of any scope and the bound school, like
+// the production binding.
+func (TenantTransactionRuntime) AmbientScope(ctx context.Context) (bool, int64) {
+	_, open := tenant.TransactionFromContext(ctx)
+	return open || tenant.IsAdminTx(ctx) || tenant.TraegerTransactionFromContext(ctx) != 0, tenant.FromContext(ctx)
+}
+
 func (TenantTransactionRuntime) RegisterAfterCommit(ctx context.Context, fn func()) {
 	tenant.RegisterAfterCommit(ctx, fn)
 }

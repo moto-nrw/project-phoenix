@@ -6,21 +6,19 @@ import (
 type AnnouncementDeclarationSettings struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 }
 type AnnouncementFeedDeclaration struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 	Deadline          *time.Time
 	Closed            bool
 	// Ended: the school no longer shows the declaration (withdrawn,
-	// deactivated or expired). It takes no new answers; an own consent stays
-	// revocable (#6290).
+	// deactivated or expired, #6290) or switched parent news off (#6303). It
+	// takes no new answers; an own consent stays revocable.
 	Ended    bool
 	Version  *DeclarationVersion
 	Children []*AnnouncementFeedDeclarationChild
@@ -35,6 +33,18 @@ type AnnouncementFeedDeclarationChild struct {
 	MySubmittedAt  *time.Time
 	AllowedActions []string
 	OtherSigners   []DeclarationSignerState
+	// EarlierConsent is the guardian's own consent to an older wording that
+	// still stands after the school changed the text. It stays revocable
+	// (Art. 7 Abs. 3 DSGVO, #6303).
+	EarlierConsent *DeclarationEarlierConsent
+}
+
+// DeclarationEarlierConsent is a standing consent to an older wording: the
+// version agreed to, when, and what the guardian may still do with it.
+type DeclarationEarlierConsent struct {
+	Version        *DeclarationVersion
+	SubmittedAt    time.Time
+	AllowedActions []string
 }
 type DeclarationAttachmentDigest struct {
 	AttachmentID int64  `json:"attachment_id"`

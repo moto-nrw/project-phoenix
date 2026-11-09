@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
 )
@@ -264,11 +266,11 @@ func mountStudentRoutes(
 			UserContextService:      caller,
 		},
 		presenceStudentsHTTP.ResourceConfig{
-			AbsenceNotifier:         studentAbsenceNotifier{notifier: absences},
-			ActiveService:           active,
-			Broadcaster:             hub,
-			Logger:                  logger.With("handler", "students"),
-			ParentEventEmitter:      emitter,
+			AbsenceNotifier:    studentAbsenceNotifier{notifier: absences},
+			ActiveService:      active,
+			Broadcaster:        hub,
+			Logger:             logger.With("handler", "students"),
+			ParentEventEmitter: emitter, PartialAbsences: schedules.PartialAbsences,
 			PeopleDirectory:         persons,
 			Persons:                 peopleCompose.NewStudentRoutePersons(services.Users),
 			PrivacyConsents:         presence,
@@ -321,7 +323,8 @@ func newEnrollmentResource(
 		NewEnrollmentGuardianAutofill(guardianProfiles),
 		enrollmentSchoolDirectory{schools: organizations},
 		nativeUploads.UploadFiles{},
-		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation,
+			SavepointRollback: func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) }},
 		owners.NewEnrollmentBookings(),
 	)
 	resource.ListExportService = renderer
