@@ -14,8 +14,8 @@ func init() {
 		Version:     familyChildrenLinkAndEnrollmentVersion,
 		Description: "Kinderzahl der Familie auch bei der Anmeldung und über den Unterschriftslink (#6335)",
 		DependsOn: []string{
-			parentBillingBelegRetentionVersion, // the newest migration before this one
-			parentBillingFamilyChildrenVersion, // the numbers and their trail this one extends
+			guardianInvitationAddressBindingVersion, // the newest migration before this one
+			parentBillingFamilyChildrenVersion,      // the numbers and their trail this one extends
 		},
 	})
 	Migrations.MustRegister(familyChildrenLinkAndEnrollmentUp, familyChildrenLinkAndEnrollmentDown)
