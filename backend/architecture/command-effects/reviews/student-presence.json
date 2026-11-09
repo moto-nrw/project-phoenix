@@ -14865,6 +14865,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordPrivacyConsents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.PrivacyConsentBatches.RecordPrivacyConsents",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application.Service.RecordPrivacyConsents. No persistent, lock or scope effect; the batch form of RecordPrivacyConsent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListRoomSessionHistory",
       "classification": "platform",
@@ -28370,6 +28380,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsent",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsents",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents. No persistent, lock or scope effect; the batch form of RecordPrivacyConsent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"

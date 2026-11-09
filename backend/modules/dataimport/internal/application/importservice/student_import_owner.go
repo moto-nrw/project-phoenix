@@ -45,13 +45,27 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	if err != nil {
 		return 0, err
 	}
-	return c.createStudentEntities(ctx, person.ID, row)
+	return c.createStudentEntities(ctx, person.ID, row, nil)
+}
+
+// studentLeafWrites collects, for a batch segment, the retention consents and
+// consent-history transitions its rows would write one by one; CreateChunk
+// writes each kind in one statement after the rows (#5552, step 5b). Each
+// value carries the instant its row computed at the step the row path
+// computes it, so no row shares a time stamp the row path would not.
+type studentLeafWrites struct {
+	consents    []ports.PrivacyConsent
+	transitions []ports.ConsentTransition
 }
 
 // createStudentEntities creates everything of a row that follows its person:
-// the student, its guardians, the retention consent and the schedules.
-func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personID int64, row importModels.StudentImportRow) (int64, error) {
-	student, err := c.createStudentFromRow(ctx, personID, row)
+// the student, its guardians, the retention consent and the schedules. With
+// leafs, the consent and the consent history are collected instead of
+// written; the schedules are still written here, in their place (their
+// created_by lock on the importing staff member stays where the row path
+// takes it, PR #6408, Befundklasse 6).
+func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites) (int64, error) {
+	student, err := c.createStudentFromRow(ctx, personID, row, leafs)
 	if err != nil {
 		return 0, err
 	}
@@ -59,7 +73,11 @@ func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personI
 		return 0, err
 	}
 	studentID := student.ID
-	if err := c.createPrivacyConsentIfNeeded(ctx, studentID, row); err != nil {
+	if leafs != nil {
+		if err := c.collectPrivacyConsent(studentID, row, leafs); err != nil {
+			return 0, err
+		}
+	} else if err := c.createPrivacyConsentIfNeeded(ctx, studentID, row); err != nil {
 		return 0, err
 	}
 	if err := c.createArrivalSchedules(ctx, studentID, row.ArrivalSchedules); err != nil {
@@ -93,7 +111,7 @@ func personInputFromRow(row importModels.StudentImportRow) ports.CreatePerson {
 // createStudentFromRow creates the student under the owner's class-write
 // gate and then patches the profile columns the enrollment command does not
 // carry (health, notes, address, group, departure plan, consent dates).
-func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (ports.CreatedEnrollmentStudent, error) {
+func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites) (ports.CreatedEnrollmentStudent, error) {
 	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
 	input := ports.EnrollmentStudent{
 		PersonID:      personID,
@@ -131,6 +149,14 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
 	}
 
+	if leafs != nil {
+		// Collected with this row's own instant, taken here as on the row path.
+		leafs.transitions = append(leafs.transitions, ports.ConsentTransition{
+			After:  consentSnapshot(created.ID, patch.AGBAcceptedAt, patch.DataProcessingAcceptedAt, patch.EmailContactAcceptedAt, patch.PhotoConsentGivenAt),
+			Source: consents.ConsentSourceImport, ChangedAt: time.Now(),
+		})
+		return created, nil
+	}
 	if c.ConsentHistory != nil {
 		after := consentSnapshot(created.ID, patch.AGBAcceptedAt, patch.DataProcessingAcceptedAt, patch.EmailContactAcceptedAt, patch.PhotoConsentGivenAt)
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
@@ -236,6 +262,17 @@ func (c *StudentImportConfig) createPrivacyConsentIfNeeded(ctx context.Context, 
 	if _, err := c.PrivacyConsents.RecordPrivacyConsent(ctx, buildPrivacyConsent(studentID, row)); err != nil {
 		return fmt.Errorf("create privacy consent: %w", err)
 	}
+	return nil
+}
+
+// collectPrivacyConsent is createPrivacyConsentIfNeeded for a batch segment:
+// the consent, with this row's acceptance instant, is collected instead of
+// written.
+func (c *StudentImportConfig) collectPrivacyConsent(studentID int64, row importModels.StudentImportRow, leafs *studentLeafWrites) error {
+	if !row.PrivacyAccepted && row.DataRetentionDays <= 0 {
+		return nil
+	}
+	leafs.consents = append(leafs.consents, buildPrivacyConsent(studentID, row))
 	return nil
 }
 
