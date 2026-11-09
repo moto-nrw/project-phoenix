@@ -23,14 +23,6 @@ func WithStaffShiftSeriesSickReports(reader SeriesSickReportReader) StaffShiftSe
 	return func(s *staffShiftSeriesService) { s.sickReports = reader }
 }
 
-// openSickReportStatuses are the statuses a sick report blocks its range
-// with; declined and cancelled entries take no plan effect, as in the
-// Betreuungsplan's materializer (#6292).
-var openSickReportStatuses = []string{
-	workforce.AbsenceStatusReported, workforce.AbsenceStatusRequested,
-	workforce.AbsenceStatusQuestion, workforce.AbsenceStatusApproved,
-}
-
 // sickDaysOf reads the staff member's open sick reports over [from, to] and
 // returns the report behind each full sick day. It takes no lock of its own:
 // the materializer reads under the per-staff shift lock it already holds,
@@ -43,7 +35,7 @@ func (s *staffShiftSeriesService) sickDaysOf(ctx context.Context, staffID int64,
 	absences, err := s.sickReports.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
 		StaffID:     staffID,
 		Types:       []string{workforce.AbsenceTypeSick},
-		Statuses:    openSickReportStatuses,
+		Statuses:    workforce.RangeBlockingAbsenceStatuses(),
 		OverlapFrom: from.String(),
 		OverlapTo:   to.String(),
 	})
@@ -68,16 +60,21 @@ func sickDayIndex(absences []workforce.StaffAbsence, from, to calendar.Date) (ma
 		if err != nil {
 			return nil, err
 		}
-		for day := maxDate(report.DateStart, from); !day.After(report.DateEnd) && !day.After(to); day = day.AddDays(1) {
-			if !report.CoversFullDay(day) {
-				continue
-			}
-			if current, ok := days[day]; !ok || absence.ID < current {
-				days[day] = absence.ID
-			}
-		}
+		indexFullSickDays(days, report, from, to)
 	}
 	return days, nil
+}
+
+// indexFullSickDays enters the report's full sick days within [from, to].
+func indexFullSickDays(days map[calendar.Date]int64, report timetable.SickReport, from, to calendar.Date) {
+	for day := maxDate(report.DateStart, from); !day.After(report.DateEnd) && !day.After(to); day = day.AddDays(1) {
+		if !report.CoversFullDay(day) {
+			continue
+		}
+		if current, ok := days[day]; !ok || report.AbsenceID < current {
+			days[day] = report.AbsenceID
+		}
+	}
 }
 
 func sickReportOf(absence workforce.StaffAbsence) (timetable.SickReport, error) {

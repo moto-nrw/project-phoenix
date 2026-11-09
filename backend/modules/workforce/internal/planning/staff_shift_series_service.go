@@ -337,13 +337,10 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 			result.nonWorkingSkipped++
 			continue
 		}
-		candidate := seriesCandidate(series, d)
+		candidate := seriesCandidate(series, d, sickDays[d])
 		if overlapsActiveShift(candidate, existingByDate[d]) {
 			result.skipped = append(result.skipped, d)
 			continue
-		}
-		if absenceID, sick := sickDays[d]; sick {
-			applySickReport(candidate, absenceID)
 		}
 		candidates = append(candidates, candidate)
 	}
@@ -403,10 +400,12 @@ func indexSeriesShifts(existing []*workforce.ShiftRecord, seriesID int64) (map[c
 	return byDate, owned
 }
 
-func seriesCandidate(series *StaffShiftSeries, d calendar.Date) *workforce.ShiftRecord {
+// seriesCandidate is the occurrence of d. sickAbsenceID names the sick report
+// covering d as a full sick day, zero when the staff member is not sick then.
+func seriesCandidate(series *StaffShiftSeries, d calendar.Date, sickAbsenceID int64) *workforce.ShiftRecord {
 	seriesID := series.ID
 	occurrenceDate := d
-	return &workforce.ShiftRecord{
+	candidate := &workforce.ShiftRecord{
 		StaffID:              series.StaffID,
 		Date:                 d,
 		StartTime:            calendar.NormalizeWallClock(series.StartTime),
@@ -418,6 +417,10 @@ func seriesCandidate(series *StaffShiftSeries, d calendar.Date) *workforce.Shift
 		SeriesOccurrenceDate: &occurrenceDate,
 		CreatedBy:            series.CreatedBy,
 	}
+	if sickAbsenceID > 0 {
+		applySickReport(candidate, sickAbsenceID)
+	}
+	return candidate
 }
 
 // overlapsActiveShift reports whether the candidate collides with a shift
@@ -426,10 +429,13 @@ func seriesCandidate(series *StaffShiftSeries, d calendar.Date) *workforce.Shift
 // single-shift overlap rule (checkOverlap) and the partial unique index, both
 // of which treat a cancelled row as a free window (#1841). Own detached
 // cancellations are handled earlier via the owned dates, which skip the date
-// outright.
+// outright. A shift a sick report cancelled still blocks: deleting or
+// shortening the report reactivates it, so the window is only lent to the
+// illness (#6302). The candidate is skipped as it would have been before the
+// report.
 func overlapsActiveShift(candidate *workforce.ShiftRecord, others []*workforce.ShiftRecord) bool {
 	for _, other := range others {
-		if !other.Cancelled && candidate.Overlaps(other) {
+		if (!other.Cancelled || other.SickAbsenceID != nil) && candidate.Overlaps(other) {
 			return true
 		}
 	}

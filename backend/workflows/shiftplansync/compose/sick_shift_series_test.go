@@ -31,21 +31,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createMondaySeries plans the subject every Monday of stampWeekOne to
-// stampWeekThree in [start, end) and returns the series.
+// createMondaySeries plans the subject every Monday from stampWeekOne to
+// stampWeekThree, start to end o'clock (HH:MM), and returns the series.
 func (e *sickCascadeEnv) createMondaySeries(t *testing.T, periodID int64, start, end string) int64 {
 	t.Helper()
-	var seriesID int64
+	return e.createMondaySeriesResult(t, periodID, start, end).SeriesID
+}
+
+func (e *sickCascadeEnv) createMondaySeriesResult(t *testing.T, periodID int64, start, end string) workforce.StaffShiftSeriesResult {
+	t.Helper()
+	var created workforce.StaffShiftSeriesResult
 	e.inTx(t, func(ctx context.Context) error {
 		result, err := e.Planning.CreateSeries(ctx, workforce.CreateStaffShiftSeries{StaffShiftSeriesInput: workforce.StaffShiftSeriesInput{
 			StaffID: e.subject.ID, Weekdays: []int{1}, StartTime: clock(start), EndTime: clock(end),
 			CalendarPeriodID: periodID, ValidFrom: stampWeekOne.String(), ValidUntil: stampWeekThree.AddDays(1).String(),
 			ActorStaffID: e.admin.ID,
 		}})
-		seriesID = result.SeriesID
+		created = result
 		return err
 	})
-	return seriesID
+	return created
 }
 
 func (e *sickCascadeEnv) createSeriesPeriod(t *testing.T) int64 {
@@ -199,29 +204,49 @@ func TestSickReport_SeriesMaterializationIgnoresDeclinedReport(t *testing.T) {
 	assertPlanned(t, e.seriesShift(t, seriesID, stampWeekTwo), "declined report")
 }
 
-// A rule edit re-plans the series: a sick-cancelled occurrence stays the one
-// row of its date, still owned by the report.
-func TestSickReport_SeriesSplitKeepsSickCancelledOccurrence(t *testing.T) {
+// A rule edit that adds a weekday plans its new occurrences in the sick
+// state of their day, and the report's deletion reactivates them.
+func TestSickReport_SeriesSplitPlansNewSickOccurrenceCancelled(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
 	periodID := e.createSeriesPeriod(t)
-	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
 	seriesID := e.createMondaySeries(t, periodID, "08:00", "12:00")
+	sickTuesday := stampWeekTwo.AddDays(1)
+	absenceID := e.createSickAbsence(t, sickTuesday, sickTuesday)
 
 	var successorID int64
 	e.inTx(t, func(ctx context.Context) error {
 		result, err := e.Planning.SplitSeries(ctx, workforce.SplitStaffShiftSeries{
-			SeriesID: seriesID, EffectiveDate: stampWeekOne.String(), StartTime: clock("09:00"), EndTime: clock("12:00"),
-			ActorStaffID: e.admin.ID,
+			SeriesID: seriesID, EffectiveDate: stampWeekOne.String(), Weekdays: []int{1, 2},
+			StartTime: clock("08:00"), EndTime: clock("12:00"), ActorStaffID: e.admin.ID,
 		})
 		successorID = result.SeriesID
 		return err
 	})
 
-	assertPlanned(t, e.seriesShift(t, successorID, stampWeekOne), "re-planned healthy day")
-	assertSickCancelled(t, e.seriesShift(t, successorID, stampWeekTwo), absenceID, "re-planned sick day")
+	assertPlanned(t, e.seriesShift(t, successorID, stampWeekOne.AddDays(1)), "new healthy Tuesday")
+	assertSickCancelled(t, e.seriesShift(t, successorID, sickTuesday), absenceID, "new sick Tuesday")
 
 	e.deleteSickAbsence(t, absenceID)
-	assertPlanned(t, e.seriesShift(t, successorID, stampWeekTwo), "deleted report after the split")
+	assertPlanned(t, e.seriesShift(t, successorID, sickTuesday), "deleted report after the split")
+}
+
+// A later series overlapping a shift the report cancelled leaves that day
+// out, as it would have before the report: otherwise deleting the report
+// could not reactivate both and would fail.
+func TestSickReport_LaterSeriesSkipsWindowOfSickCancelledShift(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	periodID := e.createSeriesPeriod(t)
+	earlier := e.createMondaySeries(t, periodID, "08:00", "12:00")
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+
+	later := e.createMondaySeriesResult(t, periodID, "10:00", "14:00")
+
+	assert.Equal(t, []string{stampWeekOne.String(), stampWeekTwo.String(), stampWeekThree.String()}, later.SkippedDates,
+		"every overlapping day is skipped, the sick one included")
+	e.deleteSickAbsence(t, absenceID)
+	assertPlanned(t, e.seriesShift(t, earlier, stampWeekTwo), "earlier shift after the deletion")
 }

@@ -587,7 +587,8 @@ func mergeStoredShiftState(shift, existing *workforce.ShiftRecord, opts StaffShi
 	// set at creation and never re-pointed by a plain edit (#1841).
 	shift.OriginShiftID = existing.OriginShiftID
 	// Sick provenance is written only by the #1843 cascade via UpdateColumns
-	// after ApplyCancellation. Any ordinary edit takes ownership of the shift,
+	// after ApplyCancellation, and by the series materializer on new rows
+	// (#6302). Any ordinary edit takes ownership of the shift,
 	// including keeping an already-cancelled shift cancelled with a new reason;
 	// deleting the sick report must never undo that administrator decision.
 	shift.SickAbsenceID = nil

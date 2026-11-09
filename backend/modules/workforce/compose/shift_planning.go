@@ -121,8 +121,7 @@ func newStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) pla
 
 // ShiftPlanningDependencies wires the Dienstplan side of Workforce.
 type ShiftPlanningDependencies struct {
-	// Workforce serves the native shift, series, exception and shift-type rows
-	// and the sick reports a series cancels its sick days by (#6302).
+	// Workforce serves the native shift, series, exception, shift-type and sick-report rows.
 	Workforce planning.Records
 	Staff     StaffDirectory
 	// CalendarPeriods resolves the period a series materializes over.
@@ -202,8 +201,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 
 	series := planning.NewStaffShiftSeriesService(
 		deps.Workforce, deps.Workforce, deps.Workforce, deps.Staff, planning.SchoolCalendarPeriods(deps.CalendarPeriods),
-		shiftTypes, lockStaffShifts, logger, shifts,
-		append(planning.SeriesOptions(deps.Broadcaster, deps.Today, deps.NonWorkingDays), planning.WithStaffShiftSeriesSickReports(deps.Workforce))...,
+		shiftTypes, lockStaffShifts, logger, shifts, planning.SeriesOptions(deps.Broadcaster, deps.Today, deps.NonWorkingDays, deps.Workforce)...,
 	)
 
 	assignments := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
