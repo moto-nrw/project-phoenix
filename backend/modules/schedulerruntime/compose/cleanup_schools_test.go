@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"testing"
@@ -756,4 +757,79 @@ func TestNightlyCleanupStoresTheStreakOfAnUnreadableCleanupTime(t *testing.T) {
 
 	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id), "02:00, 03:00 and 05:00 count; 02:30 waits")
 	assert.True(t, visitExists(t, admin, school.expired), "nothing runs without a cleanup time")
+}
+
+// refuseCleanupRunWrites installs a test trigger that makes writes to the
+// school's row in platform.cleanup_runs fail with a real SQL error, which
+// aborts the surrounding transaction unless a savepoint contains it: every
+// write, or with failuresOnly only writes of a failure streak. Calling it
+// again replaces the trigger. The isolated database dies with the test.
+func refuseCleanupRunWrites(t *testing.T, admin *bun.DB, school int64, failuresOnly bool) {
+	t.Helper()
+	condition := fmt.Sprintf("NEW.tenant_id = %d", school)
+	if failuresOnly {
+		condition += " AND NEW.consecutive_failures > 0"
+	}
+	_, err := admin.ExecContext(context.Background(), `
+		CREATE OR REPLACE FUNCTION public.test_refuse_cleanup_run() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test refuses the cleanup run write'; END $$`)
+	require.NoError(t, err)
+	_, err = admin.ExecContext(context.Background(), `DROP TRIGGER IF EXISTS test_refuse_cleanup_run ON platform.cleanup_runs`)
+	require.NoError(t, err)
+	_, err = admin.ExecContext(context.Background(), fmt.Sprintf(`
+		CREATE TRIGGER test_refuse_cleanup_run BEFORE INSERT OR UPDATE ON platform.cleanup_runs
+		FOR EACH ROW WHEN (%s) EXECUTE FUNCTION public.test_refuse_cleanup_run()`, condition))
+	require.NoError(t, err)
+}
+
+// TestNightlyCleanupStreakWriteErrorKeepsTheCommittedSteps: an incomplete
+// run commits its successful steps and stores its streak in a savepoint of
+// the same transaction. A streak write that fails in SQL must not abort the
+// transaction and take the committed visit retention with it.
+func TestNightlyCleanupStreakWriteErrorKeepsTheCommittedSteps(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	deps.FeedbackCleaner = &schoolFailingFeedback{school: school.id, fail: true}
+	refuseCleanupRunWrites(t, admin, school.id, true)
+	var outcome string
+	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
+
+	scheduler.NewCleanupTestRunner(deps)()
+
+	assert.Equal(t, "failed", outcome, "the incomplete run still fails the job")
+	assert.False(t, visitExists(t, admin, school.expired), "the visit retention commits although the streak write failed")
+	assert.Zero(t, cleanupRunCount(t, admin, school.id), "the incomplete run is no success")
+}
+
+// TestNightlyCleanupPendingFailureWriteErrorKeepsTheJobRunning: a run that
+// rolled back leaves its failure with the process, which writes it at the
+// job's next tick in a savepoint before the due check. A write that fails in
+// SQL must not abort that tick's transaction: the due run goes on, deletes
+// and records its success.
+func TestNightlyCleanupPendingFailureWriteErrorKeepsTheJobRunning(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	var outcome string
+	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
+	run := scheduler.NewCleanupTestRunner(deps) // one Worker for both ticks
+
+	// The success write fails: the whole run rolls back and its failure
+	// stays with the process.
+	refuseCleanupRunWrites(t, admin, school.id, false)
+	run()
+	require.Equal(t, "failed", outcome)
+	require.True(t, visitExists(t, admin, school.expired), "the failed run rolled back")
+
+	refuseCleanupRunWrites(t, admin, school.id, true)
+	now = start.Add(time.Hour)
+	run()
+
+	assert.Equal(t, "completed", outcome, "the pending failure write fails, the due run goes on")
+	assert.False(t, visitExists(t, admin, school.expired), "the run deletes")
+	assert.Equal(t, 1, cleanupRunCount(t, admin, school.id), "the run records its success")
 }
