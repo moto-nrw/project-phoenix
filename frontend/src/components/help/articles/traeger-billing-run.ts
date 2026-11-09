@@ -35,7 +35,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
           "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
-          "Die Beträge je Kind blenden Sie mit `Aufschlüsselung zeigen` unter allen Rechnungen ein. Auf dem Handy sehen Sie sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
+          "Die Beträge je Kind blenden Sie mit `Aufschlüsselung zeigen` unter allen Rechnungen ein. Auf dem Handy finden Sie `Aufschlüsselung zeigen` im Menü mit den drei Punkten.",
         ],
       },
       {
@@ -116,7 +116,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Wählen Sie `Rechnung stornieren`.",
           "Schreiben Sie eine Begründung, zum Beispiel: Anschrift war falsch. Neue Rechnung folgt.",
           "Wählen Sie `Stornieren`.",
-          "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
+          "Wählen Sie im Menü der Rechnung `Aufschlüsselung zeigen` und dann `Neu ausstellen`.",
           "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
           "Hatte die alte Rechnung Korrekturen, stehen sie bei `Übernommene Korrekturen`. Sie zählen schon in der neuen Rechnung mit. Prüfen Sie jede davon.",
           "Stimmt eine Korrektur nicht mehr, wählen Sie bei ihr das Menü mit den drei Punkten und dann `Ändern` oder `Entfernen`.",

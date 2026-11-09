@@ -22,7 +22,7 @@ export function traegerHolidayFormTopic(): HelpTopic {
       {
         title: "Hinweise und Einwilligungen ergänzen",
         steps: [
-          "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Eigene Zustimmung hinzufügen`.",
+          "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Hinweis oder Einwilligung hinzufügen`.",
           "Tragen Sie `Titel` und `Text neben dem Häkchen oder Hinweis` ein.",
           "Ergänzen Sie den Text unter `Rechtstext / Erklärung`.",
           "Für ein PDF wählen Sie `PDFs hinzufügen`. Höchstens 10 MB je Datei.",

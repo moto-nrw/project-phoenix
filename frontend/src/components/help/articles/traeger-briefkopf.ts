@@ -1,14 +1,14 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechpartner und Bankverbindungen. */
+/** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechperson und Bankverbindungen. */
 export function traegerBriefkopfTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerBriefkopf,
     title: "Briefkopf und Bankverbindungen hinterlegen",
     question: "Wie sehen die Briefe meines Trägers aus?",
     summary:
-      "Logo, Absender, Farbe, Fußzeile, Ansprechpartner und Bankverbindungen stehen auf allen Briefen und Rechnungen Ihres Trägers.",
+      "Logo, Absender, Farbe, Fußzeile, Ansprechperson und Bankverbindungen stehen auf allen Briefen und Rechnungen Ihres Trägers.",
     group: "konfiguration",
     audience: "traeger",
     icon: "FileText",
@@ -35,10 +35,10 @@ export function traegerBriefkopfTopic(): HelpTopic {
         ],
       },
       {
-        title: "Ansprechpartner eintragen",
+        title: "Ansprechperson eintragen",
         steps: [
           "Wählen Sie in den Einstellungen `Allgemein` und dann den Bereich `Kontakt`.",
-          "Tragen Sie bei `Ansprechpartner` Name, Telefon und E-Mail-Adresse ein.",
+          "Tragen Sie bei `Ansprechperson` Name, Telefon und E-Mail-Adresse ein.",
           "Wählen Sie `Speichern`.",
         ],
       },
@@ -61,7 +61,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       "Eine Bankverbindung ist der `Standard`. Sie steht auf allen Briefen und Rechnungen.",
       "Eine andere Bankverbindung machen Sie im Menü der Zeile mit `Als Standard festlegen` zum Standard.",
       "Löschen Sie den Standard, wird die älteste andere Bankverbindung der Standard.",
-      "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
+      "Jedes Ansehen und jede Änderung von Ansprechperson und Bankverbindungen steht im Protokoll des Trägers.",
     ],
     differences: [
       "Auf dem Handy öffnen Sie in der Leiste unten `Mehr` und dann `Einstellungen`. `Abrechnungsvorgaben` steht dort wieder unter `Mehr`.",
