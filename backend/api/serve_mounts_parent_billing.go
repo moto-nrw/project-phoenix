@@ -55,7 +55,8 @@ import (
 // right (#6219),
 // and the SEPA mandates and the creditor at /traeger/sepa-mandates and
 // /traeger/sepa-creditor behind the same right (#4695), and the SEPA direct
-// debit file of the issued runs at /traeger/sepa-debits (#4697).
+// debit file of the issued runs at /traeger/sepa-debits (#4697), and the
+// check of the DATEV settings at /traeger/datev-export (#4694).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
@@ -86,6 +87,14 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/sepa-creditor", mandates.CreditorRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-mandates", mandates.MandateRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-debits", NewSEPADebitHTTP(settings, bankData).Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/datev-export", NewDatevExportHTTP(settings).Router(ProtectedTraegerRoutes))
+}
+
+// NewDatevExportHTTP binds the DATEV booking batch (#4694) to the right
+// "Abrechnung" and to the DATEV settings of the Träger.
+func NewDatevExportHTTP(settings TraegerBrandingSettings) *parentBillingHTTP.DatevExportResource {
+	return parentBillingHTTP.NewDatevExportResource(parentBillingCompose.NewDatevExport(parentBillingSettings{settings: settings}),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // NewSEPADebitHTTP binds the SEPA direct debit file of the issued runs
@@ -402,6 +411,36 @@ func (s parentBillingSettings) CareAmendable(ctx context.Context, organizationID
 		Recipient: values[configModels.KeyParentBillingCareReviewRecipient],
 		Address:   values[configModels.KeyParentBillingCareReviewAddress],
 		Positions: values[configModels.KeyParentBillingCareReviewPositions],
+	}, nil
+}
+
+// DatevSettings reads the DATEV settings of the Träger (#4694): its own
+// values or the registry defaults, each with its key.
+func (s parentBillingSettings) DatevSettings(ctx context.Context, organizationID int64) (parentbilling.DatevSettings, error) {
+	keys := []string{
+		configModels.KeyParentBillingDatevConsultantNumber, configModels.KeyParentBillingDatevClientNumber,
+		configModels.KeyParentBillingDatevAccountLength, configModels.KeyParentBillingDatevChartOfAccounts,
+		configModels.KeyParentBillingDatevFiscalYearStart, configModels.KeyParentBillingDatevRevenueAccount,
+	}
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, keys)
+	if err != nil {
+		return parentbilling.DatevSettings{}, err
+	}
+	locked, err := s.settings.TraegerBools(ctx, organizationID, []string{configModels.KeyParentBillingDatevLocked})
+	if err != nil {
+		return parentbilling.DatevSettings{}, err
+	}
+	setting := func(key string) parentbilling.DatevSetting {
+		return parentbilling.DatevSetting{Key: key, Value: texts[key]}
+	}
+	return parentbilling.DatevSettings{
+		ConsultantNumber: setting(configModels.KeyParentBillingDatevConsultantNumber),
+		ClientNumber:     setting(configModels.KeyParentBillingDatevClientNumber),
+		AccountLength:    setting(configModels.KeyParentBillingDatevAccountLength),
+		ChartOfAccounts:  setting(configModels.KeyParentBillingDatevChartOfAccounts),
+		FiscalYearStart:  setting(configModels.KeyParentBillingDatevFiscalYearStart),
+		RevenueAccount:   setting(configModels.KeyParentBillingDatevRevenueAccount),
+		Locked:           locked[configModels.KeyParentBillingDatevLocked],
 	}, nil
 }
 
