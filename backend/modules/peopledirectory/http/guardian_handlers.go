@@ -418,6 +418,7 @@ func (rs *GuardianResource) getStudentGuardians(w http.ResponseWriter, r *http.R
 				row.Guardian.HasAccount,
 				row.Link.HasPermission(peopledirectory.GuardianPermissionPortalAccess),
 				row.InvitationPending,
+				row.InvitationLinkEnded,
 			),
 		})
 	}

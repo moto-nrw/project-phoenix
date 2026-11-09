@@ -384,7 +384,8 @@ func seedCareReview(client *Client, auth AuthRef, month calendar.Date, run seedC
 	}
 	if run.ExcludedCount == 0 && len(run.Invoices) >= 2 {
 		if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/exclusions", run.ID), map[string]any{
-			"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "reason": "Kündigung zum Monatsende wird noch geprüft",
+			"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "service": run.Invoices[len(run.Invoices)-1].Service,
+			"reason": "Kündigung zum Monatsende wird noch geprüft",
 		}); err != nil {
 			return fmt.Errorf("exclude an invoice of the monthly run: %w", err)
 		}

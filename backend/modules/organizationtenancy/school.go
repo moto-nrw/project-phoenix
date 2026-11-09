@@ -203,3 +203,30 @@ func NormalizeSchool(name, slug, subdomain *string) {
 }
 
 func invalidSchool(reason string) error { return &InvalidSchoolError{Reason: reason} }
+
+// SchoolSettingsExportFields projects the legacy settings container of a
+// school for its return export (#3838). The code reads only the branding
+// images from it; every other key is untyped and may hold credentials, so
+// it stays out. A school without either image exports null.
+type SchoolSettingsExportFields struct{}
+
+func (SchoolSettingsExportFields) ProjectExportField(table, column string, _ map[string]json.RawMessage, raw json.RawMessage) (json.RawMessage, error) {
+	if table != "platform.schools" || column != "settings" {
+		return nil, errors.New("organization tenancy: not a projected school settings field")
+	}
+	var settings map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return nil, errors.New("organization tenancy: school settings are not an object")
+	}
+	kept := make(map[string]string, 2)
+	for _, key := range []string{schoolLogoURLKey, schoolLoginImageURLKey} {
+		var value string
+		if json.Unmarshal(settings[key], &value) == nil && strings.TrimSpace(value) != "" {
+			kept[key] = value
+		}
+	}
+	if len(kept) == 0 {
+		return json.RawMessage("null"), nil
+	}
+	return json.Marshal(kept)
+}

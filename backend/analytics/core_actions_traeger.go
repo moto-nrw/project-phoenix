@@ -143,9 +143,9 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail"}:         notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation"}: notCaptured,
 	// The review of a monthly run before its release (#5916).
-	{http.MethodPut, "/traeger/care-billing-runs/{id}/invoice-date"}:               notCaptured,
-	{http.MethodPost, "/traeger/care-billing-runs/{id}/exclusions"}:                notCaptured,
-	{http.MethodDelete, "/traeger/care-billing-runs/{id}/exclusions/{contractID}"}: notCaptured,
+	{http.MethodPut, "/traeger/care-billing-runs/{id}/invoice-date"}: notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/exclusions"}:  notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/inclusions"}:  notCaptured,
 	// The changes of a single invoice in the review (#6197).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/amendments"}: notCaptured,
 	// The children of a family (#5918): the Abrechnung confirms or removes.

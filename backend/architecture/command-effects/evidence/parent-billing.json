@@ -57,6 +57,14 @@
       "target_owner": "document-rendering"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
       "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
@@ -65,11 +73,27 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "binding_digest": "2b846846c1d86f0cd9de6c4d91d31331",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
     },
     {

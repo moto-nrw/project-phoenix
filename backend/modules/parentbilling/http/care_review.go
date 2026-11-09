@@ -15,14 +15,15 @@ import (
 )
 
 // mountReview adds the review of a calculated monthly run (#5916): the
-// invoice date, the exclusion of single invoices, the changes of single
-// invoices (#6197) and the review list. Every
+// invoice date, the exclusion and return of single invoices (each named by
+// contract and service, #6346), the changes of single invoices (#6197) and
+// the review list. Every
 // route needs the right "Abrechnung" and runs in the Träger transaction.
 func (rs *CareBillingResource) mountReview(billing chi.Router) {
 	billing.Get("/schools", rs.runSchools)
 	billing.Put("/{id}/invoice-date", rs.setInvoiceDate)
 	billing.Post("/{id}/exclusions", rs.exclude)
-	billing.Delete("/{id}/exclusions/{contractID}", rs.include)
+	billing.Post("/{id}/inclusions", rs.include)
 	billing.Post("/{id}/amendments", rs.amend)
 	billing.Get("/{id}/review-export", rs.reviewExport)
 	billing.Get("/{id}/cost-shares/{costBearerID}/export", rs.costShareExport)
@@ -48,14 +49,27 @@ type CareInvoiceDateRequest struct {
 // Bind accepts the body; the Owner checks the date.
 func (req *CareInvoiceDateRequest) Bind(*http.Request) error { return nil }
 
-// CareExclusionRequest is the body of POST …/exclusions.
+// CareExclusionRequest is the body of POST …/exclusions: the invoice by its
+// contract and service ("care" or "meal", #6346) and the reason.
 type CareExclusionRequest struct {
 	ContractID int64  `json:"contract_id"`
+	Service    string `json:"service"`
 	Reason     string `json:"reason"`
 }
 
-// Bind accepts the body; the Owner checks the reason and the invoice.
+// Bind accepts the body; the Owner checks the service, the reason and the
+// invoice.
 func (req *CareExclusionRequest) Bind(*http.Request) error { return nil }
+
+// CareInclusionRequest is the body of POST …/inclusions: the excluded
+// invoice by its contract and service (#6346).
+type CareInclusionRequest struct {
+	ContractID int64  `json:"contract_id"`
+	Service    string `json:"service"`
+}
+
+// Bind accepts the body; the Owner checks the service and the invoice.
+func (req *CareInclusionRequest) Bind(*http.Request) error { return nil }
 
 // runSchools answers GET …/schools?month=YYYY-MM-01 with the schools a new
 // run of the month may bill.
@@ -101,7 +115,8 @@ func (rs *CareBillingResource) exclude(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareRunInvalid))
 		return
 	}
-	detail, err := rs.billing.ExcludeCareInvoice(r.Context(), reviewer, runID, req.ContractID, req.Reason)
+	detail, err := rs.billing.ExcludeCareInvoice(r.Context(), reviewer, runID,
+		capability.CareInvoiceKey{ContractID: req.ContractID, Service: req.Service}, req.Reason)
 	rs.respondReview(w, r, detail, err, "Invoice excluded successfully")
 }
 
@@ -110,12 +125,13 @@ func (rs *CareBillingResource) include(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	contractID, err := common.ParseIDParam(r, "contractID")
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	req := &CareInclusionRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareRunInvalid))
 		return
 	}
-	detail, err := rs.billing.IncludeCareInvoice(r.Context(), reviewer, runID, contractID)
+	detail, err := rs.billing.IncludeCareInvoice(r.Context(), reviewer, runID,
+		capability.CareInvoiceKey{ContractID: req.ContractID, Service: req.Service})
 	rs.respondReview(w, r, detail, err, "Invoice included successfully")
 }
 

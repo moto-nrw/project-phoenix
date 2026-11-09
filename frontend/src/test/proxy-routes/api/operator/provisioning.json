@@ -30,6 +30,21 @@
     "POST operator /operator/organizations/id%2F1/erasure-order",
     "DELETE operator /operator/organizations/id%2F1/erasure-order"
   ],
+  "api/operator/provisioning/organizations/[id]/beleg-retention": [
+    "GET operator /operator/organizations/id%2F1/beleg-retention"
+  ],
+  "api/operator/provisioning/organizations/[id]/beleg-retention/clarification-reviews": [
+    "POST operator /operator/organizations/id%2F1/beleg-retention/clarification-reviews"
+  ],
+  "api/operator/provisioning/organizations/[id]/beleg-retention/instructions": [
+    "POST operator /operator/organizations/id%2F1/beleg-retention/instructions"
+  ],
+  "api/operator/provisioning/organizations/[id]/beleg-retention/suspensions": [
+    "POST operator /operator/organizations/id%2F1/beleg-retention/suspensions"
+  ],
+  "api/operator/provisioning/organizations/[id]/beleg-retention/suspensions/[suspensionId]": [
+    "DELETE operator /operator/organizations/id%2F1/beleg-retention/suspensions/suspensionId%2F1"
+  ],
   "api/operator/provisioning/organizations/[id]/traeger-members": [
     "GET operator /operator/organizations/id%2F1/traeger-members",
     "POST operator /operator/organizations/id%2F1/traeger-members"

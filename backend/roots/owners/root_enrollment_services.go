@@ -182,7 +182,7 @@ func BuildEnrollmentFlows(
 			Bookings: enrollment.CareBookings, Requests: records, Children: records, Guardians: records,
 			LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings, Capacity: capacity,
 			Catalog: records, Notifications: notices.Notifications, GuardianProfileRepo: people.GuardianProfiles,
-			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity},
+			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity, profiles: people.GuardianProfiles},
 			PersonRepo: people.Persons, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
 			Decisions: decisions, BookingGates: offerings.Bookings,
 			CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: carePlanRows.Companions, strandings: people.Students},

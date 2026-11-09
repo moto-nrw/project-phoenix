@@ -55,6 +55,7 @@ import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organiza
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
 import { InviteTraegerAccountModal } from "~/components/traeger/traeger-account-modals";
+import { TraegerBelegRetentionSection } from "./traeger-beleg-retention-section";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
 import { TraegerSettingsSection } from "./traeger-settings-section";
@@ -87,6 +88,7 @@ const TAB_ITEMS = [
   { id: "personen", label: "Personen" },
   { id: "traeger-buero", label: "Träger-Büro" },
   { id: "einstellungen", label: "Einstellungen" },
+  { id: "belege", label: "Belegaufbewahrung" },
   { id: "loeschauftrag", label: "Löschauftrag" },
 ] as const;
 
@@ -997,6 +999,10 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
       {activeTab === "einstellungen" ? (
         <TraegerSettingsSection organizationId={organization.id} />
+      ) : null}
+
+      {activeTab === "belege" ? (
+        <TraegerBelegRetentionSection organizationId={organization.id} />
       ) : null}
 
       {activeTab === "loeschauftrag" ? (

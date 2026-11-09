@@ -11191,6 +11191,17 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreatePersons",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.PersonBatches.CreatePersons",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.Service.CreatePersons. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). The batch form of CreatePerson for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.MasterDataPeople.SetPersonDetails",
       "classification": "platform",
       "effect": "scope",

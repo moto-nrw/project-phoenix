@@ -64,6 +64,8 @@ export const operatorProvisioningKeys = {
     `operator-school-pwa-usage-${encodeURIComponent(id ?? "")}`,
   orgErasureOrder: (id: string | undefined) =>
     `operator-org-erasure-order-${encodeURIComponent(id ?? "")}`,
+  orgBelegRetention: (id: string | undefined) =>
+    `operator-org-beleg-retention-${encodeURIComponent(id ?? "")}`,
   orgTraegerSettings: (id: string | undefined) =>
     `operator-org-traeger-settings-${encodeURIComponent(id ?? "")}`,
   provisioningStats: () => "operator-provisioning-stats",

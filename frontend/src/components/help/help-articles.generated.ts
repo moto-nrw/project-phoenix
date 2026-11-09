@@ -3602,7 +3602,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     result:
       "Die Person bekommt eine E-Mail mit einem Link. Bei der Person sehen Sie, ob die Mail angekommen ist. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
     notes: [
-      "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen` oder `Konto aktiv`.",
+      "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen`, `Link gilt nicht mehr` oder `Konto aktiv`.",
       "Bei `Einladung offen` heißt der Knopf `Erneut einladen`. Damit geht die E-Mail noch einmal raus.",
       "Eine Person mit mehreren Kindern laden Sie nur einmal ein. Sie sieht danach alle ihre Kinder.",
     ],
@@ -3614,6 +3614,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Bei der Person steht `Link gilt nicht mehr`? Zum Beispiel wurde die `E-Mail` nach der Einladung geändert. Wählen Sie `Einladung neu senden`. Der neue Link geht an die Adresse, die jetzt eingetragen ist.",
       "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -4419,7 +4420,7 @@ export const mealBillingReleaseTopic =
         "Wählen Sie `Monat freigeben` und bestätigen Sie mit `Freigeben`.",
       ],
       result:
-        "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so.",
+        "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so. Zurücknehmen lässt sich die Freigabe nicht.",
       notes: [
         "Ein Essen zählt, wenn das Kind angemeldet und da war. Tage, an denen die Eltern abgemeldet haben, zählen nicht.",
         "Ferien, Feiertage und Schließtage zählen nie.",
@@ -4429,6 +4430,7 @@ export const mealBillingReleaseTopic =
         "`Nicht mehr abrechenbar`: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich. Geben Sie Monate deshalb bald nach dem Monatsende frei.",
         "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
         "Haben Sie nach der Freigabe eine Anwesenheit nachgetragen, steht oben `Seit der Freigabe hat sich die Anwesenheit geändert`. Prüfen Sie die Liste, wählen Sie `Erneut freigeben` und nennen Sie den Grund. Schon gestellte Rechnungen ändert das nicht. Der Träger sieht die Änderung und korrigiert die Rechnung.",
+        "Sie haben einen Monat mit falschen Zahlen freigegeben: Zurücknehmen geht nicht. Die Karte `Zahlen korrigieren` zeigt den Weg. Tragen Sie die Anwesenheit nach. Dann wählen Sie `Erneut freigeben` und nennen den Grund. Hat der Träger schon abgerechnet, storniert er die Rechnung und stellt sie neu aus.",
       ],
       related: [HELP_TOPICS.leadMealPlan],
     };
@@ -5361,6 +5363,7 @@ export const parentAccountProblemTopic =
       notes: ["Ein Einladungslink lässt sich nur einmal benutzen."],
       differences: [
         "`Diese Einladung ist abgelaufen oder wurde bereits verwendet.` Fragen Sie nach einer neuen.",
+        "`Dieser Link gilt nicht mehr.` Fragen Sie die Schule nach einer neuen Einladung.",
         "`Für diese E-Mail existiert bereits ein Konto.` Melden Sie sich direkt an.",
         "`Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.` Prüfen Sie die Liste unter dem Feld.",
       ],
@@ -10774,7 +10777,7 @@ export const traegerCareMealsTopic =
         "Jeder freigegebene Mensa-Monat steht genau einmal auf einer Rechnung. Gibt eine Schule einen Monat später frei, rechnet ihn der nächste Lauf nachträglich ab.",
       notes: [
         "Nach einem Storno stellen Sie die Mensa im ursprünglichen Rechnungsmonat neu aus. Starten Sie dafür einen weiteren Lauf dieses Monats.",
-        "Ob die Mensa auf der Rechnung der Betreuung steht oder eine eigene Rechnung bekommt, legen Sie unter `Einstellungen` und dann `Abrechnungsvorgaben` in der Karte `Zahlung und Rechnungen` beim `Mittagessen` fest. Eine eigene Mensa-Rechnung hat ihren eigenen Zahlungsweg und ihr eigenes Zahlungsziel.",
+        "Ob die Mensa auf der Rechnung der Betreuung steht oder eine eigene Rechnung bekommt, legen Sie unter `Einstellungen` und dann `Abrechnungsvorgaben` in der Karte `Zahlung und Rechnungen` beim `Mittagessen` fest. Eine eigene Mensa-Rechnung hat ihren eigenen Zahlungsweg und ihr eigenes Zahlungsziel. Im Monatslauf schließen Sie sie getrennt von der Betreuung aus.",
         "Ermäßigungen wie Geschwister oder Einkommensstufen gelten nur für die Module. Die Mensa zahlen Eltern voll.",
         "Ein Preis, mit dem schon abgerechnet ist, bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
       ],
@@ -10846,13 +10849,14 @@ export const traegerCareMonthsTopic =
         {
           title: "Vorschau prüfen und Rechnungen ausschließen",
           description:
-            "Sie können eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
+            "Sie können eine Rechnung aus diesem Lauf nehmen. Sie kommt im nächsten Lauf dieses Monats wieder. Hat ein Kind eine Rechnung für die Betreuung und eine eigene `Mensa-Rechnung`, schließen Sie jede für sich aus.",
           steps: [
             "Wählen Sie bei `Monatslauf` den Knopf `Prüfliste` und dann `Excel` oder `CSV`. Die Liste hat je Position eine Zeile. Rechnungsnummern stehen noch nicht darin.",
             "Stimmt eine Rechnung noch nicht, wählen Sie in ihrer Zeile das Menü mit den drei Punkten und dann `Ausschließen`.",
+            "Prüfen Sie im Fenster, welche Rechnung Sie ausschließen. Dort steht zum Beispiel `Mensa-Rechnung` und darunter, ob die Betreuungsrechnung des Kindes im Lauf bleibt. Steht die Mensa auf der Rechnung der Betreuung, wird sie mit ausgeschlossen.",
             "Schreiben Sie bei `Grund`, warum, zum Beispiel „Kündigung wird noch geprüft“. Wählen Sie `Ausschließen`.",
-            "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer.",
-            "Mit `Wieder aufnehmen` nehmen Sie sie zurück in den Lauf.",
+            "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer. Die andere Rechnung des Kindes bleibt im Lauf.",
+            "Mit `Wieder aufnehmen` nehmen Sie genau diese Rechnung zurück in den Lauf.",
             "Sind alle Rechnungen ausgeschlossen, wählen Sie trotzdem `Lauf freigeben`. Der Lauf schließt ohne Rechnungen und gibt die Schulen wieder frei. Die Gründe bleiben im Verlauf. Ein neuer Lauf kann diese Kinder abrechnen.",
             "Das Rechnungsdatum ändern Sie bei `Rechnungsdatum` mit `Ändern`.",
           ],

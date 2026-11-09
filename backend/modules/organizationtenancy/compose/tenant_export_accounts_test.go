@@ -23,7 +23,7 @@ func TestTenantExportIncludesApplicantAccountWithoutMembership(t *testing.T) {
 	// Another school's membership of the same account must not be returned.
 	_, err := db.NewRaw("UPDATE auth.account_tenants SET account_id = ? WHERE id = ?", a, b).Exec(t.Context())
 	require.NoError(t, err)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()}))
