@@ -14,7 +14,7 @@ func init() {
 		Version:     holidayWeekCapacityVersion,
 		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz (#4699)",
 		DependsOn: []string{
-			accountCredentialGenerationBindingVersion, // the last migration before this one
+			staffFinancialDataSealedVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(holidayWeekCapacityUp, holidayWeekCapacityDown)
