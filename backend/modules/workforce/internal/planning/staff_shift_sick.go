@@ -55,14 +55,15 @@ func (s *staffShiftService) sickAbsenceOn(ctx context.Context, staffID int64, da
 // state of the new day, like a move. A shift the cascade cancelled leaves
 // that state behind first, so it is planned again on a healthy day. A
 // planner's own cancellation stays. An edit on the same day takes ownership
-// of the shift; an edit that changes nothing, such as a retried request,
-// keeps the sick report's stamp.
-func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, existing *workforce.ShiftRecord) error {
+// of the shift; an ordinary edit that changes nothing, such as a retried
+// request, keeps the sick report's stamp. ordinaryEdit is false for
+// ApplyCancellation, whose cover planning is always the planner's decision.
+func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, existing *workforce.ShiftRecord, ordinaryEdit bool) error {
 	if shift.OriginShiftID != nil {
 		return nil
 	}
 	if shift.Date == existing.Date {
-		if existing.SickAbsenceID != nil && editChangesNothing(shift, existing) {
+		if ordinaryEdit && existing.SickAbsenceID != nil && editChangesNothing(shift, existing) {
 			shift.SickAbsenceID = existing.SickAbsenceID
 			shift.ChangeReason = existing.ChangeReason
 		}

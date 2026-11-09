@@ -285,6 +285,36 @@ func TestSickReport_SameDayChangesReleaseTheStamp(t *testing.T) {
 	assert.Nil(t, reactivated.Shift.SickAbsenceID, "a planned shift carries no sick stamp")
 }
 
+// Planning covers for a sick-cancelled shift is the planner's decision: the
+// report no longer owns the shift, so removing the covers and then deleting
+// the report keeps the cancellation.
+func TestSickReport_CoverPlanningTakesOwnershipOfSickShift(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	shift := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "08:00", "10:00")
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	assertSickCancelled(t, e.reloadShift(t, shift.ID), absenceID, "cascade cancelled it")
+	label := workforce.SickShiftChangeReason
+	plan := func(replacements []workforce.ShiftReplacement) {
+		e.inTx(t, func(ctx context.Context) error {
+			_, err := e.Planning.ApplyCancellation(ctx, workforce.CancelStaffShift{
+				ShiftID: shift.ID, Cancelled: true, ChangeReason: &label, Replacements: replacements, ActorStaffID: e.admin.ID,
+			})
+			return err
+		})
+	}
+
+	plan([]workforce.ShiftReplacement{{StaffID: e.admin.ID, StartTime: clock("08:00"), EndTime: clock("10:00")}})
+	assert.Nil(t, e.reloadShift(t, shift.ID).SickAbsenceID, "cover planning takes ownership")
+	plan(nil)
+	e.deleteSickAbsence(t, absenceID)
+
+	kept := e.reloadShift(t, shift.ID)
+	assert.True(t, kept.Cancelled, "the planner's cancellation stays after the report is gone")
+	assert.Nil(t, kept.SickAbsenceID)
+}
+
 // W3: a sick person cannot cover a gap; a healthy day can.
 func TestSickReport_SickPersonCannotCoverAShift(t *testing.T) {
 	t.Parallel()

@@ -103,6 +103,8 @@ type StaffShiftUpdateOptions struct {
 	// request omitted the cancelled key entirely, so a stale client or an
 	// unrelated field edit does not silently reactivate a cancelled shift
 	// (#1841). Cancellation/reactivation flows an explicit value through instead.
+	// It marks an ordinary edit, not ApplyCancellation: such an edit that
+	// changes nothing keeps a sick report's stamp (#6302).
 	PreserveExistingCancelled bool
 }
 
@@ -555,7 +557,7 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *w
 	if err := s.ensureCoversFitEditedOrigin(ctx, shift, existing); err != nil {
 		return nil, err
 	}
-	if err := s.applyEditedSickState(ctx, shift, existing); err != nil {
+	if err := s.applyEditedSickState(ctx, shift, existing, opts.PreserveExistingCancelled); err != nil {
 		return nil, err
 	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
