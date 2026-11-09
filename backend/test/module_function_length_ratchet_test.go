@@ -92,7 +92,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/student_test_helpers.go:newStudentTestModule":                   315,
 	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":      85,
 	"api/timetable_http_test_helpers.go:newTimetableHTTPTestReads":       78,
-	"api/timetable_test_helpers.go:NewTimetableTestModule":               169,
+	"api/timetable_test_helpers.go:NewTimetableTestModule":               167,
 	"api/workforce_test_helpers.go:NewWorkforceTestModule":               102,
 	"cmd/devtools/command_adapter.go:(*Adapter).LoginOperator":           65,
 	"cmd/gendoc.go:getSettingsSchemas":                                   79,
