@@ -23,7 +23,6 @@ import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import type { BillingDocument } from "~/lib/traeger-billing-api";
-import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
 import type { CareInvoice } from "~/lib/traeger-care-billing-api";
 import {
   type CareReviewFormat,
@@ -31,6 +30,13 @@ import {
 } from "~/lib/traeger-care-review-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { invoiceCountLabel } from "./care-billing-format";
+import {
+  type DebitItem,
+  careDebitItems,
+  debitHints,
+  holidayDebitItems,
+} from "./care-debit-hints";
+export { careDebitItems, debitHints, holidayDebitItems };
 import { formatEuro } from "./contribution-format";
 
 const logger = createLogger({ component: "CareRunReview" });
@@ -194,100 +200,8 @@ export function CareExcludedCard({
   );
 }
 
-/** Why a family that pays by direct debit is not collected (#4695). Kept
- * here so the run page does not load the mandate forms' module. */
-const DEBIT_GAP_LABELS = {
-  mandate_missing: "Kein gültiges Mandat",
-  creditor_missing: "Gläubiger-ID fehlt",
-  creditor_changed: "Mandat für eine frühere Gläubiger-ID",
-} as const;
-
 /** At most this many hints show before „weitere anzeigen“. */
 const DEBIT_HINTS_SHOWN = 5;
-
-/** A family's invoice as the hints need it, from a care or a holiday run. */
-export interface DebitItem {
-  readonly key: string;
-  readonly name: string;
-  /** Names the family for screen readers. */
-  readonly family: string;
-  readonly detail?: string;
-  readonly totalCents: number;
-  readonly payment?: InvoicePayment | null;
-  /** Where its mandate is managed. */
-  readonly href: string;
-  readonly excluded?: boolean;
-}
-
-interface DebitHint {
-  readonly item: DebitItem;
-  readonly text: string;
-  /** The debit comes too early: the fix is a later due date, not the mandate. */
-  readonly dueTooSoon?: boolean;
-}
-
-/** The SEPA hints of a preview (#4695): direct debits without a valid
- * mandate or creditor identifier, and debits sooner than the
- * pre-notification days of the Träger. */
-export function debitHints(items: readonly DebitItem[]): DebitHint[] {
-  const hints: DebitHint[] = [];
-  for (const item of items) {
-    // An excluded invoice is not issued; one of 0 € collects nothing.
-    if (item.excluded || item.totalCents <= 0) continue;
-    const payment = item.payment;
-    if (payment?.debitGap) {
-      hints.push({
-        item,
-        text:
-          payment.method === "transfer"
-            ? `${DEBIT_GAP_LABELS[payment.debitGap]}. Geht als Überweisung, fällig am ${formatDate(payment.dueOn)}.`
-            : `${DEBIT_GAP_LABELS[payment.debitGap]}. Die Freigabe ist angehalten.`,
-      });
-    } else if (payment?.mandate?.noticeShort) {
-      hints.push({
-        item,
-        text: `Abbuchung schon am ${formatDate(payment.dueOn)}. Das ist früher als Ihre Vorabankündigung erlaubt.`,
-        dueTooSoon: true,
-      });
-    }
-  }
-  return hints;
-}
-
-/** The invoices of a care run as debit items. */
-export function careDebitItems(invoices: readonly CareInvoice[]): DebitItem[] {
-  return invoices.map((invoice) => ({
-    key: `${invoice.contractId}-${invoice.service}`,
-    name: childName(invoice),
-    family: `Familie von ${childName(invoice)}`,
-    detail: invoice.schoolName,
-    totalCents: invoice.totalCents,
-    payment: invoice.payment,
-    href: `/traeger/abrechnung/lastschrift/${invoice.contractId}`,
-    excluded: Boolean(invoice.exclusion),
-  }));
-}
-
-/** The invoices of a holiday run as debit items: a holiday invoice has no
- * contract, so its way leads to the mandate overview. */
-export function holidayDebitItems(
-  documents: readonly BillingDocument[],
-): DebitItem[] {
-  return documents
-    .filter((document) => document.kind === "invoice")
-    .map((document) => {
-      const name =
-        `${document.recipientFirstName} ${document.recipientLastName}`.trim();
-      return {
-        key: document.registrationId,
-        name,
-        family: name,
-        totalCents: document.totalCents,
-        payment: document.payment,
-        href: "/traeger/abrechnung/lastschrift",
-      };
-    });
-}
 
 /** The hints card of a holiday run preview. */
 export function HolidayDebitHintsCard({

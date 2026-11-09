@@ -147,7 +147,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
           {canEditBank ? null : (
             <Alert
               type="info"
-              message="Die Bankverbindungen können Sie nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+              message="Die Bankverbindungen können Sie nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat."
             />
           )}
           {canBill ? null : (

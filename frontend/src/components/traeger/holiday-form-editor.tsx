@@ -73,8 +73,7 @@ const logger = createLogger({ component: "HolidayFormEditor" });
 const HOLIDAY_CONDITION_SOURCES: readonly ConditionSource[] = ["field"];
 
 const HOLIDAY_FREE_QUESTION_NOTE = {
-  title: "Eltern beantworten diese Frage bei der Ferienanmeldung.",
-  text: "Die Antwort sehen Sie in der Anmeldung. Ohne Gesundheitsangabe steht sie auch im Export.",
+  text: "Die Antworten sehen Sie in der Anmeldung. Ohne Gesundheitsangabe stehen sie auch im Export.",
 } as const;
 
 /** Marks a health question and a question the hosting OGS sees in the preview. */
@@ -194,6 +193,25 @@ export function HolidayFormEditor({
   const familyFields = fields.filter((field) => !field.applies_to_child);
   const childFields = fields.filter((field) => field.applies_to_child);
 
+  const editActions = (
+    <EditActions
+      onCancel={() => {
+        errorPath.clear();
+        void draftDocuments.cleanup();
+        setLegalBlocks([...(form.legalBlocks ?? [])]);
+        setAddress(form.addressRequirement);
+        // New row identities also discard row-local input drafts.
+        setFields(form.fields.map((field) => ({ ...field })));
+      }}
+      onSave={() => void save()}
+      saving={saving}
+      cancelDisabled={uploading}
+      disabled={!dirty || uploading}
+      cancelLabel="Änderungen verwerfen"
+      saveLabel="Als neue Version speichern"
+    />
+  );
+
   return (
     <DraftDocumentContext.Provider value={draftDocuments.lifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
@@ -203,25 +221,11 @@ export function HolidayFormEditor({
         >
           <SectionCard
             title="Fragen"
-            description="Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben."
-            footer={
-              <EditActions
-                onCancel={() => {
-                  errorPath.clear();
-                  void draftDocuments.cleanup();
-                  setLegalBlocks([...(form.legalBlocks ?? [])]);
-                  setAddress(form.addressRequirement);
-                  // New row identities also discard row-local input drafts.
-                  setFields(form.fields.map((field) => ({ ...field })));
-                }}
-                onSave={() => void save()}
-                saving={saving}
-                cancelDisabled={uploading}
-                disabled={!dirty || uploading}
-                cancelLabel="Änderungen verwerfen"
-                saveLabel="Als neue Version speichern"
-              />
-            }
+            description={`Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben. ${HOLIDAY_FREE_QUESTION_NOTE.text}`}
+            // The save stays in the card and in view while the long list of
+            // questions scrolls.
+            stickyFooter
+            footer={editActions}
             action={
               <Button
                 type="button"
@@ -268,7 +272,9 @@ export function HolidayFormEditor({
                       fieldTypes={HOLIDAY_FORM_FIELD_TYPES}
                       conditionSources={HOLIDAY_CONDITION_SOURCES}
                       allowAttachments={false}
-                      freeQuestionNote={HOLIDAY_FREE_QUESTION_NOTE}
+                      // Said once in the card's description, not on every
+                      // question.
+                      freeQuestionNote={null}
                       healthToggle={
                         field.type === "information"
                           ? undefined

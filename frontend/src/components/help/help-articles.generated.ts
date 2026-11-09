@@ -10381,7 +10381,7 @@ export const traegerBriefkopfTopic =
       ],
       differences: [
         "Auf dem Handy öffnen Sie in der Leiste unten `Mehr` und dann `Einstellungen`. `Abrechnungsvorgaben` steht dort wieder unter `Mehr`.",
-        "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
+        "Sie können die Angaben nur ansehen? Ihnen fehlt die Rolle `Verwaltung`. Die Rollen vergibt, wer die Rolle `Leitung` hat.",
       ],
       troubleshootingDetails: [
         "Das Logo wird nicht übernommen? Es muss ein PNG- oder JPG-Bild sein, höchstens 1 MB groß und höchstens 2000 Pixel breit und hoch.",
@@ -11117,7 +11117,7 @@ export const traegerDocumentKindsTopic =
         {
           title: "Rechtsbehelfsbelehrung eintragen",
           description:
-            "Den Text ändert, wer das Recht `Einstellungen` hat. moto gibt keinen Rechtstext vor.",
+            "Den Text ändert, wer die Rolle `Verwaltung` hat. moto gibt keinen Rechtstext vor.",
           steps: [
             "Wählen Sie auf der Seite `Dokumentarten` in der Karte `Rechtsbehelfsbelehrung` den Knopf `Belehrung eintragen`.",
             "Schreiben Sie den Text in das Feld `Rechtsbehelfsbelehrung`. Nennen Sie Frist, Stelle und Form des Widerspruchs.",
@@ -11134,7 +11134,7 @@ export const traegerDocumentKindsTopic =
         "Ändern Sie die Dokumentart nach der Prüfung eines Laufs, lehnt moto die Freigabe ab. Laden Sie den Lauf neu und prüfen Sie ihn noch einmal.",
       ],
       troubleshootingDetails: [
-        "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt das Recht `Einstellungen`. Bitten Sie eine Person mit diesem Recht, die Belehrung einzutragen.",
+        "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt die Rolle `Verwaltung`. Bitten Sie eine Person mit dieser Rolle, die Belehrung einzutragen.",
         "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
         "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
       ],
@@ -11203,7 +11203,7 @@ export const traegerDocumentTemplatesTopic =
         "moto nutzt die Vorlagen für das Bestätigungsschreiben der Ferien, den Betreuungsvertrag, die Ferienrechnung und den Gebührenbescheid. Welches Schreiben ein Lauf ausstellt, legen Sie unter `Dokumentarten` fest. Die anderen Dokumente folgen.",
       ],
       differences: [
-        "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
+        "Sie können die Vorlage nur ansehen? Ihnen fehlt die Rolle `Verwaltung`. Die Rollen vergibt, wer die Rolle `Leitung` hat.",
       ],
       troubleshootingDetails: [
         "moto nimmt die Vorlage nicht an und nennt Platzhalter? Diese kennt das Dokument nicht. Prüfen Sie die Schreibweise mit der Liste `Platzhalter`.",

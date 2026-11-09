@@ -74,7 +74,10 @@ export function RunDueDatesForm({
   };
 
   return (
-    <SectionCard title="Fälligkeiten">
+    <SectionCard
+      title="Fällig je Zahlungsweg"
+      description="Bis zu diesem Tag zahlen die Familien die Rechnungen dieses Laufs. Ohne Datum gilt das Zahlungsziel der Leistung."
+    >
       <form
         ref={formRef}
         noValidate
@@ -84,10 +87,6 @@ export function RunDueDatesForm({
           void submit();
         }}
       >
-        <p className="text-sm text-gray-600">
-          Bis zu diesem Tag zahlen die Familien die Rechnungen dieses Laufs.
-          Ohne Datum gilt das Zahlungsziel der Leistung.
-        </p>
         {PAYMENT_METHODS.map((method) => (
           <ISODatePicker
             key={method}

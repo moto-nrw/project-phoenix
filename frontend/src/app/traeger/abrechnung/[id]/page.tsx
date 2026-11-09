@@ -20,6 +20,14 @@ import {
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
 import { BillingCarriedCorrectionsCard } from "~/components/traeger/billing-carried-corrections-card";
+import {
+  debitHints,
+  holidayDebitItems,
+} from "~/components/traeger/care-debit-hints";
+import {
+  ReleaseOpenPoints,
+  familiesLabel,
+} from "~/components/traeger/release-open-points";
 import { BillingCostTakeoverCard } from "~/components/traeger/billing-cost-takeover-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
@@ -201,6 +209,33 @@ export default function TraegerBillingRunPage() {
     run.previewCount > 0 &&
     !run.legalRemedyMissing;
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
+  // What the preview still asks to check, repeated where the release is
+  // decided: numbers are final afterwards.
+  const debitHintCount = preview
+    ? debitHints(holidayDebitItems(run.documents)).length
+    : 0;
+  const carriedCount = preview
+    ? run.documents.reduce(
+        (sum, document) =>
+          sum +
+          document.children.reduce(
+            (inner, child) => inner + child.carriedCorrections.length,
+            0,
+          ),
+        0,
+      )
+    : 0;
+  const openPoints = [
+    debitHintCount > 0
+      ? `${familiesLabel(debitHintCount)}: Die Lastschrift klappt so nicht.`
+      : null,
+    carriedCount > 0
+      ? carriedCount === 1
+        ? "1 übernommene Korrektur aus einer stornierten Rechnung."
+        : `${carriedCount} übernommene Korrekturen aus stornierten Rechnungen.`
+      : null,
+  ].filter((point): point is string => point !== null);
+  const releaseWarns = paymentTextGaps > 0 || openPoints.length > 0;
 
   return (
     <TenantPage
@@ -264,10 +299,8 @@ export default function TraegerBillingRunPage() {
             <ConfirmationModal
               isOpen={confirmingRelease}
               title="Lauf freigeben?"
-              confirmText={
-                paymentTextGaps > 0 ? "Trotzdem freigeben" : "Freigeben"
-              }
-              confirmVariant={paymentTextGaps > 0 ? "warning" : "primary"}
+              confirmText={releaseWarns ? "Trotzdem freigeben" : "Freigeben"}
+              confirmVariant={releaseWarns ? "warning" : "primary"}
               isConfirmLoading={releasing}
               loadingText="Wird freigegeben …"
               onClose={() => setConfirmingRelease(false)}
@@ -285,6 +318,7 @@ export default function TraegerBillingRunPage() {
                   message={`${invoicesWithoutDebtorNumber(paymentTextGaps)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.`}
                 />
               ) : null}
+              <ReleaseOpenPoints points={openPoints} />
             </ConfirmationModal>
           </>
         ) : null
@@ -366,7 +400,7 @@ export default function TraegerBillingRunPage() {
             <Alert
               type="warning"
               title="Rechtsbehelfsbelehrung fehlt"
-              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer die Rolle „Verwaltung“ hat, muss sie eintragen. Danach können Sie freigeben."
               action={
                 <ButtonLink
                   href={traegerPath(

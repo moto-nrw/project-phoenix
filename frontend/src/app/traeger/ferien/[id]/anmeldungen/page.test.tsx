@@ -328,6 +328,37 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     expect(mockMerge).not.toHaveBeenCalled();
   });
 
+  // A parent calls: the office finds the registration by name or number;
+  // a registration the search hides drops out of the selection.
+  it("finds a registration by parent or number and keeps only shown rows selected", async () => {
+    renderPage();
+    const table = within(await screen.findByRole("table"));
+    fireEvent.click(
+      await table.findByRole("checkbox", {
+        name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+      }),
+    );
+
+    const [field] = screen.getAllByPlaceholderText(
+      "Eltern, Kind, Nr. oder Debitorennummer",
+    );
+    fireEvent.change(field!, { target: { value: "ute" } });
+
+    const row = (id: string, name: string) =>
+      table.queryByRole("checkbox", {
+        name: `Anmeldung Nr. ${id} von ${name} auswählen`,
+      });
+    await waitFor(() => expect(row("9", "Ute Muster")).toBeInTheDocument());
+    expect(row("7", "Eva Muster")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Ausgewählte Anmeldungen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(field!, { target: { value: "nr. 8" } });
+    await waitFor(() => expect(row("8", "Tom Muster")).toBeInTheDocument());
+    expect(row("9", "Ute Muster")).not.toBeInTheDocument();
+  });
+
   it("selects two registrations and merges them as siblings", async () => {
     mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
     renderPage();

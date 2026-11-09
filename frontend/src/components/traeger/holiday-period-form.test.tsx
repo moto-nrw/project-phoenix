@@ -346,6 +346,39 @@ describe("HolidayPeriodForm", () => {
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
   });
 
+  // moto refuses to remove a week with bookings, so the form names why the
+  // week stays instead of offering its removal.
+  it("offers no removal for a week with bookings", () => {
+    const booked: HolidayPeriod = {
+      ...stored,
+      weeks: [
+        {
+          ...stored.weeks[0]!,
+          timeModels: [{ ...stored.weeks[0]!.timeModels[0]!, protected: true }],
+        },
+      ],
+    };
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={booked}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    expect(
+      screen.getByText(
+        "Für diese Woche gibt es Anmeldungen. Sie bleibt im Zeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Woche entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("archives a booked time model instead of removing it (#5994)", async () => {
     const booked: HolidayPeriod = {
       ...stored,

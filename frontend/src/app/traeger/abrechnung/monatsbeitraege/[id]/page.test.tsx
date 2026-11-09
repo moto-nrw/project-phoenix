@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
@@ -172,5 +172,45 @@ describe("monthly run page letters card", () => {
       screen.queryByRole("heading", { name: "Schreiben an die Familien" }),
     ).toBeNull();
     expect(api.fetchCareLetters).not.toHaveBeenCalled();
+  });
+
+  // The release numbers the invoices for good: what the preview still asks
+  // to check stands in the release question, and the button says so.
+  it("names the open points in the release question", async () => {
+    api.fetchCareRun.mockResolvedValue({
+      ...RUN,
+      status: "calculated",
+      releasedAt: null,
+      issuedOn: null,
+      uncountedFamilies: 2,
+      mealGaps: [
+        {
+          schoolId: "3",
+          schoolName: "OGS Am Lindenhof",
+          month: "2026-12-01",
+          expired: false,
+        },
+      ],
+    });
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Lauf freigeben" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Monatslauf freigeben?",
+    });
+    expect(within(dialog).getByText("Noch offen")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("2 Familien ohne bestätigte Kinderzahl."),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "1 Mensa-Monat ohne Freigabe der Schule. Ein späterer Lauf rechnet ihn ab.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Trotzdem freigeben" }),
+    ).toBeInTheDocument();
   });
 });

@@ -432,7 +432,9 @@ export function FamilyBillingForm({
       {deviates ? (
         <Button
           type="button"
-          variant="link"
+          variant="outline"
+          size="compact"
+          className="self-start"
           onClick={() => setDraft(EMPTY_FAMILY_BILLING)}
         >
           Wieder wie im Vertrag

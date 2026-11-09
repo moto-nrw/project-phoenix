@@ -92,7 +92,12 @@ export default function TraegerHolidayPeriodsPage() {
       statsLoading={loading}
       error={loadError}
       actions={
-        <ButtonLink href={newHref} variant="primary" size="md">
+        <ButtonLink
+          href={newHref}
+          variant="primary"
+          size="md"
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Ferienzeitraum anlegen
         </ButtonLink>

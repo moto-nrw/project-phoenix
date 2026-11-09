@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -16,6 +16,7 @@ import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
 import { Loading } from "~/components/ui/loading";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { traegerPath } from "~/lib/traeger-url";
 import { createLogger } from "~/lib/logger";
 import type { CareRunStartInput } from "~/lib/traeger-care-billing-api";
 import {
@@ -98,6 +99,14 @@ export function CareRunStartModal({
   }, [isOpen, month, loadSchools]);
 
   const free = schools ? freeSchools(schools) : [];
+  // The open runs that already bill this month's schools, for the way there.
+  const openRunIds = [
+    ...new Set(
+      (schools ?? [])
+        .map((school) => school.openRunId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
   const allSelected = free.length > 0 && selected.length === free.length;
   const bounds = invoiceDateBounds(month);
 
@@ -186,7 +195,20 @@ export function CareRunStartModal({
           ) : free.length === 0 && schools.length > 0 ? (
             <Alert
               type="info"
-              message={`Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf in der Liste oder wählen Sie einen anderen Monat.`}
+              message={`Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf oder wählen Sie einen anderen Monat.`}
+              action={
+                openRunIds.length === 1 ? (
+                  <ButtonLink
+                    href={traegerPath(
+                      `/traeger/abrechnung/monatsbeitraege/${openRunIds[0]}`,
+                    )}
+                    variant="surface"
+                    size="compact"
+                  >
+                    Offenen Lauf öffnen
+                  </ButtonLink>
+                ) : undefined
+              }
             />
           ) : (
             <div className="space-y-2">

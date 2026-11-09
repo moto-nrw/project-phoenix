@@ -278,7 +278,7 @@ function TemplateEditorPage({
           {!canEdit ? (
             <Alert
               type="info"
-              message="Sie können die Vorlage nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+              message="Sie können die Vorlage nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat."
             />
           ) : null}
           {/* Zwei Spalten ab xl: links bearbeiten, rechts die Vorschau, die
@@ -428,7 +428,9 @@ function TemplateEditorPage({
                 </form>
               </SectionCard>
             </div>
-            <div className="min-w-0 xl:sticky xl:top-6 xl:row-span-3">
+            {/* Below xl the preview comes last: the placeholders insert at
+                the caret of the text field and belong right under it. */}
+            <div className="order-last min-w-0 xl:sticky xl:top-6 xl:order-none xl:row-span-3">
               <SectionCard
                 title="Vorschau"
                 description="So sieht der ganze Brief mit erfundenen Beispieldaten aus. Logo, Absender, Ansprechperson und Fußzeile kommen aus dem Briefkopf."

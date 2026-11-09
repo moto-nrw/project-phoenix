@@ -6,7 +6,9 @@
 // neuer Vertrag übernimmt sie; ein bestehender behält seine.
 
 import { SectionLabel } from "~/components/ui/section-label";
+import { Check, Copy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -18,7 +20,12 @@ import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { createLogger } from "~/lib/logger";
 import {
@@ -429,27 +436,27 @@ function ConditionsForm({
           ein.
         </p>
         {selected.acceptanceText ? (
-          <Textarea
+          <CopyableLegalText
+            id="care-contract-acceptance-text"
             label="Gespeicherter Text für das Anmeldeformular"
-            readOnly
             rows={8}
             value={selected.acceptanceText}
-            hint="Für „Bei der Annahme“ ergänzt die Schule eine eigene Zustimmung im Anmeldeformular. Sie kopiert diesen Text unverändert in „Rechtstext / Erklärung“. Sie setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben erhalten. Nach Änderungen speichern Sie zuerst die Bedingungen. Ersetzen Sie danach nur diesen Text im Anmeldeformular."
+            hint="Für „Bei der Annahme“ ergänzt die Schule eine eigene Zustimmung im Anmeldeformular. Die Schule kopiert diesen Text unverändert in „Rechtstext / Erklärung“ und setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben erhalten. Ändern Sie die Bedingungen, speichern Sie zuerst. Danach ersetzt die Schule nur diesen Text im Anmeldeformular."
           />
         ) : null}
         {selected.withdrawalText ? (
-          <Textarea
+          <CopyableLegalText
+            id="care-contract-withdrawal-text"
             label="Widerrufsbelehrung für das Anmeldeformular"
-            readOnly
             rows={6}
             value={selected.withdrawalText}
             hint="Eltern, die online anmelden, haben 14 Tage Widerrufsrecht. Die Schule kopiert diesen Text als eigenen Rechtstext ins Anmeldeformular und setzt „Muss bestätigt werden“. Das Vertrags-PDF enthält ihn immer."
           />
         ) : null}
         {selected.earlyStartText ? (
-          <Textarea
+          <CopyableLegalText
+            id="care-contract-early-start-text"
             label="Häkchen „Betreuung vor Ende der Widerrufsfrist“"
-            readOnly
             rows={4}
             value={selected.earlyStartText}
             hint="Die Schule kopiert diesen Text als weiteren Rechtstext ins Anmeldeformular, ohne „Muss bestätigt werden“. Setzen Eltern das Häkchen, steht es im Vertrag. Beginnt die Betreuung in der Frist, zahlen sie nach einem Widerruf die Tage bis dahin."
@@ -457,6 +464,64 @@ function ConditionsForm({
         ) : null}
       </form>
     </SectionCard>
+  );
+}
+
+/**
+ * A read-only text the school copies into its enrollment form, with a button
+ * that copies it: retyping a legal text invites mistakes.
+ */
+function CopyableLegalText({
+  id,
+  label,
+  rows,
+  value,
+  hint,
+}: Readonly<{
+  id: string;
+  label: string;
+  rows: number;
+  value: string;
+  hint: string;
+}>) {
+  const { success } = useToast();
+  const { showMessage } = useApiErrorDisplay();
+  const { copied, copy } = useClipboardCopy(
+    `CareContractConditions-${id}`,
+    2000,
+  );
+  return (
+    <div className="space-y-2">
+      <Textarea
+        id={id}
+        label={label}
+        readOnly
+        rows={rows}
+        value={value}
+        hint={hint}
+      />
+      <Button
+        type="button"
+        variant={copied ? "success" : "outline"}
+        size="compact"
+        className="gap-1.5"
+        aria-describedby={id}
+        onClick={async () => {
+          if (await copy(value)) success("Der Text ist kopiert.");
+          else
+            showMessage(
+              "Der Text ließ sich nicht kopieren. Markieren Sie ihn und kopieren Sie ihn selbst.",
+            );
+        }}
+      >
+        {copied ? (
+          <Check className="size-4" aria-hidden="true" />
+        ) : (
+          <Copy className="size-4" aria-hidden="true" />
+        )}
+        {copied ? "Kopiert" : "Text kopieren"}
+      </Button>
+    </div>
   );
 }
 

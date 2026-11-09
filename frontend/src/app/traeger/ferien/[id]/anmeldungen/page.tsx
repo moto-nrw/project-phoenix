@@ -82,6 +82,7 @@ import {
   type HolidaySiblingGroup,
   mergeHolidaySiblings,
 } from "~/lib/traeger-sibling-groups-api";
+import { foldForSearch } from "~/lib/search-fold";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
@@ -300,6 +301,26 @@ function StatusLine({ list }: Readonly<{ list: HolidayRegistrationList }>) {
   );
 }
 
+/** Whether a registration matches the typed search: parent, children, number or debtor number. */
+function matchesRegistration(
+  registration: HolidayRegistrationList["registrations"][number],
+  needle: string,
+): boolean {
+  if (!needle) return true;
+  const haystack = [
+    registration.guardianFirstName,
+    registration.guardianLastName,
+    `${registration.guardianFirstName} ${registration.guardianLastName}`,
+    ...registration.children.map(
+      (child) => `${child.firstName} ${child.lastName}`,
+    ),
+    `nr. ${registration.id}`,
+    registration.id,
+    registration.debtorNumber,
+  ];
+  return haystack.some((value) => foldForSearch(value).includes(needle));
+}
+
 /** Registrations with a child that is maybe registered twice. */
 function duplicateCount(list: HolidayRegistrationList | null): number {
   return (list?.registrations ?? []).filter((registration) =>
@@ -330,6 +351,9 @@ export default function TraegerHolidayRegistrationsPage() {
   const [school, setSchool] = useState("");
   const [weekId, setWeekId] = useState("");
   const [timeModel, setTimeModel] = useState("");
+  // Finds a family while it calls: searches the loaded list, the filters
+  // above decide what is loaded.
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   // Each new filter starts a new list; an answer for an older one is dropped.
@@ -460,10 +484,15 @@ export default function TraegerHolidayRegistrationsPage() {
   };
 
   const names = schoolNames(schools);
-  const registrationsShown = list?.registrations ?? [];
+  const needle = foldForSearch(search.trim());
+  const registrationsShown = (list?.registrations ?? []).filter(
+    (registration) => matchesRegistration(registration, needle),
+  );
   const siblings: SiblingView = {
     groupOf: siblingGroupOf(groups),
-    hints: siblingHints(registrationsShown, groups),
+    // Hints compare with every loaded registration, also those the search
+    // hides.
+    hints: siblingHints(list?.registrations ?? [], groups),
   };
   const schoolOptions = [
     { value: "", label: "Alle Schulen" },
@@ -586,6 +615,24 @@ export default function TraegerHolidayRegistrationsPage() {
       backLabel="Zurück zu den Ferien"
       stats={list ? <StatusLine list={list} /> : null}
       statsLoading={!list && !loadError}
+      search={{
+        value: search,
+        onChange: (value) => {
+          setSearch(value);
+          // A hidden registration is no choice: only shown rows stay selected.
+          const next = foldForSearch(value.trim());
+          const shown = new Set(
+            (list?.registrations ?? [])
+              .filter((registration) => matchesRegistration(registration, next))
+              .map((registration) => registration.id),
+          );
+          setSelected((selection) => {
+            const kept = [...selection].filter((id) => shown.has(id));
+            return kept.length === selection.size ? selection : new Set(kept);
+          });
+        },
+        placeholder: "Eltern, Kind, Nr. oder Debitorennummer",
+      }}
       tabs={holidayPeriodTabs(
         periodId,
         "anmeldungen",
@@ -674,14 +721,18 @@ export default function TraegerHolidayRegistrationsPage() {
           <EmptyState
             icon={<ClipboardList className="h-12 w-12" aria-hidden="true" />}
             title={
-              filtered
-                ? "Zu diesen Filtern gibt es keine Anmeldung."
-                : "Es ist noch keine Anmeldung eingegangen."
+              needle
+                ? "Keine Anmeldung passt zu Ihrer Suche."
+                : filtered
+                  ? "Zu diesen Filtern gibt es keine Anmeldung."
+                  : "Es ist noch keine Anmeldung eingegangen."
             }
             description={
-              filtered
-                ? "Wählen Sie andere Filter."
-                : "Eltern melden ihre Kinder über den Link für Eltern an."
+              needle
+                ? "Prüfen Sie die Schreibweise oder suchen Sie nach der Nummer."
+                : filtered
+                  ? "Wählen Sie andere Filter."
+                  : "Eltern melden ihre Kinder über den Link für Eltern an."
             }
           />
         }

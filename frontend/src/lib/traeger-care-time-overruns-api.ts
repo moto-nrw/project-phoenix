@@ -160,12 +160,15 @@ export async function fetchOverrunChildren(
 }
 
 /** „2 Std. 15 Min.“, „45 Min.“, „0 Min.“ */
+const HOURS = new Intl.NumberFormat("de-DE");
+
 export function formatExtraTime(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
+  // „1.486 Std.“: große Stundenzahlen mit Tausenderpunkt.
   if (hours === 0) return `${rest} Min.`;
-  if (rest === 0) return `${hours} Std.`;
-  return `${hours} Std. ${rest} Min.`;
+  if (rest === 0) return `${HOURS.format(hours)} Std.`;
+  return `${HOURS.format(hours)} Std. ${rest} Min.`;
 }
 
 /** Tage mit längerer Betreuung, ob gebucht oder nicht. */

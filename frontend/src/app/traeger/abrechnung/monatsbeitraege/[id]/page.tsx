@@ -24,7 +24,15 @@ import {
   CareDuplicatesCard,
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
+import {
+  careDebitItems,
+  debitHints,
+} from "~/components/traeger/care-debit-hints";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
+import {
+  ReleaseOpenPoints,
+  familiesLabel,
+} from "~/components/traeger/release-open-points";
 import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { invoiceDateLabel } from "~/components/traeger/care-review-format";
@@ -247,6 +255,34 @@ export default function TraegerCareRunPage() {
     ),
   );
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
+  // What the preview still asks to check, repeated where the release is
+  // decided: numbers are final afterwards.
+  const debitHintCount = preview
+    ? debitHints(careDebitItems(run.invoices)).length
+    : 0;
+  const uncounted = preview ? (run.uncountedFamilies ?? 0) : 0;
+  const mealOpen = preview
+    ? run.mealGaps.filter((gap) => !gap.expired).length
+    : 0;
+  const unpriced = preview ? run.unpriced.length : 0;
+  const releaseOpenPoints = [
+    debitHintCount > 0
+      ? `${familiesLabel(debitHintCount)}: Die Lastschrift klappt so nicht.`
+      : null,
+    uncounted > 0
+      ? `${familiesLabel(uncounted)} ohne bestätigte Kinderzahl.`
+      : null,
+    mealOpen > 0
+      ? mealOpen === 1
+        ? "1 Mensa-Monat ohne Freigabe der Schule. Ein späterer Lauf rechnet ihn ab."
+        : `${mealOpen} Mensa-Monate ohne Freigabe der Schule. Ein späterer Lauf rechnet sie ab.`
+      : null,
+    unpriced > 0
+      ? unpriced === 1
+        ? "1 Kind ohne Preis. Es kommt nicht in diesen Lauf."
+        : `${unpriced} Kinder ohne Preis. Sie kommen nicht in diesen Lauf.`
+      : null,
+  ].filter((point): point is string => point !== null);
 
   return (
     <TenantPage
@@ -291,7 +327,12 @@ export default function TraegerCareRunPage() {
           <ConfirmationModal
             isOpen={confirming}
             title="Monatslauf freigeben?"
-            confirmText="Freigeben"
+            confirmText={
+              releaseOpenPoints.length > 0 ? "Trotzdem freigeben" : "Freigeben"
+            }
+            confirmVariant={
+              releaseOpenPoints.length > 0 ? "warning" : "primary"
+            }
             isConfirmLoading={releasing}
             loadingText="Wird freigegeben …"
             onClose={() => setConfirming(false)}
@@ -323,6 +364,7 @@ export default function TraegerCareRunPage() {
                 neuen Lauf nach, wenn ein Vertrag beendet ist.
               </p>
             ) : null}
+            <ReleaseOpenPoints points={releaseOpenPoints} />
           </ConfirmationModal>
         ) : null
       }
@@ -388,8 +430,8 @@ export default function TraegerCareRunPage() {
                     <span>{invoiceDateLabel(run.invoiceDate)}</span>
                     <Button
                       type="button"
-                      variant="link"
-                      size="md"
+                      variant="outline"
+                      size="compact"
                       aria-label="Rechnungsdatum ändern"
                       onClick={() => setEditingDate(true)}
                     >
@@ -413,8 +455,8 @@ export default function TraegerCareRunPage() {
                       href={traegerPath(
                         `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`,
                       )}
-                      variant="link"
-                      size="md"
+                      variant="outline"
+                      size="compact"
                       aria-label="Fälligkeiten ändern"
                     >
                       Ändern
@@ -475,7 +517,7 @@ export default function TraegerCareRunPage() {
             <Alert
               type="warning"
               title="Rechtsbehelfsbelehrung fehlt"
-              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer die Rolle „Verwaltung“ hat, muss sie eintragen. Danach können Sie freigeben."
               action={
                 <ButtonLink
                   href={traegerPath(

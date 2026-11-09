@@ -109,7 +109,7 @@ export default function TraegerBriefkopfPage() {
           {!canEdit ? (
             <Alert
               type="info"
-              message="Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+              message="Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat."
             />
           ) : null}
           <SectionCard

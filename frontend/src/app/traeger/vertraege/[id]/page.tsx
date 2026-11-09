@@ -715,7 +715,7 @@ function StatusNotice({
     return (
       <Alert
         type="success"
-        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Sie müssen nichts unterschreiben.`}
+        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. Die Eltern bekommen ihn per E-Mail und in der Eltern-App.`}
       />
     );
   }
@@ -723,7 +723,7 @@ function StatusNotice({
     return (
       <Alert
         type="info"
-        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ prüfen Sie den Stand."
+        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ im Menü oben prüfen Sie den Stand."
       />
     );
   }
@@ -731,7 +731,7 @@ function StatusNotice({
     return (
       <Alert
         type="warning"
-        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ prüfen Sie den Stand."
+        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ im Menü oben prüfen Sie den Stand."
       />
     );
   }

@@ -184,8 +184,11 @@ export function HolidayPeriodForm({
     >
       <FormErrorAlert message={errorPath.error} />
 
+      {/* The save stays in the form's card and in view while the long form
+          scrolls. */}
       <SectionCard
         title="Anmeldung und Wochen"
+        stickyFooter
         footer={
           <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
         }

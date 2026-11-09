@@ -24,7 +24,7 @@ export const DOCUMENT_TEMPLATE_KIND_LABELS: Record<
 > = {
   bestaetigung: "Bestätigung und Rechnung",
   rechnung: "Rechnung",
-  bescheid: "Bescheid über den Elternbeitrag",
+  bescheid: "Gebührenbescheid",
   vertrag: "Betreuungsvertrag",
   kuendigung: "Bestätigung der Kündigung",
   mahnung: "Zahlungserinnerung",
@@ -36,9 +36,11 @@ export const DOCUMENT_TEMPLATE_KIND_USE: Record<DocumentTemplateKind, string> =
   {
     bestaetigung:
       "Für die Bestätigung der Ferienanmeldung mit Rechnung, die ein freigegebener Ferien-Lauf verschickt.",
-    rechnung: "Für Rechnungen. Noch nicht in Gebrauch.",
-    bescheid: "Für Gebührenbescheide. Noch nicht in Gebrauch.",
-    vertrag: "Für Betreuungsverträge. Noch nicht in Gebrauch.",
+    rechnung:
+      "Für Rechnungen eines Laufs, wenn unter „Dokumentarten“ „Rechnung“ gewählt ist.",
+    bescheid:
+      "Für Gebührenbescheide eines Laufs, wenn unter „Dokumentarten“ „Gebührenbescheid“ gewählt ist.",
+    vertrag: "Für die Betreuungsverträge, die Sie an Eltern senden.",
     kuendigung: "Für Kündigungsbestätigungen. Noch nicht in Gebrauch.",
     mahnung: "Für Zahlungserinnerungen. Noch nicht in Gebrauch.",
     bescheinigung:

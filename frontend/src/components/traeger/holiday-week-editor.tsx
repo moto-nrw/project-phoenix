@@ -193,20 +193,30 @@ export function HolidayWeekEditor({
     });
 
   const title = weekTitle(index, week);
+  // A week with bookings stays: moto refuses to remove it when saving, so the
+  // form does not offer it (like a booked time model, which can only be
+  // archived).
+  const booked = week.timeModels.some((model) => model.protected);
   return (
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
     <section className="space-y-4 border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-        <Button
-          type="button"
-          variant="outline_danger"
-          size="md"
-          onClick={onRemove}
-        >
-          Woche entfernen
-        </Button>
+        {booked ? (
+          <p className="text-sm text-gray-600">
+            Für diese Woche gibt es Anmeldungen. Sie bleibt im Zeitraum.
+          </p>
+        ) : (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={onRemove}
+          >
+            Woche entfernen
+          </Button>
+        )}
       </div>
       <div role="group" aria-label={title} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

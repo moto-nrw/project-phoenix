@@ -430,7 +430,7 @@ export function SepaMandatesCard({
       stacked: forFamily ? "title" : "field",
       render: (mandate) => (
         <span className="block min-w-0">
-          <span className="block font-mono break-all text-gray-900">
+          <span className="block font-mono wrap-anywhere text-gray-900">
             {mandate.reference}
           </span>
           <span className="block text-sm text-gray-500">
@@ -445,7 +445,7 @@ export function SepaMandatesCard({
       stacked: "field",
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
-          <span className="block font-mono text-gray-900 tabular-nums md:whitespace-nowrap">
+          <span className="block font-mono whitespace-nowrap text-gray-900 tabular-nums">
             {mandate.ibanMasked}
           </span>
           <span className="block truncate text-sm text-gray-500">
