@@ -18,5 +18,6 @@
   "enrollmentPending": "Të dhënat tuaja nga {date}: {count, plural, one {1 fëmijë} other {# fëmijë}}. Ofruesi i kontrollon kur të vijë kontrata juaj.",
   "enrollmentSaved": "U ruajt. Numri do të kalojë në kontratën tuaj të kujdesit.",
   "enrollmentClosed": "Fëmija juaj është pranuar. Numrin tani e ndryshoni në kontratën e kujdesit.",
-  "linkHint": "Deri në nënshkrim mund ta ndryshoni numrin këtu."
+  "linkHint": "Deri në nënshkrim mund ta ndryshoni numrin këtu.",
+  "enrollmentHint": "Derisa fëmija juaj të pranohet, mund ta ndryshoni numrin këtu."
 }

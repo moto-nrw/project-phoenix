@@ -18,5 +18,6 @@
   "enrollmentPending": "Your statement of {date}: {count, plural, one {1 child} other {# children}}. The provider checks it when your contract arrives.",
   "enrollmentSaved": "Saved. The number goes into your care contract.",
   "enrollmentClosed": "Your child has been accepted. You can now change the number in your care contract.",
-  "linkHint": "You can change the number here until you sign."
+  "linkHint": "You can change the number here until you sign.",
+  "enrollmentHint": "You can change the number here until your child is accepted."
 }

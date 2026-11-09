@@ -202,8 +202,10 @@ export function ParentFamilyChildrenCard({
               {t(enrollment ? "enrollmentClosed" : "noRight")}
             </p>
           )}
-          {source.kind === "link" && family.canState ? (
-            <p className="text-sm text-gray-600">{t("linkHint")}</p>
+          {source.kind !== "inbox" && family.canState ? (
+            <p className="text-sm text-gray-600">
+              {t(enrollment ? "enrollmentHint" : "linkHint")}
+            </p>
           ) : null}
           <p className="text-sm text-gray-600">{t("onlyNumber")}</p>
         </div>

@@ -18,5 +18,6 @@
   "enrollmentPending": "{date} tarihli bilginiz: {count, plural, one {1 çocuk} other {# çocuk}}. Kurum, sözleşmeniz geldiğinde bunu kontrol eder.",
   "enrollmentSaved": "Kaydedildi. Sayı bakım sözleşmenize aktarılacak.",
   "enrollmentClosed": "Çocuğunuz kabul edildi. Sayıyı artık bakım sözleşmenizde değiştirebilirsiniz.",
-  "linkHint": "İmzalayana kadar sayıyı burada değiştirebilirsiniz."
+  "linkHint": "İmzalayana kadar sayıyı burada değiştirebilirsiniz.",
+  "enrollmentHint": "Çocuğunuz kabul edilene kadar sayıyı burada değiştirebilirsiniz."
 }

@@ -18,5 +18,6 @@
   "enrollmentPending": "Ihre Angabe vom {date}: {count, plural, one {1 Kind} other {# Kinder}}. Der Träger prüft sie, wenn Ihr Vertrag kommt.",
   "enrollmentSaved": "Gespeichert. Die Zahl kommt mit in Ihren Betreuungsvertrag.",
   "enrollmentClosed": "Ihr Kind ist angenommen. Die Zahl ändern Sie jetzt in Ihrem Betreuungsvertrag.",
-  "linkHint": "Bis zur Unterschrift können Sie die Zahl hier ändern."
+  "linkHint": "Bis zur Unterschrift können Sie die Zahl hier ändern.",
+  "enrollmentHint": "Bis Ihr Kind angenommen ist, können Sie die Zahl hier ändern."
 }

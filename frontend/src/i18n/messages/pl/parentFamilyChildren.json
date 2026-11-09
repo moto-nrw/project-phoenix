@@ -18,5 +18,6 @@
   "enrollmentPending": "Państwa odpowiedź z {date}: {count, plural, one {1 dziecko} few {# dzieci} many {# dzieci} other {# dzieci}}. Organ prowadzący sprawdzi ją, gdy przyjdzie umowa.",
   "enrollmentSaved": "Zapisano. Liczba trafi do Państwa umowy o opiekę.",
   "enrollmentClosed": "Dziecko zostało przyjęte. Liczbę można teraz zmienić w umowie o opiekę.",
-  "linkHint": "Do podpisania mogą Państwo tutaj zmienić tę liczbę."
+  "linkHint": "Do podpisania mogą Państwo tutaj zmienić tę liczbę.",
+  "enrollmentHint": "Do przyjęcia dziecka mogą Państwo tutaj zmienić tę liczbę."
 }
