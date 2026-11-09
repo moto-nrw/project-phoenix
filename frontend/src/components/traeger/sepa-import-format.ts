@@ -4,6 +4,7 @@
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type {
+  ImportResult,
   ImportField,
   ImportProblem,
   ImportRow,
@@ -195,4 +196,21 @@ export function matchesImportFilter(
     default:
       return row.status === filter;
   }
+}
+
+/** Mandate und Familiennummern zählen getrennt, auch bei Geschwistern. */
+export function importChangesLabel(mandates: number, debtors: number): string {
+  const parts: string[] = [];
+  if (mandates > 0 || debtors === 0)
+    parts.push(mandates === 1 ? "1 Mandat" : `${mandates} Mandate`);
+  if (debtors > 0)
+    parts.push(
+      debtors === 1 ? "1 Debitorennummer" : `${debtors} Debitorennummern`,
+    );
+  return parts.join(" und ");
+}
+
+/** Nur die vom Backend bestätigten Änderungen lassen sich übernehmen. */
+export function importableCount(result: ImportResult): number {
+  return result.counts.ready + result.counts.debtorNumbers;
 }

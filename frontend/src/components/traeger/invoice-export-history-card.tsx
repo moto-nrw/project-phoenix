@@ -18,6 +18,7 @@ import {
   byLabel,
   exportedAtLabel,
 } from "~/components/traeger/finance-export-format";
+import { ListRow } from "~/components/ui/list-row";
 import { IconTile } from "~/components/ui/icon-tile";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -37,6 +38,7 @@ function stepIcon(step: InvoiceStep) {
   switch (step.kind) {
     case "issued":
       return <IconTile size="xs" tone="green" icon={<ReceiptText />} />;
+    case "mail_requested":
     case "sent":
       return <IconTile size="xs" tone="blue" icon={<Mail />} />;
     case "cancelled":
@@ -54,10 +56,14 @@ function stepTitle(step: InvoiceStep): string {
       return step.positions === 1
         ? "Ausgestellt mit 1 Position"
         : `Ausgestellt mit ${step.positions} Positionen`;
+    case "mail_requested":
+      return step.note === "cancellation"
+        ? "Storno-Versand beauftragt"
+        : "Versand beauftragt";
     case "sent":
       return step.note === "cancellation"
-        ? "Storno an die Familie geschickt"
-        : "An die Familie geschickt";
+        ? "Storno per E-Mail verschickt"
+        : "Per E-Mail verschickt";
     case "cancelled":
       return `Storniert mit ${step.note}`;
     case "submitted":
@@ -70,40 +76,11 @@ function stepTitle(step: InvoiceStep): string {
 }
 
 function stepDetail(step: InvoiceStep): string | null {
-  if (step.kind === "sent") return "Per E-Mail und im Elternpostfach";
+  if (step.kind === "mail_requested")
+    return "E-Mail-Versand beauftragt. Den Stand sehen Sie beim Rechnungslauf.";
+  if (step.kind === "sent") return "Vom E-Mail-Dienst angenommen.";
   if (step.kind === "exported" && step.file) return step.file.fileName;
   return null;
-}
-
-function StepRow({ step }: Readonly<{ step: InvoiceStep }>) {
-  const detail = stepDetail(step);
-  return (
-    <li className="flex gap-3 py-3 first:pt-0 last:pb-0">
-      {stepIcon(step)}
-      <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-gray-900">
-          {stepTitle(step)}
-          {step.file?.repeatOf ? (
-            <StatusBadge
-              label={`Gleicher Inhalt wie Nr. ${step.file.repeatOf}`}
-              tone="gray"
-              size="xs"
-            />
-          ) : null}
-        </p>
-        {detail ? (
-          <p
-            className={`truncate text-sm text-gray-600 ${step.kind === "exported" ? "font-mono" : ""}`}
-          >
-            {detail}
-          </p>
-        ) : null}
-        <p className="text-sm text-gray-500">
-          {exportedAtLabel(step.at)} · {byLabel(step.byYou, step.byAccount)}
-        </p>
-      </div>
-    </li>
-  );
 }
 
 /** The steps of an issued invoice, oldest first; nothing to act on. */
@@ -151,9 +128,36 @@ export function InvoiceExportHistoryCard({
         <LoadErrorAlert error={load.error} actionLayout="responsive" />
       ) : null}
       {history ? (
-        <ol className="divide-y divide-gray-100">
+        <ol className="space-y-2">
           {history.steps.map((step, index) => (
-            <StepRow key={`${step.kind}-${step.at}-${index}`} step={step} />
+            <li key={`${step.kind}-${step.at}-${index}`}>
+              <ListRow className="items-start">
+                {stepIcon(step)}
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-gray-900">
+                    {stepTitle(step)}
+                    {step.file?.repeatOf ? (
+                      <StatusBadge
+                        label={`Gleicher Inhalt wie Nr. ${step.file.repeatOf}`}
+                        tone="gray"
+                        size="xs"
+                      />
+                    ) : null}
+                  </p>
+                  {stepDetail(step) ? (
+                    <p
+                      className={`text-sm wrap-anywhere text-gray-600 ${step.kind === "exported" ? "font-mono" : ""}`}
+                    >
+                      {stepDetail(step)}
+                    </p>
+                  ) : null}
+                  <p className="text-sm text-gray-500">
+                    {exportedAtLabel(step.at)} ·{" "}
+                    {byLabel(step.byYou, step.byAccount)}
+                  </p>
+                </div>
+              </ListRow>
+            </li>
           ))}
         </ol>
       ) : null}

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
@@ -246,6 +247,57 @@ func TestExportFileKeepsWhatTheDownloadWrote(t *testing.T) {
 		require.NoError(t, store.MarkExportFilesSubmitted(ctx, scope.organization, 0, parentbilling.DebitRunCare, seeded.run, "MOTO-P"))
 		refused(`UPDATE parent_billing.export_files SET submitted_at = submitted_at + INTERVAL '1 day' WHERE id = ?`,
 			"stays submitted", entry.ID)
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
+
+// Collection identity is stable across creation timestamps; the byte hash remains exact.
+func TestDebitExportRepeatsAndMealHistory(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newMandateScope(t, db, "Träger Wiederholung")
+	school := testpkg.CreateTestSchoolInOrganization(t, db, scope.organization, "OGS Wiederholung")
+	store := NewStore()
+	rollback := errors.New("roll the export history back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		seeded := seedDebitScope(t, ctx, tx, scope, school, "DE98ZZZ09999999999", "SJR-REPEAT-1")
+		var invoice int64
+		require.NoError(t, tx.NewRaw(`SELECT care_invoice_id FROM parent_billing.sepa_debits WHERE id = ?`, seeded.debit).Scan(ctx, &invoice))
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_meal_positions (organization_id, invoice_id, position, school_id,
+   student_id, meal_month, mode, quantity, unit_cents, amount_cents, net_cents)
+   VALUES (?, ?, 1, ?, 9501, DATE '2029-06-01', 'per_meal', 2, 480, 960, 960)`, scope.organization, invoice, school)
+		require.NoError(t, err)
+		var firstHash string
+		var firstNumber int64
+		for i, message := range []string{"MOTO-SAME", "MOTO-SAME", "MOTO-CHANGED"} {
+			entry, err := store.InsertExportFile(ctx, scope.organization, 0, parentbilling.ExportFileRecord{
+				Format: parentbilling.ExportFormatPain008, RunKind: parentbilling.DebitRunCare, RunID: seeded.run,
+				FileNumber: int64(i + 1), FileName: "lastschrift.xml", Reference: message,
+				Content: []byte(fmt.Sprintf("<CreDtTm>2026-11-09T10:0%d:00</CreDtTm>", i)), SEPADebitIDs: []int64{seeded.debit}})
+			require.NoError(t, err)
+			if i == 0 {
+				firstHash, firstNumber = entry.Fingerprint, entry.FileNumber
+			} else {
+				assert.NotEqual(t, firstHash, entry.Fingerprint, "actual bytes retain their own fingerprint")
+			}
+		}
+		files, err := store.ExportFiles(ctx, scope.organization, "", 0)
+		require.NoError(t, err)
+		require.Len(t, files, 3)
+		assert.Zero(t, files[0].RepeatOf, "changed collection is not a repeat")
+		assert.Equal(t, firstNumber, files[1].RepeatOf, "a later creation time is the same collection")
+		_, steps, history, err := store.InvoiceHistory(ctx, scope.organization, parentbilling.HistoryCareInvoice, invoice)
+		require.NoError(t, err)
+		require.Len(t, history, 3)
+		assert.Equal(t, firstNumber, history[1].RepeatOf)
+		assert.Zero(t, history[2].RepeatOf)
+		require.NotEmpty(t, steps)
+		assert.Equal(t, 1, steps[0].Positions, "a Mensa-only invoice has one position")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)

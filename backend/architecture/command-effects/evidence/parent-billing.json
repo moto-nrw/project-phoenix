@@ -433,6 +433,22 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.CareLetterMailStates",
+      "binding_digest": "9d03aa20bec86ef8df5e679681f4e301",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.InvoiceHistoryPost.CareLetterMailStates",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailStates",
+      "binding_digest": "71947170b71780521875d1d10ec78a4a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.InvoiceHistoryPost.LetterMailStates",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
       "binding_digest": "ccc46fb834b73c55bbf6488878ef0708",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application.CareLetterRecipients.Recipients",

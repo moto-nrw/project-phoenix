@@ -11,7 +11,10 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SepaImportLogCard } from "~/components/traeger/sepa-import-log-card";
 import { SepaImportMappingCard } from "~/components/traeger/sepa-import-mapping-card";
-import { importFormatLabel } from "~/components/traeger/sepa-import-format";
+import {
+  importFormatLabel,
+  importChangesLabel,
+} from "~/components/traeger/sepa-import-format";
 import { SepaImportPreviewCard } from "~/components/traeger/sepa-import-preview-card";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -185,9 +188,7 @@ export default function TraegerSepaImportPage() {
       });
       setDone(applied);
       success(
-        applied.counts.imported === 1
-          ? "1 Mandat ist übernommen."
-          : `${applied.counts.imported} Mandate sind übernommen.`,
+        `${importChangesLabel(applied.counts.imported, applied.counts.debtorNumbers)} übernommen.`,
       );
     } catch (err) {
       logger.error("sepa_import_apply_failed", { error: errorText(err) });
@@ -238,12 +239,8 @@ export default function TraegerSepaImportPage() {
             <EmptyState
               tone="success"
               icon={<CheckCircle aria-hidden className="size-6" />}
-              title={
-                done.counts.imported === 1
-                  ? "1 Mandat übernommen"
-                  : `${done.counts.imported} Mandate übernommen`
-              }
-              description={`${done.counts.duplicate} schon vorhanden, ${done.counts.clarify + done.counts.conflict + done.counts.invalid} nicht übernommen. Sie finden die Mandate unter Lastschrift.`}
+              title={`${importChangesLabel(done.counts.imported, done.counts.debtorNumbers)} übernommen`}
+              description={`Mandate: ${done.counts.duplicate} schon vorhanden, ${done.counts.clarify + done.counts.conflict + done.counts.invalid} nicht übernommen. Sie finden Mandate unter Lastschrift und Debitorennummern bei der Familie.`}
               action={
                 <div className="flex flex-wrap justify-center gap-3">
                   <ButtonLink

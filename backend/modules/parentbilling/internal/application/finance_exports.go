@@ -48,16 +48,17 @@ type FinanceExportStore interface {
 // FinanceExports serves parentbilling.FinanceExports.
 type FinanceExports struct {
 	store FinanceExportStore
+	post  parentbilling.InvoiceHistoryPost
 }
 
 var _ parentbilling.FinanceExports = (*FinanceExports)(nil)
 
 // NewFinanceExports builds the finance exports.
-func NewFinanceExports(store FinanceExportStore) *FinanceExports {
-	if store == nil {
-		panic("parent billing: the export store is required")
+func NewFinanceExports(store FinanceExportStore, post parentbilling.InvoiceHistoryPost) *FinanceExports {
+	if store == nil || post == nil {
+		panic("parent billing: the export store and mail states are required")
 	}
-	return &FinanceExports{store: store}
+	return &FinanceExports{store: store, post: post}
 }
 
 // exportFile is a file about to leave moto: its content and the invoices.
@@ -308,6 +309,10 @@ func (f *FinanceExports) InvoiceHistory(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.InvoiceHistory{}, err
 	}
+	steps, err = f.invoiceMailHistory(ctx, reviewer.OrganizationID, kind, steps)
+	if err != nil {
+		return parentbilling.InvoiceHistory{}, err
+	}
 	for i := range files {
 		file := files[i]
 		file.ExportedByYou = byAccount(file.ExportedBy, reviewer.AccountID)
@@ -323,4 +328,38 @@ func (f *FinanceExports) InvoiceHistory(ctx context.Context, reviewer parentbill
 
 func byAccount(account *int64, reviewer int64) bool {
 	return account != nil && *account == reviewer
+}
+
+// A mailing records the request; only Delivery's successful send supplies
+// a separate sent event and its time.
+func (f *FinanceExports) invoiceMailHistory(ctx context.Context, organizationID int64, kind string, steps []parentbilling.InvoiceHistoryEntry) ([]parentbilling.InvoiceHistoryEntry, error) {
+	index := slices.IndexFunc(steps, func(step parentbilling.InvoiceHistoryEntry) bool {
+		return step.Kind == parentbilling.HistoryMailRequested
+	})
+	if index < 0 {
+		return steps, nil
+	}
+	runID := steps[index].RunID
+	var states []parentbilling.BillingLetterMailState
+	var err error
+	if kind == parentbilling.HistoryCareInvoice {
+		states, err = f.post.CareLetterMailStates(ctx, organizationID, runID)
+	} else {
+		states, err = f.post.LetterMailStates(ctx, organizationID, runID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read invoice mail states: %w", err)
+	}
+	sent := make(map[int64]time.Time, len(states))
+	for _, state := range states {
+		if state.Status == parentbilling.LetterMailSent && state.SentAt != nil {
+			sent[state.DeliveryID] = *state.SentAt
+		}
+	}
+	for _, step := range steps {
+		if at, ok := sent[step.DeliveryID]; step.Kind == parentbilling.HistoryMailRequested && ok {
+			steps = append(steps, parentbilling.InvoiceHistoryEntry{Kind: parentbilling.HistorySent, At: at, AccountID: step.AccountID, Note: step.Note})
+		}
+	}
+	return steps, nil
 }

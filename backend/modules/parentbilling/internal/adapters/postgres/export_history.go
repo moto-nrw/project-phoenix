@@ -16,33 +16,38 @@ import (
 // file that holds it. Every statement names the Träger in each subquery.
 
 type invoiceStepRow struct {
-	Kind      string    `bun:"kind"`
-	At        time.Time `bun:"at"`
-	AccountID *int64    `bun:"account_id"`
-	Positions int       `bun:"positions"`
-	Note      string    `bun:"note"`
+	Kind       string    `bun:"kind"`
+	At         time.Time `bun:"at"`
+	AccountID  *int64    `bun:"account_id"`
+	Positions  int       `bun:"positions"`
+	Note       string    `bun:"note"`
+	RunID      int64     `bun:"run_id"`
+	DeliveryID int64     `bun:"delivery_id"`
 }
 
 const careInvoiceStepsQuery = `SELECT 'issued' AS kind, run.released_at AS at,
 	(SELECT event.actor_account_id FROM parent_billing.care_run_events AS event
 		WHERE event.organization_id = ?0 AND event.run_id = invoice.run_id AND event.action = 'release'
 		ORDER BY event.occurred_at DESC LIMIT 1) AS account_id,
-	(SELECT COUNT(*) FROM parent_billing.care_invoice_positions AS position
-		WHERE position.organization_id = ?0 AND position.invoice_id = invoice.id)::int AS positions, '' AS note
+	((SELECT COUNT(*) FROM parent_billing.care_invoice_positions AS position
+		WHERE position.organization_id = ?0 AND position.invoice_id = invoice.id)
+		+ (SELECT COUNT(*) FROM parent_billing.care_meal_positions AS meal
+			WHERE meal.organization_id = ?0 AND meal.invoice_id = invoice.id))::int AS positions, '' AS note,
+	invoice.run_id, 0::bigint AS delivery_id
 FROM parent_billing.care_invoices AS invoice
 JOIN parent_billing.care_runs AS run ON run.organization_id = invoice.organization_id AND run.id = invoice.run_id
 WHERE invoice.organization_id = ?0 AND run.organization_id = ?0 AND invoice.id = ?1
 UNION ALL
-SELECT 'sent', mailing.created_at, mailing.requested_by_account_id, 0, letter.kind
+SELECT 'mail_requested', mailing.created_at, mailing.requested_by_account_id, 0, letter.kind, mailing.run_id, mailing.delivery_id
 FROM parent_billing.care_letter_mailings AS mailing
 JOIN parent_billing.care_letters AS letter ON letter.organization_id = mailing.organization_id AND letter.id = mailing.letter_id
 WHERE mailing.organization_id = ?0 AND letter.organization_id = ?0 AND letter.invoice_id = ?1
 UNION ALL
-SELECT 'cancelled', cancellation.issued_at, cancellation.created_by_account_id, 0, cancellation.number
+SELECT 'cancelled', cancellation.issued_at, cancellation.created_by_account_id, 0, cancellation.number, 0, 0
 FROM parent_billing.care_invoice_cancellations AS cancellation
 WHERE cancellation.organization_id = ?0 AND cancellation.invoice_id = ?1
 UNION ALL
-SELECT 'submitted', debit.submitted_at, debit.submitted_by_account_id, 0, debit.message_id
+SELECT 'submitted', debit.submitted_at, debit.submitted_by_account_id, 0, debit.message_id, 0, 0
 FROM parent_billing.sepa_debits AS debit
 WHERE debit.organization_id = ?0 AND debit.care_invoice_id = ?1 AND debit.status = 'submitted'`
 
@@ -51,20 +56,20 @@ const holidayDocumentStepsQuery = `SELECT 'issued' AS kind, run.released_at AS a
 		WHERE event.organization_id = ?0 AND event.run_id = document.run_id AND event.action = 'release'
 		ORDER BY event.occurred_at DESC LIMIT 1) AS account_id,
 	(SELECT COUNT(*) FROM parent_billing.document_positions AS position
-		WHERE position.organization_id = ?0 AND position.document_id = document.id)::int AS positions, '' AS note
+		WHERE position.organization_id = ?0 AND position.document_id = document.id)::int AS positions, '' AS note, document.run_id, 0::bigint AS delivery_id
 FROM parent_billing.documents AS document
 JOIN parent_billing.runs AS run ON run.organization_id = document.organization_id AND run.id = document.run_id
 WHERE document.organization_id = ?0 AND run.organization_id = ?0 AND document.id = ?1
 UNION ALL
-SELECT 'sent', mailing.created_at, mailing.requested_by_account_id, 0, 'invoice'
+SELECT 'mail_requested', mailing.created_at, mailing.requested_by_account_id, 0, 'invoice', mailing.run_id, mailing.delivery_id
 FROM parent_billing.document_mailings AS mailing
 WHERE mailing.organization_id = ?0 AND mailing.document_id = ?1
 UNION ALL
-SELECT 'cancelled', later.issued_at, NULL::bigint, 0, later.number
+SELECT 'cancelled', later.issued_at, NULL::bigint, 0, later.number, 0, 0
 FROM parent_billing.documents AS later
 WHERE later.organization_id = ?0 AND later.reference_document_id = ?1 AND later.kind = 'cancellation'
 UNION ALL
-SELECT 'submitted', debit.submitted_at, debit.submitted_by_account_id, 0, debit.message_id
+SELECT 'submitted', debit.submitted_at, debit.submitted_by_account_id, 0, debit.message_id, 0, 0
 FROM parent_billing.sepa_debits AS debit
 WHERE debit.organization_id = ?0 AND debit.document_id = ?1 AND debit.status = 'submitted'`
 
@@ -78,7 +83,10 @@ const exportFilesOfCareInvoiceQuery = `SELECT file.*,
 	CASE WHEN file.run_kind = 'notice' THEN make_date((file.run_id / 100)::int, (file.run_id % 100)::int, 1) END AS notice_month,
 	(SELECT MIN(earlier.file_number) FROM parent_billing.export_files AS earlier
 		WHERE earlier.organization_id = ?0 AND earlier.run_kind = file.run_kind AND earlier.run_id = file.run_id
-			AND earlier.format = file.format AND earlier.content_sha256 = file.content_sha256
+			AND earlier.format = file.format
+			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
+				THEN earlier.reference = file.reference
+				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of
 FROM parent_billing.export_files AS file
 WHERE file.organization_id = ?0 AND EXISTS (
@@ -95,7 +103,10 @@ const exportFilesOfHolidayDocumentQuery = `SELECT file.*,
 	CASE WHEN file.run_kind = 'notice' THEN make_date((file.run_id / 100)::int, (file.run_id % 100)::int, 1) END AS notice_month,
 	(SELECT MIN(earlier.file_number) FROM parent_billing.export_files AS earlier
 		WHERE earlier.organization_id = ?0 AND earlier.run_kind = file.run_kind AND earlier.run_id = file.run_id
-			AND earlier.format = file.format AND earlier.content_sha256 = file.content_sha256
+			AND earlier.format = file.format
+			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
+				THEN earlier.reference = file.reference
+				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of
 FROM parent_billing.export_files AS file
 WHERE file.organization_id = ?0 AND EXISTS (
@@ -144,7 +155,7 @@ func (s *Store) InvoiceHistory(ctx context.Context, organizationID int64, kind s
 	entries := make([]parentbilling.InvoiceHistoryEntry, len(steps))
 	for i, step := range steps {
 		entries[i] = parentbilling.InvoiceHistoryEntry{Kind: step.Kind, At: step.At, AccountID: step.AccountID,
-			Positions: step.Positions, Note: step.Note}
+			Positions: step.Positions, Note: step.Note, RunID: step.RunID, DeliveryID: step.DeliveryID}
 	}
 	exports := make([]parentbilling.ExportProtocolEntry, len(files))
 	for i, file := range files {

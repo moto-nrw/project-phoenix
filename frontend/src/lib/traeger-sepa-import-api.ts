@@ -75,7 +75,12 @@ export interface ImportRow {
 type DebtorNumberStatus =
   "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
 
-type ImportCounts = Readonly<Record<ImportRowStatus, number>>;
+type ImportCounts = Readonly<
+  Record<ImportRowStatus, number> & {
+    debtorNumbers: number;
+    debtorConflicts: number;
+  }
+>;
 
 export interface ImportResult {
   readonly encoding: string;
@@ -145,7 +150,10 @@ interface BackendResult {
   creditor_id: string;
   fingerprint?: string;
   applied: boolean;
-  counts: Record<ImportRowStatus, number>;
+  counts: Record<ImportRowStatus, number> & {
+    debtor_numbers?: number;
+    debtor_conflicts?: number;
+  };
   rows: BackendRow[] | null;
 }
 
@@ -202,7 +210,11 @@ function mapImportResult(result: BackendResult): ImportResult {
     creditorId: result.creditor_id,
     fingerprint: result.fingerprint ?? "",
     applied: result.applied,
-    counts: result.counts,
+    counts: {
+      ...result.counts,
+      debtorNumbers: result.counts.debtor_numbers ?? 0,
+      debtorConflicts: result.counts.debtor_conflicts ?? 0,
+    },
     rows: (result.rows ?? []).map(mapRow),
   };
 }

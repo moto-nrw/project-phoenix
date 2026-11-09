@@ -16,8 +16,8 @@ import (
 // invoices it holds, in the transaction that answers the file. A rollback
 // returns the number, so the numbers of the files that left moto have no gap
 // and name one file each. A repeated download is a new file with a new
-// number; the fingerprint of its content shows that it repeats an earlier
-// one. The Sollstellung is the general CSV whose columns the Träger maps;
+// number; the content hash or, for PAIN.008, its stable collection ID
+// identifies an earlier export of the same content. The Sollstellung is the general CSV whose columns the Träger maps;
 // the PAIN.008 file of the direct debits records itself here too (ADR 0181).
 // Further formats (DATEV #4694, CIP/SIMBA #4698) add a format constant and
 // record their file through FinanceExportLog.
@@ -264,11 +264,12 @@ const (
 
 // Entries of the history of an invoice.
 const (
-	HistoryIssued    = "issued"
-	HistorySent      = "sent"
-	HistoryExported  = "exported"
-	HistorySubmitted = "submitted"
-	HistoryCancelled = "cancelled"
+	HistoryIssued        = "issued"
+	HistoryMailRequested = "mail_requested"
+	HistorySent          = "sent"
+	HistoryExported      = "exported"
+	HistorySubmitted     = "submitted"
+	HistoryCancelled     = "cancelled"
 )
 
 // InvoiceHistoryEntry is one step of an invoice: when, what, by whom and,
@@ -283,6 +284,9 @@ type InvoiceHistoryEntry struct {
 	// Note is the number of the cancellation, the message ID of a debit
 	// or the recipient of a mail, as the step names it.
 	Note string `json:"note,omitempty"`
+	// RunID and DeliveryID resolve a mailing through Delivery without exposing internal references.
+	RunID      int64 `json:"-"`
+	DeliveryID int64 `json:"-"`
 }
 
 // InvoiceHistory is the history of one invoice, oldest first.
@@ -329,4 +333,10 @@ func ExportRunLabel(runKind string, careMonth, noticeMonth *calendar.Date, perio
 		return "Bescheidraten " + monthOf(noticeMonth)
 	}
 	return runKind
+}
+
+// InvoiceHistoryPost reads the existing Delivery states of a run in the caller's Träger transaction.
+type InvoiceHistoryPost interface {
+	LetterMailStates(ctx context.Context, organizationID, runID int64) ([]BillingLetterMailState, error)
+	CareLetterMailStates(ctx context.Context, organizationID, runID int64) ([]BillingLetterMailState, error)
 }

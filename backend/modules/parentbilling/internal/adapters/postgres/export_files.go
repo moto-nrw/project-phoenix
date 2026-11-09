@@ -226,6 +226,7 @@ func insertExportFileInvoices(ctx context.Context, db bun.IDB, organizationID, f
 
 // exportFileListQuery reads the protocol entries of a Träger with the
 // label of their run and the earliest earlier file of the same content.
+// PAIN.008 uses its stable collection/message ID; CreDtTm changes the byte hash.
 const exportFileListQuery = `SELECT file.*,
 	(SELECT run.billing_month FROM parent_billing.care_runs AS run
 		WHERE run.organization_id = file.organization_id AND run.id = file.run_id AND file.run_kind = 'care') AS care_month,
@@ -234,7 +235,10 @@ const exportFileListQuery = `SELECT file.*,
 	CASE WHEN file.run_kind = 'notice' THEN make_date((file.run_id / 100)::int, (file.run_id % 100)::int, 1) END AS notice_month,
 	(SELECT MIN(earlier.file_number) FROM parent_billing.export_files AS earlier
 		WHERE earlier.organization_id = file.organization_id AND earlier.run_kind = file.run_kind AND earlier.run_id = file.run_id
-			AND earlier.format = file.format AND earlier.content_sha256 = file.content_sha256
+			AND earlier.format = file.format
+			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
+				THEN earlier.reference = file.reference
+				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of
 FROM parent_billing.export_files AS file
 WHERE file.organization_id = ?0 AND (?1 = '' OR (file.run_kind = ?1 AND file.run_id = ?2))

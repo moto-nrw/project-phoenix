@@ -102,7 +102,7 @@ export interface ExportRun {
 
 export type InvoiceHistoryKind = "care-invoices" | "holiday-documents";
 type InvoiceStepKind =
-  "issued" | "sent" | "exported" | "submitted" | "cancelled";
+  "issued" | "mail_requested" | "sent" | "exported" | "submitted" | "cancelled";
 
 export interface InvoiceStep {
   readonly kind: InvoiceStepKind;
@@ -279,11 +279,8 @@ export async function saveSollMapping(
 
 /** Returns the Träger to the default mapping. */
 export async function resetSollMapping(): Promise<ExportSettings> {
-  return settingsFromBackend(
-    await traegerRequest<BackendSettings>(`${BASE}/settings/sollstellung`, {
-      method: "DELETE",
-    }),
-  );
+  await traegerRequest(`${BASE}/settings/sollstellung`, { method: "DELETE" });
+  return fetchExportSettings();
 }
 
 /** Sets the number of the first file, once. */

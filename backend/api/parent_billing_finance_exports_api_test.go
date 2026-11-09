@@ -251,3 +251,16 @@ func TestFinanceExportsQueryBudgets(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.traeger.finance_export_files", firstFiles)
 	querybudgets.AssertQueryBudget(t, "api.traeger.finance_export_invoice_history", firstHistory)
 }
+
+func assertInvoiceMailHistory(t *testing.T, router http.Handler, token, kind string, id int64, requested, sent int) {
+	t.Helper()
+	rec := traegerJSON(t, router, token, http.MethodGet, fmt.Sprintf("%s/invoice-history/%s/%d", financeExportsPath, kind, id), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	history := decodeSchoolPortalData[exportHistoryBody](t, rec.Body.Bytes())
+	counts := map[string]int{}
+	for _, entry := range history.Entries {
+		counts[entry.Kind]++
+	}
+	assert.Equal(t, requested, counts["mail_requested"], "mail requests")
+	assert.Equal(t, sent, counts["sent"], "accepted sends")
+}

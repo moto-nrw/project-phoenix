@@ -45,8 +45,8 @@ func NewParentDocuments() *application.ParentDocuments {
 }
 
 // NewBillingFamilies builds the invoices and amounts per family (#4691) and the finance exports with their protocol (#4693).
-func NewBillingFamilies() (parentbilling.BillingFamilies, parentbilling.FinanceExports) {
-	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore())
+func NewBillingFamilies(post parentbilling.InvoiceHistoryPost) (parentbilling.BillingFamilies, parentbilling.FinanceExports) {
+	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686).

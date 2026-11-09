@@ -324,7 +324,7 @@ export function SollMappingEditor({
               />
             </div>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 wrap-anywhere sm:grid-cols-2">
             <CustomSelect
               label="Zeichensatz"
               name="encoding"
@@ -370,7 +370,7 @@ export function SollMappingEditor({
         </InsetPanel>
         <p className="mt-3 text-sm text-gray-500">
           Nächste Datei:{" "}
-          <span className="font-mono text-gray-800">
+          <span className="font-mono wrap-anywhere text-gray-800">
             {sollFileName(
               draft.fileNamePattern.trim(),
               settings.nextFileNumber,
