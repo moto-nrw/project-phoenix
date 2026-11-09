@@ -33,6 +33,9 @@
   "api/operator/provisioning/organizations/[id]/beleg-retention": [
     "GET operator /operator/organizations/id%2F1/beleg-retention"
   ],
+  "api/operator/provisioning/organizations/[id]/beleg-retention/clarification-reviews": [
+    "POST operator /operator/organizations/id%2F1/beleg-retention/clarification-reviews"
+  ],
   "api/operator/provisioning/organizations/[id]/beleg-retention/instructions": [
     "POST operator /operator/organizations/id%2F1/beleg-retention/instructions"
   ],

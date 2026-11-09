@@ -13,6 +13,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Textarea } from "~/components/ui/textarea";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -22,12 +23,15 @@ import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
+  BASES_BY_TYPE,
+  BASIS_LABELS,
   BELEG_TYPES,
   CLARIFICATION_REASON_LABELS,
   TRIGGERS_BY_TYPE,
   TRIGGER_LABELS,
   belegRetentionService,
   belegTypeLabel,
+  minimumPeriod,
   periodUnit,
   type BelegClarification,
   type BelegDeletion,
@@ -38,6 +42,7 @@ import {
 } from "~/lib/operator/beleg-retention-api";
 import { useSWRAuth } from "~/lib/swr";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+import { ClarificationReviewModal } from "./traeger-beleg-clarification-review-modal";
 
 const logger = createLogger({ component: "TraegerBelegRetentionSection" });
 
@@ -72,6 +77,7 @@ export function TraegerBelegRetentionSection({
   );
   const [instructionOpen, setInstructionOpen] = useState(false);
   const [suspensionOpen, setSuspensionOpen] = useState(false);
+  const [reviewing, setReviewing] = useState<BelegClarification | null>(null);
   const reload = useCallback(() => mutate(), [mutate]);
 
   if (loadError) return <LoadErrorAlert error={loadError} />;
@@ -82,13 +88,14 @@ export function TraegerBelegRetentionSection({
     <>
       <SectionCard
         title="Klärungsliste"
-        description="Belege ohne Weisung oder ohne berechenbares Datum. moto löscht sie nicht. Klären Sie sie bis zum Prüfdatum mit dem Träger."
+        description="Belege ohne Weisung oder ohne berechenbares Datum. moto löscht sie nicht. Klären Sie sie bis zum Prüfdatum mit dem Träger und erfassen Sie jede Prüfung."
       >
         <DataTable
-          columns={clarificationColumns(today)}
+          columns={clarificationColumns(today, setReviewing)}
           rows={[...(data?.clarifications ?? [])]}
           getRowKey={(row) => `${row.belegType}-${row.reason}`}
           isLoading={loading}
+          rowHasInteractiveControls
           stackedOnMobile
           emptyState={
             <EmptyState
@@ -186,12 +193,19 @@ export function TraegerBelegRetentionSection({
         onClose={() => setSuspensionOpen(false)}
         onSaved={reload}
       />
+      <ClarificationReviewModal
+        entry={reviewing}
+        organizationId={organizationId}
+        onClose={() => setReviewing(null)}
+        onSaved={reload}
+      />
     </>
   );
 }
 
 function clarificationColumns(
   today: string,
+  onReview: (entry: BelegClarification) => void,
 ): DataTableColumn<BelegClarification>[] {
   return [
     {
@@ -229,7 +243,50 @@ function clarificationColumns(
       header: "Zuständig",
       render: (row) => row.responsible,
     },
+    {
+      key: "last-review",
+      header: "Letzte Prüfung",
+      render: (row) => <LastReview entry={row} />,
+    },
+    {
+      key: "actions",
+      header: "Aktionen",
+      headerSrOnly: true,
+      align: "right",
+      stacked: "meta",
+      render: (row) => (
+        <OverflowMenu
+          ariaLabel={`Aktionen für ${belegTypeLabel(row.belegType)}`}
+          triggerSize="sm"
+          items={[
+            {
+              label: "Prüfung erfassen",
+              description: "Ergebnis, Eskalation und nächstes Prüfdatum.",
+              onClick: () => onReview(row),
+            },
+          ]}
+        />
+      ),
+    },
   ];
+}
+
+function LastReview({ entry }: { readonly entry: BelegClarification }) {
+  const review = entry.lastReview;
+  if (!review) return "Noch keine";
+  return (
+    <div className="space-y-1">
+      <p>
+        {formatDate(review.reviewedOn)}: {review.note}
+      </p>
+      {review.escalated && (
+        <StatusBadge
+          tone="orange"
+          label={`An Florian eskaliert: ${review.escalationReason}`}
+        />
+      )}
+    </div>
+  );
 }
 
 const instructionColumns: DataTableColumn<RetentionInstruction>[] = [
@@ -245,7 +302,20 @@ const instructionColumns: DataTableColumn<RetentionInstruction>[] = [
     render: (row) =>
       `${row.period} ${periodUnit(row.belegType)} ab ${TRIGGER_LABELS[row.triggerEvent] ?? row.triggerEvent}`,
   },
-  { key: "basis", header: "Grundlage", render: (row) => row.legalBasis },
+  {
+    key: "basis",
+    header: "Grundlage",
+    render: (row) => (
+      <div className="space-y-1">
+        <p>
+          {BASIS_LABELS[row.basis] ?? row.basis}: {row.legalBasis}
+        </p>
+        {row.basisJustification && (
+          <p className="text-gray-600">Begründung: {row.basisJustification}</p>
+        )}
+      </div>
+    ),
+  },
   {
     key: "by",
     header: "Weisung von",
@@ -420,7 +490,9 @@ function InstructionModal({
   const [type, setType] = useState<BelegType>("holiday_document");
   const [trigger, setTrigger] = useState("issued");
   const [period, setPeriod] = useState("8");
+  const [basis, setBasis] = useState("booking_voucher");
   const [legalBasis, setLegalBasis] = useState("");
+  const [justification, setJustification] = useState("");
   const [instructedBy, setInstructedBy] = useState("");
   const [instructedOn, setInstructedOn] = useState("");
   const [reference, setReference] = useState("");
@@ -429,19 +501,30 @@ function InstructionModal({
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
   const triggers = TRIGGERS_BY_TYPE[type];
+  const withoutStatutes = basis === "not_applicable";
+  const minimum = minimumPeriod(type, basis);
 
   const changeType = (value: string) => {
     const next = value as BelegType;
+    const nextBasis = BASES_BY_TYPE[next][0] ?? "booking_voucher";
     setType(next);
     setTrigger(TRIGGERS_BY_TYPE[next][0] ?? "issued");
-    setPeriod(next === "sepa_mandate" ? "14" : "8");
+    setBasis(nextBasis);
+    setPeriod(String(minimumPeriod(next, nextBasis)));
+  };
+  const changeBasis = (value: string) => {
+    setBasis(value);
+    if (Number(period) < minimumPeriod(type, value)) {
+      setPeriod(String(minimumPeriod(type, value)));
+    }
   };
   const complete =
     legalBasis.trim() !== "" &&
+    (!withoutStatutes || justification.trim() !== "") &&
     instructedBy.trim() !== "" &&
     instructedOn !== "" &&
     reference.trim() !== "" &&
-    Number(period) > 0;
+    Number(period) >= minimum;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -453,7 +536,9 @@ function InstructionModal({
         beleg_type: type,
         trigger_event: trigger,
         period: Number(period),
+        basis,
         legal_basis: legalBasis.trim(),
+        basis_justification: withoutStatutes ? justification.trim() : "",
         instructed_by: instructedBy.trim(),
         instructed_on: instructedOn,
         instruction_reference: reference.trim(),
@@ -522,33 +607,64 @@ function InstructionModal({
             id="beleg-instruction-period"
             label={`Frist in ${periodUnit(type)}n`}
             type="number"
-            min={type === "sepa_mandate" ? 14 : 1}
+            min={minimum}
             value={period}
             onChange={(event) => setPeriod(event.target.value)}
             hint={
               type === "sepa_mandate"
                 ? "Mindestens 14 Monate nach der letzten Lastschrift."
-                : "Jahre nach Ende des Jahres, in dem die Frist beginnt."
+                : `Mindestens ${minimum} ${minimum === 1 ? "Jahr" : "Jahre"} nach Ende des Jahres, in dem die Frist beginnt.`
             }
             required
           />
         </div>
+        <CustomSelect
+          id="beleg-instruction-kind"
+          label="Einordnung"
+          value={basis}
+          options={BASES_BY_TYPE[type].map((value) => ({
+            value,
+            label: BASIS_LABELS[value] ?? value,
+          }))}
+          onChange={changeBasis}
+          required
+        />
         <Input
           id="beleg-instruction-basis"
-          label="Rechtsgrundlage"
+          label="Fundstelle"
           value={legalBasis}
           onChange={(event) => setLegalBasis(event.target.value)}
-          placeholder="zum Beispiel § 147 AO"
+          placeholder={
+            withoutStatutes
+              ? "zum Beispiel Satzung des Trägers"
+              : "zum Beispiel § 147 Abs. 1 Nr. 4 AO"
+          }
+          hint={
+            withoutStatutes
+              ? "Ohne AO, HGB oder UStG: diese Vorschriften gelten hier nicht."
+              : undefined
+          }
           maxLength={500}
           required
         />
+        {withoutStatutes && (
+          <Textarea
+            id="beleg-instruction-justification"
+            label="Warum die Vorschriften nicht gelten"
+            value={justification}
+            onChange={(event) => setJustification(event.target.value)}
+            hint="Schriftliche Begründung des Trägers. Nur damit ist eine kürzere Frist möglich."
+            maxLength={1000}
+            required
+          />
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             id="beleg-instruction-by"
-            label="Weisung von"
+            label="Weisungsberechtigte Person"
             value={instructedBy}
             onChange={(event) => setInstructedBy(event.target.value)}
-            placeholder="Stelle oder Person beim Träger"
+            placeholder="Name und Funktion beim Träger"
             maxLength={500}
             required
           />

@@ -38,6 +38,32 @@ export const TRIGGERS_BY_TYPE: Record<BelegType, readonly string[]> = {
   sepa_debit: ["issued"],
 };
 
+/** Grundlagen einer Weisung (Löschkonzept Abschnitt 2). */
+export const BASIS_LABELS: Record<string, string> = {
+  booking_voucher: "Buchungsbeleg (§ 147 AO, § 257 HGB, § 14b UStG)",
+  business_letter: "Handels- oder Geschäftsbrief",
+  collection_agreement: "Inkassovereinbarung",
+  not_applicable: "Vorschriften nicht anwendbar",
+};
+
+/** Grundlagen, die eine Weisung je Belegart nennen darf. */
+export const BASES_BY_TYPE: Record<BelegType, readonly string[]> = {
+  holiday_document: ["booking_voucher", "not_applicable"],
+  care_invoice: ["booking_voucher", "not_applicable"],
+  care_notice: ["booking_voucher", "business_letter", "not_applicable"],
+  care_contract: ["booking_voucher", "business_letter", "not_applicable"],
+  sepa_mandate: ["collection_agreement"],
+  sepa_debit: ["booking_voucher", "not_applicable"],
+};
+
+/** Kürzeste Frist je Grundlage; ein Mandat zählt Monate. */
+export function minimumPeriod(type: string, basis: string): number {
+  if (type === "sepa_mandate") return 14;
+  if (basis === "booking_voucher") return 8;
+  if (basis === "business_letter") return 6;
+  return 1;
+}
+
 export const CLARIFICATION_REASON_LABELS: Record<string, string> = {
   no_instruction: "Keine Weisung",
   no_collection: "Mandat ohne Einzug",
@@ -58,7 +84,9 @@ export interface RetentionInstruction {
   readonly belegType: string;
   readonly triggerEvent: string;
   readonly period: number;
+  readonly basis: string;
   readonly legalBasis: string;
+  readonly basisJustification: string;
   readonly instructedBy: string;
   readonly instructedOn: string;
   readonly instructionReference: string;
@@ -92,6 +120,15 @@ export interface BelegClarification {
   readonly listedOn: string;
   readonly reviewOn: string;
   readonly responsible: string;
+  readonly lastReview: BelegClarificationReview | null;
+}
+
+export interface BelegClarificationReview {
+  readonly note: string;
+  readonly escalated: boolean;
+  readonly escalationReason: string;
+  readonly reviewedOn: string;
+  readonly nextReviewOn: string;
 }
 
 export interface BelegDeletion {
@@ -113,7 +150,9 @@ export interface RecordInstructionRequest {
   readonly beleg_type: string;
   readonly trigger_event: string;
   readonly period: number;
+  readonly basis: string;
   readonly legal_basis: string;
+  readonly basis_justification: string;
   readonly instructed_by: string;
   readonly instructed_on: string;
   readonly instruction_reference: string;
@@ -125,6 +164,15 @@ export interface RecordSuspensionRequest {
   readonly scope: string;
   readonly responsible: string;
   readonly review_on: string;
+}
+
+export interface RecordClarificationReviewRequest {
+  readonly beleg_type: string;
+  readonly reason: string;
+  readonly note: string;
+  readonly escalated: boolean;
+  readonly escalation_reason: string;
+  readonly next_review_on: string;
 }
 
 type Wire = Record<string, unknown>;
@@ -149,7 +197,9 @@ export function mapBelegRetentionOverview(
       belegType: text(row.beleg_type),
       triggerEvent: text(row.trigger_event),
       period: num(row.period),
+      basis: text(row.basis),
       legalBasis: text(row.legal_basis),
+      basisJustification: text(row.basis_justification),
       instructedBy: text(row.instructed_by),
       instructedOn: text(row.instructed_on),
       instructionReference: text(row.instruction_reference),
@@ -172,6 +222,7 @@ export function mapBelegRetentionOverview(
       listedOn: text(row.listed_on),
       reviewOn: text(row.review_on),
       responsible: text(row.responsible),
+      lastReview: mapReview(row.last_review),
     })),
     deletions: list(wire.deletions).map((row) => ({
       belegType: text(row.beleg_type),
@@ -179,6 +230,18 @@ export function mapBelegRetentionOverview(
       count: num(row.count),
     })),
     evaluatedOn: text(wire.evaluated_on) || null,
+  };
+}
+
+function mapReview(value: unknown): BelegClarificationReview | null {
+  if (typeof value !== "object" || value === null) return null;
+  const row = value as Wire;
+  return {
+    note: text(row.note),
+    escalated: row.escalated === true,
+    escalationReason: text(row.escalation_reason),
+    reviewedOn: text(row.reviewed_on),
+    nextReviewOn: text(row.next_review_on),
   };
 }
 
@@ -215,6 +278,15 @@ export const belegRetentionService = {
     data: RecordSuspensionRequest,
   ): Promise<void> {
     await operatorFetch<unknown>(`${base(orgId)}/suspensions`, {
+      method: "POST",
+      body: data,
+    });
+  },
+  async recordClarificationReview(
+    orgId: string,
+    data: RecordClarificationReviewRequest,
+  ): Promise<void> {
+    await operatorFetch<unknown>(`${base(orgId)}/clarification-reviews`, {
       method: "POST",
       body: data,
     });
