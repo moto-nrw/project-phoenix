@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -43,6 +43,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { ApiError } from "~/lib/api-error";
+import { traegerPath } from "~/lib/traeger-url";
 import { createLogger } from "~/lib/logger";
 import { TERMINATION_KIND_LABELS } from "./care-contract-format";
 
@@ -438,6 +439,22 @@ export function RecordNoticeModal({
         <Alert
           type="warning"
           message="Die Eltern bekommen sofort eine Bestätigung per E-Mail. Das lässt sich nicht rückgängig machen."
+          actionLayout="responsive"
+          action={
+            // The mail carries the Träger's text from the settings, not the
+            // letter template „Bestätigung der Kündigung“. A new tab keeps
+            // this dialog and its entries.
+            <ButtonLink
+              href={traegerPath("/traeger/einstellungen?bereich=vertraege")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Text der E-Mail ansehen, neuer Tab"
+              variant="ghost_tone"
+              size="compact"
+            >
+              Text der E-Mail ansehen
+            </ButtonLink>
+          }
         />
       </form>
     </FormModal>

@@ -692,6 +692,32 @@ export default function TraegerDashboardPage() {
                     </ul>
                   </div>
                   <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+                    {canOpen && school.alerts.includes("open_enrollments") ? (
+                      // The school decides on its registrations in its own
+                      // app; the school view has no list of them.
+                      <Button
+                        type="button"
+                        variant="surface"
+                        size="compact"
+                        className="whitespace-nowrap"
+                        aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
+                        title="Öffnet in einem neuen Tab"
+                        disabled={opening !== null}
+                        onClick={() => void open(school)}
+                      >
+                        {opening === school.id ? (
+                          "Wird geöffnet …"
+                        ) : (
+                          <>
+                            {TRAEGER_HANDOFF_OPEN}
+                            <ExternalLink
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
                     <ButtonLink
                       href={traegerPath(`/traeger/schulen/${school.id}`)}
                       variant="surface"
@@ -739,7 +765,7 @@ export default function TraegerDashboardPage() {
           search={{
             value: search,
             onChange: setSearch,
-            placeholder: "Schule oder Ort suchen…",
+            placeholder: "Schule oder Ort",
           }}
         />
       ) : null}

@@ -224,7 +224,7 @@ describe("TraegerDashboardPage", () => {
     const table = await screen.findByRole("table");
 
     // Die Kopfkarte hat ein Suchfeld je Breite; beide teilen den Wert.
-    const [field] = screen.getAllByPlaceholderText("Schule oder Ort suchen…");
+    const [field] = screen.getAllByPlaceholderText("Schule oder Ort");
     fireEvent.change(field as HTMLElement, { target: { value: "melle" } });
 
     expect(
@@ -417,7 +417,7 @@ describe("TraegerDashboardPage", () => {
     expect(screen.getByText("1 : 16,7")).toBeInTheDocument();
     expect(screen.getByText("Stand 11:59 Uhr")).toBeInTheDocument();
 
-    const [field] = screen.getAllByPlaceholderText("Schule oder Ort suchen…");
+    const [field] = screen.getAllByPlaceholderText("Schule oder Ort");
     fireEvent.change(field!, { target: { value: "melle" } });
     expect(screen.getByText("50")).toBeInTheDocument();
   });
@@ -470,7 +470,9 @@ describe("school alerts", () => {
     ).toBeInTheDocument();
     expect(within(card).getByText("Viele Krankmeldungen:")).toBeInTheDocument();
     expect(
-      within(card).getByText("3 Kinder warten auf eine Entscheidung."),
+      within(card).getByText(
+        "3 Kinder warten auf eine Entscheidung der Schule.",
+      ),
     ).toBeInTheDocument();
     expect(
       within(card).getByRole("link", { name: "Zur Schule: OGS Am Bach" }),
@@ -481,6 +483,35 @@ describe("school alerts", () => {
     expect(
       within(card).getByRole("link", { name: "Grenzen ansehen" }),
     ).toHaveAttribute("href", "/traeger/einstellungen?bereich=dashboard");
+  });
+
+  it("offers the Schul-App where open registrations wait, with the right", async () => {
+    mockFetchAlerts.mockResolvedValue(
+      alertsOf([
+        school("2", "OGS Am Bach", ["sick_children"]),
+        school("4", "OGS Mühle", ["open_enrollments"], 3),
+      ]),
+    );
+    mockUseSession.mockReturnValue(
+      sessionWith(["traeger_overview:read", "traeger_school:switch"]),
+    );
+    renderPage();
+    await screen.findByRole("link", { name: "Grenzen ansehen" });
+
+    const card = screen.getByTestId("traeger-school-alerts");
+    expect(
+      within(card).getByRole("button", {
+        name: "Schul-App öffnen: OGS Mühle, neuer Tab",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(card).getByRole("link", { name: "Zur Schule: OGS Mühle" }),
+    ).toBeInTheDocument();
   });
 
   it("names the link by what the person may do", async () => {

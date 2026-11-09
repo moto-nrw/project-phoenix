@@ -41,7 +41,8 @@ export const DOCUMENT_TEMPLATE_KIND_USE: Record<DocumentTemplateKind, string> =
     bescheid:
       "Für Gebührenbescheide eines Laufs, wenn unter „Dokumentarten“ „Gebührenbescheid“ gewählt ist.",
     vertrag: "Für die Betreuungsverträge, die Sie an Eltern senden.",
-    kuendigung: "Für Kündigungsbestätigungen. Noch nicht in Gebrauch.",
+    kuendigung:
+      "Für einen Brief zur Kündigung. Noch nicht in Gebrauch. Den Text der E-Mail an die Eltern legen Sie unter Allgemein › Betreuungsverträge fest.",
     mahnung: "Für Zahlungserinnerungen. Noch nicht in Gebrauch.",
     bescheinigung:
       "Für Bescheinigungen über Betreuungskosten. Noch nicht in Gebrauch.",

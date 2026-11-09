@@ -45,6 +45,20 @@ export const CONTRACT_STATUS_TONES: Record<
   beendet: "outline",
 };
 
+/**
+ * The tone of a contract's status pill. A notice whose end is set is
+ * settled and grey; only a notice still waiting for its end stays orange,
+ * so the one task stands out among the settled ones.
+ */
+export function contractStatusTone(
+  contract: Readonly<{ status: CareContractStatus; endsOn?: string | null }>,
+): StatusBadgeTone {
+  if (contract.status === "gekuendigt") {
+    return contract.endsOn ? "gray" : "orange";
+  }
+  return CONTRACT_STATUS_TONES[contract.status];
+}
+
 /** The order of the status filter: what the office works on first. */
 export const CONTRACT_STATUS_ORDER: readonly CareContractStatus[] = [
   "entwurf",

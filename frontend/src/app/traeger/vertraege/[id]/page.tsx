@@ -12,7 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CONTRACT_STATUS_LABELS,
-  CONTRACT_STATUS_TONES,
+  contractStatusTone,
   MAIL_STATE_LABELS,
   MAIL_STATE_TONES,
   SEND_SKIP_LABELS,
@@ -302,7 +302,7 @@ export default function TraegerVertragPage() {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
             <StatusBadge
               label={CONTRACT_STATUS_LABELS[contract.status]}
-              tone={CONTRACT_STATUS_TONES[contract.status]}
+              tone={contractStatusTone(contract)}
             />
             <span>
               {contract.modulesText || "–"} · {contract.schoolName} · ab{" "}

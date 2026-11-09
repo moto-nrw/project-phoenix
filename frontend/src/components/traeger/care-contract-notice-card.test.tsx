@@ -32,6 +32,10 @@ vi.mock("~/lib/care-contract-notices-api", () => ({
   rejectContractNoticeReason: mocks.rejectContractNoticeReason,
 }));
 
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
+}));
+
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 vi.mock("~/components/ui/date-picker", () => ({
   DatePicker: ({
@@ -149,6 +153,16 @@ describe("CareContractNoticeCard (#4682)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Kündigung eintragen" }),
     );
+    // The warning names where the text of the parents' e-mail is set; a
+    // new tab keeps the dialog.
+    const mailText = await screen.findByRole("link", {
+      name: "Text der E-Mail ansehen, neuer Tab",
+    });
+    expect(mailText).toHaveAttribute(
+      "href",
+      "/einstellungen?bereich=vertraege",
+    );
+    expect(mailText).toHaveAttribute("target", "_blank");
     fireEvent.change(await screen.findByLabelText(/Eingegangen am/), {
       target: { value: "2026-09-01" },
     });

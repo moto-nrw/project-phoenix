@@ -24,7 +24,7 @@ import {
   CONCLUSION_MODE_TONES,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_ORDER,
-  CONTRACT_STATUS_TONES,
+  contractStatusTone,
   SEND_SKIP_LABELS,
   childName,
 } from "~/components/traeger/care-contract-format";
@@ -195,7 +195,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
       <span className="inline-flex flex-col items-start gap-1">
         <StatusBadge
           label={CONTRACT_STATUS_LABELS[contract.status]}
-          tone={CONTRACT_STATUS_TONES[contract.status]}
+          tone={contractStatusTone(contract)}
         />
         {contract.status === "gekuendigt" && contract.endsOn ? (
           <span className="text-sm text-gray-500">
@@ -224,7 +224,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     stackedRender: (contract) => (
       <StatusBadge
         label={CONTRACT_STATUS_LABELS[contract.status]}
-        tone={CONTRACT_STATUS_TONES[contract.status]}
+        tone={contractStatusTone(contract)}
       />
     ),
   },
@@ -574,20 +574,41 @@ export default function TraegerVertraegePage() {
             aria-label="Abschluss je Schule"
             className="divide-y divide-gray-100"
           >
-            {data.modes.map((school) => (
-              <li
-                key={school.schoolId}
-                className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-              >
-                <span className="min-w-0 text-sm font-medium wrap-anywhere text-gray-900">
-                  {school.schoolName}
-                </span>
-                <StatusBadge
-                  label={CONCLUSION_MODE_LABELS[school.mode]}
-                  tone={CONCLUSION_MODE_TONES[school.mode]}
-                />
-              </li>
-            ))}
+            {data.modes.map((school) => {
+              // Accepted children the acceptance did not conclude: without
+              // the parents' consent the green mode alone would read as
+              // „every child has a contract“.
+              const withoutContract =
+                school.mode === "bei_annahme"
+                  ? data.candidates.filter(
+                      (candidate) =>
+                        candidate.schoolId === school.schoolId &&
+                        candidate.acceptanceIssue !== null,
+                    ).length
+                  : 0;
+              return (
+                <li
+                  key={school.schoolId}
+                  className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                >
+                  <span className="min-w-0 text-sm font-medium wrap-anywhere text-gray-900">
+                    {school.schoolName}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    {withoutContract > 0 ? (
+                      <StatusBadge
+                        label={`${withoutContract === 1 ? "1 Kind" : `${withoutContract} Kinder`} ohne Zustimmung, kein Vertrag`}
+                        tone="orange"
+                      />
+                    ) : null}
+                    <StatusBadge
+                      label={CONCLUSION_MODE_LABELS[school.mode]}
+                      tone={CONCLUSION_MODE_TONES[school.mode]}
+                    />
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </SectionCard>
       ) : null}
