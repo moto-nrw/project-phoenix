@@ -54,15 +54,15 @@ type ProcessingOrderer[T any] interface {
 
 // StaffImportDeps contains the dependencies for StaffImportConfig.
 type StaffImportDeps struct {
-	Authorization       importModels.Authorization
-	Transactions        importModels.Transactions
-	Invitations         importModels.StaffInviter
-	FindInvitedPeople   func(context.Context, string) ([]int64, error)
-	FindSchoolAccount   func(context.Context, string) (int64, bool, error)
-	Roles               importModels.SchoolRoleQuery
-	RolePolicy          importModels.SchoolRolePolicy
-	FindRolePermissions func(context.Context, int64) ([]string, error)
-	SchoolName          func(context.Context) (string, error)
+	Authorization                importModels.Authorization
+	Transactions                 importModels.Transactions
+	Invitations                  importModels.StaffInviter
+	FindInvitedPeople            func(context.Context, string) ([]int64, error)
+	FindSchoolAccount            func(context.Context, string) (int64, bool, error)
+	Roles                        importModels.SchoolRoleQuery
+	RolePolicy                   importModels.SchoolRolePolicy
+	FindRolePermissionsByRoleIDs func(context.Context, []int64) (map[int64][]string, error)
+	SchoolName                   func(context.Context) (string, error)
 
 	// Stammdaten owners (#2600, #2708): People Directory files the person,
 	// School Membership the staff and caregiver rows, Workforce the master

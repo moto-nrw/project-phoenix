@@ -1584,9 +1584,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) FindRolePermissions(ctx context.Context, id int64) ([]string, error) {\n\tvar permissions []string\n\terr := s.run(ctx, s.withinSchoolRead, \"find_role_permissions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tpermissions, queryStats, queryErr = s.store.FindRolePermissions(txCtx, id, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: find role permissions: %w\", MapError(err))\n\t}\n\treturn permissions, nil\n}",
+      "evidence": "func (s *Service) FindRolePermissionsByRoleIDs(ctx context.Context, ids []int64) (map[int64][]string, error) {\n\tvar permissions map[int64][]string\n\terr := s.run(ctx, s.withinSchoolRead, \"find_role_permissions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tpermissions, queryStats, queryErr = s.store.FindRolePermissionsByRoleIDs(txCtx, ids, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: find role permissions: %w\", MapError(err))\n\t}\n\treturn permissions, nil\n}",
       "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/Service.FindRolePermissions",
+      "id": "modules/identityaccess/internal/application/Service.FindRolePermissionsByRoleIDs",
       "owner": "modules/identityaccess"
     },
     {

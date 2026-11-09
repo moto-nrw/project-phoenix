@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api"
@@ -55,10 +56,14 @@ var identityStageMatchers = map[string]func(string) bool{
 // Before #2099 the same request resolved the person+staff pair ~4 times.
 // The existing TestOGSGroupLive_QueryBudget bounds the total; this test pins
 // the identity share specifically.
+//
+// The request runs on fixedCalendarClock, a school Monday: the live view
+// reads the day's pickup plan only on a care weekday, so a wall clock would
+// make the count depend on the day the suite runs (#6266).
 func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "IdentityBudget", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetGroup")
@@ -66,10 +71,13 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 
 	// Substitution with an unassigned regular slot so both substitution
 	// projections (GetMyGroups relations + GetSubstitutedGroupIDs) have a row.
-	today := calendar.TodayDate()
+	// The identity chain still reads substitutions on the wall-clock day
+	// (schoolstructure has no clock seam), the live view on the fixed day, so
+	// the fixed range covers both.
+	today := calendar.DateFromTime(fixedCalendarClock())
 	subGroup := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetSubGroup")
 	testpkg.CreateTestGroupSubstitution(t, tc.db, subGroup.ID, nil, teacher.StaffID,
-		today.AddDays(-1), today.AddDays(3))
+		today.AddDays(-1), calendar.NewDate(2099, time.December, 31))
 	auth, err := api.NewAuthTestModule(testpkg.NewDatabase(t, tc.db), testpkg.TenantRuntime(t, tc.db))
 	require.NoError(t, err)
 	verifier, err := testpkg.ConfiguredTokenAuth()

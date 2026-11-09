@@ -95,6 +95,12 @@ type StaffImportConfig struct {
 	// rolesByID keeps the resolved roles so Create can decide whether the row
 	// needs a caregiver profile without a second lookup.
 	rolesByID map[int64]*importModels.SchoolRole
+	// roleIndex and rolePermissions serve the role validation of one
+	// validation transaction (staff_import_roles.go, #5887).
+	roleIndex           map[string][]*importModels.SchoolRole
+	namedRoles          []int64
+	rolePermissions     map[int64][]string
+	rolePermissionsRead bool
 	// schoolName is the tenant's display name, shown in invitation emails.
 	schoolName string
 
@@ -281,6 +287,7 @@ func parseOptionalQualificationDate(raw string) (*timezone.Date, error) {
 // ValidateBatch validates invariants that can only be checked across the full
 // uploaded file: duplicate e-mails and duplicate personnel numbers.
 func (c *StaffImportConfig) ValidateBatch(_ context.Context, rows []importModels.StaffImportRow) map[int][]importModels.ValidationError {
+	c.prepareRolePermissions(rows)
 	seenEmail := make(map[string]int, len(rows))
 	seenPN := make(map[string]int, len(rows))
 	errs := make(map[int][]importModels.ValidationError)
@@ -337,10 +344,10 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 	}
 
 	// Existing role names take precedence over display-name aliases.
-	role, err := c.Roles.FindSchoolRoleByName(ctx, name)
+	role, err := c.findRole(ctx, name)
 	if (err == nil && role == nil) || errors.Is(err, importModels.ErrRoleNotFound) {
 		if raw, ok := displayNameToRawRole[strings.ToLower(name)]; ok && raw != name {
-			role, err = c.Roles.FindSchoolRoleByName(ctx, raw)
+			role, err = c.findRole(ctx, raw)
 		}
 	}
 	if err == nil && role != nil {
@@ -592,8 +599,8 @@ func (c *StaffImportConfig) validateResolvedStaffRole(ctx context.Context, row *
 		}}
 	}
 	row.RoleID = role.ID
-	if c.FindRolePermissions != nil {
-		role.Permissions, err = c.FindRolePermissions(ctx, role.ID)
+	if c.FindRolePermissionsByRoleIDs != nil {
+		role.Permissions, err = c.rolePermissionsOf(ctx, role.ID)
 		if err != nil {
 			return []importModels.ValidationError{{
 				Field:    "role",
