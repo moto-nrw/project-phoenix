@@ -78,9 +78,10 @@ const schoolSessionRevocationSQL = `
 // sign-in (account, then school). A session lock in use defers the order
 // like every other lock of the unit: school and sessions stay as they were,
 // one log line notes the deferral, and the next run finds the order again.
-// A retired school writes one log line with the number of ended sessions.
-// The rest of the function is unchanged. CREATE OR REPLACE keeps its grants
-// (phoenix_demo only).
+// A retired school writes no line of its own: an order writes at most one
+// log line per run, the one of its deferral, whether the retirement or the
+// erasure after it defers it (#5542). The rest of the function is unchanged.
+// CREATE OR REPLACE keeps its grants (phoenix_demo only).
 const demoRetirementRevokesSessionsSQL = `
 		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
 		RETURNS TABLE(hidden INTEGER, erased INTEGER)
@@ -97,7 +98,6 @@ const demoRetirementRevokesSessionsSQL = `
 			changed INTEGER;
 			tried INTEGER := 0;
 			hidden_school BIGINT;
-			ended INTEGER;
 		BEGIN
 			hidden := 0;
 			erased := 0;
@@ -166,9 +166,8 @@ const demoRetirementRevokesSessionsSQL = `
 						WHERE state.name = target_name
 							AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
 							AND school.deleted_at IS NULL;
-					ended := 0;
 					IF hidden_school IS NOT NULL THEN
-						SELECT count(*) INTO ended FROM auth.revoke_school_sessions(hidden_school);
+						PERFORM auth.revoke_school_sessions(hidden_school);
 					END IF;
 					UPDATE platform.schools AS school SET deleted_at = NOW()
 						FROM platform.demo_school_states AS state
@@ -180,9 +179,6 @@ const demoRetirementRevokesSessionsSQL = `
 						WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
 							AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
 					hidden_count := hidden_count + changed;
-					IF changed > 0 THEN
-						RAISE LOG 'demo school % of order % retired: % sessions ended', hidden_school, target_name, ended;
-					END IF;
 				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 					PERFORM platform.defer_demo_order(target_name, 'retirement', SQLSTATE);
 				END;

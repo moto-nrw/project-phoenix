@@ -356,6 +356,9 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	}
+	if err := s.requireLiveSessionSchool(ctx, tenantID); err != nil {
+		return domain.AccountSession{}, err
+	}
 	created, err := s.sessions.CreateAccountSession(ctx, ports.AccountSession(successor))
 	if err != nil {
 		return domain.AccountSession{}, err

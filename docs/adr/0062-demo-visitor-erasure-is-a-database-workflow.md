@@ -67,21 +67,27 @@ can defer it to a later run.
 
 `platform.retire_expired_demo_schools` now ends every session of a school, of
 every account and portal, in the subtransaction that hides it, through
-`auth.revoke_school_sessions`, and writes one log line per retired school.
+`auth.revoke_school_sessions`.
 That function belongs to Identity & Access; its `RevokeTokensByTenantID`
 (operator soft delete, demo restart) calls the same function, so the database
 holds one revocation. It takes its locks in the order of a sign-in: the
 accounts of the sessions first, as refresh, switch and logout do, then the
 school row, which it holds until the caller commits; only then does it delete.
-Every caller ends the sessions before it hides or deletes the school. Tenant
-and parent sign-ins and refreshes read the school under a share lock after the
-account lock, so none mints a session at a school whose sessions are ending.
+Every caller ends the sessions before it hides or deletes the school. Every
+sign-in and refresh, of every portal, locks the school its session row is kept
+at under a share lock after the account lock, right before the row is written,
+so none mints a session at a school whose sessions are ending.
 
 The function runs with its caller's rights. Only `phoenix_admin` may execute
 it; the demo role reaches it only through the retirement and gets no grant on
 `auth.tokens`. A lock in use defers the whole order under the retirement's
 `lock_timeout`, school and sessions unchanged. This is no new cross-owner
-workflow: it is a step of this one, limited to the school the run hides. The
+workflow: it is a step of this one, limited to the school the run hides.
+Hiding with its revocation and the visitor erasure stay the two units of
+#5540, each with its own budget: an order whose erasure a lock defers stays
+hidden with its sessions ended, so ending access never waits for the locks of
+the erasure, and the next run erases it. The
 retirement writes no `token_revoked` audit event, because that evidence
-carries a keyed family fingerprint only the application can compute; its log
-line names the school, the order and the number of ended sessions.
+carries a keyed family fingerprint only the application can compute, and no
+log line of its own: an order keeps writing at most one line per run, that of
+its deferral (#5542).

@@ -390,6 +390,27 @@ func liveSchoolUnderLock(ctx context.Context, s *AccountAuthentication, b sessio
 	return nil
 }
 
+// requireLiveSessionSchool locks the school a new session row is kept at,
+// right before the row is written and under the account lock the mint or
+// refresh took first (#6305). It is the one place every session kind passes,
+// the caterer's storage school included: a school whose sessions are ending
+// is held by auth.revoke_school_sessions until its deletion commits, so a
+// session written here either exists before the revocation deletes it or
+// waits and finds the school gone.
+func (s *AccountAuthentication) requireLiveSessionSchool(ctx context.Context, schoolID int64) error {
+	if schoolID <= 0 {
+		return nil
+	}
+	school, found, err := s.schools.LockSchoolShared(ctx, schoolID)
+	if err != nil {
+		return fmt.Errorf("lock school %d of a new session: %w", schoolID, err)
+	}
+	if !found || !school.Live() {
+		return failed("write session", identityaccess.ErrTenantNotFound)
+	}
+	return nil
+}
+
 // schoolFacts: the school is alive and active, the mapping is active and
 // the account holds a school-portal role there. A renewal answers a revoked
 // portal role with ErrTenantAccessDenied, the sentinel the refresh route

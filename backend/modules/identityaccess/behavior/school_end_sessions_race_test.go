@@ -9,7 +9,9 @@ package behavior_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -191,4 +193,27 @@ func TestParentRefreshWhileItsSchoolEndsMintsNoSuccessor(t *testing.T) {
 	assert.Empty(t, access)
 	assert.Empty(t, successor)
 	assert.Equal(t, 1, sessionsAtSchool(t, db, schoolID), "no successor of the deleted school is minted")
+}
+
+// A caterer sign-in while the school its session row is kept at ends
+// (ADR 0077): the row's school is locked under the account lock before the
+// row is written, so no session is kept at the deleted school.
+func TestCatererLoginWhileItsSchoolEndsMintsNoSession(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	caterers := setupAuthFactory(t, db).Caterers()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	staff := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("caterer-school-ends-staff-%d@example.com", time.Now().UnixNano()), testpkg.NewTestPassword())
+	email := fmt.Sprintf("kueche-school-ends-%d@example.com", time.Now().UnixNano())
+	_, err := accept(t, db, caterers, schoolID, invite(t, db, caterers, schoolID, staff.ID, email),
+		identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+
+	_, loginErr := runAgainst(t, db, endSchool(t, db, schoolID), func() error {
+		_, _, err := loginCaterer(caterers, email, catererPassword, "", "")
+		return err
+	})
+
+	assert.Error(t, loginErr, "the sign-in finds its school gone")
+	assert.Zero(t, sessionsAtSchool(t, db, schoolID), "no session is kept at the deleted school")
 }

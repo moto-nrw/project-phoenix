@@ -1084,8 +1084,9 @@ through its owner. Its sessions, of every account and portal, end in the same
 unit, before the school is hidden (`auth.revoke_school_sessions`, #6305; the
 operator soft delete and the demo restart end them the same way through
 `RevokeTokensByTenantID`): every request checks only the session family, not
-the school. Tenant and parent sign-ins and refreshes read their school under a
-share lock after the account lock, so none mints a session at a school whose
+the school. Every sign-in and refresh, of every portal, locks the school its
+session row is kept at under a share lock after the account lock, right
+before the row is written, so none mints a session at a school whose
 sessions are ending. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
 its subdomain resolves no tenant. An expired or deleted link answers `410` or
