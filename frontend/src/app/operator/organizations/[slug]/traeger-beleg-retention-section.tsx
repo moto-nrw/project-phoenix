@@ -520,7 +520,7 @@ function InstructionModal({
           />
           <Input
             id="beleg-instruction-period"
-            label={`Frist in ${periodUnit(type)}`}
+            label={`Frist in ${periodUnit(type)}n`}
             type="number"
             min={type === "sepa_mandate" ? 14 : 1}
             value={period}
