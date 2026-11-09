@@ -57,7 +57,10 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/number-ranges/care", map[string]any{"pattern": seedCareNumberPattern}); err != nil {
 		return fmt.Errorf("keep the number range of the monthly care: %w", err)
 	}
-	current := calendar.TodayDate()
+	current, err := rt.historyToday()
+	if err != nil {
+		return err
+	}
 	current = calendar.NewDate(current.Year(), current.Month(), 1)
 	// The Worker concludes the contracts of Weg b on its own tick (#4680);
 	// a contract already active bills its first month, the others bill once

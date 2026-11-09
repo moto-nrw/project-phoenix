@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -14,8 +13,23 @@ import (
 
 func TestSeedMealBillingReleasesPopulatedMonth(t *testing.T) {
 	t.Parallel()
-	today := calendar.NewDate(2026, 11, 9)
-	previous := calendar.NewDate(2026, 10, 1)
+	for _, tc := range []struct{ today, previous string }{
+		{"2026-11-09", "2026-10-01"},
+		{"2027-01-01", "2026-12-01"},
+		{"2026-03-31", "2026-02-01"},
+		{"2028-03-01", "2028-02-01"},
+	} {
+		t.Run(tc.today, func(t *testing.T) {
+			today, err := calendar.ParseDate(tc.today)
+			require.NoError(t, err)
+			previous, err := calendar.ParseDate(tc.previous)
+			require.NoError(t, err)
+			testSeedMealBillingMonth(t, today, previous)
+		})
+	}
+}
+
+func testSeedMealBillingMonth(t *testing.T, today, previous calendar.Date) {
 	meals := map[PastMealDay]bool{}
 	var releases int
 	var present []PastPresenceDay
@@ -35,14 +49,14 @@ func TestSeedMealBillingReleasesPopulatedMonth(t *testing.T) {
 			if releases > 0 {
 				status = "released"
 			}
-			_, _ = fmt.Fprintf(w, `{"data":[{"month":"2026-11-01","status":"running"},{"month":"2026-10-01","status":%q}]}`, status)
-		case "/api/meal-billing-months/2026-10-01":
+			_, _ = fmt.Fprintf(w, `{"data":[{"month":"2099-01-01","status":"open"},{"month":%q,"status":%q}]}`, previous.String(), status)
+		case "/api/meal-billing-months/" + previous.String():
 			count := 0
 			if len(meals) > 0 {
 				count = 1
 			}
 			_, _ = fmt.Fprintf(w, `{"data":{"child_count":%d,"meal_count":%d,"fingerprint":"counts"}}`, count, len(meals))
-		case "/api/meal-billing-months/2026-10-01/release":
+		case "/api/meal-billing-months/" + previous.String() + "/release":
 			var body struct {
 				Children int `json:"child_count"`
 				Meals    int `json:"meal_count"`
@@ -84,19 +98,4 @@ func TestSeedMealBillingReleasesPopulatedMonth(t *testing.T) {
 	require.NoError(t, step.Run(context.Background(), rt))
 	assert.Len(t, meals, count)
 	assert.Equal(t, 1, releases)
-}
-
-func TestSeedMealHistoryMonthBoundaries(t *testing.T) {
-	t.Parallel()
-	for _, today := range []calendar.Date{calendar.NewDate(2027, time.January, 1), calendar.NewDate(2026, time.March, 31), calendar.NewDate(2028, time.March, 1)} {
-		until := calendar.NewDate(today.Year(), today.Month(), 1)
-		from := calendar.NewDate(until.Year(), until.Month()-1, 1)
-		plan := planPresenceHistory(presenceHistoryInput{today: until, from: from, students: []presenceHistoryStudent{{id: 22}}, careDays: func(d calendar.Date) bool { return !calendar.IsWeekend(d) }})
-		require.NotEmpty(t, plan.days)
-		for _, day := range plan.days {
-			assert.False(t, day.Date.Before(from))
-			assert.True(t, day.Date.Before(until))
-			assert.True(t, day.Date.Before(today))
-		}
-	}
 }

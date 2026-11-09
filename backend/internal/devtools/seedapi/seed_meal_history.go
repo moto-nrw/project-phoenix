@@ -23,7 +23,7 @@ func seedMealHistory(ctx context.Context, rt *Runtime, seeder *Seeder) error {
 	}
 	write := presenceHistoryWriterFor(seeder.options, rt)
 	if write == nil {
-		return fmt.Errorf("Mensa history needs the presence history writer")
+		return fmt.Errorf("mensa history needs the presence history writer")
 	}
 	today, err := rt.historyToday()
 	if err != nil {
@@ -50,7 +50,7 @@ func seedMealHistory(ctx context.Context, rt *Runtime, seeder *Seeder) error {
 		}
 	}
 	if len(meals) == 0 {
-		return fmt.Errorf("Mensa history has no registered care days in %s", from)
+		return fmt.Errorf("mensa history has no registered care days in %s", from)
 	}
 	if _, err := write(ctx, rt.Bootstrap.SchoolID, presence); err != nil {
 		return fmt.Errorf("record Mensa attendance: %w", err)

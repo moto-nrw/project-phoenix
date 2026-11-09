@@ -54,7 +54,7 @@ func (s seedMealBillingStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	released, err := seedMealRelease(rt.Client)
+	released, err := seedMealRelease(rt.Client, calendar.NewDate(today.Year(), today.Month()-1, 1))
 	if err != nil {
 		return err
 	}
@@ -103,12 +103,15 @@ func seedMealPrices(client *Client, auth AuthRef, month calendar.Date) (int, err
 
 // seedMealRelease releases the latest ended month of the demo school that
 // is not released yet, with the counts the OGS-Leitung reads first.
-func seedMealRelease(client *Client) (string, error) {
+func seedMealRelease(client *Client, month calendar.Date) (string, error) {
 	months, err := seedMealMonths(client)
 	if err != nil {
 		return "", err
 	}
 	for _, summary := range months {
+		if summary.Month != month.String() {
+			continue
+		}
 		if summary.Status == "released" {
 			return "nothing new", nil
 		}

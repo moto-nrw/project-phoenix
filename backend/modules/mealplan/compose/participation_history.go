@@ -7,6 +7,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+type PastMealDay = mealplan.PastMealDay
+
 // NewParticipationHistory is the dev CLI's past-registration writer.
 func NewParticipationHistory() mealplan.ParticipationHistory {
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))

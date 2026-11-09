@@ -216,6 +216,25 @@ func TestSeedCoverageRatchet(t *testing.T) {
 	db := testpkg.OpenPostgresSQL(dsn)
 	defer func() { _ = db.Close() }()
 
+	// A populated release must reach an issued monthly invoice with the
+	// same quantity and an explainable per-meal amount, not just fill tables.
+	var billedMeals bool
+	if err := db.QueryRow(`SELECT EXISTS (
+ SELECT 1 FROM parent_billing.care_meal_positions p
+ JOIN schedule.meal_billing_months m ON m.organization_id=p.organization_id
+ AND m.school_id=p.school_id AND m.billing_month=p.meal_month AND m.version=p.release_version
+ JOIN schedule.meal_billing_month_children c ON c.organization_id=m.organization_id
+ AND c.month_id=m.id AND c.student_id=p.student_id
+ JOIN parent_billing.care_invoices i ON i.organization_id=p.organization_id AND i.id=p.invoice_id
+ WHERE m.child_count>0 AND m.meal_count>0 AND p.mode='per_meal' AND p.quantity=c.meal_days
+ AND p.quantity>0 AND p.unit_cents>0 AND p.amount_cents=p.quantity*p.unit_cents
+ )`).Scan(&billedMeals); err != nil {
+		t.Fatalf("check seeded Mensa invoices: %v", err)
+	}
+	if !billedMeals {
+		t.Error("seed has no populated Mensa release billed with matching meal quantities and amounts")
+	}
+
 	rows, err := db.Query(tableCoverageQuery)
 	if err != nil {
 		t.Fatalf("list tables: %v", err)
