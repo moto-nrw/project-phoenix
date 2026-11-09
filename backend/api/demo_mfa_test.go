@@ -56,7 +56,7 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, login.Status)
 
-	challenge, err := module.MFA.StartMFAChallenge(ctx, account.ID, school, identityaccess.MFAChallengeScopeTenant, nil)
+	challenge, err := module.MFA.StartMFAChallenge(ctx, account.ID, school, identityaccess.MFAChallengeScopeTenant, nil, 0)
 	require.NoError(t, err, "demo bootstrap must be able to deliver an enrollment code internally")
 	code := <-codes
 	_, err = module.MFA.VerifyMFACodeForAccount(ctx, account.ID, school, code, identityaccess.MFAChallengeScopeTenant)

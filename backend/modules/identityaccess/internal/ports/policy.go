@@ -19,7 +19,9 @@ type PasswordVerifier interface {
 // TokenCodec signs and parses the session JWTs.
 type TokenCodec interface {
 	IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (accessToken, refreshToken string, err error)
-	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
+	// IssueMFAEnrollmentToken names the credential generation the password
+	// check read; operators, which have none, pass zero.
+	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration, credentialGeneration int64) (string, error)
 	// ParseAccessToken verifies the signature and expiry of an access JWT.
 	ParseAccessToken(token string) (domain.SessionClaims, error)
 	// ParseRefreshToken verifies the signature of a refresh JWT and refuses
@@ -42,7 +44,9 @@ type MFAGate interface {
 	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
 	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error)
+	// StartChallenge is bound to the credential generation the sign-in's
+	// password check read (#6289).
+	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error)
 	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
 	TrustedDeviceDays(ctx context.Context, tenantID int64) int
 }

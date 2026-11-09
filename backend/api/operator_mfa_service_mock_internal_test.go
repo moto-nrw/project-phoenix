@@ -99,7 +99,7 @@ func (m *MFAServiceMock) AccountBelongsToSchool(ctx context.Context, accountID, 
 	return false, nil
 }
 
-func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
+func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, _ int64) (string, error) {
 	if m.StartMFAChallengeFn != nil {
 		return m.StartMFAChallengeFn(ctx, accountID, tenantID, scope, ip)
 	}

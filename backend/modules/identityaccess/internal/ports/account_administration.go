@@ -38,9 +38,9 @@ type AccountAdministrationStore interface {
 	// SetManageableAccountActive flips the active flag within the caller's
 	// visibility. found=false when the predicate matched no row.
 	SetManageableAccountActive(ctx context.Context, id int64, active bool, visibility domain.AccountVisibility) (bool, domain.OperationStats, error)
-	// UpdateAccountPasswordHash replaces the credential of the account
-	// holder; found=false when the row is gone or erased.
-	UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error)
+	// WriteAccountCredential is the one credential writer (#6289): it moves
+	// the credential generation on with every write; see the adapter.
+	WriteAccountCredential(ctx context.Context, accountID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 	// FindAnalyticsConsent reads the holder's usage analytics answer (#4901);
 	// found=false when the row is gone or erased.
 	FindAnalyticsConsent(ctx context.Context, id int64) (domain.AnalyticsConsent, bool, domain.OperationStats, error)

@@ -141,6 +141,7 @@ type OperatorTokenStore interface {
 	// concurrent redemptions see exactly one winner.
 	RedeemOperatorEmailChange(ctx context.Context, token string, now time.Time) (domain.OperatorEmailChange, bool, domain.OperationStats, error)
 	RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
 	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	// RevokeExpiredOperatorEmailChanges marks expired, unused rows used so
 	// they stop occupying the one-active-link-per-operator index.
@@ -222,9 +223,16 @@ type AccountSessionStore interface {
 	// ListLiveAccountSessionsForCap returns the account's live, un-rotated
 	// sessions in the cap's portal group, newest expiry first.
 	ListLiveAccountSessionsForCap(ctx context.Context, accountID int64, portalScopes []string, now time.Time) ([]domain.AccountSession, domain.OperationStats, error)
-	DeleteAccountSessionsByID(ctx context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error)
+	// EvictAccountSessions deletes the account's sessions with the given IDs
+	// and every row of the given families, rotated predecessors included, so
+	// no earlier generation of an evicted family stays its latest one.
+	EvictAccountSessions(ctx context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error)
 	DeleteAccountSession(ctx context.Context, id int64) (domain.OperationStats, error)
 	DeleteAccountSessionsByFamily(ctx context.Context, familyID string) ([]domain.AccountSession, domain.OperationStats, error)
+	// DeleteAccountSessionsExceptFamily deletes the account's sessions at
+	// every school except the rows of keepFamilyID; an empty keepFamilyID
+	// keeps none.
+	DeleteAccountSessionsExceptFamily(ctx context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error)
 	// DeleteAccountSessionsByAccount deletes the account's sessions: only the
 	// caller's tenant when tenantScoped, every tenant otherwise. A non-zero
 	// cutoff keeps sessions that only started after it.

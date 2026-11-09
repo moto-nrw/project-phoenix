@@ -97,7 +97,7 @@ func (unavailableAccountMFA) IsTrustedDeviceEnabled(context.Context, int64) bool
 
 func (unavailableAccountMFA) TrustedDeviceDays(context.Context, int64) int { return 0 }
 
-func (unavailableAccountMFA) StartMFAChallenge(context.Context, int64, int64, string, net.IP) (string, error) {
+func (unavailableAccountMFA) StartMFAChallenge(context.Context, int64, int64, string, net.IP, int64) (string, error) {
 	return "", errAccountMFAUnavailable
 }
 

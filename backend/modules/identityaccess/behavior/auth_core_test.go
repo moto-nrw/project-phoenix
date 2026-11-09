@@ -179,7 +179,7 @@ func (s *fixtureOwnedAuthService) DeactivateAccount(ctx context.Context, account
 }
 
 func (s *fixtureOwnedAuthService) ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error {
-	return s.administration.ChangeAccountPassword(ctx, int64(accountID), currentPassword, newPassword)
+	return s.administration.ChangeAccountPassword(ctx, identityaccess.OwnPasswordChange{AccountID: int64(accountID), CurrentPassword: currentPassword, NewPassword: newPassword})
 }
 
 // managedAccountModel is the retained account shape the assertions read.

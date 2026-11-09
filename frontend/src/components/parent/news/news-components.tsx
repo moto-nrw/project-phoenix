@@ -52,6 +52,7 @@ import {
 import {
   DeclarationSection,
   isDeclarationItem,
+  isEndedDeclaration,
   isOpenDeclaration,
 } from "~/components/parent/news/declaration-section";
 import {
@@ -110,6 +111,9 @@ export function isOpenPoll(item: ParentAnnouncement): boolean {
 
 /** One shared definition for the list hierarchy and the sidebar count. */
 export function isOutstandingAnnouncement(item: ParentAnnouncement): boolean {
+  // An ended Einverständnis stays only so a consent can be revoked; it asks
+  // for nothing, read or not.
+  if (isEndedDeclaration(item)) return false;
   return (
     !item.read ||
     (item.requires_acknowledgement && !item.acknowledged) ||
@@ -384,8 +388,11 @@ function DeclarationCardState({
         )}
         {summary}
       </span>
-      {declaration.closed && !settled && (
-        <span className="text-gray-500">{td("closed")}</span>
+      {declaration.ended ? (
+        <StatusBadge label={td("ended")} tone="gray" />
+      ) : (
+        declaration.closed &&
+        !settled && <span className="text-gray-500">{td("closed")}</span>
       )}
     </>
   );
@@ -1012,7 +1019,9 @@ function NewsMessageSection({
         <LinkifiedText text={item.body} />
       </p>
 
-      <NewsAttachments item={item} />
+      {/* The files of an ended Einverständnis stay in the proof of each
+          answer; the message itself no longer serves them. */}
+      {!isEndedDeclaration(item) && <NewsAttachments item={item} />}
 
       {item.link_url && (
         <a
@@ -1145,10 +1154,13 @@ export function NewsDetailModal({
     markedRef.current = false;
   }, [item.id, item.published_at, clearActionError]);
 
+  // An ended Einverständnis is no live message: the backend refuses a read
+  // mark for it, which would wrongly report it as outdated.
+  const ended = isEndedDeclaration(item);
   useEffect(() => {
     // published_at is the version the backend verifies; feed items always carry
     // it, so a missing value just means there is nothing to mark yet.
-    if (item.read || markedRef.current || !item.published_at) return;
+    if (ended || item.read || markedRef.current || !item.published_at) return;
     markedRef.current = true;
     markAnnouncementRead(item.id, item.published_at)
       .then(() => {
@@ -1171,7 +1183,7 @@ export function NewsDetailModal({
           markedRef.current = false;
         }
       });
-  }, [item.id, item.read, item.published_at, onUpdated, onStale]);
+  }, [ended, item.id, item.read, item.published_at, onUpdated, onStale]);
 
   const handleAcknowledge = useCallback(async () => {
     if (!item.published_at) return;

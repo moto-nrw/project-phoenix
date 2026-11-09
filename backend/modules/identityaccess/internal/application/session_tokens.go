@@ -66,8 +66,8 @@ func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (st
 	return c.sign(tokenprimitives.EncodeAccess(tokenprimitives.AccessClaims(claims), now, now.Add(c.accessExpiry)))
 }
 
-func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	wire, err := tokenprimitives.EncodeEnrollment(tokenprimitives.EnrollmentClaims{AccountID: accountID, Scope: scope, TenantID: tenantID}, time.Now(), ttl)
+func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration, credentialGeneration int64) (string, error) {
+	wire, err := tokenprimitives.EncodeEnrollment(tokenprimitives.EnrollmentClaims{AccountID: accountID, Scope: scope, TenantID: tenantID, CredentialGeneration: credentialGeneration}, time.Now(), ttl)
 	if err != nil {
 		return "", err
 	}

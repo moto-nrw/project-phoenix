@@ -16,7 +16,7 @@ type challengeScopeRecorder struct {
 	scopes []string
 }
 
-func (r *challengeScopeRecorder) StartMFAChallenge(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {
+func (r *challengeScopeRecorder) StartMFAChallenge(_ context.Context, _, _ int64, scope string, _ net.IP, _ int64) (string, error) {
 	r.scopes = append(r.scopes, scope)
 	return "challenge", nil
 }
@@ -28,13 +28,13 @@ func TestCapabilityGateStartsTheChallengeOfTheNamedPortal(t *testing.T) {
 
 	for _, scope := range []string{"tenant", "school", "org", "caterer"} {
 		recorder := &challengeScopeRecorder{}
-		_, err := CapabilityGate{Capability: recorder}.StartChallenge(context.Background(), 1, 2, scope, "127.0.0.1")
+		_, err := CapabilityGate{Capability: recorder}.StartChallenge(context.Background(), 1, 2, scope, "127.0.0.1", 0)
 		require.NoError(t, err, scope)
 		assert.Equal(t, []string{scope}, recorder.scopes, scope)
 	}
 	for _, scope := range []string{"parent", "", "unknown", "nonsense"} {
 		recorder := &challengeScopeRecorder{}
-		_, err := CapabilityGate{Capability: recorder}.StartChallenge(context.Background(), 1, 2, scope, "127.0.0.1")
+		_, err := CapabilityGate{Capability: recorder}.StartChallenge(context.Background(), 1, 2, scope, "127.0.0.1", 0)
 		require.ErrorIs(t, err, identityaccess.ErrMFAUnsupportedScope, scope)
 		assert.Empty(t, recorder.scopes, scope)
 	}

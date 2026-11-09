@@ -446,8 +446,8 @@ func TraegerPortalMFA(mfa interface {
 		ResendChallenge: func(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 			return mfa.ResendMFAChallengeForScope(ctx, challengeToken, ip, identityaccess.MFAChallengeScopeOrg)
 		},
-		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP) (string, error) {
-			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip)
+		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP, credentialGeneration int64) (string, error) {
+			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip, credentialGeneration)
 		},
 		Enroll: mfa.EnrollMFA,
 	}

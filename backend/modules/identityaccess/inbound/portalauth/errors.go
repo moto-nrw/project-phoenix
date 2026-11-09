@@ -133,6 +133,10 @@ var MFARules = slices.Concat([]common.ErrorRule{
 	rule(identityaccess.ErrMFAChallengeTokenInvalid, mfaCodeInvalid),
 	rule(identityaccess.ErrMFACodeInvalid, mfaCodeInvalid),
 	rule(identityaccess.ErrMFAUnsupportedScope, mfaCodeInvalid),
+	// A resend or an enrollment start bound to a password a change has
+	// replaced since (#6289): the step asks for a new sign-in, as the
+	// sign-in with the old password itself is refused.
+	rule(identityaccess.ErrInvalidCredentials, invalidCredentials),
 }, blocked, []common.ErrorRule{
 	unavailable,
 	rule(identityaccess.ErrMFANotEnrolled, common.ErrorForbidden),
