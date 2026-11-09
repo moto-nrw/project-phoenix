@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -615,55 +614,6 @@ func (b parentBillingHolidayRegistrations) CancelHolidayRegistration(ctx context
 		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
 	}
 	return parentBillingRegistration(detail), nil
-}
-
-// RebookHolidayChild rebooks the child through the review, which gives the
-// places it frees to the waiting lists (#4699).
-func (b parentBillingHolidayRegistrations) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64, bookings []parentbilling.HolidayBookingChoice) (parentbilling.HolidayRegistration, error) {
-	choices := make([]enrollmentOwner.HolidayBookingInput, len(bookings))
-	for i, booking := range bookings {
-		choices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
-	}
-	detail, err := b.review.RebookHolidayChild(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, childID, choices)
-	if err != nil {
-		return parentbilling.HolidayRegistration{}, parentBillingPlacesError(err)
-	}
-	registration := parentBillingRegistration(detail)
-	registration.View = detail
-	return registration, nil
-}
-
-// SetHolidayWeekCapacity sets the places of a week through Enrollment
-// (#4699) and names the registrations that moved up.
-func (b parentBillingHolidayRegistrations) SetHolidayWeekCapacity(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, weekID int64, capacity *int) ([]int64, error) {
-	change, err := b.places.SetHolidayWeekCapacity(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, weekID, capacity)
-	if err != nil {
-		return nil, parentBillingPlacesError(err)
-	}
-	return promotedRegistrations(change.Promotions), nil
-}
-
-// parentBillingPlacesError names a refused rebooking or capacity in the
-// Elternabrechnung's vocabulary (#4699).
-func parentBillingPlacesError(err error) error {
-	var fields validation.Errors
-	switch {
-	case errors.As(err, &fields):
-		return fmt.Errorf("%w: %w", parentbilling.ErrInvalidHolidayPlaces, err)
-	case errors.Is(err, enrollmentOwner.ErrHolidayWeekNotFound):
-		return fmt.Errorf("%w: %w", parentbilling.ErrHolidayWeekNotFound, err)
-	}
-	return parentBillingHolidayError(err)
-}
-
-func promotedRegistrations(promotions []enrollmentOwner.HolidayPromotion) []int64 {
-	ids := []int64{}
-	for _, promotion := range promotions {
-		if !slices.Contains(ids, promotion.RegistrationID) {
-			ids = append(ids, promotion.RegistrationID)
-		}
-	}
-	return ids
 }
 
 func (b parentBillingHolidayRegistrations) HoldHolidayPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) error {
