@@ -127,12 +127,12 @@ create() {
   printf 'services:\n' > "$bundle/images.yml"
   : > "$bundle/images.tsv"
   while IFS= read -r service; do
-    # migrate and demo-runtime run the serving backend image by contract.
-    if [ "$service" = migrate ] || [ "$service" = demo-runtime ]; then
-      container=$(compose ps -a -q server)
-    else
-      container=$(compose ps -a -q "$service")
-    fi
+    # migrate, demo-runtime and bank-data-rekey run the serving backend image
+    # by contract; the one-shot jobs need not have a container of their own.
+    case "$service" in migrate|demo-runtime|bank-data-rekey)
+      container=$(compose ps -a -q server);;
+    *) container=$(compose ps -a -q "$service");;
+    esac
     [ -n "$container" ] || fail "No previous container for $service"
     image_id=$(docker inspect --format '{{.Image}}' "$container")
     image_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_id")
