@@ -489,9 +489,11 @@ func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invita
 // link was issued for (#6294). The profile stays locked until commit, the
 // lock both contact edit paths take before they change the address: an
 // address change either commits first, and the link is refused, or waits for
-// the acceptance.
+// the acceptance. Lock the account before the profile, as account-linking
+// flows do. The first address check is only an early refusal; the check under
+// the profile lock decides whether access can be granted.
 func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
-	profile, found, profileErr := l.guardians.LockGuardianProfile(invitationCtx, invitation.GuardianProfileID)
+	profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
 	if profileErr != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
 	}
@@ -505,6 +507,16 @@ func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context,
 	account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
 	if accountErr != nil {
 		return domain.LoginAccount{}, accountErr
+	}
+	profile, found, profileErr = l.guardians.LockGuardianProfile(invitationCtx, invitation.GuardianProfileID)
+	if profileErr != nil {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
+	}
+	if !found {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
+	}
+	if !invitation.AddressedTo(profile.Email) {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrGuardianInvitationAddressChanged)
 	}
 	if grantErr := l.grantGuardianAccess(invitationCtx, invitation, profile, account); grantErr != nil {
 		return domain.LoginAccount{}, grantErr

@@ -299,3 +299,70 @@ func TestGuardianInvitationAccept_SerializesWithConcurrentEmailChange(t *testing
 	assert.Zero(t, accountCountByEmail(t, db, oldEmail, newEmail))
 	assert.Nil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
 }
+
+// Account-linking flows hold the account before locking the profile. While
+// acceptance waits for that account, it must leave the profile available so
+// the linking transaction can finish instead of forming a deadlock cycle.
+func TestGuardianInvitationAccept_LocksAccountBeforeProfile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+		Outbox: api.NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	_, creator := testpkg.CreateTestPersonWithAccount(t, db, "Inviter", "LockOrder")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "account-before-profile")
+	account := testpkg.CreateTestAccountWithPassword(t, db, *profile.Email, strongTestPassword)
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	linking, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = linking.Rollback() }()
+	_, err = linking.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	type acceptance struct {
+		account identityaccess.Account
+		err     error
+	}
+	results := make(chan acceptance, 1)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		accepted, acceptErr := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{
+			Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+		})
+		results <- acceptance{account: accepted, err: acceptErr}
+	}()
+	defer func() {
+		cancel()
+		_ = linking.Rollback()
+		<-finished
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		if scanErr := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%auth.accounts%'`).
+			Scan(ctx, &waiting); scanErr != nil {
+			return false
+		}
+		return waiting > 0
+	}, 10*time.Second, 10*time.Millisecond, "acceptance must wait for the account held by the linking transaction")
+	_, err = linking.NewRaw(`SELECT id FROM users.guardian_profiles WHERE id = ? FOR UPDATE NOWAIT`, profile.ID).Exec(ctx)
+	require.NoError(t, err, "acceptance must not hold the profile while waiting for the account")
+	require.NoError(t, linking.Commit())
+
+	select {
+	case result := <-results:
+		require.NoError(t, result.err)
+		assert.Equal(t, account.ID, result.account.ID)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}
