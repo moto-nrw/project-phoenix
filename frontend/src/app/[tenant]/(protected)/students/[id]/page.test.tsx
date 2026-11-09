@@ -943,6 +943,46 @@ describe("StudentDetailPage", () => {
       );
     });
 
+    // Ort vor Status (#6407): Für die Tageszeiten im Kopf zählt die
+    // Krankmeldung nur, solange das Kind nicht eingecheckt ist.
+    it.each([
+      ["Anwesend - Raum 101", false],
+      ["Zuhause", true],
+    ])(
+      "reads today's header plans with location %s as sick=%s",
+      async (location, countedSick) => {
+        mockUseStudentData.mockReturnValue({
+          student: { ...mockStudent, sick: true, current_location: location },
+          loading: false,
+          error: null,
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          hasAbsenceWriteAccess: true,
+          hasSickExcusedWriteAccess: true,
+          supervisors: [],
+          myGroups: ["1"],
+          myGroupRooms: [],
+          mySupervisedRooms: [],
+          refreshData: mockRefreshData,
+        });
+
+        render(
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <StudentDetailPage />
+          </SWRConfig>,
+        );
+
+        await waitFor(() => {
+          expect(vi.mocked(getPickupDayData).mock.lastCall?.[3]).toBe(
+            countedSick,
+          );
+          expect(vi.mocked(getArrivalDayData).mock.lastCall?.[4]).toBe(
+            countedSick,
+          );
+        });
+      },
+    );
+
     it("renders student header with name", () => {
       render(<StudentDetailPage />);
 
