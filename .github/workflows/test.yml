@@ -377,7 +377,7 @@ jobs:
           fi
 
       - name: Publish backend test results
-        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
@@ -648,11 +648,13 @@ jobs:
 
       # Downloading the test modules and compiling the coverage ratchet took
       # 12 s after the seed, for a test that runs 0.1 s. It compiles now while
-      # the seeder waits on the server; the ratchet step waits for it.
+      # the seeder waits on the server; the ratchet step waits for it. The
+      # modules download first, before the next step moves the clock.
       - name: Compile the seed coverage ratchet in the background
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
+          go list -deps -test ./internal/devtools/seedapi/ > /dev/null
           (
             if go test -c -o "${RUNNER_TEMP}/seed-coverage.test" ./internal/devtools/seedapi/ \
               > "${RUNNER_TEMP}/seed-coverage-build.log" 2>&1; then
@@ -661,6 +663,46 @@ jobs:
               echo failed > "${RUNNER_TEMP}/seed-coverage-build.status"
             fi
           ) > /dev/null 2>&1 &
+
+      # Server, seed, simulation and Postgres read the clock of this VM, and the
+      # server keeps attendance, shifts and blocks per Berlin day. A run that
+      # crossed Berlin midnight checked a child in on one day and failed to
+      # pick it up on the next (runs 41359665512, 42422930038, 42532710545;
+      # #5511). The job therefore starts at the next 07:20 Berlin, before the
+      # first wave of the simulated day, and the simulation moves the clock
+      # through the day with --clock-command up to 12:50. Seed and simulation
+      # then share one Berlin day whenever the job starts. The clock only moves
+      # forward, after every download: TLS certificates stay valid. set-clock
+      # records the shift; "Restore the runner clock" undoes it before the
+      # cache upload.
+      - name: Move the runner clock to the next 07:20 Berlin
+        run: |
+          cat > "${RUNNER_TEMP}/set-clock" <<'SCRIPT'
+          #!/usr/bin/env bash
+          # set-clock <Unix seconds>: sets the VM clock and records in
+          # clock-shift how far it runs ahead of the real time.
+          set -euo pipefail
+          shift_file="${RUNNER_TEMP:?}/clock-shift"
+          now=$(date +%s)
+          offset=$(cat "${shift_file}" 2>/dev/null || echo 0)
+          sudo date -s "@$1" > /dev/null
+          echo $(( now + offset - $1 )) > "${shift_file}.new"
+          mv "${shift_file}.new" "${shift_file}"
+          SCRIPT
+          chmod +x "${RUNNER_TEMP}/set-clock"
+          # Count in calendar days, not seconds: a day of the clock change
+          # has 23 or 25 hours.
+          now=$(date +%s)
+          today=$(TZ=Europe/Berlin date -d "@${now}" +%F)
+          target=$(TZ=Europe/Berlin date -d "${today} 07:20" +%s)
+          if [ "${target}" -le "${now}" ]; then
+            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} +1 day" +%F) 07:20" +%s)
+          fi
+          # Without time synchronisation, which would set the clock back.
+          sudo timedatectl set-ntp false
+          sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true
+          "${RUNNER_TEMP}/set-clock" "${target}"
+          echo "VM clock set to $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Run migrations
         working-directory: backend
@@ -748,7 +790,9 @@ jobs:
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
+            --clock-command "${RUNNER_TEMP}/set-clock"
+          echo "VM clock after the simulation: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Verify manual attendance profile
         if: ${{ matrix.scenario == 'profiles' }}
@@ -784,7 +828,8 @@ jobs:
               --state "${RUNNER_TEMP}/${slug}.seed-state.json"
             seeded=$(date +%s)
             "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
-              --state "${RUNNER_TEMP}/${slug}.seed-state.json"
+              --state "${RUNNER_TEMP}/${slug}.seed-state.json" \
+              --clock-command "${RUNNER_TEMP}/set-clock"
             finished=$(date +%s)
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
           done
@@ -921,6 +966,18 @@ jobs:
             exit 1
           fi
           "${RUNNER_TEMP}/seed-coverage.test" -test.run TestSeedCoverageRatchet -test.v
+
+      # Before any upload: the cache service and TLS expect the real time.
+      - name: Restore the runner clock
+        if: always()
+        run: |
+          seconds=$(cat "${RUNNER_TEMP}/clock-shift" 2>/dev/null || echo 0)
+          if [ "${seconds}" -eq 0 ]; then
+            exit 0
+          fi
+          sudo date -s "@$(( $(date +%s) + seconds ))" > /dev/null
+          sudo timedatectl set-ntp true || true
+          echo "VM clock real again: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       # profiles also compiled the coverage ratchet, so its build cache is the
       # fullest of the three scenarios.

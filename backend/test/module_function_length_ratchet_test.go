@@ -578,7 +578,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/simulate/demo_day.go:(*demoDay).sync": 64,
 	// ADR 0087.
-	"internal/devtools/simulate/fullday.go:(seedStaffFeedTombstoneAction).Run": 73,
+	"internal/devtools/simulate/fullday.go:(seedStaffFeedTombstoneAction).Run": 70,
 	// ADR 0087.
 	"internal/devtools/simulate/live.go:RunLive": 101,
 	// ADR 0087.

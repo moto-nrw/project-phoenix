@@ -3,6 +3,7 @@ import {
   berlinClockFromISO,
   berlinDateTimeISO,
   berlinDayFromISO,
+  berlinWallClockProblem,
   formatStatusDate,
   formatDate,
   formatTime,
@@ -675,6 +676,40 @@ describe("formatStatusDate", () => {
   it("rendert Wochentag und numerisches Datum", () => {
     expect(formatStatusDate("2026-08-27")).toBe("Donnerstag, 27.08.2026");
     expect(formatStatusDate("2026-01-04")).toBe("Sonntag, 04.01.2026");
+  });
+});
+
+describe("berlinDateTimeISO next to a clock change (#6293)", () => {
+  it.each([
+    ["2026-03-29", "01:59", "2026-03-29T00:59:00.000Z"],
+    ["2026-03-29", "03:00", "2026-03-29T01:00:00.000Z"],
+    ["2026-10-25", "01:30", "2026-10-24T23:30:00.000Z"],
+    ["2026-10-25", "03:00", "2026-10-25T02:00:00.000Z"],
+  ])("resolves %s %s to the offset in force then", (day, time, expected) => {
+    expect(berlinDateTimeISO(parseISODate(day), time)).toBe(expected);
+  });
+});
+
+describe("berlinWallClockProblem (#6293)", () => {
+  it.each([
+    ["an ordinary day", "2026-10-20", "02:30", null],
+    ["the hour before the spring switch", "2026-03-29", "01:59", null],
+    [
+      "the skipped spring hour",
+      "2026-03-29",
+      "02:30",
+      "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.",
+    ],
+    [
+      "the repeated autumn hour",
+      "2026-10-25",
+      "02:30",
+      "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen.",
+    ],
+    ["the hour before the autumn switch", "2026-10-25", "01:30", null],
+    ["after the autumn switch", "2026-10-25", "03:00", null],
+  ])("names the problem for %s", (_label, day, time, expected) => {
+    expect(berlinWallClockProblem(parseISODate(day), time)).toBe(expected);
   });
 });
 
