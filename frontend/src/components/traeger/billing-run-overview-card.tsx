@@ -285,7 +285,13 @@ export function BillingRunOverviewCard({
               </span>
             ) : null}
             {document.kind === "invoice" && document.payment ? (
-              <InvoicePaymentLine payment={document.payment} />
+              document.totalCents <= 0 ? (
+                <span className="mt-0.5 block text-sm text-gray-600">
+                  Nichts zu zahlen
+                </span>
+              ) : (
+                <InvoicePaymentLine payment={document.payment} />
+              )
             ) : null}
           </span>
         );

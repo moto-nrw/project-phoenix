@@ -101,7 +101,7 @@ function statusDateNote(contract: CareContractSummary): string | null {
   if (contract.status === "gekuendigt") {
     return contract.endsOn
       ? `gekündigt zum ${formatDate(contract.endsOn)}`
-      : "gekündigt, Ende offen";
+      : "gekündigt, Ende festlegen";
   }
   if (contract.status === "widerrufen") return null;
   if (contract.concluded) {
@@ -188,7 +188,11 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
             zum {formatDate(contract.endsOn)}
           </span>
         ) : contract.status === "gekuendigt" ? (
-          <span className="text-sm text-gray-500">Ende offen</span>
+          // An extraordinary notice waits for the office: the end is a task,
+          // not a quiet date.
+          <span className="text-moto-orange-strong text-sm font-medium">
+            Ende festlegen
+          </span>
         ) : contract.status === "widerrufen" ? null : contract.concluded ? (
           <span className="text-sm text-gray-500">
             seit {formatBerlinDate(contract.concluded.at)}

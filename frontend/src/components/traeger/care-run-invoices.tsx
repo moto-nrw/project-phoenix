@@ -292,8 +292,14 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
                 <StatusBadge label={kind} tone="blue" />
               </p>
             ) : null}
+            {/* An invoice of 0 € asks nothing of the family: no way to pay,
+                no due day. */}
             {!storno && invoice.payment ? (
-              <InvoicePaymentLine payment={invoice.payment} />
+              invoice.totalCents <= 0 ? (
+                <p className="mt-0.5 text-sm text-gray-600">Nichts zu zahlen</p>
+              ) : (
+                <InvoicePaymentLine payment={invoice.payment} />
+              )
             ) : null}
             {number ? (
               <p className="mt-1 flex flex-wrap items-center gap-1.5">

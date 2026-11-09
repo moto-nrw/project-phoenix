@@ -291,7 +291,7 @@ describe("CareContractNoticeCard (#4682)", () => {
 
     expect(
       await screen.findByText(
-        "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
+        "Die Kündigung ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail.",
       ),
     ).toBeInTheDocument();
     expect(mocks.recordContractNotice).toHaveBeenCalledTimes(1);

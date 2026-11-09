@@ -171,8 +171,8 @@ export function RecordNoticeModal({
       });
       success(
         kind === "widerruf"
-          ? "Der Widerruf ist eingetragen. Die Eltern haben eine Bestätigung bekommen."
-          : "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
+          ? "Der Widerruf ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail."
+          : "Die Kündigung ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail.",
       );
       onRecorded(next);
     } catch (err) {
@@ -197,8 +197,8 @@ export function RecordNoticeModal({
         if (recorded?.notice) {
           success(
             kind === "widerruf"
-              ? "Der Widerruf ist eingetragen. Die Eltern haben eine Bestätigung bekommen."
-              : "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
+              ? "Der Widerruf ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail."
+              : "Die Kündigung ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail.",
           );
           onRecorded(recorded);
           return;

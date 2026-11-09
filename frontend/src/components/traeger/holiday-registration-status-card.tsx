@@ -699,41 +699,33 @@ export function HolidayRegistrationStatusCard({
                 .join(", ")}`
             : ""}
         </p>
-        <p className="mt-2 text-sm text-gray-700">
-          Die Kinder dieser Anmeldung sind dann für keine Woche mehr angemeldet.
-          Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Eltern
-          bekommen keine Nachricht von moto.
-        </p>
-        {contribution?.siblings?.length ? (
-          <p className="mt-2 text-sm text-gray-700">
-            Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
-            berechnet den Ferienbeitrag der Geschwister neu.
-          </p>
-        ) : null}
-        {contribution?.siblings?.length && contribution.siblingsInvoiced ? (
-          <p className="mt-2 text-sm text-gray-700">
-            Eine Rechnung der Geschwister behält ihren Betrag. Ihre Anmeldung
-            zeigt dann „Rechnung prüfen“.
-          </p>
-        ) : null}
-        {invoiced ? (
-          <p className="mt-2 text-sm text-gray-700">
-            Für diese Anmeldung gibt es schon eine Rechnung. Sie bleibt
-            bestehen. Soll die Familie nicht zahlen, stornieren Sie die Rechnung
-            danach in der Abrechnung.
-            {billingHref ? (
-              <>
-                {" "}
-                <NavigationLink
-                  href={billingHref}
-                  className="font-medium text-gray-900 underline"
-                >
-                  Zur Abrechnung
-                </NavigationLink>
-              </>
-            ) : null}
-          </p>
-        ) : null}
+        {/* One consequence per line, so the irreversible step reads at a
+            glance; the way to the invoice stays on the page. */}
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+          <li>
+            Die Kinder sind dann für keine Woche mehr angemeldet. Das lässt sich
+            nicht rückgängig machen.
+          </li>
+          <li>Eltern bekommen keine Nachricht von moto.</li>
+          {contribution?.siblings?.length ? (
+            <li>
+              Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
+              berechnet den Ferienbeitrag der Geschwister neu.
+            </li>
+          ) : null}
+          {contribution?.siblings?.length && contribution.siblingsInvoiced ? (
+            <li>
+              Die Rechnung der Geschwister ist schon ausgestellt und ändert sich
+              nicht. Bei den Geschwistern steht dann „Rechnung prüfen“.
+            </li>
+          ) : null}
+          {invoiced ? (
+            <li>
+              Die Rechnung dieser Anmeldung bleibt bestehen. Soll die Familie
+              nicht zahlen, stornieren Sie sie danach in der Abrechnung.
+            </li>
+          ) : null}
+        </ul>
       </ConfirmationModal>
     </SectionCard>
   );
