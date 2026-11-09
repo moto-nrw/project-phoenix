@@ -144,11 +144,12 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask,
 	var failed atomic.Bool
 	var intended []int64
 	completed := s.forEachTenantSettingsSnapshot(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		last, hasLast, err := s.lastCleanupSuccess(tenantCtx, &s.lastStatusFlagClear, statusFlagJobID, tenantID)
+		state, err := s.readCleanupRunState(tenantCtx, &s.lastStatusFlagClear, statusFlagJobID, tenantID)
 		if err != nil {
 			failed.Store(true)
 			return err
 		}
+		last, hasLast := state.LastSuccess, !state.LastSuccess.IsZero()
 		if !statusFlagClearDue(now, last, hasLast) {
 			return nil
 		}

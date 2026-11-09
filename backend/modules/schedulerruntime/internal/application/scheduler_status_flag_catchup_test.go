@@ -19,11 +19,14 @@ type statusFlagLedger struct {
 	last map[string]time.Time
 }
 
-func (l *statusFlagLedger) LastCleanupSucceeded(_ context.Context, jobID string) (time.Time, bool, error) {
+func (l *statusFlagLedger) CleanupRun(_ context.Context, jobID string) (time.Time, int, time.Time, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	at, ok := l.last[jobID]
-	return at, ok, nil
+	return l.last[jobID], 0, time.Time{}, nil
+}
+
+func (l *statusFlagLedger) RecordCleanupFailed(context.Context, string, int, time.Time) error {
+	return nil
 }
 
 func (l *statusFlagLedger) RecordCleanupSucceeded(_ context.Context, jobID string, at time.Time) error {
@@ -108,9 +111,8 @@ func TestStatusFlagClearCarriesEveryMissedDayAfterAnOutage(t *testing.T) {
 			for _, call := range calls {
 				assert.True(t, call.inTransaction, "every day is carried in the school's transaction")
 			}
-			last, ok, err := ledger.LastCleanupSucceeded(context.Background(), statusFlagJobID)
+			last, _, _, err := ledger.CleanupRun(context.Background(), statusFlagJobID)
 			require.NoError(t, err)
-			require.True(t, ok)
 			assert.True(t, tc.now.Equal(last), "the success is recorded in the ledger")
 
 			restarted := restartedScheduler(ledger, archives, tc.now.Add(time.Minute))
