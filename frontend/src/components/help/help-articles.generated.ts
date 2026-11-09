@@ -10202,8 +10202,8 @@ export const traegerBillingRunTopic =
           steps: [
             "Wählen Sie in der Navigation `Abrechnung`.",
             "Wählen Sie oben den Reiter `Familien`.",
-            "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
+            "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
+            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen.",
             "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
             "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
           ],
@@ -10225,7 +10225,7 @@ export const traegerBillingRunTopic =
         "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
         "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
-        "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
+        "`Offene Forderung` und `Forderung offen` heißen: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Das ist der Stand vor Zahlungseingang. Zahlungen sieht moto nicht. Eine offene Forderung heißt also nicht, dass die Familie im Rückstand ist. Ob sie gezahlt hat, prüfen Sie in Ihrer Buchhaltung.",
         "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
       ],
       differences: [
@@ -10451,7 +10451,7 @@ export const traegerCareContractsTopic =
             "Wählen Sie oben den Reiter `Vertragsbedingungen`.",
             "Wählen Sie links ein Angebot. `Fehlt` heißt: Für dieses Angebot gibt es noch keine Bedingungen.",
             "Wählen Sie die `Laufzeit`, die `Frist in Monaten` und wann die `Kündigung wirkt`.",
-            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Schreiben Sie dazu, wann sie möglich ist.",
+            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Sie endet immer zum Halbjahr, also am 31. Januar oder 31. Juli. Es gilt dieselbe `Frist in Monaten`. Schreiben Sie bei `In welchen Fällen?`, wann sie möglich ist. Ein anderes Datum in diesem Text ändert den Termin nicht. Ausnahmen klären Sie wie bisher im Büro.",
             "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
@@ -10565,6 +10565,7 @@ export const traegerCareContractsTopic =
         "Nach einer Kündigung hat der Vertrag den Status `Gekündigt`. Er gilt bis zum Vertragsende und wird bis dahin abgerechnet. Nach einem Widerruf ist er `Widerrufen` und gilt an keinem Tag.",
         "Die Eltern bekommen sofort eine Bestätigung per Mail und in der Eltern-App. Den Text legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest. Die Bestätigung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
         "Den Kündigungstermin rechnet moto aus den Bedingungen im Vertrag, nicht aus den heutigen Vertragsbedingungen. Die Widerrufsfrist beginnt frühestens mit dem Erhalt der Belehrung. Ohne Nachweis gilt die längere Frist.",
+        "Endet die Widerrufsfrist an einem Samstag, Sonntag oder Feiertag, endet sie erst am nächsten Werktag. moto nimmt die Feiertage aus dem Bundesland der Schule. Feiertage, die nur in einer Stadt oder Gemeinde gelten, kennt moto nicht. Hat Ihre Gemeinde einen eigenen Feiertag, prüfen Sie die Frist an diesem Tag selbst.",
         "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
         "Beginnt an einem Tag schon eine Version, und Sie oder die Schule geben für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
         "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
@@ -10980,6 +10981,7 @@ export const traegerCareNoticesTopic =
       notes: [
         "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
         "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
+        "Der `Gesamtbetrag aller Bescheide` ist die Forderung vor Zahlungseingang. Zahlungen sieht moto nicht, auch nicht nach der Lastschrift. Ob eine Rate bezahlt ist, prüfen Sie in Ihrer Buchhaltung.",
         "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
       ],
       troubleshootingDetails: [

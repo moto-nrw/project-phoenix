@@ -1,16 +1,16 @@
 "use client";
 
 // Die vier Summen der Abrechnung je Familie oder über alle Familien (#4691):
-// ausgestellt, storniert, gutgeschrieben und offen. Offen ist, was die
-// Rechnungen nach Storno und Gutschrift noch verlangen; Zahlungseingänge
-// gleicht moto nicht ab.
+// ausgestellt, storniert, gutgeschrieben und die offene Forderung. Sie ist,
+// was die Rechnungen nach Storno und Gutschrift noch verlangen, vor jedem
+// Zahlungseingang: Zahlungen gleicht die Buchhaltung ab, nicht moto (#6348).
 
 import { StatCard } from "~/components/ui/stat-card";
 import type { BillingAmounts } from "~/lib/traeger-billing-families-api";
 import { formatEuro } from "./contribution-format";
 
-const OPEN_AMOUNT_HINT =
-  "Ohne Storno und Gutschrift. Zahlungen prüft moto nicht.";
+export const OPEN_AMOUNT_HINT =
+  "Stand vor Zahlungseingang. Zahlungen sieht moto nicht.";
 
 export function BillingAmountCards({
   amounts,
@@ -44,7 +44,7 @@ export function BillingAmountCards({
         loading={loading}
       />
       <StatCard
-        label="Offen"
+        label="Offene Forderung"
         value={value(amounts?.openCents)}
         hint={OPEN_AMOUNT_HINT}
         tone={amounts && amounts.openCents > 0 ? "orange" : "neutral"}
