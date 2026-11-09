@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 )
 
-// DefaultBatchStatementLimit bounds every statement of a batch attempt
+// DefaultBatchStatementLimit bounds the bundled statements of a batch attempt
 // (decision E13 of 09.11.2026, ADR 0067 addendum of 2026-11-08). pgdriver
 // gives up a read after 10 s (its default ReadTimeout, overridden neither in
 // database/db.go nor in the production DSN), and PostgreSQL sends nothing
@@ -28,31 +28,43 @@ const DefaultBatchStatementLimit = 4 * time.Second
 // transaction. Nothing of it commits; the chunk replays in a new one.
 var errBatchBoundExceeded = errors.New("data import: batch attempt exceeded its bound")
 
-// errBatchCommand marks a failure of the batch command itself (CreateChunk)
-// and nothing else: not the statements that set or reset its bound, not the
-// chunk savepoint, not a row written on the row path. Only such a failure
-// replays the chunk; every other failure behaves as the same failure at the
-// row path's first write, with the same retry count and no fallback (#5827
-// review R1, R2; fault table in the PR).
-var errBatchCommand = errors.New("data import: batch command failed")
-
 // errChunkRollbackFailed ends the upload when the chunk savepoint could not
 // be rolled back after a failed attempt.
 var errChunkRollbackFailed = errors.New("data import: chunk rollback failed")
 
+// errSavepointLost ends the upload when a savepoint statement of an owner
+// command failed inside a write: the transaction can no longer be trusted
+// (#5552 review of 1bb4bde258, the rule of #5827 review R3).
+var errSavepointLost = errors.New("data import: a savepoint of the write failed")
+
 // errChunkRefused is the refusal RefusesChunk reported.
 var errChunkRefused = errors.New("data import: the row path would refuse a row of the chunk")
 
-func batchCommandFailed(err error) bool { return errors.Is(err, errBatchCommand) }
+// batchFailure is the failure of the batch command itself (CreateChunk) and
+// nothing else: not the statements that set or reset its bound, not the
+// chunk savepoint, not a row written on the row path. Only such a failure
+// replays the chunk; every other failure behaves as the same failure at the
+// row path's first write (#5827 review R1, R2). writeSegment keeps it on the
+// attempt where the command fails, and nothing runs in the attempt after it,
+// so the executor decides on that field, never by searching an error chain
+// (#5552 review of 1bb4bde258).
+type batchFailure struct {
+	err error
+	// cancelled: the bounded statements themselves ended with 57014, so the
+	// bound cancelled them (E13′). Taken from what they returned directly.
+	cancelled bool
+}
 
 // applyChunk writes one chunk (ADR 0067 addendum, point 2). A config with
-// batch commands runs a create chunk of two or more accepted rows as a batch
-// attempt inside SAVEPOINT chunk. A failed batch command, including
-// 40P01/40001, rolls back to the savepoint and replays the chunk row by row in
-// the same transaction attempt, so the replay keeps the whole retry budget; a
-// cancelled batch command replays in a new transaction (E13′); a broken
-// connection is returned. Every other failure is returned as the row path
-// returns it. Any other chunk is the row path from the start.
+// batch commands runs a create chunk of at least its minimum of accepted rows
+// as a batch attempt inside SAVEPOINT chunk. A failed batch command,
+// including 40P01/40001, rolls back to the savepoint and replays the chunk
+// row by row in the same transaction attempt, so the replay keeps the whole
+// retry budget; bounded statements the bound cancelled replay in a new
+// transaction (E13′); a broken connection is returned. Every other failure is
+// returned as the row path returns it. Any other chunk is the row path from
+// the start. Each decision rests on a result where it arises, never on an
+// error found somewhere in a chain (#5552 review of 1bb4bde258).
 func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importModels.ImportResult[T]) (*importModels.ImportResult[T], error) {
 	service := a.service()
 	writer, ok := service.config.(ports.ChunkWriter[T])
@@ -60,55 +72,58 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 		a.run.request.Mode != importModels.ImportModeCreate || len(a.acceptedRows()) < chunkMinRows(writer) {
 		return batch, a.applyAcceptedRows(ctx, service, batch)
 	}
-	entered := false
+	// The attempt's failure reaches the savepoint as a marker of this call;
+	// the savepoint returns that very marker only when its own rollback
+	// succeeded.
+	failed := errors.New("data import: chunk attempt failed")
 	var attemptErr error
+	a.batchFailure = nil
 	err := service.transactions.Savepoint(ctx, func(ctx context.Context) error {
-		entered = true
-		attemptErr = a.applySegments(ctx, writer, batch)
-		return attemptErr
+		if attemptErr = a.applySegments(ctx, writer, batch); attemptErr != nil {
+			return failed
+		}
+		return nil
 	})
 	if err == nil {
 		return batch, nil
 	}
-	if !entered {
+	if attemptErr == nil {
+		// The savepoint's own statements failed before or after a successful
+		// attempt: as the row path's first write.
 		return batch, err
 	}
-	// E13′ only when the batch command itself ended with 57014, the bound at
-	// work; a 57014 of any other statement (the rollback, the bound, a row)
-	// follows the general rules below.
-	if batchCommandFailed(attemptErr) && boundExceeded(attemptErr) {
+	failure := a.batchFailure
+	if failure != nil && failure.cancelled {
 		// E13′: pgdriver closes the connection on 57014, so the chunk's
-		// transaction is lost; writeBatches replays the chunk row by row in
-		// a new one.
+		// transaction is lost, its rollback included; writeBatches replays the
+		// chunk row by row in a new one. The cause stays in the text only.
 		a.rowPath = true
 		a.run.observation.BatchFallbacks++
-		return batch, fmt.Errorf("%w: %w", errBatchBoundExceeded, err)
+		return batch, fmt.Errorf("%w: %v", errBatchBoundExceeded, errors.Join(attemptErr, err))
 	}
-	if attemptErr != nil && errors.Is(err, importModels.ErrSavepointControl) && !errors.Is(attemptErr, importModels.ErrSavepointControl) {
+	if err != failed { //nolint:errorlint // identity: the savepoint returned our marker, so it rolled back
 		// ROLLBACK TO SAVEPOINT itself failed, so the transaction is lost:
 		// 500, no retry, no replay (#5827 review R3). The cause stays in the
 		// text only, so no SQLSTATE in it can start a retry.
-		return batch, fmt.Errorf("%w: %v", errChunkRollbackFailed, err)
+		return batch, fmt.Errorf("%w: %v", errChunkRollbackFailed, errors.Join(attemptErr, err))
 	}
-	if errors.Is(err, importModels.ErrSavepointControl) || (service.connectionLost != nil && service.connectionLost(err)) {
-		// The savepoint itself failed or the connection broke: nothing can
-		// replay in this transaction, and the failure is neither replayed nor
-		// retried (#5827, lesson of Q6).
-		return batch, err
+	if failure == nil {
+		return batch, attemptErr
 	}
-	if !batchCommandFailed(err) {
-		return batch, err
+	if service.connectionLost != nil && service.connectionLost(failure.err) {
+		// The connection broke: nothing can replay in this transaction, and
+		// the failure is neither replayed nor retried (#5827, lesson of Q6).
+		return batch, failure.err
 	}
-	return a.replayChunk(ctx, service, batch, err)
+	return a.replayChunk(ctx, service, batch, failure)
 }
 
 // replayChunk replays the chunk row by row in the same transaction after its
 // batch command failed and the savepoint rolled back.
-func (a *batchImportAttempt[T]) replayChunk(ctx context.Context, service *ImportService[T], batch *importModels.ImportResult[T], cause error) (*importModels.ImportResult[T], error) {
+func (a *batchImportAttempt[T]) replayChunk(ctx context.Context, service *ImportService[T], batch *importModels.ImportResult[T], cause *batchFailure) (*importModels.ImportResult[T], error) {
 	a.rowPath = true
 	a.run.observation.BatchFallbacks++
-	var state interface{ Field(byte) string }
-	if errors.As(cause, &state) && state.Field('C') == "40P01" {
+	if directSQLState(cause.err) == "40P01" {
 		a.run.observation.Deadlocks++
 	}
 	// The chunk result is rebuilt from the validation results, as a new
@@ -210,7 +225,7 @@ func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.C
 	if len(creates) == 0 {
 		return nil
 	}
-	if err := writeSegment(ctx, service, writer, creates); err != nil {
+	if err := a.writeSegment(ctx, service, writer, creates); err != nil {
 		return err
 	}
 	batch.CreatedCount += len(creates)
@@ -229,10 +244,11 @@ func (a *batchImportAttempt[T]) applySegmentRows(ctx context.Context, batch *imp
 	return nil
 }
 
-// writeSegment reads the student guard, then runs the batch command under
-// its bound. Only the batch command's own failure and the guard's refusal
-// carry errBatchCommand (fault table in the PR).
-func writeSegment[T any](ctx context.Context, service *ImportService[T], writer ports.ChunkWriter[T], creates []T) error {
+// writeSegment reads the student guard, then runs the batch command; its
+// bundled statements run under the bound. Only the batch command's own
+// failure and the guard's refusal are kept as the attempt's batchFailure
+// (fault table in the PR).
+func (a *batchImportAttempt[T]) writeSegment(ctx context.Context, service *ImportService[T], writer ports.ChunkWriter[T], creates []T) error {
 	refused, err := writer.RefusesChunk(ctx, creates)
 	if err != nil {
 		return err
@@ -240,22 +256,65 @@ func writeSegment[T any](ctx context.Context, service *ImportService[T], writer 
 	if refused {
 		// The row path would refuse a row (ADR F5): the batch command is
 		// refused, and the replay names the row as the row path does.
-		return fmt.Errorf("%w: %w", errBatchCommand, errChunkRefused)
+		a.batchFailure = &batchFailure{err: errChunkRefused}
+		return errChunkRefused
 	}
-	return service.boundStatements(ctx, service.batchLimit, func(ctx context.Context) error {
-		if err := writer.CreateChunk(ctx, creates); err != nil {
-			return fmt.Errorf("%w: %w", errBatchCommand, err)
-		}
+	statements := &boundedStatements[T]{service: service}
+	err = writer.CreateChunk(ctx, creates, statements.run)
+	switch {
+	case err == nil:
 		return nil
+	case statements.control != nil:
+		// A statement setting or resetting the bound failed, not the batch
+		// command: as the row path's first write.
+		return statements.control
+	case service.lostTransaction(err):
+		return fmt.Errorf("%w: %v", errSavepointLost, err)
+	}
+	a.batchFailure = &batchFailure{err: err, cancelled: statements.cancelled}
+	return err
+}
+
+// boundedStatements runs the bundled statements of a batch command under the
+// bound of the attempt (E13) and keeps, where they run, whether the bound
+// cancelled them: E13′ rests on what they returned directly.
+type boundedStatements[T any] struct {
+	service   *ImportService[T]
+	control   error // a statement setting or resetting the bound failed
+	cancelled bool  // the bounded statements themselves ended with 57014
+}
+
+func (b *boundedStatements[T]) run(ctx context.Context, fn func(context.Context) error) error {
+	ran := false
+	var direct error
+	err := b.service.boundStatements(ctx, b.service.batchLimit, func(ctx context.Context) error {
+		ran = true
+		direct = fn(ctx)
+		return direct
 	})
+	switch {
+	case err == nil:
+	case !ran || direct == nil:
+		b.control = err
+	default:
+		b.cancelled = directSQLState(direct) == "57014"
+	}
+	return err
 }
 
 // chunkMinRows is the writer's minimum, never below the two rows of the
 // addendum.
 func chunkMinRows[T any](writer ports.ChunkWriter[T]) int { return max(2, writer.ChunkMinRows()) }
 
-// boundExceeded reports a batch statement the bound cancelled (57014).
-func boundExceeded(err error) bool {
-	var state interface{ Field(byte) string }
-	return errors.As(err, &state) && state.Field('C') == "57014"
+// directSQLState is the SQLSTATE of err itself or of an error it wraps one by
+// one (%w), never of an error joined into it: a joined error comes from
+// another statement, such as a rollback after the failure.
+func directSQLState(err error) string {
+	for err != nil {
+		if state, ok := err.(interface{ Field(byte) string }); ok {
+			return state.Field('C')
+		}
+		err = errors.Unwrap(err)
+	}
+	return ""
 }

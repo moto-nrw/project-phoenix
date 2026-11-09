@@ -65,16 +65,20 @@ func (c *StudentImportConfig) RefusesChunk(context.Context, []importModels.Stude
 	return false, nil
 }
 
-// CreateChunk creates the persons of one segment in one statement and then,
-// row by row in processing order, everything the row path creates after the
-// person.
-func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importModels.StudentImportRow) error {
+// CreateChunk creates the persons of one segment in one bundled statement
+// under the bound and then, row by row in processing order and without the
+// bound, everything the row path creates after the person.
+func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importModels.StudentImportRow, bounded ports.BatchStatement) error {
 	inputs := make([]ports.CreatePerson, len(rows))
 	for i, row := range rows {
 		inputs[i] = personInputFromRow(row)
 	}
-	persons, err := c.PersonBatches.CreatePersons(ctx, inputs)
-	if err != nil {
+	var persons []ports.Person
+	if err := bounded(ctx, func(ctx context.Context) error {
+		var err error
+		persons, err = c.PersonBatches.CreatePersons(ctx, inputs)
+		return err
+	}); err != nil {
 		return fmt.Errorf("create persons: %w", err)
 	}
 	for i, row := range rows {

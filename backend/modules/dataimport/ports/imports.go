@@ -108,7 +108,20 @@ type ImportRuntime struct {
 	// transaction runtime's classifier): a batch attempt that hits one is
 	// neither replayed nor retried.
 	ConnectionLost func(error) bool
+	// SavepointLost classifies a failed savepoint statement anywhere in a
+	// write, nested savepoints of owner commands included (the root binds
+	// tenant.IsSavepointControlFailure): the transaction can no longer be
+	// trusted, so the upload ends without retry and without replay.
+	SavepointLost func(error) bool
 }
+
+// BatchStatement runs the bundled statements of a batch command as the
+// bounded attempt of decision E13 (ADR 0067 addendum of 2026-11-08). fn
+// issues those statements only, opens no savepoint and returns the error of
+// the statement that failed as it is, wrapped at most with %w: the executor
+// takes E13′ from what fn returns, never from an error a later statement
+// adds (#5552 review of 1bb4bde258).
+type BatchStatement func(ctx context.Context, fn func(context.Context) error) error
 
 // ChunkWriter is the batch form of an import config for the chunk executor
 // (#5827, ADR 0067 addendum of 2026-11-08, point 2). Rows that share a key
@@ -132,9 +145,10 @@ type ChunkWriter[T any] interface {
 	// would refuse one of the rows (a fachliche refusal, ADR F5); a read
 	// failure is returned as error.
 	RefusesChunk(context.Context, []T) (bool, error)
-	// CreateChunk creates the rows of one segment through batch commands,
-	// all or nothing; it issues the owner writes only.
-	CreateChunk(context.Context, []T) error
+	// CreateChunk creates the rows of one segment, all or nothing; it issues
+	// the owner writes only. Bundled statements run through bounded; the
+	// writes of single rows run as on the row path.
+	CreateChunk(ctx context.Context, rows []T, bounded BatchStatement) error
 }
 
 // StudentImportDeps are the consumer-owned ports of the student import.

@@ -78,8 +78,8 @@ func (c *ClassListImportConfig) RefusesChunk(ctx context.Context, rows []importM
 }
 
 // CreateChunk creates the entries of one segment and their audit rows in two
-// statements.
-func (c *ClassListImportConfig) CreateChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow) error {
+// bundled statements under the bound.
+func (c *ClassListImportConfig) CreateChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow, bounded ports.BatchStatement) error {
 	changedBy := ImporterIDFromContext(ctx)
 	inputs := make([]ports.CreateClassListEntry, len(rows))
 	for i, row := range rows {
@@ -90,10 +90,18 @@ func (c *ClassListImportConfig) CreateChunk(ctx context.Context, rows []importMo
 			inputs[i].CreatedBy = &changedBy
 		}
 	}
-	entries, err := c.deps.Batches.CreateClassListEntries(ctx, inputs)
-	if err != nil {
-		return err
-	}
+	return bounded(ctx, func(ctx context.Context) error {
+		entries, err := c.deps.Batches.CreateClassListEntries(ctx, inputs)
+		if err != nil {
+			return err
+		}
+		return c.appendCreatedEntries(ctx, entries, changedBy)
+	})
+}
+
+// appendCreatedEntries records the creation of the entries in the audit trail
+// like a single create does, in one statement where the command can.
+func (c *ClassListImportConfig) appendCreatedEntries(ctx context.Context, entries []ports.ClassListEntry, changedBy int64) error {
 	if c.deps.Audit == nil {
 		return nil
 	}

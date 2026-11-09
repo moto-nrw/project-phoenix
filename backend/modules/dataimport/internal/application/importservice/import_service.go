@@ -49,6 +49,9 @@ type ImportService[T any] struct {
 	// connectionLost classifies a broken connection, after which a batch
 	// attempt is neither replayed nor retried.
 	connectionLost func(error) bool
+	// savepointLost classifies a failed savepoint statement of an owner
+	// command; the write then ends the upload without retry or replay.
+	savepointLost func(error) bool
 	// config keeps request-specific reference data after PreloadReferenceData.
 	// Serialize processing while that mutable configuration is shared.
 	importMu sync.Mutex
@@ -88,6 +91,7 @@ func NewImportService[T any](config ports.ImportConfig[T], runtime ports.ImportR
 		boundStatements: runtime.BoundStatements,
 		batchLimit:      batchLimitOf(runtime),
 		connectionLost:  runtime.ConnectionLost,
+		savepointLost:   runtime.SavepointLost,
 	}
 }
 
@@ -108,7 +112,7 @@ func (s *ImportService[T]) renewed() *ImportService[T] {
 	return &ImportService[T]{
 		config: config, transactions: s.transactions, batchSize: s.batchSize, audit: s.audit, observe: s.observe,
 		fingerprint: s.fingerprint, checkpoints: s.checkpoints,
-		boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost,
+		boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost, savepointLost: s.savepointLost,
 	}
 }
 

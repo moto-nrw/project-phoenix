@@ -12,6 +12,11 @@ import (
 // can no longer be trusted.
 var ErrSavepointControl = errors.New("savepoint control failed")
 
+// IsSavepointControlFailure reports a savepoint-control failure anywhere in
+// err, nested savepoints included: the transaction err comes from can no
+// longer be trusted.
+func IsSavepointControlFailure(err error) bool { return errors.Is(err, ErrSavepointControl) }
+
 // operationSavepointName is internal and fixed, so no caller-controlled SQL
 // identifier is interpolated. PostgreSQL permits nested savepoints with the
 // same name; RELEASE and ROLLBACK TO address the most recently established

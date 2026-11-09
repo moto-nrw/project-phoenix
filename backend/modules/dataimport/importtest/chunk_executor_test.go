@@ -357,6 +357,9 @@ type faultConnector struct {
 	prefix2 string
 	err2    error
 	armed2  *atomic.Bool
+	// decide, when set, replaces both rules: it sees every statement and
+	// returns the error to inject, or nil.
+	decide func(query string) error
 }
 
 func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -373,6 +376,9 @@ type faultConn struct {
 }
 
 func (c *faultConn) fail(query string) error {
+	if c.connector.decide != nil {
+		return c.connector.decide(query)
+	}
 	if second := c.connector; second.armed2 != nil && strings.HasPrefix(strings.TrimSpace(query), second.prefix2) && second.armed2.CompareAndSwap(true, false) {
 		return second.err2
 	}

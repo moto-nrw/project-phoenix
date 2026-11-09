@@ -70,7 +70,8 @@ func (s *ImportService[T]) ImportBatches(ctx context.Context, request importMode
 	}
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
 		clone := &ImportService[T]{config: scoped.NewRequestScoped(), batchSize: s.batchSize, audit: s.audit, observe: s.observe, fingerprint: s.fingerprint, checkpoints: s.checkpoints, transactions: s.transactions,
-			boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost}
+			boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost,
+			savepointLost: s.savepointLost}
 		if locker, ok := clone.config.(importConfigLocker); ok {
 			locker.ImportLock().Lock()
 			defer locker.ImportLock().Unlock()
@@ -288,6 +289,9 @@ type batchImportAttempt[T any] struct {
 	// replayService replaces the run's service for a replay in a new
 	// transaction (E13′); it is set only where the attempt is constructed.
 	replayService *ImportService[T]
+	// batchFailure is the failed batch command of the current chunk attempt,
+	// kept where it fails (chunk_executor.go).
+	batchFailure *batchFailure
 }
 
 // service is the import service this attempt writes through.
@@ -362,7 +366,7 @@ func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, service *
 				rows = append(rows, a.run.request.Rows[index])
 			}
 		}
-		service = &ImportService[T]{config: config.BatchWriteConfig(ctx, rows)}
+		service = &ImportService[T]{config: config.BatchWriteConfig(ctx, rows), savepointLost: service.savepointLost}
 	}
 	for _, index := range a.run.order[a.run.position:a.next] {
 		if a.run.accepted[index] {
@@ -424,17 +428,34 @@ func (s *ImportService[T]) applyBatchRow(ctx context.Context, request importMode
 	if action == "create" {
 		if _, err := s.config.Create(write, *row); err != nil {
 			recordCreationError(result, rowNum, row, err)
-			return err
+			return s.writeFailure(err)
 		}
 		result.CreatedCount++
 		return nil
 	}
 	if err := s.config.Update(write, *id, *row); err != nil {
 		recordUpdateError(result, rowNum, row, err)
-		return err
+		return s.writeFailure(err)
 	}
 	result.UpdatedCount++
 	return nil
+}
+
+// writeFailure is what a failed row write returns. A failed savepoint
+// statement inside it, a nested one of an owner command included, leaves a
+// transaction that can no longer be trusted: the upload ends with 500,
+// without retry, as on the batch path. The cause stays in the text only, so
+// no SQLSTATE in it can start a retry (#5552 review of 1bb4bde258).
+func (s *ImportService[T]) writeFailure(err error) error {
+	if s.lostTransaction(err) {
+		return fmt.Errorf("%w: %v", errSavepointLost, err)
+	}
+	return err
+}
+
+// lostTransaction reports a failed savepoint statement anywhere in err.
+func (s *ImportService[T]) lostTransaction(err error) bool {
+	return errors.Is(err, importModels.ErrSavepointControl) || (s.savepointLost != nil && s.savepointLost(err))
 }
 
 func importValidationSlice[T any](validated *importModels.ImportResult[T], rows []T, indices []int) *importModels.ImportResult[T] {

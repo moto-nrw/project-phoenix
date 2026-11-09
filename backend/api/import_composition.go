@@ -54,7 +54,7 @@ func newImportRuntime(audit auditModels.Command, observe func(importModels.Impor
 	return importPorts.ImportRuntime{
 		Transactions: dataImportCompose.NewTransactions(), Audit: audit, Observe: observe,
 		Fingerprint: securityruntime.Fingerprint, BoundStatements: tenant.WithStatementTimeout,
-		ConnectionLost: transactionruntime.IsTransientDatabaseError,
+		ConnectionLost: transactionruntime.IsTransientDatabaseError, SavepointLost: tenant.IsSavepointControlFailure,
 	}
 }
 
