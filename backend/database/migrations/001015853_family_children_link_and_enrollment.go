@@ -35,6 +35,8 @@ func init() {
 //     read or statement came from, so the trail tells the parents portal,
 //     the link of a contract mail and the registration apart. A read or
 //     statement without an account (the link) has no account but a channel.
+//     Only a parents' entry carries one; earlier parents' entries came from
+//     the parents portal.
 const familyChildrenLinkAndEnrollmentUpSQL = `
 ALTER TABLE enrollment.requests
 	ADD COLUMN IF NOT EXISTS family_children SMALLINT,
@@ -50,11 +52,8 @@ ALTER TABLE parent_billing.family_child_count_events
 	ADD COLUMN IF NOT EXISTS channel VARCHAR(16);
 ALTER TABLE parent_billing.family_child_count_events DROP CONSTRAINT IF EXISTS chk_family_child_count_events_channel;
 ALTER TABLE parent_billing.family_child_count_events ADD CONSTRAINT chk_family_child_count_events_channel CHECK (
-	(actor = 'parent') = (channel IS NOT NULL)
-	AND (channel IS NULL OR channel IN ('portal', 'link', 'enrollment')))
-	NOT VALID;
+	channel IS NULL OR (actor = 'parent' AND channel IN ('portal', 'link', 'enrollment')));
 UPDATE parent_billing.family_child_count_events SET channel = 'portal' WHERE actor = 'parent' AND channel IS NULL;
-ALTER TABLE parent_billing.family_child_count_events VALIDATE CONSTRAINT chk_family_child_count_events_channel;
 `
 
 const familyChildrenLinkAndEnrollmentDownSQL = `
