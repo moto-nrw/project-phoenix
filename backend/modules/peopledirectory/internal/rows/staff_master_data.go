@@ -51,19 +51,6 @@ type StaffQualification struct {
 	ExpiresOn  *calendar.Date `bun:"expires_on,type:date" json:"expires_on,omitempty"`
 }
 
-// StaffFinancialData is the 1:1 bank & tax record of a staff member (#1423).
-// Deliberately its own table: nothing outside the staff:financial code path
-// may ever join or list these columns. Generic Staff JSON must not expose
-// them; the financial handlers use dedicated masked/reveal responses.
-type StaffFinancialData struct {
-	Model `bun:"schema:users,table:staff_financial_data"`
-	TenantModel
-	StaffID              int64   `bun:"staff_id,notnull" json:"staff_id"`
-	IBAN                 *string `bun:"iban" json:"-"`
-	TaxID                *string `bun:"tax_id" json:"-"`
-	SocialSecurityNumber *string `bun:"social_security_number" json:"-"`
-}
-
 // StaffMasterDataRepository persists the 1:1 master-data rows.
 type StaffMasterDataRepository interface {
 	Create(ctx context.Context, data *StaffMasterData) error
@@ -79,11 +66,4 @@ type StaffQualificationRepository interface {
 	// section edit modal submits the full list, and partial diffs would
 	// leave concurrent editors with merged half-lists.
 	ReplaceForStaff(ctx context.Context, staffID int64, qualifications []*StaffQualification) error
-}
-
-// StaffFinancialDataRepository persists the 1:1 financial rows.
-type StaffFinancialDataRepository interface {
-	Create(ctx context.Context, data *StaffFinancialData) error
-	Update(ctx context.Context, data *StaffFinancialData) error
-	FindByStaffID(ctx context.Context, staffID int64) (*StaffFinancialData, error)
 }

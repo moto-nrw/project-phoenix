@@ -29,6 +29,15 @@ func (ParentPortalRuntime) WithinAdminThenTenant(ctx context.Context, discover f
 	return tenant.WithinAdminThenTenant(ctx, discover, fn)
 }
 
+// AmbientScope reports whether a unit of any scope (school, administrative,
+// Träger) is open in ctx, and the school ctx is bound to (0 for none): the
+// two facts that decide whether a bundled unit could start without joining
+// or refusing a foreign one (ADR 0161 point 7).
+func (ParentPortalRuntime) AmbientScope(ctx context.Context) (bool, int64) {
+	_, open := tenant.TransactionFromContext(ctx)
+	return open || tenant.IsAdminTx(ctx) || tenant.TraegerTransactionFromContext(ctx) != 0, tenant.FromContext(ctx)
+}
+
 func (ParentPortalRuntime) RegisterAfterCommit(ctx context.Context, fn func()) {
 	tenant.RegisterAfterCommit(ctx, fn)
 }
