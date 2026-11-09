@@ -381,6 +381,11 @@ interface SettingsFieldProps {
   readonly confirmTextReset?: boolean;
   /** Text areas hold plain text that prints as typed, not Markdown. */
   readonly plainTextareas?: boolean;
+  /**
+   * The category already says that its values hold for all schools: the
+   * field leaves that line out and keeps only who set the value.
+   */
+  readonly traegerOnlyStated?: boolean;
 }
 
 /** The first line of a text, cut after 60 characters. */
@@ -409,6 +414,7 @@ export function SettingsField({
   labelLevel = 4,
   confirmTextReset = false,
   plainTextareas = false,
+  traegerOnlyStated = false,
 }: SettingsFieldProps) {
   const LabelHeading = labelLevel === 3 ? "h3" : "h4";
   const [confirmingTextReset, setConfirmingTextReset] = useState(false);
@@ -466,7 +472,10 @@ export function SettingsField({
   const latestDeleteRef = useRef<() => void>(() => undefined);
   const settingObject = `die Einstellung „${setting.label}“`;
   const restoresTraegerValue = resetRestoresTraegerValue(setting, audience);
-  const originNote = settingOriginNote(setting, audience);
+  const originNote =
+    traegerOnlyStated && setting.source !== "traeger"
+      ? null
+      : settingOriginNote(setting, audience);
   const legalActivationTextKey =
     ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key] ?? null;
   const legalActivationTextSetting = legalActivationTextKey
@@ -1181,7 +1190,7 @@ export function SettingsField({
           <p className="mt-0.5 text-sm text-gray-500">{setting.description}</p>
         )}
         {originNote && (
-          <p className="mt-0.5 text-xs text-gray-500">{originNote}</p>
+          <p className="mt-0.5 text-sm text-gray-500">{originNote}</p>
         )}
         {setting.access_policy === "shared" && audience === "operator" && (
           <p className="mt-0.5 text-xs text-gray-400 italic">
