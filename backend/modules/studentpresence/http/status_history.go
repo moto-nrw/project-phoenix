@@ -61,6 +61,12 @@ type statusTransition struct {
 }
 
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date calendar.Date, now time.Time, note *string) error {
+	if transition.isActive && transition.wasActive && note == nil {
+		// The status stands unchanged: the day keeps the report that set it,
+		// with its source and report time (#6291). The status-flag run lets
+		// a flag that outlasts its day stand for the new day.
+		return nil
+	}
 	if transition.isActive {
 		return rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
