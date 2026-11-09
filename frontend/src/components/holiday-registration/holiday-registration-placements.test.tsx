@@ -64,11 +64,15 @@ describe("HolidayRegistrationPlacements", () => {
     const ben = screen.getByText("Ben Muster").closest("li");
     expect(lia).not.toBeNull();
     expect(ben).not.toBeNull();
-    expect(within(lia as HTMLElement).getAllByText("Platz")).toHaveLength(1);
+    expect(
+      within(lia as HTMLElement).getAllByText("Platz reserviert"),
+    ).toHaveLength(1);
     expect(
       within(ben as HTMLElement).getByText("Warteliste"),
     ).toBeInTheDocument();
-    expect(within(ben as HTMLElement).getAllByText("Platz")).toHaveLength(1);
+    expect(
+      within(ben as HTMLElement).getAllByText("Platz reserviert"),
+    ).toHaveLength(1);
     expect(
       screen.getByText(/Wird ein Platz frei, bekommt Ihr Kind ihn automatisch/),
     ).toBeInTheDocument();
@@ -76,7 +80,7 @@ describe("HolidayRegistrationPlacements", () => {
 
   it("explains no waiting list when every week has a place", () => {
     renderPlacements([{ childPosition: 1, weekId: "51", placement: "placed" }]);
-    expect(screen.getByText("Platz")).toBeInTheDocument();
+    expect(screen.getByText("Platz reserviert")).toBeInTheDocument();
     expect(screen.queryByText(/Wird ein Platz frei/)).toBeNull();
   });
 });

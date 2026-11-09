@@ -11,7 +11,7 @@
     {{range .Children}}
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
-        {{if .WaitlistWeeks}}{{if .Weeks}}<p style="margin: 0 0 4px 0; font-size: 14px;">Platz bekommen:</p>{{end}}{{end}}
+        {{if .WaitlistWeeks}}{{if .Weeks}}<p style="margin: 0 0 4px 0; font-size: 14px;">Platz reserviert:</p>{{end}}{{end}}
         {{if .Weeks}}
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
             {{range .Weeks}}

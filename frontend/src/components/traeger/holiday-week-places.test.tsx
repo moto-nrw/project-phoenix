@@ -129,7 +129,7 @@ describe("HolidayCapacityModal", () => {
         />
       </ToastProvider>,
     );
-    expect(screen.queryByText(/1 Kind wartet auf der Warteliste/)).toBeNull();
+    expect(screen.queryByText(/von der Warteliste nach/)).toBeNull();
     expect(
       screen.getByRole("textbox", { name: "Plätze in dieser Woche" }),
     ).toHaveValue("2");
@@ -142,7 +142,7 @@ describe("HolidayCapacityModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Einen Platz mehr" }));
     fireEvent.click(screen.getByRole("button", { name: "Einen Platz mehr" }));
     expect(
-      screen.getByText(/1 Kind wartet auf der Warteliste/),
+      screen.getByText(/1 Kind rückt beim Speichern von der Warteliste nach/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Plätze speichern" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(1));

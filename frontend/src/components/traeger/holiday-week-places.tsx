@@ -227,7 +227,9 @@ export function HolidayCapacityModal({
   }
 
   const title = week ? formatHolidayWeek(week.startsOn, week.endsOn) : "";
-  const raises = limited ? capacity - placed : Number.POSITIVE_INFINITY;
+  const moving = limited
+    ? Math.min(waiting, Math.max(0, (valid ? capacity : placed) - placed))
+    : waiting;
   return (
     <FormModal
       isOpen={week !== null}
@@ -300,10 +302,14 @@ export function HolidayCapacityModal({
             </p>
           </div>
         ) : null}
-        {waiting > 0 && raises > 0 ? (
+        {moving > 0 ? (
           <Alert
             type="info"
-            message={`${waitingLabel(waiting)} auf der Warteliste. Freie Plätze bekommen sie sofort in der Reihenfolge der Anmeldung. Die Eltern bekommen eine E-Mail.`}
+            message={
+              moving === 1
+                ? "1 Kind rückt beim Speichern von der Warteliste nach. Seine Eltern bekommen eine E-Mail."
+                : `${moving} Kinder rücken beim Speichern von der Warteliste nach. Ihre Eltern bekommen eine E-Mail.`
+            }
           />
         ) : null}
         {limited && valid && capacity < placed ? (
