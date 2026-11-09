@@ -9,6 +9,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -300,7 +301,7 @@ const instructionColumns: DataTableColumn<RetentionInstruction>[] = [
     key: "period",
     header: "Frist",
     render: (row) =>
-      `${row.period} ${periodUnit(row.belegType)} ab ${TRIGGER_LABELS[row.triggerEvent] ?? row.triggerEvent}`,
+      `${row.period} ${row.period === 1 ? "Jahr" : periodUnit(row.belegType)} ab ${TRIGGER_LABELS[row.triggerEvent] ?? row.triggerEvent}`,
   },
   {
     key: "basis",
@@ -312,6 +313,14 @@ const instructionColumns: DataTableColumn<RetentionInstruction>[] = [
         </p>
         {row.basisJustification && (
           <p className="text-gray-600">Begründung: {row.basisJustification}</p>
+        )}
+        {row.statutesNotApplicableConfirmed && (
+          <p className="text-gray-600">
+            Schriftlich bestätigt: AO, HGB und UStG gelten nicht
+            {row.confirmedAt
+              ? ` (erfasst am ${formatDate(row.confirmedAt)})`
+              : ""}
+          </p>
         )}
       </div>
     ),
@@ -493,6 +502,7 @@ function InstructionModal({
   const [basis, setBasis] = useState("booking_voucher");
   const [legalBasis, setLegalBasis] = useState("");
   const [justification, setJustification] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
   const [instructedBy, setInstructedBy] = useState("");
   const [instructedOn, setInstructedOn] = useState("");
   const [reference, setReference] = useState("");
@@ -510,17 +520,19 @@ function InstructionModal({
     setType(next);
     setTrigger(TRIGGERS_BY_TYPE[next][0] ?? "issued");
     setBasis(nextBasis);
+    setConfirmed(false);
     setPeriod(String(minimumPeriod(next, nextBasis)));
   };
   const changeBasis = (value: string) => {
     setBasis(value);
+    setConfirmed(false);
     if (Number(period) < minimumPeriod(type, value)) {
       setPeriod(String(minimumPeriod(type, value)));
     }
   };
   const complete =
     legalBasis.trim() !== "" &&
-    (!withoutStatutes || justification.trim() !== "") &&
+    (!withoutStatutes || (justification.trim() !== "" && confirmed)) &&
     instructedBy.trim() !== "" &&
     instructedOn !== "" &&
     reference.trim() !== "" &&
@@ -542,6 +554,7 @@ function InstructionModal({
         instructed_by: instructedBy.trim(),
         instructed_on: instructedOn,
         instruction_reference: reference.trim(),
+        statutes_not_applicable_confirmed: withoutStatutes && confirmed,
       });
       success("Die Weisung ist erfasst.");
       onClose();
@@ -640,9 +653,7 @@ function InstructionModal({
               : "zum Beispiel § 147 Abs. 1 Nr. 4 AO"
           }
           hint={
-            withoutStatutes
-              ? "Nennen Sie weder AO, HGB, UStG noch §§ 147, 257, 14b, auch nicht abgekürzt."
-              : undefined
+            withoutStatutes ? "Hier stehen weder AO, HGB noch UStG." : undefined
           }
           maxLength={500}
           required
@@ -653,7 +664,7 @@ function InstructionModal({
             label="Warum die Vorschriften nicht gelten"
             value={justification}
             onChange={(event) => setJustification(event.target.value)}
-            hint="Schriftliche Begründung des Trägers. Nur damit ist eine kürzere Frist möglich."
+            hint="Schriftliche Begründung des Trägers."
             maxLength={1000}
             required
           />
@@ -679,13 +690,25 @@ function InstructionModal({
         </div>
         <Input
           id="beleg-instruction-reference"
-          label="Nachweis der Weisung"
+          label="Nachweis der schriftlichen Weisung"
           value={reference}
           onChange={(event) => setReference(event.target.value)}
-          placeholder="zum Beispiel AVV-Nachtrag vom 09.11.2026"
+          placeholder="zum Beispiel Mail der Kämmerei vom 09.11.2026"
+          hint="Dokument oder Mail des Trägers, damit man die Weisung wiederfindet."
           maxLength={500}
           required
         />
+        {withoutStatutes && (
+          <ConsentCheckbox
+            name="statutes_not_applicable_confirmed"
+            id="beleg-instruction-confirmed"
+            checked={confirmed}
+            onChange={setConfirmed}
+            label="Der Träger hat schriftlich bestätigt: § 147 AO, § 257 HGB und § 14b UStG gelten für diese Belege nicht."
+            description="Nur mit dieser Bestätigung ist eine kürzere Frist möglich."
+            required
+          />
+        )}
       </form>
     </FormModal>
   );

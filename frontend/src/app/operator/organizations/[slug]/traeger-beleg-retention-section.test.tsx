@@ -16,10 +16,13 @@ import {
   type BelegRetentionOverview,
 } from "~/lib/operator/beleg-retention-api";
 
-const { mockGetOverview, mockRecordReview } = vi.hoisted(() => ({
-  mockGetOverview: vi.fn(),
-  mockRecordReview: vi.fn(),
-}));
+const { mockGetOverview, mockRecordReview, mockRecordInstruction } = vi.hoisted(
+  () => ({
+    mockGetOverview: vi.fn(),
+    mockRecordReview: vi.fn(),
+    mockRecordInstruction: vi.fn(),
+  }),
+);
 
 vi.unmock("swr");
 
@@ -29,7 +32,7 @@ vi.mock("~/lib/operator/beleg-retention-api", async (importOriginal) => ({
   >()),
   belegRetentionService: {
     getOverview: mockGetOverview,
-    recordInstruction: vi.fn(),
+    recordInstruction: mockRecordInstruction,
     recordSuspension: vi.fn(),
     liftSuspension: vi.fn(),
     recordClarificationReview: mockRecordReview,
@@ -292,6 +295,147 @@ describe("TraegerBelegRetentionSection", () => {
       next_review_on: "2026-10-01",
     });
   });
+  it("records a shorter period only with the Träger's written confirmation", async () => {
+    const user = userEvent.setup();
+    mockGetOverview.mockResolvedValue(overview);
+    mockRecordInstruction.mockResolvedValue(undefined);
+
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Weisung erfassen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("combobox", { name: /Belegart/ }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "SEPA-Lastschriften" }),
+    );
+    await user.click(
+      within(dialog).getByRole("combobox", { name: /Einordnung/ }),
+    );
+    await user.click(
+      screen.getByRole("option", {
+        name: "Vorschriften nicht anwendbar",
+      }),
+    );
+    const period = within(dialog).getByLabelText(/Frist in Jahren/);
+    await user.clear(period);
+    await user.type(period, "1");
+    await user.type(within(dialog).getByLabelText(/Fundstelle/), "АО");
+    await user.type(
+      within(dialog).getByLabelText(/Warum die Vorschriften nicht gelten/),
+      "Träger ist nicht buchführungspflichtig",
+    );
+    await user.type(
+      within(dialog).getByLabelText(/Weisungsberechtigte Person/),
+      "Frau Beispiel, Kämmerei",
+    );
+    fireEvent.change(within(dialog).getByLabelText(/Weisung vom/), {
+      target: { value: "2026-09-01" },
+    });
+    await user.type(
+      within(dialog).getByLabelText(/Nachweis der schriftlichen Weisung/),
+      "Mail der Kämmerei vom 01.09.2026",
+    );
+    const submit = within(dialog).getByRole("button", {
+      name: "Weisung erfassen",
+    });
+    expect(submit).toBeDisabled();
+
+    await user.click(
+      within(dialog).getByLabelText(/Der Träger hat schriftlich bestätigt/),
+    );
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    expect(mockRecordInstruction).toHaveBeenCalledWith("1", {
+      beleg_type: "sepa_debit",
+      trigger_event: "issued",
+      period: 1,
+      basis: "not_applicable",
+      legal_basis: "АО",
+      basis_justification: "Träger ist nicht buchführungspflichtig",
+      instructed_by: "Frau Beispiel, Kämmerei",
+      instructed_on: "2026-09-01",
+      instruction_reference: "Mail der Kämmerei vom 01.09.2026",
+      statutes_not_applicable_confirmed: true,
+    });
+  });
+
+  it("drops the confirmation when the basis changes back", async () => {
+    const user = userEvent.setup();
+    mockGetOverview.mockResolvedValue(overview);
+
+    renderSection();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Weisung erfassen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const kind = within(dialog).getByRole("combobox", { name: /Einordnung/ });
+    await user.click(kind);
+    await user.click(
+      screen.getByRole("option", {
+        name: "Vorschriften nicht anwendbar",
+      }),
+    );
+    await user.click(
+      within(dialog).getByLabelText(/Der Träger hat schriftlich bestätigt/),
+    );
+    await user.click(kind);
+    await user.click(
+      screen.getByRole("option", {
+        name: "Buchungsbeleg (AO, HGB, UStG)",
+      }),
+    );
+    expect(
+      within(dialog).queryByLabelText(/Der Träger hat schriftlich bestätigt/),
+    ).not.toBeInTheDocument();
+    await user.click(kind);
+    await user.click(
+      screen.getByRole("option", {
+        name: "Vorschriften nicht anwendbar",
+      }),
+    );
+    expect(
+      within(dialog).getByLabelText(/Der Träger hat schriftlich bestätigt/),
+    ).not.toBeChecked();
+  });
+
+  it("shows the Träger's confirmation of a shorter period", async () => {
+    mockGetOverview.mockResolvedValue(
+      mapBelegRetentionOverview({
+        instructions: [
+          {
+            id: 7,
+            beleg_type: "sepa_debit",
+            trigger_event: "issued",
+            period: 1,
+            basis: "not_applicable",
+            legal_basis: "Satzung des Trägers",
+            basis_justification: "Träger ist nicht buchführungspflichtig",
+            instructed_by: "Kämmerei",
+            instructed_on: "2026-09-01",
+            instruction_reference: "Mail vom 01.09.2026",
+            statutes_not_applicable_confirmed: true,
+            confirmed_at: "2026-09-02T10:00:00Z",
+            recorded_at: "2026-09-02T10:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        "Schriftlich bestätigt: AO, HGB und UStG gelten nicht (erfasst am 02.09.2026)",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 Jahr ab Ausstellung")).toBeInTheDocument();
+  });
 });
 
 describe("mapBelegRetentionOverview", () => {
@@ -309,5 +453,7 @@ describe("mapBelegRetentionOverview", () => {
     expect(mapped.evaluatedOn).toBeNull();
     expect(mapped.clarifications).toEqual([]);
     expect(mapped.instructions[0]?.basis).toBe("");
+    expect(mapped.instructions[0]?.statutesNotApplicableConfirmed).toBe(false);
+    expect(mapped.instructions[0]?.confirmedAt).toBeNull();
   });
 });

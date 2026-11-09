@@ -90,6 +90,9 @@ export interface RetentionInstruction {
   readonly instructedBy: string;
   readonly instructedOn: string;
   readonly instructionReference: string;
+  /** Der Träger hat schriftlich bestätigt, dass AO, HGB und UStG nicht gelten. */
+  readonly statutesNotApplicableConfirmed: boolean;
+  readonly confirmedAt: string | null;
   readonly recordedAt: string;
 }
 
@@ -156,6 +159,7 @@ export interface RecordInstructionRequest {
   readonly instructed_by: string;
   readonly instructed_on: string;
   readonly instruction_reference: string;
+  readonly statutes_not_applicable_confirmed: boolean;
 }
 
 export interface RecordSuspensionRequest {
@@ -203,6 +207,9 @@ export function mapBelegRetentionOverview(
       instructedBy: text(row.instructed_by),
       instructedOn: text(row.instructed_on),
       instructionReference: text(row.instruction_reference),
+      statutesNotApplicableConfirmed:
+        row.statutes_not_applicable_confirmed === true,
+      confirmedAt: text(row.confirmed_at) || null,
       recordedAt: text(row.recorded_at),
     })),
     suspensions: list(wire.suspensions).map(mapSuspension),
