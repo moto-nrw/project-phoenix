@@ -15,6 +15,7 @@ import (
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	studentDirectoryViewCompose "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
@@ -128,7 +129,7 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	}
 	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
 		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	}, sealed)
+	}, sealed, tenantExportProjectedFields())
 	if err != nil {
 		return err
 	}
@@ -170,4 +171,18 @@ func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByT
 		"enrollment.holiday_registration_children": holiday,
 		"enrollment.holiday_guests":                holiday,
 	}, nil
+}
+
+// tenantExportProjectedFields binds each untyped container to the owner that
+// knows its secrets (#3838, ADR 0185): settings keep their non-secret values,
+// a school keeps its branding images; nothing of a container leaves raw.
+func tenantExportProjectedFields() organizationtenancy.TenantExportProjectedFieldsByTable {
+	settingValues := settingsCompose.NewExportFields()
+	return organizationtenancy.TenantExportProjectedFieldsByTable{
+		"config.setting_values":         settingValues,
+		"config.setting_audit":          settingValues,
+		"config.traeger_setting_values": settingValues,
+		"config.traeger_setting_audit":  settingValues,
+		"platform.schools":              organizationtenancy.SchoolSettingsExportFields{},
+	}
 }

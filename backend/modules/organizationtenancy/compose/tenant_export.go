@@ -10,9 +10,9 @@ import (
 
 // NewTenantExporter binds only the administrative return procedure. Unlike
 // HTTP services it owns its read-only snapshot, not an ambient request scope.
-func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints, sealed organizationtenancy.TenantExportSealedFields) (organizationtenancy.TenantExporter, error) {
+func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints, sealed organizationtenancy.TenantExportSealedFields, projected organizationtenancy.TenantExportProjectedFields) (organizationtenancy.TenantExporter, error) {
 	if db == nil || fingerprints.Bytes == nil || fingerprints.Reader == nil {
 		return nil, errors.New("tenant export requires a database")
 	}
-	return tenantexport.NewTenantExporter(db, fingerprints, sealed), nil
+	return tenantexport.NewTenantExporter(db, fingerprints, sealed, projected), nil
 }

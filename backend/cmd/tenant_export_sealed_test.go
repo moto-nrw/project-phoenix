@@ -14,8 +14,9 @@ import (
 )
 
 // The return of a school carries the health field of a child opened with
-// the key ring of the installation, never its ciphertext (#3838, #6328).
-func TestTenantExportOpensHealthWithTheRootBoundKeyRings(t *testing.T) {
+// the key ring of the installation, never its ciphertext (#3838, #6328),
+// and its settings without their secrets (#3838).
+func TestTenantExportOpensHealthAndProjectsSettingsWithTheRootBindings(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	school := testpkg.Tenant(t)
@@ -23,24 +24,29 @@ func TestTenantExportOpensHealthWithTheRootBoundKeyRings(t *testing.T) {
 	health := "Synthetische Erdnussallergie"
 	testpkg.SetTestStudentHealth(t, db, student.ID, &health)
 
+	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?0, 'security.ogs_device_pin', '"synthetic-pin-4711"'), (?0, 'sftp.host', '"sftp.example.invalid"')`, school).Exec(t.Context())
+	require.NoError(t, err)
+
 	sealed, err := tenantExportSealedFields()
 	require.NoError(t, err)
 	exporter, err := organizationCompose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
 		Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
-	}, sealed)
+	}, sealed, tenantExportProjectedFields())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: t.TempDir()}))
 	require.FileExists(t, filepath.Join(out, "COMPLETE"))
+	settings := map[string]string{}
+	for _, row := range readExportRows(t, filepath.Join(out, "config.setting_values.jsonl")) {
+		require.NotContains(t, row, "value", "the raw container never leaves")
+		var key string
+		require.NoError(t, json.Unmarshal(row["setting_key"], &key))
+		settings[key] = string(row["exported_value"])
+	}
+	require.Equal(t, map[string]string{"security.ogs_device_pin": "null", "sftp.host": `"sftp.example.invalid"`}, settings)
 
-	file, err := os.Open(filepath.Join(out, "users.student_care_profiles.jsonl"))
-	require.NoError(t, err)
-	defer func() { _ = file.Close() }()
 	var opened []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		var row map[string]json.RawMessage
-		require.NoError(t, json.Unmarshal(scanner.Bytes(), &row))
+	for _, row := range readExportRows(t, filepath.Join(out, "users.student_care_profiles.jsonl")) {
 		require.NotContains(t, row, "health_data", "the ciphertext never leaves")
 		var value *string
 		require.NoError(t, json.Unmarshal(row["health_info"], &value))
@@ -48,6 +54,21 @@ func TestTenantExportOpensHealthWithTheRootBoundKeyRings(t *testing.T) {
 			opened = append(opened, *value)
 		}
 	}
-	require.NoError(t, scanner.Err())
 	require.Equal(t, []string{health}, opened)
+}
+
+func readExportRows(t *testing.T, path string) []map[string]json.RawMessage {
+	t.Helper()
+	file, err := os.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = file.Close() }()
+	var rows []map[string]json.RawMessage
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var row map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(scanner.Bytes(), &row))
+		rows = append(rows, row)
+	}
+	require.NoError(t, scanner.Err())
+	return rows
 }

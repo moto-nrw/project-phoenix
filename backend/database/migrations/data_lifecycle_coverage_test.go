@@ -26,7 +26,7 @@ type lifecycleTable struct {
 	Name, Scope, ScopeColumn, Reason, Export, ExportReason    string
 	Parent                                                    *lifecycleParent
 	ExcludeSecretColumns, AllowedSensitiveColumns, PersonKeys map[string]string
-	OpenSealedColumns                                         map[string]string
+	OpenSealedColumns, ProjectedColumns                       map[string]string
 }
 
 type lifecycleParent struct{ Table, Column, ParentColumn string }
@@ -213,6 +213,13 @@ func lifecycleExportProblems(entry lifecycleTable, cols map[string]bool) []strin
 			problems = append(problems, entry.Name+"."+sealed+" needs an export exclusion and a new plaintext column name")
 		}
 	}
+	for container, projection := range entry.ProjectedColumns {
+		// The raw container never leaves; its owner writes a reviewed
+		// projection under a name of its own (#3838).
+		if entry.Export != "include" || entry.ExcludeSecretColumns[container] == "" || projection == "" || cols[projection] || entry.OpenSealedColumns[container] != "" {
+			problems = append(problems, entry.Name+"."+container+" needs an export exclusion and a new projection column name")
+		}
+	}
 	for col := range entry.AllowedSensitiveColumns {
 		if !lifecycleSecretName.MatchString(col) || entry.ExcludeSecretColumns[col] != "" {
 			problems = append(problems, entry.Name+"."+col+" has a stale or conflicting sensitive-name release")
@@ -281,6 +288,14 @@ func TestLifecycleClassificationRejectsGaps(t *testing.T) {
 			v[0].OpenSealedColumns = map[string]string{"password_hash": "tenant_id"}
 			return v
 		}, "needs an export exclusion and a new plaintext column name"},
+		{"projected container not excluded", func(v []lifecycleTable) []lifecycleTable {
+			v[0].ProjectedColumns = map[string]string{"id": "projected_id"}
+			return v
+		}, "needs an export exclusion and a new projection column name"},
+		{"projection overwrites a column", func(v []lifecycleTable) []lifecycleTable {
+			v[0].ProjectedColumns = map[string]string{"password_hash": "tenant_id"}
+			return v
+		}, "needs an export exclusion and a new projection column name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

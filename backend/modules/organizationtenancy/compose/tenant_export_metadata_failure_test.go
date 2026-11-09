@@ -30,7 +30,7 @@ func TestTenantExportMetadataFailureBoundary(t *testing.T) {
 			uploads := fixtureUploads(t, db, catalog, school, otherSchool)
 			exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
 				Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
-			}, openedSealedFields{})
+			}, openedSealedFields{}, projectedFields{})
 			require.NoError(t, err)
 			const target = "platform.organizations"
 			var prefix []string

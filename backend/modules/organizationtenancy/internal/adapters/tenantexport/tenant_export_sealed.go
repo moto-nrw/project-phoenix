@@ -20,6 +20,17 @@ func sealedColumnsOf(table organizationtenancy.LifecycleTable) []string {
 	return columns
 }
 
+// projectedColumnsOf answers the container columns the export projects, in
+// a fixed order.
+func projectedColumnsOf(table organizationtenancy.LifecycleTable) []string {
+	columns := make([]string, 0, len(table.ProjectedColumns))
+	for container := range table.ProjectedColumns {
+		columns = append(columns, container)
+	}
+	slices.Sort(columns)
+	return columns
+}
+
 func schemaColumn(columns []exportSchemaColumn, name string) (exportSchemaColumn, bool) {
 	for _, col := range columns {
 		if col.Name == name {
@@ -29,11 +40,13 @@ func schemaColumn(columns []exportSchemaColumn, name string) (exportSchemaColumn
 	return exportSchemaColumn{}, false
 }
 
-// openSealedColumns replaces each sealed column of one exported row with its
-// plaintext column (#3838, ADR 0184). The ciphertext is useless without the
-// key of the deployment, so the return carries the value as entered.
-func (r *exportRun) openSealedColumns(table organizationtenancy.LifecycleTable, data []byte) ([]byte, error) {
-	if len(table.OpenSealedColumns) == 0 {
+// applyOwnerColumns replaces each sealed column of one exported row with its
+// plaintext column (#3838, ADR 0184) and each container column with its
+// reviewed projection (ADR 0185). The ciphertext is useless without the key
+// of the deployment, so the return carries the value as entered; a container
+// never leaves raw.
+func (r *exportRun) applyOwnerColumns(table organizationtenancy.LifecycleTable, data []byte) ([]byte, error) {
+	if len(table.OpenSealedColumns) == 0 && len(table.ProjectedColumns) == 0 {
 		return data, nil
 	}
 	var row map[string]json.RawMessage
@@ -48,6 +61,15 @@ func (r *exportRun) openSealedColumns(table organizationtenancy.LifecycleTable, 
 			return nil, err
 		}
 		row[table.OpenSealedColumns[column]] = value
+	}
+	for _, container := range projectedColumnsOf(table) {
+		raw := row[container]
+		delete(row, container)
+		value, err := r.projectValue(table.Name, container, row, raw)
+		if err != nil {
+			return nil, err
+		}
+		row[table.ProjectedColumns[container]] = value
 	}
 	data, err := json.Marshal(row)
 	if err != nil {
@@ -82,4 +104,21 @@ func (r *exportRun) openSealedValue(table, column string, row map[string]json.Ra
 		return nil, exportTableError(table)
 	}
 	return plain, nil
+}
+
+// projectValue lets the owner of the table keep the customer data of one
+// container value and drop its secrets. A container without an owner fails
+// the export; it is never copied raw.
+func (r *exportRun) projectValue(table, column string, row map[string]json.RawMessage, raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return json.RawMessage("null"), nil
+	}
+	if r.projected == nil {
+		return nil, errors.New("tenant export: " + table + " holds container values; bind the owner that projects them")
+	}
+	value, err := r.projected.ProjectExportField(table, column, row, raw)
+	if err != nil || !json.Valid(value) {
+		return nil, errors.New("tenant export: cannot project a value of " + table)
+	}
+	return value, nil
 }

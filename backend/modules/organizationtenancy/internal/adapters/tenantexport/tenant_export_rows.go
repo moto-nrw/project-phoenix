@@ -43,6 +43,14 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 		}
 		model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: table.OpenSealedColumns[sealed], Type: "text", UDT: "text", Nullable: col.Nullable == "YES"})
 	}
+	for _, container := range projectedColumnsOf(table) {
+		col, ok := schemaColumn(columns, container)
+		if !ok {
+			return model, exportTableError(table.Name)
+		}
+		// A withheld value is null, whatever the container allows.
+		model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: table.ProjectedColumns[container], Type: col.Type, UDT: col.UDT, Nullable: true})
+	}
 	relations := r.schema.relations[table.Name]
 	for _, rel := range relations {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
@@ -57,9 +65,12 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
-	opened := make(map[string]bool, len(table.OpenSealedColumns))
+	opened := make(map[string]bool, len(table.OpenSealedColumns)+len(table.ProjectedColumns))
 	for _, plain := range table.OpenSealedColumns {
 		opened[plain] = true
+	}
+	for _, projection := range table.ProjectedColumns {
+		opened[projection] = true
 	}
 	columns := make([]string, 0, len(model.Columns))
 	for _, col := range model.Columns {
@@ -70,6 +81,9 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	for _, sealed := range sealedColumnsOf(table) {
 		// Hex, independent of the session's bytea_output.
 		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
+	}
+	for _, container := range projectedColumnsOf(table) {
+		columns = append(columns, "t."+quoteExportIdentifier(container))
 	}
 	if len(columns) == 0 {
 		return 0, exportTableError(table.Name)
@@ -107,7 +121,7 @@ func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, entry organiza
 		if err := rows.Scan(&data); err != nil {
 			return 0, exportTableError(table)
 		}
-		data, err := r.openSealedColumns(entry, data)
+		data, err := r.applyOwnerColumns(entry, data)
 		if err != nil {
 			return 0, err
 		}
