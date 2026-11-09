@@ -163,7 +163,7 @@ export function CareExcludeModal({
           onChange={(event) => setReason(event.target.value)}
         />
         <p className="text-sm text-gray-600">
-          Die Rechnung bekommt bei der Freigabe keine Nummer. Das Kind kommt im
+          Die Rechnung bekommt bei der Freigabe keine Nummer. Sie kommt im
           nächsten Lauf dieses Monats wieder.
         </p>
       </form>

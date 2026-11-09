@@ -447,6 +447,7 @@ export default function MealBillingReleasePage() {
               hint="Angemeldet, aber nicht da. Zählt nicht."
             />
           </div>
+          {month.status === "released" ? <ReleaseCorrection /> : null}
           <SectionCard
             title="Kinder"
             titleBadge={
@@ -472,7 +473,6 @@ export default function MealBillingReleasePage() {
               />
             )}
           </SectionCard>
-          {month.status === "released" ? <ReleaseCorrection /> : null}
           {month.releases.length > 1 ? (
             <SectionCard
               title="Freigaben"
