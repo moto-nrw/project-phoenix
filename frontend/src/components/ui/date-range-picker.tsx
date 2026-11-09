@@ -227,7 +227,7 @@ function RangeCalendar({
     const trigger = triggerRef.current;
     const panel = panelRef.current;
     if (!mounted || !trigger || !panel) return;
-    if (window.innerWidth < 640) {
+    if (window.matchMedia(BELOW_SM).matches) {
       setIsNarrowViewport(true);
       return;
     }

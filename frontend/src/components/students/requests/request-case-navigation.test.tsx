@@ -4,6 +4,7 @@
  * Arten und der Umgang mit einer zwischenzeitlich geänderten Anfrage.
  */
 
+import { setViewportWidth as resizeViewport } from "~/test/helpers/viewport";
 import { ApiError } from "~/lib/api-error";
 import {
   fireEvent,
@@ -118,11 +119,7 @@ function item(
 }
 
 function setViewportWidth(width: number) {
-  Object.defineProperty(window, "innerWidth", {
-    configurable: true,
-    writable: true,
-    value: width,
-  });
+  resizeViewport(width);
   window.dispatchEvent(new Event("resize"));
 }
 
