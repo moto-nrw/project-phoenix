@@ -93,6 +93,7 @@ export function parentDocumentsTopic(): HelpTopic {
       "Ein freigegebenes Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen oder das Dokument gelöscht.",
       "Das Dokument ist da, aber es kam keine Nachricht? Prüfen Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger`. Schickt der Träger dasselbe Dokument noch einmal, kommt keine zweite Nachricht.",
       "Unter `Lastschrift` steht `Lastschrift hier nicht möglich`? Ihr Träger nimmt das Mandat nicht in der App an. Fragen Sie ihn nach einem Formular auf Papier.",
+      "Unter `Lastschrift` steht `Neues Mandat nötig`? Mit diesem Mandat ist keine weitere Abbuchung möglich. Widerrufen Sie es und erteilen Sie ein neues. Ohne dieses Recht fragen Sie die Schule.",
       "Sie sehen das Mandat, aber `Mandat widerrufen` fehlt? Das Mandat erteilen und widerrufen nur Eltern, die das Kind auch anmelden dürfen. Das Recht vergibt die Schule.",
       "`Verträge hier kündigen` fehlt? Der Vertrag gilt noch nicht, oder er ist schon beendet. Oder Ihnen fehlt das Recht: Kündigen dürfen nur Eltern, die das Kind auch anmelden dürfen. Dann steht beim Vertrag ein Hinweis. Das Recht vergibt die Schule.",
     ],

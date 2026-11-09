@@ -6547,6 +6547,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m parentSEPAMandates) SEPAMandateStatuses(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader, contractIDs []int64) (map[int64]parentportal.SEPAMandateStatus, error) {\n\tstatuses, err := m.mandates.ParentSEPAMandateStatuses(ctx, organizationID, parentbilling.ParentMandateReader(reader), contractIDs)\n\tif err != nil {\n\t\treturn nil, parentMandateError(err)\n\t}\n\tout := make(map[int64]parentportal.SEPAMandateStatus, len(statuses))\n\tfor id, status := range statuses {\n\t\tout[id] = parentportal.SEPAMandateStatus(status)\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSEPAMandates.SEPAMandateStatuses",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d parentSharedDocuments) ListSharedDocuments(ctx context.Context, organizationID int64, reader parentportal.SharedDocumentReader) ([]parentportal.SharedDocument, error) {\n\tfound, err := d.documents.ParentDocuments(ctx, organizationID, organizationtenancy.TraegerDocumentParent(reader))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdocuments := make([]parentportal.SharedDocument, len(found))\n\tfor i, document := range found {\n\t\tdocuments[i] = parentportal.SharedDocument{ID: document.ID, OrganizationID: organizationID, Title: document.Title, FileName: document.FileName, ContentType: document.ContentType, SizeBytes: document.SizeBytes, ReleasedAt: document.ReleasedAt}\n\t}\n\treturn documents, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentSharedDocuments.ListSharedDocuments",

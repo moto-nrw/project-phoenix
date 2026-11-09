@@ -4676,6 +4676,11 @@
       "reason": "Consumer-port adapter of the parents portal (#4696): it reads the family's mandate through the Elternabrechnung in the caller's Träger transaction and maps values and refusals into the workflow's words."
     },
     {
+      "decision": "0171",
+      "id": "roots/owners/parentSEPAMandates.SEPAMandateStatuses",
+      "reason": "ADR 0171 (#4696): maps batched, read-only mandate status into the parent inbox contract in its authorized Träger transaction; no decryption, proof read or audit write."
+    },
+    {
       "decision": "0084",
       "id": "roots/owners/parentSharedDocuments.ListSharedDocuments",
       "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the documents a Träger released for the parent through Organisation \u0026 Tenancy and translates them into the shared documents of the parents portal's inbox."

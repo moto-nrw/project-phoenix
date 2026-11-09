@@ -27,8 +27,9 @@ func init() {
 // proof keeps the version and SHA-256 of the mandate text the parents
 // confirmed, the channel, the account and the time, their confirmation to
 // hold the account, and what the text named besides the mandate (creditor
-// name and address, debtor address), so the text can be rendered again and
-// checked. The account holder and the IBAN stay sealed in the mandate.
+// name and address, debtor address). The exact confirmed text stays sealed
+// in this immutable row, independent of corrections to the live mandate.
+// The full IBAN stays sealed in the mandate and is masked in the text.
 //
 // A proof is written once: the trigger refuses every change but the
 // clearing of the account on its erasure, and the request role may only
@@ -43,6 +44,7 @@ CREATE TABLE parent_billing.sepa_mandate_consents (
 	channel VARCHAR(16) NOT NULL,
 	text_version VARCHAR(32) NOT NULL,
 	text_sha256 CHAR(64) NOT NULL,
+	text_sealed BYTEA NOT NULL CHECK (octet_length(text_sealed) > 0),
 	holder_confirmed BOOLEAN NOT NULL,
 	creditor_name TEXT NOT NULL,
 	creditor_address TEXT NOT NULL,

@@ -21,11 +21,13 @@ import (
 // in memory; methods the parents' flow does not use panic.
 type fakeParentMandateStore struct {
 	MandateStore
-	creditor *parentbilling.SEPACreditor
-	mandates []parentbilling.SEPAMandate
-	sealed   map[int64][]byte
-	consents map[int64]parentbilling.SEPAMandateConsent
-	events   []string
+	creditor     *parentbilling.SEPACreditor
+	mandates     []parentbilling.SEPAMandate
+	sealed       map[int64][]byte
+	consents     map[int64]parentbilling.SEPAMandateConsent
+	events       []string
+	listCalls    int
+	consentReads int
 }
 
 func (s *fakeParentMandateStore) SEPACreditor(context.Context, int64) (*parentbilling.SEPACreditor, error) {
@@ -33,6 +35,7 @@ func (s *fakeParentMandateStore) SEPACreditor(context.Context, int64) (*parentbi
 }
 
 func (s *fakeParentMandateStore) SEPAMandates(_ context.Context, _ int64, family string) ([]parentbilling.SEPAMandate, error) {
+	s.listCalls++
 	var out []parentbilling.SEPAMandate
 	for _, mandate := range s.mandates {
 		if mandate.FamilyEmail == family {
@@ -96,6 +99,7 @@ func (s *fakeParentMandateStore) InsertSEPAMandateConsent(_ context.Context, _ i
 }
 
 func (s *fakeParentMandateStore) SEPAMandateConsent(_ context.Context, _, mandateID int64) (*parentbilling.SEPAMandateConsent, error) {
+	s.consentReads++
 	consent, ok := s.consents[mandateID]
 	if !ok {
 		return nil, nil
@@ -305,4 +309,109 @@ func TestParentMandateSwitchAndRevocation(t *testing.T) {
 	other.Email = "andere@example.org"
 	_, err = mandates.RevokeParentSEPAMandate(ctx, 3, other)
 	require.ErrorIs(t, err, parentbilling.ErrSEPAMandateNotFound, "another family has no mandate here")
+}
+
+func TestParentMandateProofSurvivesAccountChanges(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	mandates, store, _ := newParentMandatesForTest()
+	input := parentInput()
+	preview, err := mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, input)
+	require.NoError(t, err)
+	input.Reference, input.TextSHA256 = preview.Reference, preview.TextSHA256
+	_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
+	require.NoError(t, err)
+
+	// The office may correct the live account; the proof must still name
+	// exactly what the parent confirmed before that correction.
+	store.mandates[0].HolderSealed, err = reversingCipher{}.Seal([]byte("Jan Muster"), holderContext(3, preview.Reference))
+	require.NoError(t, err)
+	store.mandates[0].IBANMasked = "DE•• •••• •••• •••• ••20 51"
+	store.mandates[0].BIC = "COBADEFFXXX"
+	view, err := mandates.ParentSEPAMandate(ctx, 3, mandateReader)
+	require.NoError(t, err)
+	require.NotNil(t, view.Mandate.Proof)
+	assert.Equal(t, "Jan Muster", view.Mandate.AccountHolder)
+	assert.Equal(t, preview.Text, view.Mandate.Proof.Text)
+	assert.Equal(t, preview.TextSHA256, textChecksum(view.Mandate.Proof.Text))
+}
+
+func TestParentMandateShowsCollectionEligibility(t *testing.T) {
+	t.Parallel()
+	for name, change := range map[string]func(*parentbilling.SEPAMandate){
+		"eligible": func(*parentbilling.SEPAMandate) {},
+		"expired":  func(m *parentbilling.SEPAMandate) { m.SignedOn = calendar.NewDate(2020, 1, 1) },
+		"one-off collected": func(m *parentbilling.SEPAMandate) {
+			m.Kind = parentbilling.MandateOneOff
+			m.LastCollectedOn = &mandateDay
+		},
+		"creditor changed": func(m *parentbilling.SEPAMandate) { m.CreditorID = "DE98ABC09999999999" },
+		"future signature": func(m *parentbilling.SEPAMandate) { m.SignedOn = mandateDay.AddDays(1) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			mandates, store, _ := newParentMandatesForTest()
+			ctx := context.Background()
+			input := parentInput()
+			text, err := mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, input)
+			require.NoError(t, err)
+			input.Reference, input.TextSHA256 = text.Reference, text.TextSHA256
+			_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
+			require.NoError(t, err)
+			change(&store.mandates[0])
+			view, err := mandates.ParentSEPAMandate(ctx, 3, mandateReader)
+			require.NoError(t, err)
+			require.NotNil(t, view.Mandate)
+			assert.Equal(t, name == "eligible", view.Mandate.CollectionEligible)
+			assert.Equal(t, text.Text, view.Mandate.Proof.Text)
+			_, err = mandates.RevokeParentSEPAMandate(ctx, 3, mandateReader)
+			require.NoError(t, err, "ineligible mandates can still be revoked")
+		})
+	}
+}
+
+type statusParties struct{ calls int }
+
+func (f *statusParties) Recipients(_ context.Context, _ int64, ids []int64) (map[int64]parentbilling.CareRecipient, error) {
+	f.calls++
+	out := make(map[int64]parentbilling.CareRecipient, len(ids))
+	for _, id := range ids {
+		out[id] = parentbilling.CareRecipient{Email: "eva@example.org"}
+	}
+	out[ids[len(ids)-1]] = parentbilling.CareRecipient{Email: "other@example.org"}
+	return out, nil
+}
+
+func TestParentMandateInboxStatusBatchesOnlyThePayersContracts(t *testing.T) {
+	t.Parallel()
+	mandates, store, terms := newParentMandatesForTest()
+	parties := &statusParties{}
+	mandates.contracts = parties
+	// Deliberately unopened ciphertext: status must not decrypt the holder
+	// or read a proof, unlike the mandate detail endpoint.
+	store.mandates = []parentbilling.SEPAMandate{{FamilyEmail: "eva@example.org", SignedOn: mandateDay,
+		Kind: parentbilling.MandateRecurring, CreditorID: store.creditor.CreditorID}}
+	ids := make([]int64, 100)
+	for i := range ids {
+		ids[i] = int64(i + 1)
+	}
+	ctx := context.Background()
+	statuses, err := mandates.ParentSEPAMandateStatuses(ctx, 3, mandateReader, ids)
+	require.NoError(t, err)
+	assert.Len(t, statuses, 99)
+	assert.Equal(t, parentbilling.ParentMandateStatus{Enabled: true, CollectionEligible: true}, statuses[ids[0]])
+	assert.NotContains(t, statuses, ids[len(ids)-1], "a contract sent to this account can name another payer")
+	assert.Equal(t, 1, parties.calls)
+	assert.Equal(t, 1, store.listCalls)
+	assert.Zero(t, store.consentReads)
+	assert.Empty(t, store.events)
+
+	store.mandates[0].SignedOn = calendar.NewDate(2020, 1, 1)
+	statuses, err = mandates.ParentSEPAMandateStatuses(ctx, 3, mandateReader, ids)
+	require.NoError(t, err)
+	assert.Equal(t, parentbilling.ParentMandateStatus{Enabled: true}, statuses[ids[0]])
+	terms.terms.Allowed = false
+	statuses, err = mandates.ParentSEPAMandateStatuses(ctx, 3, mandateReader, ids)
+	require.NoError(t, err)
+	assert.Empty(t, statuses)
+	assert.Equal(t, 2, parties.calls, "disabled status does not load contract parties")
 }

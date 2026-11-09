@@ -161,3 +161,13 @@ versiegelt sonst mit dem Bankring. Der Scanner zählt den nativen, eingebetteten
 `Seal`-Aufruf; das ist keine ungeschützte Repository-Durchreiche. Die Evidenz
 benennt genau diesen Quelltext. Selektoren, Ausnahmen und die bisherigen
 Owner-Pass-through-Floors werden nicht erhöht oder gelockert.
+
+## Ergänzung: bestätigte Mandatstexte (#4696)
+
+Der unveränderliche Online-Nachweis speichert den exakt bestätigten Text
+versiegelt in `parent_billing.sepa_mandate_consents.text_sealed`. Der Rekey
+verarbeitet dafür zusätzlich die Quelle `consents`, einschließlich Nachweisen
+widerrufener Mandate. Er sperrt und filtert die Nachweiszeilen nach Träger,
+behält das AAD aus Feld, Träger und Mandatsreferenz bei und ändert ausschließlich
+das Chiffrat. Text, Prüfsumme und übrige Nachweisfelder bleiben gleich.
+Die Rotationsprüfung verlangt `changed_total=0` für alle drei Quellen.

@@ -27,8 +27,8 @@ func seedConsent(t *testing.T, ctx context.Context, tx bun.IDB, scope mandateSco
 	_, err := tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_mandate_consents (organization_id, mandate_id, care_contract_id,
-		channel, text_version, text_sha256, holder_confirmed, creditor_name, creditor_address, debtor_street, debtor_postal_code, debtor_city)
-		VALUES (?, ?, 1, 'parent_account', 'sepa-core-de-1', ?, true, 'Jugendring', 'Hauptstraße 1, 75175 Pforzheim',
+		channel, text_version, text_sha256, text_sealed, holder_confirmed, creditor_name, creditor_address, debtor_street, debtor_postal_code, debtor_city)
+		VALUES (?, ?, 1, 'parent_account', 'sepa-core-de-1', ?, 'sealed-consent-text'::bytea, true, 'Jugendring', 'Hauptstraße 1, 75175 Pforzheim',
 		'Gartenweg 2', '75175', 'Pforzheim')`, scope.organization, scope.mandate, consentChecksum)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
@@ -61,6 +61,7 @@ func TestSEPAMandateConsentFilterKeepsTheTraegerBelowRLS(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, consent, "SEPAMandateConsent of the Träger's own mandate")
 		assert.Equal(t, consentChecksum, consent.TextSHA256)
+		assert.Equal(t, []byte("sealed-consent-text"), consent.TextSealed)
 		assert.True(t, consent.HolderConfirmed)
 		return rollback
 	})
@@ -77,6 +78,7 @@ func TestSEPAMandateConsentNeverChanges(t *testing.T) {
 	rollback := errors.New("roll the proof back")
 
 	for name, statement := range map[string]string{
+		"text":     `UPDATE parent_billing.sepa_mandate_consents SET text_sealed = 'changed'::bytea WHERE mandate_id = ?`,
 		"checksum": `UPDATE parent_billing.sepa_mandate_consents SET text_sha256 = repeat('0', 64) WHERE mandate_id = ?`,
 		"holder":   `UPDATE parent_billing.sepa_mandate_consents SET debtor_street = 'Anderswo 9' WHERE mandate_id = ?`,
 		"time":     `UPDATE parent_billing.sepa_mandate_consents SET confirmed_at = confirmed_at - interval '1 day' WHERE mandate_id = ?`,

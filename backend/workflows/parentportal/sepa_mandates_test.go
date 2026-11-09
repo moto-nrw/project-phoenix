@@ -185,3 +185,33 @@ func TestSEPAMandateSwitchedOffDoesNothing(t *testing.T) {
 	assert.Zero(t, revoked, "the mandate stays in force")
 	assert.Zero(t, events, "no read or change is recorded")
 }
+
+func TestParentInboxMandateStatusesReadNoProofOrBankData(t *testing.T) {
+	t.Parallel()
+	f := newMandateFixture(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	own := activeInboxContract(t, f.db, f.organization, f.chain.TenantID, f.chain.StudentID, "Felix", f.chain.Email)
+	otherPayer := activeInboxContract(t, f.db, f.organization, f.chain.TenantID, f.chain.StudentID, "Mia", f.chain.Email)
+	_, err := f.db.ExecContext(ctx, `UPDATE care_contract.contract_parties SET email = 'zahler@example.org' WHERE contract_id = ?`, otherPayer)
+	require.NoError(t, err)
+	_, err = f.grant(ctx, own)
+	require.NoError(t, err)
+	queries := testpkg.CaptureQueriesForContext(t, f.db)
+	documents, err := f.portal.ListBillingDocuments(queries.Context(ctx), f.chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 2)
+	for _, document := range documents {
+		if document.ID == own {
+			require.NotNil(t, document.SEPAMandate)
+			assert.True(t, document.SEPAMandate.Enabled)
+			assert.True(t, document.SEPAMandate.CollectionEligible)
+		} else {
+			assert.Nil(t, document.SEPAMandate, "the mailbox address is not the payer")
+		}
+	}
+	assert.Empty(t, queries.Selects("sepa_mandate_consents"))
+	for _, query := range queries.Queries() {
+		assert.NotContains(t, query, "sepa_mandate_events", "no mandate-detail audit reads or writes")
+	}
+	assert.Len(t, queries.Selects("sepa_mandates"), 1, "one family status query, independent of contract count")
+}

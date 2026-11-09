@@ -112,7 +112,7 @@ func parentMandateView(view parentbilling.ParentMandate) parentportal.SEPAMandat
 	if mandate := view.Mandate; mandate != nil {
 		summary := parentportal.SEPAMandateSummary{ID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
 			Kind: mandate.Kind, AccountHolder: mandate.AccountHolder, IBANMasked: mandate.IBANMasked, BIC: mandate.BIC,
-			Source: mandate.Source, CreditorID: mandate.CreditorID, RevokedOn: mandate.RevokedOn}
+			Source: mandate.Source, CollectionEligible: mandate.CollectionEligible, CreditorID: mandate.CreditorID, RevokedOn: mandate.RevokedOn}
 		if mandate.Proof != nil {
 			proof := parentportal.SEPAMandateProof(*mandate.Proof)
 			summary.Proof = &proof
@@ -141,4 +141,18 @@ func parentMandateError(err error) error {
 		return fmt.Errorf("%w: %w", parentportal.ErrSEPAMandateNotFound, err)
 	}
 	return err
+}
+
+func (m parentSEPAMandates) SEPAMandateStatuses(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader,
+	contractIDs []int64,
+) (map[int64]parentportal.SEPAMandateStatus, error) {
+	statuses, err := m.mandates.ParentSEPAMandateStatuses(ctx, organizationID, parentbilling.ParentMandateReader(reader), contractIDs)
+	if err != nil {
+		return nil, parentMandateError(err)
+	}
+	out := make(map[int64]parentportal.SEPAMandateStatus, len(statuses))
+	for id, status := range statuses {
+		out[id] = parentportal.SEPAMandateStatus(status)
+	}
+	return out, nil
 }

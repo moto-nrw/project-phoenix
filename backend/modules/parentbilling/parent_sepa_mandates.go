@@ -131,7 +131,7 @@ type ParentMandatePrefill struct {
 }
 
 // ParentMandateProof is the proof of an online mandate as the parents read
-// it: the text they confirmed, rendered again from what it named, and when.
+// it: the immutable text they confirmed, and when.
 type ParentMandateProof struct {
 	Channel     string    `json:"channel"`
 	Version     string    `json:"version"`
@@ -143,17 +143,18 @@ type ParentMandateProof struct {
 // ParentMandateSummary is the mandate of the family without bank data but
 // the mask of its IBAN.
 type ParentMandateSummary struct {
-	ID            int64               `json:"id"`
-	Reference     string              `json:"reference"`
-	SignedOn      calendar.Date       `json:"signed_on"`
-	Kind          string              `json:"kind"`
-	AccountHolder string              `json:"account_holder"`
-	IBANMasked    string              `json:"iban_masked"`
-	BIC           string              `json:"bic"`
-	Source        string              `json:"source"`
-	CreditorID    string              `json:"creditor_id"`
-	RevokedOn     *calendar.Date      `json:"revoked_on"`
-	Proof         *ParentMandateProof `json:"proof"`
+	CollectionEligible bool                `json:"collection_eligible"`
+	ID                 int64               `json:"id"`
+	Reference          string              `json:"reference"`
+	SignedOn           calendar.Date       `json:"signed_on"`
+	Kind               string              `json:"kind"`
+	AccountHolder      string              `json:"account_holder"`
+	IBANMasked         string              `json:"iban_masked"`
+	BIC                string              `json:"bic"`
+	Source             string              `json:"source"`
+	CreditorID         string              `json:"creditor_id"`
+	RevokedOn          *calendar.Date      `json:"revoked_on"`
+	Proof              *ParentMandateProof `json:"proof"`
 }
 
 // ParentMandate is what the parents see on a contract: whether the Träger
@@ -167,12 +168,21 @@ type ParentMandate struct {
 	Prefill         *ParentMandatePrefill  `json:"prefill"`
 }
 
+// ParentMandateStatus is the inbox hint without bank data or a consent read.
+type ParentMandateStatus struct {
+	Enabled            bool `json:"enabled"`
+	CollectionEligible bool `json:"collection_eligible"`
+}
+
 // ParentSEPAMandates serves the mandate of the family in the parents
 // portal. Every operation runs in the Träger transaction of
 // organizationID, which the caller opens after it checked the reader, and
 // records every read and change in the trail of the mandate with the
 // account and the source MandateFromParent.
 type ParentSEPAMandates interface {
+	// ParentSEPAMandateStatuses reads only status, without audit writes or decryption.
+	// The caller supplies contract IDs already authorized for the inbox.
+	ParentSEPAMandateStatuses(ctx context.Context, organizationID int64, reader ParentMandateReader, contractIDs []int64) (map[int64]ParentMandateStatus, error)
 	ParentSEPAMandate(ctx context.Context, organizationID int64, reader ParentMandateReader) (ParentMandate, error)
 	PreviewParentSEPAMandate(ctx context.Context, organizationID int64, reader ParentMandateReader, input ParentMandateInput) (ParentMandateText, error)
 	GrantParentSEPAMandate(ctx context.Context, organizationID int64, reader ParentMandateReader, input ParentMandateInput) (ParentMandate, error)
@@ -181,8 +191,8 @@ type ParentSEPAMandates interface {
 
 // SEPAMandateConsent is the proof of a mandate the parents gave online as
 // the store keeps it: never changed after it was written. It names what
-// the confirmed text named besides the mandate itself, so the text can be
-// rendered again and checked against its checksum.
+// the confirmed text named and keeps that exact text sealed independently
+// of later corrections to the live mandate.
 type SEPAMandateConsent struct {
 	MandateID        int64
 	ContractID       int64
@@ -190,6 +200,7 @@ type SEPAMandateConsent struct {
 	Channel          string
 	TextVersion      string
 	TextSHA256       string
+	TextSealed       []byte
 	HolderConfirmed  bool
 	CreditorName     string
 	CreditorAddress  string

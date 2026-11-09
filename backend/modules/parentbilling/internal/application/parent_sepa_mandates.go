@@ -157,7 +157,7 @@ func creditorView(reader parentbilling.ParentMandateReader, mc parentMandateCont
 }
 
 // withMandate answers a mandate with its opened holder and, for a mandate
-// given online, the confirmed text rendered again from its proof.
+// given online, the immutable text sealed at confirmation.
 func (p *ParentMandates) withMandate(ctx context.Context, organizationID int64, reader parentbilling.ParentMandateReader, mc parentMandateContext,
 	mandate parentbilling.SEPAMandate,
 ) (parentbilling.ParentMandate, error) {
@@ -165,7 +165,7 @@ func (p *ParentMandates) withMandate(ctx context.Context, organizationID int64, 
 	if err != nil {
 		return parentbilling.ParentMandate{}, fmt.Errorf("parent billing: open the account holder of mandate %d: %w", mandate.ID, err)
 	}
-	summary := &parentbilling.ParentMandateSummary{ID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
+	summary := &parentbilling.ParentMandateSummary{CollectionEligible: parentbilling.MandateCollectionGap(mc.creditor, &mandate, p.today()) == "", ID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
 		Kind: mandate.Kind, AccountHolder: string(holder), IBANMasked: mandate.IBANMasked, BIC: mandate.BIC, Source: mandate.Source,
 		CreditorID: mandate.CreditorID, RevokedOn: mandate.RevokedOn}
 	consent, err := p.store.SEPAMandateConsent(ctx, organizationID, mandate.ID)
@@ -173,12 +173,15 @@ func (p *ParentMandates) withMandate(ctx context.Context, organizationID int64, 
 		return parentbilling.ParentMandate{}, err
 	}
 	if consent != nil {
-		text := renderMandateText(mandateTextFields{CreditorName: consent.CreditorName, CreditorAddress: consent.CreditorAddress,
-			CreditorID: mandate.CreditorID, Reference: mandate.Reference, Holder: summary.AccountHolder, Street: consent.DebtorStreet,
-			PostalCode: consent.DebtorPostalCode, City: consent.DebtorCity, IBANMasked: mandate.IBANMasked, BIC: mandate.BIC,
-			SignedOn: mandate.SignedOn})
+		text, err := p.cipher.Open(consent.TextSealed, consentTextContext(organizationID, mandate.Reference))
+		if err != nil {
+			return parentbilling.ParentMandate{}, fmt.Errorf("parent billing: open the consent text of mandate %d: %w", mandate.ID, err)
+		}
+		if p.textChecksum(string(text)) != consent.TextSHA256 {
+			return parentbilling.ParentMandate{}, errors.New("parent billing: the consent text checksum does not match")
+		}
 		summary.Proof = &parentbilling.ParentMandateProof{Channel: consent.Channel, Version: consent.TextVersion,
-			TextSHA256: consent.TextSHA256, Text: text, ConfirmedAt: consent.ConfirmedAt}
+			TextSHA256: consent.TextSHA256, Text: string(text), ConfirmedAt: consent.ConfirmedAt}
 	}
 	return parentbilling.ParentMandate{Enabled: true, CreditorMissing: !mc.ready(), Creditor: creditorView(reader, mc), Mandate: summary}, nil
 }
@@ -291,9 +294,14 @@ func (p *ParentMandates) GrantParentSEPAMandate(ctx context.Context, organizatio
 		return parentbilling.ParentMandate{}, err
 	}
 	// The checksum is no secret: it tells two texts apart.
-	checksum := p.textChecksum(renderMandateText(draft.fields))
+	text := renderMandateText(draft.fields)
+	checksum := p.textChecksum(text)
 	if checksum != strings.ToLower(strings.TrimSpace(input.TextSHA256)) {
 		return parentbilling.ParentMandate{}, parentbilling.ErrMandateTextChanged
+	}
+	sealedText, err := p.cipher.Seal([]byte(text), consentTextContext(organizationID, reference))
+	if err != nil {
+		return parentbilling.ParentMandate{}, fmt.Errorf("parent billing: seal the consent text: %w", err)
 	}
 	stored, err := p.insertMandate(ctx, organizationID, reader, mc, draft)
 	if err != nil {
@@ -301,7 +309,7 @@ func (p *ParentMandates) GrantParentSEPAMandate(ctx context.Context, organizatio
 	}
 	if err := p.store.InsertSEPAMandateConsent(ctx, organizationID, parentbilling.SEPAMandateConsent{
 		MandateID: stored.ID, ContractID: reader.ContractID, AccountID: reader.AccountID, Channel: parentbilling.ChannelParentAccount,
-		TextVersion: parentbilling.MandateTextVersion, TextSHA256: checksum, HolderConfirmed: true,
+		TextVersion: parentbilling.MandateTextVersion, TextSHA256: checksum, TextSealed: sealedText, HolderConfirmed: true,
 		CreditorName: draft.fields.CreditorName, CreditorAddress: draft.fields.CreditorAddress,
 		DebtorStreet: draft.fields.Street, DebtorPostalCode: draft.fields.PostalCode, DebtorCity: draft.fields.City,
 	}); err != nil {
@@ -367,4 +375,44 @@ func (p *ParentMandates) RevokeParentSEPAMandate(ctx context.Context, organizati
 		return parentbilling.ParentMandate{}, fmt.Errorf("parent billing: record the SEPA mandate: %w", err)
 	}
 	return p.withMandate(ctx, organizationID, reader, mc, revoked)
+}
+
+// consentTextContext binds the original confirmed text to its mandate.
+func consentTextContext(organizationID int64, reference string) []byte {
+	return fmt.Appendf(nil, "parent_billing.sepa_mandate_consents.text|%d|%s", organizationID, reference)
+}
+
+// ParentSEPAMandateStatuses batches inbox hints for the account's contracts.
+// Only the current payer gets a hint; no holder or proof is opened or audited.
+func (p *ParentMandates) ParentSEPAMandateStatuses(ctx context.Context, organizationID int64, reader parentbilling.ParentMandateReader,
+	contractIDs []int64,
+) (map[int64]parentbilling.ParentMandateStatus, error) {
+	out := make(map[int64]parentbilling.ParentMandateStatus, len(contractIDs))
+	if len(contractIDs) == 0 {
+		return out, nil
+	}
+	reader.ContractID = contractIDs[0]
+	mc, err := p.open(ctx, organizationID, reader)
+	if errors.Is(err, parentbilling.ErrOnlineMandateDisabled) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	parties, err := p.contracts.Recipients(ctx, organizationID, contractIDs)
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the contract parties for mandate status: %w", err)
+	}
+	mandate, err := p.mandateInForce(ctx, organizationID, mc.family)
+	if err != nil {
+		return nil, err
+	}
+	status := parentbilling.ParentMandateStatus{Enabled: true,
+		CollectionEligible: parentbilling.MandateCollectionGap(mc.creditor, mandate, p.today()) == ""}
+	for _, id := range contractIDs {
+		if parentbilling.FamilyKey(parties[id].Email) == mc.family {
+			out[id] = status
+		}
+	}
+	return out, nil
 }

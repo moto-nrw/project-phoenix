@@ -6,6 +6,8 @@
   "off": "Ofruesi juaj nuk e pranon mandatin në aplikacion. Kërkoni nga ofruesi një formular në letër.",
   "creditorMissing": "Ofruesi juaj nuk mund të pranojë ende debitime direkte. Ju lutemi provoni më vonë.",
   "noRight": "Mandatin e japin prindërit që mund të dërgojnë regjistrime për këtë fëmijë.",
+  "replacementBadge": "Nevojitet mandat i ri",
+  "replacementDescription": "Me këtë mandat nuk mund të bëhen tërheqje të tjera. Revokojeni dhe jepni një të ri.",
   "activeTitle": "Mandati juaj",
   "activeDescription": "Ofruesi tërheq tarifat nga kjo llogari.",
   "activeBadge": "I vlefshëm që nga {date}",

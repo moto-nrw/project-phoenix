@@ -6,6 +6,7 @@ import type {
   SepaMandateText,
   SepaMandateView,
 } from "~/lib/parent-sepa-mandate-api";
+import { ParentSepaMandateEntry } from "./parent-sepa-mandate-entry";
 import { ParentSepaMandateView } from "./parent-sepa-mandate-view";
 
 const mocks = vi.hoisted(() => ({
@@ -52,6 +53,7 @@ const granted: SepaMandateView = {
   ...open,
   prefill: null,
   mandate: {
+    collectionEligible: true,
     id: "9",
     reference: text.reference,
     signedOn: "2026-09-09",
@@ -208,5 +210,63 @@ describe("ParentSepaMandateView", () => {
       await screen.findByRole("button", { name: "Weiter" }),
     ).toBeInTheDocument();
     expect(mocks.revoke).toHaveBeenCalledWith("4", "75");
+  });
+});
+
+describe("Mandate collection status", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("keeps proof and revocation available when a replacement is needed", async () => {
+    mocks.fetch.mockResolvedValue({
+      ...granted,
+      mandate: { ...granted.mandate, collectionEligible: false },
+    });
+    renderView();
+    expect(await screen.findByText("Neues Mandat nötig")).toBeInTheDocument();
+    expect(screen.queryByText(/Gültig seit/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihr Träger bucht die Beiträge von diesem Konto ab."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Mandat widerrufen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Als Datei speichern" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses only the inbox status for links and eligible badges", async () => {
+    mocks.fetch.mockResolvedValue(granted);
+    const { rerender } = render(
+      <ParentSepaMandateEntry
+        organizationId="4"
+        contractId="75"
+        status={{ enabled: true, collection_eligible: true }}
+      />,
+    );
+    expect(
+      await screen.findByRole("link", { name: "Lastschrift" }),
+    ).toHaveAttribute("href", expect.stringContaining("/4/75?lastschrift=1"));
+    expect(screen.getByText("Lastschrift erteilt")).toBeInTheDocument();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    rerender(
+      <ParentSepaMandateEntry
+        organizationId="4"
+        contractId="75"
+        status={{ enabled: true, collection_eligible: false }}
+      />,
+    );
+    expect(screen.queryByText("Lastschrift erteilt")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Lastschrift" }),
+    ).toBeInTheDocument();
+    rerender(
+      <ParentSepaMandateEntry
+        organizationId="4"
+        contractId="75"
+        status={{ enabled: false, collection_eligible: false }}
+      />,
+    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

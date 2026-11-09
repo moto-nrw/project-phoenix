@@ -60,6 +60,7 @@ type (
 	FamilyChildren                  = care.FamilyChildren
 	SEPAMandatesPort                = care.SEPAMandates
 	SEPAMandateReader               = care.SEPAMandateReader
+	SEPAMandateStatus               = care.SEPAMandateStatus
 	SEPAMandateInput                = care.SEPAMandateInput
 	SEPAMandateText                 = care.SEPAMandateText
 	SEPAMandateView                 = care.SEPAMandateView

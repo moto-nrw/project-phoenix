@@ -14,7 +14,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
-import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import {
+  DataField,
+  DataGrid,
+  InfoText,
+} from "~/components/ui/detail-modal-components";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -201,11 +205,19 @@ function MandateCard({
       title={t("activeTitle")}
       titleBadge={
         <StatusBadge
-          tone="green"
-          label={t("activeBadge", { date: date(mandate.signedOn) })}
+          tone={mandate.collectionEligible ? "green" : "warning"}
+          label={
+            mandate.collectionEligible
+              ? t("activeBadge", { date: date(mandate.signedOn) })
+              : t("replacementBadge")
+          }
         />
       }
-      description={t("activeDescription")}
+      description={t(
+        mandate.collectionEligible
+          ? "activeDescription"
+          : "replacementDescription",
+      )}
     >
       <div ref={formRef} className="space-y-5">
         <FormErrorAlert message={revokeError.error} />
@@ -305,21 +317,13 @@ function MandateTextCard({ mandate }: Readonly<{ mandate: SepaMandate }>) {
         </Button>
       }
     >
-      <MandateText text={proof.text} />
+      <InsetPanel framed padding="md">
+        <InfoText>{proof.text}</InfoText>
+      </InsetPanel>
       <p className="mt-3 text-xs break-all text-gray-500">
         SHA-256: <span className="font-mono">{proof.textSha256}</span>
       </p>
     </SectionCard>
-  );
-}
-
-function MandateText({ text }: Readonly<{ text: string }>) {
-  return (
-    <InsetPanel framed padding="md">
-      <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-800">
-        {text}
-      </p>
-    </InsetPanel>
   );
 }
 
@@ -658,7 +662,9 @@ function ConfirmStep({
       >
         {notice ? <Alert type="warning" message={notice} /> : null}
         <FormErrorAlert message={formError.error} />
-        <MandateText text={text.text} />
+        <InsetPanel framed padding="md">
+          <InfoText>{text.text}</InfoText>
+        </InsetPanel>
         <ConsentCheckbox
           id="sepa-holder-confirmed"
           name="holder_confirmed"

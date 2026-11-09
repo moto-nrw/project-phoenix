@@ -342,6 +342,7 @@ function ContractNoticeRow({
           <ParentSepaMandateEntry
             organizationId={document.organization_id}
             contractId={document.id}
+            status={document.sepa_mandate}
           />
           {document.can_end_contract ? (
             <>

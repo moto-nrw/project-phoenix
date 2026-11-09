@@ -26,6 +26,7 @@ type sepaMandateConsentRow struct {
 	Channel          string    `bun:"channel"`
 	TextVersion      string    `bun:"text_version"`
 	TextSHA256       string    `bun:"text_sha256"`
+	TextSealed       []byte    `bun:"text_sealed"`
 	HolderConfirmed  bool      `bun:"holder_confirmed"`
 	CreditorName     string    `bun:"creditor_name"`
 	CreditorAddress  string    `bun:"creditor_address"`
@@ -43,7 +44,7 @@ func (s *Store) InsertSEPAMandateConsent(ctx context.Context, organizationID int
 	}
 	row := &sepaMandateConsentRow{OrganizationID: organizationID, MandateID: consent.MandateID, CareContractID: consent.ContractID,
 		AccountID: accountRef(consent.AccountID), Channel: consent.Channel, TextVersion: consent.TextVersion,
-		TextSHA256: consent.TextSHA256, HolderConfirmed: consent.HolderConfirmed, CreditorName: consent.CreditorName,
+		TextSHA256: consent.TextSHA256, TextSealed: consent.TextSealed, HolderConfirmed: consent.HolderConfirmed, CreditorName: consent.CreditorName,
 		CreditorAddress: consent.CreditorAddress, DebtorStreet: consent.DebtorStreet, DebtorPostalCode: consent.DebtorPostalCode,
 		DebtorCity: consent.DebtorCity}
 	if _, err := db.NewInsert().Model(row).ExcludeColumn("confirmed_at").Exec(ctx); err != nil {
@@ -69,7 +70,7 @@ func (s *Store) SEPAMandateConsent(ctx context.Context, organizationID, mandateI
 	}
 	row := rows[0]
 	consent := &parentbilling.SEPAMandateConsent{MandateID: row.MandateID, ContractID: row.CareContractID, Channel: row.Channel,
-		TextVersion: row.TextVersion, TextSHA256: row.TextSHA256, HolderConfirmed: row.HolderConfirmed,
+		TextVersion: row.TextVersion, TextSHA256: row.TextSHA256, TextSealed: row.TextSealed, HolderConfirmed: row.HolderConfirmed,
 		CreditorName: row.CreditorName, CreditorAddress: row.CreditorAddress, DebtorStreet: row.DebtorStreet,
 		DebtorPostalCode: row.DebtorPostalCode, DebtorCity: row.DebtorCity, ConfirmedAt: row.ConfirmedAt}
 	if row.AccountID != nil {

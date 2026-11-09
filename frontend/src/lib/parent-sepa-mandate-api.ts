@@ -28,6 +28,7 @@ interface SepaMandateProof {
 }
 
 export interface SepaMandate {
+  readonly collectionEligible: boolean;
   readonly id: string;
   readonly reference: string;
   /** Calendar date of the signature, YYYY-MM-DD. */
@@ -71,6 +72,7 @@ export interface SepaMandateText {
 }
 
 interface BackendMandate {
+  collection_eligible: boolean;
   id: string;
   reference: string;
   signed_on: string;
@@ -132,6 +134,7 @@ async function request<T>(url: string, init: RequestInit): Promise<T> {
 function mapMandate(mandate: BackendMandate): SepaMandate {
   return {
     id: String(mandate.id),
+    collectionEligible: mandate.collection_eligible,
     reference: mandate.reference,
     signedOn: mandate.signed_on,
     accountHolder: mandate.account_holder,

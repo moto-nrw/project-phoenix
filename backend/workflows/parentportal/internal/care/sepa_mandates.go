@@ -100,17 +100,18 @@ type SEPAMandateProof struct {
 
 // SEPAMandateSummary is the family's mandate with the mask of its IBAN.
 type SEPAMandateSummary struct {
-	ID            int64             `json:"id,string"`
-	Reference     string            `json:"reference"`
-	SignedOn      calendar.Date     `json:"signed_on"`
-	Kind          string            `json:"kind"`
-	AccountHolder string            `json:"account_holder"`
-	IBANMasked    string            `json:"iban_masked"`
-	BIC           string            `json:"bic"`
-	Source        string            `json:"source"`
-	CreditorID    string            `json:"creditor_id"`
-	RevokedOn     *calendar.Date    `json:"revoked_on"`
-	Proof         *SEPAMandateProof `json:"proof"`
+	CollectionEligible bool              `json:"collection_eligible"`
+	ID                 int64             `json:"id,string"`
+	Reference          string            `json:"reference"`
+	SignedOn           calendar.Date     `json:"signed_on"`
+	Kind               string            `json:"kind"`
+	AccountHolder      string            `json:"account_holder"`
+	IBANMasked         string            `json:"iban_masked"`
+	BIC                string            `json:"bic"`
+	Source             string            `json:"source"`
+	CreditorID         string            `json:"creditor_id"`
+	RevokedOn          *calendar.Date    `json:"revoked_on"`
+	Proof              *SEPAMandateProof `json:"proof"`
 }
 
 // SEPAMandateView is the mandate of the family on a contract. CanManage
@@ -124,9 +125,16 @@ type SEPAMandateView struct {
 	Prefill         *SEPAMandatePrefill  `json:"prefill"`
 }
 
+// SEPAMandateStatus is the lightweight inbox hint for a payer's contract.
+type SEPAMandateStatus struct {
+	Enabled            bool `json:"enabled"`
+	CollectionEligible bool `json:"collection_eligible"`
+}
+
 // SEPAMandates is the port to the Elternabrechnung's mandates; every
 // operation joins the caller's Träger transaction of organizationID.
 type SEPAMandates interface {
+	SEPAMandateStatuses(ctx context.Context, organizationID int64, reader SEPAMandateReader, contractIDs []int64) (map[int64]SEPAMandateStatus, error)
 	SEPAMandate(ctx context.Context, organizationID int64, reader SEPAMandateReader) (SEPAMandateView, error)
 	PreviewSEPAMandate(ctx context.Context, organizationID int64, reader SEPAMandateReader, input SEPAMandateInput) (SEPAMandateText, error)
 	GrantSEPAMandate(ctx context.Context, organizationID int64, reader SEPAMandateReader, input SEPAMandateInput) (SEPAMandateView, error)

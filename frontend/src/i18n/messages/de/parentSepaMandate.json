@@ -6,6 +6,8 @@
   "off": "Ihr Träger nimmt das Mandat nicht in der App an. Fragen Sie den Träger nach einem Formular auf Papier.",
   "creditorMissing": "Ihr Träger kann noch keine Lastschrift annehmen. Bitte versuchen Sie es später noch einmal.",
   "noRight": "Das Mandat erteilen Eltern, die für dieses Kind Anmeldungen abschicken dürfen.",
+  "replacementBadge": "Neues Mandat nötig",
+  "replacementDescription": "Mit diesem Mandat ist keine weitere Abbuchung möglich. Widerrufen Sie es und erteilen Sie ein neues.",
   "activeTitle": "Ihr Mandat",
   "activeDescription": "Ihr Träger bucht die Beiträge von diesem Konto ab.",
   "activeBadge": "Gültig seit {date}",

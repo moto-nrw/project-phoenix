@@ -6,6 +6,8 @@
   "off": "Organ prowadzący nie przyjmuje mandatu w aplikacji. Proszę poprosić o formularz papierowy.",
   "creditorMissing": "Organ prowadzący nie może jeszcze przyjmować poleceń zapłaty. Proszę spróbować później.",
   "noRight": "Mandat udzielają rodzice, którzy mogą wysyłać zgłoszenia dla tego dziecka.",
+  "replacementBadge": "Potrzebne nowe upoważnienie",
+  "replacementDescription": "To upoważnienie nie pozwala na kolejne pobranie środków. Odwołaj je i udziel nowego.",
   "activeTitle": "Państwa mandat",
   "activeDescription": "Organ prowadzący pobiera opłaty z tego konta.",
   "activeBadge": "Ważny od {date}",

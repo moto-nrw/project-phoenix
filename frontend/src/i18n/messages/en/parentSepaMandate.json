@@ -6,6 +6,8 @@
   "off": "Your provider does not accept the mandate in the app. Ask your provider for a paper form.",
   "creditorMissing": "Your provider cannot accept direct debits yet. Please try again later.",
   "noRight": "The mandate is given by parents who may send registrations for this child.",
+  "replacementBadge": "New mandate needed",
+  "replacementDescription": "No further collection is possible with this mandate. Revoke it and grant a new one.",
   "activeTitle": "Your mandate",
   "activeDescription": "Your provider collects the fees from this account.",
   "activeBadge": "Valid since {date}",

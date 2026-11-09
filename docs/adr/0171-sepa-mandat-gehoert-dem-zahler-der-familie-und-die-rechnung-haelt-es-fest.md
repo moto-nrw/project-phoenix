@@ -147,9 +147,14 @@ Entscheidung Yannick vom 09.11.2026 zu
    SHA-256. Beim Erteilen rendert moto den Text erneut und speichert nur bei
    gleicher Prüfsumme. `parent_billing.sepa_mandate_consents` hält Version,
    Prüfsumme, Kanal `parent_account`, Konto, Zeitpunkt, die Bestätigung als
-   Kontoinhaber und was der Text außer dem Mandat nennt. Die Zeile ändert sich nie
-   (Trigger; die Anfragerolle darf nur lesen und einfügen). Der Text nennt die
-   IBAN maskiert; die volle IBAN bleibt versiegelt am Mandat.
+   Kontoinhaber und den exakt bestätigten Text, versiegelt im Bank-Schlüsselring.
+   Spätere Kontokorrekturen ändern diesen Text nicht. Die Anfragerolle darf
+   Nachweise nur lesen und einfügen; der Trigger schützt alle Nachweisfelder.
+   Nur der privilegierte Rekey darf das Chiffrat unter gleichem AAD umschlüsseln,
+   ohne Text, Prüfsumme oder andere Nachweisfelder zu ändern. Der Text nennt
+   die IBAN maskiert; die volle IBAN bleibt versiegelt am Mandat.
+   Der Postfachhinweis wird gesammelt ohne Entschlüsselung oder Nachweisabruf
+   gelesen. Die Gültigkeitsanzeige folgt denselben Regeln wie der Einzug.
 4. **Vorläufig** nur für ein Konto, dessen Inhaber der Elternteil bestätigt. Ein
    Widerruf endet am Tag des Widerrufs; der nächste Lauf zieht nicht mehr ein,
    Lastschriften ohne eingereichte Datei bleiben draußen (`DebitLeftRevoked`).
