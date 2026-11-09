@@ -46,7 +46,7 @@ type TimetableLifecycle struct {
 // Holidays and closing days carry no series occurrences unless the series
 // opts into closing days (#3594); the School Calendar answers. Workforce's
 // open sick reports mark newly planned supervisors absent (#6292).
-func BuildTimetableMaterialization(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, owner TimetableOwner, people PeopleRows, calendar schoolcalendar.Days, absences workforce.AbsenceQuery) (timetable.MaterializationCapability, error) {
+func BuildTimetableMaterialization(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, owner TimetableOwner, people PeopleRows, calendar schoolcalendar.Days, absences SickReportAbsences) (timetable.MaterializationCapability, error) {
 	deps := TimetableMaterializationDependencies(owner.TemplateRows, people.Students, calendar,
 		owner.RecurrenceLock, hub, env.Logger.With("service", "materialization"))
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())

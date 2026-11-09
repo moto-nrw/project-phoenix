@@ -17,15 +17,21 @@ var openSickReportStatuses = []string{
 	workforce.AbsenceStatusQuestion, workforce.AbsenceStatusApproved,
 }
 
+// SickReportAbsences is the one Workforce absence read the materializer's
+// sick-report port needs.
+type SickReportAbsences interface {
+	ListStaffAbsences(context.Context, workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error)
+}
+
 // NewTimetableSickReports binds the materializer's sick-report port to
 // Workforce's absence query (#6292). It reads in the caller's tenant
 // transaction, so row-level security scopes the reports to the school.
-func NewTimetableSickReports(absences workforce.AbsenceQuery) timetablePorts.SickReportReader {
+func NewTimetableSickReports(absences SickReportAbsences) timetablePorts.SickReportReader {
 	return timetableSickReports{absences: absences}
 }
 
 type timetableSickReports struct {
-	absences workforce.AbsenceQuery
+	absences SickReportAbsences
 }
 
 // OpenSickReports lists the full-day sick reports overlapping [from, to] the

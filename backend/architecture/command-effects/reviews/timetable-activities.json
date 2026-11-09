@@ -40296,6 +40296,16 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "reason": "Reviewed read: the materializer lists the open sick reports of its window through modules/workforce/compose.WorkTime.ListStaffAbsences (modules/workforce/internal/application/absence.go:34), a plain filtered select in the caller's tenant transaction. No owned-row mutation or locking read; the day locks the run serializes with are the Timetable owner's (#6292).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "target_owner": "workforce"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.staffNoticeRecords.Acknowledge",
       "classification": "platform",
