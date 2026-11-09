@@ -416,6 +416,12 @@ function TemplateEditorPage({
                     >
                       Vorschau zeigen
                     </Button>
+                    {/* Says why the button rests: nothing new to show. */}
+                    {!previewStale && !previewing ? (
+                      <span className="text-sm text-gray-600">
+                        Die Vorschau ist aktuell.
+                      </span>
+                    ) : null}
                     {canEdit && changed ? (
                       <EditActions
                         onCancel={() => {
