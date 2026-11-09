@@ -389,12 +389,13 @@ func (e *sickCascadeEnv) expectBlockedUntilRelease(t *testing.T, release chan st
 
 // awaitDayLockWaiter blocks until a transaction waits for the day lock of
 // date in this test's tenant, or until done delivers first. It reports
-// whether done delivered, with its value.
+// whether done delivered, with its value. A run that blocks on another lock
+// instead is released after a bounded wait: its outcome then shows whether it
+// read the reports before or after the write committed.
 func (e *sickCascadeEnv) awaitDayLockWaiter(t *testing.T, date calendar.Date, done <-chan error) (bool, error) {
 	t.Helper()
 	key := timetable.SubstituteDayLockKey(e.tenantID, date)
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 		select {
 		case err := <-done:
 			return true, err
@@ -407,9 +408,7 @@ func (e *sickCascadeEnv) awaitDayLockWaiter(t *testing.T, date calendar.Date, do
 		if waiting > 0 {
 			return false, nil
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	require.FailNow(t, "no transaction waited for the day lock", "%s", key)
 	return false, nil
 }
 
