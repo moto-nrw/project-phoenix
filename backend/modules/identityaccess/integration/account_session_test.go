@@ -354,11 +354,16 @@ func TestAccountSessionRevocations(t *testing.T) {
 	require.Len(t, remaining, 1)
 	assert.Equal(t, newFamily, remaining[0].FamilyID)
 
-	byTenant, err := access.RevokeTenantAccountSessions(ctx, testpkg.Tenant(t))
-	require.NoError(t, err)
-	require.Len(t, byTenant, 1)
-	_, err = access.RevokeTenantAccountSessions(ctx, 0)
-	require.ErrorIs(t, err, identityaccess.ErrTenantRequired)
+	// Ending a school's sessions locks accounts and the school across
+	// schools; its callers supply an administrative unit (#6305).
+	require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		byTenant, err := access.RevokeTenantAccountSessions(adminCtx, testpkg.Tenant(t))
+		require.NoError(t, err)
+		require.Len(t, byTenant, 1)
+		_, err = access.RevokeTenantAccountSessions(adminCtx, 0)
+		require.ErrorIs(t, err, identityaccess.ErrTenantRequired)
+		return nil
+	}))
 }
 
 func TestAccountSessionExpirySweepAndReconciliation(t *testing.T) {

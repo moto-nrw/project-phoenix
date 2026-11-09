@@ -396,11 +396,11 @@ func (s *Service) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, ac
 
 // RevokeTenantAccountSessions ends every session of the school. It locks
 // accounts and the school across schools (auth.revoke_school_sessions,
-// #6305), so it joins the caller's transaction or runs administratively,
-// never in a school's own transaction.
+// #6305), which only the administrative role may: callers supply an
+// administrative unit.
 func (s *Service) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
-	err := s.run(ctx, s.tx.RunAdmin, "revoke_tenant_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err := s.run(ctx, s.tx.RunPlatform, "revoke_tenant_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if tenantID <= 0 {
 			return domain.ErrTenantRequired
 		}

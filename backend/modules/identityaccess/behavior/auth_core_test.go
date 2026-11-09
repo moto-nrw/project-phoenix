@@ -2560,8 +2560,14 @@ func TestAuthService_RevokeTokensByTenantID_Success(t *testing.T) {
 
 	testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
 
-	// ACT
-	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+	// ACT — ending a school's sessions joins the administrative unit its
+	// callers (soft delete, demo restart) run in (#6305).
+	var count int
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var revokeErr error
+		count, revokeErr = service.RevokeTokensByTenantID(adminCtx, tenantID)
+		return revokeErr
+	})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -2580,8 +2586,14 @@ func TestAuthService_RevokeTokensByTenantID_NoTokens(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
 
-	// ACT
-	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+	// ACT — ending a school's sessions joins the administrative unit its
+	// callers (soft delete, demo restart) run in (#6305).
+	var count int
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var revokeErr error
+		count, revokeErr = service.RevokeTokensByTenantID(adminCtx, tenantID)
+		return revokeErr
+	})
 
 	// ASSERT
 	require.NoError(t, err)

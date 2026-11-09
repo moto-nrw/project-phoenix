@@ -88,8 +88,10 @@ func TestRevokeTokensByTenantIDEndsARefreshCommittedWhileItWaits(t *testing.T) {
 	}
 
 	waited, revokeErr := runAgainst(t, db, refresh, func() error {
-		_, err := service.RevokeTokensByTenantID(ctx, schoolID)
-		return err
+		return testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+			_, err := service.RevokeTokensByTenantID(adminCtx, schoolID)
+			return err
+		})
 	})
 
 	require.NoError(t, revokeErr)
