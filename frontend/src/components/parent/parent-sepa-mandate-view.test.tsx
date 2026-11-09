@@ -148,6 +148,11 @@ describe("ParentSepaMandateView", () => {
     );
     fireEvent.click(grant);
     expect(await screen.findByText("Ihr Mandat")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Sie erlauben Ihrem Träger, Beiträge von diesem Konto abzubuchen. Wie Sie bezahlen, steht auf Ihrer Rechnung.",
+      ),
+    ).toBeInTheDocument();
     expect(mocks.grant).toHaveBeenCalledWith(
       "4",
       "75",

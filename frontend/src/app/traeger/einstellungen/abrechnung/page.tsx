@@ -135,10 +135,13 @@ export default function TraegerAbrechnungsvorgabenPage() {
     .flatMap((category) => category.items)
     .find((item) => item.key === ONLINE_MANDATE_KEY)?.value;
   const error = metadataLoadError(
-    master.error ?? (canBill ? billing.error : null) ?? null,
+    master.error ??
+      (canBill ? (billing.error ?? settings.loadError) : null) ??
+      null,
     master.loaded || (canBill && billing.data !== null),
     master.failure,
     canBill ? billing.failure : undefined,
+    canBill ? settings.error : undefined,
   );
 
   return (

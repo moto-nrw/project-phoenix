@@ -6,6 +6,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { NumberRange } from "~/lib/traeger-billing-api";
@@ -69,6 +72,7 @@ const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 vi.mock("~/lib/traeger-contributions-api", () => api);
 vi.mock("~/lib/traeger-billing-api", () => billingApi);
 vi.mock("~/lib/traeger-billing-terms-api", async (importOriginal) => ({
@@ -89,7 +93,14 @@ vi.mock("~/lib/traeger-sepa-api", async (importOriginal) => ({
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "A", permissions: session.permissions } },
+    data: {
+      user: {
+        id: "A",
+        scope: "org",
+        orgId: 7,
+        permissions: session.permissions,
+      },
+    },
     status: "authenticated",
   }),
 }));
@@ -133,10 +144,16 @@ const MASTER_DATA = {
 };
 
 function renderPage() {
+  const cache = new Map();
   return render(
     <ToastProvider>
       <TraegerAbrechnungsvorgabenPage />
     </ToastProvider>,
+    {
+      wrapper: ({ children }) => (
+        <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+      ),
+    },
   );
 }
 
@@ -175,6 +192,7 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
       example: "",
     });
     masterApi.fetchTraegerMasterData.mockResolvedValue(MASTER_DATA);
+    masterApi.fetchTraegerSettingsSchema.mockResolvedValue({ tabs: [] });
   });
 
   it("lists the rules by kind and names the kind without a rule", async () => {
@@ -532,6 +550,39 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
+  });
+
+  it("shows a settings load failure without hiding billing data and retries only settings", async () => {
+    masterApi.fetchTraegerSettingsSchema
+      .mockRejectedValueOnce(
+        new ApiError("unavailable", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue({
+        tabs: [
+          {
+            categories: [
+              {
+                items: [{ key: "parent_billing.online_mandate", value: true }],
+              },
+            ],
+          },
+        ],
+      });
+    renderPage();
+    const message = catalogText(
+      "general.unavailable",
+      "die Liste der Einstellungen",
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
+    expect(screen.getAllByText("Elternbeiträge")[0]).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Eingeschaltet")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText(message)).not.toBeInTheDocument(),
+    );
+    expect(masterApi.fetchTraegerSettingsSchema).toHaveBeenCalledTimes(2);
+    expect(billingApi.fetchHolidayNumberRange).toHaveBeenCalledOnce();
   });
 
   it("keeps the bank accounts when reading them again fails (#5685)", async () => {

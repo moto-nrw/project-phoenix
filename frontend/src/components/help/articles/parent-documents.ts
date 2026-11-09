@@ -54,7 +54,7 @@ export function parentDocumentsTopic(): HelpTopic {
       {
         title: "Lastschrift-Mandat erteilen",
         description:
-          "Mit dem Mandat bucht Ihr Träger die Beiträge von Ihrem Konto ab. Das geht nur, wenn Ihr Träger es in der App anbietet. Sonst fehlt der Knopf `Lastschrift`.",
+          "Mit dem Mandat erlauben Sie Ihrem Träger, Beiträge abzubuchen. Wie Sie bezahlen, steht auf Ihrer Rechnung. Das geht nur, wenn Ihr Träger es in der App anbietet. Sonst fehlt der Knopf `Lastschrift`.",
         steps: [
           "Wählen Sie beim Vertrag `Lastschrift`.",
           "Prüfen Sie den `Kontoinhaber`. Tragen Sie die `IBAN` und Ihre Anschrift ein.",
