@@ -16,7 +16,7 @@ export const ENROLLMENT_CHANGE_REQUEST_STATUS_META: Record<
   { readonly label: string; readonly tone: StatusBadgeTone }
 > = {
   pending_review: { label: "Wartet auf Prüfung", tone: "blue" },
-  needs_parent_response: { label: "Rückfrage offen", tone: "orange" },
+  needs_parent_response: { label: "Rückfrage offen", tone: "warning" },
   approved: { label: "Freigegeben", tone: "green" },
   rejected: { label: "Abgelehnt", tone: "red" },
   cancelled: { label: "Zurückgezogen", tone: "gray" },

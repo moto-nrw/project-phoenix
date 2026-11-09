@@ -226,7 +226,7 @@ function HistoryModal({
           {[...events].reverse().map((event) => (
             <li
               key={event.id}
-              className="flex items-baseline justify-between gap-4 py-2.5 text-sm"
+              className="flex flex-col gap-1 py-2.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
             >
               <span className="min-w-0">
                 <span className="block text-gray-900">
@@ -235,6 +235,11 @@ function HistoryModal({
                 <span className="block wrap-anywhere text-gray-500">
                   {mandateEventActor(event, emails)}
                 </span>
+                {event.importFile && event.importLine !== null ? (
+                  <span className="block wrap-anywhere text-gray-600">
+                    Datei: {event.importFile} · Zeile {event.importLine}
+                  </span>
+                ) : null}
               </span>
               <span className="shrink-0 text-gray-500 tabular-nums">
                 {formatBerlinDate(event.occurredAt)},{" "}
@@ -558,7 +563,7 @@ export function SepaMandatesCard({
               label={mandateState(inForce, today).label}
             />
           ) : (
-            <StatusBadge tone="orange" label="Kein gültiges Mandat" />
+            <StatusBadge tone="warning" label="Kein gültiges Mandat" />
           )
         ) : null
       }

@@ -106,7 +106,7 @@ interface DisplayRow {
 
 const STATUS_TONE = {
   ok: { tone: "green", label: "Übernehmbar" },
-  warning: { tone: "orange", label: "Hinweis" },
+  warning: { tone: "warning", label: "Hinweis" },
   error: { tone: "red", label: "Fehler" },
 } as const;
 

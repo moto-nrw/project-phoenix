@@ -69,7 +69,7 @@ function RetentionCell({ doc }: { readonly doc: StaffDocument }) {
     const overdue = doc.reviewDue < berlinTodayISO();
     return (
       <StatusBadge
-        tone={overdue ? "orange" : "gray"}
+        tone={overdue ? "warning" : "gray"}
         label={
           overdue
             ? `Prüfung überfällig seit ${formatDate(doc.reviewDue)}`

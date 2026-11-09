@@ -258,7 +258,7 @@ function NowText({
               ) : block.status === "completed" ? (
                 <StatusBadge tone="gray" label="Beendet" />
               ) : (
-                <StatusBadge tone="orange" label="Nicht gestartet" />
+                <StatusBadge tone="warning" label="Nicht gestartet" />
               )}
               {block.isSubstitute && (
                 <StatusBadge tone="blue" label="Vertretung" />
@@ -348,7 +348,7 @@ function NowText({
           badges={
             notStarted > 0 ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 label={`${notStarted} nicht gestartet`}
               />
             ) : undefined

@@ -58,7 +58,7 @@ const DECLARATION_STATE_META: Record<
   DeclarationChildState,
   { label: string; tone: StatusBadgeTone; title?: string }
 > = {
-  open: { label: "Offen", tone: "orange" },
+  open: { label: "Offen", tone: "warning" },
   partial: {
     label: "Teilweise beantwortet",
     tone: "blue",

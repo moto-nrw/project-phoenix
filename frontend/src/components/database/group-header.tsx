@@ -30,7 +30,7 @@ const HEADER_BG: Record<GroupHeaderVariant, string> = {
 
 const BADGE_TONES: Record<GroupHeaderVariant, StatusBadgeTone> = {
   neutral: "gray",
-  warning: "orange",
+  warning: "warning",
   success: "green",
 };
 

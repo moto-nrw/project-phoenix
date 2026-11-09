@@ -132,7 +132,7 @@ function installmentColumns(
       header: "Fällig",
       render: (rate) =>
         rate.immediatelyDue ? (
-          <StatusBadge label="sofort fällig" tone="orange" size="xs" />
+          <StatusBadge label="sofort fällig" tone="warning" size="xs" />
         ) : (
           <span className="tabular-nums">am {formatDate(rate.dueOn)}</span>
         ),

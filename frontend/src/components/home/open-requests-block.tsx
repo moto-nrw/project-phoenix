@@ -99,7 +99,7 @@ export function OpenRequestsBlock() {
                 href={row.href}
                 trailing={
                   <StatusBadge
-                    tone="orange"
+                    tone="warning"
                     label={`${row.count} ${row.badge ?? "offen"}`}
                   />
                 }

@@ -22,10 +22,10 @@ const CHILD_STATUS_TONES: Record<ChildStatus, StatusBadgeTone> = {
   submitted: "blue",
   under_review: "blue",
   approved: "green",
-  waitlisted: "orange",
+  waitlisted: "warning",
   rejected: "red",
   withdrawn: "gray",
-  pending_renewal: "orange",
+  pending_renewal: "warning",
   auto_renewed: "blue",
   pending_admin_review: "gray",
 };
@@ -47,7 +47,7 @@ export function isHeldForChildQuota(
 }
 
 export function ChildQuotaHeldBadge() {
-  return <StatusBadge label="Wegen Kinderkontingent offen" tone="orange" />;
+  return <StatusBadge label="Wegen Kinderkontingent offen" tone="warning" />;
 }
 
 export function ChildStatusBadge({

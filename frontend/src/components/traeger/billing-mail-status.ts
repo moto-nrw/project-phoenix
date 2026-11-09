@@ -20,7 +20,7 @@ export interface LetterMailState {
   readonly sentAt: string | null;
 }
 
-type BadgeTone = "blue" | "green" | "orange" | "red" | "gray" | "outline";
+type BadgeTone = "blue" | "green" | "warning" | "red" | "gray" | "outline";
 
 const STATUS_TONES: Record<LetterMailStatus, BadgeTone> = {
   not_sent: "gray",
@@ -45,8 +45,8 @@ const MAIL_OUTCOME_BADGES: Partial<
 > = {
   accepted: { label: "Gesendet", tone: "gray" },
   delivered: { label: "Zugestellt", tone: "green" },
-  delayed: { label: "Verzögert", tone: "orange" },
-  overdue: { label: "Überfällig", tone: "orange" },
+  delayed: { label: "Verzögert", tone: "warning" },
+  overdue: { label: "Überfällig", tone: "warning" },
   undeliverable: { label: "Nicht zustellbar", tone: "red" },
   complained: { label: "Nicht zustellbar", tone: "red" },
   blocked: { label: "Nicht gesendet", tone: "gray" },

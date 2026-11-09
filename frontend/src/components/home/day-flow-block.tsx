@@ -208,7 +208,7 @@ export function BlockState({
     return null;
   }
   if (block.isOverdue || (now !== "" && block.startTime <= now)) {
-    return <StatusBadge tone="orange" label="Nicht gestartet" />;
+    return <StatusBadge tone="warning" label="Nicht gestartet" />;
   }
   // Ohne Uhr (vor dem ersten Rendern im Browser) gibt es keinen Abstand.
   if (now === "") return null;
