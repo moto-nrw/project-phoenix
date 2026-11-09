@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
 )
@@ -321,7 +323,8 @@ func newEnrollmentResource(
 		NewEnrollmentGuardianAutofill(guardianProfiles),
 		enrollmentSchoolDirectory{schools: organizations},
 		nativeUploads.UploadFiles{},
-		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation,
+			SavepointControl: func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) }},
 		owners.NewEnrollmentBookings(),
 	)
 	resource.ListExportService = renderer

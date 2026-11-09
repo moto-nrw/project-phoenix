@@ -655,11 +655,17 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 // business guards (inactive phase, active duplicate) surface as 409s with
 // stable codes so the frontend can show specific German messages.
 func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
+	if ended := rs.Failures.requestEnded(r, err); ended != nil {
+		common.RenderError(w, r, ended)
+		return
+	}
 	switch {
 	case errors.Is(err, context.Canceled):
 		common.RenderError(w, r, common.ErrorClientClosed(err))
 	case errors.Is(err, context.DeadlineExceeded):
 		common.RenderError(w, r, common.ErrorRequestTimeout(err))
+	case rs.Failures.savepointControlFailed(r, err):
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	case errors.Is(err, capability.ErrDecisionRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
 	case errors.Is(err, capability.ErrRestoreNothingWithdrawn):
@@ -681,10 +687,11 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 	}
 }
 
-func (rs *Resource) decideErrorRules() []common.ErrorRule {
+func (rs *Resource) decideErrorRules(r *http.Request) []common.ErrorRule {
 	return []common.ErrorRule{
 		{Target: context.Canceled, Render: common.ErrorClientClosed},
 		{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
+		{Match: func(err error) bool { return rs.Failures.savepointControlFailed(r, err) }, Render: common.ErrorInternalServer},
 		{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
 		{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
 		{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
@@ -725,7 +732,11 @@ func (rs *Resource) decideErrorRules() []common.ErrorRule {
 // renderDecideError keeps cancellation and retryable database failures distinct
 // so the frontend can tell terminal decisions from requests worth retrying.
 func (rs *Resource) renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
-	common.RenderError(w, r, common.RenderWithRules(err, rs.decideErrorRules(), common.ErrorInternalServer))
+	if ended := rs.Failures.requestEnded(r, err); ended != nil {
+		common.RenderError(w, r, ended)
+		return
+	}
+	common.RenderError(w, r, common.RenderWithRules(err, rs.decideErrorRules(r), common.ErrorInternalServer))
 }
 
 // newAdminRequestChild maps a decided child model onto the wire shape

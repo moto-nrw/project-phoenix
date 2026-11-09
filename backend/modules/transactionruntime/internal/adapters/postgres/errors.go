@@ -35,7 +35,7 @@ func IsTransientDatabaseError(err error) bool {
 		return len(code) >= 2 && code[:2] == "08"
 	}
 
-	return strings.Contains(err.Error(), "driver: bad connection")
+	return strings.Contains(operationText(err), "driver: bad connection")
 }
 
 // IsConstraintViolation checks if an error is a PostgreSQL constraint violation
@@ -55,7 +55,18 @@ func IsConstraintViolation(err error) bool {
 	}
 
 	// Fallback: string matching for wrapped errors that lost the pgdriver.Error type
-	msg := err.Error()
+	msg := operationText(err)
 	return strings.Contains(msg, "violates foreign key constraint") ||
 		strings.Contains(msg, "violates not-null constraint")
+}
+
+// operationText is the text the textual fallbacks read: the operation's own
+// error. An attached ROLLBACK failure (rollbackDiagnostic) is diagnostics in
+// the full text and must not classify the operation (#6316).
+func operationText(err error) string {
+	var diagnostic *rollbackDiagnostic
+	if errors.As(err, &diagnostic) {
+		return diagnostic.err.Error()
+	}
+	return err.Error()
 }

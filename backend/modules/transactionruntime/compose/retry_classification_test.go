@@ -2,19 +2,16 @@ package compose_test
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,34 +20,14 @@ import (
 
 // #6316: the runtime decides a retry on the operation's own error only. A
 // failed savepoint control (ROLLBACK TO, RELEASE after rollback) is fatal:
-// 500, no retry, nothing written (E19). A failure of the outer ROLLBACK is
-// diagnostics attached to the operation's error and decides nothing.
+// no retry, nothing written (E19). A failure of the outer ROLLBACK is
+// diagnostics attached to the operation's error and decides nothing. A
+// transaction that never started is not replayed either. The tables are in
+// PR #6380, section "Invarianten"; HTTP statuses are measured where a route
+// maps these errors (modules/enrollment/http).
 
-// cleanupSite is the cleanup statement a cell fails.
-type cleanupSite string
-
-const (
-	siteNone             cleanupSite = "none"
-	siteSavepointRestore cleanupSite = "ROLLBACK TO SAVEPOINT"
-	siteSavepointRelease cleanupSite = "RELEASE SAVEPOINT"
-	siteOuterRollback    cleanupSite = "ROLLBACK"
-)
-
-// faultKinds are the failures a main statement or a cleanup statement ends
-// with; "" is an error without SQLSTATE, "bad_conn" is driver.ErrBadConn.
 var mainKinds = []string{"", "23514", "57014", "40P01", "40001"}
 var cleanupKinds = []string{"", "23514", "57014", "40P01", "40001", "bad_conn"}
-
-func injected(kind string) error {
-	switch kind {
-	case "":
-		return errors.New("injected failure without SQLSTATE")
-	case "bad_conn":
-		return driver.ErrBadConn
-	default:
-		return pgdriver.NewError(map[byte]string{'S': "ERROR", 'V': "ERROR", 'C': kind, 'M': "injected " + kind})
-	}
-}
 
 func kindName(kind string) string {
 	if kind == "" {
@@ -59,124 +36,8 @@ func kindName(kind string) string {
 	return kind
 }
 
-// cleanupFault fails the first cleanup statement at site once it is armed.
-// The real statement runs first, so the connection's state stays consistent
-// and only the reported result differs.
-type cleanupFault struct {
-	mu    sync.Mutex
-	site  cleanupSite
-	err   error
-	fired bool
-}
-
-func (f *cleanupFault) arm(site cleanupSite, err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.site, f.err, f.fired = site, err, false
-}
-
-func (f *cleanupFault) take(site cleanupSite) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.fired || f.site != site {
-		return nil
-	}
-	f.fired = true
-	return f.err
-}
-
-func (f *cleanupFault) didFire() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.fired
-}
-
-type cleanupConnector struct {
-	driver.Connector
-	fault *cleanupFault
-}
-
-func (c cleanupConnector) Connect(ctx context.Context) (driver.Conn, error) {
-	conn, err := c.Connector.Connect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &cleanupConn{Conn: conn, fault: c.fault}, nil
-}
-
-type cleanupConn struct {
-	driver.Conn
-	fault *cleanupFault
-}
-
-func (c *cleanupConn) site(query string) cleanupSite {
-	query = strings.TrimSpace(query)
-	for _, site := range []cleanupSite{siteSavepointRestore, siteSavepointRelease} {
-		if strings.HasPrefix(query, string(site)) {
-			return site
-		}
-	}
-	return siteNone
-}
-
-func (c *cleanupConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	result, err := c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
-	if site := c.site(query); site != siteNone {
-		if fault := c.fault.take(site); fault != nil {
-			return nil, fault
-		}
-	}
-	return result, err
-}
-
-func (c *cleanupConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
-}
-
-func (c *cleanupConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	tx, err := c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	return cleanupTx{Tx: tx, fault: c.fault}, nil
-}
-
-func (c *cleanupConn) ResetSession(ctx context.Context) error {
-	if resetter, ok := c.Conn.(driver.SessionResetter); ok {
-		return resetter.ResetSession(ctx)
-	}
-	return nil
-}
-
-func (c *cleanupConn) IsValid() bool {
-	if validator, ok := c.Conn.(driver.Validator); ok {
-		return validator.IsValid()
-	}
-	return true
-}
-
-func (c *cleanupConn) CheckNamedValue(value *driver.NamedValue) error {
-	if checker, ok := c.Conn.(driver.NamedValueChecker); ok {
-		return checker.CheckNamedValue(value)
-	}
-	return driver.ErrSkip
-}
-
-type cleanupTx struct {
-	driver.Tx
-	fault *cleanupFault
-}
-
-func (t cleanupTx) Rollback() error {
-	err := t.Tx.Rollback()
-	if fault := t.fault.take(siteOuterRollback); fault != nil {
-		return fault
-	}
-	return err
-}
-
-// retryOutcome is what a cell observes: the unit's error (500 when set,
-// 200 otherwise), how often the callback ran and how many rows committed.
+// retryOutcome is what a cell observes: whether the unit failed, how often
+// the callback ran and how many rows committed.
 type retryOutcome struct {
 	failed   bool
 	attempts int
@@ -184,16 +45,12 @@ type retryOutcome struct {
 }
 
 func (o retryOutcome) String() string {
-	status := 200
-	if o.failed {
-		status = 500
-	}
-	return fmt.Sprintf("%d/%d attempts/%d rows", status, o.attempts, o.rows)
+	return fmt.Sprintf("failed=%t attempts=%d rows=%d", o.failed, o.attempts, o.rows)
 }
 
 type retryRig struct {
 	super  *bun.DB
-	fault  *cleanupFault
+	faults *testpkg.StatementFaults
 	ctx    context.Context
 	tenant tenant.TenantID
 }
@@ -204,64 +61,47 @@ func newRetryRig(t *testing.T) *retryRig {
 	_, err := super.ExecContext(context.Background(), `CREATE TABLE public.retry_probe (attempt int NOT NULL);
 GRANT SELECT, INSERT ON public.retry_probe TO phoenix_tenant, phoenix_admin`)
 	require.NoError(t, err)
-	fault := &cleanupFault{}
-	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(cleanupConnector{
-		Connector: pgdriver.NewConnector(pgdriver.WithDSN(testpkg.IsolatedTestDSN(t))), fault: fault,
-	})))
-	t.Cleanup(func() { _ = pool.Close() })
+	pool, faults := testpkg.NewStatementFaultPool(t)
 	runtime, err := compose.NewTenantRuntime(pool)
 	require.NoError(t, err)
 	return &retryRig{
-		super: super,
-
-		fault:  fault,
+		super:  super,
+		faults: faults,
 		ctx:    tenant.WithUnitOfWork(context.Background(), runtime),
 		tenant: school(t, testpkg.Tenant(t)),
 	}
 }
 
-// raise ends the current statement with a real server error of kind; an
-// empty kind is an operation error without SQLSTATE.
-func raise(ctx context.Context, kind string) error {
-	if kind == "" {
-		return errors.New("operation failed without SQLSTATE")
-	}
+func unitTx(ctx context.Context) (bun.Tx, error) {
 	raw, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
-		return errors.New("no transaction")
+		return bun.Tx{}, errors.New("no transaction")
 	}
-	_, err := raw.(bun.Tx).ExecContext(ctx, fmt.Sprintf(
-		`DO $$ BEGIN RAISE EXCEPTION 'probe %s' USING ERRCODE = '%s'; END $$`, kind, kind))
-	if err == nil {
-		return errors.New("raise returned no error")
-	}
-	return err
+	return raw.(bun.Tx), nil
 }
 
-// run executes one unit: the callback writes one row, then fails in a
-// savepoint with mainKind on the first failingAttempts attempts.
-func (r *retryRig) run(t *testing.T, admin bool, mainKind string, failingAttempts int) retryOutcome {
+// step runs inside the attempt's savepoint; attempt counts from 1.
+type step func(ctx context.Context, tx bun.Tx, attempt int) error
+
+// run executes one retrying unit: the callback writes one row, then runs
+// inside in a savepoint. The unit's context is ctx (derived from the rig's).
+func (r *retryRig) run(t *testing.T, ctx context.Context, admin bool, inside step) (retryOutcome, error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(r.ctx, 20*time.Second)
-	defer cancel()
-	_, err := r.super.ExecContext(ctx, `TRUNCATE public.retry_probe`)
+	_, err := r.super.ExecContext(context.Background(), `TRUNCATE public.retry_probe`)
 	require.NoError(t, err)
 
 	var attempts atomic.Int32
 	body := func(ctx context.Context) error {
 		attempt := int(attempts.Add(1))
-		raw, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return errors.New("no transaction")
+		tx, err := unitTx(ctx)
+		if err != nil {
+			return err
 		}
-		if _, err := raw.(bun.Tx).ExecContext(ctx, `INSERT INTO public.retry_probe (attempt) VALUES (?)`, attempt); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO public.retry_probe (attempt) VALUES (?)`, attempt); err != nil {
 			return err
 		}
 		return tenant.WithSavepoint(ctx, func(ctx context.Context) error {
-			if attempt > failingAttempts {
-				return nil
-			}
-			return raise(ctx, mainKind)
+			return inside(ctx, tx, attempt)
 		})
 	}
 	if admin {
@@ -269,67 +109,86 @@ func (r *retryRig) run(t *testing.T, admin bool, mainKind string, failingAttempt
 	} else {
 		err = tenant.WithinTenantRetry(ctx, r.tenant, body)
 	}
-	require.NoError(t, ctx.Err(), "the unit ended within its deadline")
 	var rows int
 	require.NoError(t, r.super.NewRaw(`SELECT count(*) FROM public.retry_probe`).Scan(context.Background(), &rows))
-	return retryOutcome{failed: err != nil, attempts: int(attempts.Load()), rows: rows}
+	return retryOutcome{failed: err != nil, attempts: int(attempts.Load()), rows: rows}, err
+}
+
+// failFirst fails the first failing attempts with a real server error of
+// mainKind ("" is an operation error without SQLSTATE).
+func failFirst(mainKind string, failing int) step {
+	return func(ctx context.Context, tx bun.Tx, attempt int) error {
+		if attempt > failing {
+			return nil
+		}
+		if mainKind == "" {
+			return errors.New("operation failed without SQLSTATE")
+		}
+		return testpkg.RaiseSQLState(ctx, tx, mainKind)
+	}
+}
+
+func deadline(t *testing.T, ctx context.Context) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	t.Cleanup(cancel)
+	return ctx
 }
 
 var (
 	failedOnce   = retryOutcome{failed: true, attempts: 1}
 	retriedOnce  = retryOutcome{attempts: 2, rows: 1}
 	retriedFully = retryOutcome{failed: true, attempts: 4}
+	neverRan     = retryOutcome{failed: true}
 )
 
-// expectedCell is the #6316 contract for a main failure that occurs once.
-func expectedCell(mainKind string, site cleanupSite) retryOutcome {
-	retryableMain := mainKind == "40P01" || mainKind == "40001"
-	switch site {
-	case siteSavepointRestore, siteSavepointRelease:
-		return failedOnce
-	}
-	if mainKind == "57014" {
-		// pgdriver closes the connection on 57014, so ROLLBACK TO SAVEPOINT
-		// fails for real: savepoint control failed, fatal.
-		return failedOnce
-	}
-	if retryableMain {
+// expectedCell is table A for a main failure that occurs once.
+func expectedCell(mainKind string, site testpkg.FaultSite) retryOutcome {
+	switch {
+	case site == testpkg.FaultSavepointRestore || site == testpkg.FaultSavepointRelease:
+		return failedOnce // A1/A2: savepoint control failed (E19)
+	case mainKind == "57014":
+		return failedOnce // pgdriver closes the connection: ROLLBACK TO fails for real
+	case mainKind == "40P01" || mainKind == "40001":
 		return retriedOnce
+	default:
+		return failedOnce
 	}
-	return failedOnce
 }
 
+var units = []struct {
+	name  string
+	admin bool
+}{{"tenant", false}, {"admin", true}}
+
+// Table A: operation error once in a savepoint × failed cleanup step.
 func TestRetryDecidesOnTheOperationErrorOnly(t *testing.T) {
 	t.Parallel()
 	rig := newRetryRig(t)
 	type cell struct {
-		site cleanupSite
+		site testpkg.FaultSite
 		kind string
 	}
-	cells := []cell{{site: siteNone}}
-	for _, site := range []cleanupSite{siteSavepointRestore, siteSavepointRelease, siteOuterRollback} {
+	cells := []cell{{site: testpkg.FaultNone}}
+	for _, site := range []testpkg.FaultSite{testpkg.FaultSavepointRestore, testpkg.FaultSavepointRelease, testpkg.FaultRollback} {
 		for _, kind := range cleanupKinds {
 			cells = append(cells, cell{site: site, kind: kind})
 		}
 	}
-	for _, unit := range []struct {
-		name  string
-		admin bool
-	}{{"tenant", false}, {"admin", true}} {
+	for _, unit := range units {
 		for _, mainKind := range mainKinds {
 			for _, c := range cells {
 				name := fmt.Sprintf("%s/main_%s/%s_%s", unit.name, kindName(mainKind), strings.ReplaceAll(string(c.site), " ", "_"), kindName(c.kind))
-				if c.site == siteNone {
+				if c.site == testpkg.FaultNone {
 					name = fmt.Sprintf("%s/main_%s/cleanup_ok", unit.name, kindName(mainKind))
 				}
 				t.Run(name, func(t *testing.T) {
-					rig.fault.arm(c.site, injected(c.kind))
-					got := rig.run(t, unit.admin, mainKind, 1)
-					want := expectedCell(mainKind, c.site)
+					rig.faults.Arm(c.site, testpkg.InjectedFailure(c.kind))
+					got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, failFirst(mainKind, 1))
 					t.Logf("CELL %s %s", name, got)
-					require.Equal(t, want, got)
-					if c.site != siteNone && mainKind != "57014" {
-						require.True(t, rig.fault.didFire(), "the cleanup fault fired")
+					require.Equal(t, expectedCell(mainKind, c.site), got, "error: %v", err)
+					if c.site != testpkg.FaultNone && mainKind != "57014" {
+						require.True(t, rig.faults.Fired(), "the cleanup fault fired")
 					}
 				})
 			}
@@ -343,21 +202,163 @@ func TestRetryDecidesOnTheOperationErrorOnly(t *testing.T) {
 func TestRetryKeepsItsBudgetDespiteOuterRollbackDiagnostics(t *testing.T) {
 	t.Parallel()
 	rig := newRetryRig(t)
-	for _, admin := range []bool{false, true} {
+	for _, unit := range units {
 		for _, mainKind := range []string{"40P01", "40001"} {
 			for _, kind := range append([]string{"ok"}, cleanupKinds...) {
-				name := fmt.Sprintf("admin_%t/main_%s/outer_rollback_%s", admin, mainKind, kindName(kind))
+				name := fmt.Sprintf("%s/main_%s/outer_rollback_%s", unit.name, mainKind, kindName(kind))
 				t.Run(name, func(t *testing.T) {
 					if kind == "ok" {
-						rig.fault.arm(siteNone, nil)
+						rig.faults.Arm(testpkg.FaultNone, nil)
 					} else {
-						rig.fault.arm(siteOuterRollback, injected(kind))
+						rig.faults.Arm(testpkg.FaultRollback, testpkg.InjectedFailure(kind))
 					}
-					got := rig.run(t, admin, mainKind, 4)
+					got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, failFirst(mainKind, 4))
 					t.Logf("CELL %s %s", name, got)
-					require.Equal(t, retriedFully, got)
+					require.Equal(t, retriedFully, got, "error: %v", err)
 				})
 			}
+		}
+	}
+}
+
+// Table B: the connection breaks or the request context ends inside a
+// savepoint. Nothing is replayed and nothing commits.
+func TestRetryAfterConnectionLossOrContextEnd(t *testing.T) {
+	t.Parallel()
+	rig := newRetryRig(t)
+	for _, unit := range units {
+		t.Run(unit.name+"/B1_connection_lost_in_savepoint", func(t *testing.T) {
+			got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, rig.terminateOnce())
+			t.Logf("CELL B1 %s %s", unit.name, got)
+			require.Equal(t, failedOnce, got, "error: %v", err)
+			require.ErrorIs(t, err, tenant.ErrSavepointControl, "ROLLBACK TO failed on the dead connection")
+		})
+		t.Run(unit.name+"/B3_request_cancelled_in_savepoint", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(deadline(t, rig.ctx))
+			defer cancel()
+			got, err := rig.run(t, ctx, unit.admin, func(ctx context.Context, tx bun.Tx, _ int) error {
+				cancel()
+				_, err := tx.ExecContext(ctx, `SELECT 1`)
+				return err
+			})
+			t.Logf("CELL B3 %s %s", unit.name, got)
+			require.Equal(t, failedOnce, got, "error: %v", err)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+		t.Run(unit.name+"/B4_request_deadline_in_savepoint", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(rig.ctx, 300*time.Millisecond)
+			defer cancel()
+			got, err := rig.run(t, ctx, unit.admin, func(ctx context.Context, tx bun.Tx, _ int) error {
+				_, err := tx.ExecContext(ctx, `SELECT pg_sleep(5)`)
+				return err
+			})
+			t.Logf("CELL B4 %s %s", unit.name, got)
+			require.Equal(t, failedOnce, got, "error: %v", err)
+			// pgdriver reports the expired deadline either as the context's
+			// error or as the network read timeout it derived from it.
+			require.True(t, errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded), "deadline in chain: %v", err)
+		})
+	}
+}
+
+// terminateOnce ends the attempt's own backend from the superuser pool in
+// the first attempt and then uses the dead connection.
+func (r *retryRig) terminateOnce() step {
+	return func(ctx context.Context, tx bun.Tx, attempt int) error {
+		if attempt > 1 {
+			return nil
+		}
+		var pid int
+		if err := tx.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &pid); err != nil {
+			return err
+		}
+		var terminated bool
+		if err := r.super.NewRaw(`SELECT pg_terminate_backend(?, 5000)`, pid).Scan(ctx, &terminated); err != nil {
+			return err
+		}
+		if !terminated {
+			return errors.New("backend was not terminated")
+		}
+		_, err := tx.ExecContext(ctx, `SELECT 1`)
+		if err == nil {
+			return errors.New("statement on a terminated backend succeeded")
+		}
+		return err
+	}
+}
+
+// Table C: COMMIT fails. Only a COMMIT the server reports as a deadlock or
+// serialization failure (rolled back) is replayed; a COMMIT with unknown
+// outcome is never replayed, whether or not it was applied.
+func TestRetryAtCommit(t *testing.T) {
+	t.Parallel()
+	rig := newRetryRig(t)
+	ok := func(context.Context, bun.Tx, int) error { return nil }
+	cases := []struct {
+		name    string
+		site    testpkg.FaultSite
+		kind    string
+		want    retryOutcome
+		unknown bool
+	}{
+		{"C1_40001_rolled_back", testpkg.FaultCommitDiscarded, "40001", retriedOnce, false},
+		{"C1_40P01_rolled_back", testpkg.FaultCommitDiscarded, "40P01", retriedOnce, false},
+		{"C2_23505", testpkg.FaultCommitDiscarded, "23505", failedOnce, true},
+		{"C3_bad_conn_applied", testpkg.FaultCommitApplied, "bad_conn", retryOutcome{failed: true, attempts: 1, rows: 1}, true},
+		{"C4_bad_conn_discarded", testpkg.FaultCommitDiscarded, "bad_conn", failedOnce, true},
+	}
+	for _, unit := range units {
+		for _, c := range cases {
+			t.Run(unit.name+"/"+c.name, func(t *testing.T) {
+				rig.faults.Arm(c.site, testpkg.InjectedFailure(c.kind))
+				got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, ok)
+				t.Logf("CELL %s %s %s", c.name, unit.name, got)
+				require.True(t, rig.faults.Fired())
+				require.Equal(t, c.want, got, "error: %v", err)
+				var outcome interface{ CommitOutcomeUnknown() }
+				require.Equal(t, c.unknown, errors.As(err, &outcome), "commit outcome unknown: %v", err)
+			})
+		}
+		t.Run(unit.name+"/C5_request_cancelled_before_commit", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(deadline(t, rig.ctx))
+			defer cancel()
+			rig.faults.Arm(testpkg.FaultNone, nil)
+			got, err := rig.runThen(t, ctx, unit.admin, cancel)
+			t.Logf("CELL C5 %s %s", unit.name, got)
+			require.Equal(t, failedOnce, got, "error: %v", err)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
+
+// runThen runs a unit whose callback writes one row and then calls after.
+func (r *retryRig) runThen(t *testing.T, ctx context.Context, admin bool, after func()) (retryOutcome, error) {
+	t.Helper()
+	return r.run(t, ctx, admin, func(context.Context, bun.Tx, int) error {
+		after()
+		return nil
+	})
+}
+
+// Table D: BEGIN fails once. A transaction that never started runs no
+// callback and is not replayed, whatever SQLSTATE the start failure carries
+// (D1 changed with #6316; D2/D3 unchanged).
+func TestRetryNeverReplaysAFailedStart(t *testing.T) {
+	t.Parallel()
+	rig := newRetryRig(t)
+	ok := func(context.Context, bun.Tx, int) error { return nil }
+	for _, unit := range units {
+		for _, kind := range []string{"40P01", "40001", "bad_conn", "23514", ""} {
+			name := fmt.Sprintf("%s/begin_%s", unit.name, kindName(kind))
+			t.Run(name, func(t *testing.T) {
+				rig.faults.Arm(testpkg.FaultBegin, testpkg.InjectedFailure(kind))
+				got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, ok)
+				t.Logf("CELL D %s %s", name, got)
+				require.True(t, rig.faults.Fired())
+				require.Equal(t, neverRan, got, "error: %v", err)
+				var notStarted interface{ TransactionNotStarted() }
+				require.ErrorAs(t, err, &notStarted)
+			})
 		}
 	}
 }
