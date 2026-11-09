@@ -374,7 +374,7 @@ export function BillingRunOverviewCard({
             ariaLabel={rowMenuLabel(document)}
             items={[
               {
-                label: "Aufschlüsselung ansehen",
+                label: "Aufschlüsselung zeigen",
                 onClick: () => setShownKey(rowKey(document)),
               },
               ...(canPreview && document.id

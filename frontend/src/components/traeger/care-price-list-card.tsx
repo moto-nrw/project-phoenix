@@ -221,7 +221,8 @@ export function CarePriceListCard({
       ? `Abgerechnet bis ${formatMonth(billedUntil)}. Preise, mit denen schon abgerechnet ist, bleiben. Fehlende Preise können Sie ergänzen.`
       : null,
     !siblingPricesApply && hasSiblingPrices(rows)
-      ? "Die Preise für „Jedes weitere Kind“ nutzt zurzeit keine Geschwisterregel. Welche Ermäßigung für Geschwister gilt, steht unter „Ermäßigungen“."
+      ? // The table hides those prices then: name no column it lacks.
+        "Gespeicherte Preise für weitere Kinder gelten zurzeit nicht. Für Geschwister gilt die Ermäßigung unter „Ermäßigungen“."
       : null,
   ]
     .filter(Boolean)

@@ -77,7 +77,7 @@ function ShareStatus({ share }: Readonly<{ share: CareCostShare }>) {
     case "expired":
       return <StatusBadge tone="gray" label="Abgelaufen" />;
     default:
-      return <StatusBadge tone="green" label="Gilt" />;
+      return <StatusBadge tone="green" label="Gilt jetzt" />;
   }
 }
 

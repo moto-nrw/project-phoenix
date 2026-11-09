@@ -275,7 +275,7 @@ export function CarePriceListModal({
             value={month}
             options={[...months].reverse().map((value) => ({
               value,
-              label: `1. ${formatMonth(value)}`,
+              label: formatMonth(value),
             }))}
             onChange={setMonth}
             error={formErrors.fieldError("valid_from")}

@@ -357,7 +357,7 @@ export function CareRuleModal({
             value={draft.validFrom}
             options={months.map((value) => ({
               value,
-              label: `1. ${formatMonth(value)}`,
+              label: formatMonth(value),
             }))}
             error={formErrors.fieldError("valid_from")}
             onChange={(value) => set({ validFrom: value })}

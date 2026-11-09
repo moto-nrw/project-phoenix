@@ -91,7 +91,7 @@ export function TraegerBankAccountsCard({
         <span className="flex min-w-0 flex-wrap items-center gap-2 font-medium text-gray-900">
           <span className="min-w-0 wrap-anywhere">{account.label}</span>
           {account.isDefault ? (
-            <StatusBadge label="Standard" tone="green" compact />
+            <StatusBadge label="Standard" tone="gray" compact />
           ) : (
             // Only the standard account is printed: say so at the others.
             <StatusBadge label="Auf keinem Brief" tone="gray" compact />

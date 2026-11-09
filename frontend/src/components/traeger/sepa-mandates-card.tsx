@@ -311,7 +311,7 @@ function FamilyMandates({
                   {inForce.ibanMasked}
                 </span>
                 <span className="block text-gray-600">
-                  {inForce.accountHolder}
+                  Kontoinhaber: {inForce.accountHolder}
                 </span>
               </DataField>
               <DataField label="Unterschrieben am">
@@ -455,7 +455,7 @@ export function SepaMandatesCard({
             {mandate.ibanMasked.replace(/ (\S+)$/, "\u00A0$1")}
           </span>
           <span className="block truncate text-sm text-gray-500">
-            {mandate.accountHolder}
+            Kontoinhaber: {mandate.accountHolder}
           </span>
         </span>
       ),

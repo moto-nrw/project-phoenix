@@ -206,7 +206,7 @@ async function openInvoiceMenu() {
 async function showBreakdown() {
   await openInvoiceMenu();
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: "Aufschlüsselung ansehen" }),
+    await screen.findByRole("menuitem", { name: "Aufschlüsselung zeigen" }),
   );
   return screen.findByRole("dialog", { name: "Rechnung an Eva Muster" });
 }
@@ -559,7 +559,7 @@ describe("TraegerBillingRunPage", () => {
     // The row menu only shows the breakdown; nothing changes the invoice.
     await openInvoiceMenu();
     const breakdown = await screen.findByRole("menuitem", {
-      name: "Aufschlüsselung ansehen",
+      name: "Aufschlüsselung zeigen",
     });
     expect(
       screen.queryByRole("menuitem", { name: /korrigieren/ }),
@@ -975,7 +975,7 @@ describe("TraegerBillingRunPage", () => {
       ).not.toBeInTheDocument();
       fireEvent.click(
         await screen.findByRole("menuitem", {
-          name: "Aufschlüsselung ansehen",
+          name: "Aufschlüsselung zeigen",
         }),
       );
       const panel = await screen.findByRole("dialog", {

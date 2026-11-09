@@ -21,6 +21,7 @@ import {
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
 import { BILLING_PERIOD_PARAM } from "~/components/traeger/use-holiday-period-billing-href";
+import { invoiceCountLabel } from "~/components/traeger/care-billing-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Button } from "~/components/ui/button";
@@ -94,12 +95,15 @@ const columnsFor = (
     key: "days",
     header: "Betreuung",
     render: (run) => formatDateRange(run.serviceFrom, run.serviceUntil),
+    // On a phone the title keeps one line; the run's number leads the
+    // line below, so two runs of one period still differ.
     stackedRender: (run) =>
       [
+        ordinals.has(run.id) ? `${ordinals.get(run.id)}. Lauf` : null,
         formatDateRange(run.serviceFrom, run.serviceUntil),
         run.documentCount === null
           ? null
-          : `${run.documentCount} ${run.documentCount === 1 ? "Rechnung" : "Rechnungen"} · ${formatEuro(run.totalCents ?? 0)}`,
+          : `${invoiceCountLabel(run.documentCount)} · ${formatEuro(run.totalCents ?? 0)}`,
         run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
       ]
         .filter(Boolean)
@@ -121,10 +125,17 @@ const columnsFor = (
   {
     key: "invoices",
     header: "Rechnungen",
+    // Same cell as the monthly runs: count with its word, or why none.
     render: (run) =>
-      run.documentCount === null
-        ? "–"
-        : `${run.documentCount} · ${formatEuro(run.totalCents ?? 0)}`,
+      run.documentCount === null ? (
+        <span className="whitespace-nowrap text-gray-600">
+          noch nicht ausgestellt
+        </span>
+      ) : (
+        <span className="whitespace-nowrap tabular-nums">
+          {`${invoiceCountLabel(run.documentCount)} · ${formatEuro(run.totalCents ?? 0)}`}
+        </span>
+      ),
     stacked: "hidden",
   },
   {

@@ -41,7 +41,7 @@ function columns(currentMonth: string): DataTableColumn<CareMealTariff>[] {
       stacked: "title",
       render: (tariff) => (
         <span className="font-medium text-gray-900">
-          1. {formatMonth(tariff.validFrom)}
+          {formatMonth(tariff.validFrom)}
         </span>
       ),
     },
@@ -110,7 +110,7 @@ export function CareMealSchoolCard({
   const description = current
     ? ""
     : stands.length > 0
-      ? `Ab 1. ${formatMonth(stands[0]?.validFrom ?? currentMonth)} geplant.`
+      ? `Ab ${formatMonth(stands[0]?.validFrom ?? currentMonth)} geplant.`
       : "Noch kein Mensa-Preis. Ohne Preis rechnet der Monatslauf die Mensa dieser Schule nicht ab.";
 
   return (

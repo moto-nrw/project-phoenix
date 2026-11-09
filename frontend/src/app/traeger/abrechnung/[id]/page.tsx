@@ -257,12 +257,13 @@ export default function TraegerBillingRunPage() {
     })),
     ...mandatePoints.map((text) => ({ text })),
   ];
+  // Belongs to the invoice sum it is part of, not to the cost bearers'.
   const carriedNote =
     carriedCount === 0
       ? ""
       : carriedCount === 1
-        ? " Darin enthalten: 1 übernommene Korrektur aus einer stornierten Rechnung."
-        : ` Darin enthalten: ${carriedCount} übernommene Korrekturen aus stornierten Rechnungen.`;
+        ? " (darin 1 übernommene Korrektur aus einer stornierten Rechnung)"
+        : ` (darin ${carriedCount} übernommene Korrekturen aus stornierten Rechnungen)`;
   const releaseWarns = paymentTextGaps > 0 || openPoints.length > 0;
   // The run sum is what the families pay; cost bearers pay their share
   // apart, so the summary names both.
@@ -365,12 +366,11 @@ export default function TraegerBillingRunPage() {
             >
               <p className="text-sm text-gray-700">
                 {run.previewCount === 1
-                  ? `1 Rechnung über ${formatEuro(run.previewCents)} bekommt ihre Nummer. Danach lässt sie sich nicht mehr ändern.`
-                  : `${run.previewCount} Rechnungen über ${formatEuro(run.previewCents)} bekommen ihre Nummer. Danach lassen sie sich nicht mehr ändern.`}
+                  ? `1 Rechnung über ${formatEuro(run.previewCents)}${carriedNote} bekommt ihre Nummer. Danach lässt sie sich nicht mehr ändern.`
+                  : `${run.previewCount} Rechnungen über ${formatEuro(run.previewCents)}${carriedNote} bekommen ihre Nummer. Danach lassen sie sich nicht mehr ändern.`}
                 {takeoverCents > 0
                   ? ` Kostenträger übernehmen zusätzlich ${formatEuro(takeoverCents)}.`
                   : ""}
-                {carriedNote}
               </p>
               {paymentTextGaps > 0 ? (
                 <Alert
@@ -460,7 +460,7 @@ export default function TraegerBillingRunPage() {
                       )}
                     </span>{" "}
                     <span className="text-gray-600">
-                      (die Nummer vergibt die Freigabe)
+                      (die Rechnungsnummer kommt mit der Freigabe)
                     </span>
                   </>
                 ) : (

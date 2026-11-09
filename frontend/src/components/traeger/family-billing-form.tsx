@@ -185,6 +185,7 @@ const DUE_DAY_OPTIONS = [
 export function FamilyBillingForm({
   target,
   existing,
+  runDueText,
   onCancel,
   onSaved,
 }: Readonly<{
@@ -192,6 +193,11 @@ export function FamilyBillingForm({
   target: FamilyBillingTarget;
   /** The family's deviation as stored, null without one. */
   existing: FamilyBilling | null;
+  /**
+   * The run's due dates as the run page names them („Überweisung am …“),
+   * so „Wie im Lauf“ says which dates it takes. Missing outside a run.
+   */
+  runDueText?: string | null;
   onCancel: () => void;
   onSaved: (family: FamilyBilling | null) => void;
 }>) {
@@ -418,6 +424,11 @@ export function FamilyBillingForm({
             </ChoiceTile>
           ))}
         </div>
+        {/* The precondition where the person chooses the debit. */}
+        <p className="text-sm text-gray-600">
+          Lastschrift geht nur mit gültigem Mandat. Den Stand sehen Sie unten
+          unter „SEPA-Lastschriftmandat“.
+        </p>
       </div>
       <CustomSelect
         id={id("due-day")}
@@ -425,7 +436,11 @@ export function FamilyBillingForm({
         label="Zahltag"
         value={draft.dueDay}
         options={DUE_DAY_OPTIONS}
-        hint="Fällig ist der nächste gewählte Tag nach dem Rechnungsdatum. „Wie im Lauf“ nimmt das Datum des Laufs."
+        hint={`Fällig ist der nächste gewählte Tag nach dem Rechnungsdatum. ${
+          runDueText
+            ? `„Wie im Lauf“: ${runDueText}.`
+            : "„Wie im Lauf“ nimmt die Fälligkeit des Laufs."
+        }`}
         error={fieldError("due_day")}
         onChange={(dueDay) => set({ dueDay })}
       />

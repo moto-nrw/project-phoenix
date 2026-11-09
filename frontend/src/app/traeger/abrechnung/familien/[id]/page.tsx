@@ -288,7 +288,7 @@ export default function TraegerBillingFamilyPage() {
           </SectionCard>
           <SectionCard
             title="Dokumente"
-            description="Rechnungen, Stornos und Gutschriften, das neueste zuerst. Ein Klick öffnet den Abrechnungslauf."
+            description="Rechnungen, Stornos und Gutschriften, das neueste zuerst. Jede Zeile öffnet ihren Abrechnungslauf."
           >
             <DataTable
               columns={COLUMNS}

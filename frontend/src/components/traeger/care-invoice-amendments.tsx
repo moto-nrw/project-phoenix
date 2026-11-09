@@ -139,7 +139,7 @@ export function CareAmendedInvoiceCard({
       description={
         issued
           ? "Ausgestellt. Die Rechnung ändert sich nicht mehr."
-          : "Vorschau mit allen Änderungen. Die Nummer gibt erst die Freigabe."
+          : "Vorschau mit allen Änderungen. Die Rechnungsnummer kommt mit der Freigabe."
       }
       overflow="visible"
     >

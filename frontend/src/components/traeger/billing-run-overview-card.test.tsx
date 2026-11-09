@@ -196,7 +196,7 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
       fireEvent.click(menu);
       expect(
         await screen.findByRole("menuitem", {
-          name: "Aufschlüsselung ansehen",
+          name: "Aufschlüsselung zeigen",
         }),
       ).toBeInTheDocument();
       // Anker: das Menü der geladenen Rechnungszeile ist offen.
@@ -204,7 +204,7 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
       expect(api.downloadBillingLetter).not.toHaveBeenCalled();
 
       fireEvent.click(
-        screen.getByRole("menuitem", { name: "Aufschlüsselung ansehen" }),
+        screen.getByRole("menuitem", { name: "Aufschlüsselung zeigen" }),
       );
       expect(
         await screen.findByRole("dialog", { name: "Rechnung an Eva Muster" }),

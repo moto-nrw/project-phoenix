@@ -132,7 +132,7 @@ function runColumns(
     },
     {
       key: "rule",
-      header: "Vertrag ändert sich im Monat",
+      header: "Bei Vertragsänderung im Monat",
       render: (run) => (run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"),
       stacked: "hidden",
     },

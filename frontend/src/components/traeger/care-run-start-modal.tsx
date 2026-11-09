@@ -180,7 +180,7 @@ export function CareRunStartModal({
               variant="primary"
               size="md"
             >
-              Lauf {formatMonth(month)} öffnen
+              Lauf öffnen
             </ButtonLink>
           </div>
         ) : (

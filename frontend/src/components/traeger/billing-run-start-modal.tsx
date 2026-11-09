@@ -220,12 +220,9 @@ export function BillingRunStartModal({
           ? {
               values: [...open.keys()],
               hint: "Für diesen Ferienzeitraum ist schon ein Lauf in der Vorschau. Öffnen Sie ihn, statt einen neuen zu starten.",
-              openLabel: (periodId) => {
-                const name = periods.find(
-                  (period) => period.id === periodId,
-                )?.name;
-                return name ? `Lauf ${name} öffnen` : "Lauf öffnen";
-              },
+              // The select above names the period; a long period name
+              // would push the action under „Abbrechen“.
+              openLabel: () => "Lauf öffnen",
               onOpen: (periodId) => {
                 const runId = open.get(periodId);
                 if (runId) onOpenRun(runId);

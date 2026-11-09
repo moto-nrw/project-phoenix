@@ -268,7 +268,7 @@ export default function TraegerBillingFamiliesPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Name, E-Mail oder Debitorennummer",
+        placeholder: "Name, E-Mail oder Nummer",
       }}
       filters={filters}
       activeFilters={activeFilters}

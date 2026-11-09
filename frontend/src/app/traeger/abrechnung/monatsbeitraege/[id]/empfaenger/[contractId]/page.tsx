@@ -8,7 +8,10 @@
 import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
+import {
+  findFamilyBilling,
+  runDueDatesText,
+} from "~/components/traeger/billing-payment-format";
 import { formatMonth } from "~/components/traeger/care-billing-format";
 import { FamilyBillingForm } from "~/components/traeger/family-billing-form";
 import { SectionCard } from "~/components/ui/section-card";
@@ -119,6 +122,7 @@ export default function TraegerFamilyBillingPage() {
               issued: loaded.invoice.number !== "",
             }}
             existing={loaded.existing}
+            runDueText={runDueDatesText(loaded.run.dueDates ?? [])}
             onCancel={() => router.push(runHref)}
             onSaved={() => router.push(runHref)}
           />

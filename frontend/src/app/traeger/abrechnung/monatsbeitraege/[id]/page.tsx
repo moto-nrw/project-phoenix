@@ -474,6 +474,7 @@ export default function TraegerCareRunPage() {
             <WizardStepper
               steps={RUN_STEPS}
               current={preview ? 0 : 1}
+              labeled
               className="mb-5"
             />
             <DataGrid columns={2}>
@@ -547,7 +548,7 @@ export default function TraegerCareRunPage() {
               <DataField label="Abgerechnet wird">
                 Module nach Vertrag, Mensa nach Freigabe der Schule
               </DataField>
-              <DataField label="Vertrag ändert sich im Monat">
+              <DataField label="Bei Vertragsänderung im Monat">
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
               </DataField>
               <DataField label="Dokumentart">
@@ -563,7 +564,7 @@ export default function TraegerCareRunPage() {
                       )}
                     </span>{" "}
                     <span className="text-gray-600">
-                      (die Nummer vergibt die Freigabe)
+                      (die Rechnungsnummer kommt mit der Freigabe)
                     </span>
                   </>
                 ) : (
@@ -638,8 +639,9 @@ export default function TraegerCareRunPage() {
             />
           ) : null}
           {preview && (run.uncountedFamilies ?? 0) > 0 ? (
+            // The release lists it under „Noch offen“: orange here too.
             <Alert
-              type="info"
+              type="warning"
               message={`${run.uncountedFamilies === 1 ? "Für 1 Familie" : `Für ${run.uncountedFamilies ?? 0} Familien`} gibt es in diesem Monat keine bestätigte Kinderzahl. Die Geschwisterregel zählt dort nur die Kinder mit Vertrag.`}
               action={
                 <ButtonLink
