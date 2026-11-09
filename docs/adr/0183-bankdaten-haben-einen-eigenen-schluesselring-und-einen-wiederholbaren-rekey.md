@@ -173,3 +173,13 @@ Rollout kommt nach Schritt 4 je Umgebung der Schulblock aus ADR 0188 hinzu,
 zweimal vollständig und mit `changed_total=0`. Schritt 5 (Legacy-Ring leeren,
 Abschlusslauf ohne Legacy) umfasst dann beide Blöcke. Die Klartextspalten
 entfernt erst ein späteres Release (Migration 1.15.839).
+
+## Ergänzung: bestätigte Mandatstexte (#4696)
+
+Der unveränderliche Online-Nachweis speichert den exakt bestätigten Text
+versiegelt in `parent_billing.sepa_mandate_consents.text_sealed`. Der Rekey
+verarbeitet dafür zusätzlich die Quelle `consents`, einschließlich Nachweisen
+widerrufener Mandate. Er sperrt und filtert die Nachweiszeilen nach Träger,
+behält das AAD aus Feld, Träger und Mandatsreferenz bei und ändert ausschließlich
+das Chiffrat. Text, Prüfsumme und übrige Nachweisfelder bleiben gleich.
+Die Rotationsprüfung verlangt `changed_total=0` für alle drei Quellen des Trägers (`mandates`, `debits`, `consents`).

@@ -6470,6 +6470,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p parentMandateParties) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := p.billing.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentMandateParties.Recipients",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (n parentMessageNotifier) NotifyStaffParentMessage(ctx context.Context, report parentportal.StaffParentMessageReport) error {\n\treturn n.notifier.NotifyStaffParentMessage(ctx, deliveryCompose.StaffParentMessageReport{TenantID: report.TenantID, ThreadID: report.ThreadID, MessageID: report.MessageID, StudentID: report.StudentID, ActorAccountID: report.ActorAccountID, Leadership: report.Leadership})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentMessageNotifier.NotifyStaffParentMessage",
@@ -6515,6 +6522,41 @@
       "evidence": "func (r parentReleaseSchools) TraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {\n\tschools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tids := make([]int64, 0, len(schools))\n\tfor _, school := range schools {\n\t\tif !school.IsDeleted() {\n\t\t\tids = append(ids, school.ID)\n\t\t}\n\t}\n\treturn ids, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentReleaseSchools.TraegerSchoolIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m parentSEPAMandates) GrantSEPAMandate(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader, input parentportal.SEPAMandateInput) (parentportal.SEPAMandateView, error) {\n\tview, err := m.mandates.GrantParentSEPAMandate(ctx, organizationID, parentbilling.ParentMandateReader(reader), parentbilling.ParentMandateInput(input))\n\treturn parentMandateView(view), parentMandateError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSEPAMandates.GrantSEPAMandate",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m parentSEPAMandates) PreviewSEPAMandate(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader, input parentportal.SEPAMandateInput) (parentportal.SEPAMandateText, error) {\n\ttext, err := m.mandates.PreviewParentSEPAMandate(ctx, organizationID, parentbilling.ParentMandateReader(reader), parentbilling.ParentMandateInput(input))\n\treturn parentportal.SEPAMandateText(text), parentMandateError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSEPAMandates.PreviewSEPAMandate",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m parentSEPAMandates) RevokeSEPAMandate(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader) (parentportal.SEPAMandateView, error) {\n\tview, err := m.mandates.RevokeParentSEPAMandate(ctx, organizationID, parentbilling.ParentMandateReader(reader))\n\treturn parentMandateView(view), parentMandateError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSEPAMandates.RevokeSEPAMandate",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m parentSEPAMandates) SEPAMandate(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader) (parentportal.SEPAMandateView, error) {\n\tview, err := m.mandates.ParentSEPAMandate(ctx, organizationID, parentbilling.ParentMandateReader(reader))\n\treturn parentMandateView(view), parentMandateError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSEPAMandates.SEPAMandate",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m parentSEPAMandates) SEPAMandateStatuses(ctx context.Context, organizationID int64, reader parentportal.SEPAMandateReader, contractIDs []int64) (map[int64]parentportal.SEPAMandateStatus, error) {\n\tstatuses, err := m.mandates.ParentSEPAMandateStatuses(ctx, organizationID, parentbilling.ParentMandateReader(reader), contractIDs)\n\tif err != nil {\n\t\treturn nil, parentMandateError(err)\n\t}\n\tout := make(map[int64]parentportal.SEPAMandateStatus, len(statuses))\n\tfor id, status := range statuses {\n\t\tout[id] = parentportal.SEPAMandateStatus(status)\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSEPAMandates.SEPAMandateStatuses",
       "owner": "roots"
     },
     {

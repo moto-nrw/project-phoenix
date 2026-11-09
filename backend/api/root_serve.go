@@ -427,7 +427,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations, owners.NewParentContractNotices(settings.Traeger, owners.DeliveryModuleOf(delivery), owners.NewCareContractSchoolHolidays(settings.Service, calendar)), careContractCompose.NewInboxSigning(careContractSignaturePorts(organizations, settings.Traeger, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, owners.NewCareContractSchoolHolidays(settings.Service, calendar), env.Links.ParentsURL)), owners.NewCareContractSchoolHolidays(settings.Service, calendar))
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations, owners.NewParentContractNotices(settings.Traeger, owners.DeliveryModuleOf(delivery), owners.NewCareContractSchoolHolidays(settings.Service, calendar)), careContractCompose.NewInboxSigning(careContractSignaturePorts(organizations, settings.Traeger, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, owners.NewCareContractSchoolHolidays(settings.Service, calendar), env.Links.ParentsURL)), owners.NewCareContractSchoolHolidays(settings.Service, calendar), owners.NewParentSEPAMandates(settings.Traeger, env.BankData))
 			return
 		},
 		func() (err error) {
