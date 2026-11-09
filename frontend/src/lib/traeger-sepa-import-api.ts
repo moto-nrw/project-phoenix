@@ -72,7 +72,7 @@ export interface ImportRow {
 }
 
 /** What the import does with the debtor number of a row (#4693). */
-export type DebtorNumberStatus =
+type DebtorNumberStatus =
   "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
 
 type ImportCounts = Readonly<Record<ImportRowStatus, number>>;

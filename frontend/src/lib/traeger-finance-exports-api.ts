@@ -101,7 +101,7 @@ export interface ExportRun {
 }
 
 export type InvoiceHistoryKind = "care-invoices" | "holiday-documents";
-export type InvoiceStepKind =
+type InvoiceStepKind =
   "issued" | "sent" | "exported" | "submitted" | "cancelled";
 
 export interface InvoiceStep {
