@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -28,8 +27,10 @@ const (
 	holidayFreezeReopened = "reopened"
 )
 
-// HolidayReviewStore persists the review of the registrations of a Träger.
+// HolidayReviewStore persists the review of the registrations of a Träger
+// and the places of their weeks (#4699).
 type HolidayReviewStore interface {
+	HolidayPlaceStore
 	// ReadHolidayReview reads the registrations of a period, or the one
 	// registrationID names, with children and bookings; a booking names
 	// only its week and time model. It reads no health information.
@@ -93,7 +94,7 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // NewHolidayRegistrationReview builds the review; forms reads the form
 // versions the answers belong to (#5198), health opens the health
 // information (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, places HolidayPlaceDependencies) *HolidayRegistrationReview {
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox) (*HolidayRegistrationReview, *HolidayPlaces) {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -103,31 +104,16 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationReview{
+	review := &HolidayRegistrationReview{
 		store: store, periods: periods, forms: forms, health: health, today: today,
-		placement: holidayPlacement{store: places.Store, traeger: places.Traeger, mail: places.Mail},
+		placement: holidayPlacement{store: store, mail: mail},
 	}
+	return review, NewHolidayPlaces(store, periods, nil, mail)
 }
-
-// HolidayPlaceDependencies let a cancellation and a rebooking give the
-// places they free to the waiting lists (#4699); Traeger and Mail tell the
-// parents of a booking that moved up. Without Store the review refuses both.
-type HolidayPlaceDependencies struct {
-	Store   HolidayPlaceStore
-	Traeger enrollment.HolidayTraegerDirectory
-	Mail    enrollment.TraegerMailOutbox
-}
-
-// errHolidayPlacesRequired reports a cancellation or rebooking of a review
-// built without the places: the waiting lists would not move up.
-var errHolidayPlacesRequired = errors.New("enrollment: cancelling or rebooking a holiday registration needs the places")
 
 // moveUp gives the places of the weeks to their waiting lists after a
 // change of the locked registration.
 func (h *HolidayRegistrationReview) moveUp(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, weekIDs []int64) ([]enrollment.HolidayPromotion, error) {
-	if h.placement.store == nil {
-		return nil, errHolidayPlacesRequired
-	}
 	_, promoted, err := h.placement.place(ctx, reviewer.OrganizationID, period, weekIDs, 0, reviewer.AccountID)
 	return promoted, err
 }

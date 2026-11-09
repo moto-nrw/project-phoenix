@@ -36,8 +36,9 @@ func editHolidayTimesOn(t *testing.T, db *bun.DB, org, account int64, booking ow
 			TimeModels: []holidayTimeModelBody{{ID: model, Name: "Ganztag", StartsAt: start, EndsAt: end, PriceCents: 4500}}}}}
 	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: account, OrganizationID: org, Scope: tenant.ScopeOrg, Permissions: []string{identityaccess.TraegerRightEnrollmentManage}})
 	require.NoError(t, err)
+	review, places := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil)
 	resource := enrollmentHTTP.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(func() calendar.Date { return on }),
-		enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher()), enrollmentCompose.NewHolidayPlaceReads(), holidaySchoolNames{}, common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
+		review, places, holidaySchoolNames{}, common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -254,8 +254,15 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if input, err = withHolidayAnswers(input, answers); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	// The health information leaves the input here: the store sees it only
-	// sealed for the rows it belongs to (#4722).
+	return h.storeSubmitted(ctx, link, period, form, input)
+}
+
+// storeSubmitted stores the checked registration, claims its proofs, gives
+// its bookings their places and enqueues its receipt. The health
+// information leaves the input here: the store sees it only sealed for the
+// rows it belongs to (#4722).
+func (h *HolidayRegistrations) storeSubmitted(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
+	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
 	health, input := splitHolidayHealth(input, form)
 	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input,
 		func(registrationID int64) (enrollment.HolidaySealedHealth, error) {
@@ -340,22 +347,9 @@ func holidayReceiptMail(traeger enrollment.HolidayTraeger, period enrollment.Hol
 	}
 	children := make([]enrollment.HolidayRegistrationMailChild, 0, len(input.Children))
 	for i, child := range input.Children {
-		mailChild := enrollment.HolidayRegistrationMailChild{
-			Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == 0, Weeks: []string{},
-		}
-		for _, week := range period.Weeks {
-			for _, booking := range child.Bookings {
-				if booking.WeekID != week.ID {
-					continue
-				}
-				if waitlisted[[2]int64{int64(i + 1), week.ID}] {
-					mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, booking.TimeModelID))
-				} else {
-					mailChild.Weeks = append(mailChild.Weeks, line(week.ID, booking.TimeModelID))
-				}
-			}
-		}
-		children = append(children, mailChild)
+		children = append(children, holidayReceiptChild(child, period, line, func(weekID int64) bool {
+			return waitlisted[[2]int64{int64(i + 1), weekID}]
+		}))
 	}
 	return enrollment.HolidayRegistrationMail{
 		Recipient: input.Guardian.Email, GuardianName: input.Guardian.FirstName + " " + input.Guardian.LastName,
@@ -391,6 +385,30 @@ func holidayMailDeclaration(period enrollment.HolidayPeriod, form enrollment.Hol
 	return &enrollment.HolidayRegistrationMailDeclaration{
 		Name: input.DeclarationName, GivenAt: givenAt, ConsentVersion: texts.Version, Statements: statements,
 	}
+}
+
+// holidayReceiptChild lists the booked weeks of a child in the order of the
+// period, those with a place apart from those on the waiting list.
+func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64) string,
+	waitlisted func(weekID int64) bool) enrollment.HolidayRegistrationMailChild {
+	mailChild := enrollment.HolidayRegistrationMailChild{
+		Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == 0, Weeks: []string{},
+	}
+	booked := map[int64]int64{}
+	for _, booking := range child.Bookings {
+		booked[booking.WeekID] = booking.TimeModelID
+	}
+	for _, week := range period.Weeks {
+		model, ok := booked[week.ID]
+		switch {
+		case !ok:
+		case waitlisted(week.ID):
+			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, model))
+		default:
+			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, model))
+		}
+	}
+	return mailChild
 }
 
 func normalizeHolidayRegistration(input enrollment.HolidayRegistrationInput) enrollment.HolidayRegistrationInput {

@@ -34,7 +34,7 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 
 /** Höchste Zahl an Plätzen einer Woche, wie im Backend. */
-export const HOLIDAY_WEEK_CAPACITY_MAX = 10000;
+const HOLIDAY_WEEK_CAPACITY_MAX = 10000;
 
 /** Wie voll eine Woche ist, in Worten und als Plakette. */
 export function holidayWeekFill(week: HolidayWeekPlaces): {

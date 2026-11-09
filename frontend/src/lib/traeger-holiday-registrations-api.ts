@@ -67,7 +67,7 @@ export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
 };
 
 /** Whether a booking has a place in its week or waits for one (#4699). */
-export type HolidayPlacement = "placed" | "waitlisted";
+type HolidayPlacement = "placed" | "waitlisted";
 
 interface HolidayRegistrationBooking {
   readonly weekId: string;
@@ -828,7 +828,7 @@ export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirm
 }
 
 /** One booking on the waiting list of a week, in its order (#4699). */
-export interface HolidayWaitlistEntry {
+interface HolidayWaitlistEntry {
   readonly position: number;
   readonly registrationId: string;
   readonly registrationStatus: HolidayRegistrationStatus;

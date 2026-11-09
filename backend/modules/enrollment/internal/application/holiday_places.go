@@ -35,13 +35,16 @@ type HolidayPlaceStore interface {
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
 
-// errHolidayPlaceMailRequired reports a move up the waiting list without
-// the Träger directory and the mail outbox to tell the parents.
-var errHolidayPlaceMailRequired = errors.New("enrollment: moving up the holiday waiting list needs the Träger directory and the mail outbox")
+// errHolidayPlaceMailRequired reports a move up the waiting list without the
+// mail outbox to tell the parents.
+var errHolidayPlaceMailRequired = errors.New("enrollment: moving up the holiday waiting list needs the mail outbox")
 
-// holidayPlacement gives places and moves bookings up. traeger and mail tell
-// the parents of a booking that moved up; without them a move up fails, so
-// no child moves up unnoticed.
+// holidayPlacement gives places and moves bookings up. mail tells the
+// parents of a booking that moved up; without it a move up fails, so no
+// child moves up unnoticed. traeger names the Träger and the host schools in
+// that mail where the caller can read them: the public submission reads
+// them with its link. The Träger-Büro's Träger transaction cannot, so its
+// mail names the period, the weeks and the time models (#4699).
 type holidayPlacement struct {
 	store   HolidayPlaceStore
 	traeger enrollment.HolidayTraegerDirectory
@@ -93,12 +96,16 @@ func (p holidayPlacement) announce(ctx context.Context, organizationID int64, pe
 	if len(promoted) == 0 {
 		return nil
 	}
-	if p.traeger == nil || p.mail == nil {
+	if p.mail == nil {
 		return errHolidayPlaceMailRequired
 	}
-	traeger, err := p.traeger.HolidayTraeger(ctx, organizationID)
-	if err != nil {
-		return err
+	traeger := enrollment.HolidayTraeger{}
+	if p.traeger != nil {
+		read, err := p.traeger.HolidayTraeger(ctx, organizationID)
+		if err != nil {
+			return err
+		}
+		traeger = read
 	}
 	byRegistration := map[int64][]enrollment.HolidayPromotion{}
 	var order []int64
@@ -187,8 +194,12 @@ func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.Holid
 	}
 	return func(weekID, timeModelID int64) string {
 		week, model := weeks[weekID], models[timeModelID]
-		return fmt.Sprintf("%s bis %s: %s, %s (%s bis %s Uhr)", week.StartsOn.Format("02.01.2006"),
-			week.EndsOn.Format("02.01.2006"), schools[week.HostSchoolID], model.Name, model.StartsAt, model.EndsAt)
+		place := model.Name
+		if school := schools[week.HostSchoolID]; school != "" {
+			place = school + ", " + model.Name
+		}
+		return fmt.Sprintf("%s bis %s: %s (%s bis %s Uhr)", week.StartsOn.Format("02.01.2006"),
+			week.EndsOn.Format("02.01.2006"), place, model.StartsAt, model.EndsAt)
 	}
 }
 
@@ -214,8 +225,9 @@ type HolidayPlaces struct {
 
 var _ enrollment.HolidayPlaces = (*HolidayPlaces)(nil)
 
-// NewHolidayPlaces builds the places over store; traeger and mail tell the
-// parents of a booking that moved up. Without them only the read works.
+// NewHolidayPlaces builds the places over store; mail tells the parents of a
+// booking that moved up, traeger names the Träger in it when it can. Without
+// mail only the read works.
 func NewHolidayPlaces(store HolidayPlaceStore, periods HolidayPeriodStore, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) *HolidayPlaces {
 	if store == nil || periods == nil {
 		panic("enrollment: the holiday place store and the period store are required")

@@ -114,8 +114,8 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	if err != nil {
 		return nil, err
 	}
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil),
-		enrollmentCompose.NewHolidayRegistrationReview(healthData), enrollmentCompose.NewHolidayPlaceReads(), holidaySchoolNames{overview: overview},
+	review, places := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil)
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil), review, places, holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)

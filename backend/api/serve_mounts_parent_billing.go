@@ -61,7 +61,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
-	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(holidayPlaceRoutes(holidayTraegerDirectory{organizations: organizations})))
+	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
 	runs, documentKinds := NewBillingRunHTTP(settings, delivery, outcomes, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
@@ -221,9 +221,8 @@ func (c parentBillingCareContracts) Recipients(ctx context.Context, organization
 // kind of document per service (#4688) to the document templates of the
 // Träger.
 func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher) (*parentBillingHTTP.BillingRunResource, *parentBillingHTTP.DocumentKindResource) {
-	registrations := parentBillingBillingRegistrations{
-		periods: enrollmentCompose.NewHolidayPeriods(nil), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
-	}
+	review, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil)
+	registrations := parentBillingBillingRegistrations{periods: enrollmentCompose.NewHolidayPeriods(nil), review: review}
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
 	runs, kinds := parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}, newParentBillingLetterheads(settings))
 	return parentBillingHTTP.NewBillingRunResource(runs,
@@ -502,7 +501,7 @@ func (b parentBillingLetterheads) DocumentTemplate(ctx context.Context, organiza
 // rights, its holiday contribution to Enrollment's holiday registrations and
 // to the Träger's switch for the debtor number (#5621).
 func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
-	review, places := enrollmentCompose.NewHolidayPlaceReview(healthData, holidayPlaceTraeger{}, holidayTraegerMail{delivery: delivery})
+	review, places := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayTraegerMail{delivery: delivery})
 	registrations := parentBillingHolidayRegistrations{
 		links:  newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-billing-holiday-registrations")),
 		review: review, places: places,

@@ -6,7 +6,7 @@
 
     <p>Guten Tag {{.GuardianName}},</p>
 
-    <p>für <strong>{{.PeriodName}}</strong> bei <strong>{{.SchoolName}}</strong> ist ein Platz frei geworden. Ihr Kind war auf der Warteliste und hat den Platz jetzt bekommen.</p>
+    <p>für <strong>{{.PeriodName}}</strong>{{if .SchoolName}} bei <strong>{{.SchoolName}}</strong>{{end}} ist ein Platz frei geworden. Ihr Kind war auf der Warteliste und hat den Platz jetzt bekommen.</p>
 
     {{range .Children}}
     <div class="highlight-box">
@@ -26,7 +26,7 @@
         <p style="margin: 8px 0 0 0; font-size: 14px;">Können Sie den Platz nicht nutzen? Dann sagen Sie bitte dem Träger schnell Bescheid. So bekommt ein anderes Kind den Platz.</p>
     </div>
 
-    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger ({{.SchoolName}}).</p>
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
 </div>
 
 {{template "footer" .}}

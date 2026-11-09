@@ -83,8 +83,9 @@ func (editCipher) Seal(plaintext, _ []byte) ([]byte, error) { return plaintext, 
 func (editCipher) Open(sealed, _ []byte) ([]byte, error)    { return sealed, nil }
 
 func newEditReview(store *editReviewStore) *HolidayRegistrationReview {
-	return NewHolidayRegistrationReview(store, editPeriodStore{}, editFormStore{}, editCipher{},
-		func() calendar.Date { return calendar.NewDate(2026, 11, 3) }, HolidayPlaceDependencies{})
+	review, _ := NewHolidayRegistrationReview(store, editPeriodStore{}, editFormStore{}, editCipher{},
+		func() calendar.Date { return calendar.NewDate(2026, 11, 3) }, nil)
+	return review
 }
 
 func editedPhone(phone string) enrollment.HolidayRegistrationEdit {
