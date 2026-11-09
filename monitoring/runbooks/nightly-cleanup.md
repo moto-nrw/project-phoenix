@@ -37,7 +37,7 @@ letzten Erfolg (`succeeded_at`).
 | Logzeile (`msg`) | Level | Wann | Felder |
 |---|---|---|---|
 | `nightly cleanup failing repeatedly` | ERROR | einmal je fehlgeschlagenem Lauf ab dem 3. Fehlschlag in Folge | `tenant_id`, `job_id`, `consecutive_failures`, `failed_steps`, `next_attempt_at`, `error` |
-| `nightly cleanup recovered` | INFO | erster Erfolg nach einer Serie ab 3 | `tenant_id`, `job_id`, `consecutive_failures` (0), `previous_failures` |
+| `nightly cleanup recovered` | INFO | erster Erfolg nach mindestens einem Fehlschlag, auch wenn der Alarm-Fehlschlag nie gespeichert wurde | `tenant_id`, `job_id`, `consecutive_failures` (0), `previous_failures` |
 | `cleanup step failed` | ERROR | jeder fehlgeschlagene Schritt, jeder Lauf | `tenant_id`, `step`, `error` |
 
 `failed_steps` nennt die fehlgeschlagenen Schritte der Hauptlöschung, z. B.

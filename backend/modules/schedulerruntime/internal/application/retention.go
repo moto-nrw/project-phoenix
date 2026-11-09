@@ -112,7 +112,8 @@ func (s *Scheduler) dailyCleanupDue(ctx context.Context, dayCache *sync.Map, job
 // for the school, after writing a failure the process still keeps. Without a
 // ledger the day cache holds the last success and the process the streak. A
 // streak the process saw later than the ledger wins, so a failure whose
-// write is still pending or was lost spaces the next retry all the same.
+// write is still pending or was lost spaces the next retry all the same. A
+// streak older than the last success is over and dropped.
 func (s *Scheduler) readCleanupRunState(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64) (cleanupRunState, error) {
 	var state cleanupRunState
 	if s.cleanupRuns == nil {
@@ -129,8 +130,14 @@ func (s *Scheduler) readCleanupRunState(ctx context.Context, dayCache *sync.Map,
 			return cleanupRunState{}, fmt.Errorf("read cleanup run of %s: %w", jobID, err)
 		}
 	}
-	if value, ok := s.cleanupFailures.Load(cleanupAttemptKey{jobID: jobID, tenantID: tenantID}); ok {
-		if streak, ok := value.(cleanupFailureStreak); ok && streak.last.After(state.LastFailure) {
+	key := cleanupAttemptKey{jobID: jobID, tenantID: tenantID}
+	if value, ok := s.cleanupFailures.Load(key); ok {
+		streak, _ := value.(cleanupFailureStreak)
+		switch {
+		case !streak.last.After(state.LastSuccess):
+			// A later success, also one another Worker stored, ends it.
+			s.cleanupFailures.CompareAndDelete(key, value)
+		case streak.last.After(state.LastFailure):
 			state.Failures, state.LastFailure = streak.failures, streak.last
 		}
 	}

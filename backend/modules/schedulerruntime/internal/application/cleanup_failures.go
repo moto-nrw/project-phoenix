@@ -27,7 +27,8 @@ import (
 //
 // From cleanupAlertThreshold failures in a row on, every failed run logs
 // exactly one cleanupFailingMessage line at ERROR. The first success after
-// such a streak logs cleanupRecoveredMessage with zero failures. The Grafana
+// any failure logs cleanupRecoveredMessage with zero failures, so an alert
+// ends even when the failure that raised it was never stored. The Grafana
 // rule nightly-cleanup-failing alerts on the latest consecutive_failures of
 // these two lines per school and job (monitoring/runbooks/nightly-cleanup.md).
 const (
@@ -234,7 +235,7 @@ func (s *Scheduler) alertCleanupFailure(jobID string, tenantID int64, attempt cl
 }
 
 func (s *Scheduler) noteCleanupRecovered(jobID string, tenantID int64, attempt cleanupAttempt) {
-	if attempt.previous < cleanupAlertThreshold {
+	if attempt.previous == 0 {
 		return
 	}
 	s.getLogger().Info(cleanupRecoveredMessage,

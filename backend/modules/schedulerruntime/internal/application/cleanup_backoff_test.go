@@ -295,3 +295,52 @@ func TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch(t *testing.T) {
 	restarted := newWorker()
 	expectRetryAt(t, restarted, clock, cleanup, berlin(14, 9, 0))
 }
+
+// A streak the process kept is dropped once another Worker stored a later
+// success, for example after the lease moved and came back.
+func TestNightlyCleanupIgnoresAStreakSupersededByASuccess(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{err: errors.New("poisoned row")}
+	s := failingTimetableScheduler(runs, clock, cleanup, &cleanupLogs{})
+	runTimetableTick(s)
+	expectRetryAt(t, s, clock, cleanup, berlin(14, 3, 0))
+
+	// Another Worker succeeds while this one is not leading.
+	require.NoError(t, runs.RecordCleanupSucceeded(context.Background(), "timetable-cleanup", berlin(14, 6, 0)))
+
+	clock.Set(berlin(15, 2, 0))
+	runTimetableTick(s)
+	require.Equal(t, 3, cleanup.calls(), "the configured minute of the next day runs")
+	expectRetryAt(t, s, clock, cleanup, berlin(15, 3, 0))
+}
+
+// The success after a failure always writes the recovery line, also when
+// the failure that raised the alert was lost before it was stored.
+func TestNightlyCleanupRecoversAnAlertWhoseFailureWasNotStored(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{err: errors.New("poisoned row")}
+	logs := &cleanupLogs{}
+	first := failingTimetableScheduler(runs, clock, cleanup, logs)
+	runTimetableTick(first)
+	expectRetryAt(t, first, clock, cleanup, berlin(14, 3, 0))
+	expectRetryAt(t, first, clock, cleanup, berlin(14, 5, 0))
+	require.Len(t, logs.take(t, alertMessage), 1)
+	require.Equal(t, 2, runs.failureCount("timetable-cleanup"), "the third failure is not stored before the restart")
+
+	cleanup.setErr(nil)
+	restarted := failingTimetableScheduler(runs, clock, cleanup, logs)
+	clock.Set(berlin(14, 5, 1))
+	runTimetableTick(restarted)
+	require.Equal(t, 4, cleanup.calls(), "the restarted Worker retries after the stored two-hour wait")
+	recovered := logs.take(t, recoveredMessage)
+	require.Len(t, recovered, 1, "the success ends the alert")
+	assert.InDelta(t, 0, recovered[0]["consecutive_failures"], 0)
+}
