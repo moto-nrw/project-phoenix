@@ -28,6 +28,8 @@ type PortalAnnouncementFeedItem struct {
 	Children                []*PortalAnnouncementPollChild     `json:"children,omitempty"`
 	Declaration             *PortalAnnouncementFeedDeclaration `json:"-"`
 	Poll                    bool                               `json:"-"`
+	// Ended marks an answered declaration the school no longer shows (#6290).
+	Ended bool `json:"-"`
 }
 type PortalAnnouncementFeedScope struct {
 	TenantIDs           []int64

@@ -71,6 +71,7 @@ function declaration(
       requires_signature: false,
       deadline: null,
       closed: false,
+      ended: false,
       version: {
         id: "1",
         version_no: 1,

@@ -18,8 +18,12 @@ type AnnouncementFeedDeclaration struct {
 	RequiresSignature bool
 	Deadline          *time.Time
 	Closed            bool
-	Version           *DeclarationVersion
-	Children          []*AnnouncementFeedDeclarationChild
+	// Ended: the school no longer shows the declaration (withdrawn,
+	// deactivated or expired). It takes no new answers; an own consent stays
+	// revocable (#6290).
+	Ended    bool
+	Version  *DeclarationVersion
+	Children []*AnnouncementFeedDeclarationChild
 }
 type AnnouncementFeedDeclarationChild struct {
 	StudentID      int64
