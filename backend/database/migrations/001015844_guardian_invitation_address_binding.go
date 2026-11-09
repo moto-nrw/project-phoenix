@@ -14,7 +14,7 @@ func init() {
 		Version:     guardianInvitationAddressBindingVersion,
 		Description: "Elterneinladungen an die E-Mail-Adresse binden, an die der Link ging; offene Altlinks ohne belegte Empfängeradresse beenden (#6294)",
 		DependsOn: []string{
-			cleanupRunFailuresVersion, // the last migration before this one
+			staffFinancialDataSealedVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(guardianInvitationAddressBindingUp, guardianInvitationAddressBindingDown)
