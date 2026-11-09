@@ -120,9 +120,19 @@ async function warmTourPages(
   if (cold.length === 0) return;
   const pending = new Set<Request>();
   let lastActivity = Date.now();
-  // Der Live-Kanal (SSE) bleibt offen und zählt nicht.
-  const counts = (request: Request) =>
-    request.headers().accept !== "text/event-stream";
+  // Es zählen die Routen der App, die eine Seite lädt (`/api/…`): Die baut
+  // der Entwicklungsserver beim ersten Aufruf. Der Live-Kanal (SSE) bleibt
+  // offen und zählt nicht, ebenso Anfragen an andere Hosts.
+  const origin = new URL(tenantBase).origin;
+  const counts = (request: Request) => {
+    const url = new URL(request.url());
+    return (
+      url.origin === origin &&
+      url.pathname.startsWith("/api/") &&
+      ["fetch", "xhr"].includes(request.resourceType()) &&
+      request.headers().accept !== "text/event-stream"
+    );
+  };
   const onRequest = (request: Request) => {
     if (!counts(request)) return;
     pending.add(request);
@@ -150,12 +160,18 @@ async function warmTourPages(
           .or(page.getByRole("button", { name: /^Erste Schritte öffnen/ })),
       ).toBeVisible({ timeout: NAVIGATION_TIMEOUT });
       await expect
-        .poll(() => pending.size === 0 && Date.now() - lastActivity >= 500, {
-          message: `${path}: Die Seite lädt nicht zu Ende.`,
-          intervals: [250],
-          timeout: NAVIGATION_TIMEOUT,
-        })
-        .toBe(true);
+        .poll(
+          () =>
+            pending.size === 0 && Date.now() - lastActivity >= 500
+              ? []
+              : [...pending].map((request) => new URL(request.url()).pathname),
+          {
+            message: `${path}: Die Seite lädt nicht zu Ende (offene Anfragen).`,
+            intervals: [250],
+            timeout: NAVIGATION_TIMEOUT,
+          },
+        )
+        .toEqual([]);
       warmedPages.add(path);
     }
   } finally {
