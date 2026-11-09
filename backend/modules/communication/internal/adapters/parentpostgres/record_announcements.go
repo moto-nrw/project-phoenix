@@ -382,7 +382,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 			DeliveryMode: value.DeliveryMode, ResponseDeadline: value.ResponseDeadline, SystemKind: value.SystemKind,
 			ReminderSentAt: value.ReminderSentAt, ReminderText: value.ReminderText,
 			SenderName: value.SenderName, SenderSchoolClass: value.SenderSchoolClass,
-			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt,
+			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt, Ended: value.Ended,
 		})
 	}
 	return rows, nil

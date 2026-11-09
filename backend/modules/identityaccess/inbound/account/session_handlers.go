@@ -326,8 +326,15 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	client := portalauth.ClientOf(r)
 
-	err := rs.Sessions.ChangeAccountPassword(r.Context(), int64(claims.ID), req.CurrentPassword, req.NewPassword)
+	// The session the change is made in stays signed in; every other one
+	// ends with the change (#6289).
+	err := rs.Sessions.ChangeAccountPassword(r.Context(), identityaccess.OwnPasswordChange{
+		AccountID: int64(claims.ID), SessionFamilyID: claims.FamilyID,
+		CurrentPassword: req.CurrentPassword, NewPassword: req.NewPassword,
+		IPAddress: client.IP, UserAgent: client.UserAgent,
+	})
 	if err != nil {
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {

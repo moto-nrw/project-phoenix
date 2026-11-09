@@ -148,7 +148,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, common.ParseClientIP(r), claims.CredentialGeneration)
 	if err != nil {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return

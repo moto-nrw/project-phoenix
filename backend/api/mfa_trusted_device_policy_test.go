@@ -38,7 +38,7 @@ func TestMFASecurityPolicyFailuresBothPortals(t *testing.T) {
 				mail := testpkg.NewCapturingMailer()
 				module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), WithAuthTestMailer(mail))
 				require.NoError(t, err)
-				token, err := module.MFA.StartMFAChallenge(context.Background(), account.ID, tenantID, scope, nil)
+				token, err := module.MFA.StartMFAChallenge(context.Background(), account.ID, tenantID, scope, nil, 0)
 				require.NoError(t, err)
 				messages := mail.Messages()
 				require.Len(t, messages, 1)

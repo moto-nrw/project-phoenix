@@ -21,7 +21,7 @@ type scopeRecordingMFA struct {
 	scopes []string
 }
 
-func (m *scopeRecordingMFA) StartMFAChallenge(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {
+func (m *scopeRecordingMFA) StartMFAChallenge(_ context.Context, _, _ int64, scope string, _ net.IP, _ int64) (string, error) {
 	m.scopes = append(m.scopes, scope)
 	return "challenge", nil
 }
@@ -53,7 +53,7 @@ func TestSchoolPortalMFAOverAppliesTheSchoolScope(t *testing.T) {
 	ctx := context.Background()
 	ip := net.ParseIP("203.0.113.7")
 
-	_, err := runtime.StartChallenge(ctx, 42, 7, ip)
+	_, err := runtime.StartChallenge(ctx, 42, 7, ip, 0)
 	require.NoError(t, err)
 	_, err = runtime.VerifyChallenge(ctx, "token", "515151")
 	require.NoError(t, err)

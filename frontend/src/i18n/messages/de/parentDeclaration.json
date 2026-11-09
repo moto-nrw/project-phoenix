@@ -6,6 +6,8 @@
   "version": "Fassung {version}",
   "deadline": "Frist bis {date}",
   "closed": "Frist abgelaufen",
+  "ended": "Einverständnis beendet",
+  "endedNote": "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
   "passwordNote": "Bevor Sie antworten, fragt moto Ihr Passwort ab.",
   "signatureNote": "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
   "state": {
@@ -45,6 +47,7 @@
   "oneIsEnough": "Eine Antwort genügt.",
   "ownAnyway": "Sie können trotzdem selbst antworten.",
   "cannotSubmit": "Für {name} können Sie hier nicht antworten. Das machen die sorgeberechtigten Personen.",
+  "cannotSubmitAnymore": "Für {name} können Sie nicht mehr neu antworten.",
   "myAction": "Ihre Antwort: {action} am {date} Uhr",
   "myActionNoDate": "Ihre Antwort: {action}",
   "proof": "Nachweis ansehen",

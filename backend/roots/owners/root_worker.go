@@ -446,12 +446,12 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			materialization, err = BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
+			materialization, err = BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar, workTime)
 			return
 		},
 		func() (err error) {
 			lifecycle, err = BuildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
-				WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
+				WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service, NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {

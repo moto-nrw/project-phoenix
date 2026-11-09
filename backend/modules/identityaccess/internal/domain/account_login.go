@@ -35,13 +35,18 @@ const MaxActiveSessionsPerPortal = 5
 const RefreshTokenIdentifier = "Service login"
 
 // LoginAccount is the platform account a login authenticates. PasswordHash is
-// empty for accounts without a password.
+// empty for accounts without a password. MFAResetGeneration is the account's
+// credential generation: every password write and every MFA reset moves it
+// on, and the artifacts of a sign-in are bound to it (#6289).
+// PasswordChecked is no column: a password sign-in sets it, and the session
+// mint then refuses when the generation moved on since the check.
 type LoginAccount struct {
 	MFAResetGeneration int64
 	ID                 int64
 	Email              string
 	Username           string
 	PasswordHash       string
+	PasswordChecked    bool
 	Active             bool
 	UpdatedAt          time.Time
 }
@@ -358,4 +363,18 @@ func (c SessionClaims) SessionKind() (SessionKind, bool) {
 		return "", false
 	}
 	return SessionKindOf(portal, c.ViaTraeger), true
+}
+
+// CredentialWrite is one write of an account's credential (#6289). Every
+// write but the initial one moves the credential generation on. PasswordHash replaces the
+// password; empty keeps it (an MFA reset). ExpectedPasswordHash and
+// ExpectedGeneration, when set, make the write a compare-and-swap on the
+// state the caller's proof was checked against.
+type CredentialWrite struct {
+	// Initial sets the first credential of an account just created: it
+	// lands only on a row without a password and keeps its generation.
+	Initial              bool
+	PasswordHash         string
+	ExpectedPasswordHash string
+	ExpectedGeneration   *int64
 }

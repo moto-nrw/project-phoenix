@@ -484,7 +484,9 @@ func (s *SchoolInvitation) grantAccess(
 // afterwards, and claiming it here would pull platform-wide session state
 // into a school's transaction.
 func (s *SchoolInvitation) restoreDormantAccount(ctx context.Context, account domain.LoginAccount, passwordHash string) (domain.LoginAccount, error) {
-	found, _, err := s.store.SetAccountPassword(ctx, account.ID, passwordHash)
+	// The one credential writer moves the credential generation on: reset
+	// links and remembered devices from before the offboarding end (#6289).
+	found, _, err := s.store.WriteAccountCredential(ctx, account.ID, domain.CredentialWrite{PasswordHash: passwordHash})
 	if err != nil {
 		return domain.LoginAccount{}, failed("restore account credential", err)
 	}

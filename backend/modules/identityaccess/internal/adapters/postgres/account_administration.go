@@ -48,7 +48,7 @@ type administeredAccountRow struct {
 	Email        string     `bun:"email"`
 	Username     *string    `bun:"username"`
 	Active       bool       `bun:"active"`
-	PasswordHash *string    `bun:"password_hash"`
+	PasswordHash *string    `bun:"password_hash,scanonly"`
 	CreatedAt    time.Time  `bun:"created_at"`
 	UpdatedAt    time.Time  `bun:"updated_at"`
 	LastLogin    *time.Time `bun:"last_login"`
@@ -199,21 +199,6 @@ func (s *Store) SetManageableAccountActive(ctx context.Context, id int64, active
 		Where(`"account".id = ?`, id).
 		Where(liveAccountSQL)
 	return execManageableAccountWrite(ctx, scopeAccounts(query, visibility), "set manageable account active")
-}
-
-func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return false, domain.OperationStats{}, err
-	}
-	query := db.NewUpdate().
-		Model((*administeredAccountRow)(nil)).
-		ModelTableExpr(`auth.accounts AS "account"`).
-		Set(`password_hash = ?`, hash).
-		Set(`updated_at = NOW()`).
-		Where(`"account".id = ?`, id).
-		Where(liveAccountSQL)
-	return execManageableAccountWrite(ctx, query, "update account password hash")
 }
 
 func execManageableAccountWrite(ctx context.Context, query *bun.UpdateQuery, operation string) (bool, domain.OperationStats, error) {
