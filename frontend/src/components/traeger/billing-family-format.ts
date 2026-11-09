@@ -25,7 +25,8 @@ export type BillingTab =
   | "kinderzahl"
   | "kostentraeger"
   | "familien"
-  | "lastschrift";
+  | "lastschrift"
+  | "exporte";
 
 export function billingTabs(
   active: BillingTab,
@@ -90,6 +91,11 @@ export function billingTabs(
         value: "lastschrift",
         label: "Lastschrift",
         href: traegerPath("/traeger/abrechnung/lastschrift"),
+      },
+      {
+        value: "exporte",
+        label: "Exporte",
+        href: traegerPath("/traeger/abrechnung/exporte"),
       },
     ],
   };

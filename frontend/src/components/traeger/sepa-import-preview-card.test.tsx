@@ -23,6 +23,8 @@ function row(line: number, overrides: Partial<ImportRow>): ImportRow {
     mandateId: null,
     problems: [],
     hints: [],
+    debtorNumber: "",
+    debtorNumberStatus: "",
     ...overrides,
   };
 }
@@ -42,6 +44,7 @@ const result: ImportResult = {
       creditor_id: "",
       sequence: "",
       last_collected_on: "",
+      debtor_number: "",
     },
     payerKey: "email",
     creditorFromTraeger: true,
@@ -109,6 +112,35 @@ describe("SepaImportPreviewCard", () => {
     expect(question).toBeDefined();
     fireEvent.click(screen.getAllByRole("button", { name: "Ja" })[0]!);
     expect(onAnswer).toHaveBeenCalledWith(3, "recurring");
+  });
+
+  it("names the debtor number siblings disagree on (#4693)", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{
+          ...result,
+          rows: [
+            row(2, {
+              debtorNumber: "20 0001",
+              debtorNumberStatus: "siblings_differ",
+            }),
+            row(3, { debtorNumber: "10 0001", debtorNumberStatus: "new" }),
+          ],
+        }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByText(/Geschwister haben verschiedene Nummern/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "Debitorennummer 10 0001 wird bei der Familie eingetragen.",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("filters the rows with problems", () => {

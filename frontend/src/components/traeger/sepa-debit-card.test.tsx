@@ -9,7 +9,12 @@ const api = vi.hoisted(() => ({
   downloadSepaDebitFile: vi.fn(),
   submitSepaDebits: vi.fn(),
 }));
-vi.mock("~/lib/traeger-sepa-debits-api", () => api);
+vi.mock("~/lib/traeger-sepa-debits-api", async (importOriginal) => ({
+  messageIdOfDebitFile: (
+    await importOriginal<typeof import("~/lib/traeger-sepa-debits-api")>()
+  ).messageIdOfDebitFile,
+  ...api,
+}));
 vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
@@ -80,4 +85,33 @@ it("requires a downloaded file before confirmation", async () => {
   expect(
     await screen.findByRole("button", { name: "Bei der Bank eingereicht" }),
   ).toBeDisabled();
+});
+
+it("confirms the message ID of a file named with its file number (#4693)", async () => {
+  api.downloadSepaDebitFile.mockResolvedValue({
+    blob: new Blob(["xml"]),
+    filename: "lastschrift-112-MOTO-M3-20291104.xml",
+  });
+  render(
+    <ToastProvider>
+      <SepaDebitCard kind="care-runs" runId="42" />
+    </ToastProvider>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Datei herunterladen" }),
+  );
+  await waitFor(() => expect(api.downloadSepaDebitFile).toHaveBeenCalled());
+  fireEvent.click(
+    screen.getByRole("button", { name: "Bei der Bank eingereicht" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Ja, eingereicht" }),
+  );
+  await waitFor(() =>
+    expect(api.submitSepaDebits).toHaveBeenCalledWith(
+      "care-runs",
+      "42",
+      "MOTO-M3-20291104",
+    ),
+  );
 });

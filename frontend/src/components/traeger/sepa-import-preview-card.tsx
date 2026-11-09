@@ -18,6 +18,7 @@ import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
 import {
   IMPORT_STATUS,
   type ImportFilter,
+  importDebtorNumberText,
   importHintText,
   importPayerName,
   importProblemText,
@@ -90,6 +91,8 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
     ...(row.problems.length === 0 ? row.hints.map(importHintText) : []),
   ];
   if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
+  const debtor = importDebtorNumberText(row);
+  if (debtor) lines.push(debtor);
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
   return (
     <ul className="space-y-0.5 text-sm text-gray-700">

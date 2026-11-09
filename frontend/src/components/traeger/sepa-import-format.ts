@@ -22,6 +22,7 @@ export const IMPORT_FIELDS: readonly ImportField[] = [
   "creditor_id",
   "sequence",
   "last_collected_on",
+  "debtor_number",
 ];
 
 /** Ohne diese Spalten liest moto keine Zeile. */
@@ -43,13 +44,36 @@ export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
   creditor_id: "Gläubiger-ID",
   sequence: "Erst- oder Folgelastschrift",
   last_collected_on: "Letzte Abbuchung",
+  debtor_number: "Debitorennummer",
 };
 
 export const IMPORT_FIELD_HINTS: Partial<Record<ImportField, string>> = {
   bic: "Nur für Konten außerhalb der EU nötig.",
   sequence: "Zum Beispiel FRST und RCUR oder Erst- und Folgelastschrift.",
   last_collected_on: "Belegt, dass schon abgebucht wurde.",
+  debtor_number:
+    "Gilt für die ganze Familie. moto überschreibt keine Nummer, die schon eingetragen ist.",
 };
+
+/** Was der Import mit der Debitorennummer einer Zeile macht (#4693). */
+export function importDebtorNumberText(row: ImportRow): string | null {
+  switch (row.debtorNumberStatus) {
+    case "new":
+      return `Debitorennummer ${row.debtorNumber} wird bei der Familie eingetragen.`;
+    case "same":
+      return `Debitorennummer ${row.debtorNumber} ist schon eingetragen.`;
+    case "siblings_differ":
+      return "Debitorennummer: Geschwister haben verschiedene Nummern. moto übernimmt keine. Tragen Sie die richtige Nummer bei der Familie ein.";
+    case "differs":
+      return "Debitorennummer: Die Familie hat schon eine andere Nummer. moto ändert sie nicht.";
+    case "invalid":
+      return "Debitorennummer ist zu lang oder enthält eine IBAN.";
+    case "no_family":
+      return "Debitorennummer: moto kennt die Familie nicht.";
+    default:
+      return null;
+  }
+}
 
 export const PAYER_KEY_LABELS: Record<PayerKey, string> = {
   email: "E-Mail der Familie",

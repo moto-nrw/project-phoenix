@@ -51,6 +51,7 @@ const preview: ImportResult = {
       creditor_id: "",
       sequence: "",
       last_collected_on: "",
+      debtor_number: "",
     },
     payerKey: "email",
     creditorFromTraeger: true,
@@ -85,6 +86,8 @@ const preview: ImportResult = {
       mandateId: null,
       problems: [],
       hints: [],
+      debtorNumber: "",
+      debtorNumberStatus: "",
     },
   ],
 };

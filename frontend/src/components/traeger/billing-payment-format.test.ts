@@ -26,6 +26,7 @@ function family(patch: Partial<FamilyBilling>): FamilyBilling {
     payerAddress: null,
     paymentMethod: "",
     dueDay: 15,
+    debtorNumber: "",
     updatedAt: "2026-09-01T10:00:00Z",
     ...patch,
   };

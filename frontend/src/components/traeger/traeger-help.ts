@@ -66,6 +66,9 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   ) {
     return HELP_TOPICS.traegerCareReductions;
   }
+  if (onPage(page, "/abrechnung/exporte")) {
+    return HELP_TOPICS.traegerFinanceExports;
+  }
   if (onPage(page, "/abrechnung/lastschrift")) {
     return HELP_TOPICS.traegerSepaMandates;
   }

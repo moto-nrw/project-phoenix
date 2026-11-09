@@ -25,7 +25,8 @@ export type ImportField =
   | "payer"
   | "creditor_id"
   | "sequence"
-  | "last_collected_on";
+  | "last_collected_on"
+  | "debtor_number";
 
 export type PayerKey = "email" | "contract_id";
 
@@ -65,7 +66,14 @@ export interface ImportRow {
   readonly mandateId: string | null;
   readonly problems: readonly ImportProblem[];
   readonly hints: readonly string[];
+  /** Debtor number of the row for the family (#4693), "" without the column. */
+  readonly debtorNumber: string;
+  readonly debtorNumberStatus: DebtorNumberStatus | "";
 }
+
+/** What the import does with the debtor number of a row (#4693). */
+export type DebtorNumberStatus =
+  "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
 
 type ImportCounts = Readonly<Record<ImportRowStatus, number>>;
 
@@ -124,6 +132,8 @@ interface BackendRow {
   mandate_id?: number;
   problems: ImportProblem[] | null;
   hints: string[] | null;
+  debtor_number?: string;
+  debtor_number_status?: DebtorNumberStatus;
 }
 
 interface BackendResult {
@@ -172,6 +182,8 @@ function mapRow(row: BackendRow): ImportRow {
     mandateId: row.mandate_id ? String(row.mandate_id) : null,
     problems: row.problems ?? [],
     hints: row.hints ?? [],
+    debtorNumber: row.debtor_number ?? "",
+    debtorNumberStatus: row.debtor_number_status ?? "",
   };
 }
 
