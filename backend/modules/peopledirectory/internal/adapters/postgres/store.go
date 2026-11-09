@@ -19,8 +19,10 @@ const (
 	tenantTagIndex     = "idx_persons_tenant_tag"
 	tenantAccountIndex = "idx_persons_tenant_account"
 	// Scalar and name-set imports share exact NFC equality, not fuzzy unaccent search.
-	firstNameEqualsSQL = `LOWER(NORMALIZE(BTRIM("person".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`
-	lastNameEqualsSQL  = `LOWER(NORMALIZE(BTRIM("person".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`
+	// Both operands need ICU inside LOWER: parameters inherit the database locale,
+	// which leaves non-ASCII uppercase letters unchanged under LC_CTYPE=C.
+	firstNameEqualsSQL = `LOWER(NORMALIZE(BTRIM("person".first_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(BTRIM(?), NFC) COLLATE public.german_name)`
+	lastNameEqualsSQL  = `LOWER(NORMALIZE(BTRIM("person".last_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(BTRIM(?), NFC) COLLATE public.german_name)`
 )
 
 // Database resolves the transaction and the tenant of the current request.
