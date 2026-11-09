@@ -155,8 +155,27 @@ function LoginForm() {
   };
 
   const submit = async () => {
-    setIsLoading(true);
     formErrors.clear();
+    // An empty field is named before anything is sent: „prüfen Sie Ihre
+    // Angaben“ would not say what is missing.
+    if (!choices) {
+      const missing: Record<string, string> = {};
+      if (email.trim() === "")
+        missing.email = "Bitte geben Sie Ihre E-Mail-Adresse ein.";
+      if (password === "")
+        missing.password = "Bitte geben Sie Ihr Passwort ein.";
+      const texts = Object.values(missing);
+      if (texts.length > 0) {
+        formErrors.invalid(
+          texts.length > 1
+            ? "Bitte geben Sie E-Mail-Adresse und Passwort ein."
+            : (texts[0] ?? ""),
+          missing,
+        );
+        return;
+      }
+    }
+    setIsLoading(true);
     setSessionExpired(false);
     try {
       const result = await traegerLogin({
