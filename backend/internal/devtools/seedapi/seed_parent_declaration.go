@@ -123,7 +123,6 @@ func publishSeedDeclaration(rt *Runtime, declaration seedDeclaration) error {
 		"delivery_mode":                 "declaration",
 		"declaration_kind":              "consent",
 		"declaration_signers":           "any",
-		"declaration_revocable":         true,
 		"declaration_requires_password": false,
 		// Agreeing needs a drawn signature (#4785), so the proof, the report
 		// and the parent view show one on every machine.
