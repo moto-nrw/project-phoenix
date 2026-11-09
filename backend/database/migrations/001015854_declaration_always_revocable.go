@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const declarationAlwaysRevocableVersion = "1.15.847"
+const declarationAlwaysRevocableVersion = "1.15.854"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     declarationAlwaysRevocableVersion,
 		Description: "Einverständnisse sind immer widerrufbar: Einstellung declaration_revocable entfällt (#6303)",
 		DependsOn: []string{
-			demoVisitorErasureOutboxKindsVersion, // the newest migration before this one
+			demoVisitorErasureOutboxKindsVersion, // the newest migration on the branch when this one was numbered
 		},
 	})
 	Migrations.MustRegister(declarationAlwaysRevocableUp, declarationAlwaysRevocableDown)
