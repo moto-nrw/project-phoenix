@@ -3844,6 +3844,13 @@
       "owner": "roots"
     },
     {
+      "build": "testhooks",
+      "evidence": "func (a announcementAccessAfterAudience) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {\n\tmatched, err := a.AnnouncementAccess.AccountMatchesAnnouncement(ctx, tenantID, announcementID, accountID)\n\tif a.after != nil {\n\t\ta.after()\n\t}\n\treturn matched, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/announcementAccessAfterAudience.AccountMatchesAnnouncement",
+      "owner": "roots"
+    },
+    {
       "build": "production",
       "evidence": "func (a announcementApplicants) PendingAnnouncementApplicants(ctx context.Context) ([]audienceRows.PendingAnnouncementApplicant, error) {\n\trows, err := a.source.PendingAnnouncementApplicants(ctx)\n\treturn applicantRows(rows), err\n}",
       "form": "unclassified-evidence",

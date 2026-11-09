@@ -58,9 +58,10 @@ var errAnnouncementHidden = errors.New("parent: announcement hidden by the schoo
 // A refusal is tenant id 0 with no error, and read is not called. A switch
 // that is off or unreadable ends the school unit before read's first
 // statement, so a failed switch read never runs into an aborted transaction.
-// A school unit that cannot start hides the announcement like an unreadable
-// switch did; a system announcement, which needs no switch, returns that
-// error as its file read did.
+// A school unit that cannot start runs the two steps as they ran before the
+// bundle (withinAnnouncementTenantUnbundled), so its outcome depends on the
+// switch exactly as before and no start error is turned into a refusal the
+// old order would not have made.
 func (s *Service) WithinGuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64, read func(ctx context.Context, tenantID int64) error) (int64, error) {
 	if accountID <= 0 || announcementID <= 0 {
 		return 0, nil
@@ -89,12 +90,27 @@ func (s *Service) WithinGuardianAnnouncementTenant(ctx context.Context, accountI
 		return tenantID, nil
 	case errors.Is(err, errAnnouncementHidden):
 		return 0, nil
-	case !started && needsSwitch:
-		s.logHiddenAnnouncement(tenantID, announcementID, err)
-		return 0, nil
+	case !started:
+		return s.withinAnnouncementTenantUnbundled(ctx, tenantID, announcementID, systemKind, read)
 	default:
 		return 0, err
 	}
+}
+
+// withinAnnouncementTenantUnbundled is the order before ADR 0161 step 3, for
+// a shared school unit that did not start: the switch on its own, from the
+// request's settings cache or in a unit of its own and fail closed, then read
+// in a unit of its own. A cached open switch therefore returns the read's
+// start error as before, and an unreadable switch hides the announcement as
+// before.
+func (s *Service) withinAnnouncementTenantUnbundled(ctx context.Context, tenantID, announcementID int64, systemKind *string, read func(context.Context, int64) error) (int64, error) {
+	if !s.announcementVisibleForTenant(ctx, tenantID, announcementID, systemKind) {
+		return 0, nil
+	}
+	if err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error { return read(txCtx, tenantID) }); err != nil {
+		return 0, err
+	}
+	return tenantID, nil
 }
 
 // guardianAnnouncementAudience is the administrative half of the gate: the

@@ -347,22 +347,18 @@ func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, an
 	if s.Settings == nil {
 		return false
 	}
-	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, care.KeyParentNewsEnabled)
+	key := care.KeyParentNewsEnabled
+	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
 	if err != nil {
-		s.logHiddenAnnouncement(tenantID, announcementID, err)
+		s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("announcement_id", announcementID),
+			slog.String("setting_key", key),
+			slog.String("error", err.Error()),
+		)
 		return false
 	}
 	return on
-}
-
-// logHiddenAnnouncement records why an unreadable switch hid an announcement.
-func (s *Service) logHiddenAnnouncement(tenantID, announcementID int64, err error) {
-	s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
-		slog.Int64("tenant_id", tenantID),
-		slog.Int64("announcement_id", announcementID),
-		slog.String("setting_key", care.KeyParentNewsEnabled),
-		slog.String("error", err.Error()),
-	)
 }
 
 // announcementFeedScope splits the guardian's schools into those whose whole

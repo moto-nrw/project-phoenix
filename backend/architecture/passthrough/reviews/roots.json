@@ -2746,6 +2746,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0161",
+      "id": "roots/owners/announcementAccessAfterAudience.AccountMatchesAnnouncement",
+      "reason": "ADR 0161 step 3 test hook: reads the audience match unchanged, then lets the test fault the unit after the audience; testhooks only, no ADR 0075 floor claimed."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/announcementApplicants.PendingAnnouncementApplicants",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
