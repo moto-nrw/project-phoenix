@@ -18,7 +18,7 @@ func NewHolidayPeriods(today func() calendar.Date) enrollment.HolidayPeriods {
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
-		Proofs: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Random: random, Fingerprint: fingerprint, Logger: logger,
+		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Random: random, Fingerprint: fingerprint, Logger: logger,
 	})
 }
 
@@ -27,9 +27,29 @@ func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.Holi
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
 }
 
-// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722).
+// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722). It tells no parents of a
+// child moving up the waiting list (#4699), so a cancellation or rebooking that moves one up fails:
+// those run through NewHolidayPlaceReview.
 func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher) enrollment.HolidayRegistrationReview {
-	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil)
+	return newHolidayRegistrationReview(health, nil, nil)
+}
+
+// NewHolidayPlaceReview builds the review and the places of the holiday weeks (#4699) that tell the
+// parents of a child moving up the waiting list through the Träger's mail.
+func NewHolidayPlaceReview(health enrollment.HolidayHealthCipher, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces) {
+	places := applicationNative.NewHolidayPlaces(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), traeger, mail)
+	return newHolidayRegistrationReview(health, traeger, mail), places
+}
+
+// NewHolidayPlaceReads builds the places of the holiday weeks for reading (#4699).
+func NewHolidayPlaceReads() enrollment.HolidayPlaces {
+	return applicationNative.NewHolidayPlaces(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), nil, nil)
+}
+
+func newHolidayRegistrationReview(health enrollment.HolidayHealthCipher, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) enrollment.HolidayRegistrationReview {
+	store := postgres.NewHolidayRegistrationStore()
+	return applicationNative.NewHolidayRegistrationReview(store, postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil).
+		WithHolidayPlaces(store, traeger, mail)
 }
 
 // NewHolidayHostParticipants builds the hosting school's participant lists (ADR 0116).

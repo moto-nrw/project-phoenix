@@ -1,6 +1,7 @@
 package enrollmenthttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 type HolidayPeriodResource struct {
 	periods       capability.HolidayPeriods
 	review        capability.HolidayRegistrationReview
+	places        HolidayPlaceReads
 	schoolNames   capability.HolidaySchoolNames
 	requireManage common.Middleware
 	requireHealth common.Middleware
@@ -40,6 +42,17 @@ func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capabili
 		panic("enrollment http: the holiday periods, the registration review, the school names and the right checks are required")
 	}
 	return &HolidayPeriodResource{periods: periods, review: review, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+}
+
+// HolidayPlaceReads lists the places of the weeks of a period (#4699).
+type HolidayPlaceReads interface {
+	HolidayWeekPlaces(ctx context.Context, reviewer capability.HolidayReviewer, periodID int64) ([]capability.HolidayWeekPlaces, error)
+}
+
+// WithHolidayPlaces serves the places of the weeks (#4699).
+func (rs *HolidayPeriodResource) WithHolidayPlaces(places HolidayPlaceReads) *HolidayPeriodResource {
+	rs.places = places
+	return rs
 }
 
 // TraegerRouter returns the routes mounted at /traeger/holiday-periods,

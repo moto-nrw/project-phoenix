@@ -37,6 +37,10 @@ var _ parentbilling.HolidaySiblingGroups = (*HolidayContributions)(nil)
 type siblingMember struct {
 	registration parentbilling.HolidayRegistration
 	frozen       *parentbilling.HolidayContribution
+	// movedUp marks a confirmed registration whose bookings moved up from
+	// the waiting list (#4699): it ranks with the base prices it froze and
+	// the newly placed weeks at their current price.
+	movedUp bool
 }
 
 func (m siblingMember) id() int64 { return m.registration.ID }
@@ -76,6 +80,9 @@ func (m siblingMember) chainMember() holidayMember {
 				WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
 			})
 		}
+	}
+	if m.movedUp {
+		children = withMovedUpBookings(children, m.registration.Children)
 	}
 	member := holidayMember{children: children, exemption: m.frozen.BenefitsExemption}
 	if m.frozen.CostBearerID != nil {

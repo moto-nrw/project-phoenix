@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -60,7 +61,10 @@ type HolidayReviewStore interface {
 	// an empty one stores none (#5621).
 	SetHolidayDebtorNumber(ctx context.Context, organizationID, registrationID int64, debtorNumber string) error
 	SetHolidayRegistrationFreeze(ctx context.Context, organizationID, registrationID int64, override string) error
-	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error
+	// ReplaceHolidayChildBookings makes bookings the child's bookings and
+	// returns the weeks whose places changed: those it left and those it
+	// newly books, which wait for their placement (#4699).
+	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) ([]int64, error)
 	// WriteHolidayRegistrationDetails writes the details of a locked
 	// registration (#5629): both guardians with the address, the family's
 	// answers, the contacts, and the details and answers of the changed
@@ -76,11 +80,12 @@ type HolidayReviewStore interface {
 
 // HolidayRegistrationReview serves enrollment.HolidayRegistrationReview.
 type HolidayRegistrationReview struct {
-	store   HolidayReviewStore
-	periods HolidayPeriodStore
-	forms   HolidayFormStore
-	health  enrollment.HolidayHealthCipher
-	today   func() calendar.Date
+	store     HolidayReviewStore
+	periods   HolidayPeriodStore
+	forms     HolidayFormStore
+	health    enrollment.HolidayHealthCipher
+	today     func() calendar.Date
+	placement holidayPlacement
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
@@ -99,6 +104,28 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 		today = calendar.TodayDate
 	}
 	return &HolidayRegistrationReview{store: store, periods: periods, forms: forms, health: health, today: today}
+}
+
+// errHolidayPlacesRequired reports a cancellation or rebooking of a review
+// built without the places: the waiting lists would not move up.
+var errHolidayPlacesRequired = errors.New("enrollment: cancelling or rebooking a holiday registration needs the places")
+
+// WithHolidayPlaces lets a cancellation and a rebooking give the places they
+// free to the waiting lists (#4699); traeger and mail tell the parents of a
+// booking that moved up. Without places the review refuses both.
+func (h *HolidayRegistrationReview) WithHolidayPlaces(places HolidayPlaceStore, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) *HolidayRegistrationReview {
+	h.placement = holidayPlacement{store: places, traeger: traeger, mail: mail}
+	return h
+}
+
+// moveUp gives the places of the weeks to their waiting lists after a
+// change of the locked registration.
+func (h *HolidayRegistrationReview) moveUp(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, weekIDs []int64) ([]enrollment.HolidayPromotion, error) {
+	if h.placement.store == nil {
+		return nil, errHolidayPlacesRequired
+	}
+	_, promoted, err := h.placement.place(ctx, reviewer.OrganizationID, period, weekIDs, 0, reviewer.AccountID)
+	return promoted, err
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
@@ -304,27 +331,44 @@ func (h *HolidayRegistrationReview) OpenHolidayRegistrationProof(ctx context.Con
 // ChangeHolidayRegistration cancels, freezes or reopens a registration.
 // ConfirmHolidayRegistration confirms one (#5621).
 func (h *HolidayRegistrationReview) ChangeHolidayRegistration(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64, action string) (enrollment.HolidayRegistrationDetail, error) {
+	var promoted []enrollment.HolidayPromotion
+	cancel := func(ctx context.Context, _ int64, period enrollment.HolidayPeriod, current holidayRegistrationState) (any, error) {
+		details, moved, err := h.cancel(ctx, reviewer, period, current)
+		promoted = moved
+		return details, err
+	}
 	apply := map[string]func(context.Context, int64, enrollment.HolidayPeriod, holidayRegistrationState) (any, error){
-		enrollment.HolidayAuditCancel: h.cancel, enrollment.HolidayAuditFreeze: h.freeze, enrollment.HolidayAuditReopen: h.reopen,
+		enrollment.HolidayAuditCancel: cancel, enrollment.HolidayAuditFreeze: h.freeze, enrollment.HolidayAuditReopen: h.reopen,
 	}[action]
 	if apply == nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: unknown holiday registration action %q", action)
 	}
-	return h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
+	detail, err := h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
 		details, err := apply(ctx, reviewer.OrganizationID, period, current)
 		return action, details, err
 	})
+	detail.Promotions = promoted
+	return detail, err
 }
 
-// cancel cancels a registration that is not frozen.
-func (h *HolidayRegistrationReview) cancel(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, current holidayRegistrationState) (any, error) {
+// cancel cancels a registration that is not frozen and gives the places of
+// its bookings to the waiting lists of their weeks (#4699).
+func (h *HolidayRegistrationReview) cancel(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, current holidayRegistrationState) (any, []enrollment.HolidayPromotion, error) {
 	if err := h.requireChangeable(period, current); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if err := h.store.SetHolidayRegistrationStatus(ctx, organizationID, current.ID, enrollment.HolidayRegistrationCancelled); err != nil {
-		return nil, err
+	if err := h.store.SetHolidayRegistrationStatus(ctx, reviewer.OrganizationID, current.ID, enrollment.HolidayRegistrationCancelled); err != nil {
+		return nil, nil, err
 	}
-	return enrollment.HolidayRegistrationEventDetails{From: current.Status}, nil
+	read, _, err := h.store.ReadHolidayReview(ctx, reviewer.OrganizationID, period.ID, current.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
+	}
+	promoted, err := h.moveUp(ctx, reviewer, period, holidayBookedWeeks(read))
+	if err != nil {
+		return nil, nil, err
+	}
+	return enrollment.HolidayRegistrationEventDetails{From: current.Status}, promoted, nil
 }
 
 // freeze freezes an open registration at once.
@@ -346,41 +390,53 @@ func (h *HolidayRegistrationReview) reopen(ctx context.Context, organizationID i
 // RebookHolidayChild replaces the bookings of one child of a registration
 // that is not frozen. The history keeps the bookings before and after.
 func (h *HolidayRegistrationReview) RebookHolidayChild(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, childID int64, bookings []enrollment.HolidayBookingInput) (enrollment.HolidayRegistrationDetail, error) {
-	return h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
-		details, err := h.rebook(ctx, reviewer.OrganizationID, period, current, childID, bookings)
+	var promoted []enrollment.HolidayPromotion
+	detail, err := h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
+		details, changed, err := h.rebook(ctx, reviewer.OrganizationID, period, current, childID, bookings)
+		if err != nil {
+			return "", nil, err
+		}
+		// A week the child left frees its place, a new week waits for one;
+		// the places are given before the trail records the rebooking.
+		promoted, err = h.moveUp(ctx, reviewer, period, changed)
 		return enrollment.HolidayAuditRebook, details, err
 	})
+	detail.Promotions = promoted
+	return detail, err
 }
 
-func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, current holidayRegistrationState, childID int64, bookings []enrollment.HolidayBookingInput) (any, error) {
+func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, current holidayRegistrationState, childID int64, bookings []enrollment.HolidayBookingInput) (any, []int64, error) {
 	if err := h.requireChangeable(period, current); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	read, _, err := h.store.ReadHolidayReview(ctx, organizationID, period.ID, current.ID)
 	if err != nil {
-		return nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
+		return nil, nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
 	}
 	child, found := holidayChild(read, childID)
 	if !found {
-		return nil, enrollment.ErrHolidayRegistrationEntryNotFound
+		return nil, nil, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
 	before := make([]enrollment.HolidayBookingChange, len(child.Bookings))
 	kept := make([]enrollment.HolidayBookingInput, len(child.Bookings))
 	for i, booking := range child.Bookings {
-		before[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
+		before[i] = enrollment.HolidayBookingChange{
+			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted,
+		}
 		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
 	}
 	if err := validateHolidayBookings(bookings, period, kept); err != nil {
-		return nil, validation.Errors{"bookings": err}
+		return nil, nil, validation.Errors{"bookings": err}
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
 	for i, booking := range bookings {
-		after[i] = enrollment.HolidayBookingChange(booking)
+		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
 	}
-	if err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings); err != nil {
-		return nil, err
+	changed, err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings)
+	if err != nil {
+		return nil, nil, err
 	}
-	return enrollment.HolidayRegistrationEventDetails{ChildID: childID, Before: before, After: after}, nil
+	return enrollment.HolidayRegistrationEventDetails{ChildID: childID, Before: before, After: after}, changed, nil
 }
 
 // holidayChild finds a child among the read registrations.

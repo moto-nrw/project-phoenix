@@ -47,6 +47,14 @@ func (c confirmedRegistration) CancelHolidayRegistration(context.Context, parent
 	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
 }
 
+func (c confirmedRegistration) RebookHolidayChild(context.Context, parentbilling.HolidayReviewer, int64, int64, int64, []parentbilling.HolidayBookingChoice) (parentbilling.HolidayRegistration, error) {
+	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
+func (c confirmedRegistration) SetHolidayWeekCapacity(context.Context, parentbilling.HolidayReviewer, int64, int64, *int) ([]int64, error) {
+	return nil, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
 func (c confirmedRegistration) HoldHolidayPeriod(context.Context, parentbilling.HolidayReviewer, int64) error {
 	return nil
 }

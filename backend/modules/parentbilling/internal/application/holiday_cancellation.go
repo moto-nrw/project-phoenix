@@ -28,7 +28,7 @@ func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, re
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayCancellation{}, errTraegerRequired
 	}
-	groups, _, err := h.lockSiblings(ctx, reviewer, periodID)
+	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidayCancellation{}, err
 	}
@@ -36,31 +36,45 @@ func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, re
 	if err != nil {
 		return parentbilling.HolidayCancellation{}, err
 	}
-	cancelled := parentbilling.HolidayCancellation{RegistrationID: registration.ID, Status: registration.Status}
+	cancelled := parentbilling.HolidayCancellation{RegistrationID: registration.ID, Status: registration.Status, MovedUp: movedUpOrEmpty(registration.MovedUp)}
+	if err := h.leaveSiblingGroup(ctx, reviewer, periodID, groups, registration); err != nil {
+		return parentbilling.HolidayCancellation{}, err
+	}
+	// The freed places went to the waiting lists (#4699): the registrations
+	// that moved up get their contribution again, after the group of the
+	// cancelled one.
+	if err := h.refreezeMovedUp(ctx, reviewer, periodID, registration.MovedUp, issued); err != nil {
+		return parentbilling.HolidayCancellation{}, err
+	}
+	return cancelled, nil
+}
+
+// leaveSiblingGroup takes the cancelled registration out of its group and
+// freezes the rest of the group again (#5662).
+func (h *HolidayContributions) leaveSiblingGroup(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64,
+	groups []parentbilling.HolidaySiblingGroup, registration parentbilling.HolidayRegistration,
+) error {
 	group, grouped := groupOf(groups, registration.ID)
 	if !grouped {
-		return cancelled, nil
+		return nil
 	}
 	ids := slices.DeleteFunc(slices.Clone(group.RegistrationIDs), func(id int64) bool { return id == registration.ID })
 	rest, err := h.readSiblings(ctx, reviewer, periodID, ids, nil)
 	if err != nil {
-		return parentbilling.HolidayCancellation{}, err
+		return err
 	}
 	if err := h.store.RemoveHolidaySibling(ctx, reviewer.OrganizationID, registration.ID); err != nil {
-		return parentbilling.HolidayCancellation{}, fmt.Errorf("parent billing: take the cancelled registration out of its group: %w", err)
+		return fmt.Errorf("parent billing: take the cancelled registration out of its group: %w", err)
 	}
 	// An issued invoice keeps its own positions, so a registration it bills
 	// gets its new contribution too: the next run bills it once the
 	// Träger-Büro cancels the invoice. Its page shows the difference.
 	if err := h.refreeze(ctx, reviewer, periodID, rest, nil, true); err != nil {
-		return parentbilling.HolidayCancellation{}, err
+		return err
 	}
 	left := []siblingMember{{registration: registration}}
 	if err := h.recordSiblings(ctx, reviewer, periodID, left, parentbilling.HolidaySiblingsCancelled, ids...); err != nil {
-		return parentbilling.HolidayCancellation{}, err
+		return err
 	}
-	if err := h.recordSiblings(ctx, reviewer, periodID, rest, parentbilling.HolidaySiblingsCancelled, registration.ID); err != nil {
-		return parentbilling.HolidayCancellation{}, err
-	}
-	return cancelled, nil
+	return h.recordSiblings(ctx, reviewer, periodID, rest, parentbilling.HolidaySiblingsCancelled, registration.ID)
 }

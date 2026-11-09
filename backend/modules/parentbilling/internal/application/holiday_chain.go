@@ -52,11 +52,15 @@ func validHolidayRules(rules []parentbilling.ContributionRule, day calendar.Date
 }
 
 // firstHolidayDay is the first booked day of the children, the day whose
-// rules apply. Without a booking it is the zero date and no rule applies.
+// rules apply. Without a booking it is the zero date and no rule applies. A
+// booking on the waiting list books no day (#4699).
 func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 	var first calendar.Date
 	for _, child := range children {
 		for _, booking := range child.Bookings {
+			if booking.Waitlisted {
+				continue
+			}
 			if first == "" || booking.WeekStartsOn.Before(first) {
 				first = booking.WeekStartsOn
 			}
@@ -94,6 +98,7 @@ func computeHolidaySiblings(members []holidayMember, rules holidayRules) []paren
 	results := make([]parentbilling.HolidayContribution, len(members))
 	var ranked []rankedChild
 	for m, member := range members {
+		member.children = placedHolidayChildren(member.children)
 		results[m] = parentbilling.HolidayContribution{
 			Children:           make([]parentbilling.HolidayChildContribution, len(member.children)),
 			ExemptionAvailable: rules.exemption != nil,
@@ -169,6 +174,18 @@ func olderFirst(a, b rankedChild) int {
 		return a.birthDate.Compare(b.birthDate)
 	}
 	return a.ageRank - b.ageRank
+}
+
+// placedHolidayChildren leaves out the bookings on the waiting list (#4699):
+// they are not billed, and a child with only such bookings ranks as a child
+// without a booking.
+func placedHolidayChildren(children []parentbilling.HolidayChild) []parentbilling.HolidayChild {
+	placed := make([]parentbilling.HolidayChild, len(children))
+	for i, child := range children {
+		child.Bookings = slices.DeleteFunc(slices.Clone(child.Bookings), func(booking parentbilling.HolidayBooking) bool { return booking.Waitlisted })
+		placed[i] = child
+	}
+	return placed
 }
 
 // holidayBaseLines writes one base line per booked week, in the order of

@@ -132,6 +132,7 @@
   "holiday_period_incomplete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_period_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "holiday_period_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_registration_closed": "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
   "holiday_registration_entry_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_registration_frozen": "Не вдалося змінити: {object}. Перевірте поточний стан.",
