@@ -2,6 +2,7 @@ package contracttest_test
 
 import (
 	"bytes"
+	"log/slog"
 	"testing"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -81,6 +82,10 @@ func TestGuardianPaymentIsStoredSealedAndOpensOnlyInItsOwnRow(t *testing.T) {
 		copyInto(t, sibling.ID, "iban_sealed", row.IBANSealed)
 		_, err := testpkg.TenantQuery3(t, ctx, db, service.RevealGuardianPayment, sibling.ID, int64(1), "admin")
 		assertNoValue(t, err)
+		// The default read serves the stored mask and never opens the IBAN.
+		masked, err := testpkg.TenantQuery3(t, ctx, db, service.GetGuardianPaymentMasked, sibling.ID, int64(1), "admin")
+		require.NoError(t, err)
+		assert.Equal(t, "•••• 3000", *masked.IBANMasked)
 		copyInto(t, sibling.ID, "account_holder_sealed", row.AccountHolderSealed)
 		_, err = testpkg.TenantQuery3(t, ctx, db, service.GetGuardianPaymentMasked, sibling.ID, int64(1), "admin")
 		assertNoValue(t, err)
@@ -104,4 +109,28 @@ func TestGuardianPaymentIsStoredSealedAndOpensOnlyInItsOwnRow(t *testing.T) {
 		_, err := testpkg.TenantQuery3(t, scope.Context(), db, service.RevealGuardianPayment, foreign.ID, int64(1), "admin")
 		assertNoValue(t, err)
 	})
+}
+
+// #6332: with SQL debug logging on, a write and a reveal of guardian bank
+// data put neither the account holder nor the IBAN nor the sealed bytes into
+// the log. The holder is not IBAN-shaped, so only the sealing keeps it out.
+func TestGuardianPaymentWriteLogsNoBankValue(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupIsolatedTestDB(t)
+	service := setupGuardianService(t, db)
+	scope := testpkg.NewTenantScope(t, db)
+	profile := testpkg.CreateTestGuardianProfileForTenant(t, db, scope.TenantID, "Logged", "Guardian", "sealed-log@example.invalid")
+	var logged bytes.Buffer
+	testpkg.NewDatabase(t, db).LogQueries(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	const holder = "Quirin Kontoinhaberlog"
+	require.NoError(t, testpkg.TenantCommand4(t, scope.Context(), db, service.UpdateGuardianPayment, profile.ID,
+		peoplePorts.GuardianPaymentInput{IBAN: strPtr("DE89370400440532013000"), AccountHolder: strPtr(holder)}, 1, ""))
+	plain, err := testpkg.TenantQuery3(t, scope.Context(), db, service.RevealGuardianPayment, profile.ID, int64(1), "admin")
+	require.NoError(t, err)
+	require.Equal(t, holder, *plain.AccountHolder)
+	require.Contains(t, logged.String(), "guardian_financial_data", "the write was logged")
+	for _, secret := range []string{"Kontoinhaberlog", "532013000"} {
+		require.NotContains(t, logged.String(), secret)
+	}
 }
