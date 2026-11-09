@@ -92,15 +92,15 @@ func TestCareContractsStayWithTheirTraeger(t *testing.T) {
 		assert.Zero(t, count("app.current_tenant_id", fmt.Sprint(ownSchool+1_000_000), table), "another school reads none of %s", table)
 	}
 
-	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, `INSERT INTO care_contract.contracts
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(asRequestRole("app.current_org_id", ownOrg, `INSERT INTO care_contract.contracts
 			(organization_id, school_id, request_child_id, status, sent_at) VALUES (?, ?, 13, 'versendet', NOW())`,
-		own, ownSchool), "row-level security", "a contract starts as a draft")
+		own, ownSchool)), "a contract starts as a draft")
 	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, `INSERT INTO care_contract.contracts
 			(organization_id, school_id, request_child_id) VALUES (?, ?, 11)`,
 		own, ownSchool), "uq_contracts_application", "one contract per application child")
-	assert.ErrorContains(t, asRequestRole("app.current_org_id", fmt.Sprint(foreign), `INSERT INTO care_contract.contracts
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(asRequestRole("app.current_org_id", fmt.Sprint(foreign), `INSERT INTO care_contract.contracts
 			(organization_id, school_id, request_child_id) VALUES (?, ?, 14)`,
-		own, ownSchool), "row-level security", "another Träger adds no contract to this Träger")
+		own, ownSchool)), "another Träger adds no contract to this Träger")
 
 	for _, statement := range []string{
 		`UPDATE care_contract.contract_versions SET child_first_name = 'Ben' WHERE organization_id = ?`,
@@ -110,7 +110,7 @@ func TestCareContractsStayWithTheirTraeger(t *testing.T) {
 		`UPDATE care_contract.contract_documents SET filename = 'anders.pdf' WHERE organization_id = ?`,
 		`UPDATE care_contract.contracts SET school_id = 1 WHERE organization_id = ?`,
 	} {
-		assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, statement, own), "permission denied",
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(asRequestRole("app.current_org_id", ownOrg, statement, own)),
 			"the request role changes no frozen row: %s", statement)
 	}
 

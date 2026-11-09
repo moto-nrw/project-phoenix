@@ -92,13 +92,13 @@ func TestHolidayRegistrationAuditFollowsTheTraegerPolicy(t *testing.T) {
 		_, err := tx.ExecContext(ctx, `UPDATE enrollment.holiday_registration_audit SET details = '{}'::jsonb WHERE organization_id = ?`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "permission denied", "the trail is append-only for the request role")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the trail is append-only for the request role")
 	err = asRequestRole("app.current_org_id", fmt.Sprint(foreign), func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_audit (organization_id, holiday_period_id, action)
 			VALUES (?, ?, 'list')`, own, period)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot write into another Träger's trail")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot write into another Träger's trail")
 
 	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_registrations WHERE id = ?`, registration)
 	require.NoError(t, err)
