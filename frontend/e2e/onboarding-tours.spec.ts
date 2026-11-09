@@ -1,4 +1,11 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+} from "@playwright/test";
 
 import {
   SETUP_TOUR_BRANCHES,
@@ -11,7 +18,11 @@ import {
   STAFF_ONBOARDING_STEP_CONTENT,
   staffOnboardingTours,
 } from "../src/components/staff-onboarding/staff-onboarding-steps";
-import { STAFF_ONBOARDING_STEP_KEYS } from "../src/lib/staff-onboarding-api";
+import {
+  mapStaffOnboardingState,
+  STAFF_ONBOARDING_STEP_KEYS,
+  type StaffOnboardingStepKey,
+} from "../src/lib/staff-onboarding-api";
 import { loadSeedAccess } from "../scripts/seed-state";
 import { frontendPort } from "./frontend-port";
 import {
@@ -81,6 +92,92 @@ const TARGET_MISSING = "Diese Stelle ist gerade nicht zu sehen.";
 // Entwicklungsserver die Seite. Die Navigation selbst bleibt der Nachweis;
 // nur das Eintreffen darf nicht schon nach zehn Sekunden als fehlend gelten.
 const NAVIGATION_TIMEOUT = 30_000;
+/**
+ * Wie lange die Checkliste nach dem Ende einer Tour hat, um die Speicherung
+ * zu bestätigen und den Schritt als erledigt zu zeigen. Antwort und Anzeige
+ * teilen sich diese Zeit.
+ */
+const STEP_SAVED_TIMEOUT = 15_000;
+
+/**
+ * Seiten, die der Entwicklungsserver dieses Workers schon gebaut hat. Er baut
+ * eine Seite und die Routen, die sie lädt, beim ersten Aufruf. Endete eine
+ * Tour auf einer kalten Seite, wartete ihre Speicherung hinter diesem Bau
+ * (#6339: 13,7 s Seitenwechsel, danach über 15 s keine Antwort).
+ */
+const warmedPages = new Set<string>();
+
+/**
+ * Ruft jede Seite der Touren einmal auf, bis sie keine Anfrage mehr
+ * offen hat. So misst die Tour die App, nicht den ersten Bau einer Seite.
+ */
+async function warmTourPages(
+  page: Page,
+  tours: Readonly<Record<string, SetupTour>>,
+): Promise<void> {
+  const paths = [...new Set(Object.values(tours).map((tour) => tour.path))];
+  const cold = paths.filter((path) => !warmedPages.has(path));
+  if (cold.length === 0) return;
+  const pending = new Set<Request>();
+  let lastActivity = Date.now();
+  // Der Live-Kanal (SSE) bleibt offen und zählt nicht.
+  const counts = (request: Request) =>
+    request.headers().accept !== "text/event-stream";
+  const onRequest = (request: Request) => {
+    if (!counts(request)) return;
+    pending.add(request);
+    lastActivity = Date.now();
+  };
+  const onDone = (request: Request) => {
+    if (!counts(request)) return;
+    pending.delete(request);
+    lastActivity = Date.now();
+  };
+  page.on("request", onRequest);
+  page.on("requestfinished", onDone);
+  page.on("requestfailed", onDone);
+  try {
+    for (const path of cold) {
+      await page.goto(`${tenantBase}${path}`, {
+        waitUntil: "domcontentloaded",
+        timeout: NAVIGATION_TIMEOUT,
+      });
+      // Die Checkliste (offen oder als Knopf) erscheint erst, wenn die Seite
+      // geladen und ihr Stand gelesen ist.
+      await expect(
+        page
+          .getByRole("region", { name: "Erste Schritte mit moto" })
+          .or(page.getByRole("button", { name: /^Erste Schritte öffnen/ })),
+      ).toBeVisible({ timeout: NAVIGATION_TIMEOUT });
+      await expect
+        .poll(() => pending.size === 0 && Date.now() - lastActivity >= 500, {
+          message: `${path}: Die Seite lädt nicht zu Ende.`,
+          intervals: [250],
+          timeout: NAVIGATION_TIMEOUT,
+        })
+        .toBe(true);
+      warmedPages.add(path);
+    }
+  } finally {
+    page.off("request", onRequest);
+    page.off("requestfinished", onDone);
+    page.off("requestfailed", onDone);
+  }
+}
+
+/** Sammelt die Antworten auf das Speichern eines Schritts. */
+function recordStepSaves(page: Page, step: StaffOnboardingStepKey): Response[] {
+  const saves: Response[] = [];
+  page.on("response", (response) => {
+    if (
+      response.request().method() === "PUT" &&
+      new URL(response.url()).pathname === `/api/staff-onboarding/steps/${step}`
+    ) {
+      saves.push(response);
+    }
+  });
+  return saves;
+}
 
 /** Die Sprechblase der Tour, auch solange sie die nächste Stelle sucht. */
 function tourBubble(page: Page): Locator {
@@ -509,6 +606,7 @@ for (const device of VIEWPORTS) {
         const response = await send();
         expect(response.ok(), await response.text()).toBe(true);
       }
+      await warmTourPages(page, tours);
       await page.goto(`${tenantBase}/dashboard`, {
         waitUntil: "domcontentloaded",
       });
@@ -520,6 +618,7 @@ for (const device of VIEWPORTS) {
     for (const step of STAFF_ONBOARDING_STEP_KEYS) {
       const { title } = STAFF_ONBOARDING_STEP_CONTENT[step];
       test(`${title}: Tour bis zum Ende`, async ({ page }) => {
+        const saves = recordStepSaves(page, step);
         await startTour(page, title);
         const { visited, stoppedAt } = await walkTour(page, tours[step]);
         expect(stoppedAt, visited.join(" → ")).toBeNull();
@@ -534,13 +633,29 @@ for (const device of VIEWPORTS) {
           ),
         );
         expectSidebarPath(tours[step], visited, device.mobile);
-        // Wer die Tour bis zum Ende sieht, hat den Schritt erledigt.
+        // Wer die Tour bis zum Ende sieht, hat den Schritt erledigt: Die
+        // Speicherung antwortet mit dem erledigten Schritt, und die
+        // Checkliste zeigt ihn. Beides in derselben Zeit; so sagt ein
+        // Fehlschlag, ob die Antwort fehlt, scheiterte oder nicht ankam.
+        const deadline = Date.now() + STEP_SAVED_TIMEOUT;
+        await expect
+          .poll(() => saves.length, {
+            message: "Die Speicherung des Schritts antwortet nicht.",
+            timeout: STEP_SAVED_TIMEOUT,
+          })
+          .toBe(1);
+        const saved = saves[0]!;
+        expect(saved.ok(), await saved.text()).toBe(true);
+        const body = (await saved.json()) as { data?: object };
+        expect(mapStaffOnboardingState(body.data ?? body).doneSteps).toContain(
+          step,
+        );
         const checklist = page.getByRole("region", {
           name: "Erste Schritte mit moto",
         });
         await expect(
           checklist.getByRole("button", { name: `${title} Erledigt` }),
-        ).toBeVisible({ timeout: 15_000 });
+        ).toBeVisible({ timeout: Math.max(deadline - Date.now(), 1) });
       });
     }
   });
