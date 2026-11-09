@@ -156,7 +156,7 @@ func sameTemplateFieldsExceptNotes(req *updateTemplateRequest, stored templateRe
 		req.RoomID != optionalInt64Value(stored.RoomID) ||
 		!sameOptionalInt64(req.EducationGroupID, stored.EducationGroupID) ||
 		!sameOptionalInt(req.RequiredStaff, stored.RequiredStaffOverride) ||
-		!sameOptionalInt64(req.CalendarPeriodID, stored.CalendarPeriodID) ||
+		!sameOptionalInt64(req.CalendarPeriodID, effectiveTemplateCalendarPeriodID(stored)) ||
 		req.TargetGroupType != stored.TargetGroupType ||
 		!sameOptionalInt16(req.TargetGradeLevel, stored.TargetGradeLevel) ||
 		!sameOptionalString(req.TargetSchoolClass, stored.TargetSchoolClass) ||

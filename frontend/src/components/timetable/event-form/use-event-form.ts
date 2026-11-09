@@ -2465,6 +2465,7 @@ export function useEventForm({
         const runSeriesEdit = async () => {
           await timetableService.updateTemplate(seriesId, {
             ...seriesBody(parsed.roomId, categoryId),
+            ...(notesOnly ? { propagate_notes_to_predecessors: true } : {}),
             // #2226: pull the Serienbeginn forward when the user picked an
             // earlier date; unchanged keeps the stored envelope untouched.
             ...(pulledSeriesStart !== null

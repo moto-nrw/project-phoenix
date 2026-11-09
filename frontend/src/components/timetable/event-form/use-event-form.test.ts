@@ -1288,7 +1288,10 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
 
     expect(apis.updateTemplate).toHaveBeenCalledWith(
       "9",
-      expect.objectContaining({ notes: "Neu" }),
+      expect.objectContaining({
+        notes: "Neu",
+        propagate_notes_to_predecessors: true,
+      }),
     );
     expect(apis.countEditedInWindow).not.toHaveBeenCalled();
     expect(apis.replanWeek).not.toHaveBeenCalled();

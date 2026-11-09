@@ -97,6 +97,17 @@ func TestValidateNotesOnlyPredecessorPropagation(t *testing.T) {
 	}
 }
 
+func TestNotesOnlyTemplateUpdateUsesSchedulePeriod(t *testing.T) {
+	t.Parallel()
+
+	stored := notesPropagationStoredTemplate()
+	stored.CalendarPeriodID = nil
+	parsed := notesPropagationParsedUpdate(stored)
+	parsed.req.CalendarPeriodID = stored.Schedules[0].CalendarPeriodID
+
+	assert.True(t, notesOnlyTemplateUpdate(parsed, stored))
+}
+
 func notesPropagationStoredTemplate() templateResponse {
 	return templateResponse{
 		Name:                  "Frühbetreuung",
