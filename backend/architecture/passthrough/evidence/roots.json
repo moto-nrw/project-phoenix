@@ -5350,13 +5350,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitation(ctx context.Context, profileID int64) (bool, error) {\n\tinvitations, err := a.invitations.ListOpenGuardianInvitations(ctx, []int64{profileID})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\tfor _, invitation := range invitations {\n\t\tif invitation.Email != \"\" \u0026\u0026 invitation.ApprovalAllowsRedemption() {\n\t\t\treturn true, nil\n\t\t}\n\t}\n\treturn false, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (p enrollmentGuardianPhones) CreateGuardianPhone(ctx context.Context, phone *enrollmentCompose.GuardianPhone) error {\n\trow := \u0026peopledirectory.GuardianProfilePhoneSnapshot{GuardianProfileID: phone.GuardianProfileID, PhoneNumber: phone.PhoneNumber, PhoneType: string(phone.PhoneType), Label: phone.Label, IsPrimary: phone.IsPrimary, Priority: phone.Priority}\n\trow.ID, row.CreatedAt, row.UpdatedAt = phone.ID, phone.CreatedAt, phone.UpdatedAt\n\trow.TenantID = phone.TenantID\n\tif err := p.repo.Create(ctx, row); err != nil {\n\t\treturn err\n\t}\n\t*phone = *decisionGuardianPhoneRecord(row)\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",

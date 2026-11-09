@@ -3822,11 +3822,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

@@ -386,7 +386,26 @@ func (l *AccountLifecycle) skipBulkInviteEmailProblem(run *bulkInviteRun, candid
 	return false
 }
 
+// workingBulkInvitations keeps the invitations that still lead somewhere: a
+// request awaiting staff, or a running link issued for the address the
+// guardian has now. A legacy link without a recipient or one mailed to an
+// earlier address works for nobody (#6294); the guardian gets a new link
+// instead of being counted as already invited.
+func workingBulkInvitations(profile domain.GuardianProfile, open []domain.GuardianInvitation, now time.Time) []domain.GuardianInvitation {
+	working := make([]domain.GuardianInvitation, 0, len(open))
+	for _, invitation := range open {
+		if !invitation.ExpiresAt.After(now) {
+			continue
+		}
+		if invitation.IsPendingApproval() || invitation.AddressedTo(profile.Email) {
+			working = append(working, invitation)
+		}
+	}
+	return working
+}
+
 func (l *AccountLifecycle) inviteEligibleBulkGuardian(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string, open []domain.GuardianInvitation) error {
+	open = workingBulkInvitations(profile, open, time.Now())
 	if len(open) > 0 && !run.req.ResendOpen {
 		run.result.SkippedOpen++
 		return nil

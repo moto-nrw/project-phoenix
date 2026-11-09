@@ -5899,6 +5899,16 @@
       "target_owner": "identity-access"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs. Reads the current profile address to compare it with the recipient a link was issued for (#6294); no mutation or locking read at this terminal.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
       "adr": "0067",
       "approval_adr": "0083",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianPhones.CreateGuardianPhone",

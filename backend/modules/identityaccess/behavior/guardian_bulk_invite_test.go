@@ -1,7 +1,10 @@
 package behavior_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 
@@ -64,4 +67,53 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	require.Len(t, mailed, 3, "a resend mails the link alone, without a second welcome")
 	assert.Equal(t, emailKindGuardianInvitation, mailed[2].Kind)
 	assert.Equal(t, mailed[0].RelatedEntityID, mailed[2].RelatedEntityID, "the same invitation is mailed again")
+}
+
+// #6294: a link that works for nobody does not count as an open invitation.
+// A legacy link without a recorded recipient (ended by 1.15.844) and a link
+// mailed to an address since corrected both lead to a new link for the
+// address on file, also without ResendOpen.
+func TestBulkInviteToStudents_DeadLinksGetANewInvitation(t *testing.T) {
+	t.Parallel()
+	outbox := api.NewCapturingOutbox()
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
+	creator := env.inviterAccountID(t)
+	ctx := testpkg.Ctx(t)
+
+	for _, tc := range []struct {
+		name  string
+		plant func(t *testing.T, profileID int64)
+	}{
+		{"legacy link without recipient", func(t *testing.T, profileID int64) {
+			legacy := testpkg.InsertTestGuardianInvitation(t, env.db, &testpkg.GuardianInvitation{
+				Token: fmt.Sprintf("bulk-legacy-%d", profileID), GuardianProfileID: profileID, CreatedBy: creator,
+				ExpiresAt: time.Now().Add(-time.Hour),
+			})
+			_, err := env.db.NewRaw(`UPDATE auth.guardian_invitations SET email = NULL WHERE id = ?`, legacy.ID).Exec(context.Background())
+			require.NoError(t, err)
+		}},
+		{"address corrected after the link was mailed", func(t *testing.T, profileID int64) {
+			_, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{GuardianProfileID: profileID, CreatedBy: creator})
+			require.NoError(t, err)
+			env.changeGuardianEmail(t, profileID, fmt.Sprintf("bulk-corrected-%d@example.test", time.Now().UnixNano()))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			student := testpkg.CreateTestStudent(t, env.db, "Bulk", "Dead", "2c")
+			profile := testpkg.CreateTestGuardianProfile(t, env.db, "bulk-dead-link")
+			testpkg.CreateTestStudentGuardianLink(t, env.db, student.ID, profile.ID, guardianRoleLegalGuardian)
+			tc.plant(t, profile.ID)
+			current, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.GuardianProfile.FindByID, profile.ID)
+			require.NoError(t, err)
+
+			result, err := env.service.BulkInviteToStudents(ctx, identityaccess.BulkInviteRequest{StudentIDs: []int64{student.ID}, CreatedBy: creator})
+			require.NoError(t, err)
+			assert.Zero(t, result.SkippedOpen, "a dead link is no open invitation")
+			assert.Equal(t, 1, result.Invited)
+			token := mailedToken(t, outbox, *current.Email)
+			preview, err := env.service.ValidateGuardianInvitation(context.Background(), token)
+			require.NoError(t, err, "the new link works for the address on file")
+			assert.Equal(t, *current.Email, preview.Email)
+		})
+	}
 }

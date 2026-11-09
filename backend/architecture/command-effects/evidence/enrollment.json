@@ -4394,7 +4394,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "binding_digest": "6ac7f159efdc9f2fd3f7059da448c83c",
+      "binding_digest": "60d7b554305f61dc2956e5f55b75ae26",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption",
@@ -4402,11 +4402,19 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "binding_digest": "d127b9a7df65d91f9bce1201f11a73ce",
+      "binding_digest": "e65d28c620a69d3a4715085666fb235c",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",
       "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "binding_digest": "39b504c31e1b111de599c2ffe30c6e30",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs",
+      "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianPhones.CreateGuardianPhone",

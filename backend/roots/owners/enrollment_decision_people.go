@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
@@ -294,8 +295,17 @@ type guardianInvitationReader interface {
 	ListOpenGuardianInvitations(context.Context, []int64) ([]identityaccess.GuardianInvitation, error)
 }
 
+type guardianProfileAddressReader interface {
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
+}
+
+// enrollmentGuardianInvitationAvailability reports whether the family can
+// still redeem a link: only one issued for the address the profile has now
+// works (#6294). A legacy link without a recorded recipient, or one mailed to
+// an address since corrected, is refused at redemption.
 type enrollmentGuardianInvitationAvailability struct {
 	invitations guardianInvitationReader
+	profiles    guardianProfileAddressReader
 }
 
 func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitation(ctx context.Context, profileID int64) (bool, error) {
@@ -303,8 +313,19 @@ func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitatio
 	if err != nil {
 		return false, err
 	}
+	if len(invitations) == 0 {
+		return false, nil
+	}
+	profiles, err := a.profiles.FindByIDs(ctx, []int64{profileID})
+	if err != nil {
+		return false, err
+	}
+	address := ""
+	if profile := profiles[profileID]; profile != nil && profile.Email != nil {
+		address = strings.ToLower(strings.TrimSpace(*profile.Email))
+	}
 	for _, invitation := range invitations {
-		if invitation.Email != "" && invitation.ApprovalAllowsRedemption() {
+		if invitation.Email != "" && invitation.Email == address && invitation.ApprovalAllowsRedemption() {
 			return true, nil
 		}
 	}
