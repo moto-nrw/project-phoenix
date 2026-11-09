@@ -143,6 +143,8 @@ func TestDeclaration_ParentNewsOffHidesOtherGuardiansAndForeignChildren(t *testi
 	require.Len(t, item.Declaration.Children, 1)
 	assert.Equal(t, []string{parentportal.DeclarationActionRevoked}, item.Declaration.Children[0].AllowedActions)
 	assert.Empty(t, item.Declaration.Children[0].OtherSigners, "with parent news off the other guardian's answer stays hidden")
+	assert.Equal(t, communication.DeclarationStateAgreed, item.Declaration.Children[0].State,
+		"the child's state shows the own consent, not the other guardian's refusal")
 
 	_, _, err = off.svc.SubmitDeclaration(off.ctx, other.AccountID, s.announcement.ID, parentportal.DeclarationInput{
 		StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: parentportal.DeclarationActionRevoked,
