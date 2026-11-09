@@ -58,19 +58,9 @@ func staffFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// staffFinancialDataSealedDown refuses while a sealed value exists: after a write or the
-// backfill the sealed columns hold the only copy, so dropping them would
-// destroy bank data (#6332). Restore the release backup instead.
+// staffFinancialDataSealedDown refuses while a sealed value exists, like
+// guardianFinancialDataSealedDown.
 func staffFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
-	var sealed int
-	if err := db.NewRaw(`SELECT count(*) FROM users.staff_financial_data WHERE iban_sealed IS NOT NULL OR tax_id_sealed IS NOT NULL OR social_security_number_sealed IS NOT NULL`).Scan(ctx, &sealed); err != nil {
-		return fmt.Errorf("count sealed staff bank values: %w", err)
-	}
-	if sealed > 0 {
-		return fmt.Errorf("%w: %d staff rows", errSealedBankDataRollback, sealed)
-	}
-	if _, err := db.ExecContext(ctx, staffFinancialDataSealedDownSQL); err != nil {
-		return fmt.Errorf("drop the sealed staff bank columns: %w", err)
-	}
-	return nil
+	return dropSealedBankColumns(ctx, db, "users.staff_financial_data",
+		`iban_sealed IS NOT NULL OR tax_id_sealed IS NOT NULL OR social_security_number_sealed IS NOT NULL`, staffFinancialDataSealedDownSQL, "staff")
 }
