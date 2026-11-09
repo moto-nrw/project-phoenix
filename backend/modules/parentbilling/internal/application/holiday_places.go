@@ -23,30 +23,53 @@ import (
 
 // withMovedUpBookings adds to the frozen children the placed bookings of the
 // registration that actually moved up and the frozen contribution does
-// not price yet. Direct rebookings keep their frozen contribution.
+// not price yet. Direct rebookings keep their frozen contribution. Each
+// frozen booking prices one current booking only: a week priced directly
+// is no longer there for a replacement of it, so the replacement is added.
 func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentbilling.HolidayChild {
 	byID := make(map[int64]int, len(frozen))
 	for i, child := range frozen {
 		byID[child.ID] = i
 	}
 	for _, child := range current {
-		i, ok := byID[child.ID]
-		if !ok {
-			continue
-		}
-		for _, booking := range child.Bookings {
-			if !booking.Promoted || booking.Waitlisted || slices.ContainsFunc(frozen[i].Bookings, func(priced parentbilling.HolidayBooking) bool {
-				return pricesHolidayWeek(priced, booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn) ||
-					slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
-						return pricesHolidayWeek(priced, previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
-					})
-			}) {
-				continue
-			}
-			frozen[i].Bookings = append(frozen[i].Bookings, booking)
+		if i, ok := byID[child.ID]; ok {
+			frozen[i].Bookings = append(frozen[i].Bookings, movedUpBookings(frozen[i].Bookings, child.Bookings)...)
 		}
 	}
 	return frozen
+}
+
+// movedUpBookings are the moved-up bookings of current that no frozen
+// booking prices, first by their own week, then by a week they replaced.
+func movedUpBookings(frozen, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
+	used := make([]bool, len(frozen))
+	claim := func(weekID int64, startsOn, endsOn calendar.Date) bool {
+		for k, priced := range frozen {
+			if !used[k] && pricesHolidayWeek(priced, weekID, startsOn, endsOn) {
+				used[k] = true
+				return true
+			}
+		}
+		return false
+	}
+	var unpriced []parentbilling.HolidayBooking
+	for _, booking := range current {
+		if booking.Waitlisted || claim(booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn) {
+			continue
+		}
+		if booking.Promoted {
+			unpriced = append(unpriced, booking)
+		}
+	}
+	var added []parentbilling.HolidayBooking
+	for _, booking := range unpriced {
+		if !slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
+			return claim(previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
+		}) {
+			added = append(added, booking)
+		}
+	}
+	return added
 }
 
 // pricesHolidayWeek tells whether a frozen booking prices the week: by its id

@@ -36,3 +36,27 @@ func TestMovedUpReplacementOfAMovedWeekIsPricedOnce(t *testing.T) {
 	result := computeHolidaySiblings([]holidayMember{member.chainMember()}, holidayRules{})[0]
 	assert.Equal(t, int64(4500), result.TotalCents, "the replacement keeps the one frozen price, it is not billed again")
 }
+
+// A frozen week prices one booking only (#4699). The child was confirmed in
+// week 1 (45 €), rebooked onto week 2, which waited, and then booked week 1
+// again, which waited too. When both move up, week 1 takes its frozen price
+// and week 2 can no longer claim it as its replacement: 90 €, not 45 €.
+func TestFrozenWeekPricesOneMovedUpBookingOnly(t *testing.T) {
+	t.Parallel()
+	confirmed := chainChild(1, 1, 4500)
+	frozen := computeHolidayContribution([]parentbilling.HolidayChild{confirmed}, holidayRules{}, false, nil)
+	stored := parentbilling.HolidayContribution{Children: frozen.Children, Frozen: true}
+
+	current := chainChild(1, 1, 4500, 4500)
+	current.Bookings[0].Promoted = true
+	current.Bookings[1].Promoted = true
+	current.Bookings[1].ReplacedWeeks = []parentbilling.HolidayBookingReplacement{{
+		WeekID: confirmed.Bookings[0].WeekID, WeekStartsOn: confirmed.Bookings[0].WeekStartsOn, WeekEndsOn: confirmed.Bookings[0].WeekEndsOn,
+	}}
+	member := siblingMember{
+		registration: parentbilling.HolidayRegistration{ID: 9, Status: parentbilling.HolidayRegistrationConfirmed, Children: []parentbilling.HolidayChild{current}},
+		frozen:       &stored, movedUp: true,
+	}
+	result := computeHolidaySiblings([]holidayMember{member.chainMember()}, holidayRules{})[0]
+	assert.Equal(t, int64(9000), result.TotalCents, "both placed weeks are billed, each once")
+}
