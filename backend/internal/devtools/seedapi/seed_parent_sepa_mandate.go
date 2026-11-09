@@ -123,14 +123,16 @@ func seedGrantMandate(client *Client, auth AuthRef, path, holder string) error {
 	}
 	var text struct {
 		Data struct {
-			Reference  string `json:"reference"`
-			TextSHA256 string `json:"text_sha256"`
+			Reference    string `json:"reference"`
+			TextSHA256   string `json:"text_sha256"`
+			AccountToken string `json:"account_token"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &text); err != nil {
 		return fmt.Errorf("read the mandate text: %w", err)
 	}
 	input["reference"], input["text_sha256"], input["holder_confirmed"] = text.Data.Reference, text.Data.TextSHA256, true
+	input["account_token"] = text.Data.AccountToken
 	_, err = client.PostWithAuth(auth, path, input)
 	return err
 }

@@ -27,8 +27,10 @@ type mandateTextFields struct {
 	PostalCode      string
 	City            string
 	IBANMasked      string
-	BIC             string
-	SignedOn        calendar.Date
+	// IBAN is the full account; only the sealed proof names it.
+	IBAN     string
+	BIC      string
+	SignedOn calendar.Date
 }
 
 // renderMandateText renders the text of version sepa-core-de-1. Changing a
@@ -60,6 +62,26 @@ func renderMandateText(f mandateTextFields) string {
 		"Ort, Datum: "+f.City+", "+f.SignedOn.Format("02.01.2006"),
 		"Bestätigt in der Eltern-App von moto durch den Kontoinhaber.")
 	return strings.Join(lines, "\n")
+}
+
+// sealedIBANPrefix starts the line the sealed proof adds to the confirmed
+// text: the full IBAN the mask stands for, so the proof binds exactly one
+// account. The parents never see this line; it never leaves the owner.
+const sealedIBANPrefix = "\nIBAN des Kontoinhabers (nur im versiegelten Nachweis): "
+
+// sealedMandateText is the confirmed text with the line of the full IBAN.
+func sealedMandateText(f mandateTextFields) string {
+	return renderMandateText(f) + sealedIBANPrefix + f.IBAN
+}
+
+// confirmedText splits a sealed proof into the text the parents confirmed
+// and the full IBAN; ok is false for a proof without that line.
+func confirmedText(sealed string) (text, iban string, ok bool) {
+	index := strings.LastIndex(sealed, sealedIBANPrefix)
+	if index < 0 {
+		return "", "", false
+	}
+	return sealed[:index], sealed[index+len(sealedIBANPrefix):], true
 }
 
 // oneLine joins the lines of an address with commas.

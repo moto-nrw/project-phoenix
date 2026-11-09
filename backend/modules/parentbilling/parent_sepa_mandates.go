@@ -103,6 +103,10 @@ type ParentMandateInput struct {
 	Reference       string `json:"reference"`
 	TextSHA256      string `json:"text_sha256"`
 	HolderConfirmed bool   `json:"holder_confirmed"`
+	// AccountToken is the sealed account of the preview: the confirmation
+	// holds only for the IBAN the parents previewed, not for another one
+	// with the same mask.
+	AccountToken string `json:"account_token"`
 }
 
 // ParentMandateText is the mandate text the parents read before they
@@ -112,6 +116,9 @@ type ParentMandateText struct {
 	Reference  string `json:"reference"`
 	Text       string `json:"text"`
 	TextSHA256 string `json:"text_sha256"`
+	// AccountToken seals the full IBAN of the preview, bound to the Träger,
+	// the account, the reference and the checksum; only the owner opens it.
+	AccountToken string `json:"account_token"`
 }
 
 // ParentMandateCreditor is the creditor the mandate text names.

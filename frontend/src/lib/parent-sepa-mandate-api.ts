@@ -69,6 +69,8 @@ export interface SepaMandateText {
   readonly reference: string;
   readonly text: string;
   readonly textSha256: string;
+  /** Sealed IBAN of the preview; the grant holds only for that account. */
+  readonly accountToken: string;
 }
 
 interface BackendMandate {
@@ -110,6 +112,7 @@ interface BackendText {
   reference: string;
   text: string;
   text_sha256: string;
+  account_token: string;
 }
 
 const path = (organizationId: string, contractId: string) =>
@@ -221,6 +224,7 @@ export async function previewSepaMandate(
     reference: text.reference,
     text: text.text,
     textSha256: text.text_sha256,
+    accountToken: text.account_token,
   };
 }
 
@@ -229,7 +233,7 @@ export async function grantSepaMandate(
   organizationId: string,
   contractId: string,
   input: SepaMandateInput,
-  confirmed: Pick<SepaMandateText, "reference" | "textSha256">,
+  confirmed: Pick<SepaMandateText, "reference" | "textSha256" | "accountToken">,
 ): Promise<SepaMandateView> {
   return mapView(
     await request<BackendView>(path(organizationId, contractId), {
@@ -238,6 +242,7 @@ export async function grantSepaMandate(
         ...inputBody(input),
         reference: confirmed.reference,
         text_sha256: confirmed.textSha256,
+        account_token: confirmed.accountToken,
         holder_confirmed: true,
       }),
     }),

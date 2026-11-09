@@ -128,3 +128,42 @@ func TestSEPAMandate_RefusesWithItsCodes(t *testing.T) {
 		"/parent/me/documents/4/contracts/31/sepa-mandate", "", 0)
 	assert.Equal(t, http.StatusUnauthorized, w.Code, "no claims, no mandate")
 }
+
+// The writes of the mandate take bank data and run behind the auth limiter
+// of the parents router; the read does not. A limiter that refuses every
+// request proves the wiring of the production router, not of a test mount.
+func TestSEPAMandateWritesRunBehindTheAuthLimiter(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	limited := 0
+	limiter := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			limited++
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+	parent := &fakeParentService{}
+	router := (&Resource{ParentService: parent}).RouterWithAuthRateLimiter(limiter, func(r chi.Router) {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				ctx := context.WithValue(testpkg.WithPackageTenantRuntime(req.Context()), sessiontoken.CtxClaims,
+					sessiontoken.AppClaims{ID: 7301, Sub: "eltern@example.org"})
+				next.ServeHTTP(w, req.WithContext(ctx))
+			})
+		})
+	})
+	const base = "/me/documents/4/contracts/31/sepa-mandate"
+	for _, path := range []string{base, base + "/preview", base + "/revoke"} {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))
+		assert.Equal(t, http.StatusTooManyRequests, w.Code, path)
+	}
+	assert.Equal(t, 3, limited, "every write passes the limiter")
+	assert.Empty(t, parent.gotSEPACall, "a refused write never reaches the service")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, base, nil))
+	assert.Equal(t, http.StatusOK, w.Code, "the read is not limited")
+	assert.Equal(t, "read", parent.gotSEPACall)
+	assert.Equal(t, 3, limited)
+}

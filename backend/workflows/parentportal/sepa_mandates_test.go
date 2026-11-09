@@ -62,7 +62,7 @@ func (f mandateFixture) grant(ctx context.Context, contract int64) (parentServic
 	if err != nil {
 		return parentService.SEPAMandateView{}, err
 	}
-	input.Reference, input.TextSHA256 = text.Reference, text.TextSHA256
+	input.Reference, input.TextSHA256, input.AccountToken = text.Reference, text.TextSHA256, text.AccountToken
 	return f.portal.GrantSEPAMandate(ctx, f.chain.AccountID, f.organization, contract, input)
 }
 

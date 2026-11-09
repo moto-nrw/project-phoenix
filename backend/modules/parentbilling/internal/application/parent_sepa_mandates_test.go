@@ -1,8 +1,11 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"slices"
@@ -120,6 +123,10 @@ func (reversingCipher) Seal(plaintext, context []byte) ([]byte, error) {
 }
 
 func (reversingCipher) Open(sealed, context []byte) ([]byte, error) {
+	// Like an AEAD: a value sealed for another context does not open.
+	if !bytes.HasPrefix(sealed, context) {
+		return nil, errors.New("the sealed value belongs to another context")
+	}
 	plain := slices.Clone(sealed[len(context):])
 	slices.Reverse(plain)
 	return plain, nil
@@ -150,6 +157,10 @@ func (fnvFingerprints) Content(content []byte) string {
 }
 
 func textChecksum(text string) string { return fnvFingerprints{}.Content([]byte(text)) }
+
+// sameMaskIBAN is a valid IBAN other than parentTestIBAN with the same
+// mask "DE•• •••• •••• •••• ••30 00".
+const sameMaskIBAN = "DE40370400440532023000"
 
 const parentTestIBAN = "DE89370400440532013000"
 
@@ -189,7 +200,7 @@ func TestParentMandateGrantStoresTheConfirmedText(t *testing.T) {
 	assert.NotContains(t, text.Text, parentTestIBAN, "the text shows the mask")
 	assert.Equal(t, textChecksum(text.Text), text.TextSHA256)
 
-	input.Reference, input.TextSHA256 = text.Reference, strings.ToUpper(text.TextSHA256)
+	input.Reference, input.TextSHA256, input.AccountToken = text.Reference, strings.ToUpper(text.TextSHA256), text.AccountToken
 	view, err := mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
 	require.NoError(t, err)
 	require.Len(t, store.mandates, 1)
@@ -205,6 +216,14 @@ func TestParentMandateGrantStoresTheConfirmedText(t *testing.T) {
 	assert.Equal(t, parentbilling.ChannelParentAccount, consent.Channel)
 	assert.True(t, consent.HolderConfirmed)
 	assert.Equal(t, int64(41), consent.AccountID)
+	// The sealed proof binds the full IBAN the parents confirmed; the text
+	// they read names only its mask.
+	sealed, err := reversingCipher{}.Open(consent.TextSealed, consentTextContext(3, stored.Reference))
+	require.NoError(t, err)
+	confirmedPart, iban, ok := confirmedText(string(sealed))
+	require.True(t, ok)
+	assert.Equal(t, text.Text, confirmedPart)
+	assert.Equal(t, parentTestIBAN, iban)
 	assert.Equal(t, []string{"create/parent"}, store.events)
 
 	require.NotNil(t, view.Mandate)
@@ -226,12 +245,19 @@ func TestParentMandateRefusesAnotherText(t *testing.T) {
 	require.NoError(t, err)
 	confirmed := func(change func(*parentbilling.ParentMandateInput)) parentbilling.ParentMandateInput {
 		input := parentInput()
-		input.Reference, input.TextSHA256 = text.Reference, text.TextSHA256
+		input.Reference, input.TextSHA256, input.AccountToken = text.Reference, text.TextSHA256, text.AccountToken
 		change(&input)
 		return input
 	}
 	for name, input := range map[string]parentbilling.ParentMandateInput{
-		"checksum":      confirmed(func(i *parentbilling.ParentMandateInput) { i.TextSHA256 = strings.Repeat("0", 64) }),
+		"checksum": confirmed(func(i *parentbilling.ParentMandateInput) { i.TextSHA256 = strings.Repeat("0", 64) }),
+		// Another valid IBAN with the same mask renders the same text; only
+		// the sealed account of the preview tells them apart (#4696).
+		"same mask":  confirmed(func(i *parentbilling.ParentMandateInput) { i.IBAN = sameMaskIBAN }),
+		"no account": confirmed(func(i *parentbilling.ParentMandateInput) { i.AccountToken = "" }),
+		"forged account": confirmed(func(i *parentbilling.ParentMandateInput) {
+			i.AccountToken = base64.RawURLEncoding.EncodeToString([]byte("forged"))
+		}),
 		"other account": confirmed(func(i *parentbilling.ParentMandateInput) { i.IBAN = "DE02120300000000202051" }),
 		"other holder":  confirmed(func(i *parentbilling.ParentMandateInput) { i.AccountHolder = "Jan Muster" }),
 		"other contract": confirmed(func(i *parentbilling.ParentMandateInput) {
@@ -280,7 +306,7 @@ func TestParentMandateSwitchAndRevocation(t *testing.T) {
 	text, err := mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, parentInput())
 	require.NoError(t, err)
 	input := parentInput()
-	input.Reference, input.TextSHA256 = text.Reference, text.TextSHA256
+	input.Reference, input.TextSHA256, input.AccountToken = text.Reference, text.TextSHA256, text.AccountToken
 	_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
 	require.NoError(t, err)
 
@@ -318,7 +344,7 @@ func TestParentMandateProofSurvivesAccountChanges(t *testing.T) {
 	input := parentInput()
 	preview, err := mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, input)
 	require.NoError(t, err)
-	input.Reference, input.TextSHA256 = preview.Reference, preview.TextSHA256
+	input.Reference, input.TextSHA256, input.AccountToken = preview.Reference, preview.TextSHA256, preview.AccountToken
 	_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
 	require.NoError(t, err)
 
@@ -354,7 +380,7 @@ func TestParentMandateShowsCollectionEligibility(t *testing.T) {
 			input := parentInput()
 			text, err := mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, input)
 			require.NoError(t, err)
-			input.Reference, input.TextSHA256 = text.Reference, text.TextSHA256
+			input.Reference, input.TextSHA256, input.AccountToken = text.Reference, text.TextSHA256, text.AccountToken
 			_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
 			require.NoError(t, err)
 			change(&store.mandates[0])

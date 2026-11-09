@@ -47,6 +47,7 @@ const text: SepaMandateText = {
   reference: "MOTO-75-20260909-1A2B",
   text: "SEPA-Lastschriftmandat\n\nMandatsreferenz: MOTO-75-20260909-1A2B",
   textSha256: "a".repeat(64),
+  accountToken: "sealed-preview-account",
 };
 
 const granted: SepaMandateView = {
@@ -163,6 +164,7 @@ describe("ParentSepaMandateView", () => {
       expect.objectContaining({
         reference: text.reference,
         textSha256: text.textSha256,
+        accountToken: text.accountToken,
       }),
     );
     expect(screen.queryByText(IBAN)).not.toBeInTheDocument();

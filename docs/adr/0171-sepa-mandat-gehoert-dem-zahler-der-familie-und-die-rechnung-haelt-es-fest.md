@@ -152,7 +152,12 @@ Entscheidung Yannick vom 09.11.2026 zu
    Nachweise nur lesen und einfügen; der Trigger schützt alle Nachweisfelder.
    Nur der privilegierte Rekey darf das Chiffrat unter gleichem AAD umschlüsseln,
    ohne Text, Prüfsumme oder andere Nachweisfelder zu ändern. Der Text nennt
-   die IBAN maskiert; die volle IBAN bleibt versiegelt am Mandat.
+   die IBAN maskiert. Damit eine andere IBAN mit gleicher Maske nicht mit
+   derselben Bestätigung durchgeht, gibt die Vorschau die volle IBAN als
+   versiegeltes Token zurück (Bankring, AAD: Träger, Konto, Referenz,
+   Prüfsumme); die Erteilung öffnet es und vergleicht. Der versiegelte
+   Nachweis enthält zusätzlich die volle IBAN und bindet so genau ein Konto;
+   Eltern sehen nur den bestätigten Text mit Maske.
    Der Postfachhinweis wird gesammelt ohne Entschlüsselung oder Nachweisabruf
    gelesen. Die Gültigkeitsanzeige folgt denselben Regeln wie der Einzug.
 4. **Vorläufig** nur für ein Konto, dessen Inhaber der Elternteil bestätigt. Ein

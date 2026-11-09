@@ -64,14 +64,16 @@ type SEPAMandateInput struct {
 	Reference       string `json:"reference"`
 	TextSHA256      string `json:"text_sha256"`
 	HolderConfirmed bool   `json:"holder_confirmed"`
+	AccountToken    string `json:"account_token"`
 }
 
 // SEPAMandateText is the mandate text to confirm.
 type SEPAMandateText struct {
-	Version    string `json:"version"`
-	Reference  string `json:"reference"`
-	Text       string `json:"text"`
-	TextSHA256 string `json:"text_sha256"`
+	Version      string `json:"version"`
+	Reference    string `json:"reference"`
+	Text         string `json:"text"`
+	TextSHA256   string `json:"text_sha256"`
+	AccountToken string `json:"account_token"`
 }
 
 // SEPAMandateCreditor is the creditor the text names.

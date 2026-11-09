@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -173,11 +174,14 @@ func (p *ParentMandates) withMandate(ctx context.Context, organizationID int64, 
 		return parentbilling.ParentMandate{}, err
 	}
 	if consent != nil {
-		text, err := p.cipher.Open(consent.TextSealed, consentTextContext(organizationID, mandate.Reference))
+		sealed, err := p.cipher.Open(consent.TextSealed, consentTextContext(organizationID, mandate.Reference))
 		if err != nil {
 			return parentbilling.ParentMandate{}, fmt.Errorf("parent billing: open the consent text of mandate %d: %w", mandate.ID, err)
 		}
-		if p.textChecksum(string(text)) != consent.TextSHA256 {
+		// The full IBAN stays in the owner; the parents read the text they
+		// confirmed, with its mask.
+		text, _, ok := confirmedText(string(sealed))
+		if !ok || p.textChecksum(text) != consent.TextSHA256 {
 			return parentbilling.ParentMandate{}, errors.New("parent billing: the consent text checksum does not match")
 		}
 		summary.Proof = &parentbilling.ParentMandateProof{Channel: consent.Channel, Version: consent.TextVersion,
@@ -214,7 +218,7 @@ func (p *ParentMandates) draft(reader parentbilling.ParentMandateReader, mc pare
 	return parentMandateDraft{account: account, iban: iban, fields: mandateTextFields{
 		CreditorName: strings.TrimSpace(reader.CreditorName), CreditorAddress: oneLine(mc.terms.CreditorAddress),
 		CreditorID: mc.creditor.CreditorID, Reference: reference, Holder: account.AccountHolder, Street: street,
-		PostalCode: postalCode, City: city, IBANMasked: sepa.MaskIBAN(iban), BIC: account.BIC, SignedOn: p.today(),
+		PostalCode: postalCode, City: city, IBANMasked: sepa.MaskIBAN(iban), IBAN: iban, BIC: account.BIC, SignedOn: p.today(),
 	}}, nil
 }
 
@@ -248,8 +252,30 @@ func (p *ParentMandates) PreviewParentSEPAMandate(ctx context.Context, organizat
 		return parentbilling.ParentMandateText{}, err
 	}
 	text := renderMandateText(draft.fields)
+	checksum := p.textChecksum(text)
+	token, err := p.cipher.Seal([]byte(draft.iban), accountTokenContext(organizationID, reader.AccountID, reference, checksum))
+	if err != nil {
+		return parentbilling.ParentMandateText{}, fmt.Errorf("parent billing: seal the account of the preview: %w", err)
+	}
 	return parentbilling.ParentMandateText{Version: parentbilling.MandateTextVersion, Reference: reference, Text: text,
-		TextSHA256: p.textChecksum(text)}, nil
+		TextSHA256: checksum, AccountToken: base64.RawURLEncoding.EncodeToString(token)}, nil
+}
+
+// accountTokenContext binds the sealed account of a preview to the Träger,
+// the account that previewed, the reference and the checksum of the text.
+func accountTokenContext(organizationID, accountID int64, reference, checksum string) []byte {
+	return fmt.Appendf(nil, "parent_billing.sepa_mandate_preview.iban|%d|%d|%s|%s", organizationID, accountID, reference, checksum)
+}
+
+// previewedAccount tells whether the IBAN is the one the preview sealed for
+// this text: the mask alone does not tell two accounts apart.
+func (p *ParentMandates) previewedAccount(organizationID, accountID int64, reference, checksum, token, iban string) bool {
+	sealed, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(token))
+	if err != nil || len(sealed) == 0 {
+		return false
+	}
+	previewed, err := p.cipher.Open(sealed, accountTokenContext(organizationID, accountID, reference, checksum))
+	return err == nil && string(previewed) == iban
 }
 
 // newReference forms a reference like the office's (MOTO-contract-day-random).
@@ -299,7 +325,12 @@ func (p *ParentMandates) GrantParentSEPAMandate(ctx context.Context, organizatio
 	if checksum != strings.ToLower(strings.TrimSpace(input.TextSHA256)) {
 		return parentbilling.ParentMandate{}, parentbilling.ErrMandateTextChanged
 	}
-	sealedText, err := p.cipher.Seal([]byte(text), consentTextContext(organizationID, reference))
+	// The confirmation holds only for the IBAN the parents previewed: another
+	// account with the same mask renders the same text.
+	if !p.previewedAccount(organizationID, reader.AccountID, reference, checksum, input.AccountToken, draft.iban) {
+		return parentbilling.ParentMandate{}, parentbilling.ErrMandateTextChanged
+	}
+	sealedText, err := p.cipher.Seal([]byte(sealedMandateText(draft.fields)), consentTextContext(organizationID, reference))
 	if err != nil {
 		return parentbilling.ParentMandate{}, fmt.Errorf("parent billing: seal the consent text: %w", err)
 	}
