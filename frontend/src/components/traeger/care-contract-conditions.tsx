@@ -282,6 +282,9 @@ function ConditionsForm({
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
           cancelDisabled={!dirty}
+          // Unchanged conditions have nothing to save; an offering without
+          // conditions saves the shown ones as they stand.
+          disabled={Boolean(selected.template) && !dirty}
           saveLabel="Bedingungen speichern"
           // A phone keeps both buttons on one line under the legal texts.
           cancelLabel={isPhone ? "Verwerfen" : "Änderungen verwerfen"}

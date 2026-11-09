@@ -255,6 +255,10 @@ function columns(
         </ul>
       ),
       stacked: "field",
+      // On a phone the children and weeks take the full width: they name
+      // themselves, and a right-aligned list under a label column breaks
+      // every line.
+      stackedLabel: false,
     },
     {
       key: "submittedAt",

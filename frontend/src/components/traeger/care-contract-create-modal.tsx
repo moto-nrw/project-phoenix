@@ -13,6 +13,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
@@ -303,56 +304,72 @@ export function CareContractCreateModal({
             {group.candidates.map((candidate) => {
               const key = candidateKey(candidate);
               const isSelected = selected.has(key);
-              return (
+              const blocked = candidate.templateIssue !== null;
+              const details = (
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium text-gray-900">
+                      {childName(candidate)}
+                    </span>
+                    {candidate.templateIssue === null ? null : (
+                      <StatusBadge
+                        tone={
+                          candidate.templateIssue === "conclusion_automatic"
+                            ? "green"
+                            : "orange"
+                        }
+                        label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
+                      />
+                    )}
+                  </span>
+                  {candidate.templateIssue !== null &&
+                  TEMPLATE_ISSUE_REASONS[candidate.templateIssue] ? (
+                    <span className="mt-0.5 block text-sm text-gray-700">
+                      {TEMPLATE_ISSUE_REASONS[candidate.templateIssue]}
+                    </span>
+                  ) : null}
+                  <span className="mt-0.5 block text-sm text-gray-600">
+                    {candidate.modulesText || "–"} · ab{" "}
+                    {formatDate(candidate.effectiveFrom)}
+                  </span>
+                  <span className="block text-sm text-gray-600">
+                    {formatServiceDays(candidate.services)}
+                  </span>
+                  <span className="block text-sm wrap-anywhere text-gray-500">
+                    {candidate.guardianName}
+                    {candidate.guardianEmail
+                      ? ` · ${candidate.guardianEmail}`
+                      : ""}
+                  </span>
+                </span>
+              );
+              // A child that cannot get a draft yet is a to-do, not a faded
+              // choice: its reason stays fully readable.
+              return blocked ? (
+                <InsetPanel key={key} framed padding="md">
+                  <label className="flex items-start gap-3">
+                    <Checkbox
+                      checked={false}
+                      disabled
+                      onChange={() => undefined}
+                      aria-label={`${childName(candidate)} auswählen`}
+                    />
+                    {details}
+                  </label>
+                </InsetPanel>
+              ) : (
                 <ChoiceTile
                   key={key}
-                  selected={isSelected && candidate.templateIssue === null}
-                  disabled={candidate.templateIssue !== null}
+                  selected={isSelected}
                   tone="blue"
                   className="flex items-start gap-3 px-4 py-3"
                 >
                   <Checkbox
-                    checked={isSelected && candidate.templateIssue === null}
-                    disabled={candidate.templateIssue !== null}
+                    checked={isSelected}
                     onChange={() => toggle(key)}
                     aria-label={`${childName(candidate)} auswählen`}
                   />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-medium text-gray-900">
-                        {childName(candidate)}
-                      </span>
-                      {candidate.templateIssue === null ? null : (
-                        <StatusBadge
-                          tone={
-                            candidate.templateIssue === "conclusion_automatic"
-                              ? "green"
-                              : "orange"
-                          }
-                          label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
-                        />
-                      )}
-                    </span>
-                    {candidate.templateIssue !== null &&
-                    TEMPLATE_ISSUE_REASONS[candidate.templateIssue] ? (
-                      <span className="mt-0.5 block text-sm text-gray-700">
-                        {TEMPLATE_ISSUE_REASONS[candidate.templateIssue]}
-                      </span>
-                    ) : null}
-                    <span className="mt-0.5 block text-sm text-gray-600">
-                      {candidate.modulesText || "–"} · ab{" "}
-                      {formatDate(candidate.effectiveFrom)}
-                    </span>
-                    <span className="block text-sm text-gray-600">
-                      {formatServiceDays(candidate.services)}
-                    </span>
-                    <span className="block text-sm wrap-anywhere text-gray-500">
-                      {candidate.guardianName}
-                      {candidate.guardianEmail
-                        ? ` · ${candidate.guardianEmail}`
-                        : ""}
-                    </span>
-                  </span>
+                  {details}
                 </ChoiceTile>
               );
             })}

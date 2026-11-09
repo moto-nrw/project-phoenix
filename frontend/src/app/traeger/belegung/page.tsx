@@ -46,6 +46,7 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { utilizationConcept } from "~/lib/concepts/utilization";
 import { formatBerlinTime, formatDate } from "~/lib/date-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -104,10 +105,12 @@ function ShareCell({
           {formatShare(part, whole)}
         </span>
       </span>
+      {/* The same neutral bar as the tiles above: a share, no rating. */}
       <ProgressBar
         value={part}
         max={Math.max(whole, 1)}
         label={`${part} von ${whole} ${label}`}
+        color={LOCATION_COLORS.UNKNOWN}
         className="mt-1.5"
       />
     </div>

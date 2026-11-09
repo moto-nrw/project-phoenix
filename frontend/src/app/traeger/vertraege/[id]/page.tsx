@@ -782,7 +782,7 @@ function StatusNotice({
     return (
       <Alert
         type="success"
-        message={`Gesendet am ${formatBerlinDate(last.sentAt)}. Die Mail ging an ${last.recipient}.`}
+        message={`Versendet am ${formatBerlinDate(last.sentAt)}. Die Mail ging an ${last.recipient}.`}
       />
     );
   }
