@@ -107,15 +107,17 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
   });
 
   it("allows the kit itself and unrelated sticky headers", async () => {
-    const shell = await lintSource(
-      `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
-      "src/components/ui/probe-nav.tsx",
-    );
+    const [shell, other] = await Promise.all([
+      lintSource(
+        `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
+        "src/components/ui/probe-nav.tsx",
+      ),
+      lintSource(
+        `const head = "sticky top-0 border-r bg-white/95"; void head;`,
+        "src/components/dashboard/probe-nav.tsx",
+      ),
+    ]);
     expect(shell.output).not.toContain(RULE);
-    const other = await lintSource(
-      `const head = "sticky top-0 border-r bg-white/95"; void head;`,
-      "src/components/dashboard/probe-nav.tsx",
-    );
     expect(other.output).not.toContain(RULE);
   });
 });
@@ -188,8 +190,12 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     }
     void Probe;`;
 
-    for (const probe of [template, split]) {
-      const result = await lintSource(probe, "src/components/probe.tsx");
+    const results = await Promise.all(
+      [template, split].map((probe) =>
+        lintSource(probe, "src/components/probe.tsx"),
+      ),
+    );
+    for (const result of results) {
       expect(result.output).toContain(RULE);
     }
   });
@@ -312,28 +318,30 @@ describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
   });
 
   it("allows inline code and only the shared copy primitives", async () => {
-    const inline = await lintSource(
-      `function Probe() {
+    const [inline, hook, copyField, otherUiComponent] = await Promise.all([
+      lintSource(
+        `function Probe() {
         return <code className="shrink-0">wert</code>;
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const hook = await lintSource(
-      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
-      "src/lib/use-clipboard-copy.ts",
-    );
-    const copyField = await lintSource(
-      `function Probe() {
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+        "src/lib/use-clipboard-copy.ts",
+      ),
+      lintSource(
+        `function Probe() {
         return <code className="rounded-lg border px-3 py-2">wert</code>;
       }
       void Probe;`,
-      "src/components/ui/copy-field.tsx",
-    );
-    const otherUiComponent = await lintSource(
-      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/copy-field.tsx",
+      ),
+      lintSource(
+        `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(inline.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
     expect(hook.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
@@ -1339,32 +1347,34 @@ describe.concurrent("ui-kit/no-shadow-kit-name", () => {
   });
 
   it("allows other names, the kit itself and test files", async () => {
-    const other = await lintSource(
-      `function StatusChip() {
+    const [other, kit, testFile, mock] = await Promise.all([
+      lintSource(
+        `function StatusChip() {
         return null;
       }
       void StatusChip;`,
-      "src/components/import/probe.tsx",
-    );
-    const kit = await lintSource(
-      `export function StatCard() {
+        "src/components/import/probe.tsx",
+      ),
+      lintSource(
+        `export function StatCard() {
         return null;
       }`,
-      "src/components/ui/stat-card.tsx",
-    );
-    const testFile = await lintSource(
-      `function StatCard() {
+        "src/components/ui/stat-card.tsx",
+      ),
+      lintSource(
+        `function StatCard() {
         return null;
       }
       void StatCard;`,
-      "src/components/import/probe.test.tsx",
-    );
-    const mock = await lintSource(
-      `export function Drawer() {
+        "src/components/import/probe.test.tsx",
+      ),
+      lintSource(
+        `export function Drawer() {
         return null;
       }`,
-      "src/test/mocks/probe.tsx",
-    );
+        "src/test/mocks/probe.tsx",
+      ),
+    ]);
 
     for (const { output } of [other, kit, testFile, mock]) {
       expect(output).not.toContain("no-shadow-kit-name");
@@ -1680,21 +1690,23 @@ describe.concurrent("ui-kit/no-hand-rolled-toggle-control", () => {
   });
 
   it("allows round status marks and the kit itself", async () => {
-    const outside = await lintSource(
-      `const Check = () => <svg />;
+    const [outside, kit] = await Promise.all([
+      lintSource(
+        `const Check = () => <svg />;
       function Probe() {
         return <span className="flex h-4 w-4 rounded-full border"><Check /></span>;
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `function Probe() {
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `function Probe() {
         return <button type="button" role="switch" aria-checked aria-label="An" />;
       }
       void Probe;`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(outside.output).not.toContain(
       "ui-kit(no-hand-rolled-toggle-control)",
@@ -1924,20 +1936,22 @@ describe.concurrent("ui-kit/no-raw-table", () => {
   });
 
   it("accepts DataTable and the kit's own table", async () => {
-    const outside = await lintSource(`
+    const [outside, kit] = await Promise.all([
+      lintSource(`
       import { DataTable } from "~/components/ui/data-table";
       export function Probe() {
         return <DataTable columns={[]} rows={[]} getRowKey={() => 1} />;
       }
-    `);
-    const kit = await lintSource(
-      `
+    `),
+      lintSource(
+        `
       export function Grid() {
         return <table><tbody /></table>;
       }
     `,
-      "src/components/ui/planning/grid.tsx",
-    );
+        "src/components/ui/planning/grid.tsx",
+      ),
+    ]);
 
     expect(outside.output).not.toContain("no-raw-table");
     expect(kit.output).not.toContain("no-raw-table");
@@ -2025,17 +2039,19 @@ describe.concurrent("ui-kit/no-control-height-override", () => {
   });
 
   it("leaves other components and the kit itself alone", async () => {
-    const other = await lintSource(`
+    const [other, kit] = await Promise.all([
+      lintSource(`
       import { Spark } from "~/components/ui/spark";
       export const Probe = () => <Spark className="h-9 !size-7" />;
-    `);
-    const kit = await lintSource(
-      `
+    `),
+      lintSource(
+        `
       import { Input } from "~/components/ui/input";
       export const Probe = () => <Input className="h-9" />;
     `,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(other.output).not.toContain("no-control-height-override");
     expect(kit.output).not.toContain("no-control-height-override");
@@ -2943,8 +2959,9 @@ describe.concurrent("ui-kit/no-hand-rolled-dot (#5598)", () => {
   });
 
   it("accepts the kit, skeletons, spinners, tracks and the kit folder", async () => {
-    const accepted = await lintSource(
-      `import { StatusDot } from "~/components/ui/status-dot";
+    const [accepted, kit] = await Promise.all([
+      lintSource(
+        `import { StatusDot } from "~/components/ui/status-dot";
       import { Skeleton } from "~/components/ui/skeleton";
       function Probe() {
         return (
@@ -2957,13 +2974,14 @@ describe.concurrent("ui-kit/no-hand-rolled-dot (#5598)", () => {
         );
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `function Probe() { return <span className="h-2 w-2 rounded-full bg-white" />; }
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `function Probe() { return <span className="h-2 w-2 rounded-full bg-white" />; }
       void Probe;`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(accepted.output).not.toContain("no-hand-rolled-dot");
     expect(kit.output).not.toContain("no-hand-rolled-dot");
@@ -3551,12 +3569,14 @@ describe.concurrent("ui-kit surface rules are hard-zero (#5594)", () => {
       '<div className="rounded-lg border border-gray-200 bg-white p-3">A</div>',
     ],
   ])("fails a single %s finding", async (rule, card) => {
-    for (const file of FORMERLY_SURFACE_BASELINED) {
-      const result = await lintSource(
-        `export const Probe = () => ${card};`,
-        file,
-      );
+    const results = await Promise.all(
+      FORMERLY_SURFACE_BASELINED.map((file) =>
+        lintSource(`export const Probe = () => ${card};`, file),
+      ),
+    );
 
+    for (const [index, result] of results.entries()) {
+      const file = FORMERLY_SURFACE_BASELINED[index];
       expect(result.status, file).toBe(1);
       expect(result.output, file).toContain(`ui-kit(${rule})`);
     }
@@ -3748,20 +3768,22 @@ describe.concurrent("ui-kit/no-kit-domain-import", () => {
   });
 
   it("accepts kit-internal imports, lib helpers and files outside the kit", async () => {
-    const inKit = await lintSource(
-      `import { Button } from "./button";
+    const [inKit, outside] = await Promise.all([
+      lintSource(
+        `import { Button } from "./button";
       import { Alert } from "~/components/ui/alert";
       import { Tile } from "../icon-tile";
       import { cn } from "~/lib/utils";
       void Button; void Alert; void Tile; void cn;`,
-      "src/components/ui/planning/probe.tsx",
-    );
-    const outside = await lintSource(
-      `import { Thing } from "~/components/help/thing";
+        "src/components/ui/planning/probe.tsx",
+      ),
+      lintSource(
+        `import { Thing } from "~/components/help/thing";
       void Thing;
       void fetch("/api/x");`,
-      "src/components/parent/probe.tsx",
-    );
+        "src/components/parent/probe.tsx",
+      ),
+    ]);
 
     expect(inKit.output).not.toContain("no-kit-domain-import");
     expect(outside.output).not.toContain("no-kit-domain-import");
@@ -3835,18 +3857,20 @@ describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
   });
 
   it("accepts other roles and the kit folder", async () => {
-    const other = await lintSource(
-      `export const Probe = () => <div role="group" />;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `export const Probe = () => <div role="menu" />;`,
-      "src/components/ui/probe.tsx",
-    );
-    const kitDatalist = await lintSource(
-      `export const Probe = () => <datalist id="known" />;`,
-      "src/components/ui/probe.tsx",
-    );
+    const [other, kit, kitDatalist] = await Promise.all([
+      lintSource(
+        `export const Probe = () => <div role="group" />;`,
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `export const Probe = () => <div role="menu" />;`,
+        "src/components/ui/probe.tsx",
+      ),
+      lintSource(
+        `export const Probe = () => <datalist id="known" />;`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(kitDatalist.output).not.toContain("no-hand-rolled-menu");
     expect(other.output).not.toContain("no-hand-rolled-menu");
@@ -3879,14 +3903,16 @@ describe.concurrent("ui-kit/no-hand-rolled-popover (#5601)", () => {
   });
 
   it("accepts the kit folder and other surfaces", async () => {
-    const kit = await lintSource(
-      `export const Probe = () => <div className="moto-popover-surface rounded-xl border" />;`,
-      "src/components/ui/probe.tsx",
-    );
-    const other = await lintSource(
-      `export const Probe = () => <div className="moto-content-surface rounded-2xl border" />;`,
-      "src/components/probe.tsx",
-    );
+    const [kit, other] = await Promise.all([
+      lintSource(
+        `export const Probe = () => <div className="moto-popover-surface rounded-xl border" />;`,
+        "src/components/ui/probe.tsx",
+      ),
+      lintSource(
+        `export const Probe = () => <div className="moto-content-surface rounded-2xl border" />;`,
+        "src/components/probe.tsx",
+      ),
+    ]);
 
     expect(kit.output).not.toContain("no-hand-rolled-popover");
     expect(other.output).not.toContain("no-hand-rolled-popover");
@@ -4037,8 +4063,9 @@ describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
   });
 
   it("accepts the kit pieces, other icons and the kit folder", async () => {
-    const accepted = await lintSource(
-      `import { Check } from "lucide-react";
+    const [accepted, kit] = await Promise.all([
+      lintSource(
+        `import { Check } from "lucide-react";
       import { SpinnerIcon } from "~/components/ui/icons";
       import { Loading } from "~/components/ui/loading";
       function Probe() {
@@ -4051,15 +4078,16 @@ describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
         );
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `function Probe() {
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `function Probe() {
         return <svg className="h-4 w-4 animate-spin" />;
       }
       void Probe;`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(accepted.output).not.toContain("no-own-spinner");
     expect(kit.output).not.toContain("no-own-spinner");
@@ -4193,25 +4221,23 @@ describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
   });
 
   it("allows a sticky table head and the kit itself", async () => {
-    const head = await outputOf(
-      `<div className="sticky top-0 z-30 border-b bg-white" />`,
-    );
+    const [head, kit] = await Promise.all([
+      outputOf(`<div className="sticky top-0 z-30 border-b bg-white" />`),
+      outputOf(
+        `<div className="sticky bottom-4 rounded-2xl border bg-white/95 shadow-lg" />`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
     expect(head).not.toContain("no-hand-rolled-sticky-bar");
-    const kit = await outputOf(
-      `<div className="sticky bottom-4 rounded-2xl border bg-white/95 shadow-lg" />`,
-      "src/components/ui/probe.tsx",
-    );
     expect(kit).not.toContain("no-hand-rolled-sticky-bar");
   });
 
   it("reports a free slide-over width, as prop and as class", async () => {
-    const prop = await outputOf(
-      `<SlideOverContent widthClass="sm:w-[640px]" />`,
-    );
+    const [prop, klass] = await Promise.all([
+      outputOf(`<SlideOverContent widthClass="sm:w-[640px]" />`),
+      outputOf(`<SlideOverContent className="sm:w-[640px]" />`),
+    ]);
     expect(prop).toContain("ui-kit(no-arbitrary-slide-over-width)");
-    const klass = await outputOf(
-      `<SlideOverContent className="sm:w-[640px]" />`,
-    );
     expect(klass).toContain("ui-kit(no-arbitrary-slide-over-width)");
   });
 
@@ -4224,15 +4250,17 @@ describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
 
   it("reports flex-row on a slide-over head, allows sm:flex-row on the foot", async () => {
     const importLine = `import { SlideOverFooter, SlideOverHeader } from "~/components/ui/slide-over";`;
-    const bad = await lintSource(
-      `${importLine}\nfunction Probe() { return <SlideOverHeader className="flex-row gap-3" />; }\nvoid Probe;`,
-      "src/probe.tsx",
-    );
+    const [bad, good] = await Promise.all([
+      lintSource(
+        `${importLine}\nfunction Probe() { return <SlideOverHeader className="flex-row gap-3" />; }\nvoid Probe;`,
+        "src/probe.tsx",
+      ),
+      lintSource(
+        `${importLine}\nfunction Probe() { return <SlideOverFooter className="flex-col sm:flex-row" />; }\nvoid Probe;`,
+        "src/probe.tsx",
+      ),
+    ]);
     expect(bad.output).toContain("ui-kit(no-slide-over-row-override)");
-    const good = await lintSource(
-      `${importLine}\nfunction Probe() { return <SlideOverFooter className="flex-col sm:flex-row" />; }\nvoid Probe;`,
-      "src/probe.tsx",
-    );
     expect(good.output).not.toContain("no-slide-over-row-override");
   });
 });
