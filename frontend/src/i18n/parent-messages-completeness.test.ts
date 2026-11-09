@@ -58,6 +58,10 @@ const fullCatalogInvariants = new Set([
   "{careTerm}",
   "PDF",
   "Excel",
+  // SEPA terms and the IBAN example are the same in every language (#4696).
+  "IBAN",
+  "BIC",
+  "DE00 0000 0000 0000 0000 00",
 ]);
 
 describe("complete catalogs for pl, tr and uk", () => {

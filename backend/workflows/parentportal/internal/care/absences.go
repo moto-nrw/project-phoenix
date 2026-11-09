@@ -14,9 +14,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// SickNoteResult is the outcome of a parent absence submission. Exactly one of
-// its fields is populated: StatusDays for a direct write, PendingRequest when
-// the selected absence type requires office approval (#1845, #2447, #2449).
+// SickNoteResult is the outcome of a parent absence submission: StatusDays for
+// the days written directly, PendingRequest for the days the school decides,
+// either because the absence type requires office approval (#1845, #2447,
+// #2449) or because the school already entered something for those days
+// (#5698). A report over free and school days carries both.
 type SickNoteResult struct {
 	StatusDays     []*absencerecords.StudentStatusDay
 	PendingRequest *ExcusedAbsenceRequest
@@ -67,7 +69,10 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	if requiresApproval {
 		return s.submitAbsenceRequest(ctx, child, accountID, studentID, dates, note, status, recipientGuardianProfileIDs)
 	}
-	return s.reportAbsence(ctx, child, absenceReport{accountID: accountID, studentID: studentID, dates: dates, note: note, status: status})
+	return s.reportAbsence(ctx, child, absenceReport{
+		accountID: accountID, studentID: studentID, dates: dates, note: note, status: status,
+		recipientGuardianProfileIDs: recipientGuardianProfileIDs,
+	})
 }
 
 // requireAbsenceReportsEnabled checks the school's sick-note switch and the
@@ -119,10 +124,14 @@ type absenceReport struct {
 	dates     []calendar.Date
 	note      string
 	status    string
+	// recipientGuardianProfileIDs share a request for school days (#5698).
+	recipientGuardianProfileIDs []int64
 }
 
 // reportAbsence applies a direct absence in one tenant unit of work: Care Plan
-// records the status days, People Directory the live flags for today.
+// records the status days, People Directory the live flags for today. Days the
+// school already holds an entry for become one request the school decides
+// (#5698): families never overwrite a school entry.
 func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenceReport) (*SickNoteResult, error) {
 	if s.GuardianAbsences == nil {
 		return nil, errors.New("parent: guardian absence command is not configured")
@@ -131,14 +140,31 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 	if report.note != "" {
 		notePtr = &report.note
 	}
-	var result []*absencerecords.StudentStatusDay
+	result := &SickNoteResult{}
+	var freeDays int
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		rows, err := s.writeAbsence(txCtx, child.TenantID, report, notePtr)
-		result = rows
-		return err
+		split, err := s.splitSchoolDays(txCtx, report)
+		if err != nil {
+			return err
+		}
+		freeDays = len(split.free)
+		if len(split.free) > 0 {
+			direct := report
+			direct.dates = split.free
+			if result.StatusDays, err = s.writeAbsence(txCtx, child.TenantID, split.student, direct, notePtr); err != nil {
+				return err
+			}
+		}
+		if len(split.school) > 0 {
+			result.PendingRequest, err = s.createAbsenceRequest(txCtx, child, report.accountID, report.studentID,
+				split.school, report.note, report.status, report.recipientGuardianProfileIDs)
+			return err
+		}
+		return nil
 	})
 	if txErr != nil {
-		return nil, fmt.Errorf("parent: submit sick note: %w", txErr)
+		// Translates the request refusals; every other error stays wrapped.
+		return nil, mapExcusedRequestError(txErr, "submit sick note")
 	}
 
 	s.Logger.Info("parent submitted absence",
@@ -146,28 +172,88 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 		slog.Int64("student_id", report.studentID),
 		slog.Int64("tenant_id", child.TenantID),
 		slog.String("status", report.status),
-		slog.Int("days", len(report.dates)),
+		slog.Int("days", freeDays),
+		slog.Int("school_days", len(report.dates)-freeDays),
 		slog.Bool("has_reason", notePtr != nil),
 	)
-	return &SickNoteResult{StatusDays: result}, nil
+	return result, nil
 }
 
-func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absenceReport, note *string) ([]*absencerecords.StudentStatusDay, error) {
-	now := time.Now()
-	today := s.todayDate()
-	// Serialize every parent status write with staff writes on the same
-	// student, including future-only ranges. Staff conflict detection relies
-	// on this lock to make its read and write one atomic decision.
+// schoolDaySplit separates the reported days into the ones the family writes
+// directly and the ones the school already holds an entry for.
+type schoolDaySplit struct {
+	student *PortalStudent
+	free    []calendar.Date
+	school  []calendar.Date
+}
+
+// splitSchoolDays reads the child's entries under the student row lock that
+// serializes every staff status and partial-absence write, so the split
+// cannot race a school entry. A school entry is a staff-entered partial
+// absence or a full-day status the school set (any source but the family).
+func (s *Service) splitSchoolDays(ctx context.Context, report absenceReport) (schoolDaySplit, error) {
 	fresh, err := s.StudentRepo.FindByIDForUpdate(ctx, report.studentID)
 	if err != nil {
-		return nil, err
+		return schoolDaySplit{}, err
 	}
 	// ResolvePermittedChild ran before this transaction. Re-check the
 	// interval after acquiring the same row lock as care exits so a care exit
 	// cannot commit between authorization and this write.
-	if fresh.CareEndedOn(today) {
-		return nil, ErrChildCareEnded
+	if fresh.CareEndedOn(s.todayDate()) {
+		return schoolDaySplit{}, ErrChildCareEnded
 	}
+	school, err := s.schoolEntryDays(ctx, report.studentID, report.dates)
+	if err != nil {
+		return schoolDaySplit{}, err
+	}
+	split := schoolDaySplit{student: fresh}
+	for _, date := range report.dates {
+		if _, held := school[date]; held {
+			split.school = append(split.school, date)
+		} else {
+			split.free = append(split.free, date)
+		}
+	}
+	return split, nil
+}
+
+func (s *Service) schoolEntryDays(ctx context.Context, studentID int64, dates []calendar.Date) (map[calendar.Date]struct{}, error) {
+	from := slices.MinFunc(dates, calendar.Date.Compare)
+	to := slices.MaxFunc(dates, calendar.Date.Compare)
+	held := make(map[calendar.Date]struct{})
+	pickups, err := s.CareExceptions.ListPickupExceptions(ctx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: from, To: to})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range pickups {
+		if row.HasManualPartialAbsence() {
+			held[row.ExceptionDate] = struct{}{}
+		}
+	}
+	days, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for _, day := range days {
+		if day.Source != absencerecords.StudentStatusSourceParent {
+			held[calendar.Date(day.Date)] = struct{}{}
+		}
+	}
+	for date := range held {
+		if !slices.Contains(dates, date) {
+			delete(held, date)
+		}
+	}
+	return held, nil
+}
+
+// writeAbsence records the free days. fresh is the student row the caller
+// locked: that lock serializes every parent status write with staff writes on
+// the same student, including future-only ranges, and staff conflict
+// detection relies on it to make its read and write one atomic decision.
+func (s *Service) writeAbsence(ctx context.Context, tenantID int64, fresh *PortalStudent, report absenceReport, note *string) ([]*absencerecords.StudentStatusDay, error) {
+	now := time.Now()
+	today := s.todayDate()
 	includesToday := slices.Contains(report.dates, today)
 	notifyAbsence := includesToday && isNewParentReportableAbsence(fresh, report.status)
 
@@ -177,7 +263,8 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 		StudentID: report.studentID, GuardianAccountID: report.accountID,
 		Dates: carePlanDates(report.dates), Status: report.status, Note: note, ReportedAt: now,
 	})
-	if errors.Is(err, s.CarePlanPolicy.Error(CarePlanManualPartialAbsenceConflict)) {
+	if errors.Is(err, s.CarePlanPolicy.Error(CarePlanManualPartialAbsenceConflict)) ||
+		errors.Is(err, s.CarePlanPolicy.Error(CarePlanSchoolStatusDayConflict)) {
 		return nil, ErrCareExceptionConflict
 	}
 	if err != nil {
@@ -252,9 +339,6 @@ func isNewParentReportableAbsence(student *PortalStudent, status string) bool {
 // submitAbsenceRequest turns a sick or excused report into a pending office
 // request inside the child's tenant transaction.
 func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accountID, studentID int64, dates []calendar.Date, note, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error) {
-	if s.ExcusedRequests == nil {
-		return nil, fmt.Errorf("parent: absence request service not configured")
-	}
 	var req *ExcusedAbsenceRequest
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
@@ -267,42 +351,51 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 		if fresh.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		// The note is mandatory only while the school's reason policy asks the
-		// family for one (#2267, story 28).
-		created, err := s.ExcusedRequests.Submit(txCtx, ExcusedRequestCreateInput{
-			StudentID:         studentID,
-			GuardianAccountID: accountID,
-			Dates:             carePlanDates(dates),
-			Note:              note,
-			AbsenceStatus:     status,
-			NoteRequired:      s.guardianReasonRequired(ctx, child.TenantID),
-		})
-		if err != nil {
-			return err
-		}
-		// The recipient choice is written in the SAME transaction as the
-		// request: a refused share rolls the request back with it, so a family
-		// never ends up with a request nobody they picked can see (#2267).
-		if err := s.RequestSharing.ShareRequestInTx(
-			txCtx, accountID, studentID, RequestShareExcused, created.ID, recipientGuardianProfileIDs,
-		); err != nil {
-			return err
-		}
-		req = created
-		return nil
+		req, err = s.createAbsenceRequest(txCtx, child, accountID, studentID, dates, note, status, recipientGuardianProfileIDs)
+		return err
 	})
 	if txErr != nil {
 		return nil, mapExcusedRequestError(txErr, "submit absence request")
+	}
+	return &SickNoteResult{PendingRequest: req}, nil
+}
+
+// createAbsenceRequest files the pending request and its recipient choice in
+// the caller's tenant transaction; the caller holds the student row lock.
+func (s *Service) createAbsenceRequest(ctx context.Context, child *Child, accountID, studentID int64, dates []calendar.Date, note, status string, recipientGuardianProfileIDs []int64) (*ExcusedAbsenceRequest, error) {
+	if s.ExcusedRequests == nil {
+		return nil, fmt.Errorf("parent: absence request service not configured")
+	}
+	// The note is mandatory only while the school's reason policy asks the
+	// family for one (#2267, story 28).
+	created, err := s.ExcusedRequests.Submit(ctx, ExcusedRequestCreateInput{
+		StudentID:         studentID,
+		GuardianAccountID: accountID,
+		Dates:             carePlanDates(dates),
+		Note:              note,
+		AbsenceStatus:     status,
+		NoteRequired:      s.guardianReasonRequired(ctx, child.TenantID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	// The recipient choice is written in the SAME transaction as the
+	// request: a refused share rolls the request back with it, so a family
+	// never ends up with a request nobody they picked can see (#2267).
+	if err := s.RequestSharing.ShareRequestInTx(
+		ctx, accountID, studentID, RequestShareExcused, created.ID, recipientGuardianProfileIDs,
+	); err != nil {
+		return nil, err
 	}
 	s.Logger.Info("parent submitted absence request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.TenantID),
-		slog.Int64("request_id", req.ID),
+		slog.Int64("request_id", created.ID),
 		slog.String("status", status),
 		slog.Int("days", len(dates)),
 	)
-	return &SickNoteResult{PendingRequest: req}, nil
+	return created, nil
 }
 
 // applyLiveStatusForParentToday updates the live student flags for a parent

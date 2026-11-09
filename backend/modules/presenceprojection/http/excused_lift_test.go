@@ -50,10 +50,12 @@ type statusDayResponseFailure struct {
 	err error
 }
 
-func (s statusDayResponseFailure) FindActiveByStudentAndDateRange(
+// FindSignedOffByStudentIDsAndDate is the read the response verifies the
+// day's status with: the rows that stand for the day (#6291).
+func (s statusDayResponseFailure) FindSignedOffByStudentIDsAndDate(
 	_ context.Context,
-	_ int64,
-	_, _ calendar.Date,
+	_ []int64,
+	_ calendar.Date,
 ) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, s.err
 }

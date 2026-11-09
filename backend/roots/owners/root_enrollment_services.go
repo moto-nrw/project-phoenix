@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
@@ -23,6 +24,7 @@ import (
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // EnrollmentNotices are Enrollment's mail branding and decision notices over
@@ -108,6 +110,7 @@ func BuildEnrollmentDecisions(
 		ParentsURL:             EnrollmentDecisionParentsURL(env.Links.ParentsURL, env.Links.FrontendURL),
 		Settings:               EnrollmentDecisionSettingValues(settings),
 		IsTransient:            transactionFailures.IsTransientDatabaseError,
+		IsSavepointRollback:    func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) },
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		Pickups:                weeklyPickupHooks(schedules.AutoExcusal, carePlanRows.PickupStudentLocks),
 		Logger:                 env.Logger.With("service", "enrollment-decision"), Today: env.Today,

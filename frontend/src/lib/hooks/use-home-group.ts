@@ -7,11 +7,7 @@ import type {
   OgsLiveViewData,
   OgsLiveWireStudent,
 } from "~/lib/ogs-group-live-api";
-import {
-  isPresentLocation,
-  isSchoolyardLocation,
-  isTransitLocation,
-} from "~/lib/location-helper";
+import { countedDayStatus, isCheckedInLocation } from "~/lib/location-helper";
 import {
   combineTimeNotes,
   comesOnlyIfLessonCancelled,
@@ -100,23 +96,16 @@ export function isExpectedToday(student: OgsLiveWireStudent): boolean {
   );
 }
 
-/** Ein Check-in kann im Haus, auf dem Schulhof oder unterwegs sein. */
-function isCheckedIn(student: OgsLiveWireStudent): boolean {
-  return (
-    isPresentLocation(student.current_location) ||
-    isSchoolyardLocation(student.current_location) ||
-    isTransitLocation(student.current_location)
-  );
-}
-
-/** Warum ein Kind heute fehlt — die Abweichung ist die Nachricht. */
+/**
+ * Warum ein Kind heute fehlt — die Abweichung ist die Nachricht. Ort vor
+ * Status (#6371): Wer eingecheckt ist (im Haus, auf dem Schulhof oder
+ * unterwegs), ist da, auch mit Krankmeldung oder Entschuldigung.
+ */
 function isAwayToday(student: OgsLiveWireStudent): boolean {
   return (
-    student.sick ||
-    student.excused ||
-    student.class_trip ||
+    countedDayStatus(student) !== null ||
     student.day_planning_status === "not_coming_today" ||
-    !isCheckedIn(student)
+    !isCheckedInLocation(student.current_location)
   );
 }
 

@@ -5,6 +5,7 @@
 // gleich; das Modul hält nur die Anzeige, damit die Vertragsseite des
 // Trägers nicht die ganze Prüfung der Schule lädt.
 
+import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import { ReviewDiffPanel } from "~/components/students/review-diff-panel";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -164,17 +165,31 @@ export function OfferingRequestChanges({
       })}
       {waitlist}
       {unchanged.length > 0 && (
-        <div className="mt-3 border-t border-gray-200 pt-2">
-          <SectionLabel as="p">Bleibt gebucht</SectionLabel>
-          {unchanged.map((line) => (
-            <p
-              key={line.offering_id}
-              className="text-sm wrap-anywhere text-gray-700"
-            >
-              <span className="text-xs text-gray-500">{line.label}: </span>
-              {line.days}
-            </p>
-          ))}
+        <div className="mt-3 space-y-2 border-t border-gray-200 pt-3">
+          <SectionLabel as="p" id={`bleibt-gebucht-${row.id}`}>
+            Bleibt gebucht
+          </SectionLabel>
+          {/* Die Module, die der Wunsch nicht ändert, stehen wie die
+              Änderungen darüber: Name, darunter die Tage. Ein Haken statt
+              „bisher → gewünscht“ zeigt, dass hier nichts passiert (#6334). */}
+          <ul
+            aria-labelledby={`bleibt-gebucht-${row.id}`}
+            className="space-y-2"
+          >
+            {unchanged.map((line) => (
+              <li key={line.offering_id} className="text-sm wrap-anywhere">
+                <span className="text-xs text-gray-500">{line.label}: </span>
+                <span className="flex items-center gap-1.5 text-gray-700">
+                  <Check
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-gray-400"
+                    strokeWidth={2.5}
+                  />
+                  {line.days}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {row.note && (

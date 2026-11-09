@@ -38,7 +38,7 @@ func (d *Decisions) decideAndInvite(ctx context.Context, input enrollmentNative.
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
-		if decided || attempt >= attempts || d.deps.IsTransient == nil || !d.deps.IsTransient(err) {
+		if decided || attempt >= attempts || d.savepointRollbackFailed(err) || d.deps.IsTransient == nil || !d.deps.IsTransient(err) {
 			return nil, err
 		}
 		d.logger().WarnContext(ctx, "transient enrollment decision failure, retrying",
@@ -47,6 +47,13 @@ func (d *Decisions) decideAndInvite(ctx context.Context, input enrollmentNative.
 			"error", err.Error(),
 		)
 	}
+}
+
+// savepointRollbackFailed reports a failed savepoint rollback in the unit:
+// its transaction was untrusted, so a connectivity failure in the same chain
+// does not earn a replay (E19, #6316).
+func (d *Decisions) savepointRollbackFailed(err error) bool {
+	return d.deps.IsSavepointRollback != nil && d.deps.IsSavepointRollback(err)
 }
 
 // decideAndInviteOnce runs one attempt and reports whether the decision body

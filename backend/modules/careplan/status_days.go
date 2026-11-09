@@ -38,9 +38,13 @@ type StudentStatusDayFilter struct {
 }
 
 type StudentStatusCounts struct {
-	Sick    int
-	Excused int
-	Total   int
+	// SickIDs and ExcusedIDs are the active students in the sick and the
+	// excused bucket (a class trip counts as excused), in roster order. The
+	// buckets read the status only; a consumer that knows who is checked in
+	// drops those children (place before status, #6371).
+	SickIDs    []int64
+	ExcusedIDs []int64
+	Total      int
 	// UnaccountedIDs are the counted active students in neither bucket: the
 	// children the dashboard splits into present, at school and at home.
 	UnaccountedIDs []int64
@@ -52,6 +56,20 @@ type StatusDaySummary struct {
 	Status    string
 }
 
+// StatusFlagArchive closes the status days a live sick or excused flag
+// stands for. A flag belongs to the status day of its since timestamp
+// (Berlin calendar day).
+//
+// Without Carry the archive covers the flags reported before Before: each
+// flag's status day keeps a standing row (an existing row keeps its status
+// and source; a day without a row gets an end-of-day row), and the flag is
+// cleared. Date is the status day of a flag without a since timestamp.
+//
+// With Carry the flags reported before Before stay set and stand for Date as
+// well: Date gets an active row with the source of the flag's latest earlier
+// day, or Source when there is none. A day that already has a row keeps it.
+//
+// A zero Before takes every flag.
 type StatusFlagArchive struct {
 	FlagColumn       string
 	SinceColumn      string
@@ -59,6 +77,8 @@ type StatusFlagArchive struct {
 	Date             Date
 	ReportedFallback time.Time
 	Source           string
+	Before           time.Time
+	Carry            bool
 }
 
 // CarePlanDeletionCounts is one owner-local read window of the deletion preview.

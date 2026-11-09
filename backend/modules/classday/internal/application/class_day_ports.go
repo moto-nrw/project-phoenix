@@ -146,9 +146,10 @@ type (
 		// once for the school-wide overview (#4802).
 		SchoolRosterDay(ctx context.Context, date calendar.Date) (*DayRoster, error)
 	}
-	// StatusDays reads the active scheduled day statuses of many students.
+	// StatusDays reads the scheduled day statuses that stand for the day:
+	// active, or archived at the end of their day (#6291).
 	StatusDays interface {
-		ActiveStatusDays(ctx context.Context, studentIDs []int64, date calendar.Date) ([]StatusDayEntry, error)
+		StandingStatusDays(ctx context.Context, studentIDs []int64, date calendar.Date) ([]StatusDayEntry, error)
 	}
 	// EffectiveDayTimes reads the effective pickup and arrival times (weekly
 	// plan plus day exceptions) of many students. A child without an entry

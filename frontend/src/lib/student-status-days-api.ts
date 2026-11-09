@@ -174,10 +174,19 @@ export async function createStudentStatusDays(
   status: StudentStatusKind,
   dates: string[],
   reason?: string,
+  /** Days whose partial excusal the person chose to replace (#5698). */
+  replacePartialAbsenceDates?: readonly string[],
 ): Promise<StudentStatusDay[]> {
   const rows = await writeStatusDays<BackendStudentStatusDay[]>(
     `/api/students/${encodeURIComponent(studentId)}/status-days`,
-    reason ? { status, dates, reason } : { status, dates },
+    {
+      status,
+      dates,
+      ...(reason ? { reason } : {}),
+      ...(replacePartialAbsenceDates?.length
+        ? { replace_partial_absence_dates: replacePartialAbsenceDates }
+        : {}),
+    },
     "Geplante Einträge konnten nicht gespeichert werden",
   );
   return rows.map(mapStatusDay);
