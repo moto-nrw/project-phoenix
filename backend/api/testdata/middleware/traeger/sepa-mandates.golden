@@ -3,8 +3,11 @@
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.ParseVerified > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TraegerScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.# > api/common.TraegerTxMiddleware
 	GET /traeger/sepa-mandates/
+	GET /traeger/sepa-mandates/imports
 	GET /traeger/sepa-mandates/{id}/collections
 	GET /traeger/sepa-mandates/{id}/history
 	POST /traeger/sepa-mandates/
+	POST /traeger/sepa-mandates/imports
+	POST /traeger/sepa-mandates/imports/preview
 	POST /traeger/sepa-mandates/{id}/revoke
 	PUT /traeger/sepa-mandates/{id}

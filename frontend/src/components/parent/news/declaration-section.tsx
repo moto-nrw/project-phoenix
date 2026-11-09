@@ -81,7 +81,7 @@ export function isOpenDeclaration(item: ParentAnnouncement): boolean {
 }
 
 const STATE_TONE: Record<ParentDeclarationState, StatusBadgeTone> = {
-  open: "orange",
+  open: "warning",
   partial: "blue",
   agreed: "green",
   declined: "red",

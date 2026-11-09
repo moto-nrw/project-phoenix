@@ -1207,6 +1207,54 @@
         }
       }
     },
+    "lsof@latest": {
+      "last_modified": "2026-11-06T15:06:19Z",
+      "resolved": "github:NixOS/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601#lsof",
+      "source": "devbox-search",
+      "version": "4.99.7",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fkf41fw4cm2mjn27b654ns7kmq23cs46-lsof-4.99.7",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fkf41fw4cm2mjn27b654ns7kmq23cs46-lsof-4.99.7"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/giyapcq0j71yprzf76zli5q3c15zb8hn-lsof-4.99.7",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/giyapcq0j71yprzf76zli5q3c15zb8hn-lsof-4.99.7"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/568qmcgdpr29sadma21kjd95qj7iky05-lsof-4.99.7",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/568qmcgdpr29sadma21kjd95qj7iky05-lsof-4.99.7"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/v993z4xq0z6zqdddyavbhwk0swll9bla-lsof-4.99.7",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/v993z4xq0z6zqdddyavbhwk0swll9bla-lsof-4.99.7"
+        }
+      }
+    },
     "ni@latest": {
       "last_modified": "2026-10-08T19:21:32Z",
       "resolved": "github:NixOS/nixpkgs/8edc0c72e3a38faf5434e40d1f19431125fe4b30#ni",

@@ -284,7 +284,7 @@ function PickupRow({
               {time}
             </span>
             {isException ? (
-              <StatusBadge tone="orange" label="Ausnahme" />
+              <StatusBadge tone="warning" label="Ausnahme" />
             ) : (
               <span className="text-xs text-gray-500">Abholung</span>
             )}

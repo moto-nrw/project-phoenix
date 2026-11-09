@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, render, act } from "@testing-library/react";
 import React from "react";
-import { useChatViewportLock } from "./use-chat-viewport-lock";
+import {
+  MIN_MESSAGE_LIST_PX,
+  useChatViewportLock,
+} from "./use-chat-viewport-lock";
 
 // Minimal wrapper component that actually attaches the ref to a DOM element,
 // which is required for the fit effect (it early-returns when ref.current is null).
@@ -46,38 +49,40 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("useChatViewportLock — scroll lock", () => {
-  it("sets html and body overflow to 'hidden' on mount", () => {
+  const locked = () =>
+    document.documentElement.hasAttribute("data-chat-page-lock");
+
+  it("locks page scrolling on mount", () => {
     renderHook(() => useChatViewportLock<HTMLDivElement>(false));
 
-    expect(document.documentElement.style.overflow).toBe("hidden");
-    expect(document.body.style.overflow).toBe("hidden");
+    expect(locked()).toBe(true);
   });
 
-  it("restores the previous overflow values on unmount", () => {
+  it("releases the lock on unmount", () => {
+    const { unmount } = renderHook(() =>
+      useChatViewportLock<HTMLDivElement>(false),
+    );
+    unmount();
+
+    expect(locked()).toBe(false);
+  });
+
+  it("leaves the inline overflow to modals", () => {
+    // Modals lock with inline overflow and restore their saved value on
+    // close; a chat writing the same style got its own released lock back
+    // from a modal that closed afterwards.
     document.documentElement.style.overflow = "scroll";
     document.body.style.overflow = "auto";
 
     const { unmount } = renderHook(() =>
       useChatViewportLock<HTMLDivElement>(false),
     );
-
-    expect(document.documentElement.style.overflow).toBe("hidden");
-    expect(document.body.style.overflow).toBe("hidden");
-
-    unmount();
-
     expect(document.documentElement.style.overflow).toBe("scroll");
     expect(document.body.style.overflow).toBe("auto");
-  });
 
-  it("restores empty string when there was no prior overflow", () => {
-    const { unmount } = renderHook(() =>
-      useChatViewportLock<HTMLDivElement>(false),
-    );
     unmount();
-
-    expect(document.documentElement.style.overflow).toBe("");
-    expect(document.body.style.overflow).toBe("");
+    expect(document.documentElement.style.overflow).toBe("scroll");
+    expect(document.body.style.overflow).toBe("auto");
   });
 });
 
@@ -406,5 +411,208 @@ describe("useChatViewportLock — soft keyboard", () => {
     unmount();
 
     expect(keyboardFlag()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fit effect — readable message list, compact mode (small phones)
+// ---------------------------------------------------------------------------
+
+// Chat with a card around the marked message list inside the shell's <main>,
+// as the three chats render it.
+function ChatWithList({ ready = true }: { ready?: boolean }) {
+  const ref = useChatViewportLock<HTMLDivElement>(ready);
+  return React.createElement(
+    "main",
+    { style: { paddingBottom: "112px", paddingTop: "16px" } },
+    React.createElement(
+      "div",
+      { ref, "data-testid": "chat" },
+      React.createElement(
+        "div",
+        { "data-testid": "card" },
+        React.createElement("div", {
+          "data-chat-scroll": "",
+          "data-testid": "list",
+        }),
+      ),
+    ),
+  );
+}
+
+describe("useChatViewportLock — message list and compact mode", () => {
+  const originalViewport = window.visualViewport;
+  const originalInnerHeight = window.innerHeight;
+
+  const chat = () =>
+    document.querySelector<HTMLDivElement>('[data-testid="chat"]');
+  const locked = () =>
+    document.documentElement.hasAttribute("data-chat-page-lock");
+  const compactFlag = () =>
+    document.documentElement.hasAttribute("data-chat-compact");
+
+  // `chrome` is what header, quick actions and composer take; the list gets
+  // the rest of the height the hook set. `clipped` is content the card cuts
+  // off (the staff chats' overflow-hidden cards).
+  const mockLayout = (
+    innerHeight: number,
+    top: number,
+    chrome: number,
+    { visualHeight = innerHeight, clipped = 0 } = {},
+  ) => {
+    window.innerHeight = innerHeight;
+    const viewport = new EventTarget();
+    Object.defineProperty(viewport, "height", { value: visualHeight });
+    Object.defineProperty(viewport, "scale", { value: 1 });
+    Object.defineProperty(window, "visualViewport", {
+      value: viewport,
+      configurable: true,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, top, 360, 0),
+    );
+    const chatHeight = () => parseFloat(chat()?.style.height ?? "") || 0;
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      function (this: HTMLElement) {
+        const id = this.dataset.testid;
+        if (id === "chat" || id === "card") return chatHeight();
+        if (id === "list") return Math.max(chatHeight() - chrome, 0);
+        return 0;
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+      function (this: HTMLElement) {
+        const id = this.dataset.testid;
+        if (id === "card") return chatHeight() + clipped;
+        // Header and composer that do not fit overflow the container.
+        return id === "chat" ? Math.max(chatHeight(), chrome) : 0;
+      },
+    );
+  };
+
+  // A second fit reads the chrome from the layout the first one set, as on a
+  // real page once the chat has its height.
+  const renderFitted = () => {
+    const view = render(React.createElement(ChatWithList));
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    return view;
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.innerHeight = originalInnerHeight;
+    Object.defineProperty(window, "visualViewport", {
+      value: originalViewport,
+      configurable: true,
+    });
+    Object.defineProperty(window, "scrollY", {
+      value: 0,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("keeps the page locked while the chat fits", () => {
+    // 900 - 80 top - 112 nav = 708 px; the chat needs 240 + 160.
+    mockLayout(900, 80, 240);
+    renderFitted();
+
+    expect(chat()?.style.height).toBe("708px");
+    expect(locked()).toBe(true);
+  });
+
+  it("lets the page scroll instead of squeezing the list when it does not fit", () => {
+    // 360 × 640 phone with group messages above the chat: 640 - 525 - 112
+    // leaves 3 px. The locked layout shrank the list to 24 px and clipped the
+    // composer.
+    mockLayout(640, 525, 220);
+    renderFitted();
+
+    expect(locked()).toBe(false);
+    // Scrolled down, the chat fills the screen from the content top (16 px
+    // main padding) to the bottom nav: 640 - 112 - 16.
+    expect(chat()?.style.height).toBe("512px");
+  });
+
+  it("gives the list its minimum when the chat needs more than the screen", () => {
+    mockLayout(640, 525, 440);
+    renderFitted();
+
+    expect(chat()?.style.height).toBe(`${440 + MIN_MESSAGE_LIST_PX}px`);
+  });
+
+  it("counts content a wrapper clips as needed height", () => {
+    // Staff chats: the card is overflow-hidden, so the chat container sees no
+    // overflow. 708 px look enough for 400 px of chrome, but the card cuts
+    // off another 200 px.
+    mockLayout(900, 80, 400, { clipped: 200 });
+    renderFitted();
+
+    expect(locked()).toBe(false);
+  });
+
+  it("keeps the chat at the keyboard edge while the keyboard is open", () => {
+    // The line being typed has priority (#3664): no list minimum that would
+    // push the composer under the keyboard.
+    mockLayout(640, 80, 220, { visualHeight: 300 });
+    renderFitted();
+
+    expect(chat()?.style.height).toBe("220px");
+    expect(locked()).toBe(true);
+  });
+
+  it("lets the page scroll when header and composer exceed the keyboard edge", () => {
+    // Keyboard open, 220 px down to the keyboard, but header and composer
+    // alone take 300 px: the locked chat would hide "Senden".
+    mockLayout(640, 80, 300, { visualHeight: 300 });
+    renderFitted();
+
+    expect(locked()).toBe(false);
+  });
+
+  it("keeps the person's own scroll position while the page scrolls", () => {
+    const scrollToSpy = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    mockLayout(640, 525, 220);
+    renderFitted();
+    Object.defineProperty(window, "scrollY", {
+      value: 200,
+      configurable: true,
+      writable: true,
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+  });
+
+  it("flags a compact chat on small screens", () => {
+    // 640 - 112 nav = 528 px usable height.
+    mockLayout(640, 80, 200);
+    renderFitted();
+
+    expect(compactFlag()).toBe(true);
+  });
+
+  it("does not flag a compact chat on tall screens", () => {
+    // 844 - 112 = 732 px usable height (iPhone 14, Android 390 × 844).
+    mockLayout(844, 80, 200);
+    renderFitted();
+
+    expect(compactFlag()).toBe(false);
+  });
+
+  it("clears the compact flag and the lock when the chat unmounts", () => {
+    mockLayout(640, 80, 200);
+    const { unmount } = renderFitted();
+    unmount();
+
+    expect(compactFlag()).toBe(false);
+    expect(locked()).toBe(false);
   });
 });

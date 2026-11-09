@@ -178,7 +178,7 @@ export function BookingLeftoverHints({
         <SectionCard
           title="Ohne passende Buchung eingeplant"
           titleBadge={
-            <StatusBadge tone="orange" label={`${open.length} offen`} />
+            <StatusBadge tone="warning" label={`${open.length} offen`} />
           }
           description="Diese Kinder stehen von Hand in einem Regeltermin. Ihre Buchung für diese Tage ist weggefallen."
           leading={

@@ -215,7 +215,7 @@ export function StaffTimeAccountsTable({
               label={
                 row.laborHintDays === 1 ? "1 Tag" : `${row.laborHintDays} Tage`
               }
-              tone="orange"
+              tone="warning"
               title="Tage mit zu kurzer Pause oder mehr als 10 Std. Arbeit. Die Tage stehen in der Zeiterfassung der Person."
             />
           ) : (

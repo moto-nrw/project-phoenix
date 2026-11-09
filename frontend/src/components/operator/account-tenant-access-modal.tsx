@@ -43,7 +43,7 @@ function roleLabel(name: string): string {
 
 function statusTone(status: AccountTenantAccess["status"]) {
   if (status === "active") return "green" as const;
-  if (status === "pending") return "orange" as const;
+  if (status === "pending") return "warning" as const;
   return "gray" as const;
 }
 
@@ -465,7 +465,7 @@ export function AccountTenantAccessModal({
                             />
                             {!entry.hasStaff && (
                               <StatusBadge
-                                tone="orange"
+                                tone="warning"
                                 label="Ohne Personaldaten"
                               />
                             )}

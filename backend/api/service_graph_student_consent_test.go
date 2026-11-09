@@ -28,6 +28,7 @@ func TestServiceGraphStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 		HealthDataKeys:   testpkg.TestHealthDataKeys,
+		BankDataKeys:     testpkg.TestBankDataKeys,
 	}
 
 	observedAppends := 0

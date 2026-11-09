@@ -43,14 +43,14 @@ export function OpenWithdrawalCard({
       summary={`Keine Betreuungstage ab ${formatDate(row.firstBookinglessDay)}`}
       badge={
         <StatusBadge
-          tone={overdue ? "red" : "orange"}
+          tone={overdue ? "red" : "warning"}
           label={overdue ? "Überfällig" : "Geplant"}
         />
       }
       history={{
         kind: "readonly",
         label: overdue ? "Überfällig" : "Geplant",
-        tone: overdue ? "red" : "orange",
+        tone: overdue ? "red" : "warning",
       }}
       action={
         <div className="flex flex-wrap gap-2">

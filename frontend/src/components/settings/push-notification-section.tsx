@@ -448,7 +448,7 @@ export function PushNotificationSection({
                       label={
                         installed ? t("statusInstallYes") : t("statusInstallNo")
                       }
-                      tone={installed ? "green" : "orange"}
+                      tone={installed ? "green" : "warning"}
                     />
                   </DataField>
                   <DataField inline label={t("statusPermissionLabel")}>
@@ -465,7 +465,7 @@ export function PushNotificationSection({
                           ? "green"
                           : permission === "denied"
                             ? "red"
-                            : "orange"
+                            : "warning"
                       }
                     />
                   </DataField>

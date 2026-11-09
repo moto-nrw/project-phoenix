@@ -74,7 +74,7 @@ function AccidentReportStatus({ doc }: Readonly<{ doc: StudentDocument }>) {
   return report.status === "signed" ? (
     <StatusBadge tone="green" label="Unterschrieben" />
   ) : (
-    <StatusBadge tone="orange" label="Offen" />
+    <StatusBadge tone="warning" label="Offen" />
   );
 }
 

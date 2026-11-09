@@ -1,9 +1,10 @@
 import {
+  StatusBadge,
   StatusPillBase,
   type StatusBadgeSize,
   type StatusPillDataAttributes,
 } from "./status-badge";
-import { getLocationBadgeTone } from "~/lib/location-helper";
+import { LOCATION_COLORS, getLocationBadgeTone } from "~/lib/location-helper";
 
 // The kit pill (StatusPillBase, #5584) for a data-driven colour from
 // LOCATION_COLORS, e.g. an amber status: color={LOCATION_COLORS.WARNING}. Use
@@ -19,6 +20,9 @@ import { getLocationBadgeTone } from "~/lib/location-helper";
 // difference decides: brand orange darkened for white reaches 4.48:1 here and
 // misses.
 //
+// LOCATION_COLORS.WARNING renders exactly as StatusBadge tone="warning": yellow
+// tint and warning icon, distinct from the orange Schulhof pill (#5617).
+//
 // Formerly StatusDotBadge: the leading dot carried the raw hex and went with
 // #2476, because tint and label already name the status.
 export function StatusColorBadge({
@@ -31,12 +35,26 @@ export function StatusColorBadge({
   ...dataAttributes
 }: StatusPillDataAttributes & {
   readonly label: string;
-  readonly color: string;
+  readonly color: string | null | undefined;
   readonly title?: string;
   readonly size?: StatusBadgeSize;
   readonly compact?: boolean;
   readonly wrap?: boolean;
 }) {
+  if (color?.toUpperCase() === LOCATION_COLORS.WARNING) {
+    return (
+      <StatusBadge
+        tone="warning"
+        label={label}
+        title={title}
+        size={size}
+        compact={compact}
+        wrap={wrap}
+        {...dataAttributes}
+      />
+    );
+  }
+
   const tone = getLocationBadgeTone(color);
 
   return (

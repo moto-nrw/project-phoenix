@@ -206,7 +206,7 @@ function NewsCardState({
 
   if (!isPoll(item)) {
     if (item.requires_acknowledgement && !item.acknowledged) {
-      return <StatusBadge label={t("newsLetterBadge")} tone="orange" />;
+      return <StatusBadge label={t("newsLetterBadge")} tone="warning" />;
     }
     const complete = item.requires_acknowledgement
       ? item.acknowledged
@@ -250,7 +250,7 @@ function NewsCardState({
   return (
     <>
       {!closed && !complete ? (
-        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="warning" />
       ) : (
         <span
           className={`flex items-center gap-1.5 font-semibold ${settled ? "text-moto-green-strong" : "text-gray-600"}`}
@@ -315,7 +315,7 @@ function SurveyCardState({
       ) : closed ? (
         <span className="text-gray-600">{ts("closed")}</span>
       ) : (
-        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="warning" />
       )}
       <StatusBadge
         label={
@@ -360,7 +360,7 @@ function DeclarationCardState({
   if (isOpenDeclaration(item)) {
     return (
       <>
-        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="warning" />
         {deadline}
       </>
     );
@@ -621,7 +621,7 @@ function usePollChildStatus(
   const t = useTranslations("parentDashboard");
   const dirty = poll.isDirty(child);
   const answered = child.selected_options.length > 0;
-  if (dirty) return { label: t("newsPollUnsaved"), tone: "orange" as const };
+  if (dirty) return { label: t("newsPollUnsaved"), tone: "warning" as const };
   if (answered) return { label: t("newsPollAnswered"), tone: "green" as const };
   return { label: t("newsPollOpen"), tone: "gray" as const };
 }
@@ -849,7 +849,7 @@ export function NewsCard({
         <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm empty:hidden">
           <NewsCardState item={item} />
           {item.priority === "important" && (
-            <StatusBadge label={t("newsImportant")} tone="orange" />
+            <StatusBadge label={t("newsImportant")} tone="warning" />
           )}
           {item.reminder_sent_at && (
             <StatusBadge label={t("newsReminder")} tone="gray" />

@@ -217,7 +217,7 @@ type SEPAMandateChange struct {
 
 // SEPAMandateEvent is one entry of the trail of a mandate: what happened,
 // from where, which fields a change touched, who and when. It holds no
-// value.
+// bank value. An imported creation also names its file and line.
 type SEPAMandateEvent struct {
 	ID         int64     `json:"id"`
 	Action     string    `json:"action"`
@@ -225,6 +225,8 @@ type SEPAMandateEvent struct {
 	Fields     []string  `json:"fields"`
 	AccountID  *int64    `json:"account_id"`
 	OccurredAt time.Time `json:"occurred_at"`
+	ImportFile string    `json:"import_file,omitempty"`
+	ImportLine int       `json:"import_line,omitempty"`
 }
 
 // SEPAMandateDebit is a mandate with its open IBAN for the debit file
@@ -320,9 +322,11 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 }
 
 // BankDataCipher seals and opens single database values bound to their
-// context. The root binds Security Runtime's field cipher (#4722), the same
-// key ring that seals the health information (ADR 0171).
+// context. The root binds Security Runtime's independent bank ring
+// (BANK_DATA_KEYS, ADR 0183); legacy reading is an explicit transition only.
 type BankDataCipher interface {
+	// BankDataRing prevents health-only ciphers from satisfying this port.
+	BankDataRing()
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }
@@ -357,4 +361,6 @@ type SEPAMandates interface {
 	// the collection history per mandate and invoice (#4697). It names no
 	// bank data.
 	SEPAMandateCollections(ctx context.Context, reviewer HolidayReviewer, id int64) ([]SEPADebit, error)
+	// SEPAMandateImports takes over existing mandates from a file (#6198).
+	SEPAMandateImports
 }

@@ -874,6 +874,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Ein Chat sperrt das Seiten-Scrollen, solange er auf den Bildschirm passt;
+   nur sein Verlauf scrollt (`useChatViewportLock`). Ein Attribut statt
+   Inline-Stilen: Modals sperren über `style.overflow` und stellen beim
+   Schließen ihren gemerkten Wert wieder her. */
+html[data-chat-page-lock],
+html[data-chat-page-lock] body {
+  overflow: hidden;
+}
+
 ::selection {
   color: var(--color-white);
   background: var(--color-moto-blue);

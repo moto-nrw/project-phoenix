@@ -456,7 +456,7 @@ describe("external caregivers (#4573)", () => {
   it("pairs each account state with one tone for its badge", () => {
     expect(externalAccountMark("invitation_pending")).toEqual({
       label: "Einladung offen",
-      tone: "orange",
+      tone: "warning",
     });
     expect(externalAccountMark("none")).toEqual({
       label: "Kein Konto",

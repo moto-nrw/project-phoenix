@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { SepaMandate } from "~/lib/traeger-sepa-api";
+import { traegerRequest } from "~/lib/traeger-api";
 import { SepaMandatesCard } from "./sepa-mandates-card";
 
 const api = vi.hoisted(() => ({
@@ -16,6 +17,10 @@ vi.mock("~/lib/traeger-sepa-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
+vi.mock("~/lib/traeger-api", () => ({
+  traegerRequest: vi.fn(),
+  fetchTraegerBuero: () => Promise.resolve({ members: [] }),
+}));
 
 const MANDATE: SepaMandate = {
   id: "9",
@@ -99,6 +104,50 @@ describe("SepaMandatesCard (#4695)", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByText(/Gilt nicht mehr/)).toBeInTheDocument();
     expect(screen.queryByText("Gültig")).not.toBeInTheDocument();
+  });
+
+  it("maps and shows the imported file and line in the mandate history", async () => {
+    const original = await vi.importActual<
+      typeof import("~/lib/traeger-sepa-api")
+    >("~/lib/traeger-sepa-api");
+    api.fetchSepaMandates.mockResolvedValue([{ ...MANDATE, source: "import" }]);
+    api.fetchSepaMandateHistory.mockImplementation(
+      original.fetchSepaMandateHistory,
+    );
+    vi.mocked(traegerRequest).mockResolvedValue([
+      {
+        id: 1,
+        action: "create",
+        source: "import",
+        fields: [],
+        account_id: 5,
+        occurred_at: "2026-09-01T10:00:00+02:00",
+        import_file: "ogs-connect.csv",
+        import_line: 4,
+      },
+      {
+        id: 2,
+        action: "read",
+        source: "office",
+        fields: [],
+        account_id: null,
+        occurred_at: "2026-09-01T11:00:00+02:00",
+      },
+    ]);
+    renderCard();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: `Aktionen für das Mandat ${MANDATE.reference}`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Verlauf ansehen" }));
+    expect(
+      await screen.findByText("Datei: ogs-connect.csv · Zeile 4"),
+    ).toBeInTheDocument();
+    expect(traegerRequest).toHaveBeenCalledWith(
+      "/api/traeger/sepa-mandates/9/history",
+    );
+    expect(screen.getAllByText(/^Datei:/)).toHaveLength(1);
   });
 
   it("stays away for a role without the right „Abrechnung“", async () => {

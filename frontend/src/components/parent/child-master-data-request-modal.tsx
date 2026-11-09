@@ -125,7 +125,7 @@ export function ChildMasterDataRequestModal({
 
   const pendingBadge = (field: IdentityField) =>
     isPending(field) ? (
-      <StatusBadge label={t("pendingBadge")} tone="orange" />
+      <StatusBadge label={t("pendingBadge")} tone="warning" />
     ) : null;
 
   return (
