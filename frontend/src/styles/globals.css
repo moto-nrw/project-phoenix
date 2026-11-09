@@ -883,6 +883,25 @@ html[data-chat-page-lock] body {
   overflow: hidden;
 }
 
+/* iOS vergrößert die ganze Seite, sobald jemand in ein Feld mit Schrift unter
+   16 px tippt, und lässt sie danach vergrößert stehen: Der Chat verschwand
+   dabei über dem oberen Rand, jede andere Seite sprang. Auf Touch-Geräten
+   schreiben Felder deshalb mit mindestens 16 px. Den Zoom zu sperren
+   (`maximum-scale`) ist kein Ausweg: Menschen müssen vergrößern können
+   (#2267). Ohne `@layer`, damit die Regel `text-sm` am Feld überstimmt;
+   größere Schrift bleibt. */
+@media (pointer: coarse) {
+  :is(input, textarea, select):not(
+      [class*="text-lg"],
+      [class*="text-xl"],
+      [class*="text-2xl"],
+      [class*="text-3xl"],
+      [class*="text-4xl"]
+    ) {
+    font-size: 16px;
+  }
+}
+
 ::selection {
   color: var(--color-white);
   background: var(--color-moto-blue);

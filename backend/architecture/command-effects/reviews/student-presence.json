@@ -18318,6 +18318,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PartialAbsenceService.ReplaceManualPartialAbsences",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.PartialAbsenceReplacer.ReplaceManualPartialAbsences",
+      "reason": "Guarded leaf command (mutation): a staff status write the caller confirmed removes Care Plan's manual partial absences on the requested days (#5698). Care Plan takes the student and care-day locks itself in the canonical ascending order the status write already holds, joins the caller unit, and restores blocks and pickup time with its own delete path; the status write keeps its own partial-absence guard afterwards.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PartialAbsenceService.ReplaceManualPartialAbsences",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRoutePersons.AssignStudentTag",
       "classification": "leaf",
       "effect": "mutation",

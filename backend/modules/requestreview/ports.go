@@ -81,6 +81,9 @@ type Row struct {
 	// CurrentStatusByDate is what each requested day looks like today
 	// (absence requests only).
 	CurrentStatusByDate map[string]string
+	// PartialAbsenceFromByDate names the requested days a staff-entered
+	// partial absence holds, date -> "HH:MM" (absence requests only, #5698).
+	PartialAbsenceFromByDate map[string]string
 	// CanCorrect marks a decided request whose decision staff can still
 	// rewrite (history).
 	CanCorrect bool
