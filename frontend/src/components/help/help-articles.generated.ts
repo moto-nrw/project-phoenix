@@ -12057,7 +12057,7 @@ export const traegerSepaDebitFileTopic =
       icon: "ArrowUpRight",
       requirements: [
         "Ihre Rolle im Träger-Büro ist Abrechnung.",
-        "Der Monatslauf oder Ferienlauf ist freigegeben.",
+        "Der Monatslauf, Ferienlauf oder Jahresbescheid ist freigegeben.",
         "Die Familien haben ein gültiges SEPA-Mandat.",
         "Unter `Einstellungen` → `Abrechnung` gibt es eine Bankverbindung als Standard. Auf dieses Konto gehen die Beiträge.",
       ],
@@ -12070,6 +12070,16 @@ export const traegerSepaDebitFileTopic =
             "Prüfen Sie in der Karte `Lastschrift` Zahl, Summe und Tag der Abbuchung.",
             "Wählen Sie `Datei herunterladen`. Sie bekommen eine XML-Datei.",
             "Lassen Sie diese Seite offen, bis Sie das Einreichen bestätigt haben.",
+          ],
+        },
+        {
+          title: "Raten aus dem Jahresbescheid",
+          description:
+            "Für Raten aus dem Jahresbescheid gibt es eine Datei je Monat.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Jahresbescheide`, und öffnen Sie den freigegebenen Lauf.",
+            "Wählen Sie in der Karte `Lastschrift der Raten` bei `Raten fällig im` den Monat.",
+            "Laden Sie die Datei herunter und reichen Sie sie ein wie oben.",
           ],
         },
         {

@@ -28,6 +28,9 @@ import (
 const (
 	DebitRunCare    = "care"
 	DebitRunHoliday = "holiday"
+	// DebitRunNotice is the file of the installments of the Jahresbescheide
+	// due in one month; its ID is the month as YYYYMM (#4697, ADR 0182).
+	DebitRunNotice = "notice"
 )
 
 // States of a debit.
@@ -38,6 +41,9 @@ const (
 
 // Why a pending debit stays out of the file.
 const (
+	// DebitLeftNoMandate is an installment of a family without a valid
+	// mandate in force.
+	DebitLeftNoMandate       = "mandate_missing"
 	DebitLeftOneOffUsed      = "one_off_used"
 	DebitLeftOneOffMultiple  = "one_off_multiple"
 	DebitLeftCancelled       = "cancelled"
@@ -125,7 +131,12 @@ type SEPADebit struct {
 	Status           string        `json:"status"`
 	Left             string        `json:"left,omitempty"`
 	SubmittedAt      *time.Time    `json:"submitted_at"`
-	MessageID        string        `json:"message_id,omitempty"`
+	// NoticeID and NoticeMonth name the installment of a Jahresbescheid the
+	// debit collects instead of an invoice (ADR 0182); InvoiceNumber is
+	// then the number of the notice.
+	NoticeID    int64         `json:"notice_id,omitempty"`
+	NoticeMonth calendar.Date `json:"notice_month,omitempty"`
+	MessageID   string        `json:"message_id,omitempty"`
 }
 
 // SEPADebitGroup is one batch of the file: the debits of one sequence type
@@ -206,6 +217,24 @@ type SealedSEPADebit struct {
 	// OneOffShared is a one-off mandate another uncancelled debit of any
 	// run also claims: the authorization covers one collection only.
 	OneOffShared bool
-	Holder       []byte
-	IBAN         []byte
+	// MandateUpdatedAt is the last change of the mandate an installment of
+	// a Jahresbescheid is planned from; its account is fixed only by the
+	// confirmation, so a change of it changes the file.
+	MandateUpdatedAt time.Time
+	Holder           []byte
+	IBAN             []byte
+}
+
+// SEPANoticeRate is what the file needs of an installment of a
+// Jahresbescheid besides its due: the recipient of the notice, the mandate
+// in force of the family (nil without), the creditor identifier now and, for
+// the file, the sealed account. OneOffClaimed is a one-off mandate another
+// debit already claims.
+type SEPANoticeRate struct {
+	RecipientName string
+	Mandate       *SEPAMandate
+	CreditorNow   string
+	OneOffClaimed bool
+	Holder        []byte
+	IBAN          []byte
 }

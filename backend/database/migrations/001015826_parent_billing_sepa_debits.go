@@ -16,6 +16,7 @@ func init() {
 		DependsOn: []string{
 			studentMembershipCareGapVersion,  // the newest migration on development
 			parentBillingSEPAMandatesVersion, // the mandates and the mandate copied onto the invoices
+			parentBillingCareNoticesVersion,  // the installments of the Jahresbescheide (#6219)
 		},
 	})
 	Migrations.MustRegister(parentBillingSEPADebitsUp, parentBillingSEPADebitsDown)
@@ -25,7 +26,9 @@ func init() {
 // (#4697, ADR 0181):
 //
 //   - sepa_debits: one row per issued invoice that is collected by direct
-//     debit (monthly invoice or holiday invoice). The release writes it with
+//     debit (monthly invoice or holiday invoice), and per installment of a
+//     Jahresbescheid once the file of its month is confirmed (run_kind
+//     notice, run_id the month as YYYYMM; one per contract and month). The release writes it with
 //     the account of the mandate as it is then: holder and IBAN stay sealed
 //     (copied, never opened), so a later change of the mandate does not
 //     reach a file of an issued run. The amount is what the family pays
@@ -49,6 +52,8 @@ CREATE TABLE parent_billing.sepa_debits (
 	run_kind VARCHAR(16) NOT NULL,
 	run_id BIGINT NOT NULL,
 	care_invoice_id BIGINT,
+	care_notice_id BIGINT,
+	notice_month DATE,
 	document_id BIGINT,
 	invoice_number VARCHAR(64) NOT NULL,
 	amount_cents BIGINT NOT NULL,
@@ -76,9 +81,18 @@ CREATE TABLE parent_billing.sepa_debits (
 		REFERENCES parent_billing.care_invoices (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT fk_sepa_debits_document FOREIGN KEY (organization_id, document_id)
 		REFERENCES parent_billing.documents (organization_id, id) ON DELETE CASCADE,
+	CONSTRAINT fk_sepa_debits_care_notice FOREIGN KEY (organization_id, care_notice_id)
+		REFERENCES parent_billing.care_notices (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT chk_sepa_debits_invoice CHECK (
-		(run_kind = 'care' AND care_invoice_id IS NOT NULL AND document_id IS NULL)
-		OR (run_kind = 'holiday' AND document_id IS NOT NULL AND care_invoice_id IS NULL)),
+		(run_kind = 'care' AND care_invoice_id IS NOT NULL AND document_id IS NULL AND care_notice_id IS NULL)
+		OR (run_kind = 'holiday' AND document_id IS NOT NULL AND care_invoice_id IS NULL AND care_notice_id IS NULL)
+		-- The installments of a month of the Jahresbescheide: run_id is the month as YYYYMM.
+		OR (run_kind = 'notice' AND care_notice_id IS NOT NULL AND care_invoice_id IS NULL AND document_id IS NULL
+			AND run_id = EXTRACT(YEAR FROM notice_month) * 100 + EXTRACT(MONTH FROM notice_month))),
+	-- An installment of a Jahresbescheid is written when its file is
+	-- confirmed, never pending (ADR 0181).
+	CONSTRAINT chk_sepa_debits_notice CHECK ((care_notice_id IS NULL AND notice_month IS NULL)
+		OR (care_notice_id IS NOT NULL AND notice_month IS NOT NULL AND EXTRACT(DAY FROM notice_month) = 1 AND status = 'submitted')),
 	CONSTRAINT chk_sepa_debits_amount CHECK (amount_cents > 0),
 	CONSTRAINT chk_sepa_debits_sequence CHECK (sequence_type IN ('FRST', 'RCUR', 'OOFF')),
 	CONSTRAINT chk_sepa_debits_status CHECK (
@@ -91,6 +105,11 @@ CREATE UNIQUE INDEX uq_sepa_debits_care_invoice ON parent_billing.sepa_debits (o
 	WHERE care_invoice_id IS NOT NULL;
 CREATE UNIQUE INDEX uq_sepa_debits_document ON parent_billing.sepa_debits (organization_id, document_id)
 	WHERE document_id IS NOT NULL;
+-- One collection per contract and month of a Jahresbescheid.
+CREATE UNIQUE INDEX uq_sepa_debits_notice_month ON parent_billing.sepa_debits (organization_id, care_contract_id, notice_month)
+	WHERE notice_month IS NOT NULL;
+CREATE INDEX idx_sepa_debits_care_notice ON parent_billing.sepa_debits (organization_id, care_notice_id)
+	WHERE care_notice_id IS NOT NULL;
 CREATE INDEX idx_sepa_debits_run ON parent_billing.sepa_debits (organization_id, run_kind, run_id);
 CREATE INDEX idx_sepa_debits_mandate ON parent_billing.sepa_debits (organization_id, mandate_id, status);
 CREATE INDEX idx_sepa_debits_contract ON parent_billing.sepa_debits (organization_id, care_contract_id);

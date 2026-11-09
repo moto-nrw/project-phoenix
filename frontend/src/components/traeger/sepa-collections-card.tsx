@@ -9,6 +9,7 @@ import { formatEuro } from "~/components/traeger/contribution-format";
 import {
   SEPA_DEBIT_LEFT_LABELS,
   SEPA_SEQUENCE_BADGES,
+  debitDocumentLabel,
 } from "~/components/traeger/sepa-debit-format";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -55,11 +56,11 @@ function debitState(debit: SepaDebit) {
 const columns: DataTableColumn<SepaDebit>[] = [
   {
     key: "invoice",
-    header: "Rechnung",
+    header: "Rechnung oder Bescheid",
     stacked: "title",
     render: (debit) => (
       <span className="font-medium text-gray-900 tabular-nums">
-        {debit.invoiceNumber}
+        {debitDocumentLabel(debit)}
       </span>
     ),
   },
@@ -134,7 +135,7 @@ export function SepaCollectionsCard({
   return (
     <SectionCard
       title="Abbuchungen"
-      description="Jede Rechnung, die per Lastschrift abgebucht wird. Nur zur Information: Die Datei für die Bank laden Sie auf der Seite des Laufs."
+      description="Jede Rechnung und jede Rate eines Bescheids, die per Lastschrift abgebucht wird. Nur zur Information: Die Datei für die Bank laden Sie auf der Seite des Laufs."
       loading={debits === null && !load.error}
     >
       {load.error ? (

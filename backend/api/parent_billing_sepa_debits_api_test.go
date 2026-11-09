@@ -422,3 +422,91 @@ func TestSEPADebitOneOffMandateGoesIntoOneFileAcrossRuns(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, debitRun(t, f, first).Count, "the cancelled invoice frees the authorization for the other run")
 }
+
+// A family with a Jahresbescheid pays its installment, a family with a
+// monthly invoice its invoice (#4697, ADR 0182): Noah's October is billed by
+// a monthly invoice, Mia's by her notice. The installments due in October
+// have their own file; the file of the October run holds Noah's invoice,
+// that of October's installments Mia's installment, and no family is in
+// both. The confirmation writes the installment as a collection of Mia's
+// mandate, and her mandate's history shows it.
+func TestSEPADebitFilesCollectTheInstallmentAndTheInvoiceOfAMonthOnce(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger Lastschrift Jahresbescheid")
+	school := f.office.schools[0]
+	noah := careContract(t, f.db, f.office.organization, school, "Noah", sepaDebitMonth, sjrServices()...)
+	createMandate(t, f, mandateBody(noah, "SJR-JB-NOAH"))
+	october := releaseDebitRun(t, f, "2029-10-01")
+
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", sepaDebitMonth, sjrServices()...)
+	miaMandate := createMandate(t, f, mandateBody(mia, "SJR-JB-MIA"))
+	writeLegalRemedy(t, f.db, f.office.organization)
+	notices := f.startNoticeRun(t, "2029-10-01", "2029-09-24")
+	released := f.releaseNoticeRun(t, f.noticeRun(t, notices.ID))
+	var miaNotice int64
+	for _, notice := range released.Notices {
+		if notice.ContractID == mia {
+			miaNotice = notice.ID
+		}
+	}
+	require.NotZero(t, miaNotice, "Mia's year is assessed by a notice")
+
+	type fileDebit struct {
+		sepaDebitBody
+		ContractID  int64  `json:"contract_id"`
+		NoticeID    int64  `json:"notice_id"`
+		NoticeMonth string `json:"notice_month"`
+	}
+	type fileBody struct {
+		MessageID string      `json:"message_id"`
+		Debits    []fileDebit `json:"debits"`
+	}
+	read := func(path string) fileBody {
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, path, nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), sepaIBAN)
+		return decodeSchoolPortalData[fileBody](t, rec.Body.Bytes())
+	}
+	installments := sepaDebitsPath + "/notice-months/202910"
+	runFile, rateFile := read(sepaDebitRunPath(october, "")), read(installments)
+	require.Len(t, runFile.Debits, 1)
+	assert.Equal(t, noah, runFile.Debits[0].ContractID, "the run's file holds Noah's invoice")
+	assert.Zero(t, runFile.Debits[0].NoticeID)
+	require.Len(t, rateFile.Debits, 1)
+	rate := rateFile.Debits[0]
+	assert.Equal(t, mia, rate.ContractID, "the installments' file holds Mia's installment")
+	assert.Equal(t, miaNotice, rate.NoticeID)
+	assert.Equal(t, "2029-10-01", rate.NoticeMonth)
+	assert.Equal(t, int64(7750), rate.AmountCents, "what the family pays after the cost bearers, as the notice sets it")
+	assert.Equal(t, "2029-10-01", rate.DueOn)
+
+	req := httptest.NewRequest(http.MethodGet, installments+"/file", nil)
+	req.Header.Set("Authorization", "Bearer "+f.office.token)
+	out := httptest.NewRecorder()
+	f.traeger.ServeHTTP(out, req)
+	require.Equal(t, http.StatusOK, out.Code, out.Body.String())
+	file := out.Body.String()
+	assert.Contains(t, file, fmt.Sprintf("<EndToEndId>MOTO-N%d-202910</EndToEndId>", miaNotice))
+	assert.Contains(t, file, "<MndtId>SJR-JB-MIA</MndtId>")
+	assert.NotContains(t, file, "<MndtId>SJR-JB-NOAH</MndtId>", "Noah is in the run's file only")
+	assert.NotContains(t, debitFile(t, f, october), "<MndtId>SJR-JB-MIA</MndtId>", "Mia is in the installments' file only")
+
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, installments+"/submission",
+		map[string]any{"message_id": rateFile.MessageID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var collected string
+	require.NoError(t, f.db.NewRaw(`SELECT concat_ws('|', status, run_kind, run_id, notice_month, submitted_amount_cents, mandate_id)
+		FROM parent_billing.sepa_debits WHERE care_notice_id = ?`, miaNotice).Scan(context.Background(), &collected))
+	assert.Equal(t, fmt.Sprintf("submitted|notice|202910|2029-10-01|7750|%d", miaMandate.ID), collected)
+	var last string
+	require.NoError(t, f.db.NewRaw(`SELECT last_collected_on::text FROM parent_billing.sepa_mandates WHERE id = ?`, miaMandate.ID).
+		Scan(context.Background(), &last))
+	assert.Equal(t, "2029-10-01", last)
+	assert.Empty(t, read(installments).Debits, "the installment is collected once")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, installments+"/submission",
+		map[string]any{"message_id": rateFile.MessageID})
+	assert.Equal(t, http.StatusConflict, rec.Code, "a second confirmation collects nothing: %s", rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, fmt.Sprintf("%s/%d/collections", sepaMandatesPath, miaMandate.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"notice_month":"2029-10-01"`, "the installment is in the mandate's history")
+}

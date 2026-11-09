@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,6 +82,24 @@ func TestSEPADebitFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		own := seedDebitScope(t, ctx, tx, ownScope, ownSchool, "DE98ZZZ09999999999", "SJR-DA-1")
 		other := seedDebitScope(t, ctx, tx, otherScope, otherSchool, "DE98ABC09999999999", "SJR-DB-1")
 
+		// A row of the other Träger that names this Träger's run and mandate
+		// (foreign keys off, as only a broken write could leave it) passes
+		// every join; only the Träger filter on the debit keeps it out.
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debits (organization_id, mandate_id, care_contract_id, run_kind,
+			run_id, care_invoice_id, invoice_number, amount_cents, due_on, sequence_type, creditor_id, mandate_reference,
+			mandate_signed_on, account_holder_sealed, iban_sealed)
+			VALUES (?, ?, 1, 'care', ?, 1, 'RE-FREMD', 100, DATE '2029-06-04', 'FRST', 'DE98ZZZ09999999999', 'SJR-DA-1',
+				DATE '2026-09-01', '\x02'::bytea, '\x01'::bytea)`, other.organization, own.mandate, own.run)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		require.NoError(t, err)
+		history, err := store.SEPADebitsOfMandate(ctx, own.organization, own.mandate)
+		require.NoError(t, err)
+		require.Len(t, history, 1, "SEPADebitsOfMandate keeps the other Träger's row out")
+		assert.Equal(t, own.debit, history[0].Debit.ID)
+
 		debits, err := store.SEPADebitsOfRun(ctx, own.organization, parentbilling.DebitRunCare, own.run, true, false)
 		require.NoError(t, err)
 		require.Len(t, debits, 1, "SEPADebitsOfRun")
@@ -90,7 +109,7 @@ func TestSEPADebitFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 
 		_, err = store.SEPADebitsOfRun(ctx, own.organization, parentbilling.DebitRunCare, other.run, true, false)
 		require.ErrorIs(t, err, parentbilling.ErrSEPADebitRunNotFound, "the run of another Träger")
-		history, err := store.SEPADebitsOfMandate(ctx, own.organization, other.mandate)
+		history, err = store.SEPADebitsOfMandate(ctx, own.organization, other.mandate)
 		require.NoError(t, err)
 		assert.Empty(t, history, "SEPADebitsOfMandate of another Träger's mandate")
 
@@ -193,4 +212,83 @@ func TestSEPADebitHistoryKeepsSubmittedTerms(t *testing.T) {
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
+}
+
+// A release that reads a mandate while a confirmation collects it waits for
+// the confirmation and writes the sequence the mandate has then: the debit
+// of a mandate the confirmation turned to recurring is RCUR, never the FRST
+// the preview read.
+func TestSEPADebitReleaseFollowsAConcurrentCollection(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newMandateScope(t, db, "Träger Datei Freigabe")
+	school := testpkg.CreateTestSchoolInOrganization(t, db, scope.organization, "OGS Datei Freigabe")
+	ctx := context.Background()
+	var contract, mandate, run, invoice int64
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
+		VALUES (?, ?, ?, 'versendet', NOW()) RETURNING id`, scope.organization, school, testpkg.UniqueTestTenantID(t)).Scan(ctx, &contract))
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference,
+		signed_on, kind, sequence, creditor_id, account_holder_sealed, iban_sealed, iban_masked, source)
+		VALUES (?, ?, ?, 'SJR-RACE-1', DATE '2026-09-01', 'recurring', 'first', 'DE98ZZZ09999999999', '\x02'::bytea, '\x01'::bytea,
+			'DE•• 30 00', 'office') RETURNING id`, scope.organization, scope.family, contract).Scan(ctx, &mandate))
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.care_runs (organization_id, billing_month) VALUES (?, DATE '2029-06-01')
+		RETURNING id`, scope.organization).Scan(ctx, &run))
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year, number_sequence,
+		issued_on, billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name, recipient_first_name,
+		recipient_last_name, recipient_email, month_rule, total_cents, payment_method, due_on, due_source, mandate_id,
+		mandate_reference, mandate_signed_on, creditor_id, debtor_iban_masked, sequence_type)
+		VALUES (?, ?, 'RE-RACE-1', 2029, 1, DATE '2029-05-20', DATE '2029-06-01', ?, ?, 'OGS', 'Lia', 'Beispiel', 'Eva', 'Beispiel',
+			'eva@example.org', 'pro_rata', 7750, 'direct_debit', DATE '2029-06-04', 'run', ?, 'SJR-RACE-1', DATE '2026-09-01',
+			'DE98ZZZ09999999999', 'DE•• 30 00', 'FRST') RETURNING id`,
+		scope.organization, run, contract, school, mandate).Scan(ctx, &invoice))
+	// Both transactions commit, and the Träger tables carry no tenant_id: the
+	// test deletes its run and contract again (the rest cascades).
+	t.Cleanup(func() {
+		// The run first: its invoice and debit refer to the contract.
+		for _, row := range []struct {
+			statement string
+			id        int64
+		}{{`DELETE FROM parent_billing.care_runs WHERE id = ?`, run}, {`DELETE FROM care_contract.contracts WHERE id = ?`, contract}} {
+			statement, id := row.statement, row.id
+			if _, err := db.ExecContext(context.Background(), statement, id); err != nil {
+				t.Errorf("delete the committed rows of the test: %v", err)
+			}
+		}
+	})
+
+	// The confirmation holds the mandate and turns it to recurring.
+	confirmation, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = confirmation.Rollback() }()
+	_, err = confirmation.ExecContext(ctx, `UPDATE parent_billing.sepa_mandates SET sequence = 'recurring' WHERE id = ?`, mandate)
+	require.NoError(t, err)
+
+	released := make(chan error, 1)
+	go func() {
+		release, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			released <- err
+			return
+		}
+		if err := insertSEPADebits(ctx, release, scope.organization, false, []int64{invoice}); err != nil {
+			_ = release.Rollback()
+			released <- err
+			return
+		}
+		released <- release.Commit()
+	}()
+	// Wait until the release waits for the mandate or, without the lock,
+	// finished on its own.
+	assert.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).
+			Scan(ctx, &waiting)
+		return (err == nil && waiting > 0) || len(released) > 0
+	}, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, confirmation.Commit())
+	require.NoError(t, <-released)
+
+	var sequence string
+	require.NoError(t, db.NewRaw(`SELECT sequence_type FROM parent_billing.sepa_debits WHERE care_invoice_id = ?`, invoice).Scan(ctx, &sequence))
+	assert.Equal(t, "RCUR", sequence, "the release follows the collection that turned the mandate to recurring")
 }

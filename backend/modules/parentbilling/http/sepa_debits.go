@@ -16,7 +16,8 @@ import (
 
 // SEPADebitResource serves the SEPA direct debit file of an issued run
 // (#4697, ADR 0181) at /traeger/sepa-debits/{kind}/{id}: kind care-runs is
-// a monthly run, holiday-runs a holiday run. Every route sits behind the
+// a monthly run, holiday-runs a holiday run, notice-months the installments
+// of the Jahresbescheide due in a month (ID YYYYMM). Every route sits behind the
 // Träger session, needs the Träger right "Abrechnung" and runs in the
 // Träger transaction of the session's Träger. Only the file carries bank
 // data, and nobody caches it.
@@ -49,8 +50,9 @@ func (rs *SEPADebitResource) Router(protectedTraegerRoutes func(chi.Router, func
 
 // debitRunKinds maps the path segment to the kind of run.
 var debitRunKinds = map[string]string{
-	"care-runs":    capability.DebitRunCare,
-	"holiday-runs": capability.DebitRunHoliday,
+	"care-runs":     capability.DebitRunCare,
+	"holiday-runs":  capability.DebitRunHoliday,
+	"notice-months": capability.DebitRunNotice,
 }
 
 // SEPADebitSubmissionRequest is the body of POST …/submission: the message

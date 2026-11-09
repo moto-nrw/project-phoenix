@@ -21,6 +21,8 @@ export const SEPA_SEQUENCE_BADGES: Record<
 };
 
 export const SEPA_DEBIT_LEFT_LABELS: Record<SepaDebitLeft, string> = {
+  mandate_missing:
+    "Die Familie hat kein gültiges Lastschriftmandat. Erfassen Sie das Mandat, oder die Familie überweist die Rate.",
   one_off_used:
     "Dieses Einmalmandat wurde bereits genutzt. Die Familie braucht ein neues Mandat.",
   one_off_multiple:
@@ -45,4 +47,15 @@ export function collectDatesText(groups: readonly SepaDebitGroup[]): string {
   if (!first) return "–";
   if (dates.length === 1) return formatDate(first);
   return `${formatDate(first)} und ${dates.length - 1} weitere`;
+}
+
+/** The invoice number, or for an installment of a Jahresbescheid the
+ * notice and its month: „MB-2027-0041 · Rate 01/2027“. */
+export function debitDocumentLabel(debit: {
+  readonly invoiceNumber: string;
+  readonly noticeMonth: string | null;
+}): string {
+  if (!debit.noticeMonth) return debit.invoiceNumber;
+  const [year, month] = debit.noticeMonth.split("-");
+  return `${debit.invoiceNumber} · Rate ${month}/${year}`;
 }

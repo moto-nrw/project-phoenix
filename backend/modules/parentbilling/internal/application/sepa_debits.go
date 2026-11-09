@@ -24,6 +24,7 @@ const mandateCollect = "collect"
 // DebitStore persists the debits. Every method runs in the Träger
 // transaction of organizationID.
 type DebitStore interface {
+	noticeRateStore
 	// SEPADebitsOfRun reads the debits of a released run, with the sealed
 	// account when sealed is set, locked when lock is set.
 	SEPADebitsOfRun(ctx context.Context, organizationID int64, runKind string, runID int64, sealed, lock bool) ([]parentbilling.SealedSEPADebit, error)
@@ -68,7 +69,7 @@ type debitPlan struct {
 }
 
 func validRunKind(kind string) error {
-	if kind != parentbilling.DebitRunCare && kind != parentbilling.DebitRunHoliday {
+	if kind != parentbilling.DebitRunCare && kind != parentbilling.DebitRunHoliday && kind != parentbilling.DebitRunNotice {
 		return parentbilling.ErrSEPADebitRunNotFound
 	}
 	return nil
@@ -140,6 +141,8 @@ func leftReason(entry parentbilling.SealedSEPADebit, amountCents int64, collectO
 	switch {
 	case entry.Cancelled || amountCents <= 0:
 		return parentbilling.DebitLeftCancelled
+	case entry.Debit.MandateID == 0:
+		return parentbilling.DebitLeftNoMandate
 	case (entry.MandateKind == parentbilling.MandateOneOff || entry.Debit.SequenceType == parentbilling.SequenceTypeOneOff) && entry.MandateLastCollectedOn != nil:
 		return parentbilling.DebitLeftOneOffUsed
 	case entry.MandateRevoked:
@@ -166,7 +169,11 @@ func (d *SEPADebits) load(ctx context.Context, reviewer parentbilling.HolidayRev
 	if err != nil {
 		return debitPlan{}, err
 	}
-	plan := d.plan(runKind, runID, debits, day)
+	rates, err := noticeRates(ctx, d.store, reviewer.OrganizationID, runKind, runID, debits, sealed)
+	if err != nil {
+		return debitPlan{}, err
+	}
+	plan := d.plan(runKind, runID, append(debits, rates...), day)
 	creditor, err := d.store.SEPACreditor(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return debitPlan{}, err
@@ -303,6 +310,9 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 // MOTO-D and the debit's own ID, which is unique. A cut-down number could
 // give two invoices the same ID; the remittance text keeps the full number.
 func debitEndToEndID(debit parentbilling.SEPADebit) string {
+	if isNoticeRate(debit) {
+		return noticeEndToEndID(debit)
+	}
 	if sepaIdentifier(debit.InvoiceNumber) == debit.InvoiceNumber {
 		return debit.InvoiceNumber
 	}
@@ -347,7 +357,11 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 			collected[entry.Debit.MandateID] = on
 		}
 	}
-	if err := d.store.SubmitSEPADebits(ctx, reviewer.OrganizationID, reviewer.AccountID, plan.run.MessageID, submitted, collected); err != nil {
+	invoices, rates := splitNoticeRates(submitted)
+	if err := d.store.InsertSubmittedNoticeRates(ctx, reviewer.OrganizationID, reviewer.AccountID, runID, plan.run.MessageID, rates); err != nil {
+		return parentbilling.SEPADebitRun{}, err
+	}
+	if err := d.store.SubmitSEPADebits(ctx, reviewer.OrganizationID, reviewer.AccountID, plan.run.MessageID, invoices, collected); err != nil {
 		return parentbilling.SEPADebitRun{}, err
 	}
 	if err := d.store.InsertSEPAMandateEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, mandateCollect,
@@ -355,4 +369,18 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 		return parentbilling.SEPADebitRun{}, fmt.Errorf("parent billing: record the collection of the SEPA mandates: %w", err)
 	}
 	return d.SEPADebitRun(ctx, reviewer, runKind, runID)
+}
+
+// splitNoticeRates parts the debits of a confirmed file into invoices,
+// whose rows exist, and installments, which the confirmation writes.
+func splitNoticeRates(debits []parentbilling.SEPADebit) ([]parentbilling.SEPADebit, []parentbilling.SEPADebit) {
+	var invoices, rates []parentbilling.SEPADebit
+	for _, debit := range debits {
+		if isNoticeRate(debit) {
+			rates = append(rates, debit)
+		} else {
+			invoices = append(invoices, debit)
+		}
+	}
+	return invoices, rates
 }

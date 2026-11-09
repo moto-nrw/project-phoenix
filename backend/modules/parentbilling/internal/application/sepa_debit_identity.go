@@ -23,6 +23,11 @@ func messageIDOf(runKind string, runID int64, plan debitPlan) string {
 	for _, entry := range plan.included {
 		_, _ = fmt.Fprintf(hash, "%d|%d|%q|%s;", entry.Debit.ID, entry.Debit.AmountCents,
 			entry.Debit.SequenceType, plan.collectOn[entry.Debit.ID])
+		if isNoticeRate(entry.Debit) {
+			// An installment takes the account of the mandate now: a change
+			// of it is a different file.
+			_, _ = fmt.Fprintf(hash, "%d|%d;", entry.Debit.MandateID, entry.MandateUpdatedAt.UnixNano())
+		}
 	}
 	earliest := plan.collectOn[plan.included[0].Debit.ID]
 	for _, on := range plan.collectOn {

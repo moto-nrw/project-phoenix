@@ -8,17 +8,19 @@
 // nicht in die Datei dürfen, stehen mit Grund darunter.
 
 import { DownloadIcon, LandmarkIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
   SEPA_DEBIT_LEFT_LABELS,
   SEPA_SEQUENCE_BADGES,
   collectDatesText,
+  debitDocumentLabel,
   debitCountLabel,
 } from "~/components/traeger/sepa-debit-format";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -83,7 +85,7 @@ const columns: DataTableColumn<SepaDebit>[] = [
     key: "invoice",
     header: "Rechnung",
     render: (debit) => (
-      <span className="tabular-nums">{debit.invoiceNumber}</span>
+      <span className="tabular-nums">{debitDocumentLabel(debit)}</span>
     ),
     sortValue: (debit) => debit.invoiceNumber,
   },
@@ -121,10 +123,25 @@ const columns: DataTableColumn<SepaDebit>[] = [
   },
 ];
 
+// An installment of a Jahresbescheid has no invoice: its column names the
+// notice.
+const noticeRateColumns = columns.map((column) =>
+  column.key === "invoice" ? { ...column, header: "Bescheid" } : column,
+);
+
 export function SepaDebitCard({
   kind,
   runId,
-}: Readonly<{ kind: SepaDebitRunKind; runId: string }>) {
+  title = "Lastschrift",
+  control,
+}: Readonly<{
+  kind: SepaDebitRunKind;
+  runId: string;
+  title?: string;
+  /** A choice the card shows on top, e.g. the month of the installments;
+   * with it the card stays when nothing is to collect. */
+  control?: ReactNode;
+}>) {
   const [run, setRun] = useState<SepaDebitRun | null>(null);
   const [downloaded, setDownloaded] = useState<{
     key: string;
@@ -203,21 +220,38 @@ export function SepaDebitCard({
 
   if (load.error) {
     return (
-      <SectionCard title="Lastschrift">
-        <LoadErrorAlert error={load.error} actionLayout="responsive" />
+      <SectionCard title={title}>
+        <div className="flex flex-col gap-4">
+          {control}
+          <LoadErrorAlert error={load.error} actionLayout="responsive" />
+        </div>
       </SectionCard>
     );
   }
-  if (!run) return <SectionCard title="Lastschrift" loading />;
-  // A run in which no family pays by direct debit has no file.
-  if (run.count + run.submitted.length + run.left.length === 0) return null;
+  if (!run) return <SectionCard title={title} loading />;
+  if (run.count + run.submitted.length + run.left.length === 0) {
+    // A run in which no family pays by direct debit has no file.
+    if (!control) return null;
+    return (
+      <SectionCard title={title} icon={LandmarkIcon}>
+        <div className="flex flex-col gap-4">
+          {control}
+          <EmptyState
+            variant="compact"
+            title="Keine Lastschrift in diesem Monat"
+            description="In diesem Monat zieht kein Bescheid eine Rate per Lastschrift ein."
+          />
+        </div>
+      </SectionCard>
+    );
+  }
 
   const pending = run.count > 0;
   const fileBlocked = run.accountMissing;
   return (
     <>
       <SectionCard
-        title="Lastschrift"
+        title={title}
         icon={LandmarkIcon}
         titleBadge={
           pending ? (
@@ -263,6 +297,7 @@ export function SepaDebitCard({
         }
       >
         <div className="flex flex-col gap-5">
+          {control}
           {fileBlocked ? (
             <Alert
               type="warning"
@@ -332,7 +367,7 @@ export function SepaDebitCard({
           ) : null}
           {pending || run.submitted.length > 0 ? (
             <DataTable
-              columns={columns}
+              columns={kind === "notice-months" ? noticeRateColumns : columns}
               rows={[...(pending ? run.debits : run.submitted)]}
               getRowKey={(debit) => debit.id}
               stackedOnMobile
@@ -391,7 +426,7 @@ function SepaDebitsLeftCard({
                   {debit.recipientName}
                 </span>
                 <span className="text-gray-600 tabular-nums">
-                  {debit.invoiceNumber}
+                  {debitDocumentLabel(debit)}
                 </span>
                 <span className="text-gray-500 tabular-nums">
                   {formatEuro(debit.amountCents)}

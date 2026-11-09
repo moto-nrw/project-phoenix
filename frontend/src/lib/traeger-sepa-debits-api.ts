@@ -11,11 +11,12 @@ import { traegerRequest } from "./traeger-api";
 import { type BillingFile, billingFile } from "./traeger-billing-api";
 
 /** The kind of run a file belongs to, as the path names it. */
-export type SepaDebitRunKind = "care-runs" | "holiday-runs";
+export type SepaDebitRunKind = "care-runs" | "holiday-runs" | "notice-months";
 export type SepaSequenceType = "FRST" | "RCUR" | "OOFF";
 type SepaDebitStatus = "pending" | "submitted";
 /** Why a pending debit stays out of the file. */
 export type SepaDebitLeft =
+  | "mandate_missing"
   | "cancelled"
   | "revoked"
   | "expired"
@@ -40,6 +41,8 @@ export interface SepaDebit {
   readonly status: SepaDebitStatus;
   readonly left: SepaDebitLeft | null;
   readonly submittedAt: string | null;
+  /** The month of the installment of a Jahresbescheid, "YYYY-MM-DD"; null for an invoice. */
+  readonly noticeMonth: string | null;
 }
 
 export interface SepaDebitGroup {
@@ -85,6 +88,7 @@ interface BackendDebit {
   status: SepaDebitStatus;
   left?: SepaDebitLeft;
   submitted_at: string | null;
+  notice_month?: string;
 }
 
 interface BackendDebitRun {
@@ -126,6 +130,7 @@ function debitFromBackend(debit: BackendDebit): SepaDebit {
     status: debit.status,
     left: debit.left ?? null,
     submittedAt: debit.submitted_at,
+    noticeMonth: debit.notice_month || null,
   };
 }
 

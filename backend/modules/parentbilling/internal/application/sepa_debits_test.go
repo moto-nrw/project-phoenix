@@ -55,6 +55,11 @@ func (fakeLetterheads) DocumentTemplate(context.Context, int64, string) (parentb
 }
 
 type debitStoreFake struct {
+	// dues and rates feed the installments of the Jahresbescheide.
+	dues    []parentbilling.CareNoticeDue
+	rates   map[int64]parentbilling.SEPANoticeRate
+	written []parentbilling.SEPADebit
+
 	debits    []parentbilling.SealedSEPADebit
 	creditor  string
 	events    map[string][]int64
@@ -62,9 +67,13 @@ type debitStoreFake struct {
 	collected []map[int64]calendar.Date
 }
 
-func (s *debitStoreFake) SEPADebitsOfRun(context.Context, int64, string, int64, bool, bool) ([]parentbilling.SealedSEPADebit, error) {
-	out := make([]parentbilling.SealedSEPADebit, len(s.debits))
-	copy(out, s.debits)
+func (s *debitStoreFake) SEPADebitsOfRun(_ context.Context, _ int64, runKind string, _ int64, _, _ bool) ([]parentbilling.SealedSEPADebit, error) {
+	var out []parentbilling.SealedSEPADebit
+	for _, entry := range s.debits {
+		if entry.Debit.RunKind == runKind {
+			out = append(out, entry)
+		}
+	}
 	for i := range out {
 		out[i].CreditorNow = s.creditor
 		// As the store's statement: another uncancelled debit of the same
@@ -427,4 +436,99 @@ func TestSEPADebitFileRefusesTwoEqualEndToEndIDs(t *testing.T) {
 	store.debits[1].Debit.InvoiceNumber = "MOTO-D1"
 	_, err := newSJRDebits(store).SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
 	require.ErrorIs(t, err, parentbilling.ErrSEPAEndToEndDuplicate)
+}
+
+func (s *debitStoreFake) EffectiveNoticeDues(context.Context, int64, calendar.Date) ([]parentbilling.CareNoticeDue, error) {
+	return s.dues, nil
+}
+
+func (s *debitStoreFake) SEPANoticeRates(_ context.Context, _ int64, ids []int64, _ bool) (map[int64]parentbilling.SEPANoticeRate, error) {
+	out := map[int64]parentbilling.SEPANoticeRate{}
+	for _, id := range ids {
+		rate := s.rates[id]
+		rate.CreditorNow = s.creditor
+		out[id] = rate
+	}
+	return out, nil
+}
+
+func (s *debitStoreFake) InsertSubmittedNoticeRates(_ context.Context, _, _, _ int64, _ string, rates []parentbilling.SEPADebit) error {
+	s.written = append(s.written, rates...)
+	return nil
+}
+
+// noticeRateFor is the context of an installment of a family whose mandate
+// in force is sealed for the Träger 7.
+func noticeRateFor(mandateID int64, reference, kind, iban string) parentbilling.SEPANoticeRate {
+	cipher := prefixCipher{}
+	sealedIBAN, _ := cipher.Seal([]byte(iban), ibanContext(7, reference))
+	sealedHolder, _ := cipher.Seal([]byte("Familie Rate"), holderContext(7, reference))
+	return parentbilling.SEPANoticeRate{RecipientName: "Rosa Rate", IBAN: sealedIBAN, Holder: sealedHolder,
+		Mandate: &parentbilling.SEPAMandate{ID: mandateID, Reference: reference, SignedOn: calendar.NewDate(2026, 9, 1), Kind: kind,
+			Sequence: parentbilling.SequenceRecurring, CreditorID: sjrDebitCreditor, IBANMasked: "DE•• 30 00",
+			CreatedAt: calendar.NewDate(2026, 11, 1).BerlinMidnight()}}
+}
+
+// The installments of the Jahresbescheide due in a month have a file of
+// their own (#4697, ADR 0182): by direct debit with a mandate, each with its
+// own end-to-end ID; without a mandate one stays out with its reason, a
+// transfer is no debit, and siblings sharing a one-off mandate stay out.
+// The file of the monthly run carries no installment. The confirmation
+// writes the installments it collected.
+func TestSEPADebitFileCollectsTheInstallmentsOfTheMonth(t *testing.T) {
+	t.Parallel()
+	store := sjrDebits()
+	due := func(contract, notice int64, method string, cents int64) parentbilling.CareNoticeDue {
+		return parentbilling.CareNoticeDue{ContractID: contract, NoticeID: notice, NoticeNumber: fmt.Sprintf("MB-2027-%04d", notice),
+			PaymentMethod: method, Month: calendar.NewDate(2027, 1, 1), DueOn: calendar.NewDate(2027, 1, 1), AmountCents: cents}
+	}
+	store.dues = []parentbilling.CareNoticeDue{due(501, 41, parentbilling.PaymentDirectDebit, 6400),
+		due(502, 42, parentbilling.PaymentDirectDebit, 3100), due(503, 43, parentbilling.PaymentTransfer, 5000),
+		due(504, 44, parentbilling.PaymentDirectDebit, 2000), due(505, 45, parentbilling.PaymentDirectDebit, 2000)}
+	store.rates = map[int64]parentbilling.SEPANoticeRate{
+		41: noticeRateFor(21, "SJR-RATE-1", parentbilling.MandateRecurring, "DE89370400440532013000"),
+		42: {RecipientName: "Ohne Mandat"},
+		44: noticeRateFor(24, "SJR-RATE-OOFF", parentbilling.MandateOneOff, "DE02120300000000202051"),
+		45: noticeRateFor(24, "SJR-RATE-OOFF", parentbilling.MandateOneOff, "DE02120300000000202051"),
+	}
+	debits := newSJRDebits(store)
+	monthly, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	for _, debit := range append(monthly.Debits, monthly.Left...) {
+		assert.Zero(t, debit.NoticeID, "the file of the monthly run carries no installment")
+	}
+
+	run, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunNotice, 202701)
+	require.NoError(t, err)
+	require.Equal(t, 1, run.Count, "the installment with a mandate")
+	assert.Equal(t, int64(6400), run.TotalCents)
+	left := map[string]string{}
+	for _, debit := range run.Left {
+		left[debit.InvoiceNumber] = debit.Left
+	}
+	assert.Equal(t, map[string]string{"MB-2027-0042": parentbilling.DebitLeftNoMandate,
+		"MB-2027-0044": parentbilling.DebitLeftOneOffMultiple, "MB-2027-0045": parentbilling.DebitLeftOneOffMultiple}, left)
+
+	file, err := debits.SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunNotice, 202701)
+	require.NoError(t, err)
+	xml := string(file.Data)
+	assert.Contains(t, xml, "<EndToEndId>MOTO-N41-202701</EndToEndId>")
+	assert.Contains(t, xml, "<MndtId>SJR-RATE-1</MndtId>")
+	assert.Contains(t, xml, `<InstdAmt Ccy="EUR">64.00</InstdAmt>`)
+	assert.Contains(t, xml, "<Ustrd>Rechnung MB-2027-0041</Ustrd>")
+	assert.NotContains(t, xml, "MB-2027-0043", "a transfer is no debit")
+	assert.NotContains(t, xml, "RE-2027-0001", "no invoice of the monthly run")
+	testpkg.AssertXMLMatchesSchema(t, file.Data, filepath.Join("testdata", "sepa", "pain.008.001.08.xsd"))
+
+	_, err = debits.SubmitSEPADebits(context.Background(), sjrReviewer, parentbilling.DebitRunNotice, 202701, run.MessageID)
+	require.NoError(t, err)
+	require.Len(t, store.written, 1, "the confirmation writes the installment it collected")
+	assert.Equal(t, int64(41), store.written[0].NoticeID)
+	assert.Equal(t, int64(21), store.written[0].MandateID)
+	assert.Equal(t, int64(6400), store.written[0].AmountCents)
+	assert.Equal(t, parentbilling.SequenceTypeRecurring, store.written[0].SequenceType)
+	assert.Contains(t, store.collected[0], int64(21), "the installment's mandate is collected")
+
+	_, err = debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunNotice, 202713)
+	require.ErrorIs(t, err, parentbilling.ErrSEPADebitRunNotFound, "no thirteenth month")
 }

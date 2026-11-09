@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -93,6 +94,8 @@ type sepaDebitRow struct {
 	AmountCents            int64          `bun:"amount_cents"`
 	SubmittedAmountCents   *int64         `bun:"submitted_amount_cents"`
 	CollectOn              *calendar.Date `bun:"collect_on,type:date"`
+	CareNoticeID           *int64         `bun:"care_notice_id"`
+	NoticeMonth            *calendar.Date `bun:"notice_month,type:date"`
 	DueOn                  calendar.Date  `bun:"due_on,type:date"`
 	SequenceType           string         `bun:"sequence_type"`
 	CreditorID             string         `bun:"creditor_id"`
@@ -135,8 +138,13 @@ func (r sepaDebitRow) sealed() parentbilling.SealedSEPADebit {
 	if r.CollectOn != nil {
 		collectOn = *r.CollectOn
 	}
+	var noticeID int64
+	var noticeMonth calendar.Date
+	if r.CareNoticeID != nil && r.NoticeMonth != nil {
+		noticeID, noticeMonth = *r.CareNoticeID, *r.NoticeMonth
+	}
 	return parentbilling.SealedSEPADebit{
-		Debit: parentbilling.SEPADebit{ID: r.ID, MandateID: r.MandateID, ContractID: r.CareContractID, RunKind: r.RunKind,
+		Debit: parentbilling.SEPADebit{NoticeID: noticeID, NoticeMonth: noticeMonth, ID: r.ID, MandateID: r.MandateID, ContractID: r.CareContractID, RunKind: r.RunKind,
 			RunID: r.RunID, InvoiceNumber: r.InvoiceNumber, RecipientName: name, AmountCents: amount, DueOn: r.DueOn, CollectOn: collectOn,
 			SequenceType: r.SequenceType, MandateReference: r.MandateReference, IBANMasked: r.IBANMasked, Status: r.Status,
 			SubmittedAt: r.SubmittedAt, MessageID: textOf(r.MessageID)},
@@ -154,16 +162,17 @@ func (r sepaDebitRow) sealed() parentbilling.SealedSEPADebit {
 const (
 	sepaDebitColumns = `SELECT debit.id, debit.mandate_id, debit.care_contract_id, debit.run_kind, debit.run_id, debit.invoice_number,
 	debit.amount_cents, debit.due_on, debit.sequence_type, debit.creditor_id, debit.mandate_reference, debit.mandate_signed_on,
-	debit.bic, debit.status, debit.message_id, debit.submitted_at, debit.submitted_amount_cents, debit.collect_on, `
+	debit.bic, debit.status, debit.message_id, debit.submitted_at, debit.submitted_amount_cents, debit.collect_on,
+	debit.care_notice_id, debit.notice_month, `
 	sepaDebitAccountColumns = `debit.account_holder_sealed, debit.iban_sealed, `
 	sepaDebitState          = `mandate.revoked_on IS NOT NULL AS mandate_revoked, mandate.kind AS mandate_kind,
 	mandate.signed_on AS mandate_signed, mandate.sequence AS mandate_sequence, mandate.last_collected_on AS mandate_last_collected_on,
 	(mandate.created_at AT TIME ZONE 'Europe/Berlin')::date AS mandate_created_on,
 	COALESCE((SELECT creditor.creditor_id FROM parent_billing.sepa_creditors AS creditor
 		WHERE creditor.organization_id = ?0), '') AS creditor_now,
-	COALESCE(care.recipient_first_name, holiday.recipient_first_name, '') AS recipient_first_name,
-	COALESCE(care.recipient_last_name, holiday.recipient_last_name, '') AS recipient_last_name,
-	COALESCE(care.debtor_iban_masked, holiday.debtor_iban_masked, '') AS iban_masked,
+	COALESCE(care.recipient_first_name, holiday.recipient_first_name, notice.recipient->>'first_name', '') AS recipient_first_name,
+	COALESCE(care.recipient_last_name, holiday.recipient_last_name, notice.recipient->>'last_name', '') AS recipient_last_name,
+	COALESCE(care.debtor_iban_masked, holiday.debtor_iban_masked, mandate.iban_masked) AS iban_masked,
 	(EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
 			WHERE cancellation.organization_id = ?0 AND cancellation.invoice_id = debit.care_invoice_id)
 		OR EXISTS (SELECT 1 FROM parent_billing.documents AS correction
@@ -184,6 +193,7 @@ FROM parent_billing.sepa_debits AS debit
 JOIN parent_billing.sepa_mandates AS mandate ON mandate.organization_id = ?0 AND mandate.id = debit.mandate_id
 LEFT JOIN parent_billing.care_invoices AS care ON care.organization_id = ?0 AND care.id = debit.care_invoice_id
 LEFT JOIN parent_billing.documents AS holiday ON holiday.organization_id = ?0 AND holiday.id = debit.document_id
+LEFT JOIN parent_billing.care_notices AS notice ON notice.organization_id = ?0 AND notice.id = debit.care_notice_id
 WHERE debit.organization_id = ?0 AND `
 	sepaDebitsOfRun = `debit.run_kind = ?1 AND debit.run_id = ?2 ORDER BY debit.invoice_number, debit.id`
 	// sepaDebitsOfRunSQL reads the debits of a run for the overview.
@@ -226,19 +236,9 @@ func (s *Store) SEPADebitsOfRun(ctx context.Context, organizationID int64, runKi
 		return nil, err
 	}
 
-	var released bool
-	switch {
-	case runKind == parentbilling.DebitRunHoliday && lock:
-		err = db.NewRaw(releasedHolidayRunLockedSQL, organizationID, runID, runKind, lock).Scan(ctx, &released)
-	case runKind == parentbilling.DebitRunHoliday:
-		err = db.NewRaw(releasedHolidayRunSQL, organizationID, runID).Scan(ctx, &released)
-	case lock:
-		err = db.NewRaw(releasedCareRunLockedSQL, organizationID, runID, runKind, lock).Scan(ctx, &released)
-	default:
-		err = db.NewRaw(releasedCareRunSQL, organizationID, runID).Scan(ctx, &released)
-	}
+	released, err := releasedDebitRun(ctx, db, organizationID, runKind, runID, lock)
 	if err != nil {
-		return nil, fmt.Errorf("read the run of the SEPA debits: %w", err)
+		return nil, err
 	}
 	if !released {
 		return nil, parentbilling.ErrSEPADebitRunNotFound
@@ -250,6 +250,30 @@ func (s *Store) SEPADebitsOfRun(ctx context.Context, organizationID int64, runKi
 		return scanSEPADebits(ctx, db.NewRaw(sepaDebitsLockedSQL, organizationID, runKind, runID))
 	}
 	return scanSEPADebits(ctx, db.NewRaw(sepaDebitsOfRunSQL, organizationID, runKind, runID))
+}
+
+// releasedDebitRun tells whether the run of a file is released, locking the
+// mandates of its debits first for a confirmation. The file of the
+// installments of a month has no run: the month always exists.
+func releasedDebitRun(ctx context.Context, db bun.IDB, organizationID int64, runKind string, runID int64, lock bool) (bool, error) {
+	var released bool
+	var err error
+	switch {
+	case runKind == parentbilling.DebitRunNotice:
+		return true, nil
+	case runKind == parentbilling.DebitRunHoliday && lock:
+		err = db.NewRaw(releasedHolidayRunLockedSQL, organizationID, runID, runKind, lock).Scan(ctx, &released)
+	case runKind == parentbilling.DebitRunHoliday:
+		err = db.NewRaw(releasedHolidayRunSQL, organizationID, runID).Scan(ctx, &released)
+	case lock:
+		err = db.NewRaw(releasedCareRunLockedSQL, organizationID, runID, runKind, lock).Scan(ctx, &released)
+	default:
+		err = db.NewRaw(releasedCareRunSQL, organizationID, runID).Scan(ctx, &released)
+	}
+	if err != nil {
+		return false, fmt.Errorf("read the run of the SEPA debits: %w", err)
+	}
+	return released, nil
 }
 
 // SEPADebitsOfMandate reads the debits of a mandate of the Träger, newest
@@ -345,3 +369,167 @@ const (
 	releasedCareRunLockedSQL    = lockRunMandatesSQL + releasedCareRunSQL + ` AND (SELECT count(*) FROM locked_mandates) >= 0`
 	releasedHolidayRunLockedSQL = lockRunMandatesSQL + releasedHolidayRunSQL + ` AND (SELECT count(*) FROM locked_mandates) >= 0`
 )
+
+// sepaNoticeRatesSQL reads per notice (?1) its recipient and the mandate
+// in force of its family with the creditor identifier now; ?2 adds the
+// sealed account. A one-off mandate another uncancelled debit already
+// claims is marked.
+const (
+	sepaNoticeRatesHead = `SELECT notice.id AS notice_id, COALESCE(notice.recipient->>'first_name', '') AS recipient_first_name,
+	COALESCE(notice.recipient->>'last_name', '') AS recipient_last_name, mandate.id AS mandate_id,
+	mandate.care_contract_id AS mandate_contract_id, mandate.reference, mandate.signed_on, mandate.kind, mandate.sequence,
+	mandate.creditor_id, mandate.last_collected_on, mandate.iban_masked, mandate.bic, mandate.updated_at,
+	(mandate.created_at AT TIME ZONE 'Europe/Berlin')::date AS mandate_created_on, `
+	sepaNoticeRatesAccount = `mandate.account_holder_sealed, mandate.iban_sealed, `
+	sepaNoticeRatesTail    = `COALESCE((SELECT creditor.creditor_id FROM parent_billing.sepa_creditors AS creditor
+		WHERE creditor.organization_id = ?0), '') AS creditor_now,
+	(mandate.kind = 'one_off' AND EXISTS (SELECT 1 FROM parent_billing.sepa_debits AS other
+		WHERE other.organization_id = ?0 AND other.mandate_id = mandate.id AND (other.status = 'submitted' OR NOT (
+			EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
+				WHERE cancellation.organization_id = ?0 AND cancellation.invoice_id = other.care_invoice_id)
+			OR EXISTS (SELECT 1 FROM parent_billing.documents AS correction
+				WHERE correction.organization_id = ?0 AND correction.reference_document_id = other.document_id
+					AND correction.kind = 'cancellation'))))) AS one_off_claimed
+FROM parent_billing.care_notices AS notice
+LEFT JOIN parent_billing.sepa_mandates AS mandate
+	ON mandate.organization_id = ?0 AND mandate.family_email = notice.family_email AND mandate.revoked_on IS NULL
+WHERE notice.organization_id = ?0 AND notice.id = ANY(?1)
+ORDER BY notice.id`
+	sepaNoticeRatesSQL       = sepaNoticeRatesHead + sepaNoticeRatesTail
+	sepaNoticeRatesSealedSQL = sepaNoticeRatesHead + sepaNoticeRatesAccount + sepaNoticeRatesTail
+)
+
+type sepaNoticeRateRow struct {
+	NoticeID           int64          `bun:"notice_id"`
+	RecipientFirstName string         `bun:"recipient_first_name"`
+	RecipientLastName  string         `bun:"recipient_last_name"`
+	MandateID          *int64         `bun:"mandate_id"`
+	MandateContractID  *int64         `bun:"mandate_contract_id"`
+	Reference          *string        `bun:"reference"`
+	SignedOn           *calendar.Date `bun:"signed_on,type:date"`
+	Kind               *string        `bun:"kind"`
+	Sequence           *string        `bun:"sequence"`
+	CreditorID         *string        `bun:"creditor_id"`
+	LastCollectedOn    *calendar.Date `bun:"last_collected_on,type:date"`
+	IBANMasked         *string        `bun:"iban_masked"`
+	BIC                *string        `bun:"bic"`
+	UpdatedAt          *time.Time     `bun:"updated_at"`
+	MandateCreatedOn   *calendar.Date `bun:"mandate_created_on,type:date"`
+	HolderSealed       []byte         `bun:"account_holder_sealed"`
+	IBANSealed         []byte         `bun:"iban_sealed"`
+	CreditorNow        string         `bun:"creditor_now"`
+	OneOffClaimed      bool           `bun:"one_off_claimed"`
+}
+
+// SEPANoticeRates reads the recipient and the family's mandate in force of
+// each notice, with the sealed account when sealed is set.
+func (s *Store) SEPANoticeRates(ctx context.Context, organizationID int64, noticeIDs []int64, sealed bool,
+) (map[int64]parentbilling.SEPANoticeRate, error) {
+	rates := map[int64]parentbilling.SEPANoticeRate{}
+	if len(noticeIDs) == 0 {
+		return rates, nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	// Two constant statements, so the architecture check resolves each one;
+	// only the file reads the sealed account.
+	raw := db.NewRaw(sepaNoticeRatesSQL, organizationID, pgdialect.Array(noticeIDs))
+	if sealed {
+		raw = db.NewRaw(sepaNoticeRatesSealedSQL, organizationID, pgdialect.Array(noticeIDs))
+	}
+	var rows []sepaNoticeRateRow
+	if err := raw.Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("read the mandates of the installments: %w", err)
+	}
+	for _, row := range rows {
+		rate := parentbilling.SEPANoticeRate{RecipientName: strings.TrimSpace(row.RecipientFirstName + " " + row.RecipientLastName),
+			CreditorNow: row.CreditorNow, OneOffClaimed: row.OneOffClaimed, Holder: row.HolderSealed, IBAN: row.IBANSealed}
+		if row.MandateID != nil {
+			rate.Mandate = &parentbilling.SEPAMandate{ID: *row.MandateID, ContractID: derefInt(row.MandateContractID),
+				Reference: textOf(row.Reference), SignedOn: derefDate(row.SignedOn), Kind: textOf(row.Kind),
+				Sequence: textOf(row.Sequence), CreditorID: textOf(row.CreditorID), LastCollectedOn: row.LastCollectedOn,
+				IBANMasked: textOf(row.IBANMasked), BIC: textOf(row.BIC)}
+			if row.UpdatedAt != nil {
+				rate.Mandate.UpdatedAt = *row.UpdatedAt
+			}
+			if row.MandateCreatedOn != nil {
+				rate.Mandate.CreatedAt = row.MandateCreatedOn.BerlinMidnight()
+			}
+		}
+		rates[row.NoticeID] = rate
+	}
+	return rates, nil
+}
+
+func derefInt(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func derefDate(v *calendar.Date) calendar.Date {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+// insertSubmittedNoticeRatesSQL writes the installments of a confirmed
+// file as submitted debits with the account of the mandate now, the mandate
+// locked; ?4.. are parallel arrays of the installments.
+const insertSubmittedNoticeRatesSQL = `INSERT INTO parent_billing.sepa_debits (organization_id, mandate_id, care_contract_id,
+	run_kind, run_id, care_notice_id, notice_month, invoice_number, amount_cents, due_on, sequence_type, creditor_id,
+	mandate_reference, mandate_signed_on, account_holder_sealed, iban_sealed, bic, status, message_id, submitted_at,
+	submitted_amount_cents, collect_on, submitted_by_account_id)
+SELECT ?0, mandate.id, rate.contract_id, 'notice', ?1, rate.notice_id, rate.month, rate.number, rate.amount, rate.due_on,
+	rate.sequence, mandate.creditor_id, mandate.reference, mandate.signed_on, mandate.account_holder_sealed, mandate.iban_sealed,
+	mandate.bic, 'submitted', ?2, CURRENT_TIMESTAMP, rate.amount, rate.collect_on, ?3
+FROM unnest(?4::bigint[], ?5::bigint[], ?6::date[], ?7::text[], ?8::bigint[], ?9::date[], ?10::text[], ?11::date[], ?12::bigint[])
+	AS rate(notice_id, contract_id, month, number, amount, due_on, sequence, collect_on, mandate_id)
+JOIN parent_billing.sepa_mandates AS mandate
+	ON mandate.organization_id = ?0 AND mandate.id = rate.mandate_id AND mandate.revoked_on IS NULL
+ORDER BY mandate.id
+FOR UPDATE OF mandate`
+
+// sepaNoticeMonthIndex keeps a contract to one collection a month.
+const sepaNoticeMonthIndex = "uq_sepa_debits_notice_month"
+
+// InsertSubmittedNoticeRates writes the installments of a confirmed file.
+// A mandate revoked since or an installment collected already is
+// ErrSEPADebitsChanged.
+func (s *Store) InsertSubmittedNoticeRates(ctx context.Context, organizationID, accountID, runID int64, messageID string,
+	rates []parentbilling.SEPADebit,
+) error {
+	if len(rates) == 0 {
+		return nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	n := len(rates)
+	notices, contracts, amounts, mandates := make([]int64, n), make([]int64, n), make([]int64, n), make([]int64, n)
+	months, dues, collects, numbers, sequences := make([]string, n), make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+	for i, rate := range rates {
+		notices[i], contracts[i], amounts[i], mandates[i] = rate.NoticeID, rate.ContractID, rate.AmountCents, rate.MandateID
+		months[i], dues[i], collects[i] = rate.NoticeMonth.String(), rate.DueOn.String(), rate.CollectOn.String()
+		numbers[i], sequences[i] = rate.InvoiceNumber, rate.SequenceType
+	}
+	result, err := db.NewRaw(insertSubmittedNoticeRatesSQL, organizationID, runID, messageID, accountRef(accountID),
+		pgdialect.Array(notices), pgdialect.Array(contracts), pgdialect.Array(months), pgdialect.Array(numbers),
+		pgdialect.Array(amounts), pgdialect.Array(dues), pgdialect.Array(sequences), pgdialect.Array(collects),
+		pgdialect.Array(mandates)).Exec(ctx)
+	if err != nil {
+		if constraintOf(err) == sepaNoticeMonthIndex {
+			return parentbilling.ErrSEPADebitsChanged
+		}
+		return fmt.Errorf("record the collected installments: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err != nil || affected != int64(n) {
+		return parentbilling.ErrSEPADebitsChanged
+	}
+	return nil
+}

@@ -36,8 +36,12 @@ ohne Eintrag im Exportprotokoll; der folgt mit
    15.11.2026 gültige Version 26.11 ändert die Subsets nicht). Das Vorgänger-Subset
    GBIC_4 wird nur noch bis November 2026 angenommen, pain.008.001.02 gar nicht
    mehr. Die Datei nutzt SEPA Core (`CORE`), Entgeltregel `SLEV`, je Sequenztyp
-   und Einzugstag einen Sammler (`PmtInf`), die Rechnungsnummer als
-   `EndToEndId`. Kennungen halten den SEPA-Zeichensatz; Namen und
+   und Einzugstag einen Sammler (`PmtInf`). Die `EndToEndId` ist die
+   Rechnungsnummer, wenn sie ungekürzt im SEPA-Zeichensatz steht, sonst
+   `MOTO-D<ID der Lastschrift>`, bei einer Bescheidrate
+   `MOTO-N<Bescheid-ID>-<JJJJMM>`. Zwei gleiche IDs in einer Datei lehnt moto
+   ab (`sepa_end_to_end_duplicate`), statt eine Datei zu schreiben, deren
+   Einzüge die Bank nicht unterscheiden kann. Kennungen halten den SEPA-Zeichensatz; Namen und
    Verwendungszweck den DK-Zeichensatz mit Umlauten und ß, andere Akzente
    fallen weg. Ohne BIC steht `NOTPROVIDED` (IBAN-only im EWR).
 2. **Prüfung gegen das Schema.** Ein Test validiert jede Datei mit `xmllint`
@@ -54,7 +58,10 @@ ohne Eintrag im Exportprotokoll; der folgt mit
    die versiegelten Kontodaten des Mandats (Kontoinhaber, IBAN, BIC). Die
    Siegel werden ungeöffnet kopiert: Sie sind an Träger und Mandatsreferenz
    gebunden, und die Referenz ändert sich nie. Eine spätere Mandatsänderung
-   erreicht die Datei eines ausgestellten Laufs nicht. Der Trigger
+   erreicht die Datei eines ausgestellten Laufs nicht. Den Sequenztyp liest
+   die Freigabe unter Sperre des Mandats (`FOR UPDATE`), nicht aus der
+   Vorschau: Bestätigt die Kämmerei gleichzeitig einen anderen Lauf, wartet
+   die Freigabe und schreibt RCUR. Der Trigger
    `refuse_sepa_debit_rewrite` hält Betrag, Konto und Rechnung fest.
 4. **Nur gültige Mandate.** Beim Erzeugen der Datei bleibt eine offene
    Lastschrift draußen und wird mit Grund angezeigt, wenn ihre Rechnung
@@ -108,32 +115,44 @@ ohne Eintrag im Exportprotokoll; der folgt mit
 
 ## Bescheidraten (Jahresbescheid, #6243)
 
-Mit dem Jahresbescheid (#6243, ADR 0180) stellt der Monatslauf für Monate mit
-Bescheid keine Rechnung aus; die Rate steht in
-`parent_billing.care_notice_months` (Monatserster, Betrag). Die Datenquelle der
-Datei ist deshalb eine Lastschrift-Zeile mit **genau einer Quelle**:
-Monatsrechnung (`care_invoice_id`), Ferienrechnung (`document_id`) oder
-Bescheidrate (`care_notice_month_id`), jede mit eigenem eindeutigen Index. Eine
-Doppelung zwischen Monatsrechnung und Rate schließt #6243 selbst aus (ein Monat
-ist entweder Bescheid- oder Rechnungsmonat). Der Anschluss folgt, sobald #6243
-gemergt ist:
+Mit dem Jahresbescheid (#6243, ADR 0182) stellt der Monatslauf für Monate mit
+Bescheid keine Rechnung aus. Ein Monat ist je Vertrag entweder Bescheid- oder
+Rechnungsmonat, eine Doppelung zwischen Rechnung und Rate gibt es also nicht.
+Ein Monatslauf ohne Rechnung lässt sich nicht freigeben (`billing_run_empty`).
+Deshalb haben die Raten **eine eigene Datei je Fälligkeitsmonat**
+(`run_kind = 'notice'`, Lauf-ID `JJJJMM`, `GET
+/traeger/sepa-debits/notice-months/{JJJJMM}`). Die Kämmerei findet sie auf der
+Seite des freigegebenen Jahresbescheid-Laufs.
 
-- Die einzige Quelle der Raten ist `CareFeeNotices.EffectiveNoticeDues(ctx,
-  organizationID, month)` aus #6243: je Vertrag und Monat die wirksame Rate
-  mit Betrag, Fälligkeit (oder „sofort fällig“), Bescheid-ID und -Nummer und
-  Zahlungsweg. Die Lastschriftdatei löst Erst- und Änderungsbescheide nicht
-  selbst auf; was diese Funktion für einen Monat liefert, ist die Rate.
-- Spalte `care_notice_month_id` mit Fremdschlüssel und eindeutigem Index,
-  `run_kind = 'notice'`; der Check verlangt genau eine Quelle. Die Zeile
-  hält Bescheid-ID und -Nummer der wirksamen Rate als `EndToEndId`.
-- Das Mandat wird je Familie wie bei einer Rechnung aufgelöst (`ResolveDebit`)
-  und mit seinen versiegelten Kontodaten festgeschrieben, wenn die Rate in die
-  Datei ihres Fälligkeitsmonats kommt. Liefert `EffectiveNoticeDues` nach
-  einem Änderungsbescheid eine andere Rate, bleibt eine offene Zeile der
-  alten Rate draußen wie eine stornierte Rechnung; eine schon eingereichte
-  bekommt nur einen Zugang über 0 € als eigene Zeile.
-- Die Datei der Bescheidraten wird je Fälligkeitsmonat erzeugt und bestätigt,
-  damit die Kämmerei Monat für Monat einreicht.
+- Die einzige Quelle der Raten ist dieselbe Lesung und Auflösung wie in
+  `CareFeeNotices.EffectiveNoticeDues(ctx, organizationID, month)`: die
+  Store-Abfrage `EffectiveNoticeDues` und `effectiveDues`. Die Datei löst Erst-
+  und Änderungsbescheide nicht selbst auf. In die Datei
+  kommen nur Raten per Lastschrift mit einem Betrag über 0 €. Der Betrag ist
+  der Familienanteil nach dem Kostenträger.
+- Bis zur Bestätigung wird eine Rate live geplant. Das gilt für das gültige
+  Mandat der Familie (über `family_email`), den Sequenztyp und das versiegelte
+  Konto. Ohne gültiges Mandat bleibt die Rate mit `mandate_missing` draußen.
+  Widerruf, Verfall, eine andere Gläubiger-ID und ein schon genutztes
+  Einmalmandat behandelt die Datei wie bei Rechnungen. Eine Änderung des
+  Mandats (`updated_at`) geht in die Nachrichten-ID ein.
+- Erst die Bestätigung schreibt die Zeilen (`submitted`, `care_notice_id`,
+  `notice_month`). Dabei sperrt sie das Mandat und kopiert sein Siegel
+  ungeöffnet. Danach gelten `last_collected_on`, FRST → RCUR und die
+  Einzugshistorie wie bei Rechnungen. Der eindeutige Index
+  `uq_sepa_debits_notice_month (organization_id, care_contract_id,
+  notice_month)` verhindert einen zweiten Einzug derselben Rate. Eine
+  eingereichte Rate fehlt in der nächsten Datei des Monats.
+- Die Checks verlangen: Eine Bescheidzeile ist immer `submitted`, sie hat eine
+  Bescheid-ID, ihr Monat ist ein Monatserster, und die Lauf-ID ist ihr Monat.
+
+## Migration zurück
+
+Das Down der Migration 1.15.826 setzt `debit_gap = mandate_expired` auf
+`mandate_missing` zurück, in `care_invoices` und in `documents`. Erst danach
+stellt es die alten Checks wieder her. Für diese Zeit sind die Schutz-Trigger
+der ausgestellten Rechnungen ausgeschaltet. Ein Test prüft die Folge Up →
+Daten → Down → Up.
 
 ## Folgen
 
