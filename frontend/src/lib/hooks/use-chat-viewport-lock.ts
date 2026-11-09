@@ -205,26 +205,25 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       // the flexible part and takes whatever height is left. Content a
       // wrapper clips (the staff chats' cards are `overflow-hidden`) counts
       // too, otherwise a squeezed chat looks like it fits.
+      // With the keyboard open the line being typed has priority (#3664): the
+      // list may shrink to nothing, only header and composer must fit.
       const list = el.querySelector<HTMLElement>(`[${CHAT_SCROLL_ATTRIBUTE}]`);
+      const minList = keyboardOpen ? 0 : MIN_MESSAGE_LIST_PX;
       const needed = list
-        ? el.clientHeight -
-          list.clientHeight +
-          clippedBelow(list, el) +
-          MIN_MESSAGE_LIST_PX
+        ? el.clientHeight - list.clientHeight + clippedBelow(list, el) + minList
         : 0;
       // The hook owns the size: a consumer's CSS min-height (min-h-[20rem])
       // would otherwise push the composer back under the keyboard.
       el.style.minHeight = "0px";
-      // With the keyboard open the line being typed has priority (#3664):
-      // the chat stays pinned to the keyboard edge, whatever the list keeps.
-      if (!list || keyboardOpen || needed <= height) {
+      if (!list || needed <= height) {
         el.style.height = `${height}px`;
         setPageLocked(true);
         return;
       }
-      // The list would fall below a readable height: let the page scroll and
-      // give the chat the whole visible height, so scrolling down shows the
-      // full chat instead of a clipped one.
+      // The list would fall below a readable height, or header and composer
+      // alone do not fit: let the page scroll and give the chat the whole
+      // visible height, so scrolling down shows the full chat instead of a
+      // clipped one.
       setPageLocked(false);
       // Scrolled down, the chat starts where the shell's content starts: below
       // a sticky top bar and the main padding, like any page's first card.

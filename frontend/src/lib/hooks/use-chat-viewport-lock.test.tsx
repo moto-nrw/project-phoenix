@@ -486,7 +486,8 @@ describe("useChatViewportLock — message list and compact mode", () => {
       function (this: HTMLElement) {
         const id = this.dataset.testid;
         if (id === "card") return chatHeight() + clipped;
-        return id === "chat" ? chatHeight() : 0;
+        // Header and composer that do not fit overflow the container.
+        return id === "chat" ? Math.max(chatHeight(), chrome) : 0;
       },
     );
   };
@@ -562,6 +563,15 @@ describe("useChatViewportLock — message list and compact mode", () => {
 
     expect(chat()?.style.height).toBe("220px");
     expect(locked()).toBe(true);
+  });
+
+  it("lets the page scroll when header and composer exceed the keyboard edge", () => {
+    // Keyboard open, 220 px down to the keyboard, but header and composer
+    // alone take 300 px: the locked chat would hide "Senden".
+    mockLayout(640, 80, 300, { visualHeight: 300 });
+    renderFitted();
+
+    expect(locked()).toBe(false);
   });
 
   it("keeps the person's own scroll position while the page scrolls", () => {
