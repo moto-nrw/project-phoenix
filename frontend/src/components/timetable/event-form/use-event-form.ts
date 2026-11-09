@@ -71,6 +71,7 @@ import {
   initialStaffIDs,
   initialStudentIDs,
   isoWeekday,
+  isSeriesNotesOnlyEdit,
   parseMaxParticipants,
   parseRequiredStaffOverride,
   plannedStudentIds,
@@ -2460,6 +2461,7 @@ export function useEventForm({
           pulledSeriesStart !== null &&
           JSON.stringify(currentWithoutStart) ===
             JSON.stringify(initialWithoutStart);
+        const notesOnly = keepsOccurrencesForNotesOnlySave(initialSeries);
         const runSeriesEdit = async () => {
           await timetableService.updateTemplate(seriesId, {
             ...seriesBody(parsed.roomId, categoryId),
@@ -2474,12 +2476,14 @@ export function useEventForm({
               ? { end_date: form.seriesEndDate || null }
               : {}),
           });
-          const followUpOk = isStartDateOnlyPull
-            ? await materializePulledForwardWindow(
-                pulledSeriesStart,
-                seriesStartEdit!.original,
-              )
-            : await replanTemplateFuture(seriesId);
+          const followUpOk =
+            notesOnly ||
+            (isStartDateOnlyPull
+              ? await materializePulledForwardWindow(
+                  pulledSeriesStart,
+                  seriesStartEdit!.original,
+                )
+              : await replanTemplateFuture(seriesId));
           if (followUpOk) {
             toastSuccess("Der Regeltermin ist gespeichert.");
           } else {
@@ -2491,9 +2495,10 @@ export function useEventForm({
 
         // #1875: edits that rebuild existing instances need the same warning
         // as "Alle Termine". A start-only pull only inserts the opened gap and
-        // therefore preserves individual adjustments without a probe.
+        // therefore preserves individual adjustments without a probe, and so
+        // does a Wochennotiz-only save (#6141).
         let lost: EditedInWindowResult | null = null;
-        if (!isStartDateOnlyPull) {
+        if (!isStartDateOnlyPull && !notesOnly) {
           const editsTo =
             findPeriod(form.calendarPeriodId)?.endDate ??
             weekTo ??
@@ -2748,6 +2753,26 @@ export function useEventForm({
   };
 
   /**
+   * #6141: a series save that changes only the Wochennotiz keeps the existing
+   * occurrences and their individual adjustments: the note is read onto every
+   * occurrence, so nothing needs rebuilding and nothing is lost. Two cases
+   * still rebuild as before: a changed answer to the closing-day prompt
+   * (#3594) changes which days carry an occurrence, and an offering-sourced
+   * series reconciles occurrence children on every template write.
+   */
+  const keepsOccurrencesForNotesOnlySave = (series: TimetableTemplate | null) =>
+    series !== null &&
+    (series.sourceCareOfferingIds?.length ?? 0) === 0 &&
+    (closingDayChoice.current === null ||
+      closingDayChoice.current === (series.includeClosingDays ?? false)) &&
+    initialFormSnapshot.current !== null &&
+    isSeriesNotesOnlyEdit(form, initialFormSnapshot.current);
+
+  /** "following" splits the series and always rebuilds its occurrences. */
+  const isScopedNotesOnlyEdit = (typedScope: "all" | "following") =>
+    typedScope === "all" && keepsOccurrencesForNotesOnlySave(scopedSeries);
+
+  /**
    * Applies a series-wide edit ("all" or "following") against a pre-loaded
    * template. Split out of handleScopeSelect so the #1875 lost-edits warning
    * can defer it until the user confirms.
@@ -2760,6 +2785,7 @@ export function useEventForm({
     seriesTemplateId: string,
   ) => {
     if (!initialInstance) return;
+    const notesOnly = isScopedNotesOnlyEdit(typedScope);
     const chainResolved = template.resolvedFromTemplateId !== undefined;
     // #2187: on the chain path the write targets the living successor, whose
     // untouched fields must survive the save — see chainPreservedScalars.
@@ -2866,7 +2892,10 @@ export function useEventForm({
             }
           : {}),
       });
-      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
+      if (
+        notesOnly ||
+        (await replanTemplateFuture(seriesTemplateId, periodEnd))
+      ) {
         // The roster change reaches back to rosterFrom, but title, time, room
         // and Planungsschiene belong to the successor's own window and start
         // where it starts. Naming rosterFrom for all of them would claim more
@@ -2935,7 +2964,10 @@ export function useEventForm({
       onSaved({ kind: "series", seriesId: split.newTemplateId });
     } else {
       await timetableService.updateTemplate(seriesTemplateId, body);
-      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
+      if (
+        notesOnly ||
+        (await replanTemplateFuture(seriesTemplateId, periodEnd))
+      ) {
         toastSuccess("Der Regeltermin ist gespeichert.");
       } else {
         toastWarning(FOLLOW_UP_WARNING);
@@ -2968,22 +3000,26 @@ export function useEventForm({
       typedScope === "following" ? initialInstance.date : berlinTodayISO();
     const editsTo = periodEnd ?? weekTo ?? editsFrom;
     let lost: EditedInWindowResult | null = null;
-    try {
-      const probe = await timetableService.countEditedInWindow(
-        seriesTemplateId,
-        editsFrom,
-        editsTo,
-        typedScope === "following" &&
-          template.resolvedFromTemplateId === undefined,
-      );
-      if (probe.count > 0) lost = probe;
-    } catch (probeErr) {
-      // Bewusst still: die Rückfrage zu Einzelanpassungen ist ein Hinweis
-      // vor dem Speichern. Fällt die Zählung aus, läuft die Änderung wie ohne
-      // Einzelanpassungen weiter; der Ausfall steht im Log.
-      logger.warn("edited_in_window_probe_failed", {
-        error: probeErr instanceof Error ? probeErr.message : String(probeErr),
-      });
+    // A Wochennotiz-only save rebuilds nothing, so nothing can be lost (#6141).
+    if (!isScopedNotesOnlyEdit(typedScope)) {
+      try {
+        const probe = await timetableService.countEditedInWindow(
+          seriesTemplateId,
+          editsFrom,
+          editsTo,
+          typedScope === "following" &&
+            template.resolvedFromTemplateId === undefined,
+        );
+        if (probe.count > 0) lost = probe;
+      } catch (probeErr) {
+        // Bewusst still: die Rückfrage zu Einzelanpassungen ist ein Hinweis
+        // vor dem Speichern. Fällt die Zählung aus, läuft die Änderung wie
+        // ohne Einzelanpassungen weiter; der Ausfall steht im Log.
+        logger.warn("edited_in_window_probe_failed", {
+          error:
+            probeErr instanceof Error ? probeErr.message : String(probeErr),
+        });
+      }
     }
 
     if (lost) {
@@ -3042,6 +3078,8 @@ export function useEventForm({
       );
       setScopedSeries(template);
       setForm(nextForm);
+      // The series values are the baseline of this scope's edit (#6141).
+      initialFormSnapshot.current = nextForm;
       setInitialStudentIDsSnapshot([...nextForm.studentIds]);
       setInitialStaffIDsSnapshot([...nextForm.staffIds]);
       setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
