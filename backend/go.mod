@@ -19,7 +19,7 @@ require (
 	github.com/pkg/sftp v1.13.12
 	github.com/prometheus/client_golang v1.25.0
 	github.com/samber/slog-chi v1.19.1
-	github.com/signintech/gopdf v0.38.3
+	github.com/signintech/gopdf v0.38.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
@@ -28,7 +28,7 @@ require (
 	github.com/uptrace/bun/dialect/pgdialect v1.3.0
 	github.com/uptrace/bun/driver/pgdriver v1.3.0
 	github.com/uudashr/gocognit v1.3.0
-	github.com/vanng822/go-premailer v1.37.0
+	github.com/vanng822/go-premailer v1.38.0
 	github.com/wlbr/feiertage v1.20.1
 	github.com/wneessen/go-mail v0.8.1
 	github.com/xuri/excelize/v2 v2.11.1-0.20261003002531-6258dcebc4e2
