@@ -72,7 +72,7 @@ func (f *StatementFaults) Arm(site FaultSite, err error) {
 func (f *StatementFaults) AlsoFailStatement(prefix string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.armed = append(f.armed, &armedFault{site: faultStatement, prefix: prefix, err: err})
+	f.armed = append(f.armed, &armedFault{site: faultStatementPrefix, prefix: prefix, err: err})
 }
 
 // AlsoFail arms one more failure at site.
@@ -94,7 +94,7 @@ func (f *StatementFaults) Fired() bool {
 	return len(f.armed) > 0
 }
 
-const faultStatement FaultSite = "statement"
+const faultStatementPrefix FaultSite = "statement"
 
 func (f *StatementFaults) take(site FaultSite) error { return f.takeStatement(site, "") }
 
@@ -105,7 +105,7 @@ func (f *StatementFaults) takeStatement(site FaultSite, query string) error {
 		if fault.fired || fault.site != site {
 			continue
 		}
-		if site == faultStatement && !strings.HasPrefix(query, fault.prefix) {
+		if site == faultStatementPrefix && !strings.HasPrefix(query, fault.prefix) {
 			continue
 		}
 		fault.fired = true
@@ -175,7 +175,7 @@ func (c *faultingConn) ExecContext(ctx context.Context, query string, args []dri
 			return nil, fault
 		}
 	}
-	if fault := c.faults.takeStatement(faultStatement, strings.TrimSpace(query)); fault != nil {
+	if fault := c.faults.takeStatement(faultStatementPrefix, strings.TrimSpace(query)); fault != nil {
 		return nil, fault
 	}
 	result, err := c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
@@ -192,7 +192,7 @@ func (c *faultingConn) ExecContext(ctx context.Context, query string, args []dri
 
 func (c *faultingConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	faults := c.faults
-	if fault := faults.takeStatement(faultStatement, strings.TrimSpace(query)); fault != nil {
+	if fault := faults.takeStatement(faultStatementPrefix, strings.TrimSpace(query)); fault != nil {
 		return nil, fault
 	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
