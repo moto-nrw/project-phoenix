@@ -168,6 +168,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
 	// The parents state the children of their family on a contract (#5918).
 	{http.MethodPut, "/parent/me/documents/{organizationId}/contracts/{contractId}/family-children"}: notCaptured,
+	// The parents give and revoke the SEPA mandate of their family (#4696);
+	// reading the text before the confirmation writes nothing.
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate"}:         event("sepa_mandate_granted"),
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate/revoke"}:  event("sepa_mandate_revoked"),
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate/preview"}: notCaptured,
 }
 
 func init() {

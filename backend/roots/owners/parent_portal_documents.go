@@ -91,9 +91,13 @@ type parentContractDocuments struct {
 }
 
 // NewParentContractDocuments binds the inbox's contracts to the
-// Betreuungsvertrag; signing is the signature in the inbox (#4679).
-func NewParentContractDocuments(signing carecontract.InboxSigning) parentportal.ContractDocumentsPort {
-	return parentContractDocuments{inbox: careContractCompose.NewInbox(), billing: careContractCompose.NewContractVersions(), signing: signing}
+// Betreuungsvertrag; signing is the signature in the inbox (#4679), holidays
+// dates the withdrawal period the list offers (#6350).
+func NewParentContractDocuments(signing carecontract.InboxSigning, holidays carecontract.SchoolHolidays) parentportal.ContractDocumentsPort {
+	if holidays == nil {
+		panic("parent contract documents: the school holidays are required")
+	}
+	return parentContractDocuments{inbox: careContractCompose.NewInbox(holidays), billing: careContractCompose.NewContractVersions(), signing: signing}
 }
 
 func (d parentContractDocuments) ListContractDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {

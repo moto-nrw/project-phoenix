@@ -42,6 +42,7 @@
   "rebooking_sick_report": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "rebooking_too_many": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "replacement_outside_origin": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "replacement_staff_absent": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "session_note_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "session_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "session_not_owned": "У вас нет доступа к: {object}. Обратитесь в школу.",

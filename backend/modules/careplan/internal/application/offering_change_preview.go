@@ -48,6 +48,7 @@ func (s *OfferingChanges) PreviewDecision(
 	}
 	return &careplan.OfferingChangePreview{
 		Diff:                              diff.entries,
+		Unchanged:                         diff.unchanged,
 		Selections:                        offeringPreviewSelections(ids, diff.selected),
 		ManualPlanningConflicts:           conflicts,
 		ArrivalExpectationsFollowBookings: arrivalExpectationsFollowBookings,

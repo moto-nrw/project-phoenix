@@ -229,6 +229,10 @@ type ReviewItem struct {
 	// CurrentValueChanged is true when one of those days was reported or
 	// changed after the request was filed. Nil where it was not resolved.
 	CurrentValueChanged *bool
+	// PartialAbsenceFromByDate names the requested days a staff-entered
+	// partial absence holds, date -> "HH:MM" it starts (#5698). Approving
+	// such a request needs DecideInput.ReplacePartialAbsences.
+	PartialAbsenceFromByDate map[string]string
 }
 
 // HistoryItem is one decided request enriched with the child's name and the
@@ -251,6 +255,10 @@ type DecideInput struct {
 	ExpectedVersion string
 	// ReviewedBy is the acting staff account id.
 	ReviewedBy int64
+	// ReplacePartialAbsences confirms replacing the staff-entered partial
+	// absences on the requested days with the approved full-day status
+	// (#5698). Without it such an approval is refused.
+	ReplacePartialAbsences bool
 }
 
 // SubmitInput is one guardian absence submission. NoteRequired carries the

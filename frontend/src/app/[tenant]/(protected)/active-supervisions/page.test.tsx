@@ -7,6 +7,7 @@
  * student/timetable API stubs), so they stay separate.
  * Tests that can share this header belong here.
  */
+import { setViewportWidth } from "~/test/helpers/viewport";
 import {
   render as rtlRender,
   renderHook,
@@ -4603,11 +4604,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     global.fetch = vi.fn();
 
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 500,
-    });
+    setViewportWidth(500);
 
     // Override PageHeaderSearchLayout to render tabs with onTabChange
     const mod =
@@ -4647,11 +4644,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
   afterEach(() => {
     cleanup();
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: originalInnerWidth,
-    });
+    setViewportWidth(originalInnerWidth);
   });
 
   it("switches to a different room when tab is clicked and loads visits", async () => {
@@ -5727,11 +5720,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
     global.fetch = vi.fn();
 
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 500,
-    });
+    setViewportWidth(500);
 
     // Override PageHeaderSearchLayout to render tabs
     const mod =
@@ -5768,11 +5757,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
 
   afterEach(() => {
     cleanup();
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: originalInnerWidth,
-    });
+    setViewportWidth(originalInnerWidth);
   });
 
   it("shows permission error for 403 and clears students", async () => {

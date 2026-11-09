@@ -173,5 +173,5 @@ type BillingMonths interface {
 // its schools. It runs in the Träger transaction of organizationID and
 // answers nothing in any other.
 type TraegerMealMonths interface {
-	ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]ReleasedMealMonth, error)
+	ReleasedMealMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]ReleasedMealMonth, error)
 }

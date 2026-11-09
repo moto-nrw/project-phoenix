@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"errors"
 	"strings"
 )
 
@@ -15,8 +14,7 @@ type postgresError interface {
 // and other wrappers, then recognizes the driver's SQLSTATE text when an error
 // boundary has discarded the concrete pgdriver type.
 func IsUniqueViolation(err error) bool {
-	var pgErr postgresError
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := operationAs[postgresError](err); ok {
 		return pgErr.Field('C') == "23505"
 	}
 	return hasTextualSQLState(err, "23505")
@@ -29,16 +27,15 @@ func IsUniqueViolationOn(err error, constraint string) bool {
 		return false
 	}
 
-	var pgErr postgresError
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := operationAs[postgresError](err); ok {
 		return pgErr.Field('C') == "23505" &&
 			(pgErr.Field('n') == constraint || hasTextualConstraint(pgErr.Error(), constraint))
 	}
-	return hasTextualSQLState(err, "23505") && hasTextualConstraint(err.Error(), constraint)
+	return hasTextualSQLState(err, "23505") && hasTextualConstraint(operationText(err), constraint)
 }
 
 func hasTextualSQLState(err error, sqlState string) bool {
-	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+sqlState)
+	return err != nil && strings.Contains(operationText(err), "SQLSTATE="+sqlState)
 }
 
 func hasTextualConstraint(message, identifier string) bool {

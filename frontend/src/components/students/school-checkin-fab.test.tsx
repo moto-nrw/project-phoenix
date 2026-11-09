@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { between } from "~/lib/hooks/use-media-query";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -204,9 +205,7 @@ describe("SchoolCheckinFab", () => {
         />,
       );
 
-      expect(window.matchMedia).toHaveBeenCalledWith(
-        "(min-width: 768px) and (max-width: 1279px)",
-      );
+      expect(window.matchMedia).toHaveBeenCalledWith(between("md", "xl"));
       expect(
         document.documentElement.style.getPropertyValue(
           "--moto-floating-fab-offset",

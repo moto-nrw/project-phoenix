@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
+	mealcompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,4 +51,23 @@ func ownerPresenceDays(days []seedapi.PastPresenceDay) []presencecompose.PastPre
 		result = append(result, owned)
 	}
 	return result
+}
+
+func openMealHistory() (func(context.Context, int64, []seedapi.PastMealDay) error, func(), error) {
+	if strings.TrimSpace(os.Getenv("DB_DSN")) == "" {
+		return nil, func() {}, nil
+	}
+	db, err := transactionruntime.OpenDatabase()
+	if err != nil {
+		return nil, nil, err
+	}
+	history := mealcompose.NewParticipationHistory()
+	return func(ctx context.Context, schoolID int64, days []seedapi.PastMealDay) error {
+		ctx = tenant.WithTenantID(tenant.WithUnitOfWork(ctx, db.UnitOfWork()), schoolID)
+		owned := make([]mealcompose.PastMealDay, len(days))
+		for i, day := range days {
+			owned[i] = mealcompose.PastMealDay{StudentID: day.StudentID, Date: day.Date}
+		}
+		return history.RecordParticipationHistory(ctx, owned)
+	}, func() { _ = db.Close() }, nil
 }

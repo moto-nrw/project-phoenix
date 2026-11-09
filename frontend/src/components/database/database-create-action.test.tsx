@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { BELOW_MD } from "~/lib/hooks/use-media-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseCreateAction } from "./database-create-action";
 
@@ -39,7 +40,7 @@ describe("DatabaseCreateAction", () => {
     expect(
       screen.getAllByRole("button", { name: "Raum erstellen" }),
     ).toHaveLength(2);
-    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+    expect(window.matchMedia).toHaveBeenCalledWith(BELOW_MD);
     expect(
       document.documentElement.style.getPropertyValue(
         "--moto-floating-fab-offset",
