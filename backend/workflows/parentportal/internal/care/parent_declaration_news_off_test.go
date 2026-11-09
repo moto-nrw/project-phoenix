@@ -17,11 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// switchParentNewsOff rebuilds the service on the same database with the
-// school's parent news turned off.
-func (s *declarationSetup) switchParentNewsOff(t *testing.T) {
+// withParentNewsOff is the same declaration seen through a service whose
+// school switched parent news off.
+func (s *declarationSetup) withParentNewsOff(t *testing.T) *declarationSetup {
 	t.Helper()
-	s.svc, _, _ = buildAnnouncementServiceOn(t, s.db, false)
+	svc, _, _ := buildAnnouncementServiceOn(t, s.db, false)
+	return &declarationSetup{
+		svc: svc, db: s.db, repo: s.repo, chain: s.chain, seedCtx: s.seedCtx, ctx: s.ctx,
+		announcement: s.announcement, version: s.version,
+	}
 }
 
 func feedIDs(t *testing.T, s *declarationSetup, accountID int64) []int64 {
@@ -41,7 +45,7 @@ func TestDeclaration_ConsentStaysRevocableWithParentNewsOff(t *testing.T) {
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
-	s.switchParentNewsOff(t)
+	s = s.withParentNewsOff(t)
 
 	s.requireEndedWithRevocation(t)
 	for _, action := range []string{parentportal.DeclarationActionAgreed, parentportal.DeclarationActionDeclined} {
@@ -84,7 +88,7 @@ func TestDeclaration_ParentNewsOffShowsOnlyOwnGivenConsents(t *testing.T) {
 	require.NoError(t, err)
 	require.Subset(t, feedIDs(t, s, s.chain.AccountID), []int64{s.announcement.ID, declined.ID, unanswered.ID, letter.ID})
 
-	s.switchParentNewsOff(t)
+	s = s.withParentNewsOff(t)
 
 	assert.Equal(t, []int64{s.announcement.ID}, feedIDs(t, s, s.chain.AccountID),
 		"with parent news off a guardian sees only their own given consents")
