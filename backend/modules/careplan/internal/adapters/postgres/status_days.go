@@ -238,9 +238,9 @@ func countEffectiveStudentAbsences(students []StatusStudent, byStudent map[int64
 		day := byStudent[student.ID]
 		switch {
 		case (student.Sick != nil && *student.Sick) || day.sick:
-			counts.Sick++
+			counts.SickIDs = append(counts.SickIDs, student.ID)
 		case (student.Excused != nil && *student.Excused) || day.excused || day.classTrip:
-			counts.Excused++
+			counts.ExcusedIDs = append(counts.ExcusedIDs, student.ID)
 		default:
 			counts.UnaccountedIDs = append(counts.UnaccountedIDs, student.ID)
 		}

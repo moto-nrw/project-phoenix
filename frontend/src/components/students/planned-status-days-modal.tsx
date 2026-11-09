@@ -18,6 +18,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -57,6 +58,12 @@ import { sickConcept } from "~/lib/concepts/sick";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { RemovableChip } from "~/components/ui/removable-chip";
 
+/** Extra choices of a save; only present when the person made one. */
+export interface PlannedStatusSubmitOptions {
+  /** Days whose partial excusal the person chose to replace (#5698). */
+  readonly replacePartialAbsenceDates: readonly string[];
+}
+
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
   readonly status: StudentStatusKind;
@@ -80,7 +87,11 @@ interface PlannedStatusDaysModalProps {
     from: string,
     to: string,
   ) => Promise<StudentPartialAbsence[]>;
-  readonly onSubmit: (dates: string[], reason?: string) => Promise<void>;
+  readonly onSubmit: (
+    dates: string[],
+    reason?: string,
+    options?: PlannedStatusSubmitOptions,
+  ) => Promise<void>;
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
   readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly loadCarePlanDay?: (date: string) => Promise<CarePlanDay>;
@@ -158,6 +169,9 @@ export function PlannedStatusDaysModal({
   const [checkedPartialAbsences, setCheckedPartialAbsences] = useState<
     StudentPartialAbsence[]
   >([]);
+  // The person chose to replace the partial excusals on the selection with
+  // this full-day status (#5698). Nothing is replaced without this choice.
+  const [replacePartial, setReplacePartial] = useState(false);
   const [checkedSelectionKey, setCheckedSelectionKey] = useState("");
   const [conflictCheckRevision, setConflictCheckRevision] = useState(0);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
@@ -178,6 +192,11 @@ export function PlannedStatusDaysModal({
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const isSick = status === "sick";
   const isClassTrip = status === "class_trip";
+  const statusNoun = isSick
+    ? "Krankmeldung"
+    : isClassTrip
+      ? "Klassenfahrt"
+      : "Entschuldigung";
   const isPartialExcusal =
     canPlanPartialExcusal &&
     status === "excused" &&
@@ -356,6 +375,12 @@ export function PlannedStatusDaysModal({
     () => new Set(partialConflicts.map((absence) => absence.date)),
     [partialConflicts],
   );
+  // Replacing needs the right to change partial excusals: the same right the
+  // „Entfernen“ in the list below needs.
+  const canReplacePartial =
+    !isPartialExcusal && Boolean(onDeletePartialAbsence);
+  const replacingPartial =
+    canReplacePartial && replacePartial && partialConflicts.length > 0;
   const removableExistingDays = useMemo(() => {
     const byId = new Map<string, StudentStatusDay>();
     for (const day of activeExistingDays) {
@@ -396,9 +421,14 @@ export function PlannedStatusDaysModal({
       candidateDateKeys.filter(
         (date) =>
           !candidateExistingDayByDate.has(date) &&
-          !partialConflictDates.has(date),
+          (replacingPartial || !partialConflictDates.has(date)),
       ),
-    [candidateDateKeys, candidateExistingDayByDate, partialConflictDates],
+    [
+      candidateDateKeys,
+      candidateExistingDayByDate,
+      partialConflictDates,
+      replacingPartial,
+    ],
   );
   const blockedDayCount = candidateDateKeys.length - selectableDateKeys.length;
   const hasInvalidRangeOrder =
@@ -421,6 +451,7 @@ export function PlannedStatusDaysModal({
       setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
       setSelectedDates([]);
       setCheckedExistingDays([]);
+      setReplacePartial(false);
       setCheckedSelectionKey("");
       clearConflictLoadError();
       setReason("");
@@ -757,8 +788,17 @@ export function PlannedStatusDaysModal({
     }
     // Pass the reason as a second arg only when present, so callers/tests
     // that expect the single-arg shape keep matching.
+    const replaceDates = replacingPartial
+      ? partialConflicts
+          .map((absence) => absence.date)
+          .filter((date) => dateKeys.includes(date))
+      : [];
     try {
-      if (trimmedReason) {
+      if (replaceDates.length > 0) {
+        await onSubmit(dateKeys, trimmedReason || undefined, {
+          replacePartialAbsenceDates: replaceDates,
+        });
+      } else if (trimmedReason) {
         await onSubmit(dateKeys, trimmedReason);
       } else {
         await onSubmit(dateKeys);
@@ -1100,14 +1140,25 @@ export function PlannedStatusDaysModal({
                 />
               ) : null}
               {partialConflicts.length > 0 ? (
-                <Alert
-                  type="warning"
-                  message={getPartialConflictMessage(
-                    partialConflicts,
-                    selectableDateKeys.length,
-                    Boolean(onDeletePartialAbsence),
-                  )}
-                />
+                <div className="space-y-2">
+                  <Alert
+                    type="warning"
+                    message={getPartialConflictMessage(
+                      partialConflicts,
+                      selectableDateKeys.length,
+                      replacingPartial,
+                    )}
+                  />
+                  {canReplacePartial ? (
+                    <ConsentCheckbox
+                      name="replace-partial-absence"
+                      checked={replacePartial}
+                      onChange={setReplacePartial}
+                      label={`Durch ${statusNoun} ersetzen`}
+                      description={`Die ${statusNoun} gilt dann den ganzen Tag. Geänderte Betreuungsblöcke und die Abholzeit gelten wieder wie geplant.`}
+                    />
+                  ) : null}
+                </div>
               ) : null}
 
               {!isClassTrip && selectedDates.length > 0 && (
@@ -1451,26 +1502,27 @@ function getConflictMessage(
 function getPartialConflictMessage(
   conflicts: StudentPartialAbsence[],
   selectableCount: number,
-  canRemove: boolean,
+  replacing: boolean,
 ): string {
   const [first] = conflicts;
-  const details =
+  const named =
     conflicts.length === 1 && first
-      ? `${formatCalendarDate(first.date)} ist bereits ab ${first.fromTime} Uhr entschuldigt und wird nicht überschrieben.`
+      ? `${formatCalendarDate(first.date)} ist bereits ab ${first.fromTime} Uhr entschuldigt.`
       : `Bereits ab einer Uhrzeit entschuldigt: ${conflicts
           .map(
             (absence) =>
               `${formatCalendarDate(absence.date)} (ab ${absence.fromTime} Uhr)`,
           )
-          .join(", ")}. Diese Tage werden nicht überschrieben.`;
+          .join(", ")}.`;
   const saved =
     selectableCount === 0
       ? "Es wird nichts gespeichert."
       : `${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
-  const next = canRemove
-    ? ` Für den ganzen Tag entfernen Sie zuerst die Teilentschuldigung unten.`
-    : "";
-  return `${details} ${saved}${next}`;
+  if (replacing) {
+    return `${named} ${conflicts.length === 1 ? "Dieser Eintrag wird" : "Diese Einträge werden"} ersetzt. ${saved}`;
+  }
+  const kept = `${conflicts.length === 1 ? "Dieser Tag bleibt" : "Diese Tage bleiben"} unverändert.`;
+  return `${named} ${kept} ${saved}`;
 }
 
 function getSaveConflictMessage(conflicts: StudentStatusDay[]): string {

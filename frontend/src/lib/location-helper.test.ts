@@ -17,6 +17,8 @@ import {
   isNotCheckedInLocation,
   isSchoolyardLocation,
   isTransitLocation,
+  isCheckedInLocation,
+  countedDayStatus,
   type StudentLocationContext,
 } from "./location-helper";
 
@@ -590,6 +592,71 @@ describe("location check helpers", () => {
       expect(isNotCheckedInLocation("Anwesend - Raum 101")).toBe(false);
       expect(isNotCheckedInLocation("Unterwegs")).toBe(false);
       expect(isNotCheckedInLocation("Schulhof")).toBe(false);
+    });
+  });
+
+  describe("isCheckedInLocation (#6371)", () => {
+    it("is true for every open check-in", () => {
+      expect(isCheckedInLocation("Anwesend")).toBe(true);
+      expect(isCheckedInLocation("Anwesend - Raum 101")).toBe(true);
+      expect(isCheckedInLocation("Unterwegs")).toBe(true);
+      expect(isCheckedInLocation("Schulhof")).toBe(true);
+    });
+
+    it("is false without an open check-in", () => {
+      for (const location of [
+        "Zuhause",
+        "Abwesend",
+        "Schule",
+        "Im Unterricht",
+        "Krank",
+        "Kommt heute nicht",
+        "",
+        null,
+        undefined,
+      ]) {
+        expect(isCheckedInLocation(location)).toBe(false);
+      }
+    });
+  });
+
+  describe("countedDayStatus (#6371): Ort vor Status", () => {
+    const checkedIn = "Anwesend - Raum 101";
+
+    it("ignores the status of a checked-in child", () => {
+      for (const location of [checkedIn, "Schulhof", "Unterwegs"]) {
+        expect(
+          countedDayStatus({ sick: true, current_location: location }),
+        ).toBeNull();
+        expect(
+          countedDayStatus({ excused: true, current_location: location }),
+        ).toBeNull();
+        expect(
+          countedDayStatus({ class_trip: true, current_location: location }),
+        ).toBeNull();
+      }
+    });
+
+    it("keeps the status of a child without a check-in, sick first", () => {
+      expect(
+        countedDayStatus({
+          sick: true,
+          excused: true,
+          class_trip: true,
+          current_location: "Zuhause",
+        }),
+      ).toBe("sick");
+      expect(
+        countedDayStatus({
+          excused: true,
+          class_trip: true,
+          current_location: "",
+        }),
+      ).toBe("class_trip");
+      expect(
+        countedDayStatus({ excused: true, current_location: "Schule" }),
+      ).toBe("excused");
+      expect(countedDayStatus({ current_location: "Zuhause" })).toBeNull();
     });
   });
 

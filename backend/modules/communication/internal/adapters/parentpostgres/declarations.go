@@ -34,14 +34,12 @@ var ErrDeclarationVersionConflict = errors.New("users: declaration version alrea
 type declarationColumns struct {
 	DeclarationKind              *string `bun:"declaration_kind"`
 	DeclarationSigners           *string `bun:"declaration_signers"`
-	DeclarationRevocable         bool    `bun:"declaration_revocable,notnull"`
 	DeclarationRequiresPassword  bool    `bun:"declaration_requires_password,notnull"`
 	DeclarationRequiresSignature bool    `bun:"declaration_requires_signature,notnull"`
 }
 
 func (c declarationColumns) value() domain.DeclarationSettings {
 	settings := domain.DeclarationSettings{
-		Revocable:         c.DeclarationRevocable,
 		RequiresPassword:  c.DeclarationRequiresPassword,
 		RequiresSignature: c.DeclarationRequiresSignature,
 	}
@@ -56,7 +54,6 @@ func (c declarationColumns) value() domain.DeclarationSettings {
 
 func declarationRow(settings domain.DeclarationSettings) declarationColumns {
 	columns := declarationColumns{
-		DeclarationRevocable:         settings.Revocable,
 		DeclarationRequiresPassword:  settings.RequiresPassword,
 		DeclarationRequiresSignature: settings.RequiresSignature,
 	}
@@ -77,7 +74,6 @@ func setDeclarationColumns(query *bun.UpdateQuery, settings domain.DeclarationSe
 	return query.
 		Set("declaration_kind = ?", columns.DeclarationKind).
 		Set("declaration_signers = ?", columns.DeclarationSigners).
-		Set("declaration_revocable = ?", columns.DeclarationRevocable).
 		Set("declaration_requires_password = ?", columns.DeclarationRequiresPassword).
 		Set("declaration_requires_signature = ?", columns.DeclarationRequiresSignature)
 }
@@ -268,7 +264,7 @@ func (s *AnnouncementStore) DeclarationSettings(ctx context.Context, announcemen
 	if err := db.NewSelect().
 		TableExpr(parentAnnouncementTableExpr).
 		ColumnExpr(`"parent_announcement".id, "parent_announcement".declaration_kind,
-			"parent_announcement".declaration_signers, "parent_announcement".declaration_revocable,
+			"parent_announcement".declaration_signers,
 			"parent_announcement".declaration_requires_password,
 			"parent_announcement".declaration_requires_signature`).
 		Where(`"parent_announcement".id IN (?)`, bun.List(announcementIDs)).

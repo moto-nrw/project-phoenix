@@ -59,3 +59,9 @@ const (
 	KeyParentBillingDatevFiscalYearStart  = "parent_billing.datev_fiscal_year_start"
 	KeyParentBillingDatevLocked           = "parent_billing.datev_locked"
 )
+
+// KeyParentBillingOnlineMandate lets the parents give the SEPA mandate of
+// their family in the parents portal (#4696). Whether a mandate confirmed
+// online holds is agreed between the Träger and its bank, so it is off
+// until the Träger turns it on. Only the Träger sets it (LevelTraeger).
+const KeyParentBillingOnlineMandate = "parent_billing.online_mandate"

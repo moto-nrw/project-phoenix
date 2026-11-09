@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func (rs *Resource) mountAccountRoutes(r chi.Router) {
+func (rs *Resource) mountAccountRoutes(r chi.Router, authRateLimiter func(http.Handler) http.Handler) {
 	// Cross-tenant children list — every student the parent is
 	// linked to, across every active tenant mapping. Account id
 	// is read from claims, never from URL or body.
@@ -48,11 +48,11 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// dashboard.
 	r.Get("/me/enrollments", rs.listMyEnrollments)
 
-	rs.mountDocumentRoutes(r)
+	rs.mountDocumentRoutes(r, authRateLimiter)
 }
 
 // mountDocumentRoutes mounts the document inbox of the account.
-func (rs *Resource) mountDocumentRoutes(r chi.Router) {
+func (rs *Resource) mountDocumentRoutes(r chi.Router, authRateLimiter func(http.Handler) http.Handler) {
 	// Document inbox (#4671): the documents the Träger of the account's
 	// schools sent to its address, and the PDF of one of them. Account
 	// from the claims; the Träger only from the account's relationships.
@@ -67,6 +67,8 @@ func (rs *Resource) mountDocumentRoutes(r chi.Router) {
 	// The children of the family on that contract (#5918).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.familyChildren)
 	r.Put("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.stateFamilyChildren)
+	// The SEPA mandate of the family on that contract (#4696).
+	rs.mountSEPAMandateRoutes(r, authRateLimiter)
 	// Reading and signing a care contract (#4679).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/signing", rs.contractSigning)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/sign", rs.signContract)
