@@ -179,8 +179,14 @@ interface FieldEditorRowProps {
   readonly conditionSources?: readonly ConditionSource[];
   /** Whether an information block may carry PDF attachments. */
   readonly allowAttachments?: boolean;
-  /** The explanation of a free question under its heading. */
-  readonly freeQuestionNote?: { readonly title: string; readonly text: string };
+  /**
+   * The explanation of a free question under its heading; `null` when the
+   * page says it once above all questions instead of on every card.
+   */
+  readonly freeQuestionNote?: {
+    readonly title: string;
+    readonly text: string;
+  } | null;
   /**
    * The switch „Gesundheitsangabe“ of the holiday registration (#5198). The
    * marker is not part of a school form field, so the page owns its value.
@@ -479,7 +485,7 @@ export function FieldEditorRow({
                   Angabe nicht abgefragt werden soll.
                 </p>
               </InsetPanel>
-            ) : (
+            ) : freeQuestionNote ? (
               <InsetPanel
                 framed
                 padding="compact"
@@ -490,7 +496,7 @@ export function FieldEditorRow({
                 </p>
                 <p className="mt-0.5">{freeQuestionNote.text}</p>
               </InsetPanel>
-            )}
+            ) : null}
 
             {isInfo ? (
               <>

@@ -208,6 +208,10 @@ export function SectionCollapseHead({
   );
 }
 
+/** Unter `lg` liegt unten die Navigation, der Fuß klebt darüber. */
+const STICKY_FOOTER =
+  "sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-0";
+
 /**
  * The canonical content section of the calm design language the app converged
  * on (Anmeldungen, Planung, Personal-Stammdaten, Elternportal): a
@@ -255,6 +259,7 @@ export function SectionCard({
   overflow = "hidden",
   flush = false,
   footer,
+  stickyFooter = false,
   padding = "default",
   loading = false,
   loadingRows = 3,
@@ -331,6 +336,12 @@ export function SectionCard({
    * zum Inhalt). Sie klappt mit der Karte ein.
    */
   footer?: ReactNode;
+  /**
+   * Die Fußzone klebt am unteren Bildschirmrand, solange die Karte höher als
+   * der Bildschirm ist (langes Formular mit Speichern im Fuß). Am Ende der
+   * Karte liegt sie an ihrem Platz. Die Karte schneidet dann nichts ab.
+   */
+  stickyFooter?: boolean;
   /** `none`: Fläche ohne Polster, wenn der Inhalt eigene Zeilen mitbringt. */
   padding?: "default" | "none";
   /** Zeigt Balken in Feldform statt des Inhalts; der Kopf bleibt echt. */
@@ -400,7 +411,7 @@ export function SectionCard({
       bare={bare}
       as={as}
       hoverElevated={hoverElevated}
-      overflow={overflow}
+      overflow={stickyFooter ? "visible" : overflow}
       className={cn(!bare && surfacePadding, className)}
     >
       {hasHeader && (
@@ -525,6 +536,8 @@ export function SectionCard({
           className={cn(
             "border-t border-gray-100 bg-gray-50/70 py-3",
             ZONE_PADDING_X,
+            stickyFooter &&
+              `${STICKY_FOOTER} z-10 rounded-b-2xl bg-gray-50/95 backdrop-blur-sm`,
           )}
         >
           {footer}

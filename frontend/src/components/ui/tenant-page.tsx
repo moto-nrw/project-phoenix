@@ -368,24 +368,27 @@ export function TenantPageStats({
 }: Readonly<{
   items: readonly { readonly value: ReactNode; readonly label: string }[];
 }>) {
+  const shown = items.slice(0, MAX_STATS_ITEMS);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-      {items.slice(0, MAX_STATS_ITEMS).map((item, index) => (
+      {shown.map((item, index) => (
         // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
         // die Position macht den Schlüssel eindeutig.
         <span
           key={`${index}-${item.label}`}
           className="inline-flex items-center gap-1.5"
         >
-          {index > 0 && (
-            <span aria-hidden="true" className="text-gray-300">
-              ·
-            </span>
-          )}
           <span className="font-medium text-gray-900 tabular-nums">
             {item.value}
           </span>
           <span>{item.label}</span>
+          {/* Der Punkt hängt am Paar davor: bricht die Zeile um, endet sie
+              mit dem Punkt, statt die nächste damit zu beginnen. */}
+          {index < shown.length - 1 && (
+            <span aria-hidden="true" className="text-gray-300">
+              ·
+            </span>
+          )}
         </span>
       ))}
     </span>
