@@ -49,25 +49,32 @@ func (c *ClassListImportConfig) ResolveChunk(ctx context.Context, rows []importM
 	return resolved, nil
 }
 
-// CreateChunk creates the entries of one segment and their audit rows in two
-// statements. It first repeats the row path's guard against a student
-// created since the match: such a row refuses the batch, and the replay
-// reports it as the row path does.
-func (c *ClassListImportConfig) CreateChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow) error {
+// RefusesChunk repeats the row path's guard against a student created since
+// the match: a row whose name and class a student now carries refuses the
+// batch, and the replay reports it as the row path does.
+func (c *ClassListImportConfig) RefusesChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow) (bool, error) {
 	persons, students, err := c.studentNameView(ctx, rows)
 	if err != nil {
-		return err
+		return false, err
 	}
+	for _, row := range rows {
+		found, err := findStudentsByNameAndClass(ctx, persons, students, row.FirstName, row.LastName, row.SchoolClass)
+		if err != nil {
+			return false, err
+		}
+		if len(found) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CreateChunk creates the entries of one segment and their audit rows in two
+// statements.
+func (c *ClassListImportConfig) CreateChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow) error {
 	changedBy := ImporterIDFromContext(ctx)
 	inputs := make([]ports.CreateClassListEntry, len(rows))
 	for i, row := range rows {
-		found, err := findStudentsByNameAndClass(ctx, persons, students, row.FirstName, row.LastName, row.SchoolClass)
-		if err != nil {
-			return err
-		}
-		if len(found) > 0 {
-			return ErrClassListEntryStudentExists
-		}
 		inputs[i] = ports.CreateClassListEntry{ClassListEntryFields: ports.ClassListEntryFields{
 			FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
 		}}

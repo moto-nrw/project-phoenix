@@ -28,31 +28,32 @@ const DefaultBatchStatementLimit = 4 * time.Second
 // transaction. Nothing of it commits; the chunk replays in a new one.
 var errBatchBoundExceeded = errors.New("data import: batch attempt exceeded its bound")
 
-// errChunkNeedsRowPath sends a chunk the batch commands cannot express (an
-// update in a create batch) to the row path.
-var errChunkNeedsRowPath = errors.New("data import: chunk needs the row path")
-
-// errBatchCommand marks a failure of a batch command. Only such a failure
-// replays the chunk: an error of a row the attempt wrote on the row path (a
-// one-row segment) is that row's error, with the row path's retry budget and
-// no further attempt (#5827 review).
+// errBatchCommand marks a failure of the batch command itself (CreateChunk)
+// and nothing else: not the statements that set or reset its bound, not the
+// chunk savepoint, not a row written on the row path. Only such a failure
+// replays the chunk; every other failure behaves as the same failure at the
+// row path's first write, with the same retry count and no fallback (#5827
+// review R1, R2; fault table in the PR).
 var errBatchCommand = errors.New("data import: batch command failed")
+
+// errChunkRefused is the refusal RefusesChunk reported.
+var errChunkRefused = errors.New("data import: the row path would refuse a row of the chunk")
 
 func batchCommandFailed(err error) bool { return errors.Is(err, errBatchCommand) }
 
 // applyChunk writes one chunk (ADR 0067 addendum, point 2). A config with
-// batch commands runs as a batch attempt inside SAVEPOINT chunk. A failed
-// batch command, including 40P01/40001, rolls back to the savepoint and
-// replays the chunk row by row in the same transaction attempt, so the replay
-// keeps the whole retry budget; a cancelled bounded command replays in a new
-// transaction (E13′). Any other failure is returned as the row path returns
-// it: a failure of the savepoint itself, a broken connection, and the error
-// of a row written on the row path. A chunk with fewer than two accepted
-// rows is the row path from the start.
+// batch commands runs a create chunk of two or more accepted rows as a batch
+// attempt inside SAVEPOINT chunk. A failed batch command, including
+// 40P01/40001, rolls back to the savepoint and replays the chunk row by row in
+// the same transaction attempt, so the replay keeps the whole retry budget; a
+// cancelled batch command replays in a new transaction (E13′); a broken
+// connection is returned. Every other failure is returned as the row path
+// returns it. Any other chunk is the row path from the start.
 func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importModels.ImportResult[T]) (*importModels.ImportResult[T], error) {
 	service := a.service()
 	writer, ok := service.config.(ports.ChunkWriter[T])
-	if !ok || !writer.ChunkWriterReady() || service.boundStatements == nil || a.rowPath || len(a.acceptedRows()) < 2 {
+	if !ok || !writer.ChunkWriterReady() || service.boundStatements == nil || a.rowPath ||
+		a.run.request.Mode != importModels.ImportModeCreate || len(a.acceptedRows()) < 2 {
 		return batch, a.applyAcceptedRows(ctx, service, batch)
 	}
 	entered := false
@@ -80,7 +81,7 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 		// retried (#5827, lesson of Q6).
 		return batch, err
 	}
-	if !batchCommandFailed(err) && !errors.Is(err, errChunkNeedsRowPath) {
+	if !batchCommandFailed(err) {
 		return batch, err
 	}
 	a.rowPath = true
@@ -175,20 +176,40 @@ func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.C
 			continue
 		}
 		if action != "create" {
-			return errChunkNeedsRowPath
+			// Unreachable: the batch path runs create imports only.
+			return fmt.Errorf("data import: chunk executor got action %q in a create import", action)
 		}
 		creates = append(creates, *row)
 	}
 	if len(creates) == 0 {
 		return nil
 	}
-	if err := service.boundStatements(ctx, service.batchLimit, func(ctx context.Context) error {
-		return writer.CreateChunk(ctx, creates)
-	}); err != nil {
-		return fmt.Errorf("%w: %w", errBatchCommand, err)
+	if err := writeSegment(ctx, service, writer, creates); err != nil {
+		return err
 	}
 	batch.CreatedCount += len(creates)
 	return nil
+}
+
+// writeSegment reads the student guard, then runs the batch command under
+// its bound. Only the batch command's own failure and the guard's refusal
+// carry errBatchCommand (fault table in the PR).
+func writeSegment[T any](ctx context.Context, service *ImportService[T], writer ports.ChunkWriter[T], creates []T) error {
+	refused, err := writer.RefusesChunk(ctx, creates)
+	if err != nil {
+		return err
+	}
+	if refused {
+		// The row path would refuse a row (ADR F5): the batch command is
+		// refused, and the replay names the row as the row path does.
+		return fmt.Errorf("%w: %w", errBatchCommand, errChunkRefused)
+	}
+	return service.boundStatements(ctx, service.batchLimit, func(ctx context.Context) error {
+		if err := writer.CreateChunk(ctx, creates); err != nil {
+			return fmt.Errorf("%w: %w", errBatchCommand, err)
+		}
+		return nil
+	})
 }
 
 // boundExceeded reports a batch statement the bound cancelled (57014).

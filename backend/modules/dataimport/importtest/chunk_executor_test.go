@@ -342,12 +342,16 @@ func runDeadlockScript(t *testing.T, rowPathFailures int) (importModels.ImportOb
 	return observation, countIn(t, db, `SELECT count(*) FROM users.class_list_entries WHERE tenant_id = ?`), upload.err
 }
 
-// faultConnector fails the first statement it is armed for with
-// driver.ErrBadConn, on a real PostgreSQL connection otherwise.
+// faultConnector fails one statement starting with prefix once it is armed:
+// the nth such statement (first when nth is 0), with err (driver.ErrBadConn
+// when nil). Every other statement runs on a real PostgreSQL connection.
 type faultConnector struct {
 	driver.Connector
-	armed  *atomic.Bool
-	prefix string
+	armed   *atomic.Bool
+	prefix  string
+	nth     int32
+	err     error
+	matches *atomic.Int32
 }
 
 func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -363,20 +367,32 @@ type faultConn struct {
 	connector faultConnector
 }
 
-func (c *faultConn) fail(query string) bool {
-	return strings.HasPrefix(strings.TrimSpace(query), c.connector.prefix) && c.connector.armed.CompareAndSwap(true, false)
+func (c *faultConn) fail(query string) error {
+	if !c.connector.armed.Load() || !strings.HasPrefix(strings.TrimSpace(query), c.connector.prefix) {
+		return nil
+	}
+	if c.connector.matches != nil && c.connector.matches.Add(1) < max(c.connector.nth, 1) {
+		return nil
+	}
+	if !c.connector.armed.CompareAndSwap(true, false) {
+		return nil
+	}
+	if c.connector.err != nil {
+		return c.connector.err
+	}
+	return driver.ErrBadConn
 }
 
 func (c *faultConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if c.fail(query) {
-		return nil, driver.ErrBadConn
+	if err := c.fail(query); err != nil {
+		return nil, err
 	}
 	return c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
 }
 
 func (c *faultConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	if c.fail(query) {
-		return nil, driver.ErrBadConn
+	if err := c.fail(query); err != nil {
+		return nil, err
 	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
 }

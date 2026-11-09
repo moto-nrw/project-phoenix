@@ -123,8 +123,12 @@ type ChunkWriter[T any] interface {
 	// protected read and returns a config whose FindExisting answers from it.
 	// On error the executor falls back to FindExisting per row.
 	ResolveChunk(context.Context, []T) (ImportConfig[T], error)
+	// RefusesChunk reads, before the batch command, whether the row path
+	// would refuse one of the rows (a fachliche refusal, ADR F5); a read
+	// failure is returned as error.
+	RefusesChunk(context.Context, []T) (bool, error)
 	// CreateChunk creates the rows of one segment through batch commands,
-	// all or nothing.
+	// all or nothing; it issues the owner writes only.
 	CreateChunk(context.Context, []T) error
 }
 
