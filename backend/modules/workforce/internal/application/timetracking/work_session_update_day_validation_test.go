@@ -119,3 +119,22 @@ func TestBalanceSessionEnd_NeverEndsBeforeACheckInAfterTheSessionDay(t *testing.
 	require.True(t, stale)
 	assert.True(t, expired.CheckOutTime.After(checkIn), "the check-in repair closes the row after its check-in")
 }
+
+// TestCheckInWithinSessionDay_IsExactAtTheDayBoundary pins the boundary of the
+// #6288 day rule: a check-in belongs to its day until the next Berlin midnight,
+// including the last fraction of a second and on both 2026 clock changes.
+func TestCheckInWithinSessionDay_IsExactAtTheDayBoundary(t *testing.T) {
+	t.Parallel()
+	for _, day := range []calendar.Date{
+		calendar.NewDate(2026, 9, 9),
+		calendar.NewDate(2026, 3, 29),  // 23 hours
+		calendar.NewDate(2026, 10, 25), // 25 hours
+	} {
+		nextMidnight := day.AddDays(1).BerlinMidnight()
+		assert.NoError(t, checkInWithinSessionDay(day, nextMidnight.Add(-500*time.Millisecond)),
+			"%s: 23:59:59.5 still belongs to the day", day)
+		assert.NoError(t, checkInWithinSessionDay(day, day.BerlinMidnight()), "%s: midnight starts the day", day)
+		assert.ErrorIs(t, checkInWithinSessionDay(day, nextMidnight), workforce.ErrSessionCheckInAfterDate,
+			"%s: the next midnight belongs to the next day", day)
+	}
+}

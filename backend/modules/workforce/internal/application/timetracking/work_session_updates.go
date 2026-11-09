@@ -296,7 +296,10 @@ func checkEditedSessionDay(session *WorkSession, recordedDay calendar.Date, reco
 // check-in. The nightly cleanup closes a forgotten session at the end of its
 // day; that close must lie after the check-in (#6288).
 func checkInWithinSessionDay(day calendar.Date, checkIn time.Time) error {
-	if checkIn.After(day.EndOfDay()) {
+	// The day ends at the next Berlin midnight, not at 23:59:59: a check-in in
+	// the last second's fractions still belongs to it, on 23- and 25-hour days
+	// as well.
+	if !checkIn.Before(day.AddDays(1).BerlinMidnight()) {
 		return workforce.ErrSessionCheckInAfterDate
 	}
 	return nil
