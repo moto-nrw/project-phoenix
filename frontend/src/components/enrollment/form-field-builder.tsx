@@ -18,15 +18,7 @@ import {
 } from "react";
 import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
-import {
-  ArrowDown,
-  ArrowUp,
-  GripVertical,
-  Info,
-  Lock,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { AttachmentEditor } from "~/components/enrollment/attachment-editor";
 import {
@@ -392,9 +384,7 @@ export function FieldEditorRow({
     <article>
       <SectionCard>
         <div className="flex items-start gap-3">
-          <span className="mt-1 hidden text-gray-300 sm:block">
-            <GripVertical className="h-5 w-5" aria-hidden="true" />
-          </span>
+          {/* No grip: the questions move with the arrows, not by dragging. */}
           <div className="min-w-0 flex-1 space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
