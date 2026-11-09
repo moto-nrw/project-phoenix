@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const guardianInvitationAddressBindingVersion = "1.15.855"
+const guardianInvitationAddressBindingVersion = "1.15.865"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     guardianInvitationAddressBindingVersion,
 		Description: "Elterneinladungen an die E-Mail-Adresse binden, an die der Link ging; offene Altlinks ohne belegte Empfängeradresse beenden (#6294)",
 		DependsOn: []string{
-			parentBillingOnlineSEPAMandatesVersion, // the last migration before this one
+			declarationAlwaysRevocableVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(guardianInvitationAddressBindingUp, guardianInvitationAddressBindingDown)

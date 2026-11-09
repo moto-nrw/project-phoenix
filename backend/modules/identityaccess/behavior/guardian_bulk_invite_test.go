@@ -70,7 +70,7 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 }
 
 // #6294: a link that works for nobody does not count as an open invitation.
-// A legacy link without a recorded recipient (ended by 1.15.855) and a link
+// A legacy link without a recorded recipient (ended by 1.15.865) and a link
 // mailed to an address since corrected both lead to a new link for the
 // address on file, also without ResendOpen.
 func TestBulkInviteToStudents_DeadLinksGetANewInvitation(t *testing.T) {
