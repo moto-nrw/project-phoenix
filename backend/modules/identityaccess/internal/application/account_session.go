@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -252,11 +253,8 @@ func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64,
 		if len(live) <= keep {
 			return nil
 		}
-		ids := make([]int64, 0, len(live)-keep)
-		for _, session := range live[keep:] {
-			ids = append(ids, session.ID)
-		}
-		deleted, deleteStats, deleteErr := s.sessions.DeleteAccountSessionsByID(txCtx, ids)
+		ids, families := evictedSessions(live, keep)
+		deleted, deleteStats, deleteErr := s.sessions.EvictAccountSessions(txCtx, accountID, ids, families)
 		stats.Add(deleteStats)
 		if deleteErr != nil {
 			return deleteErr
@@ -268,6 +266,29 @@ func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64,
 		return nil, fmt.Errorf("identity access: enforce account session cap: %w", MapError(err))
 	}
 	return accountSessions(result), nil
+}
+
+// evictedSessions names the sessions beyond keep and their families. The
+// cap counts only a family's head, but a rotated family still holds its
+// predecessor within the rotation grace; left behind, it would become the
+// family's latest generation and keep its access tokens and a school switch
+// out of it alive (#6289). A family with a kept head is never evicted with
+// them, the minted session's least of all.
+func evictedSessions(live []domain.AccountSession, keep int) ([]int64, []string) {
+	kept := make(map[string]struct{}, keep)
+	for _, session := range live[:keep] {
+		kept[session.FamilyID] = struct{}{}
+	}
+	ids := make([]int64, 0, len(live)-keep)
+	families := make([]string, 0, len(live)-keep)
+	for _, session := range live[keep:] {
+		ids = append(ids, session.ID)
+		if _, keptFamily := kept[session.FamilyID]; keptFamily || session.FamilyID == "" || slices.Contains(families, session.FamilyID) {
+			continue
+		}
+		families = append(families, session.FamilyID)
+	}
+	return ids, families
 }
 
 // keepMintedFirst moves the minted session to the front of the cap order and
@@ -337,10 +358,12 @@ func (s *Service) RevokeAccountSessionsInTenant(ctx context.Context, accountID i
 	return accountSessions(result), nil
 }
 
-func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]ports.AccountSession, error) {
+// RevokeAllAccountSessions deletes the account's sessions at every school
+// except the family keepFamilyID names; an empty keepFamilyID keeps none.
+func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64, keepFamilyID string) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunAdmin, "revoke_all_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
-		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsByAccount(txCtx, accountID, false, time.Time{})
+		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsExceptFamily(txCtx, accountID, keepFamilyID)
 		stats.Add(queryStats)
 		if deleteErr != nil {
 			return deleteErr

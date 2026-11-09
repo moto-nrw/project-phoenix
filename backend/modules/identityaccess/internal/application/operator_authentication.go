@@ -100,7 +100,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		return nil, err
 	}
 	if !enrolled {
-		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL)
+		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL, 0)
 		if err != nil {
 			return nil, fmt.Errorf("issue operator mfa enrollment token: %w", err)
 		}
@@ -169,7 +169,7 @@ func (s *OperatorAuthentication) validateCredentials(ctx context.Context, email,
 }
 
 func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operator domain.Operator, ipAddress string) (*domain.OperatorLoginResult, error) {
-	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, ipAddress)
+	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, operator.PasswordHash, ipAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 		return "", "", errOperatorAuthenticationUnavailable
 	}
 	defer func() { err = operatorError(err) }()
-	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, ipAddress)
+	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, "", ipAddress)
 	return access, refresh, err
 }
 
@@ -194,8 +194,10 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 // the login and writes the login audit row in one administrative
 // transaction, and signs the pair inside it: an operator deactivated after
 // the credential check gets no session, and a login that cannot be recorded
-// issues none either.
-func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
+// issues none either. checkedHash is the hash a password sign-in verified;
+// a password rotated since then ended every session, so the old password
+// earns no new one (#6289). Other channels pass none.
+func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, checkedHash, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
 	session := s.newRefreshSession(operatorID, "", 0)
 	entry := domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
@@ -205,6 +207,9 @@ func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID 
 		var err error
 		if operator, err = s.activeOperator(txCtx, operatorID); err != nil {
 			return err
+		}
+		if checkedHash != "" && checkedHash != operator.PasswordHash {
+			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(session)); err != nil {
 			return fmt.Errorf("failed to persist operator refresh token: %w", err)
@@ -378,7 +383,8 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 }
 
 // storeRotatedPassword writes the new hash on the caller's transaction and
-// invalidates the e-mail change links and refresh sessions with it. The
+// invalidates the e-mail change links, remembered devices (#6289) and
+// refresh sessions with it. The
 // verification ran without a lock and the hash is slow, so the hash is set on
 // the row UpdateOperator locked: a deactivation committed meanwhile stays in
 // force, and a password rotated meanwhile (verifiedHash no longer stored)
@@ -397,8 +403,8 @@ func (s *OperatorAuthentication) storeRotatedPassword(ctx context.Context, opera
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
-	if err := s.credentials.RevokeEmailChanges(ctx, operatorID); err != nil {
-		return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
+	if err := s.credentials.RevokePasswordBoundCredentials(ctx, operatorID); err != nil {
+		return fmt.Errorf("failed to invalidate email change tokens and remembered devices after password change: %w", err)
 	}
 	if err := s.revokeAllWithAudit(ctx, operatorID, "password_change"); err != nil {
 		return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
@@ -653,6 +659,9 @@ func (s *OperatorAuthentication) rejectOperatorLineage(txCtx context.Context, se
 }
 
 func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, operatorID int64, refreshTokenValue string, proof domain.RecoveryProof) (accessToken, refreshToken string, recovered, rejectAfterCommit bool, err error) {
+	if err := s.lockOperatorBeforeSession(txCtx, operatorID); err != nil {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, err
+	}
 	session, err := s.operators.findOperatorSessionForUpdate(txCtx, refreshTokenValue)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, identityaccess.ErrOperatorRefreshTokenInvalid
@@ -696,10 +705,23 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	return accessToken, refreshToken, recovered, rejectAfterCommit, err
 }
 
-// activeOperator re-reads the operator inside a session transaction and
-// refuses a missing or deactivated one.
+// lockOperatorBeforeSession takes the operator row before the refresh reads
+// its session: the order every command that ends the operator's sessions
+// (deactivation, password change) takes, so a rotation either commits before
+// such a command reads the sessions or reads the operator after it committed
+// (#6289). A missing operator is refused later, after the session checks.
+func (s *OperatorAuthentication) lockOperatorBeforeSession(txCtx context.Context, operatorID int64) error {
+	if _, err := s.operators.findOperatorForUpdate(txCtx, operatorID); err != nil && !errors.Is(err, identityaccess.ErrOperatorNotFound) {
+		return fmt.Errorf("failed to find operator: %w", err)
+	}
+	return nil
+}
+
+// activeOperator locks the operator inside a session transaction and
+// refuses a missing or deactivated one. The lock orders a mint behind a
+// deactivation that ends the operator's sessions (#6289).
 func (s *OperatorAuthentication) activeOperator(txCtx context.Context, operatorID int64) (domain.Operator, error) {
-	operator, err := s.operators.findOperatorByID(txCtx, operatorID)
+	operator, err := s.operators.findOperatorForUpdate(txCtx, operatorID)
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound
 	}

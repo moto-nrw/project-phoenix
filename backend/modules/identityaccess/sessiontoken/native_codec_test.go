@@ -162,7 +162,7 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 		require.Error(t, err)
 		_, err = native.ParseRefreshToken(challengeToken)
 		require.Error(t, err)
-		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour)
+		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour, 0)
 		require.NoError(t, err)
 		parsed, err := tokentest.ParseMFAEnrollmentJWT(legacy, token)
 		require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestNativeSessionCodecRefusesEnrollmentOfPortalsWithoutEnrollment(t *testin
 	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	for _, scope := range []string{"caterer", "parent", "", "unknown"} {
-		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour)
+		token, err := native.IssueMFAEnrollmentToken(42, 73, scope, time.Hour, 0)
 		require.Error(t, err, scope)
 		require.Empty(t, token, scope)
 	}

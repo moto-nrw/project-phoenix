@@ -337,11 +337,6 @@
     },
     {
       "decision": "0090",
-      "id": "workflows/parentportal/declarationPolicyBinding.ActionAllowed",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "workflows/parentportal/declarationPolicyBinding.AllowedActions",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

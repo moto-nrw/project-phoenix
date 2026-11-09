@@ -48,15 +48,19 @@ type declarationChildResponse struct {
 
 // AnnouncementDeclarationResponse is the declaration block of a feed item.
 type AnnouncementDeclarationResponse struct {
-	Kind              string                      `json:"kind"`
-	Signers           string                      `json:"signers"`
-	Revocable         bool                        `json:"revocable"`
-	RequiresPassword  bool                        `json:"requires_password"`
-	RequiresSignature bool                        `json:"requires_signature"`
-	Deadline          *time.Time                  `json:"deadline"`
-	Closed            bool                        `json:"closed"`
-	Version           *declarationVersionResponse `json:"version"`
-	Children          []declarationChildResponse  `json:"children"`
+	Kind              string     `json:"kind"`
+	Signers           string     `json:"signers"`
+	Revocable         bool       `json:"revocable"`
+	RequiresPassword  bool       `json:"requires_password"`
+	RequiresSignature bool       `json:"requires_signature"`
+	Deadline          *time.Time `json:"deadline"`
+	Closed            bool       `json:"closed"`
+	// Ended: the school no longer shows this Einverständnis (withdrawn,
+	// deactivated or expired). It stays in the feed because the guardian
+	// answered it; only revoking an own consent remains (#6290).
+	Ended    bool                        `json:"ended"`
+	Version  *declarationVersionResponse `json:"version"`
+	Children []declarationChildResponse  `json:"children"`
 }
 
 func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *AnnouncementDeclarationResponse {
@@ -65,7 +69,7 @@ func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *Announ
 	}
 	out := &AnnouncementDeclarationResponse{
 		Kind: d.Kind, Signers: d.Signers, Revocable: d.Revocable, RequiresPassword: d.RequiresPassword,
-		RequiresSignature: d.RequiresSignature, Deadline: d.Deadline, Closed: d.Closed, Children: make([]declarationChildResponse, 0, len(d.Children)),
+		RequiresSignature: d.RequiresSignature, Deadline: d.Deadline, Closed: d.Closed, Ended: d.Ended, Children: make([]declarationChildResponse, 0, len(d.Children)),
 	}
 	if d.Version != nil {
 		out.Version = &declarationVersionResponse{

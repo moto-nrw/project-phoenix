@@ -63,6 +63,9 @@ type PasswordResetToken struct {
 	Used      bool
 	Delivery  TokenDelivery
 	CreatedAt time.Time
+	// CredentialGeneration is the credential generation the link was issued
+	// under (#6289).
+	CredentialGeneration int64
 }
 
 // Validate rejects a reset link that cannot be stored; a link is never

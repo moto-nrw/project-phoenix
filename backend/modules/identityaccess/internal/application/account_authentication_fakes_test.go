@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -649,15 +650,16 @@ func (s *fakeStore) ListLiveAccountSessionsForCap(_ context.Context, accountID i
 	return result, stats(), nil
 }
 
-func (s *fakeStore) DeleteAccountSessionsByID(_ context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error) {
+func (s *fakeStore) EvictAccountSessions(_ context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var deleted []domain.AccountSession
-	for _, id := range ids {
-		if session, ok := s.sessions[id]; ok {
-			deleted = append(deleted, session)
-			delete(s.sessions, id)
+	for id, session := range s.sessions {
+		if session.AccountID != accountID || (!slices.Contains(ids, id) && !slices.Contains(familyIDs, session.FamilyID)) {
+			continue
 		}
+		deleted = append(deleted, session)
+		delete(s.sessions, id)
 	}
 	return deleted, stats(), nil
 }
@@ -691,6 +693,20 @@ func (s *fakeStore) DeleteAccountSessionsByAccount(ctx context.Context, accountI
 			continue
 		}
 		if !cutoff.IsZero() && session.CreatedAt.After(cutoff) {
+			continue
+		}
+		deleted = append(deleted, session)
+		delete(s.sessions, id)
+	}
+	return deleted, stats(), nil
+}
+
+func (s *fakeStore) DeleteAccountSessionsExceptFamily(_ context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var deleted []domain.AccountSession
+	for id, session := range s.sessions {
+		if session.AccountID != accountID || (keepFamilyID != "" && session.FamilyID == keepFamilyID) {
 			continue
 		}
 		deleted = append(deleted, session)
@@ -847,7 +863,7 @@ func (c fakeCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.Re
 	return c.encode("access:", access), c.encode("refresh:", refresh), nil
 }
 
-func (c fakeCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, _ time.Duration) (string, error) {
+func (c fakeCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, _ time.Duration, _ int64) (string, error) {
 	return fmt.Sprintf("enroll:%d:%d:%s", accountID, tenantID, scope), nil
 }
 
@@ -940,7 +956,7 @@ func (m *fakeMFA) HasEnrollment(context.Context, int64) (bool, error) {
 func (m *fakeMFA) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
 	return m.trusted, nil
 }
-func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string) (string, error) {
+func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string, _ int64) (string, error) {
 	m.challenges = append(m.challenges, scope)
 	if m.challengeErr != nil {
 		return "", m.challengeErr

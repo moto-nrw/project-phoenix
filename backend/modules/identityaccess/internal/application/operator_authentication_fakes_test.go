@@ -254,7 +254,7 @@ type fakeCredentialCleanup struct {
 	err         error
 }
 
-func (c *fakeCredentialCleanup) RevokeEmailChanges(_ context.Context, operatorID int64) error {
+func (c *fakeCredentialCleanup) RevokePasswordBoundCredentials(_ context.Context, operatorID int64) error {
 	if c.err != nil {
 		return c.err
 	}
