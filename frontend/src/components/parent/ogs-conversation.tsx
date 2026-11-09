@@ -784,6 +784,7 @@ export function OgsConversation({
             }
             sickRequiresApproval={care.features.sick_requires_approval}
             excusedRequiresApproval={care.features.excused_requires_approval}
+            careExceptions={care.careExceptions}
           />
         )}
       {activeModal === "pickup" && (
