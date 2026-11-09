@@ -297,6 +297,7 @@ export function SollMappingEditor({
               items={SOLL_DELIMITERS}
               value={draft.delimiter}
               onChange={(delimiter) => set({ delimiter })}
+              fullWidth
               wrap
             />
           </div>

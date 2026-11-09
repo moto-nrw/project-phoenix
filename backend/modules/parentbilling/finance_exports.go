@@ -244,6 +244,9 @@ type ExportFileRecord struct {
 	RunID      int64
 	FileNumber int64
 	FileName   string
+	// DocumentCount is the number of documents (rows) the file holds when
+	// it differs from its links: an invoice and its Storno share one link.
+	DocumentCount int
 	// Content is the file; the store keeps only its SHA-256 fingerprint.
 	Content        []byte
 	TotalCents     int64

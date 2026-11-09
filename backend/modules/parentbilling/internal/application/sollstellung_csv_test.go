@@ -3,6 +3,7 @@ package application
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	validation "github.com/go-ozzo/ozzo-validation"
@@ -146,4 +147,20 @@ func TestImportDebtorNumbersPerFamily(t *testing.T) {
 	countDebtorNumbers(&counts, candidates)
 	assert.Equal(t, 1, counts.DebtorNumbers)
 	assert.Equal(t, 3, counts.DebtorConflicts)
+}
+
+// A sibling row with an unreadable number still disagrees: the family gets
+// no number the file does not agree on (review round 2).
+func TestImportDebtorNumberWithAnInvalidSibling(t *testing.T) {
+	t.Parallel()
+	table := importTable{rows: [][]string{{"60 1"}, {strings.Repeat("9", 40)}}}
+	columns := importColumnIndex{fields: map[string]int{parentbilling.ImportFieldDebtorNumber: 0}}
+	candidates := []importCandidate{
+		{family: "zwei@example.org", row: parentbilling.SEPAMandateImportRow{Line: 2, ContractID: 1}},
+		{family: "zwei@example.org", row: parentbilling.SEPAMandateImportRow{Line: 3, ContractID: 2}},
+	}
+	assignDebtorNumbers(candidates, table, columns, map[string]string{})
+	assert.Equal(t, parentbilling.DebtorNumberSiblingsDiffer, candidates[0].row.DebtorNumberStatus)
+	assert.Equal(t, parentbilling.DebtorNumberInvalid, candidates[1].row.DebtorNumberStatus)
+	assert.Empty(t, debtorNumbersToSet(candidates))
 }

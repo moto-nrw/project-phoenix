@@ -71,6 +71,9 @@ type exportFile struct {
 	careInvoices    []int64
 	documents       []int64
 	notices         []int64
+	// documentCount is the number of rows of a Sollstellung, 0 to count
+	// the links.
+	documentCount int
 	// debits are SEPA debits whose invoice or holiday document the file
 	// collects.
 	debits []int64
@@ -100,6 +103,7 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 		Format: file.format, RunKind: file.runKind, RunID: file.runID, FileNumber: number, FileName: file.fileName(number),
 		Content: data, TotalCents: file.totalCents, Reference: file.reference,
 		CareInvoiceIDs: file.careInvoices, DocumentIDs: file.documents, CareNoticeIDs: file.notices, SEPADebitIDs: file.debits,
+		DocumentCount: file.documentCount,
 	})
 	if err != nil {
 		return parentbilling.ExportProtocolEntry{}, nil, fmt.Errorf("parent billing: record the export file: %w", err)
@@ -281,6 +285,7 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 			file.documents = append(file.documents, invoice.DocumentID)
 		}
 	}
+	file.documentCount = len(content.Invoices)
 	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err

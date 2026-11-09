@@ -136,6 +136,22 @@ func (r exportInvoiceRow) invoice() parentbilling.ExportInvoice {
 	return invoice
 }
 
+// careInvoicePeriod is the service period an issued monthly invoice bills:
+// from its first care or Mensa position to its last, the billing month for an
+// invoice without positions. A Mensa month billed later (MK-001) widens it.
+const careInvoicePeriod = `SELECT
+	COALESCE(LEAST(
+		(SELECT MIN(position.service_from) FROM parent_billing.care_invoice_positions AS position
+			WHERE position.organization_id = ?0 AND position.invoice_id = invoice.id),
+		(SELECT MIN(meal.meal_month) FROM parent_billing.care_meal_positions AS meal
+			WHERE meal.organization_id = ?0 AND meal.invoice_id = invoice.id)), invoice.billing_month) AS service_from,
+	COALESCE(GREATEST(
+		(SELECT MAX(position.service_until) FROM parent_billing.care_invoice_positions AS position
+			WHERE position.organization_id = ?0 AND position.invoice_id = invoice.id),
+		(SELECT MAX((meal.meal_month + INTERVAL '1 month' - INTERVAL '1 day')::date) FROM parent_billing.care_meal_positions AS meal
+			WHERE meal.organization_id = ?0 AND meal.invoice_id = invoice.id)),
+		(invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date) AS service_until`
+
 // careExportInvoicesQuery reads the invoices of a monthly run and the Storno
 // of each, in number order.
 const careExportInvoicesQuery = `SELECT care_invoice_id, document_id, number, kind, issued_on, due_on, total_cents, debtor_number,
@@ -144,25 +160,26 @@ const careExportInvoicesQuery = `SELECT care_invoice_id, document_id, number, ki
 FROM (
 	SELECT invoice.id AS care_invoice_id, NULL::bigint AS document_id, invoice.number, 'invoice' AS kind, invoice.issued_on,
 		invoice.due_on, invoice.total_cents, invoice.debtor_number,
-		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name) AS recipient_name,
+		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name) || CASE WHEN COALESCE(invoice.recipient_second_name, '') <> '' THEN ' und ' || invoice.recipient_second_name ELSE '' END AS recipient_name,
 		invoice.recipient_address_street AS street, invoice.recipient_address_postal_code AS postal_code,
 		invoice.recipient_address_city AS city, BTRIM(invoice.child_first_name || ' ' || invoice.child_last_name) AS child_name,
-		invoice.school_name, invoice.billing_month AS service_from,
-		(invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date AS service_until,
+		invoice.school_name, period.service_from, period.service_until,
 		invoice.payment_method, invoice.mandate_reference, invoice.number_year, invoice.number_sequence
 	FROM parent_billing.care_invoices AS invoice
+	CROSS JOIN LATERAL (` + careInvoicePeriod + `) AS period
 	WHERE invoice.organization_id = ?0 AND invoice.run_id = ?1
 	UNION ALL
 	SELECT invoice.id, NULL::bigint, cancellation.number, 'cancellation', cancellation.issued_on, NULL::date,
 		cancellation.total_cents, invoice.debtor_number,
-		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name),
+		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name) || CASE WHEN COALESCE(invoice.recipient_second_name, '') <> '' THEN ' und ' || invoice.recipient_second_name ELSE '' END,
 		invoice.recipient_address_street, invoice.recipient_address_postal_code, invoice.recipient_address_city,
-		BTRIM(invoice.child_first_name || ' ' || invoice.child_last_name), invoice.school_name, invoice.billing_month,
-		(invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date, invoice.payment_method, invoice.mandate_reference,
+		BTRIM(invoice.child_first_name || ' ' || invoice.child_last_name), invoice.school_name, period.service_from,
+		period.service_until, invoice.payment_method, invoice.mandate_reference,
 		cancellation.number_year, cancellation.number_sequence
 	FROM parent_billing.care_invoice_cancellations AS cancellation
 	JOIN parent_billing.care_invoices AS invoice
 		ON invoice.organization_id = cancellation.organization_id AND invoice.id = cancellation.invoice_id
+	CROSS JOIN LATERAL (` + careInvoicePeriod + `) AS period
 	WHERE cancellation.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ?1
 ) AS lines
 ORDER BY number_year, number_sequence, kind DESC`
@@ -171,7 +188,7 @@ ORDER BY number_year, number_sequence, kind DESC`
 // holiday run with the children of their positions.
 const holidayExportInvoicesQuery = `SELECT NULL::bigint AS care_invoice_id, document.id AS document_id, document.number, document.kind,
 	document.issued_on, document.due_on, document.total_cents, document.debtor_number,
-	BTRIM(document.recipient_first_name || ' ' || document.recipient_last_name) AS recipient_name,
+	BTRIM(document.recipient_first_name || ' ' || document.recipient_last_name) || CASE WHEN COALESCE(document.recipient_second_name, '') <> '' THEN ' und ' || document.recipient_second_name ELSE '' END AS recipient_name,
 	document.recipient_address_street AS street, document.recipient_address_postal_code AS postal_code,
 	document.recipient_address_city AS city,
 	(SELECT string_agg(DISTINCT BTRIM(position.child_first_name || ' ' || position.child_last_name), ', ')

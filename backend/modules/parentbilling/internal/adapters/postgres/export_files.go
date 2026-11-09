@@ -181,7 +181,7 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 		content_sha256, invoice_count, total_cents, reference, exported_by_account_id)
 		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), ?, ?, ?, ?)
 		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
-		len(record.CareInvoiceIDs)+len(record.DocumentIDs)+len(record.CareNoticeIDs)+len(record.SEPADebitIDs), record.TotalCents,
+		exportDocumentCount(record), record.TotalCents,
 		textRef(record.Reference), accountRef(accountID)).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
@@ -280,4 +280,13 @@ func (s *Store) MarkExportFilesSubmitted(ctx context.Context, organizationID, ac
 		return fmt.Errorf("mark the export files submitted: %w", err)
 	}
 	return nil
+}
+
+// exportDocumentCount is the number of documents a file holds: the rows of a
+// Sollstellung (an invoice and its Storno count twice), else its links.
+func exportDocumentCount(record parentbilling.ExportFileRecord) int {
+	if record.DocumentCount > 0 {
+		return record.DocumentCount
+	}
+	return len(record.CareInvoiceIDs) + len(record.DocumentIDs) + len(record.CareNoticeIDs) + len(record.SEPADebitIDs)
 }

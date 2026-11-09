@@ -15,6 +15,9 @@ import (
 // conflict and nothing is overwritten. The number does not change what the
 // import does with the mandate of the row.
 
+// invalidDebtorNumber stands for an unreadable number of a family's row.
+const invalidDebtorNumber = "\x00invalid"
+
 // assignDebtorNumbers reads the number of each row and decides per family.
 func assignDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex, known map[string]string) {
 	check := importCheck{columns: columns}
@@ -25,6 +28,11 @@ func assignDebtorNumbers(candidates []importCandidate, table importTable, column
 		switch {
 		case row.DebtorNumber == "":
 		case checkDebtorNumber(row.DebtorNumber) != nil || containsIBAN(row.DebtorNumber):
+			// An unreadable number still disagrees with its siblings: the
+			// family gets no number the file does not agree on.
+			if family := candidates[i].family; family != "" && !slices.Contains(numbers[family], invalidDebtorNumber) {
+				numbers[family] = append(numbers[family], invalidDebtorNumber)
+			}
 			row.DebtorNumber, row.DebtorNumberStatus = "", parentbilling.DebtorNumberInvalid
 		case candidates[i].family == "":
 			row.DebtorNumberStatus = parentbilling.DebtorNumberNoFamily

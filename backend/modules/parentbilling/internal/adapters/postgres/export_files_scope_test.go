@@ -302,3 +302,56 @@ func TestDebitExportRepeatsAndMealHistory(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// A Sollstellung names both parents of an invoice to both, bills the period
+// of the issued positions (a Mensa month billed later widens it) and writes
+// the Storno as a row of its own (review round 2).
+func TestExportRunContentNamesBothParentsAndThePeriodOfThePositions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newMandateScope(t, db, "Träger Sollstellung Inhalt")
+	school := testpkg.CreateTestSchoolInOrganization(t, db, scope.organization, "OGS Sollstellung Inhalt")
+	store := NewStore()
+	rollback := errors.New("roll the content back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		seeded := seedDebitScope(t, ctx, tx, scope, school, "DE98ZZZ09999999999", "SJR-IN-1")
+		var invoice int64
+		require.NoError(t, tx.NewRaw(`SELECT care_invoice_id FROM parent_billing.sepa_debits WHERE id = ?`, seeded.debit).Scan(ctx, &invoice))
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		for _, statement := range []string{
+			`UPDATE parent_billing.care_invoices SET recipient_kind = 'both', recipient_second_name = 'Ben Beispiel' WHERE id = ?1`,
+			`INSERT INTO parent_billing.care_invoice_positions (organization_id, invoice_id, position, care_offering_id, module_name,
+				contract_version_number, service_from, service_until, weekdays, amount_cents, net_cents)
+				VALUES (?0, ?1, 1, 1, 'Betreuung', 1, DATE '2029-06-10', DATE '2029-06-30', '[{"weekday":"mon"}]'::jsonb, 7750, 7750)`,
+			`INSERT INTO parent_billing.care_meal_positions (organization_id, invoice_id, position, school_id, student_id, meal_month,
+				mode, quantity, unit_cents, amount_cents, net_cents)
+				VALUES (?0, ?1, 1, ?2, 1, DATE '2029-03-01', 'per_meal', 1, 480, 480, 480)`,
+			`INSERT INTO parent_billing.care_invoice_cancellations (organization_id, run_id, invoice_id, number, number_year,
+				number_sequence, issued_on, reason, total_cents)
+				VALUES (?0, (SELECT run_id FROM parent_billing.care_invoices WHERE id = ?1), ?1, 'ST-1', 2029, 99, DATE '2029-06-20',
+				'Doppelt', -7750)`,
+		} {
+			_, err = tx.NewRaw(statement, scope.organization, invoice, school).Exec(ctx)
+			require.NoError(t, err, statement)
+		}
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		require.NoError(t, err)
+
+		content, err := store.ExportRunContent(ctx, scope.organization, parentbilling.DebitRunCare, seeded.run)
+		require.NoError(t, err)
+		require.Len(t, content.Invoices, 2, "the invoice and its Storno")
+		for _, row := range content.Invoices {
+			assert.Equal(t, "Eva Beispiel und Ben Beispiel", row.RecipientName)
+			assert.Equal(t, "2029-03-01", row.ServiceFrom.String(), "the Mensa month billed later")
+			assert.Equal(t, "2029-06-30", row.ServiceUntil.String())
+		}
+		assert.Equal(t, "cancellation", content.Invoices[1].Kind)
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
