@@ -1,4 +1,4 @@
-package application_test
+package api
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,19 +37,21 @@ func newDecideProbe(t *testing.T) *decideProbe {
 	return &decideProbe{probe: probe, ctx: ctx}
 }
 
-func (p *decideProbe) deps() application.DecisionDependencies {
-	return application.DecisionDependencies{
-		IsTransient: transactionruntime.IsTransientDatabaseError,
-		Runtime: application.Runtime{
-			Transactions: tenant.NewTransactionRunner(),
-			InTransaction: func(ctx context.Context) bool {
-				_, ok := tenant.TransactionFromContext(ctx)
-				return ok
-			},
-			IsSavepointControl: func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) },
-		},
-		Logger: slog.Default(),
-	}
+// decisions composes the decision command as the root does: the tenant
+// runtime binding of Enrollment's composition and the root's transient
+// classifier (roots/owners/root_enrollment_services.go).
+func (p *decideProbe) decisions() *enrollmentCompose.Decisions {
+	return enrollmentCompose.NewDecisions(enrollmentCompose.DecisionDependencies{
+		IsTransient: transactionFailures.IsTransientDatabaseError,
+		Settings:    unreadDecisionSettings{},
+		Logger:      slog.Default(),
+	})
+}
+
+// unreadDecisionSettings satisfies the composition's settings requirement;
+// the unit and retry under test read no setting, so any call panics.
+type unreadDecisionSettings struct {
+	enrollmentCompose.DecisionSettings
 }
 
 // run decides once through decideAndInvite; the body writes a probe row and
@@ -78,7 +80,7 @@ func (p *decideProbe) run(t *testing.T, script func(ctx context.Context, tx bun.
 		return &enrollmentNative.DecideOutcome{Child: &enrollmentNative.RequestChild{ID: 99, Status: enrollmentNative.ChildStatusApproved}}, nil
 	}
 	input := enrollmentNative.DecideInput{RequestID: 1234, ChildID: 99, Status: enrollmentNative.DecisionApproved, ReviewedBy: 7}
-	_, err := application.DecideAndInviteWith(p.deps(), ctx, input, decide)
+	_, err := p.decisions().DecideAndInviteWith(ctx, input, decide)
 	require.NoError(t, ctx.Err(), "the decision ended within its deadline")
 	return p.calls, p.probe.Rows(t), err
 }

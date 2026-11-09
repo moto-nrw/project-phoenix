@@ -122,7 +122,6 @@ func TestSavepointControlAnswers500AheadOfOtherRules(t *testing.T) {
 	t.Parallel()
 	rig := newStatusRig(t)
 	type cell struct {
-		name string
 		site testpkg.FaultSite
 		kind string
 		main string

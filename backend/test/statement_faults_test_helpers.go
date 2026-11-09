@@ -156,11 +156,12 @@ type faultingConnector struct {
 }
 
 func (c faultingConnector) Connect(ctx context.Context) (driver.Conn, error) {
-	conn, err := c.Connector.Connect(ctx)
+	inner, faults := c.Connector, c.faults
+	conn, err := inner.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &faultingConn{Conn: conn, faults: c.faults}, nil
+	return &faultingConn{Conn: conn, faults: faults}, nil
 }
 
 type faultingConn struct {
@@ -190,21 +191,23 @@ func (c *faultingConn) ExecContext(ctx context.Context, query string, args []dri
 }
 
 func (c *faultingConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	if fault := c.faults.takeStatement(faultStatement, strings.TrimSpace(query)); fault != nil {
+	faults := c.faults
+	if fault := faults.takeStatement(faultStatement, strings.TrimSpace(query)); fault != nil {
 		return nil, fault
 	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)
 }
 
 func (c *faultingConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	if fault := c.faults.take(FaultBegin); fault != nil {
+	faults := c.faults
+	if fault := faults.take(FaultBegin); fault != nil {
 		return nil, fault
 	}
 	tx, err := c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
-	return faultingTx{Tx: tx, faults: c.faults}, nil
+	return faultingTx{Tx: tx, faults: faults}, nil
 }
 
 func (c *faultingConn) ResetSession(ctx context.Context) error {
@@ -287,7 +290,8 @@ func (p *FaultProbe) Write(ctx context.Context, tx bun.Tx, attempt int) error {
 // Reset empties the probe table.
 func (p *FaultProbe) Reset(tb testing.TB) {
 	tb.Helper()
-	if _, err := p.Super.ExecContext(context.Background(), `TRUNCATE public.fault_probe`); err != nil {
+	super := p.Super
+	if _, err := super.ExecContext(context.Background(), `TRUNCATE public.fault_probe`); err != nil {
 		tb.Fatalf("reset fault probe: %v", err)
 	}
 }
@@ -296,7 +300,8 @@ func (p *FaultProbe) Reset(tb testing.TB) {
 func (p *FaultProbe) Rows(tb testing.TB) int {
 	tb.Helper()
 	var rows int
-	if err := p.Super.NewRaw(`SELECT count(*) FROM public.fault_probe`).Scan(context.Background(), &rows); err != nil {
+	super := p.Super
+	if err := super.NewRaw(`SELECT count(*) FROM public.fault_probe`).Scan(context.Background(), &rows); err != nil {
 		tb.Fatalf("count fault probe rows: %v", err)
 	}
 	return rows
