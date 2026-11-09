@@ -155,6 +155,19 @@ provision a file rule whose UID already exists in the UI, and it does not
 allow editing a file rule there. Contact points and the notification policy
 stay on the host because they name recipients.
 
+## Nightly cleanup
+
+`alerting/nightly-cleanup.yml` is prepared, not deployed or delivery-verified.
+It alerts once per school and nightly cleanup job whose latest
+`consecutive_failures` from the Worker's lines `nightly cleanup failing
+repeatedly` and `nightly cleanup recovered` in the last 30 hours is 3 or more
+(#6327). The Worker backs off a failing job from 1 to at most 24 hours and a
+run takes at most 2 hours, so a lasting failure always has a line in that
+window; the first success writes 0 and ends the alert. Deploy the backend
+with migration 1.15.834 first, then this file alone with `scripts/deploy-grafana-provisioning.sh`. Backoff, query,
+response and the staging delivery check:
+[`runbooks/nightly-cleanup.md`](runbooks/nightly-cleanup.md).
+
 ## Encrypted daily backup
 
 `alerting/daily-backup.yml` is prepared, not deployed or delivery-verified.

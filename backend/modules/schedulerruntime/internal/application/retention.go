@@ -13,10 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// cleanupRetryAfter spaces the catch-up attempts of a school whose cleanup
-// failed, so a lasting failure does not rerun every minute.
-const cleanupRetryAfter = time.Hour
-
 // cleanupDue decides whether a nightly cleanup runs now, on the Berlin
 // calendar: at the configured minute unless it already succeeded that day,
 // and at any minute once a scheduled run was missed, that is when the last
@@ -65,58 +61,87 @@ func (s *Scheduler) cleanupNow() time.Time {
 	return time.Now()
 }
 
+// cleanupRunState is the stored state of one cleanup job of a school: its
+// last success, zero while it never succeeded, and the failed runs in a row
+// since with the last of them.
+type cleanupRunState struct {
+	LastSuccess time.Time
+	Failures    int
+	LastFailure time.Time
+}
+
 type cleanupAttemptKey struct {
 	jobID    string
 	tenantID int64
 }
 
-// dailyCleanupDue reads the last success of the job for the school and
-// decides whether it runs now. A catch-up waits cleanupRetryAfter after a
-// failed attempt of this process.
-func (s *Scheduler) dailyCleanupDue(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64, cleanupTime string, now time.Time) (bool, error) {
-	last, hasLast, err := s.lastCleanupSuccess(ctx, dayCache, jobID, tenantID)
+// dailyCleanupDue reads the stored state of the job for the school and
+// decides whether it runs now. After failed runs it waits the backoff of the
+// failure streak (#6327), also at the configured minute and across days.
+func (s *Scheduler) dailyCleanupDue(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64, cleanupTime string, now time.Time) (cleanupRunState, bool, error) {
+	state, err := s.readCleanupRunState(ctx, dayCache, jobID, tenantID)
 	if err != nil {
-		return false, err
+		return state, false, err
 	}
-	due, catchUp := cleanupDue(now, cleanupTime, last, hasLast)
-	attemptKey := cleanupAttemptKey{jobID: jobID, tenantID: tenantID}
-	failed, hasFailure := s.cleanupFailures.Load(attemptKey)
-	// A missing ledger row normally means this school waits for its first
-	// configured minute. After that first attempt failed, the process-local
-	// marker distinguishes it from an untouched school and enables the retry.
-	if !due && !hasLast && hasFailure {
+	hasLast := !state.LastSuccess.IsZero()
+	due, catchUp := cleanupDue(now, cleanupTime, state.LastSuccess, hasLast)
+	// A school without a success normally waits for its first configured
+	// minute. After that first run failed, the failure streak distinguishes
+	// it from an untouched school and enables the retry.
+	if !due && !hasLast && state.Failures > 0 {
 		due, catchUp = true, true
 	}
-	if !due || !catchUp {
-		return due, nil
+	if !due {
+		return state, false, nil
 	}
-	if hasFailure {
-		if failedAt, ok := failed.(time.Time); ok && now.Sub(failedAt) < cleanupRetryAfter {
-			return false, nil
-		}
+	if state.Failures > 0 && now.Sub(state.LastFailure) < cleanupRetryDelay(state.Failures) {
+		return state, false, nil
 	}
-	s.getLogger().Info("catching up missed data cleanup",
-		slog.String("job_id", jobID),
-		slog.Int64("tenant_id", tenantID),
-		slog.Time("last_success", last),
-	)
-	return true, nil
+	if catchUp {
+		s.getLogger().Info("catching up missed data cleanup",
+			slog.String("job_id", jobID),
+			slog.Int64("tenant_id", tenantID),
+			slog.Time("last_success", state.LastSuccess),
+			slog.Int("consecutive_failures", state.Failures),
+		)
+	}
+	return state, true, nil
 }
 
-func (s *Scheduler) lastCleanupSuccess(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64) (time.Time, bool, error) {
+// readCleanupRunState reads the last success and the failure streak of the job
+// for the school, after writing a failure the process still keeps. Without a
+// ledger the day cache holds the last success and the process the streak. A
+// streak the process saw later than the ledger wins, so a failure whose
+// write is still pending or was lost spaces the next retry all the same. A
+// streak older than the last success is over and dropped.
+func (s *Scheduler) readCleanupRunState(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64) (cleanupRunState, error) {
+	var state cleanupRunState
 	if s.cleanupRuns == nil {
-		value, ok := dayCache.Load(tenantID)
-		if !ok {
-			return time.Time{}, false, nil
+		if value, ok := dayCache.Load(tenantID); ok {
+			state.LastSuccess, _ = value.(time.Time)
 		}
-		last, ok := value.(time.Time)
-		return last, ok, nil
+	} else {
+		if err := s.storePendingCleanupFailure(ctx, jobID, tenantID); err != nil {
+			return cleanupRunState{}, err
+		}
+		var err error
+		state.LastSuccess, state.Failures, state.LastFailure, err = s.cleanupRuns.CleanupRun(ctx, jobID)
+		if err != nil {
+			return cleanupRunState{}, fmt.Errorf("read cleanup run of %s: %w", jobID, err)
+		}
 	}
-	last, ok, err := s.cleanupRuns.LastCleanupSucceeded(ctx, jobID)
-	if err != nil {
-		return time.Time{}, false, fmt.Errorf("read last cleanup of %s: %w", jobID, err)
+	key := cleanupAttemptKey{jobID: jobID, tenantID: tenantID}
+	if value, ok := s.cleanupFailures.Load(key); ok {
+		streak, _ := value.(cleanupFailureStreak)
+		switch {
+		case !streak.last.After(state.LastSuccess):
+			// A later success, also one another Worker stored, ends it.
+			s.cleanupFailures.CompareAndDelete(key, value)
+		case streak.last.After(state.LastFailure):
+			state.Failures, state.LastFailure = streak.failures, streak.last
+		}
 	}
-	return last, ok, nil
+	return state, nil
 }
 
 // recordCleanupSuccess stores the success in the tenant transaction; the
@@ -132,10 +157,6 @@ func (s *Scheduler) recordCleanupSuccess(ctx context.Context, dayCache *sync.Map
 	})
 	s.markRunAtAfterCommit(ctx, dayCache, tenantID, now)
 	return nil
-}
-
-func (s *Scheduler) noteCleanupFailure(jobID string, tenantID int64, now time.Time) {
-	s.cleanupFailures.Store(cleanupAttemptKey{jobID: jobID, tenantID: tenantID}, now)
 }
 
 // RetentionRun runs every owner's deletion for the school of the tenant
