@@ -142,7 +142,6 @@ function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
       title={reduction.name}
       detail={reductionExplanation(reduction)}
       amount={formatEuro(reduction.amountCents)}
-      amountClassName="text-moto-green-strong"
     />
   );
 }
@@ -177,7 +176,7 @@ function CostShareLines({ invoice }: Readonly<{ invoice: CareInvoice }>) {
               {costShareAmountText(share)}
             </p>
           </div>
-          <span className="text-moto-blue-strong shrink-0 text-sm tabular-nums">
+          <span className="shrink-0 text-sm text-gray-700 tabular-nums">
             {formatEuro(-share.amountCents)}
           </span>
         </li>

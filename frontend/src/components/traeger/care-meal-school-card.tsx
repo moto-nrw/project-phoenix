@@ -117,7 +117,7 @@ export function CareMealSchoolCard({
       title={school.name}
       titleBadge={
         current ? (
-          <StatusBadge tone="green" label={MEAL_MODE_LABELS[current.mode]} />
+          <StatusBadge tone="gray" label={MEAL_MODE_LABELS[current.mode]} />
         ) : undefined
       }
       description={

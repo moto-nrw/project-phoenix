@@ -40,7 +40,7 @@ export function BillingAmountCards({
         label="Gutgeschrieben"
         value={value(amounts?.creditedCents)}
         hint="Durch Gutschrift erlassen."
-        tone="blue"
+        tone="neutral"
         compactValue
         loading={loading}
       />

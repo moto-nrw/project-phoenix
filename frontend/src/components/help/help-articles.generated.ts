@@ -11747,7 +11747,7 @@ export const traegerKeyDateCountsTopic =
       title: "Stichtagszahlen der Schulen",
       question: "Nach welchen Zahlen berechnet moto meine Schulen?",
       summary:
-        "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Terminals jeder Schule am Stichtag.",
+        "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Geräte jeder Schule am Stichtag.",
       group: "einstieg",
       audience: "traeger",
       icon: "CalendarCheck",
@@ -11759,7 +11759,7 @@ export const traegerKeyDateCountsTopic =
         "Wählen Sie unter `Alle Monate` einen Monat, um seine Zahlen zu sehen.",
       ],
       result:
-        "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Terminals moto am Stichtag gezählt hat.",
+        "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Geräte moto am Stichtag gezählt hat.",
       notes: [
         "Suchen Sie oben nach einer Schule oder einem Ort.",
         "moto hält die Zahlen am Stichtag einmal fest. Danach ändern sie sich nicht mehr.",
@@ -12065,7 +12065,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [
-      "Auf dem Handy steht `Einstellungen` in der Leiste unten, meist unter `Mehr`. Dort führt `Zurück zur App` wieder zurück.",
+      "Auf dem Handy öffnen Sie in der Leiste unten `Mehr` und dann `Einstellungen`. Dort führt `Zurück zur App` wieder zurück.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],

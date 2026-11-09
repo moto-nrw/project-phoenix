@@ -108,7 +108,6 @@ export function DocumentKindCard({
               key={kind}
               selected={draft === kind}
               disabled={saving}
-              tone="green"
               className="items-start gap-3 p-4"
             >
               <Radio

@@ -356,7 +356,7 @@ export function HolidayFormEditor({
             </div>
           </SectionCard>
 
-          <aside>
+          <aside aria-label="Vorschau für Eltern">
             <FormPreview
               title="Ferienanmeldung"
               header={

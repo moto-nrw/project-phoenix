@@ -48,7 +48,7 @@ function PriceCell({
         <span className="text-gray-900 tabular-nums">{formatEuro(cents)}</span>
         {sibling !== undefined && sibling !== cents ? (
           <span className="text-xs text-gray-600 tabular-nums">
-            weitere {formatEuro(sibling)}
+            ab 2. Kind {formatEuro(sibling)}
           </span>
         ) : null}
       </span>

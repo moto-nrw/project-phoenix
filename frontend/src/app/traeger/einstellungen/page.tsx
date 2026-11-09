@@ -197,6 +197,8 @@ function TraegerSettingsContent() {
           onReset={handleReset}
           onSchemaRefresh={() => void refresh()}
           audience="traeger"
+          headingLevel={2}
+          autosaveNote
         />
       ))}
       {activeTab && paymentText ? (

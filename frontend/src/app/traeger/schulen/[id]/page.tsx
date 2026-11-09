@@ -61,7 +61,7 @@ function OverviewTab({
         value={figures?.childrenSick ?? 0}
         hint="Kinder mit einer Krankmeldung für heute."
         loading={loading}
-        tone="orange"
+        tone="neutral"
       />
       <StatCard
         label="Betreuungskräfte anwesend"

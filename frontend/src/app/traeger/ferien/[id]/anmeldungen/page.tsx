@@ -34,17 +34,19 @@ import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import NavigationLink from "~/components/ui/navigation-link";
 import {
   ExportMenu,
   type ExportMenuOption,
   exportFormatOptions,
+  exportMenuItems,
 } from "~/components/ui/export-menu";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -433,6 +435,12 @@ export default function TraegerHolidayRegistrationsPage() {
     }
   };
 
+  const selectExport = (option: ExportMenuOption) => {
+    if (option.format === "csv" || option.format === "xlsx") {
+      void exportFile(option.format);
+    }
+  };
+
   const mergeSiblings = async () => {
     if (merging || loading || selected.size < 2) return;
     setMerging(true);
@@ -584,8 +592,8 @@ export default function TraegerHolidayRegistrationsPage() {
         period?.registrationCount,
       )}
       actions={
-        <>
-          {billingHref ? (
+        billingHref ? (
+          <>
             <ButtonLink href={billingHref} variant="outline" size="md">
               <MotoConceptIcon
                 concept={billingConcept}
@@ -594,19 +602,28 @@ export default function TraegerHolidayRegistrationsPage() {
               />
               Zur Abrechnung
             </ButtonLink>
-          ) : null}
+            {/* One visible action; the download formats wait in the menu
+                (TENANT-PAGE-SPEC rule 4). */}
+            <OverflowMenu
+              ariaLabel="Anmeldungen herunterladen"
+              disabled={loading || Boolean(loadError)}
+              items={exportMenuItems({
+                options: EXPORT_FORMATS,
+                busyKey: exporting,
+                unavailable: loading || Boolean(loadError),
+                onSelect: selectExport,
+              })}
+            />
+          </>
+        ) : (
           <ExportMenu
             ariaLabel="Anmeldungen herunterladen"
             options={EXPORT_FORMATS}
             busyKey={exporting}
             unavailable={loading || Boolean(loadError)}
-            onSelect={(option) => {
-              if (option.format === "csv" || option.format === "xlsx") {
-                void exportFile(option.format);
-              }
-            }}
+            onSelect={selectExport}
           />
-        </>
+        )
       }
       filters={filters}
       activeFilters={activeFilters}
@@ -622,45 +639,6 @@ export default function TraegerHolidayRegistrationsPage() {
               : `In ${duplicates} Anmeldungen ist ein Kind vielleicht doppelt angemeldet. Prüfen Sie die markierten Anmeldungen.`
           }
         />
-      ) : null}
-      {selected.size > 0 ? (
-        <SectionCard>
-          <div className="flex flex-col gap-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              {selected.size === 1
-                ? "1 Anmeldung ausgewählt. Wählen Sie mindestens eine weitere Anmeldung derselben Familie."
-                : `${selected.size} Anmeldungen ausgewählt. Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen.`}
-            </p>
-            {/* On a phone both actions take the full width, the main one on
-                top, so they do not wrap into rows of different widths. */}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={merging}
-                onClick={() => setSelected(new Set())}
-                className="w-full sm:w-auto"
-              >
-                Auswahl aufheben
-              </Button>
-              {selected.size > 1 ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  isLoading={merging}
-                  disabled={loading}
-                  loadingText="Führt zusammen …"
-                  onClick={() => void mergeSiblings()}
-                  className="w-full sm:w-auto"
-                >
-                  Als Geschwister zusammenführen
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </SectionCard>
       ) : null}
       <DataTable
         columns={columns(periodId, names, debtorNumberColumn, siblings)}
@@ -708,6 +686,42 @@ export default function TraegerHolidayRegistrationsPage() {
           />
         }
       />
+      {selected.size > 0 ? (
+        // What the ticked rows are for, and the action, stick at the bottom
+        // of the screen while the list scrolls.
+        <SelectionBar
+          aria-label="Ausgewählte Anmeldungen"
+          placement="bottom"
+          count={selected.size}
+          label={
+            selected.size === 1
+              ? "1 Anmeldung ausgewählt."
+              : `${selected.size} Anmeldungen ausgewählt.`
+          }
+          description={
+            selected.size === 1
+              ? "Wählen Sie mindestens eine weitere Anmeldung derselben Familie."
+              : "Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen."
+          }
+          onClear={() => setSelected(new Set())}
+          busy={merging}
+          actions={
+            selected.size > 1 ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="compact"
+                isLoading={merging}
+                disabled={loading}
+                loadingText="Führt zusammen …"
+                onClick={() => void mergeSiblings()}
+              >
+                Als Geschwister zusammenführen
+              </Button>
+            ) : null
+          }
+        />
+      ) : null}
     </TenantPage>
   );
 }

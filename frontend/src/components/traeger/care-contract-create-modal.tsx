@@ -189,7 +189,11 @@ export function CareContractCreateModal({
           saving={saving}
           disabled={count === 0}
           saveLabel={
-            count === 1 ? "1 Entwurf erstellen" : `${count} Entwürfe erstellen`
+            count === 0
+              ? "Entwürfe erstellen"
+              : count === 1
+                ? "1 Entwurf erstellen"
+                : `${count} Entwürfe erstellen`
           }
           savingLabel="Wird erstellt …"
         />

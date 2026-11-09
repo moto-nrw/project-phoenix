@@ -5,7 +5,7 @@
 // eines Kindes übernimmt, bis wann, und auf welchen Bescheid es sich stützt.
 // Nur das Recht „Abrechnung“ sieht die Seite; jedes Lesen steht im
 // Zugriffsprotokoll des Vertrags. Die Stellen selbst pflegt die Abrechnung
-// unter Einstellungen → Abrechnung.
+// unter Einstellungen → Abrechnungsvorgaben.
 
 import { HandCoins } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -271,7 +271,7 @@ export default function TraegerKostentraegerPage() {
   return (
     <TenantPage
       title={billingAreaTitle("kostentraeger")}
-      info={`Hier tragen Sie ein, welcher Kostenträger einen Teil des Monatsbeitrags eines Kindes bezahlt, zum Beispiel Bildung und Teilhabe oder das Jugendamt. Die Familie bekommt dann nur den Rest in Rechnung. moto speichert nur Art, Anteil, Gültigkeit und das Aktenzeichen, keinen Bescheid. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll. Die Stellen selbst legen Sie unter Einstellungen → Abrechnung an.`}
+      info={`Hier tragen Sie ein, welcher Kostenträger einen Teil des Monatsbeitrags eines Kindes bezahlt, zum Beispiel Bildung und Teilhabe oder das Jugendamt. Die Familie bekommt dann nur den Rest in Rechnung. moto speichert nur Art, Anteil, Gültigkeit und das Aktenzeichen, keinen Bescheid. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll. Die Stellen selbst legen Sie unter Einstellungen → Abrechnungsvorgaben an.`}
       stats={
         data && contracts.length > 0 ? (
           <TenantPageStats

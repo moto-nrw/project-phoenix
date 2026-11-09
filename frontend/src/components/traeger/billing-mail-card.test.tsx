@@ -275,7 +275,7 @@ describe("BillingMailCard", () => {
     );
     expect(
       await screen.findByText(
-        "1 Mail(s) werden jetzt gesendet. 1 Familie(n) ohne Mail-Adresse: Bitte drucken Sie deren Schreiben.",
+        "1 Mail wird jetzt gesendet. 1 Familie hat keine Mail-Adresse: Bitte drucken Sie ihr Schreiben.",
       ),
     ).toBeInTheDocument();
     await waitFor(() =>

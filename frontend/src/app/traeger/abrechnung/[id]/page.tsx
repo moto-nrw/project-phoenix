@@ -274,9 +274,9 @@ export default function TraegerBillingRunPage() {
               onConfirm={() => void release()}
             >
               <p className="text-sm text-gray-700">
-                {run.previewCount} Rechnung(en) über{" "}
-                {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach
-                lassen sie sich nicht mehr ändern.
+                {run.previewCount === 1
+                  ? `1 Rechnung über ${formatEuro(run.previewCents)} bekommt ihre Nummer. Danach lässt sie sich nicht mehr ändern.`
+                  : `${run.previewCount} Rechnungen über ${formatEuro(run.previewCents)} bekommen ihre Nummer. Danach lassen sie sich nicht mehr ändern.`}
               </p>
               {paymentTextGaps > 0 ? (
                 <Alert
@@ -412,11 +412,20 @@ export default function TraegerBillingRunPage() {
               }
             />
           ) : null}
-          {preview ? <HolidayDebitHintsCard documents={run.documents} /> : null}
+          {preview ? (
+            <HolidayDebitHintsCard
+              documents={run.documents}
+              dueDatesHref={`/traeger/abrechnung/${run.id}/faelligkeiten`}
+            />
+          ) : null}
           {preview && run.unbilled > 0 ? (
             <Alert
               type="info"
-              message={`${run.unbilled} bestätigte Anmeldung(en) haben keinen festgehaltenen Beitrag und kommen nicht in diesen Lauf.`}
+              message={
+                run.unbilled === 1
+                  ? "1 bestätigte Anmeldung hat keinen festgehaltenen Beitrag und kommt nicht in diesen Lauf."
+                  : `${run.unbilled} bestätigte Anmeldungen haben keinen festgehaltenen Beitrag und kommen nicht in diesen Lauf.`
+              }
             />
           ) : null}
           {run.status === "released" ? (

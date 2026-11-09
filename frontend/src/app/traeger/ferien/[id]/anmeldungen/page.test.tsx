@@ -338,9 +338,13 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
         name: "Anmeldung Nr. 7 von Eva Muster auswählen",
       }),
     );
+    const bar = within(
+      screen.getByRole("region", { name: "Ausgewählte Anmeldungen" }),
+    );
+    expect(bar.getByText("1 Anmeldung ausgewählt.")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "1 Anmeldung ausgewählt. Wählen Sie mindestens eine weitere Anmeldung derselben Familie.",
+      bar.getByText(
+        "Wählen Sie mindestens eine weitere Anmeldung derselben Familie.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(

@@ -110,8 +110,7 @@ export function CareReviewExport({ runId }: Readonly<{ runId: string }>) {
   };
   return (
     <ExportMenu
-      label="Prüfliste"
-      ariaLabel="Prüfliste herunterladen"
+      label="Prüfliste herunterladen"
       options={REVIEW_FORMATS}
       busyKey={busy}
       onSelect={(option) => {
@@ -223,6 +222,8 @@ export interface DebitItem {
 interface DebitHint {
   readonly item: DebitItem;
   readonly text: string;
+  /** The debit comes too early: the fix is a later due date, not the mandate. */
+  readonly dueTooSoon?: boolean;
 }
 
 /** The SEPA hints of a preview (#4695): direct debits without a valid
@@ -246,6 +247,7 @@ export function debitHints(items: readonly DebitItem[]): DebitHint[] {
       hints.push({
         item,
         text: `Abbuchung schon am ${formatDate(payment.dueOn)}. Das ist früher als Ihre Vorabankündigung erlaubt.`,
+        dueTooSoon: true,
       });
     }
   }
@@ -290,18 +292,41 @@ export function holidayDebitItems(
 /** The hints card of a holiday run preview. */
 export function HolidayDebitHintsCard({
   documents,
-}: Readonly<{ documents: readonly BillingDocument[] }>) {
-  return <DebitHintsCard items={holidayDebitItems(documents)} />;
+  dueDatesHref,
+}: Readonly<{
+  documents: readonly BillingDocument[];
+  /** The run's due-date page, for a debit that comes too early. */
+  dueDatesHref?: string;
+}>) {
+  return (
+    <DebitHintsCard
+      items={holidayDebitItems(documents)}
+      dueDatesHref={dueDatesHref}
+    />
+  );
 }
 
 /** The hints card of a care run preview. */
 export function CareDebitHintsCard({
   invoices,
-}: Readonly<{ invoices: readonly CareInvoice[] }>) {
-  return <DebitHintsCard items={careDebitItems(invoices)} />;
+  dueDatesHref,
+}: Readonly<{
+  invoices: readonly CareInvoice[];
+  /** The run's due-date page, for a debit that comes too early. */
+  dueDatesHref?: string;
+}>) {
+  return (
+    <DebitHintsCard
+      items={careDebitItems(invoices)}
+      dueDatesHref={dueDatesHref}
+    />
+  );
 }
 
-function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
+function DebitHintsCard({
+  items,
+  dueDatesHref,
+}: Readonly<{ items: readonly DebitItem[]; dueDatesHref?: string }>) {
   const [expanded, setExpanded] = useState(false);
   const hints = debitHints(items);
   if (hints.length === 0) return null;
@@ -319,8 +344,8 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
       }
       description={
         creditorMissing
-          ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnung ein."
-          : "Bei diesen Familien klappt die Abbuchung so nicht. Prüfen Sie das Mandat vor der Freigabe."
+          ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnungsvorgaben ein."
+          : "Bei diesen Familien klappt die Abbuchung so nicht. Klären Sie das vor der Freigabe."
       }
       actions={
         creditorMissing ? (
@@ -335,7 +360,7 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
       }
     >
       <ResponsiveActionList>
-        {shown.map(({ item, text }) => (
+        {shown.map(({ item, text, dueTooSoon }) => (
           <li
             key={item.key}
             className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
@@ -353,14 +378,25 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
               <p className="mt-0.5 text-sm text-gray-700">{text}</p>
             </div>
             <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
-              <ButtonLink
-                href={traegerPath(item.href)}
-                variant="surface"
-                size="compact"
-                aria-label={`Mandat prüfen: ${item.family}`}
-              >
-                Mandat prüfen
-              </ButtonLink>
+              {dueTooSoon && dueDatesHref ? (
+                <ButtonLink
+                  href={traegerPath(dueDatesHref)}
+                  variant="surface"
+                  size="compact"
+                  aria-label={`Fälligkeit ändern: ${item.family}`}
+                >
+                  Fälligkeit ändern
+                </ButtonLink>
+              ) : (
+                <ButtonLink
+                  href={traegerPath(item.href)}
+                  variant="surface"
+                  size="compact"
+                  aria-label={`Mandat prüfen: ${item.family}`}
+                >
+                  Mandat prüfen
+                </ButtonLink>
+              )}
             </div>
           </li>
         ))}

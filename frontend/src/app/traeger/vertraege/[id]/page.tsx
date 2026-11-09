@@ -30,6 +30,10 @@ import {
 import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import {
+  OverflowMenu,
+  type OverflowMenuItem,
+} from "~/components/ui/page-header/OverflowMenu";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
@@ -242,6 +246,31 @@ export default function TraegerVertragPage() {
       contract.status === "widerrufen" ||
       contract.status === "beendet");
 
+  const headMenu: OverflowMenuItem[] = [];
+  if (contract && canSend) {
+    headMenu.push({
+      label: "PDF herunterladen",
+      icon: <Download className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => void download(),
+    });
+  }
+  if (contract && !isDraft && contract.mailings.length > 0 && !refreshing) {
+    headMenu.push({
+      label: "Versand aktualisieren",
+      description: "Holt den neuesten Stand der Mail.",
+      icon: <RotateCw className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => void refreshDelivery(),
+    });
+  }
+  if (isDraft) {
+    headMenu.push({
+      label: "Entwurf verwerfen",
+      icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+      destructive: true,
+      onClick: () => setConfirmDiscard(true),
+    });
+  }
+
   return (
     <TenantPage
       title={contract ? childName(contract) : "Vertrag"}
@@ -267,38 +296,6 @@ export default function TraegerVertragPage() {
       actions={
         contract ? (
           <>
-            {isDraft ? (
-              <Button
-                type="button"
-                variant="ghost_danger"
-                size="md"
-                onClick={() => setConfirmDiscard(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Entwurf verwerfen
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void download()}
-            >
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              PDF herunterladen
-            </Button>
-            {!isDraft && contract.mailings.length > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="md"
-                disabled={refreshing || sending}
-                onClick={() => void refreshDelivery()}
-              >
-                <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
-                {refreshing ? "Wird aktualisiert …" : "Versand aktualisieren"}
-              </Button>
-            ) : null}
             {canSend ? (
               <Button
                 type="button"
@@ -312,17 +309,28 @@ export default function TraegerVertragPage() {
                 }
                 onClick={() => void send()}
               >
-                {isDraft ? (
-                  <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
+                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
                 {sending
                   ? "Wird gesendet …"
                   : isDraft
                     ? "Vertrag senden"
                     : "Erneut senden"}
               </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => void download()}
+              >
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                PDF herunterladen
+              </Button>
+            )}
+            {/* One visible action; the rest waits in the menu (TENANT-PAGE-SPEC
+                rule 4). An entry that cannot run right now stays out. */}
+            {headMenu.length > 0 ? (
+              <OverflowMenu items={headMenu} ariaLabel="Weitere Aktionen" />
             ) : null}
           </>
         ) : null

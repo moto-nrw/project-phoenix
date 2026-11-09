@@ -320,7 +320,7 @@ function FamilyMandates({
                   {formatDate(inForce.signedOn)}
                 </span>
               </DataField>
-              <DataField label="Nächste Abbuchung">
+              <DataField label="Art der nächsten Abbuchung">
                 {nextDebitLabel(inForce)}
               </DataField>
               <DataField label="Gläubiger-ID">
@@ -467,7 +467,7 @@ export function SepaMandatesCard({
     },
     {
       key: "next",
-      header: "Nächste Abbuchung",
+      header: "Art der nächsten Abbuchung",
       stacked: "field",
       render: (mandate) => nextDebitLabel(mandate),
     },

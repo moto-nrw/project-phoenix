@@ -29,7 +29,7 @@ const SHOW_OPTIONS: { value: Show; label: string }[] = [
 ];
 
 const INFO =
-  "Mit einem SEPA-Mandat buchen Sie den Beitrag einer Familie ab. Ein neues Mandat erfassen Sie beim Vertrag der Familie. Ihre Gläubiger-ID steht unter Einstellungen → Abrechnung.";
+  "Mit einem SEPA-Mandat buchen Sie den Beitrag einer Familie ab. Ein neues Mandat erfassen Sie beim Vertrag der Familie. Ihre Gläubiger-ID steht unter Einstellungen → Abrechnungsvorgaben.";
 
 export default function TraegerLastschriftPage() {
   const { data: session } = useSession();

@@ -145,7 +145,7 @@ export const INVOICE_STATUS_TONES: Record<
   open: "gray",
   partly_credited: "blue",
   credited: "gray",
-  cancelled: "red",
+  cancelled: "gray",
   nothing_due: "green",
 };
 

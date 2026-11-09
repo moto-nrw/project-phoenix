@@ -61,7 +61,7 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
       header: "Freigegeben für",
       render: (document) =>
         document.releases.length === 0 ? (
-          <StatusBadge label="Nicht freigegeben" tone="gray" />
+          <StatusBadge label="Niemand" tone="gray" />
         ) : (
           <span className="block space-y-0.5">
             {document.releases.map((release) => (

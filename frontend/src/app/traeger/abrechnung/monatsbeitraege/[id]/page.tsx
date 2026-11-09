@@ -546,7 +546,12 @@ export default function TraegerCareRunPage() {
               changed={run.mealChanged}
             />
           ) : null}
-          {preview ? <CareDebitHintsCard invoices={run.invoices} /> : null}
+          {preview ? (
+            <CareDebitHintsCard
+              invoices={run.invoices}
+              dueDatesHref={`/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`}
+            />
+          ) : null}
           {preview ? (
             <CareExcludedCard
               invoices={excluded}

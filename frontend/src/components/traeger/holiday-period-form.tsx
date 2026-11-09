@@ -198,6 +198,7 @@ export function HolidayPeriodForm({
               controlSize="compact"
               name="name"
               label="Name des Ferienzeitraums"
+              required
               placeholder="Osterferien 2027"
               value={draft.name}
               maxLength={120}
@@ -211,6 +212,7 @@ export function HolidayPeriodForm({
                 <ISODateInput
                   id="registration_opens_on"
                   label="Anmeldebeginn"
+                  required
                   value={draft.registrationOpensOn}
                   error={fieldError("registration_opens_on")}
                   onValidityChange={opensValidity}
@@ -223,6 +225,7 @@ export function HolidayPeriodForm({
                 <ISODateInput
                   id="registration_closes_on"
                   label="Anmeldeschluss"
+                  required
                   value={draft.registrationClosesOn}
                   error={fieldError("registration_closes_on")}
                   onValidityChange={closesValidity}

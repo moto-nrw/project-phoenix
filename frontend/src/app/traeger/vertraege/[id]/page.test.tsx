@@ -441,8 +441,9 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.getByText(/Die Mail wartet auf den Versand/),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Versand aktualisieren" }),
+      await screen.findByRole("menuitem", { name: "Versand aktualisieren" }),
     );
     await waitFor(() =>
       expect(
@@ -574,11 +575,17 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Aktiv")[0]).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /PDF herunterladen/ }),
-    ).toBeInTheDocument();
-    expect(
       screen.getByRole("button", { name: "Erneut senden" }),
     ).toBeInTheDocument();
+    // Download and the other entries wait in the head menu (one visible
+    // action per head); a concluded contract offers no discarding there.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      await screen.findByRole("menuitem", { name: /PDF herunterladen/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /Entwurf verwerfen/ }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
     ).not.toBeInTheDocument();

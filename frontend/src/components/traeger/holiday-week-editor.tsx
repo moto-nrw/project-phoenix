@@ -69,6 +69,7 @@ function TimeModelRow({
       <Input
         name={`${field}.name`}
         label="Name"
+        required
         controlSize="compact"
         placeholder="bis 13 Uhr"
         value={model.name}
@@ -76,10 +77,11 @@ function TimeModelRow({
         error={fieldError(`${field}.name`) ?? undefined}
         onChange={(event) => onChange({ ...model, name: event.target.value })}
       />
-      <div className="sm:pt-1">
+      <div>
         <TimeField
           name={`${field}.starts_at`}
           label="Beginn"
+          required
           hint="z. B. 08:00"
           placeholder="08:00"
           value={model.startsAt}
@@ -89,10 +91,11 @@ function TimeModelRow({
         />
         <FieldErrorHint id={`${field}.starts_at-error`} message={startsError} />
       </div>
-      <div className="sm:pt-1">
+      <div>
         <TimeField
           name={`${field}.ends_at`}
           label="Ende"
+          required
           hint="z. B. 13:00"
           placeholder="13:00"
           value={model.endsAt}
@@ -105,6 +108,7 @@ function TimeModelRow({
       <Input
         name={`${field}.price_cents`}
         label="Preis in Euro"
+        required
         controlSize="compact"
         inputMode="decimal"
         placeholder="45,00"
@@ -210,6 +214,7 @@ export function HolidayWeekEditor({
             <ISODateInput
               id={`${prefix}.starts_on`}
               label="Erster Tag"
+              required
               value={week.startsOn}
               error={fieldError(`${prefix}.starts_on`)}
               onValidityChange={startsValidity}
@@ -220,6 +225,7 @@ export function HolidayWeekEditor({
             <ISODateInput
               id={`${prefix}.ends_on`}
               label="Letzter Tag"
+              required
               value={week.endsOn}
               min={week.startsOn || undefined}
               minDateError="Der letzte Tag liegt vor dem ersten Tag."
@@ -232,6 +238,7 @@ export function HolidayWeekEditor({
             id={`${prefix}.host_school_id`}
             name={`${prefix}.host_school_id`}
             label="Ausrichtende OGS"
+            required
             error={hostError}
             placeholder="Schule wählen"
             value={week.hostSchoolId}

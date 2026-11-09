@@ -41,6 +41,7 @@ import type {
 import { SectionCard } from "~/components/ui/section-card";
 import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -476,34 +477,16 @@ export default function TraegerVertraegePage() {
         setSchoolId("");
       }}
       actions={
-        <>
-          {selectedDrafts.length > 0 ? (
-            <Button
-              type="button"
-              variant="success"
-              size="md"
-              disabled={sending}
-              onClick={() => void sendSelected()}
-            >
-              <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-              {sending
-                ? "Wird gesendet …"
-                : selectedDrafts.length === 1
-                  ? "1 Entwurf senden"
-                  : `${selectedDrafts.length} Entwürfe senden`}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            disabled={!data}
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            {createLabel}
-          </Button>
-        </>
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          disabled={!data}
+          onClick={() => setCreating(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+          {createLabel}
+        </Button>
       }
       error={pageLoad.error}
       loading={!pageLoad.error && !data}
@@ -611,11 +594,44 @@ export default function TraegerVertraegePage() {
           Weitere Verträge laden
         </Button>
       ) : null}
-      {data && selected.size > 0 && selectedDrafts.length < selected.size ? (
-        <p className="text-sm text-gray-500">
-          Senden gilt nur für Entwürfe. Einen versendeten Vertrag senden Sie auf
-          seiner Seite erneut.
-        </p>
+      {data && selected.size > 0 ? (
+        // What the ticked rows are for, and the action, stick at the bottom
+        // of the screen while the list scrolls.
+        <SelectionBar
+          aria-label="Ausgewählte Verträge"
+          placement="bottom"
+          count={selected.size}
+          label={
+            selected.size === 1
+              ? "1 Vertrag ausgewählt"
+              : `${selected.size} Verträge ausgewählt`
+          }
+          description={
+            selectedDrafts.length < selected.size
+              ? "Senden gilt nur für Entwürfe. Einen versendeten Vertrag senden Sie auf seiner Seite erneut."
+              : "Die Eltern bekommen den Vertrag per Mail und in der Eltern-App."
+          }
+          onClear={() => setSelected(new Set())}
+          busy={sending}
+          actions={
+            selectedDrafts.length > 0 ? (
+              <Button
+                type="button"
+                variant="success"
+                size="compact"
+                disabled={sending}
+                onClick={() => void sendSelected()}
+              >
+                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+                {sending
+                  ? "Wird gesendet …"
+                  : selectedDrafts.length === 1
+                    ? "1 Entwurf senden"
+                    : `${selectedDrafts.length} Entwürfe senden`}
+              </Button>
+            ) : null
+          }
+        />
       ) : null}
     </TenantPage>
   );

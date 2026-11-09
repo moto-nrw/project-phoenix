@@ -552,7 +552,11 @@ export default function TraegerZeitvergleichPage() {
     >
       {evaluation ? <Figures evaluation={evaluation} /> : null}
       <DataTable
-        heading={{ title: "Je Schule", count: evaluation?.schools.length }}
+        heading={{
+          title: "Je Schule",
+          count: evaluation?.schools.length,
+          level: 2,
+        }}
         columns={columns}
         rows={[...(evaluation?.schools ?? [])]}
         getRowKey={(school) => school.schoolId}
@@ -564,7 +568,11 @@ export default function TraegerZeitvergleichPage() {
       />
       {canSeeNames ? (
         <DataTable
-          heading={{ title: "Kinder", count: evaluation?.children.length }}
+          heading={{
+            title: "Kinder",
+            count: evaluation?.children.length,
+            level: 2,
+          }}
           columns={CHILD_COLUMNS}
           rows={[...(evaluation?.children ?? [])]}
           getRowKey={(child) => `${child.schoolId}-${child.studentId}`}

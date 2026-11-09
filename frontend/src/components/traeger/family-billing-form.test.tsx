@@ -50,7 +50,7 @@ describe("FamilyBillingForm", () => {
 
   it("marks the payer's missing fields and sends nothing", async () => {
     renderModal();
-    fireEvent.click(screen.getByRole("button", { name: "Andere Person" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Andere Person" }));
     fireEvent.change(screen.getByLabelText(/E-Mail-Adresse/), {
       target: { value: "kein-at" },
     });
@@ -75,7 +75,7 @@ describe("FamilyBillingForm", () => {
   it("saves both parents with an own payment method and due day", async () => {
     saveFamilyBilling.mockResolvedValue(null);
     const { onSaved } = renderModal();
-    fireEvent.click(screen.getByRole("button", { name: "Beide Eltern" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Beide Eltern" }));
     fireEvent.change(screen.getByLabelText(/Vorname des zweiten Elternteils/), {
       target: { value: " Ben " },
     });
@@ -85,7 +85,7 @@ describe("FamilyBillingForm", () => {
         target: { value: "Muster" },
       },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Lastschrift" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Lastschrift" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() =>

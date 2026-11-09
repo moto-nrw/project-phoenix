@@ -256,7 +256,7 @@ describe("TraegerBillingRunPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /1 bestätigte Anmeldung\(en\) haben keinen festgehaltenen Beitrag/,
+        /1 bestätigte Anmeldung hat keinen festgehaltenen Beitrag/,
       ),
     ).toBeInTheDocument();
   });
@@ -438,9 +438,7 @@ describe("TraegerBillingRunPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Lauf freigeben" }));
     expect(
-      await screen.findByText(
-        /1 Rechnung\(en\) über 112,50 € bekommen ihre Nummer/,
-      ),
+      await screen.findByText(/1 Rechnung über 112,50 € bekommt ihre Nummer/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 

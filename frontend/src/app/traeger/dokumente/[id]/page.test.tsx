@@ -291,7 +291,14 @@ it("offers no deletion while the school names are missing", async () => {
       catalogText("general.unavailable", "die Liste der Schulen"),
     ),
   ).toBeInTheDocument();
+  // The head menu still offers the download, but no deletion.
+  fireEvent.click(
+    screen.getByRole("button", { name: "Weitere Aktionen zum Dokument" }),
+  );
   expect(
-    screen.queryByRole("button", { name: "Weitere Aktionen zum Dokument" }),
+    await screen.findByRole("menuitem", { name: "Herunterladen" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("menuitem", { name: /Dokument löschen/ }),
   ).not.toBeInTheDocument();
 });

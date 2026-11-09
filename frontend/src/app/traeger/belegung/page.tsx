@@ -480,7 +480,11 @@ function ViewContent({
   if (view === "gruppen") {
     return (
       <DataTable
-        heading={{ title: "Kinder je Gruppe", count: groupRows.length }}
+        heading={{
+          title: "Kinder je Gruppe",
+          count: groupRows.length,
+          level: 2,
+        }}
         columns={GROUP_COLUMNS}
         rows={groupRows}
         getRowKey={(row) => row.key}
@@ -502,6 +506,7 @@ function ViewContent({
             heading={{
               title: "Gleiche Angebote über alle Schulen",
               count: sums.length,
+              level: 2,
             }}
             columns={SUM_COLUMNS}
             rows={sums}
@@ -515,6 +520,7 @@ function ViewContent({
           heading={{
             title: "Kinder je Betreuungsform und Schule",
             count: formRows.length,
+            level: 2,
           }}
           columns={CARE_FORM_COLUMNS}
           rows={formRows}
@@ -532,7 +538,7 @@ function ViewContent({
   }
   return (
     <DataTable
-      heading={{ title: "Kinder je Schule", count: schools.length }}
+      heading={{ title: "Kinder je Schule", count: schools.length, level: 2 }}
       columns={SCHOOL_COLUMNS}
       rows={[...schools]}
       getRowKey={(school) => school.id}

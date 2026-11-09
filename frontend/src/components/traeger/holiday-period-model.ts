@@ -236,12 +236,12 @@ function checkTimeModels(
     const endsValid = WALL_CLOCK.test(model.endsAt);
     if (!startsValid) {
       errors[`${field}.starts_at`] = model.startsAt
-        ? "Bitte im Format 08:00 eingeben."
+        ? "Bitte geben Sie die Zeit im Format 08:00 ein."
         : "Bitte tragen Sie den Beginn ein.";
     }
     if (!endsValid) {
       errors[`${field}.ends_at`] = model.endsAt
-        ? "Bitte im Format 13:00 eingeben."
+        ? "Bitte geben Sie die Zeit im Format 13:00 ein."
         : "Bitte tragen Sie das Ende ein.";
     } else if (startsValid && model.endsAt <= model.startsAt) {
       errors[`${field}.ends_at`] = "Das Ende liegt nicht nach dem Beginn.";
@@ -249,7 +249,7 @@ function checkTimeModels(
     const cents = euroInputToCents(model.price);
     if (cents === null || cents > MAX_PRICE_CENTS) {
       errors[`${field}.price_cents`] =
-        "Bitte einen Preis in Euro eingeben, zum Beispiel 45,00.";
+        "Bitte geben Sie einen Preis in Euro ein, zum Beispiel 45,00.";
     }
   });
 }

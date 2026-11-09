@@ -631,14 +631,25 @@ export function HolidayRegistrationStatusCard({
       <ConfirmationModal
         isOpen={confirmingCancel}
         title="Anmeldung stornieren?"
-        confirmText="Stornieren"
+        confirmText="Anmeldung stornieren"
         confirmVariant="danger"
         isConfirmLoading={running === "cancel"}
         loadingText="Storniert …"
         onClose={() => setConfirmingCancel(false)}
         onConfirm={() => void run("cancel")}
       >
-        <p className="text-sm text-gray-700">
+        {/* Names what is cancelled, so the decision does not rely on the
+            blurred page behind the dialog. */}
+        <p className="text-sm font-medium text-gray-900">
+          Anmeldung Nr. {registration.id} von{" "}
+          {`${registration.guardianFirstName} ${registration.guardianLastName}`.trim()}
+          {registration.children.length > 0
+            ? `: ${registration.children
+                .map((child) => `${child.firstName} ${child.lastName}`.trim())
+                .join(", ")}`
+            : ""}
+        </p>
+        <p className="mt-2 text-sm text-gray-700">
           Die Kinder dieser Anmeldung sind dann für keine Woche mehr angemeldet.
           Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Eltern
           bekommen keine Nachricht von moto.
@@ -647,6 +658,12 @@ export function HolidayRegistrationStatusCard({
           <p className="mt-2 text-sm text-gray-700">
             Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
             berechnet den Ferienbeitrag der Geschwister neu.
+          </p>
+        ) : null}
+        {invoiced ? (
+          <p className="mt-2 text-sm text-gray-700">
+            Für diese Anmeldung gibt es schon eine Rechnung. Sie bleibt
+            bestehen. Stornieren Sie sie bei Bedarf in der Abrechnung.
           </p>
         ) : null}
       </ConfirmationModal>

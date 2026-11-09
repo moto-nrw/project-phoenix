@@ -714,7 +714,7 @@ export default function TraegerDashboardPage() {
         </SectionCard>
       )}
       <DataTable
-        heading={{ title: "Zahlen je Schule", count: rows.length }}
+        heading={{ title: "Zahlen je Schule", count: rows.length, level: 2 }}
         columns={columns}
         rows={rows}
         getRowKey={(school) => school.id}

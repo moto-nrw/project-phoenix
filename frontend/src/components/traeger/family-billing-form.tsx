@@ -15,6 +15,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { Radio } from "~/components/ui/radio";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -258,20 +259,23 @@ export function FamilyBillingForm({
           : "Gilt für alle Rechnungen dieser Familie, auch für Geschwister. Die Vorschau zeigt die Änderung gleich."}
       </p>
       <div className="space-y-2">
-        <FieldLabel>Rechnung an</FieldLabel>
+        <FieldLabel id={id("recipient-label")}>Rechnung an</FieldLabel>
         <div
-          role="group"
-          aria-label="Rechnung an"
+          role="radiogroup"
+          aria-labelledby={id("recipient-label")}
           className="grid gap-2 sm:grid-cols-3"
         >
           {RECIPIENT_ITEMS.map((item) => (
             <ChoiceTile
               key={item.value}
-              as="button"
               selected={draft.recipientKind === item.value}
-              aria-pressed={draft.recipientKind === item.value}
-              onClick={() => set({ recipientKind: item.value })}
             >
+              <Radio
+                name={id("recipient")}
+                value={item.value}
+                checked={draft.recipientKind === item.value}
+                onChange={() => set({ recipientKind: item.value })}
+              />
               {item.label}
             </ChoiceTile>
           ))}
@@ -387,10 +391,10 @@ export function FamilyBillingForm({
         </div>
       ) : null}
       <div className="space-y-2">
-        <FieldLabel>Zahlungsweg</FieldLabel>
+        <FieldLabel id={id("payment-label")}>Zahlungsweg</FieldLabel>
         <div
-          role="group"
-          aria-label="Zahlungsweg"
+          role="radiogroup"
+          aria-labelledby={id("payment-label")}
           className="grid gap-2 sm:grid-cols-3"
         >
           {[
@@ -402,11 +406,14 @@ export function FamilyBillingForm({
           ].map((item) => (
             <ChoiceTile
               key={item.value}
-              as="button"
               selected={draft.paymentMethod === item.value}
-              aria-pressed={draft.paymentMethod === item.value}
-              onClick={() => set({ paymentMethod: item.value })}
             >
+              <Radio
+                name={id("payment")}
+                value={item.value}
+                checked={draft.paymentMethod === item.value}
+                onChange={() => set({ paymentMethod: item.value })}
+              />
               {item.label}
             </ChoiceTile>
           ))}

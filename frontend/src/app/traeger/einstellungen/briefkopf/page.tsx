@@ -143,6 +143,8 @@ export default function TraegerBriefkopfPage() {
               onReset={resetSetting}
               onSchemaRefresh={() => void refresh()}
               audience="traeger"
+              headingLevel={2}
+              autosaveNote
             />
           ))}
 

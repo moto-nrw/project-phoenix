@@ -157,7 +157,7 @@ function schoolColumns(
     },
     {
       key: "terminals",
-      header: "Aktive Terminals",
+      header: "Aktive Geräte",
       align: "right",
       render: (row) =>
         row.count ? (
@@ -250,7 +250,7 @@ const MONTH_COLUMNS: DataTableColumn<KeyDateMonthRow>[] = [
   },
   {
     key: "terminals",
-    header: "Aktive Terminals",
+    header: "Aktive Geräte",
     align: "right",
     render: (month) => (
       <span className="text-sm font-semibold text-gray-900 tabular-nums">
@@ -297,7 +297,7 @@ function MonthFigures({
         tone="neutral"
       />
       <StatCard
-        label="Aktive Terminals"
+        label="Aktive Geräte"
         value={month.activeTerminals}
         hint={
           changeHint(
@@ -458,6 +458,7 @@ export default function TraegerKeyDateCountsPage() {
                 ? `Zahlen je Schule am ${formatDate(singleKeyDate)}`
                 : `Zahlen je Schule im ${formatKeyDateMonth(selection.month.period)}`,
               count: rows.length,
+              level: 2,
             }}
             columns={columns}
             rows={[...rows]}
@@ -473,7 +474,7 @@ export default function TraegerKeyDateCountsPage() {
             }
           />
           <DataTable
-            heading={{ title: "Alle Monate", count: months.length }}
+            heading={{ title: "Alle Monate", count: months.length, level: 2 }}
             columns={MONTH_COLUMNS}
             rows={[...months]}
             getRowKey={(month) => month.period}

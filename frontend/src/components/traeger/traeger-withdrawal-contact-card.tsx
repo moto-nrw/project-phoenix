@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -7,7 +8,6 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
-import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
 import {
@@ -207,12 +207,17 @@ export function TraegerWithdrawalContactCard({
             </DataGrid>
             <p className="text-xs text-gray-600">
               Name und Anschrift kommen aus dem{" "}
-              <NavigationLink
+              {/* A new tab keeps what is typed in the contact form beside
+                  this text; leaving the page would drop it. */}
+              <Link
                 href={traegerPath("/traeger/einstellungen/briefkopf")}
+                target="_blank"
+                rel="noopener"
                 className="font-medium underline"
               >
                 Briefkopf
-              </NavigationLink>
+                <span className="sr-only"> (öffnet in einem neuen Tab)</span>
+              </Link>
               . Nennen die Vertragsbedingungen einen anderen Vertragspartner,
               steht er davor. Nach einer Änderung kopiert die Schule die
               Belehrung neu ins Anmeldeformular.

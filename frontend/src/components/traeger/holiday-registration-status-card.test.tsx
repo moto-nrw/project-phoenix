@@ -278,8 +278,9 @@ describe("HolidayRegistrationStatusCard", () => {
     expect(
       screen.queryByText(/berechnet den Ferienbeitrag der Geschwister neu/),
     ).not.toBeInTheDocument();
-    const buttons = screen.getAllByRole("button", { name: "Stornieren" });
-    fireEvent.click(buttons[buttons.length - 1]!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldung stornieren" }),
+    );
 
     await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("5", "7"));
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));

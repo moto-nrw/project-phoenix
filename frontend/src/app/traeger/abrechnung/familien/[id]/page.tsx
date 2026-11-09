@@ -127,9 +127,7 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     align: "right",
     sortValue: (document) => document.totalCents,
     render: (document) => (
-      <span
-        className={`tabular-nums ${document.totalCents < 0 ? "text-moto-red-strong" : "text-gray-900"}`}
-      >
+      <span className="text-gray-900 tabular-nums">
         {formatEuro(document.totalCents)}
       </span>
     ),
@@ -250,7 +248,7 @@ export default function TraegerBillingFamilyPage() {
               </DataField>
               <DataField label="Zahlungsweg">
                 {paymentMethodsText(family.paymentMethods) ??
-                  "Steht auf neuen Rechnungen"}
+                  "– noch keine Rechnung"}
               </DataField>
               <DataField label="Wer zahlt" fullWidth>
                 {family.payments.length > 0 ? (
@@ -265,7 +263,7 @@ export default function TraegerBillingFamilyPage() {
                     ))}
                   </span>
                 ) : (
-                  "Keine gültige Rechnung"
+                  "– noch keine gültige Rechnung"
                 )}
               </DataField>
             </DataGrid>

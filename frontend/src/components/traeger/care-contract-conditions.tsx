@@ -6,9 +6,10 @@
 // neuer Vertrag übernimmt sie; ein bestehender behält seine.
 
 import { SectionLabel } from "~/components/ui/section-label";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -85,6 +86,15 @@ export function CareContractConditions({
   const [selectedKey, setSelectedKey] = useState<string>(
     focusKey ?? (firstOpen ? offeringKey(firstOpen) : ""),
   );
+  // The open form reports unsaved changes; switching the offer then asks
+  // first, because the form of another offer starts from its saved terms.
+  const [dirty, setDirty] = useState(false);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const choose = (key: string) => {
+    if (key === selectedKey) return;
+    if (dirty) setPendingKey(key);
+    else setSelectedKey(key);
+  };
   const selected = offerings.find(
     (offering) => offeringKey(offering) === selectedKey,
   );
@@ -124,7 +134,7 @@ export function CareContractConditions({
                       tone="blue"
                       className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left"
                       aria-pressed={key === selectedKey}
-                      onClick={() => setSelectedKey(key)}
+                      onClick={() => choose(key)}
                     >
                       <span className="min-w-0">
                         <span className="block font-medium text-gray-900">
@@ -160,8 +170,28 @@ export function CareContractConditions({
           key={selectedKey}
           offering={selected}
           onSaved={onSaved}
+          onDirtyChange={setDirty}
         />
       ) : null}
+      <ConfirmationModal
+        isOpen={pendingKey !== null}
+        title="Änderungen verwerfen?"
+        confirmText="Verwerfen"
+        cancelText="Weiter bearbeiten"
+        confirmVariant="danger"
+        onClose={() => setPendingKey(null)}
+        onConfirm={() => {
+          if (pendingKey !== null) setSelectedKey(pendingKey);
+          setDirty(false);
+          setPendingKey(null);
+        }}
+      >
+        <p className="text-sm text-gray-700">
+          Die Bedingungen für „{selected?.offeringName}“ sind noch nicht
+          gespeichert. Wenn Sie ein anderes Angebot öffnen, gehen die Änderungen
+          verloren.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }
@@ -169,12 +199,18 @@ export function CareContractConditions({
 function ConditionsForm({
   offering,
   onSaved,
+  onDirtyChange,
 }: Readonly<{
   offering: OfferingTemplate;
   onSaved: (offering: OfferingTemplate) => void;
+  onDirtyChange: (dirty: boolean) => void;
 }>) {
   const selected = offering;
   const [draft, setDraft] = useState<ContractTerms>(() => termsOf(offering));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(termsOf(offering));
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
