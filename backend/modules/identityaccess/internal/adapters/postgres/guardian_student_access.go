@@ -21,7 +21,6 @@ type GuardianStudentAccessRecord struct {
 // GuardianStudentAccessStore is Identity & Access's persistence surface for
 // the guardian relationship owner command.
 type GuardianStudentAccessStore interface {
-	LockLiveTraegerGuardianAccounts(context.Context, int64, *int64, []int64) ([]int64, error)
 	LockLiveGuardianAccount(context.Context, int64) (bool, error)
 	GrantGuardianStudentAccess(context.Context, GuardianStudentAccessRecord) (domain.OperationStats, error)
 	SetGuardianStudentPermissions(context.Context, int64, int64, json.RawMessage) (bool, domain.OperationStats, error)
