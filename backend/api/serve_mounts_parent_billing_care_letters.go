@@ -32,7 +32,19 @@ func (p parentBillingLetterPost) EnqueueCareLetterMail(ctx context.Context, mail
 
 // CareLetterMailStates reads the mails of a monthly run Delivery still keeps.
 func (p parentBillingLetterPost) CareLetterMailStates(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterMailState, error) {
-	return p.relatedMailStates(ctx, organizationID, deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareRun, ID: runID})
+	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
+		deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareRun, ID: runID})
+	if err != nil {
+		return nil, err
+	}
+	states := make([]parentbilling.BillingLetterMailState, len(statuses))
+	for i, status := range statuses {
+		states[i] = parentbilling.BillingLetterMailState{
+			DeliveryID: status.ID, Status: parentBillingMailStatus(status), Attempts: status.Attempts,
+			SentAt: status.SentAt, Outcome: string(status.Outcome),
+		}
+	}
+	return states, nil
 }
 
 // EnqueueCareNoticeLetterMail puts the mail of a Jahresbescheid on Delivery's
@@ -58,12 +70,8 @@ func (p parentBillingLetterPost) EnqueueCareNoticeLetterMail(ctx context.Context
 
 // CareNoticeLetterMailStates reads the mails of a notice run Delivery still keeps.
 func (p parentBillingLetterPost) CareNoticeLetterMailStates(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterMailState, error) {
-	return p.relatedMailStates(ctx, organizationID, deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareNoticeRun, ID: runID})
-}
-
-// relatedMailStates reads the mails of the Träger about one entity.
-func (p parentBillingLetterPost) relatedMailStates(ctx context.Context, organizationID int64, related deliveryContract.RelatedEntity) ([]parentbilling.BillingLetterMailState, error) {
-	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, related)
+	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
+		deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareNoticeRun, ID: runID})
 	if err != nil {
 		return nil, err
 	}

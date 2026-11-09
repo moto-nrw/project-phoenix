@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -181,22 +180,11 @@ const careNoticeLetterErasureStatement = `					-- The original of a Jahresbesche
 						AND push.related_entity_id = letter.id;
 `
 
-// demoVisitorErasureCareNoticeLettersSQL is the erasure of 1.15.843 with the
-// copies of the sent originals (#6347) and nothing else.
-var demoVisitorErasureCareNoticeLettersSQL = strings.Replace(demoVisitorErasureOutboxKindsSQL, careNoticeLetterErasureAnchor,
-	careNoticeLetterErasureStatement+careNoticeLetterErasureAnchor, 1)
-
 func parentBillingCareNoticeLettersUp(ctx context.Context, db *bun.DB) error {
-	if !strings.Contains(demoVisitorErasureOutboxKindsSQL, careNoticeLetterErasureAnchor) {
-		return fmt.Errorf("the erasure of %s lost its anchor for the notice letters", demoVisitorErasureOutboxKindsVersion)
-	}
 	if _, err := db.ExecContext(ctx, parentBillingCareNoticeLettersUpSQL); err != nil {
 		return fmt.Errorf("create the notice letters of parent billing: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, demoVisitorErasureCareNoticeLettersSQL); err != nil {
-		return fmt.Errorf("erase the notice letters of retired demo schools: %w", err)
-	}
-	return nil
+	return installCareNoticeLetterErasure(ctx, db)
 }
 
 func parentBillingCareNoticeLettersDown(ctx context.Context, db *bun.DB) error {

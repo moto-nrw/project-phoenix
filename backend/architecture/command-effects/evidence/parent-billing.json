@@ -289,6 +289,22 @@
       "target_owner": "meal-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.CareNoticeLetterMailStates",
+      "binding_digest": "a6b87b54a965ca5552ae305c26511561",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareNoticeLetterPost.CareNoticeLetterMailStates",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueCareNoticeLetterMail",
+      "binding_digest": "f0272ccf638388e30b1d8eb320f11703",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareNoticeLetterPost.EnqueueCareNoticeLetterMail",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
       "binding_digest": "fa291431eb1763425369a6c59f5f6e90",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareSchools.TraegerSchools",

@@ -3,8 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -106,9 +104,13 @@ func noticeMails(t *testing.T, f careBillingFixture, runID int64) []careLetterMa
 	return mails
 }
 
-func sha256Hex(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
+// storedSHA256 is the SHA-256 the database computes of the stored PDF.
+func storedSHA256(t *testing.T, f careBillingFixture, runID int64) string {
+	t.Helper()
+	var sum string
+	require.NoError(t, f.db.NewRaw(`SELECT encode(sha256(pdf), 'hex') FROM parent_billing.care_notice_letters WHERE run_id = ?`, runID).
+		Scan(context.Background(), &sum))
+	return sum
 }
 
 // The original of a Jahresbescheid is stored once and stays byte for byte
@@ -128,7 +130,11 @@ func TestCareNoticeOriginalStaysByteIdenticalAfterEveryLaterChange(t *testing.T)
 	require.Len(t, created.Notices, 1)
 	assert.True(t, created.Notices[0].HasLetter)
 	original := noticePDF(t, f, run.ID, contract)
-	assert.Equal(t, sha256Hex(original), created.Notices[0].SHA256, "the overview names the stored bytes")
+	assert.Equal(t, storedSHA256(t, f, run.ID), created.Notices[0].SHA256, "the overview names the stored bytes")
+	var stored []byte
+	require.NoError(t, f.db.NewRaw(`SELECT pdf FROM parent_billing.care_notice_letters WHERE run_id = ?`, run.ID).
+		Scan(context.Background(), &stored))
+	assert.Equal(t, stored, original, "the download is the stored PDF")
 
 	// Letterhead, template, address and contract change afterwards.
 	rec = traegerJSON(t, f.traeger, administration.token, http.MethodPut, "/traeger/settings/values/"+configModels.KeyBrandingLetterheadText,
@@ -151,7 +157,7 @@ func TestCareNoticeOriginalStaysByteIdenticalAfterEveryLaterChange(t *testing.T)
 	assert.Equal(t, http.StatusConflict, rec.Code, "the original is stored once: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "parent_billing.billing_letters_exist")
 	assert.Equal(t, original, noticePDF(t, f, run.ID, contract), "the original never changes")
-	assert.Equal(t, sha256Hex(original), noticeLetters(t, f, run.ID).Notices[0].SHA256)
+	assert.Equal(t, created.Notices[0].SHA256, noticeLetters(t, f, run.ID).Notices[0].SHA256)
 
 	// No role changes it in the database either.
 	_, err = f.db.ExecContext(ctx, `UPDATE parent_billing.care_notice_letters SET pdf = '\x255044'::bytea WHERE run_id = ?`, run.ID)
