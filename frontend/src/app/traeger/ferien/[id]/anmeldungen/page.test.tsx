@@ -339,9 +339,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       }),
     );
 
-    const [field] = screen.getAllByPlaceholderText(
-      "Eltern, Kind, Nr. oder Debitorennummer",
-    );
+    const [field] = screen.getAllByPlaceholderText("Eltern, Kind oder Nummer");
     fireEvent.change(field!, { target: { value: "ute" } });
 
     const row = (id: string, name: string) =>
@@ -375,7 +373,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     expect(bar.getByText("1 Anmeldung ausgewählt.")).toBeInTheDocument();
     expect(
       bar.getByText(
-        "Wählen Sie mindestens eine weitere Anmeldung derselben Familie.",
+        "Zum Zusammenführen als Geschwister wählen Sie eine weitere Anmeldung derselben Familie.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(

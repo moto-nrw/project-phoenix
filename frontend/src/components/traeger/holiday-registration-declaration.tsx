@@ -32,7 +32,7 @@ export function HolidayDeclarationFields({
       <DataField label="Unterschrieben mit Namen">
         {registration.declarationName || "Nicht angegeben"}
       </DataField>
-      <DataField label="Version der Texte">
+      <DataField label="Version der Erklärung">
         {versionText(registration.consentVersion)}
       </DataField>
     </>
@@ -55,7 +55,7 @@ export function HolidayDeclarationTextsCard({
   return (
     <SectionCard
       title="Wortlaut der Erklärung"
-      description={`Diese Texte standen bei der Anmeldung im Formular (${versionText(texts.version)}). Was die Eltern bestätigt haben, steht oben unter „Eltern“.`}
+      description={`Diese Texte standen bei der Anmeldung im Formular (Erklärung, ${versionText(texts.version)}). Was die Eltern bestätigt haben, steht oben unter „Eltern“.`}
       collapsible
       defaultCollapsed
     >

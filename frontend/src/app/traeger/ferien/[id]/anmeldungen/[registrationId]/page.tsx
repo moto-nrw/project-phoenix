@@ -584,7 +584,7 @@ export default function TraegerHolidayRegistrationPage() {
           ) : registration.form.fields.length > 0 ? (
             <SectionCard
               title="Allgemeine Angaben"
-              description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+              description={`Antworten auf die Fragen aus Formular-Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
               action={
                 editableQuestions(registration.form.fields, false).length > 0
                   ? editAction("answers", "Allgemeine Angaben ändern")

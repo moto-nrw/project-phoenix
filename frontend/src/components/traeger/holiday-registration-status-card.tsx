@@ -55,8 +55,8 @@ function statusText(registration: HolidayRegistrationDetail): string {
       ? "Die Anmeldung ist bestätigt."
       : "Die Anmeldung ist eingegangen und noch nicht bestätigt.";
   const frozen = registration.frozen
-    ? " Sie ist eingefroren. Stornieren und Umbuchen gehen erst nach „Wieder öffnen“."
-    : " Nach dem Anmeldeschluss wird sie von selbst eingefroren. Eingefroren gehen Stornieren und Umbuchen erst nach „Wieder öffnen“.";
+    ? " Sie ist eingefroren. Zum Stornieren oder Umbuchen wählen Sie „Wieder öffnen“."
+    : " Nach dem Anmeldeschluss wird sie eingefroren. Zum Stornieren oder Umbuchen wählen Sie dann „Wieder öffnen“.";
   return confirmed + frozen;
 }
 
@@ -101,11 +101,11 @@ function debtorNumberText(set: boolean, invoiced: boolean): string {
     ? ""
     : " Ohne Nummer steht im Schreiben die Rechnungsnummer als Verwendungszweck.";
   if (!invoiced) {
-    return `Sie steht im Schreiben als Verwendungszweck. Ändern geht, bis die Rechnung ausgestellt ist.${missing}`;
+    return `Sie steht im Schreiben als Verwendungszweck. Ändern können Sie sie, bis die Rechnung ausgestellt ist.${missing}`;
   }
   return set
-    ? "Die Rechnung ist ausgestellt und behält ihre Nummer. Ändern geht nicht mehr."
-    : `Die Rechnung ist ohne Debitorennummer ausgestellt. Eintragen geht nicht mehr.${missing}`;
+    ? "Die Rechnung ist ausgestellt. Die Debitorennummer lässt sich nicht mehr ändern."
+    : `Die Rechnung ist ohne Debitorennummer ausgestellt. Eine Nummer lässt sich nicht mehr eintragen.${missing}`;
 }
 
 /**
@@ -580,7 +580,6 @@ export function HolidayRegistrationStatusCard({
         {duplicateIds.length > 0 ? (
           <Alert
             type="warning"
-            size="compact"
             message={`Vielleicht doppelt angemeldet: ${duplicateNames.join(", ")}.`}
             actionLayout="stacked"
             action={

@@ -71,7 +71,7 @@ function TimeModelRow({
         label="Name"
         required
         controlSize="touch"
-        placeholder="bis 13 Uhr"
+        placeholder="z. B. bis 13 Uhr"
         value={model.name}
         maxLength={80}
         error={fieldError(`${field}.name`) ?? undefined}
@@ -113,14 +113,10 @@ function TimeModelRow({
         required
         controlSize="touch"
         inputMode="decimal"
-        placeholder="45,00"
+        placeholder="z. B. 45,00"
         value={model.price}
-        // A booked time model: confirmed registrations keep their amount.
-        hint={
-          model.protected
-            ? "Gilt für Anmeldungen, die Sie danach bestätigen. Bestätigte behalten ihren Betrag."
-            : undefined
-        }
+        // What a new price of a booked time model changes stands once
+        // above the weeks, not under every price.
         error={fieldError(`${field}.price_cents`) ?? undefined}
         onChange={(event) => onChange({ ...model, price: event.target.value })}
       />

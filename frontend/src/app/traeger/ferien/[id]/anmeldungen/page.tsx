@@ -683,7 +683,7 @@ export default function TraegerHolidayRegistrationsPage() {
             return kept.length === selection.size ? selection : new Set(kept);
           });
         },
-        placeholder: "Eltern, Kind, Nr. oder Debitorennummer",
+        placeholder: "Eltern, Kind oder Nummer",
       }}
       tabs={holidayPeriodTabs(
         periodId,
@@ -812,7 +812,7 @@ export default function TraegerHolidayRegistrationsPage() {
           }
           description={
             selected.size === 1
-              ? "Wählen Sie mindestens eine weitere Anmeldung derselben Familie."
+              ? "Zum Zusammenführen als Geschwister wählen Sie eine weitere Anmeldung derselben Familie."
               : "Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen."
           }
           onClear={() => setSelected(new Set())}

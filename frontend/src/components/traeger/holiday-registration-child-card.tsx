@@ -12,7 +12,6 @@ import {
   DataField,
   DataGrid,
   InfoSection,
-  InfoText,
 } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -243,9 +242,9 @@ export function HolidayRegistrationChildCard({
 
         {healthHidden ? (
           <InfoSection title="Gesundheit">
-            <InfoText>
+            <p className="text-sm text-gray-700">
               Gesundheitsangaben sieht nur die Rolle Verwaltung.
-            </InfoText>
+            </p>
           </InfoSection>
         ) : null}
 
@@ -256,17 +255,23 @@ export function HolidayRegistrationChildCard({
                 <DataGrid>
                   {health.allergies ? (
                     <DataField label="Allergien" fullWidth>
-                      <InfoText>{health.allergies}</InfoText>
+                      <span className="whitespace-pre-wrap">
+                        {health.allergies}
+                      </span>
                     </DataField>
                   ) : null}
                   {health.medication ? (
                     <DataField label="Medikamente" fullWidth>
-                      <InfoText>{health.medication}</InfoText>
+                      <span className="whitespace-pre-wrap">
+                        {health.medication}
+                      </span>
                     </DataField>
                   ) : null}
                   {health.healthNotes ? (
                     <DataField label="Weitere Hinweise" fullWidth>
-                      <InfoText>{health.healthNotes}</InfoText>
+                      <span className="whitespace-pre-wrap">
+                        {health.healthNotes}
+                      </span>
                     </DataField>
                   ) : null}
                 </DataGrid>
@@ -278,6 +283,7 @@ export function HolidayRegistrationChildCard({
                 <HolidayRegistrationAnswers
                   questions={healthAnswers}
                   answers={answers}
+                  markHealth={false}
                 />
               ) : null}
             </div>

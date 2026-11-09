@@ -430,7 +430,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       "Ja, am 03.09.2026",
     );
     expect(field("Unterschrieben mit Namen")).toHaveTextContent("Eva Muster");
-    expect(field("Version der Texte")).toHaveTextContent("Version 3");
+    expect(field("Version der Erklärung")).toHaveTextContent("Version 3");
 
     const wording = screen.getByRole("heading", {
       name: "Wortlaut der Erklärung",
@@ -669,17 +669,23 @@ describe("TraegerHolidayRegistrationPage", () => {
 
     expect(
       await screen.findByText(
-        "Antworten auf die Fragen des Formulars, Version 2. Antworten zu einem Kind stehen beim Kind.",
+        "Antworten auf die Fragen aus Formular-Version 2. Antworten zu einem Kind stehen beim Kind.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Wie haben Sie von den Ferien erfahren?"),
     ).toBeInTheDocument();
     expect(screen.getByText("Elternbrief")).toBeInTheDocument();
-    // A health answer carries its marker; the label comes from version 2.
+    // A health answer stands in the child's „Gesundheit“ box, whose title
+    // marks it; the label comes from version 2.
+    const healthBoxes = screen
+      .getAllByRole("heading", { name: "Gesundheit" })
+      .map((heading) => heading.parentElement!);
     expect(
-      screen.getByText("Tetanus-Impfschutz (Gesundheit)"),
-    ).toBeInTheDocument();
+      healthBoxes.filter(
+        (box) => within(box).queryByText("Tetanus-Impfschutz") !== null,
+      ),
+    ).toHaveLength(1);
     expect(screen.getByText("weiß nicht")).toBeInTheDocument();
     expect(
       screen.getByText("Darf an Ausflügen teilnehmen"),

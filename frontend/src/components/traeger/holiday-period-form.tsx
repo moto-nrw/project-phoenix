@@ -202,7 +202,7 @@ export function HolidayPeriodForm({
               name="name"
               label="Name des Ferienzeitraums"
               required
-              placeholder="Osterferien 2027"
+              placeholder="z. B. Osterferien 2027"
               value={draft.name}
               maxLength={120}
               error={fieldError("name") ?? undefined}
@@ -278,6 +278,13 @@ export function HolidayPeriodForm({
                 16 Uhr“, jedes mit eigenem Preis. Ein gebuchtes Zeitmodell
                 archivieren Sie: die Buchungen bleiben. Ein ungebuchtes
                 entfernen Sie mit „×“.
+                {draft.weeks.some((week) =>
+                  week.timeModels.some(
+                    (model) => model.protected && !model.archived,
+                  ),
+                )
+                  ? " Ein neuer Preis eines gebuchten Zeitmodells gilt für Anmeldungen, die Sie danach bestätigen. Bestätigte behalten ihren Betrag."
+                  : ""}
               </p>
             </div>
             <div className="space-y-4">

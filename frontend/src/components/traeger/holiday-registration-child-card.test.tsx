@@ -101,7 +101,7 @@ describe("HolidayRegistrationChildCard", () => {
     );
     expect(healthBox.getByText("Erdnüsse")).toBeInTheDocument();
     expect(
-      healthBox.getByText("Lebensmittelunverträglichkeiten (Gesundheit)"),
+      healthBox.getByText("Lebensmittelunverträglichkeiten"),
     ).toBeInTheDocument();
     expect(healthBox.getByText("Laktose")).toBeInTheDocument();
     const otherBox = within(
