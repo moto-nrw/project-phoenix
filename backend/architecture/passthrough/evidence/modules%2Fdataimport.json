@@ -23,6 +23,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedClassListEntryBatches) CreateClassListEntries(ctx context.Context, inputs []CreateClassListEntry) (result []ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entries\", time.Now(), \u0026err)\n\treturn o.ClassListEntryBatches.CreateClassListEntries(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedClassListEntryBatches.CreateClassListEntries",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedClassListMembership) CreateClassListEntry(ctx context.Context, input CreateClassListEntry) (result ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entry\", time.Now(), \u0026err)\n\treturn o.ClassListMembership.CreateClassListEntry(ctx, input)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedClassListMembership.CreateClassListEntry",

@@ -26,33 +26,53 @@ func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importMo
 	if err != nil {
 		return c
 	}
+	viewPersons, viewStudents, ok := nameMatchDirectories(persons, students, filter, names, c.Persons, c.Students)
+	if !ok {
+		return c
+	}
+	clone := *c
+	clone.Persons, clone.Students = viewPersons, viewStudents
+	return &clone
+}
+
+// nameMatchDirectories answers the exact-name searches of filter's names, and
+// the student listing of the persons found, from one read of both. ok is false
+// when that read cannot stand in for the scalar predicate.
+func nameMatchDirectories(persons []ports.Person, students []ports.Student, filter ports.PersonFilter, names map[ports.PersonName][]ports.Person, basePersons ports.PersonDirectory, baseStudents ports.StudentDirectory) (ports.PersonDirectory, ports.StudentDirectory, bool) {
 	// Both owner predicates use database LOWER with NFC normalization, not
 	// accent-insensitive search or Go's Unicode folding. Keep scalar matching
 	// for non-ASCII results rather than reimplementing the database equality.
 	// An empty bulk result proves absence because it uses the scalar predicate.
 	if len(persons) > 0 && !asciiPreviewNames(filter.Names, persons) {
-		return c
+		return nil, nil, false
 	}
 	for _, person := range persons {
 		// BTRIM in the owner removes spaces, not arbitrary Unicode whitespace.
 		name := previewName(strings.Trim(person.FirstName, " "), strings.Trim(person.LastName, " "))
 		names[name] = append(names[name], person)
 	}
-	clone := *c
-	clone.Persons = previewPersons{PersonDirectory: c.Persons, names: names}
 	personIDs := make(map[int64]bool, len(persons))
 	for _, person := range persons {
 		personIDs[person.ID] = true
 	}
-	clone.Students = previewStudents{StudentDirectory: c.Students, personIDs: personIDs, students: students}
-	return &clone
+	return previewPersons{PersonDirectory: basePersons, names: names}, previewStudents{StudentDirectory: baseStudents, personIDs: personIDs, students: students}, true
 }
 
 func studentPreviewNames(rows []importModels.StudentImportRow) (ports.PersonFilter, map[ports.PersonName][]ports.Person) {
-	names := make(map[ports.PersonName][]ports.Person, len(rows))
-	seen := make(map[ports.PersonName]bool, len(rows))
+	pairs := make([]ports.PersonName, len(rows))
+	for i, row := range rows {
+		pairs[i] = ports.PersonName{FirstName: row.FirstName, LastName: row.LastName}
+	}
+	return previewNameFilter(pairs)
+}
+
+// previewNameFilter is the name-set filter of distinct, complete, trimmed
+// names, with an empty match list per case-folded name.
+func previewNameFilter(pairs []ports.PersonName) (ports.PersonFilter, map[ports.PersonName][]ports.Person) {
+	names := make(map[ports.PersonName][]ports.Person, len(pairs))
+	seen := make(map[ports.PersonName]bool, len(pairs))
 	filter := ports.PersonFilter{}
-	for _, row := range rows {
+	for _, row := range pairs {
 		name := ports.PersonName{FirstName: strings.TrimSpace(row.FirstName), LastName: strings.TrimSpace(row.LastName)}
 		if name.FirstName == "" || name.LastName == "" || seen[name] {
 			continue
@@ -69,20 +89,28 @@ func (c *StudentImportConfig) readPreviewMatches(ctx context.Context, filter por
 	var students []ports.Student
 	err := c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		var err error
-		persons, err = c.Persons.SearchPersons(ctx, filter)
-		if err != nil {
-			return err
-		}
-		ids := make([]int64, 0, len(persons))
-		for _, person := range persons {
-			ids = append(ids, person.ID)
-		}
-		if len(ids) > 0 {
-			students, err = c.Students.ListStudentsByPersonID(ctx, ids)
-		}
+		persons, students, err = readNameMatches(ctx, c.Persons, c.Students, filter)
 		return err
 	})
 	return persons, students, err
+}
+
+// readNameMatches reads every person carrying one of filter's names and the
+// students among them.
+func readNameMatches(ctx context.Context, persons ports.PersonDirectory, students ports.StudentDirectory, filter ports.PersonFilter) ([]ports.Person, []ports.Student, error) {
+	found, err := persons.SearchPersons(ctx, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	ids := make([]int64, 0, len(found))
+	for _, person := range found {
+		ids = append(ids, person.ID)
+	}
+	if len(ids) == 0 {
+		return found, nil, nil
+	}
+	rows, err := students.ListStudentsByPersonID(ctx, ids)
+	return found, rows, err
 }
 
 func previewName(first, last string) ports.PersonName {

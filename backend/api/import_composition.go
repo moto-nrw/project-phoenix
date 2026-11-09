@@ -17,9 +17,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type importIdentity interface {
@@ -50,7 +52,8 @@ type imports struct {
 func newImportRuntime(audit auditModels.Command, observe func(importModels.ImportObservation)) importPorts.ImportRuntime {
 	return importPorts.ImportRuntime{
 		Transactions: dataImportCompose.NewTransactions(), Audit: audit, Observe: observe,
-		Fingerprint: securityruntime.Fingerprint,
+		Fingerprint: securityruntime.Fingerprint, BoundStatements: tenant.WithStatementTimeout,
+		ConnectionLost: transactionruntime.IsTransientDatabaseError,
 	}
 }
 
@@ -119,16 +122,28 @@ func newStaffImport(
 // audit trail apply to imported rows too.
 func newClassListImport(
 	runtime importPorts.ImportRuntime, membership schoolmembership.Capability, persons peopledirectory.Capability,
+	batches importPorts.ClassListEntryBatches,
 ) importModels.RowImporter[importModels.ClassListEntryImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewClassListImportConfig(
 		importPorts.ClassListImportDeps{
 			Transactions: runtime.Transactions,
 			Membership:   membership,
+			Batches:      batches,
 			Persons:      persons,
 			Students:     persons,
 			Audit:        runtime.Audit,
 		},
 	), runtime)
+}
+
+// classListBatches binds School Membership's class-list batch slice, which
+// stays outside its capability (#5827); the owner's composition asserts that
+// its service implements it. Without it the import takes the row path.
+func classListBatches(membership schoolmembership.Capability) importPorts.ClassListEntryBatches {
+	if bound, ok := membership.(schoolmembership.ClassListEntryBatches); ok {
+		return bound
+	}
+	return nil
 }
 
 // newOpeningBalanceImport composes the opening-balance import over
@@ -163,7 +178,7 @@ func newServeImports(
 			auditCompose.NewConsentRecorder(audit.Command),
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
-		ClassList: newClassListImport(runtime, membership, persons),
+		ClassList: newClassListImport(runtime, membership, persons, classListBatches(membership)),
 		OpeningBalance: newOpeningBalanceImport(runtime, importPorts.OpeningBalanceImportDeps{
 			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
 			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,

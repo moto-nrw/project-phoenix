@@ -73,6 +73,12 @@ type Store interface {
 	// class-then-name order a class list is read in.
 	ListClassListEntriesInDisplayOrder(context.Context, schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, domain.OperationStats, error)
 	CreateClassListEntry(ctx context.Context, fields schoolmembership.ClassListEntryFields, createdBy *int64) (schoolmembership.ClassListEntry, domain.OperationStats, error)
+	// CreateClassListEntries inserts the entries in input order in one
+	// statement; the result is index-aligned with the input.
+	CreateClassListEntries(ctx context.Context, fields []schoolmembership.ClassListEntryFields, createdBy []*int64) ([]schoolmembership.ClassListEntry, domain.OperationStats, error)
+	// MatchClassListEntries applies the ListClassListEntries name filter per
+	// key in one statement.
+	MatchClassListEntries(ctx context.Context, keys []schoolmembership.ClassListEntryFields) ([][]schoolmembership.ClassListEntry, domain.OperationStats, error)
 	UpdateClassListEntry(context.Context, int64, schoolmembership.ClassListEntryFields) (schoolmembership.ClassListEntry, domain.OperationStats, error)
 	DeleteClassListEntry(context.Context, int64) (domain.OperationStats, error)
 
