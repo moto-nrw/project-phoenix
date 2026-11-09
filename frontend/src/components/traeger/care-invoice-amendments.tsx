@@ -5,6 +5,7 @@
 // stehen; eine Änderung des Betrags oder der Positionen ist eine eigene
 // Zeile mit Grund. Nur die Seite einer Rechnung lädt diese Datei.
 
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -52,6 +53,26 @@ function changed(invoice: CareInvoice, kind: "recipient" | "address"): boolean {
 }
 
 /** The recipient the invoice goes to, marked when the review changed it. */
+/** The place of a line's row menu, kept where the line has none: with menus
+ * on the card, every amount ends at the same edge as the sum. */
+function MenuSlot() {
+  return <span aria-hidden="true" className="w-9 shrink-0" />;
+}
+
+/** A line without a menu of its own, beside the empty menu place. */
+function SlotLine({
+  reserve,
+  children,
+}: Readonly<{ reserve: boolean; children: ReactNode }>) {
+  if (!reserve) return <>{children}</>;
+  return (
+    <li className="flex items-center gap-2">
+      <ul className="min-w-0 flex-1">{children}</ul>
+      <MenuSlot />
+    </li>
+  );
+}
+
 function RecipientPanel({ invoice }: Readonly<{ invoice: CareInvoice }>) {
   const { recipient } = invoice;
   const name = [
@@ -164,17 +185,20 @@ export function CareAmendedInvoiceCard({
                       },
                     ]}
                   />
+                ) : editable ? (
+                  <MenuSlot />
                 ) : null}
               </li>
             );
           })}
           {invoice.reductions.map((reduction, index) => (
-            <InvoiceLine
-              key={`${reduction.kind}-${index}`}
-              title={reduction.name}
-              detail="Ermäßigung"
-              amount={formatEuro(reduction.amountCents)}
-            />
+            <SlotLine key={`${reduction.kind}-${index}`} reserve={editable}>
+              <InvoiceLine
+                title={reduction.name}
+                detail="Ermäßigung"
+                amount={formatEuro(reduction.amountCents)}
+              />
+            </SlotLine>
           ))}
           {invoice.mealPositions.map((position) => {
             const key = position.key;
@@ -214,41 +238,52 @@ export function CareAmendedInvoiceCard({
                       },
                     ]}
                   />
+                ) : editable ? (
+                  <MenuSlot />
                 ) : null}
               </li>
             );
           })}
           {invoice.costShares.length > 0 ? (
-            <InvoiceLine
-              title="Monatsbeitrag"
-              detail="vor den Kostenträgern"
-              amount={formatEuro(careContributionCents(invoice))}
-            />
+            <SlotLine reserve={editable}>
+              <InvoiceLine
+                title="Monatsbeitrag"
+                detail="vor den Kostenträgern"
+                amount={formatEuro(careContributionCents(invoice))}
+              />
+            </SlotLine>
           ) : null}
           {invoice.costShares.map((share) => (
-            <InvoiceLine
+            <SlotLine
               key={`${share.kind}-${share.costBearerId}`}
-              title={share.costBearerName}
-              detail={`übernimmt · ${COST_SHARE_KIND_LABELS[share.kind]}`}
-              amount={formatEuro(-share.amountCents)}
-            />
+              reserve={editable}
+            >
+              <InvoiceLine
+                title={share.costBearerName}
+                detail={`übernimmt · ${COST_SHARE_KIND_LABELS[share.kind]}`}
+                amount={formatEuro(-share.amountCents)}
+              />
+            </SlotLine>
           ))}
           {corrections.map((line) => (
-            <InvoiceLine
-              key={`correction-${line.id}`}
-              title={
-                <span className="inline-flex flex-wrap items-center gap-1.5">
-                  {line.kind === "amount" ? "Korrektur" : line.label}
-                  <StatusBadge tone="blue" size="xs" label="Änderung" />
-                </span>
-              }
-              detail={`Grund: ${line.reason}`}
-              amount={formatEuro(line.amountCents)}
-              amountClassName="font-medium text-gray-900"
-            />
+            <SlotLine key={`correction-${line.id}`} reserve={editable}>
+              <InvoiceLine
+                title={
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {line.kind === "amount" ? "Korrektur" : line.label}
+                    <StatusBadge tone="blue" size="xs" label="Änderung" />
+                  </span>
+                }
+                detail={`Grund: ${line.reason}`}
+                amount={formatEuro(line.amountCents)}
+                amountClassName="font-medium text-gray-900"
+              />
+            </SlotLine>
           ))}
         </ul>
-        <div className="flex items-baseline justify-between border-t border-gray-200 pt-3">
+        <div
+          className={`flex items-baseline justify-between border-t border-gray-200 pt-3 ${editable ? "pr-11" : ""}`}
+        >
           <p className="text-sm font-semibold text-gray-900">
             {invoice.costShares.length > 0 ? "Anteil der Familie" : "Summe"}
           </p>

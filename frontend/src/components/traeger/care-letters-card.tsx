@@ -7,6 +7,7 @@
 // Schreiben, auch nur die der Familien ohne E-Mail. Die Mail und das Fach
 // „Dokumente“ der Eltern-App bekommen dieselbe Datei.
 
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -185,7 +186,17 @@ export function CareLettersCard({
           <OverflowMenu
             ariaLabel="Schreiben drucken"
             triggerButton={{ variant: "outline", size: "md" }}
-            triggerContent={printing ? "Wird erstellt …" : "Drucken"}
+            triggerClassName="gap-2 whitespace-nowrap"
+            triggerContent={
+              printing ? (
+                "Wird erstellt …"
+              ) : (
+                <>
+                  Drucken
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                </>
+              )
+            }
             disabled={printing !== null}
             items={printItems}
           />
