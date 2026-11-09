@@ -120,9 +120,9 @@ export function SepaImportPreviewCard({
   const filters: { value: ImportFilter; label: string }[] = [
     { value: "all", label: `Alle ${result.rows.length}` },
     { value: "ready", label: `Bereit ${counts.ready + counts.imported}` },
-    { value: "clarify", label: `Bitte klären ${counts.clarify}` },
+    { value: "clarify", label: `Klären ${counts.clarify}` },
     { value: "problems", label: `Fehler ${counts.conflict + counts.invalid}` },
-    { value: "duplicate", label: `Schon vorhanden ${counts.duplicate}` },
+    { value: "duplicate", label: `Vorhanden ${counts.duplicate}` },
   ];
 
   const columns: DataTableColumn<ImportRow>[] = [
@@ -173,7 +173,7 @@ export function SepaImportPreviewCard({
       header: "Konto",
       render: (row) => (
         <span className="block">
-          <span className="block font-mono text-sm whitespace-nowrap text-gray-900">
+          <span className="block font-mono text-sm text-gray-900 sm:whitespace-nowrap">
             {row.ibanMasked || "–"}
           </span>
           <span className="block text-xs text-gray-500">
@@ -227,9 +227,10 @@ export function SepaImportPreviewCard({
         </div>
       }
     >
-      <div className="mb-4 overflow-x-auto">
+      <div className="mb-4">
         <SegmentedControl
           ariaLabel="Zeilen zeigen"
+          fullWidth
           items={filters}
           value={filter}
           onChange={setFilter}
