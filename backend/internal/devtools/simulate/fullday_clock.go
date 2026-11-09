@@ -93,15 +93,16 @@ func mustLoadBerlin() *time.Location {
 	return loc
 }
 
-// advanceClock moves the shared clock forward to the given time of today. It
+// advanceClock moves the shared clock forward to the given time of the
+// simulated day. It
 // never moves the clock back: a wave whose time has passed runs at once. After
 // a move the admin signs in again, since the access token may have expired.
 func (rt *Runtime) advanceClock(ctx context.Context, to wallClock) error {
 	if rt.Options.SetClock == nil {
 		return nil
 	}
-	now := rt.Options.now().In(simulationBerlin)
-	target := time.Date(now.Year(), now.Month(), now.Day(), int(to)/60, int(to)%60, 0, 0, simulationBerlin)
+	now := rt.Options.now()
+	target := time.Date(rt.Day.Year(), rt.Day.Month(), rt.Day.Day(), int(to)/60, int(to)%60, 0, 0, simulationBerlin)
 	if !target.After(now) {
 		return nil
 	}

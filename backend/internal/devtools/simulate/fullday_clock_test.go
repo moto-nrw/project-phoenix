@@ -17,6 +17,22 @@ type fakeClock struct {
 	mu    sync.Mutex
 	now   time.Time
 	moves []time.Time
+	// midnightAfter is a request path: once the mock server answered it, the
+	// clock jumps to the next Berlin midnight, as real time crosses it.
+	midnightAfter string
+	jumped        bool
+}
+
+// answered lets the clock cross midnight after the request of midnightAfter.
+func (c *fakeClock) answered(path string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.midnightAfter == "" || c.jumped || path != c.midnightAfter {
+		return
+	}
+	c.jumped = true
+	day := c.now.In(simulationBerlin)
+	c.now = time.Date(day.Year(), day.Month(), day.Day()+1, 0, 0, 0, 0, simulationBerlin)
 }
 
 func (c *fakeClock) Now() time.Time {
@@ -42,8 +58,8 @@ func (c *fakeClock) Moves() []time.Time {
 // stampedCall is one request with the shared clock's time when it arrived and
 // the login (the e-mail address in the mock token) or device that sent it.
 type stampedCall struct {
-	Method, Path, Clock, Caller string
-	Body                        map[string]any
+	Method, Path, Day, Clock, Caller string
+	Body                             map[string]any
 }
 
 func berlinTime(t *testing.T, value string) time.Time {

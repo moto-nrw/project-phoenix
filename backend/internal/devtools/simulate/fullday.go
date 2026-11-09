@@ -8,6 +8,8 @@ import (
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Registered error codes (error-registry/) the simulation expects from
@@ -350,10 +352,7 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 	if err := json.Unmarshal(periodResponse, &periodEnvelope); err != nil {
 		return fmt.Errorf("decode POST /api/timetable/periods/bootstrap response: %w", err)
 	}
-	today, err := time.ParseInLocation(isoDate, rt.Options.now().In(berlin).Format(isoDate), berlin)
-	if err != nil {
-		return fmt.Errorf("normalize current date: %w", err)
-	}
+	today := rt.Day.BerlinMidnight()
 	date, err := firstFutureWeekdayInPeriods(periodEnvelope.Data.Periods, today, berlin)
 	if err != nil {
 		return err
@@ -471,12 +470,7 @@ func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 		fmt.Println("  Skipped: no Sporthalle or no free caregiver in this profile")
 		return nil
 	}
-	berlin, err := time.LoadLocation("Europe/Berlin")
-	if err != nil {
-		return fmt.Errorf("load Berlin time zone: %w", err)
-	}
-	today := rt.Options.now().In(berlin)
-	if today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
+	if calendar.IsWeekend(rt.Day) {
 		fmt.Println("  Skipped: no care day on weekends")
 		return nil
 	}
@@ -487,7 +481,7 @@ func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 	}
 
 	created, err := rt.Client.Post("/api/timetable/instances", map[string]any{
-		"date":        today.Format(isoDate),
+		"date":        rt.Day.String(),
 		"start_time":  openRoomBlockStart.String(),
 		"end_time":    openRoomBlockEnd.String(),
 		"title":       openRoomBlockTitle,
