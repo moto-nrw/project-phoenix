@@ -448,8 +448,8 @@ export function SepaMandatesCard({
       stacked: "field",
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
-          {/* Groups may wrap on a phone; a group itself never breaks. */}
-          <span className="block font-mono text-gray-900 tabular-nums md:whitespace-nowrap">
+          {/* One line on every width: a split IBAN is misread. */}
+          <span className="block font-mono whitespace-nowrap text-gray-900 tabular-nums">
             {/* The last two groups are the digits that tell accounts apart:
                 they stay together. */}
             {mandate.ibanMasked.replace(/ (\S+)$/, "\u00A0$1")}
@@ -461,22 +461,15 @@ export function SepaMandatesCard({
       ),
     },
     {
-      // The next debit is a second line under the signature date: one
-      // column less keeps „Stand“ readable on a tablet.
+      // Only the date: the kind of the next debit stands on the family's
+      // mandate page, and the list keeps „Stand“ in view on a tablet.
       key: "signed",
       header: "Unterschrieben",
       stacked: "field",
       sortValue: (mandate) => mandate.signedOn,
       render: (mandate) => (
-        <span className="block">
-          <span className="block whitespace-nowrap tabular-nums">
-            {formatDate(mandate.signedOn)}
-          </span>
-          {mandate.revokedOn ? null : (
-            <span className="block text-sm text-gray-500">
-              Art der nächsten Abbuchung: {nextDebitLabel(mandate)}
-            </span>
-          )}
+        <span className="whitespace-nowrap tabular-nums">
+          {formatDate(mandate.signedOn)}
         </span>
       ),
     },
@@ -567,6 +560,8 @@ export function SepaMandatesCard({
           getRowKey={(mandate) => mandate.id}
           rowHasInteractiveControls
           stackedOnMobile
+          // Label above value on a phone: the masked IBAN keeps one line.
+          stackedLayout="form"
         />
       ) : mandates ? (
         <EmptyState

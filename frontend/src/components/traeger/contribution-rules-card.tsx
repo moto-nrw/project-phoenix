@@ -36,14 +36,14 @@ const KIND_TEXT: Record<
   sibling: {
     title: "Geschwister",
     description:
-      "Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung.",
-    add: "Geschwisterregel hinzufügen",
+      "Für die Ferienbetreuung: Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung.",
+    add: "Geschwisterregel anlegen",
     empty: "Keine Geschwisterregel. Alle Kinder zahlen den vollen Preis.",
   },
   benefits_exemption: {
     title: "Befreiung bei Leistungsbezug",
     description: `${EXEMPTION_RULE_SCOPE} Befreite Familien zahlen nichts.`,
-    add: "Befreiungsregel hinzufügen",
+    add: "Befreiungsregel anlegen",
     empty:
       "Keine Befreiungsregel. Alle Familien zahlen, auch bei Leistungsbezug.",
   },

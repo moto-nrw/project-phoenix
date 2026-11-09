@@ -110,7 +110,7 @@ describe("TraegerAbrechnungPage", () => {
       ),
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Offenen Lauf öffnen" }),
+      screen.getByRole("button", { name: "Lauf Winterferien 2027 öffnen" }),
     );
 
     await waitFor(() =>

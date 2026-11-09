@@ -482,7 +482,17 @@ export default function TraegerCareRunPage() {
               </DataField>
               <DataField label="Schulen">
                 {preview
-                  ? run.schools.map((school) => school.name).join(", ") || "–"
+                  ? // A school without an invoice says so: nobody looks for
+                    // invoices that are not there.
+                    run.schools
+                      .map((school) =>
+                        run.invoices.some(
+                          (invoice) => invoice.schoolId === school.id,
+                        )
+                          ? school.name
+                          : `${school.name} (keine Rechnung)`,
+                      )
+                      .join(", ") || "–"
                   : run.schoolIds.length === 0
                     ? "–"
                     : run.schoolIds.length === 1

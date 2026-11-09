@@ -18,6 +18,7 @@ import {
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
@@ -73,7 +74,8 @@ export function ExclusionMenu({
           ? [
               {
                 label: "Rechnung ändern",
-                description: "Betrag, Empfänger, Anschrift oder Positionen",
+                description:
+                  "Nur diese Rechnung: Betrag, Positionen, Empfänger",
                 onClick: () => onAmend(invoice),
               },
             ]
@@ -261,6 +263,11 @@ function DebitHintsCard({
   const creditorMissing = hints.some(
     (hint) => hint.item.payment?.debitGap === "creditor_missing",
   );
+  // A missing mandate is entered, any other gap is checked.
+  const mandateAction = (item: DebitItem) =>
+    item.payment?.debitGap === "mandate_missing"
+      ? "Mandat erfassen"
+      : "Mandat prüfen";
   // Open rows first; a family that pays by transfer is information only.
   const isTransfer = (hint: DebitHint) =>
     !hint.dueTooSoon && hint.item.payment?.method === "transfer";
@@ -335,8 +342,10 @@ function DebitHintsCard({
         ) : null
       }
     >
-      <ResponsiveActionList>
-        {shown.map(({ item, text, dueTooSoon }) => (
+      {(() => {
+        // Open rows first; a family that pays by transfer pays all the
+        // same, so it stands apart as information.
+        const renderRow = ({ item, text, dueTooSoon }: DebitHint) => (
           <li
             key={item.key}
             className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
@@ -363,15 +372,38 @@ function DebitHintsCard({
                   href={traegerPath(item.href)}
                   variant="surface"
                   size="compact"
-                  aria-label={`Mandat prüfen: ${item.family}`}
+                  aria-label={`${mandateAction(item)}: ${item.family}`}
                 >
-                  Mandat prüfen
+                  {mandateAction(item)}
                 </ButtonLink>
               )}
             </div>
           </li>
-        ))}
-      </ResponsiveActionList>
+        );
+        const openRows = shown.filter((hint) => !isTransfer(hint));
+        const infoRows = shown.filter(isTransfer);
+        return (
+          <>
+            {openRows.length > 0 ? (
+              <ResponsiveActionList>
+                {openRows.map(renderRow)}
+              </ResponsiveActionList>
+            ) : null}
+            {infoRows.length > 0 ? (
+              <>
+                {openRows.length > 0 ? (
+                  <SectionLabel as="h3" className="mt-5 mb-2">
+                    Zur Information
+                  </SectionLabel>
+                ) : null}
+                <ResponsiveActionList>
+                  {infoRows.map(renderRow)}
+                </ResponsiveActionList>
+              </>
+            ) : null}
+          </>
+        );
+      })()}
       {hints.length > DEBIT_HINTS_SHOWN ? (
         <Button
           type="button"

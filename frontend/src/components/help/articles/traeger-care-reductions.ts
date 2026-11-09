@@ -29,7 +29,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
           "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
           "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
           "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein. Bei Geschwistern gibt es auch `Preis laut Preisliste`.",
-          "Wählen Sie `Regel speichern`.",
+          "Wählen Sie `Speichern`.",
         ],
       },
       {

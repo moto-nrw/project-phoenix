@@ -32,6 +32,8 @@ interface RunStartOption {
 interface BlockedChoices {
   readonly values: readonly string[];
   readonly hint: string;
+  /** The button that opens the run in preview, named after it. */
+  readonly openLabel: (value: string) => string;
   readonly onOpen: (value: string) => void;
 }
 
@@ -138,7 +140,7 @@ function RunStartModal({
               : formRef.current?.requestSubmit()
           }
           saving={saving}
-          saveLabel={isBlocked ? "Offenen Lauf öffnen" : title}
+          saveLabel={isBlocked && blocked ? blocked.openLabel(value) : title}
         />
       }
     >
@@ -218,6 +220,12 @@ export function BillingRunStartModal({
           ? {
               values: [...open.keys()],
               hint: "Für diesen Ferienzeitraum ist schon ein Lauf in der Vorschau. Öffnen Sie ihn, statt einen neuen zu starten.",
+              openLabel: (periodId) => {
+                const name = periods.find(
+                  (period) => period.id === periodId,
+                )?.name;
+                return name ? `Lauf ${name} öffnen` : "Lauf öffnen";
+              },
               onOpen: (periodId) => {
                 const runId = open.get(periodId);
                 if (runId) onOpenRun(runId);

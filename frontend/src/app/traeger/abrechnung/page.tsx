@@ -50,12 +50,43 @@ const logger = createLogger({ component: "TraegerAbrechnungPage" });
 // On a phone a run is one line: its holiday period, the status beside it,
 // and below the care days with what the run issued. Only the first "meta"
 // column shows there, so the status is the one meta value.
-const COLUMNS: DataTableColumn<BillingRun>[] = [
+/**
+ * The number of a run within its holiday period, oldest first, for periods
+ * with more than one run: two rows of one period differ by more than a pill.
+ */
+function runOrdinals(runs: readonly BillingRun[]): Map<string, number> {
+  const byPeriod = new Map<string, BillingRun[]>();
+  for (const run of runs) {
+    byPeriod.set(run.holidayPeriodId, [
+      ...(byPeriod.get(run.holidayPeriodId) ?? []),
+      run,
+    ]);
+  }
+  const ordinals = new Map<string, number>();
+  for (const periodRuns of byPeriod.values()) {
+    if (periodRuns.length < 2) continue;
+    [...periodRuns]
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .forEach((run, index) => ordinals.set(run.id, index + 1));
+  }
+  return ordinals;
+}
+
+const columnsFor = (
+  ordinals: ReadonlyMap<string, number>,
+): DataTableColumn<BillingRun>[] => [
   {
     key: "period",
     header: "Ferienzeitraum",
     render: (run) => (
-      <span className="font-medium text-gray-900">{run.periodName}</span>
+      <span className="block">
+        <span className="font-medium text-gray-900">{run.periodName}</span>
+        {ordinals.has(run.id) ? (
+          <span className="block text-sm text-gray-600">
+            {ordinals.get(run.id)}. Lauf für diesen Zeitraum
+          </span>
+        ) : null}
+      </span>
     ),
     stacked: "title",
   },
@@ -322,7 +353,7 @@ function BillingRunsPage() {
             />
           ) : null}
           <DataTable
-            columns={COLUMNS}
+            columns={columnsFor(runOrdinals(data.runs))}
             rows={shownRuns}
             getRowKey={(run) => run.id}
             stackedOnMobile

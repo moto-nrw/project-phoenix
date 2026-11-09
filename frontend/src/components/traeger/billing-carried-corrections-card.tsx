@@ -99,7 +99,7 @@ export function BillingCarriedCorrectionsCard({
       {rows.length > 0 ? (
         <SectionCard
           title="Übernommene Korrekturen"
-          description="Diese Korrekturen stammen aus der stornierten Rechnung und zählen schon in der neuen. Prüfen Sie jede vor der Freigabe."
+          description="Diese Korrekturen stammen aus der stornierten Rechnung und zählen schon in der neuen. Stimmt ein Betrag nicht, ändern Sie ihn im Menü der Zeile."
         >
           <ResponsiveActionList>
             {rows.map((row) => (

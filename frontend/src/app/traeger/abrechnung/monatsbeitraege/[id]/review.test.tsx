@@ -142,7 +142,10 @@ describe("monthly run review", () => {
     expect(school.queryAllByText("Mia Beispiel")).toHaveLength(0);
     expect(screen.getByText("30.10.2026")).toBeInTheDocument();
     expect(
-      screen.getByText("Grundschule Ispringen, Grundschule Birkenfeld"),
+      // The school without an invoice in this run says so.
+      screen.getByText(
+        "Grundschule Ispringen, Grundschule Birkenfeld (keine Rechnung)",
+      ),
     ).toBeInTheDocument();
 
     fireEvent.click(

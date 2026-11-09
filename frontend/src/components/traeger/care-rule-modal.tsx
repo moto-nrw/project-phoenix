@@ -28,6 +28,14 @@ import { addMonths, formatMonth, monthsFromTo } from "./care-billing-format";
 import { CARE_RULE_KIND_LABELS } from "./care-reduction-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
+/** The title of a new rule names what the head button created. */
+const NEW_RULE_TITLES: Record<CareRuleKind, string> = {
+  income_level: "Neue Einkommensstufe",
+  sibling: "Neue Geschwisterregel",
+  single_parent: "Neue Regel für Alleinerziehende",
+  cap: "Neuer Höchstbetrag",
+};
+
 const logger = createLogger({ component: "CareRuleModal" });
 
 type Effect = "share" | "amount" | "price" | "tariff";
@@ -306,7 +314,7 @@ export function CareRuleModal({
       title={
         open?.rule
           ? `${CARE_RULE_KIND_LABELS[kind]}: ${open.rule.name}`
-          : `Neue Regel: ${CARE_RULE_KIND_LABELS[kind]}`
+          : NEW_RULE_TITLES[kind]
       }
       size="lg"
       error={formErrors.error}
@@ -315,7 +323,7 @@ export function CareRuleModal({
           onCancel={onClose}
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
-          saveLabel="Regel speichern"
+          saveLabel="Speichern"
         />
       }
     >

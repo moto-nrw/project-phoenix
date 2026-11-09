@@ -174,7 +174,7 @@ const RECIPIENT_ITEMS: readonly { value: RecipientKind; label: string }[] = [
 ];
 
 const DUE_DAY_OPTIONS = [
-  { value: "", label: "Fälligkeit des Laufs" },
+  { value: "", label: "Wie im Lauf" },
   ...Array.from({ length: MAX_DUE_DAY }, (_, index) => ({
     value: String(index + 1),
     label: `Am ${index + 1}. des Monats`,
@@ -422,10 +422,10 @@ export function FamilyBillingForm({
       <CustomSelect
         id={id("due-day")}
         name="due_day"
-        label="Eigener Zahltag"
+        label="Zahltag"
         value={draft.dueDay}
         options={DUE_DAY_OPTIONS}
-        hint="Fällig ist der nächste gewählte Tag nach dem Rechnungsdatum. „Fälligkeit des Laufs“ nimmt das Datum des Laufs."
+        hint="Fällig ist der nächste gewählte Tag nach dem Rechnungsdatum. „Wie im Lauf“ nimmt das Datum des Laufs."
         error={fieldError("due_day")}
         onChange={(dueDay) => set({ dueDay })}
       />
@@ -437,7 +437,7 @@ export function FamilyBillingForm({
           className="self-start"
           onClick={() => setDraft(EMPTY_FAMILY_BILLING)}
         >
-          Wieder wie im Vertrag
+          Felder wie im Vertrag ausfüllen
         </Button>
       ) : null}
       <FormErrorAlert message={formErrors.error} />

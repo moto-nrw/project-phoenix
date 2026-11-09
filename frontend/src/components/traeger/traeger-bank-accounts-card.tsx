@@ -92,7 +92,10 @@ export function TraegerBankAccountsCard({
           <span className="min-w-0 wrap-anywhere">{account.label}</span>
           {account.isDefault ? (
             <StatusBadge label="Standard" tone="green" compact />
-          ) : null}
+          ) : (
+            // Only the standard account is printed: say so at the others.
+            <StatusBadge label="Auf keinem Brief" tone="gray" compact />
+          )}
         </span>
       ),
       stacked: "title",
@@ -164,7 +167,7 @@ export function TraegerBankAccountsCard({
   return (
     <SectionCard
       title="Bankverbindungen"
-      description="Auf Briefen und Rechnungen steht die Standard-Bankverbindung."
+      description="Auf Briefen und Rechnungen steht nur die Standard-Bankverbindung. Die anderen Konten stehen auf keinem Brief."
       actions={
         canEdit ? (
           <Button

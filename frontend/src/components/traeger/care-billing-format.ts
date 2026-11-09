@@ -61,7 +61,8 @@ export const CARE_RUN_STATUS_TONES: Record<CareRunStatus, "orange" | "green"> =
   };
 
 export const MONTH_RULE_LABELS: Record<CareMonthRule, string> = {
-  version_on_first: "Voller Monat nach dem Vertrag am 1.",
+  // „am 1.“ stays together on one line.
+  version_on_first: "Voller Monat nach dem Vertrag am\u00a01.",
   pro_rata: "Anteilig nach Kalendertagen",
 };
 

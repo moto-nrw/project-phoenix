@@ -189,7 +189,7 @@ export function ContributionRuleModal({
 
   const set = (patch: Partial<Draft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));
-  const title = `${sibling ? "Geschwisterregel" : "Befreiungsregel"} ${edit?.kind === "change" ? "ändern" : "hinzufügen"}`;
+  const title = `${sibling ? "Geschwisterregel" : "Befreiungsregel"} ${edit?.kind === "change" ? "ändern" : "anlegen"}`;
 
   return (
     <FormModal
