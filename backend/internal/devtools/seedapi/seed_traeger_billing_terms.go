@@ -144,8 +144,22 @@ func seedImportedMandate(client *Client, auth AuthRef, familyEmail, lastName str
 		`"account_holder":"Kontoinhaber","payer":"E-Mail","creditor_id":"","sequence":"Lastschriftart",` +
 		`"last_collected_on":"Letzter Einzug"},"payer_key":"email","creditor_from_traeger":true,` +
 		`"confirmed_creditor_id":"DE98ZZZ09999999999"}`
+	// Like the office: preview first, then take over what the preview showed.
+	raw, err := client.PostFileWithAuthFields(auth, "/traeger/sepa-mandates/imports/preview", "file", "ogs-connect-mandate.csv",
+		[]byte(csv), map[string]string{"mapping": mapping})
+	if err != nil {
+		return fmt.Errorf("preview the import of a SEPA mandate: %w", err)
+	}
+	var preview struct {
+		Data struct {
+			Fingerprint string `json:"fingerprint"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &preview); err != nil {
+		return fmt.Errorf("read the import preview: %w", err)
+	}
 	if _, err := client.PostFileWithAuthFields(auth, "/traeger/sepa-mandates/imports", "file", "ogs-connect-mandate.csv",
-		[]byte(csv), map[string]string{"mapping": mapping}); err != nil {
+		[]byte(csv), map[string]string{"mapping": mapping, "fingerprint": preview.Data.Fingerprint}); err != nil {
 		return fmt.Errorf("import the SEPA mandate of a family: %w", err)
 	}
 	return nil

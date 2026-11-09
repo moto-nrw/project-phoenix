@@ -27,6 +27,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   fetchSepaCreditor,
@@ -180,6 +181,7 @@ export default function TraegerSepaImportPage() {
         file,
         mapping: result.mapping,
         sequences: answers,
+        fingerprint: result.fingerprint,
       });
       setDone(applied);
       success(
@@ -190,6 +192,14 @@ export default function TraegerSepaImportPage() {
     } catch (err) {
       logger.error("sepa_import_apply_failed", { error: errorText(err) });
       void show(err, { object: "die Mandate" });
+      if (
+        err instanceof ApiError &&
+        err.code === wireErrorCode("parent_billing.sepa_import_changed")
+      ) {
+        // The rows changed since the office looked: show the current ones,
+        // the import waits for a new confirmation.
+        void read(file, result.mapping, answers);
+      }
       return;
     } finally {
       setApplying(false);

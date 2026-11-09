@@ -77,12 +77,13 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		}
 		return result, nil
 	}
-	candidates, err := m.evaluateImport(ctx, reviewer.OrganizationID, table, columns, creditor.CreditorID, request.Sequences)
+	candidates, err := m.evaluateImport(ctx, reviewer, table, columns, creditor.CreditorID, request.Sequences)
 	if err != nil {
 		return parentbilling.SEPAMandateImport{}, err
 	}
+	result.Fingerprint = importFingerprint(result.Mapping, creditor.CreditorID, candidates)
 	if request.Apply {
-		if err := m.applyImport(ctx, reviewer, importFileName(request.FileName), candidates); err != nil {
+		if err := m.applyConfirmed(ctx, reviewer, request, result.Fingerprint, candidates); err != nil {
 			return parentbilling.SEPAMandateImport{}, err
 		}
 		result.Applied = true
@@ -179,20 +180,26 @@ func countImportRow(counts *parentbilling.SEPAMandateImportCounts, status string
 	}
 }
 
-// evaluateImport reads the payers and mandates of the Träger once and
-// checks every row against them and against the rows before it.
-func (m *SEPAMandates) evaluateImport(ctx context.Context, organizationID int64, table importTable, columns importColumnIndex,
-	creditorID string, sequences map[int]string,
+// evaluateImport reads the payers and mandates of the Träger once, opens
+// the accounts of the stored mandates the file names again, and checks
+// every row against them and against the rows before it.
+func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbilling.HolidayReviewer, table importTable,
+	columns importColumnIndex, creditorID string, sequences map[int]string,
 ) ([]importCandidate, error) {
-	payers, err := m.importPayers(ctx, organizationID)
+	payers, err := m.importPayers(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
-	existing, err := m.store.SEPAMandates(ctx, organizationID, "")
+	existing, err := m.store.SEPAMandates(ctx, reviewer.OrganizationID, "")
+	if err != nil {
+		return nil, err
+	}
+	accounts, err := m.importAccounts(ctx, reviewer, table, columns, existing)
 	if err != nil {
 		return nil, err
 	}
 	check := newImportCheck(columns, creditorID, payers, existing, m.today(), sequences)
+	check.accounts = accounts
 	candidates := make([]importCandidate, len(table.rows))
 	for i, cells := range table.rows {
 		candidates[i] = check.row(cells, table.lines[i])
@@ -249,6 +256,18 @@ func (m *SEPAMandates) importPayers(ctx context.Context, organizationID int64) (
 		}
 	}
 	return payers, nil
+}
+
+// applyConfirmed takes over exactly the preview the office confirmed: a
+// revoked mandate, a new contract or another answer since then changes the
+// rows, and the office looks again (ErrImportChanged).
+func (m *SEPAMandates) applyConfirmed(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	request parentbilling.SEPAMandateImportRequest, fingerprint string, candidates []importCandidate,
+) error {
+	if fingerprint == "" || request.Fingerprint != fingerprint {
+		return parentbilling.ErrImportChanged
+	}
+	return m.applyImport(ctx, reviewer, importFileName(request.FileName), candidates)
 }
 
 // applyImport stores the ready rows in line order through the owner's

@@ -234,9 +234,20 @@ func TestImportCheckSkipsDuplicatesAndReportsConflicts(t *testing.T) {
 		{ID: 2, Reference: "SJR-2", FamilyEmail: "b@example.org", SignedOn: calendar.NewDate(2024, 2, 1), CreditorID: importCreditor},
 	}
 	check := newTestImportCheck(existing, nil)
+	// The stored account of SJR-1 as the owner opened it; SJR-2 stays
+	// unopened.
+	check.accounts[existing[0].ID] = importAccount{iban: importIBAN, holder: "Jürgen Müller"}
 	same := check.row(importRow("SJR-1", "01.02.2024", importIBAN, "a@example.org", importCreditor, "RCUR", ""), 2)
 	assert.Equal(t, parentbilling.ImportRowDuplicate, same.row.Status)
 	assert.Equal(t, existing[0].ID, same.row.MandateID)
+	otherAccount := check.row(importRow("SJR-1", "01.02.2024", "DE02120300000000202051", "a@example.org", importCreditor, "RCUR", ""), 8)
+	assert.Equal(t, parentbilling.ImportRowConflict, otherAccount.row.Status, "another IBAN is no duplicate")
+	assert.Equal(t, []string{"iban:account_differs"}, problemCodes(otherAccount.row))
+	otherHolder := importRow("SJR-1", "01.02.2024", importIBAN, "a@example.org", importCreditor, "RCUR", "")
+	otherHolder[3] = "Jan Müller"
+	assert.Equal(t, []string{"account_holder:account_differs"}, problemCodes(check.row(otherHolder, 9).row))
+	unopened := check.row(importRow("SJR-2", "01.02.2024", importIBAN, "b@example.org", importCreditor, "RCUR", ""), 10)
+	assert.Equal(t, parentbilling.ImportRowConflict, unopened.row.Status, "a mandate not compared is no duplicate")
 
 	otherDate := check.row(importRow("SJR-2", "02.02.2024", importIBAN, "b@example.org", importCreditor, "RCUR", ""), 3)
 	assert.Equal(t, parentbilling.ImportRowConflict, otherDate.row.Status)

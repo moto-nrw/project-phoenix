@@ -91,6 +91,7 @@ const CodeParentBillingSepaDebitRunNotFound = "parent_billing.sepa_debit_run_not
 const CodeParentBillingSepaDebitsChanged = "parent_billing.sepa_debits_changed"
 const CodeParentBillingSepaDebitsEmpty = "parent_billing.sepa_debits_empty"
 const CodeParentBillingSepaEndToEndDuplicate = "parent_billing.sepa_end_to_end_duplicate"
+const CodeParentBillingSepaImportChanged = "parent_billing.sepa_import_changed"
 const CodeParentBillingSepaImportFileInvalid = "parent_billing.sepa_import_file_invalid"
 const CodeParentBillingSepaImportFileTooLarge = "parent_billing.sepa_import_file_too_large"
 const CodeParentBillingSepaImportMappingInvalid = "parent_billing.sepa_import_mapping_invalid"
@@ -194,6 +195,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingSepaDebitsChanged, "business_rejection"},
 	{CodeParentBillingSepaDebitsEmpty, "business_rejection"},
 	{CodeParentBillingSepaEndToEndDuplicate, "business_rejection"},
+	{CodeParentBillingSepaImportChanged, "business_rejection"},
 	{CodeParentBillingSepaImportFileInvalid, "input"},
 	{CodeParentBillingSepaImportFileTooLarge, "input"},
 	{CodeParentBillingSepaImportMappingInvalid, "input"},

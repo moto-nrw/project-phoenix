@@ -99,5 +99,6 @@
   "sepa_end_to_end_duplicate": "Zwei Lastschriften hätten in der Datei dieselbe Kennung. Die Bank könnte sie nicht unterscheiden. Bitte wenden Sie sich an den moto-Support.",
   "sepa_import_file_invalid": "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften.",
   "sepa_import_file_too_large": "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
-  "sepa_import_mapping_invalid": "Bitte ordnen Sie zuerst alle Pflichtspalten zu."
+  "sepa_import_mapping_invalid": "Bitte ordnen Sie zuerst alle Pflichtspalten zu.",
+  "sepa_import_changed": "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann."
 }

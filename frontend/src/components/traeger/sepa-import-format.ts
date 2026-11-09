@@ -128,6 +128,10 @@ export function importProblemText(problem: ImportProblem): string {
       return "Erstlastschrift, aber mit letzter Abbuchung.";
     case "one_off":
       return "Einzelmandate übernimmt moto nicht.";
+    case "account_differs":
+      return problem.field === "account_holder"
+        ? "Zu dieser Mandatsreferenz ist ein anderer Kontoinhaber gespeichert."
+        : "Zu dieser Mandatsreferenz ist ein anderes Konto gespeichert.";
     case "expired":
       return "Seit 36 Monaten nicht genutzt. Das Mandat gilt nicht mehr.";
     default:

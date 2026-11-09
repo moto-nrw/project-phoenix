@@ -99,5 +99,6 @@
   "sepa_end_to_end_duplicate": "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
   "sepa_import_file_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_import_file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "sepa_import_mapping_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "sepa_import_mapping_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "sepa_import_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

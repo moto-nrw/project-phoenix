@@ -49,6 +49,7 @@ const result: ImportResult = {
   },
   unmapped: [],
   creditorId: "DE98ZZZ09999999999",
+  fingerprint: "preview-1",
   applied: false,
   counts: {
     ready: 1,

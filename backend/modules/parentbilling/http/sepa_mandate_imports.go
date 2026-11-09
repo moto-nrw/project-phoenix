@@ -111,7 +111,8 @@ func importRequestOf(w http.ResponseWriter, r *http.Request) (capability.SEPAMan
 	if len(content) > capability.MaxImportFileBytes {
 		return capability.SEPAMandateImportRequest{}, capability.ErrImportFileTooLarge
 	}
-	request := capability.SEPAMandateImportRequest{Content: content, FileName: header.Filename, Delimiter: r.FormValue("delimiter")}
+	request := capability.SEPAMandateImportRequest{Content: content, FileName: header.Filename, Delimiter: r.FormValue("delimiter"),
+		Fingerprint: r.FormValue("fingerprint")}
 	if raw := r.FormValue("mapping"); raw != "" {
 		mapping := &capability.SEPAMandateImportMapping{}
 		if err := json.Unmarshal([]byte(raw), mapping); err != nil {
@@ -165,6 +166,8 @@ func renderImportError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorRequestTooLargeWithCode(err, common.CodeParentBillingSepaImportFileTooLarge))
 	case errors.Is(err, capability.ErrImportFileInvalid), errors.Is(err, errImportFileType):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingSepaImportFileInvalid))
+	case errors.Is(err, capability.ErrImportChanged):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaImportChanged))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingSepaImportMappingInvalid))
 	default:

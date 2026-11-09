@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { ImportResult } from "~/lib/traeger-sepa-import-api";
 import TraegerSepaImportPage from "./page";
 
@@ -57,6 +58,7 @@ const preview: ImportResult = {
   },
   unmapped: [],
   creditorId: "DE98ZZZ09999999999",
+  fingerprint: "preview-1",
   applied: false,
   counts: {
     ready: 1,
@@ -305,5 +307,31 @@ describe("SEPA import approval", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(api.applySepaImport).toHaveBeenCalledTimes(1);
     expect(api.fetchSepaImportLog).toHaveBeenCalledTimes(3);
+  });
+
+  // The import takes over only the confirmed preview (#6198): it sends the
+  // preview's fingerprint, and when the rows changed since, the page shows
+  // the current preview and imports nothing.
+  it("sends the confirmed preview and reloads it when the rows changed", async () => {
+    await choose();
+    api.applySepaImport.mockRejectedValueOnce(
+      new ApiError("Request failed (409)", 409, {
+        code: "parent_billing.sepa_import_changed",
+      }),
+    );
+    api.previewSepaImport.mockResolvedValueOnce({
+      ...preview,
+      fingerprint: "preview-2",
+      counts: { ...preview.counts, ready: 2 },
+    });
+    fireEvent.click(importButton()!);
+    await waitFor(() => expect(api.previewSepaImport).toHaveBeenCalledTimes(2));
+    expect(api.applySepaImport).toHaveBeenCalledWith(
+      expect.objectContaining({ fingerprint: "preview-1" }),
+    );
+    expect(
+      await screen.findByText(/Seit der Vorschau hat sich etwas geändert/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("1 Mandat übernommen")).not.toBeInTheDocument();
   });
 });

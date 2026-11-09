@@ -78,6 +78,10 @@ const (
 	ImportProblemSequenceConflict  = "sequence_contradicts"
 	ImportProblemOneOff            = "one_off"
 	ImportProblemExpired           = "expired"
+	// ImportProblemAccountDiffers is a mandate the Träger has with the same
+	// reference, family, date and creditor but another IBAN or account
+	// holder: a conflict, never a duplicate and never overwritten.
+	ImportProblemAccountDiffers = "account_differs"
 )
 
 // Hints of a row the import still takes over.
@@ -98,6 +102,11 @@ var (
 	// ErrImportFileInvalid reports a file that is no readable CSV with a
 	// header and at least one row.
 	ErrImportFileInvalid = errors.New("the import file is no readable CSV file with a header row and data rows")
+	// ErrImportChanged reports an import whose rows no longer are what the
+	// office confirmed in the preview: the mandates of the Träger, its
+	// contracts or the answers changed since. The office loads the preview
+	// again.
+	ErrImportChanged = errors.New("the import differs from the confirmed preview")
 	// ErrImportFileTooLarge reports a file over MaxImportFileBytes or with
 	// more than MaxImportRows rows.
 	ErrImportFileTooLarge = errors.New("the import file is too large")
@@ -147,6 +156,9 @@ type SEPAMandateImportRequest struct {
 	Mapping   *SEPAMandateImportMapping
 	Sequences map[int]string
 	Apply     bool
+	// Fingerprint is the fingerprint of the preview the office confirmed;
+	// Apply refuses with ErrImportChanged when the rows differ from it.
+	Fingerprint string
 }
 
 // SEPAMandateImportProblem is one problem of a row: the field and the code.
@@ -194,11 +206,14 @@ type SEPAMandateImport struct {
 	Mapping   SEPAMandateImportMapping `json:"mapping"`
 	// Unmapped names the required fields without a column; the rows are
 	// read once each has one.
-	Unmapped   []string                `json:"unmapped"`
-	CreditorID string                  `json:"creditor_id"`
-	Applied    bool                    `json:"applied"`
-	Counts     SEPAMandateImportCounts `json:"counts"`
-	Rows       []SEPAMandateImportRow  `json:"rows"`
+	Unmapped   []string `json:"unmapped"`
+	CreditorID string   `json:"creditor_id"`
+	// Fingerprint names the rows and what the import does with each; the
+	// import takes over only the preview it was given (#6198).
+	Fingerprint string                  `json:"fingerprint,omitempty"`
+	Applied     bool                    `json:"applied"`
+	Counts      SEPAMandateImportCounts `json:"counts"`
+	Rows        []SEPAMandateImportRow  `json:"rows"`
 }
 
 // ImportedSEPAMandate is a mandate an import stored and the line of the

@@ -34,12 +34,13 @@ const (
 )
 
 type sepaImportBody struct {
-	Encoding  string   `json:"encoding"`
-	Delimiter string   `json:"delimiter"`
-	Headers   []string `json:"headers"`
-	Unmapped  []string `json:"unmapped"`
-	Applied   bool     `json:"applied"`
-	Mapping   struct {
+	Encoding    string   `json:"encoding"`
+	Delimiter   string   `json:"delimiter"`
+	Headers     []string `json:"headers"`
+	Unmapped    []string `json:"unmapped"`
+	Applied     bool     `json:"applied"`
+	Fingerprint string   `json:"fingerprint"`
+	Mapping     struct {
 		PayerKey string `json:"payer_key"`
 	} `json:"mapping"`
 	Counts map[string]int `json:"counts"`
@@ -79,6 +80,19 @@ func importForm(t *testing.T, router http.Handler, token, path, name string, con
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	return rec
+}
+
+// applyImport takes over a file like the office does: it previews the file
+// with the same fields and imports with the fingerprint of that preview.
+func applyImport(t *testing.T, router http.Handler, token, name string, content []byte, fields map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := importForm(t, router, token, sepaImportPreviewPath, name, content, fields)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	confirmed := map[string]string{"fingerprint": decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes()).Fingerprint}
+	for key, value := range fields {
+		confirmed[key] = value
+	}
+	return importForm(t, router, token, sepaImportPath, name, content, confirmed)
 }
 
 func partyEmail(t *testing.T, f careBillingFixture, contract int64) string {
@@ -146,7 +160,7 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 	assert.Zero(t, stored, "the preview stores nothing")
 
 	answers := map[string]string{"mapping": mapping, "sequences": `{"4":"recurring"}`}
-	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "ogs-connect.csv", content, answers)
+	rec = applyImport(t, f.traeger, f.office.token, "ogs-connect.csv", content, answers)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	result := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
 	assert.True(t, result.Applied)
@@ -210,7 +224,7 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 	}
 
 	// The same file again: every taken-over row is a duplicate, nothing new.
-	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "ogs-connect.csv", content, answers)
+	rec = applyImport(t, f.traeger, f.office.token, "ogs-connect.csv", content, answers)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	again := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
 	assert.Equal(t, 3, again.Counts["duplicate"])
@@ -266,7 +280,7 @@ func TestSEPAMandateImportReportsConflictsAndKeepsTheTraeger(t *testing.T) {
 	}, "\n")
 	mapping := `{"columns":{"reference":"Referenz","signed_on":"Datum","iban":"IBAN","account_holder":"Kontoinhaber",` +
 		`"payer":"Vertragsnummer","creditor_id":"Gläubiger-ID","sequence":"Sequenz"},"payer_key":"contract_id"}`
-	rec := importForm(t, f.traeger, f.office.token, sepaImportPath, "mandate.csv", []byte(csv), map[string]string{"mapping": mapping})
+	rec := applyImport(t, f.traeger, f.office.token, "mandate.csv", []byte(csv), map[string]string{"mapping": mapping})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	result := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
 	require.Len(t, result.Rows, 4)
@@ -346,7 +360,7 @@ func TestSEPAMandateImportLogQueryBudgetIsFlat(t *testing.T) {
 		contract := careContract(t, f.db, f.office.organization, f.office.schools[0], child, careMonth, sjrServices()...)
 		csv := fmt.Sprintf("Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;Vertragsnummer;Gläubiger-ID;Sequenz\nSJR-B-%s;01.09.2026;%s;Eva Beispiel;%d;%s;FRST\n",
 			child, sepaIBAN, contract, sepaCreditorID)
-		rec := importForm(t, f.traeger, f.office.token, sepaImportPath, "mandate.csv", []byte(csv), nil)
+		rec := applyImport(t, f.traeger, f.office.token, "mandate.csv", []byte(csv), nil)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 		require.Contains(t, rec.Body.String(), `"imported":1`)
 	}
@@ -390,4 +404,98 @@ func TestSEPAMandateImportNeedsTheConfirmationOfTheCurrentCreditor(t *testing.T)
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.sepa_mandates WHERE organization_id = ?`,
 		f.office.organization).Scan(context.Background(), &stored))
 	assert.Zero(t, stored, "no mandate for an unconfirmed identifier")
+}
+
+// A stored mandate with the same reference, family, date and creditor but
+// another IBAN or account holder is a conflict, never a duplicate: the
+// import opens the stored account in memory through the mandate owner and
+// compares. No answer repeats either IBAN.
+func TestSEPAMandateImportReportsAnotherAccountOfTheSameMandate(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mandatsimport Konto")
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Mia", careMonth, sjrServices()...)
+	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
+	const otherIBAN = "DE02120300000000202051"
+	row := func(iban, holder string) []byte {
+		return []byte(fmt.Sprintf("Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail;Gläubiger-ID;Sequenz\nSJR-A-1;01.09.2026;%s;%s;%s;%s;RCUR\n",
+			iban, holder, partyEmail(t, f, contract), sepaCreditorID))
+	}
+	rec := applyImport(t, f.traeger, f.office.token, "mandate.csv", row(sepaIBAN, "Eva Beispiel"), nil)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	require.Equal(t, 1, decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes()).Counts["imported"])
+
+	for name, test := range map[string]struct {
+		content []byte
+		status  string
+		problem string
+	}{
+		"same account":       {row(sepaIBAN, "Eva Beispiel"), "duplicate", ""},
+		"another IBAN":       {row(otherIBAN, "Eva Beispiel"), "conflict", "iban:account_differs"},
+		"another holder":     {row(sepaIBAN, "Jan Beispiel"), "conflict", "account_holder:account_differs"},
+		"another IBAN again": {row("de02 1203 0000 0000 2020 51", "Eva Beispiel"), "conflict", "iban:account_differs"},
+	} {
+		rec := importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "mandate.csv", test.content, nil)
+		require.Equal(t, http.StatusOK, rec.Code, "%s: %s", name, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), "0532013000", name)
+		assert.NotContains(t, rec.Body.String(), "0000202051", name)
+		preview := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+		require.Len(t, preview.Rows, 1, name)
+		assert.Equal(t, test.status, preview.Rows[0].Status, name)
+		var problems []string
+		for _, problem := range preview.Rows[0].Problems {
+			problems = append(problems, problem.Field+":"+problem.Code)
+		}
+		if test.problem == "" {
+			assert.Empty(t, problems, name)
+		} else {
+			assert.Equal(t, []string{test.problem}, problems, name)
+		}
+	}
+	var mandates int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.sepa_mandates WHERE organization_id = ?`,
+		f.office.organization).Scan(context.Background(), &mandates))
+	assert.Equal(t, 1, mandates, "nothing is overwritten or added")
+}
+
+// The import takes over the preview the office confirmed, not what the
+// file would give now: a mandate revoked between preview and import turns a
+// conflicting row ready, and the import refuses until the office looked
+// again (#6198, like the review of a monthly run).
+func TestSEPAMandateImportTakesOverOnlyTheConfirmedPreview(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mandatsimport Vorschau")
+	withMandate := careContract(t, f.db, f.office.organization, f.office.schools[0], "Mia", careMonth, sjrServices()...)
+	fresh := careContract(t, f.db, f.office.organization, f.office.schools[0], "Noah", careMonth, sjrServices()...)
+	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
+	stored := createMandate(t, f, mandateBody(withMandate, "SJR-V-1"))
+	csv := []byte(strings.Join([]string{
+		"Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail;Gläubiger-ID;Sequenz",
+		fmt.Sprintf("OGS-V-1;01.09.2026;%s;Eva Beispiel;%s;%s;RCUR", sepaIBAN, partyEmail(t, f, withMandate), sepaCreditorID),
+		fmt.Sprintf("OGS-V-2;01.09.2026;%s;Eva Beispiel;%s;%s;RCUR", sepaIBAN, partyEmail(t, f, fresh), sepaCreditorID),
+	}, "\n"))
+	rec := importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "mandate.csv", csv, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+	require.Equal(t, 1, preview.Counts["ready"], "the office confirms one mandate")
+	require.Equal(t, 1, preview.Counts["conflict"])
+	require.NotEmpty(t, preview.Fingerprint)
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, fmt.Sprintf("%s/%d/revoke", sepaMandatesPath, stored.ID),
+		map[string]any{"revoked_on": "2026-10-01"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "mandate.csv", csv, map[string]string{"fingerprint": preview.Fingerprint})
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	code, _ := registrationRefusalOf(t, rec)
+	assert.Equal(t, "parent_billing.sepa_import_changed", code)
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "mandate.csv", csv, nil)
+	require.Equal(t, http.StatusConflict, rec.Code, "an import without a confirmed preview: %s", rec.Body.String())
+	var imported int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.sepa_mandates WHERE organization_id = ? AND source = 'import'`,
+		f.office.organization).Scan(context.Background(), &imported))
+	assert.Zero(t, imported, "nothing beyond the confirmed preview is taken over")
+
+	rec = applyImport(t, f.traeger, f.office.token, "mandate.csv", csv, nil)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, 2, decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes()).Counts["imported"], "after a new look both rows")
 }

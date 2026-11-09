@@ -990,6 +990,8 @@ export const ERROR_CATALOG = {
         "In diesem Lauf gibt es keine offene Lastschrift. Es gibt keine Datei zum Herunterladen oder Bestätigen.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Zwei Lastschriften hätten in der Datei dieselbe Kennung. Die Bank könnte sie nicht unterscheiden. Bitte wenden Sie sich an den moto-Support.",
+      "parent_billing.sepa_import_changed":
+        "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann.",
       "parent_billing.sepa_import_file_invalid":
         "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften.",
       "parent_billing.sepa_import_file_too_large":

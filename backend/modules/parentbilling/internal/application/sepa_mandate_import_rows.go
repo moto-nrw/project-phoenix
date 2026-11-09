@@ -49,6 +49,7 @@ type importCandidate struct {
 // problem makes it invalid.
 var (
 	importConflictCodes = []string{parentbilling.ImportProblemCreditorMismatch, parentbilling.ImportProblemReferenceTaken,
+		parentbilling.ImportProblemAccountDiffers,
 		parentbilling.ImportProblemReferenceRepeated, parentbilling.ImportProblemPayerHasMandate, parentbilling.ImportProblemPayerRepeated}
 	importClarifyCodes = []string{parentbilling.ImportProblemSequenceUnknown, parentbilling.ImportProblemSequenceConflict}
 	importKnownCodes   = append(append([]string{}, importConflictCodes...), importClarifyCodes...)
@@ -65,6 +66,14 @@ type importCheck struct {
 	sequences   map[int]string
 	references  map[string]bool
 	families    map[string]bool
+	// accounts holds the opened account of each stored mandate a row of
+	// the file names by its reference, only in memory (importAccounts).
+	accounts map[int64]importAccount
+}
+
+// importAccount is the opened IBAN and account holder of a stored mandate.
+type importAccount struct {
+	iban, holder string
 }
 
 func newImportCheck(columns importColumnIndex, creditorID string, payers importPayers, existing []parentbilling.SEPAMandate,
@@ -72,7 +81,7 @@ func newImportCheck(columns importColumnIndex, creditorID string, payers importP
 ) *importCheck {
 	check := &importCheck{columns: columns, creditorID: creditorID, payers: payers, today: today, sequences: sequences,
 		byReference: map[string]parentbilling.SEPAMandate{}, inForce: map[string]parentbilling.SEPAMandate{},
-		references: map[string]bool{}, families: map[string]bool{}}
+		references: map[string]bool{}, families: map[string]bool{}, accounts: map[int64]importAccount{}}
 	for _, mandate := range existing {
 		check.byReference[mandate.Reference] = mandate
 		if mandate.InForce() {
@@ -307,6 +316,13 @@ func (c *importCheck) classify(candidate *importCandidate) {
 		return
 	}
 	if existing, ok := c.byReference[row.Reference]; ok && c.sameMandate(existing, candidate) {
+		if field := c.accountDiffers(existing, candidate); field != "" {
+			// The same mandate with another account is a conflict the office
+			// resolves; the import neither skips nor overwrites it.
+			addProblem(row, field, parentbilling.ImportProblemAccountDiffers)
+			row.Status = parentbilling.ImportRowConflict
+			return
+		}
 		row.Status, row.MandateID, row.Problems = parentbilling.ImportRowDuplicate, existing.ID, []parentbilling.SEPAMandateImportProblem{}
 		return
 	}
@@ -319,6 +335,21 @@ func (c *importCheck) classify(candidate *importCandidate) {
 	default:
 		row.Status = parentbilling.ImportRowReady
 	}
+}
+
+// accountDiffers names the account field in which a stored mandate differs
+// from the row, empty when IBAN and account holder are the same. A stored
+// mandate whose account was not opened counts as different: the import
+// never calls a mandate a duplicate it could not compare.
+func (c *importCheck) accountDiffers(existing parentbilling.SEPAMandate, candidate *importCandidate) string {
+	account, ok := c.accounts[existing.ID]
+	switch {
+	case !ok || account.iban != candidate.iban:
+		return parentbilling.ImportFieldIBAN
+	case account.holder != candidate.row.AccountHolder:
+		return parentbilling.ImportFieldAccountHolder
+	}
+	return ""
 }
 
 // sameMandate tells whether a stored mandate is the row: same reference,

@@ -77,6 +77,8 @@ export interface ImportResult {
   /** Required fields still without a column; rows are read once it is empty. */
   readonly unmapped: readonly ImportField[];
   readonly creditorId: string;
+  /** Names the rows and what the import does with each, as the preview showed them. */
+  readonly fingerprint: string;
   readonly applied: boolean;
   readonly counts: ImportCounts;
   readonly rows: readonly ImportRow[];
@@ -95,6 +97,8 @@ export interface ImportRequest {
   readonly mapping: ImportMapping | null;
   /** Answer per line of a row to clarify. */
   readonly sequences?: Readonly<Record<number, MandateSequence>>;
+  /** The fingerprint of the preview the office confirmed; the import takes over only that. */
+  readonly fingerprint?: string;
 }
 
 interface BackendMapping {
@@ -129,6 +133,7 @@ interface BackendResult {
   mapping: BackendMapping;
   unmapped: ImportField[] | null;
   creditor_id: string;
+  fingerprint?: string;
   applied: boolean;
   counts: Record<ImportRowStatus, number>;
   rows: BackendRow[] | null;
@@ -183,6 +188,7 @@ function mapImportResult(result: BackendResult): ImportResult {
     },
     unmapped: result.unmapped ?? [],
     creditorId: result.creditor_id,
+    fingerprint: result.fingerprint ?? "",
     applied: result.applied,
     counts: result.counts,
     rows: (result.rows ?? []).map(mapRow),
@@ -200,6 +206,9 @@ async function postImport(
   }
   if (request.sequences && Object.keys(request.sequences).length > 0) {
     form.append("sequences", JSON.stringify(request.sequences));
+  }
+  if (request.fingerprint) {
+    form.append("fingerprint", request.fingerprint);
   }
   const response = await transportFetch(path, {
     method: "POST",
