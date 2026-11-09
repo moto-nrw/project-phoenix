@@ -185,8 +185,12 @@ export function UnpublishAnnouncementDialog({
         {announcement.delivery_mode === "declaration" && (
           <p className="text-xs text-gray-500">
             Bisherige Antworten bleiben gespeichert. Wer schon geantwortet hat,
-            sieht das Einverständnis weiter und kann eine Zustimmung widerrufen.
-            Ändern Sie danach den Text, müssen die Eltern noch einmal antworten.
+            sieht das Einverständnis weiter
+            {announcement.declaration_revocable
+              ? " und kann eine Zustimmung widerrufen"
+              : ""}
+            . Ändern Sie danach den Text, müssen die Eltern noch einmal
+            antworten.
           </p>
         )}
       </div>
