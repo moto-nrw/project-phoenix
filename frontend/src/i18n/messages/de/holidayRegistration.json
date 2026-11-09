@@ -100,6 +100,10 @@
   "doneTitle": "Ihre Anmeldung ist eingegangen",
   "doneText": "Wir schicken Ihnen eine Bestätigung an {email}.",
   "doneNext": "Das ist noch keine Zusage. Der Träger prüft die Anmeldung und schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
+  "placementHeading": "Plätze",
+  "placementPlaced": "Platz",
+  "placementWaitlisted": "Warteliste",
+  "waitlistNote": "In manchen Wochen sind alle Plätze vergeben. Dort steht Ihr Kind auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Wir schreiben Ihnen dann eine E-Mail.",
   "errors": {
     "phone": "Bitte geben Sie eine gültige Telefonnummer ein.",
     "required": "Bitte füllen Sie dieses Feld aus.",

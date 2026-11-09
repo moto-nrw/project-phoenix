@@ -36,6 +36,7 @@ import {
   rebookingChanged,
   rebookingDraft,
 } from "./holiday-rebooking-model";
+import { HolidayPlacementBadge } from "./holiday-placement-badge";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -202,11 +203,22 @@ export function HolidayRegistrationChildCard({
           <InfoSection title="Gebuchte Wochen">
             <ul className="space-y-1 text-sm text-gray-900">
               {child.bookings.map((booking) => (
-                <li key={booking.weekId}>
-                  {formatHolidayWeek(booking.weekStartsOn, booking.weekEndsOn)}:{" "}
-                  {booking.timeModelName},{" "}
-                  {names.get(booking.hostSchoolId) ??
-                    "Schule nicht mehr vorhanden"}
+                <li
+                  key={booking.weekId}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                >
+                  <span>
+                    {formatHolidayWeek(
+                      booking.weekStartsOn,
+                      booking.weekEndsOn,
+                    )}
+                    : {booking.timeModelName},{" "}
+                    {names.get(booking.hostSchoolId) ??
+                      "Schule nicht mehr vorhanden"}
+                  </span>
+                  {cancelled ? null : (
+                    <HolidayPlacementBadge booking={booking} />
+                  )}
                 </li>
               ))}
             </ul>

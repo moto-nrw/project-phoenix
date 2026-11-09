@@ -100,6 +100,10 @@
   "doneTitle": "Regjistrimi juaj mbërriti",
   "doneText": "Do të dërgojmë një konfirmim në {email}.",
   "doneNext": "Kjo nuk është ende një vend i konfirmuar. Organizatori e kontrollon regjistrimin dhe ju shkruan nëse fëmija merr vend.",
+  "placementHeading": "Vendet",
+  "placementPlaced": "Vend",
+  "placementWaitlisted": "Lista e pritjes",
+  "waitlistNote": "Disa javë janë tashmë plot. Në ato javë fëmija është në listën e pritjes. Nëse lirohet një vend, fëmija e merr automatikisht. Atëherë do t'ju shkruajmë një email.",
   "errors": {
     "phone": "Ju lutemi shkruani një numër telefoni të vlefshëm.",
     "required": "Ju lutemi plotësoni këtë fushë.",
