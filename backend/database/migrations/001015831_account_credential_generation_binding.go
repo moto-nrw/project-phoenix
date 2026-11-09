@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const accountCredentialGenerationBindingVersion = "1.15.828"
+const accountCredentialGenerationBindingVersion = "1.15.831"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -95,15 +95,28 @@ CREATE TRIGGER accounts_credential_moves_generation
 // had already ended before the column goes: a link or device of an older
 // credential is spent or revoked, so a later Up, whose backfill takes the
 // account's current generation, cannot make it current again.
+//
+// A second Down finds the columns gone and does nothing: each step runs only
+// while its column still exists.
 const accountCredentialGenerationBindingDownSQL = `
-UPDATE auth.password_reset_tokens AS link SET used = TRUE
-	FROM auth.accounts AS account
-	WHERE account.id = link.account_id AND link.used = FALSE
-		AND link.credential_generation <> account.mfa_reset_generation;
-UPDATE auth.mfa_trusted_devices AS device SET revoked_at = statement_timestamp()
-	FROM auth.accounts AS account
-	WHERE account.id = device.account_id AND device.revoked_at IS NULL
-		AND device.credential_generation <> account.mfa_reset_generation;
+DO $down$
+BEGIN
+	IF EXISTS (SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'auth' AND table_name = 'password_reset_tokens' AND column_name = 'credential_generation') THEN
+		UPDATE auth.password_reset_tokens AS link SET used = TRUE
+			FROM auth.accounts AS account
+			WHERE account.id = link.account_id AND link.used = FALSE
+				AND link.credential_generation <> account.mfa_reset_generation;
+	END IF;
+	IF EXISTS (SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'auth' AND table_name = 'mfa_trusted_devices' AND column_name = 'credential_generation') THEN
+		UPDATE auth.mfa_trusted_devices AS device SET revoked_at = statement_timestamp()
+			FROM auth.accounts AS account
+			WHERE account.id = device.account_id AND device.revoked_at IS NULL
+				AND device.credential_generation <> account.mfa_reset_generation;
+	END IF;
+END
+$down$;
 DROP TRIGGER IF EXISTS accounts_credential_moves_generation ON auth.accounts;
 DROP FUNCTION IF EXISTS auth.account_credential_moves_generation();
 ALTER TABLE auth.mfa_trusted_devices DROP COLUMN IF EXISTS credential_generation;

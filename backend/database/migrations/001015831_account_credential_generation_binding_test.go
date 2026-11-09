@@ -172,3 +172,16 @@ func TestCredentialBindingRollbackKeepsStaleArtifactsEnded(t *testing.T) {
 	assert.True(t, linkUsable, "a link of the current credential survives the rollback")
 	assert.True(t, deviceUsable, "a device of the current credential survives the rollback")
 }
+
+// Down runs again on a schema it already rolled back, as every Down of the
+// repository may: the columns are gone, so there is nothing left to spend or
+// revoke, and Up applies again afterwards.
+func TestCredentialBindingDownIsIdempotent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	require.NoError(t, accountCredentialGenerationBindingDown(ctx, db))
+	require.NoError(t, accountCredentialGenerationBindingDown(ctx, db), "a second Down finds nothing to do")
+	require.NoError(t, accountCredentialGenerationBindingUp(ctx, db))
+	require.NoError(t, accountCredentialGenerationBindingUp(ctx, db), "Up applies again too")
+}

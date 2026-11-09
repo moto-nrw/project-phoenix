@@ -37,9 +37,9 @@ import (
 // This is the early, static warning. The rule itself is enforced at run time
 // by the database for every writer, raw SQL in any quoting and ORM model
 // updates alike: the trigger auth.account_credential_moves_generation
-// (migration 1.15.828) refuses a credential change that does not move the
+// (migration 1.15.831) refuses a credential change that does not move the
 // generation on, tested in
-// database/migrations/001015828_account_credential_generation_binding_test.go.
+// database/migrations/001015831_account_credential_generation_binding_test.go.
 const accountCredentialWriter = "modules/identityaccess/internal/adapters/postgres/account_credential.go:(*Store).WriteAccountCredential"
 
 // accountCredentialStatement matches raw SQL that writes auth.accounts: the
