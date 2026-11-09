@@ -154,7 +154,7 @@ func (o *Overview) schoolFigures(ctx context.Context, scope []int64) (map[int64]
 	for _, schoolID := range scope {
 		figures := traegerview.SchoolFigures{
 			ChildrenTotal: len(students[schoolID]), ChildrenPresent: countStudents(students[schoolID], present[schoolID]),
-			ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID]),
+			ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID], present[schoolID]),
 			StaffTotal:   len(staff[schoolID]), StaffPresent: countMembers(staff[schoolID], onSite[schoolID]),
 			AsOf: now,
 		}
@@ -186,10 +186,15 @@ func countStudents(roster map[int64]int64, ids []int64) int {
 }
 
 // countSick counts the children of the roster (student ID to membership ID)
-// with a sick day or the sick flag, each child once.
-func countSick(students map[int64]int64, sickDays, sickFlags []int64) int {
+// with a sick day or the sick flag, each child once. Place before status
+// (#6371), as on the school's dashboard: a present child counts as present
+// only, its sick mark is no sick figure.
+func countSick(students map[int64]int64, sickDays, sickFlags, present []int64) int {
 	sick := 0
 	for student, membership := range students {
+		if slices.Contains(present, student) {
+			continue
+		}
 		if slices.Contains(sickDays, student) || slices.Contains(sickFlags, membership) {
 			sick++
 		}

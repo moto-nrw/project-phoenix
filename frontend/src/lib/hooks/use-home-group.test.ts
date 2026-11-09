@@ -52,7 +52,7 @@ describe("deriveHomeGroup (#2180)", () => {
       students: [
         student("1"),
         student("2"),
-        student("3", { sick: true }),
+        student("3", { sick: true, current_location: "Zuhause" }),
         student("4", { actual_pickup_time: "13:05" }),
         student("5"),
       ],
@@ -143,6 +143,36 @@ describe("deriveHomeGroup (#2180)", () => {
     });
 
     expect(deriveHomeGroup(data, "").pickups).toHaveLength(1);
+  });
+
+  // Ort vor Status (#6371): Wer eingecheckt ist, ist da, auch mit einer
+  // Krankmeldung, Entschuldigung oder Klassenfahrt; die Abholung gilt.
+  it("zählt ein eingechecktes, krank gemeldetes Kind als anwesend", () => {
+    const data = liveData({
+      students: [
+        student("1", { sick: true }),
+        student("2", { excused: true, current_location: "Schulhof" }),
+        student("3", { class_trip: true, current_location: "Unterwegs" }),
+        student("4", { sick: true, current_location: "Zuhause" }),
+      ],
+      pickupTimes: new Map([
+        [
+          "1",
+          {
+            pickupTime: "15:00",
+            isException: false,
+            notes: undefined,
+            dayNotes: [],
+          },
+        ],
+      ]),
+    });
+
+    const snapshot = deriveHomeGroup(data, "13:10");
+
+    expect(snapshot.present).toBe(3);
+    expect(snapshot.away.map((student) => student.id)).toEqual(["4"]);
+    expect(snapshot.pickups.map((pickup) => pickup.student.id)).toEqual(["1"]);
   });
 
   it("zählt nur Kinder mit bekanntem Check-in als anwesend", () => {

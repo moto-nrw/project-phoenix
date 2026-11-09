@@ -25,6 +25,7 @@ export function traegerDashboardTopic(): HelpTopic {
     notes: [
       "Die Zahlen aktualisieren sich jede Minute von selbst.",
       "Sie sehen nur Zahlen, keine Namen.",
+      "Ein Kind, das da ist, zählt nicht als krank. Das gilt auch mit Krankmeldung.",
       "Mit einem Klick auf eine Spaltenüberschrift sortieren Sie die Schulen, zum Beispiel nach `Heute krank`.",
       "Bei vielen Schulen finden Sie eine Schule schneller über das Suchfeld. Sie können nach dem Namen oder dem Ort suchen.",
       "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder. Oben gilt das für alle Schulen zusammen.",
