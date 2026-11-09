@@ -40,7 +40,13 @@ var datevMonthOptions = &config.SelectOptions{Static: []config.SelectOption{
 	{Label: "Oktober", Value: "10"}, {Label: "November", Value: "11"}, {Label: "Dezember", Value: "12"},
 }}
 
-func datevDefinition(key string, order int, category, label, description string) config.Definition {
+// The two groups of the DATEV tab: the client in DATEV and the bookings.
+var (
+	datevClientGroup  = config.Definition{Tab: "datev", Category: "datev_mandant"}
+	datevBookingGroup = config.Definition{Tab: "datev", Category: "datev-buchungen"}
+)
+
+func datevDefinition(group config.Definition, key string, order int, label, description string) config.Definition {
 	return config.Definition{
 		Key:             key,
 		Levels:          config.LevelTraeger,
@@ -50,38 +56,38 @@ func datevDefinition(key string, order int, category, label, description string)
 		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "datev",
-		Category:        category,
+		Tab:             group.Tab,
+		Category:        group.Category,
 		SortOrder:       order,
 	}
 }
 
 var parentBillingDatevDefinitions = func() []config.Definition {
-	consultant := datevDefinition(config.KeyParentBillingDatevConsultantNumber, 10, "datev_mandant", "Beraternummer",
+	consultant := datevDefinition(datevClientGroup, config.KeyParentBillingDatevConsultantNumber, 10, "Beraternummer",
 		"Die Nummer Ihres Steuerbüros in DATEV, 4 bis 7 Ziffern. Sie steht in der DATEV-Datei oben. Ohne sie gibt es keine DATEV-Datei.")
 	consultant.Validation = &config.ValidationRules{Pattern: &datevConsultantPattern, AllowEmpty: true}
 
-	client := datevDefinition(config.KeyParentBillingDatevClientNumber, 20, "datev_mandant", "Mandantennummer",
+	client := datevDefinition(datevClientGroup, config.KeyParentBillingDatevClientNumber, 20, "Mandantennummer",
 		"Ihre Nummer beim Steuerbüro in DATEV, 1 bis 5 Ziffern. Ohne sie gibt es keine DATEV-Datei.")
 	client.Validation = &config.ValidationRules{Pattern: &datevClientPattern, AllowEmpty: true}
 
-	length := datevDefinition(config.KeyParentBillingDatevAccountLength, 30, "datev_mandant", "Länge der Sachkonten",
+	length := datevDefinition(datevClientGroup, config.KeyParentBillingDatevAccountLength, 30, "Länge der Sachkonten",
 		"So viele Ziffern haben Ihre Sachkonten in DATEV. Fragen Sie Ihr Steuerbüro. Debitoren haben eine Ziffer mehr.")
 	length.Type, length.Options = config.FieldSelect, datevAccountLengthOptions
 
-	chart := datevDefinition(config.KeyParentBillingDatevChartOfAccounts, 40, "datev_mandant", "Kontenrahmen",
+	chart := datevDefinition(datevClientGroup, config.KeyParentBillingDatevChartOfAccounts, 40, "Kontenrahmen",
 		"Der Kontenrahmen Ihrer Buchhaltung. Fragen Sie Ihr Steuerbüro.")
 	chart.Type, chart.Options = config.FieldSelect, datevChartOptions
 
-	fiscal := datevDefinition(config.KeyParentBillingDatevFiscalYearStart, 50, "datev_mandant", "Beginn des Wirtschaftsjahres",
+	fiscal := datevDefinition(datevClientGroup, config.KeyParentBillingDatevFiscalYearStart, 50, "Beginn des Wirtschaftsjahres",
 		"In diesem Monat beginnt Ihr Wirtschaftsjahr. Bei den meisten Vereinen ist das der Januar.")
 	fiscal.Type, fiscal.Options, fiscal.Default = config.FieldSelect, datevMonthOptions, "1"
 
-	revenue := datevDefinition(config.KeyParentBillingDatevRevenueAccount, 60, "datev-buchungen", "Erlöskonto für Elternbeiträge",
+	revenue := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevRevenueAccount, 60, "Erlöskonto für Elternbeiträge",
 		"Auf dieses Sachkonto bucht moto die Elternbeiträge. Es hat so viele Ziffern wie Ihre Sachkonten.")
 	revenue.Validation = &config.ValidationRules{Pattern: &datevAccountPattern, AllowEmpty: true}
 
-	locked := datevDefinition(config.KeyParentBillingDatevLocked, 70, "datev-buchungen", "Buchungen festschreiben",
+	locked := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevLocked, 70, "Buchungen festschreiben",
 		"Ist das an, sind die Buchungen nach dem Einlesen in DATEV festgeschrieben. Ihr Steuerbüro kann sie dann nicht mehr ändern.")
 	locked.Type, locked.Default = config.FieldBoolean, false
 

@@ -46,7 +46,8 @@ func datevReadiness(t *testing.T, router http.Handler, token string) datevReadin
 
 func TestDatevReadinessNamesTheSettingsOfTheSessionsTraeger(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db := testpkg.SetupTestDB(t)
+	router, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db))
 	own := newTraegerOffice(t, db, router, "DATEV Träger", identityaccess.TraegerRoleAdministration)
 	neighbour := newTraegerOffice(t, db, router, "DATEV Nachbar", identityaccess.TraegerRoleBilling)
 	billing := datevMember(t, db, router, own.organization, identityaccess.TraegerRoleBilling)

@@ -79,7 +79,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/care-cost-shares", reductions.CostShareRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-notice-runs", NewCareNoticeHTTP(organizations, settings, schoolSettings, marks).Router(ProtectedTraegerRoutes))
-	terms := NewBillingTermsHTTP()
+	terms, datev := NewBillingTermsHTTP(settings)
 	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-billing", terms.FamilyRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/billing-run-due-dates", terms.DueDateRouter(ProtectedTraegerRoutes))
@@ -87,14 +87,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/sepa-creditor", mandates.CreditorRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-mandates", mandates.MandateRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-debits", NewSEPADebitHTTP(settings, bankData).Router(ProtectedTraegerRoutes))
-	root.Mount("/traeger/datev-export", NewDatevExportHTTP(settings).Router(ProtectedTraegerRoutes))
-}
-
-// NewDatevExportHTTP binds the DATEV booking batch (#4694) to the right
-// "Abrechnung" and to the DATEV settings of the Träger.
-func NewDatevExportHTTP(settings TraegerBrandingSettings) *parentBillingHTTP.DatevExportResource {
-	return parentBillingHTTP.NewDatevExportResource(parentBillingCompose.NewDatevExport(parentBillingSettings{settings: settings}),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	root.Mount("/traeger/datev-export", datev.Router(ProtectedTraegerRoutes))
 }
 
 // NewSEPADebitHTTP binds the SEPA direct debit file of the issued runs
@@ -120,11 +113,14 @@ func NewSEPAMandateHTTP(cipher parentbilling.BankDataCipher) *parentBillingHTTP.
 // NewBillingTermsHTTP binds the payment terms, the bundling, the family
 // deviations and the due dates of the runs (#4689, ADR 0167) to the right
 // "Abrechnung" and to the parties of the Betreuungsvertrag, which name the
-// family of a contract, in the caller's Träger transaction.
-func NewBillingTermsHTTP() *parentBillingHTTP.BillingTermsResource {
+// family of a contract, in the caller's Träger transaction, and the DATEV
+// booking batch (#4694) to the same right and the DATEV settings of the
+// Träger.
+func NewBillingTermsHTTP(settings TraegerBrandingSettings) (*parentBillingHTTP.BillingTermsResource, *parentBillingHTTP.DatevExportResource) {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
-	return parentBillingHTTP.NewBillingTermsResource(parentBillingCompose.NewBillingTerms(contracts),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	terms, datev := parentBillingCompose.NewBillingTerms(contracts, parentBillingSettings{settings: settings})
+	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
+	return parentBillingHTTP.NewBillingTermsResource(terms, requireBilling), parentBillingHTTP.NewDatevExportResource(datev, requireBilling)
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract

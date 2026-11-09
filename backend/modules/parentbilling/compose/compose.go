@@ -68,9 +68,9 @@ func NewCareLetters(letterheads parentbilling.BillingLetterheads, contracts pare
 	}, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
 }
 
-// NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds.
-func NewBillingTerms(contracts parentbilling.CareContracts) parentbilling.BillingTerms {
-	return application.NewBillingTerms(postgres.NewStore(), contracts)
+// NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds, and the DATEV booking batch of both payment methods (#4694) over the DATEV settings of the Träger.
+func NewBillingTerms(contracts parentbilling.CareContracts, datev parentbilling.DatevBillingSettings) (parentbilling.BillingTerms, parentbilling.DatevExport) {
+	return application.NewBillingTerms(postgres.NewStore(), contracts), application.NewDatevExport(datev, calendar.TodayDate, calendar.Now)
 }
 
 // NewCareFeeNotices builds the Jahresbescheide of the monthly care (#6219, ADR 0182) over the monthly computation and the letterhead of the Träger, which carries the template of the fee notice; the root binds the ports.
@@ -93,9 +93,4 @@ func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.Bank
 // NewSEPADebits builds the SEPA direct debit file of the issued runs (#4697, ADR 0181) over the letterhead with the bank account of the Träger and the field cipher the root binds.
 func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher) parentbilling.SEPADebits {
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
-}
-
-// NewDatevExport builds the DATEV booking batch (#4694) over the DATEV settings of the Träger the root binds.
-func NewDatevExport(settings parentbilling.DatevBillingSettings) parentbilling.DatevExport {
-	return application.NewDatevExport(settings, calendar.TodayDate, calendar.Now)
 }
