@@ -555,6 +555,9 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *w
 	if err := s.ensureCoversFitEditedOrigin(ctx, shift, existing); err != nil {
 		return nil, err
 	}
+	if err := s.applyEditedSickState(ctx, shift, existing); err != nil {
+		return nil, err
+	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
 	}

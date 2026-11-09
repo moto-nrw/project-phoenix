@@ -51,6 +51,31 @@ func (s *staffShiftService) sickAbsenceOn(ctx context.Context, staffID int64, da
 	return days[day], nil
 }
 
+// applyEditedSickState gives a shift whose edit changes its day the sick
+// state of the new day, like a move. A shift the cascade cancelled leaves
+// that state behind first, so it is planned again on a healthy day. A
+// planner's own cancellation stays. An edit on the same day keeps the row's
+// state.
+func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, existing *workforce.ShiftRecord) error {
+	if shift.Date == existing.Date || shift.OriginShiftID != nil {
+		return nil
+	}
+	if existing.SickAbsenceID != nil {
+		releaseSickState(shift)
+	}
+	return s.applySickStateOfDay(ctx, shift)
+}
+
+// releaseSickState undoes applySickReport: the shift is planned again and
+// drops the sick label, as the cascade's reactivation does.
+func releaseSickState(shift *workforce.ShiftRecord) {
+	shift.Cancelled = false
+	shift.SickAbsenceID = nil
+	if shift.ChangeReason != nil && *shift.ChangeReason == workforce.SickShiftChangeReason {
+		shift.ChangeReason = nil
+	}
+}
+
 // applySickStateOfDay gives a newly placed shift the sick state of its day.
 // A cover by a sick person is refused, as the Betreuungsplan refuses a sick
 // substitute. A plain shift on a full sick day is cancelled with the
