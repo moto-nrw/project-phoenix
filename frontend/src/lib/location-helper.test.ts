@@ -114,6 +114,8 @@ describe("MOTO_COLOR_PALETTE", () => {
         light: "#FACC15",
         base: "#EAB308",
         strong: "#92400E",
+        pill: "#FEF9C3",
+        pillText: "#713F12",
       },
       purple: {
         soft: "#F3E8FF",

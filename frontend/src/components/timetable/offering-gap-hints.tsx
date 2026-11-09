@@ -144,7 +144,7 @@ export function OfferingGapHints({
         <SectionCard
           title="Angebote ohne Regeltermin"
           titleBadge={
-            <StatusBadge tone="orange" label={`${open.length} offen`} />
+            <StatusBadge tone="warning" label={`${open.length} offen`} />
           }
           description="Diese Kinder haben ein Angebot gebucht. An den genannten Tagen steht kein passender Regeltermin für sie im Plan."
           leading={

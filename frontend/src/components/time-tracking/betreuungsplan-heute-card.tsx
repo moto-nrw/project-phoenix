@@ -363,7 +363,7 @@ function AssignmentRow({
         )}
         {block.isAbsent && (
           <StatusBadge
-            tone="orange"
+            tone="warning"
             label={
               block.absenceReason
                 ? `Abwesend · ${block.absenceReason}`
@@ -372,7 +372,7 @@ function AssignmentRow({
           />
         )}
         {block.understaffedAck && !block.cancelled && (
-          <StatusBadge tone="orange" label="Unterbesetzt" />
+          <StatusBadge tone="warning" label="Unterbesetzt" />
         )}
       </div>
     </>

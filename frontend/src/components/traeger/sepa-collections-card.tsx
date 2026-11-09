@@ -50,7 +50,9 @@ function debitState(debit: SepaDebit) {
       </span>
     );
   }
-  return <StatusBadge label="Noch nicht eingereicht" tone="orange" size="xs" />;
+  return (
+    <StatusBadge label="Noch nicht eingereicht" tone="warning" size="xs" />
+  );
 }
 
 const columns: DataTableColumn<SepaDebit>[] = [

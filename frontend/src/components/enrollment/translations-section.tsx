@@ -44,11 +44,11 @@ const TARGET_LOCALES = SUPPORTED_LOCALES.filter(
 
 const STATUS_BADGE: Record<
   TranslationStatus,
-  { label: string; tone: "gray" | "green" | "orange" }
+  { label: string; tone: "gray" | "green" | "warning" }
 > = {
   missing: { label: "Fehlt", tone: "gray" },
   current: { label: "Fertig", tone: "green" },
-  stale: { label: "Bitte prüfen", tone: "orange" },
+  stale: { label: "Bitte prüfen", tone: "warning" },
 };
 
 /**

@@ -85,8 +85,8 @@ const REACHABILITY_LABELS: Record<
   { label: string; tone: StatusBadgeTone; title?: string } | null
 > = {
   ok: null,
-  no_email: { label: "Keine E-Mail-Adresse", tone: "orange" },
-  no_portal: { label: "Kein Portalzugang", tone: "orange" },
+  no_email: { label: "Keine E-Mail-Adresse", tone: "warning" },
+  no_portal: { label: "Kein Portalzugang", tone: "warning" },
   excluded: {
     label: "Abbestellt",
     tone: "gray",
@@ -473,7 +473,7 @@ function ChildRow({ child }: { readonly child: LetterChild }) {
       {child.fulfilled ? (
         <StatusBadge label="Bestätigt" tone="green" />
       ) : child.can_confirm ? (
-        <StatusBadge label="Offen" tone="orange" />
+        <StatusBadge label="Offen" tone="warning" />
       ) : (
         <StatusBadge
           label="Keine Bestätigung möglich"

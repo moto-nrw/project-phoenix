@@ -80,7 +80,7 @@ export function mandateState(
 } {
   if (mandate.revokedOn) return { label: "Widerrufen", tone: "gray" };
   if (!mandate.creditorCurrent) {
-    return { label: "Neues Mandat nötig", tone: "orange" };
+    return { label: "Neues Mandat nötig", tone: "warning" };
   }
   if (mandateExpired(mandate, today)) {
     return { label: "Verfallen", tone: "red" };

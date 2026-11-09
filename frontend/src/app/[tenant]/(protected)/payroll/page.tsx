@@ -439,7 +439,7 @@ function ReadinessCard({
             <span className="shrink-0">
               <StatusBadge
                 size="xs"
-                tone={item.ok ? "green" : "orange"}
+                tone={item.ok ? "green" : "warning"}
                 label={item.ok ? "Erledigt" : "Fehlt"}
               />
             </span>
@@ -863,7 +863,7 @@ function dispatchStateBadge(dispatch: PayrollDispatchView): {
       dispatch.channel === "email"
         ? { label: "E-Mail zugestellt", tone: "green" }
         : { label: "Übertragen", tone: "green" },
-    blocked: { label: "Nicht gesendet", tone: "orange" },
+    blocked: { label: "Nicht gesendet", tone: "warning" },
     failed: { label: "Fehlgeschlagen", tone: "red" },
   };
   return byState[dispatch.state] ?? { label: dispatch.state, tone: "gray" };

@@ -369,7 +369,7 @@ export function CareAmendmentHistoryCard({
                     ) : null}
                     {active && amendment.conflict ? (
                       <StatusBadge
-                        tone="orange"
+                        tone="warning"
                         size="xs"
                         label="Passt nicht mehr"
                       />

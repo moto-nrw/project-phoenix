@@ -84,7 +84,7 @@ export function CareContractSignatureCard({
           ) : contract.concluded ? (
             <StatusBadge label="Abgeschlossen" tone="green" />
           ) : contract.status === "versendet" ? (
-            <StatusBadge label="Wartet auf Eltern" tone="orange" />
+            <StatusBadge label="Wartet auf Eltern" tone="warning" />
           ) : null
         }
         action={

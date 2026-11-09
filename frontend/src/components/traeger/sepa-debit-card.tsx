@@ -255,7 +255,7 @@ export function SepaDebitCard({
         icon={LandmarkIcon}
         titleBadge={
           pending ? (
-            <StatusBadge label="Noch nicht eingereicht" tone="orange" />
+            <StatusBadge label="Noch nicht eingereicht" tone="warning" />
           ) : run.submitted.length > 0 ? (
             <StatusBadge label="Bei der Bank eingereicht" tone="green" />
           ) : null
