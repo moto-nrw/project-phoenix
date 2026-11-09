@@ -342,6 +342,13 @@ assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' pre
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-source-ratchets.mjs' present
+for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
+  assert_workflow_filter script-tests "$path" present
+  # Do not buy the release-restore or extra toolchain-ratchet jobs for these.
+  assert_workflow_filter tooling "$path" absent
+  assert_workflow_filter hooks "$path" absent
+done
 for filter in backend-tests backend-lint backend-architecture; do
   assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
   assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present

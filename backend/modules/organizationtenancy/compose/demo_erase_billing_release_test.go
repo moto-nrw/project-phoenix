@@ -10,11 +10,14 @@ import (
 )
 
 // withoutIssuedInvoice removes the invoice leaveVisitorHolidayRegistration
-// issued, with its mailed letter, so the registration waits for its first
-// invoice.
+// issued, with its mailed letter and its push, so the registration waits for
+// its first invoice.
 func withoutIssuedInvoice(t *testing.T, order demoOrder) {
 	t.Helper()
 	for _, statement := range []string{
+		`DELETE FROM platform.push_outbox AS push USING parent_billing.documents AS document
+			WHERE document.number = 'F-' || ?0 AND push.organization_id = document.organization_id
+				AND push.kind = 'parent_billing_document' AND push.related_entity_id = document.id`,
 		`DELETE FROM platform.email_outbox AS outbox USING parent_billing.document_mailings AS mailing, parent_billing.documents AS document
 			WHERE document.number = 'F-' || ?0 AND mailing.organization_id = document.organization_id AND mailing.document_id = document.id
 				AND outbox.organization_id = mailing.organization_id AND outbox.id = mailing.delivery_id`,
@@ -126,7 +129,7 @@ func pendingLetterSend(t *testing.T, order demoOrder) (bun.Tx, int64) {
 	require.NoError(t, err)
 	var mailID int64
 	require.NoError(t, tx.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-		SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?),
+		SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?),
 			jsonb_build_object('guardian_name', ?), 'pending'
 		FROM parent_billing.documents WHERE number = 'F-' || ? RETURNING id`, visitorFull, visitorFull, order.schoolID).Scan(ctx, &mailID))
 	_, err = tx.NewRaw(`INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
@@ -267,7 +270,7 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 			FROM parent_billing.documents AS document JOIN run ON run.id = document.run_id WHERE document.id = ?2),
 		outbox AS (
 			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?0::text),
+			SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?0::text),
 				jsonb_build_object('guardian_name', ?0::text), 'pending' FROM document
 			RETURNING id),
 		push AS (

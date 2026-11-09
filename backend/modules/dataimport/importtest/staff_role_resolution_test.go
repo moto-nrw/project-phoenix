@@ -91,7 +91,7 @@ func runStaffRoleUpload(t *testing.T, db *bun.DB, module api.ImportTestModule, a
 
 // TestStaffImportResolvesRolesLikeTheSingleRoleRead pins name priority, alias
 // fallback, assignability, grant checks and suggestions of the staff role
-// validation. A tie of equal rank is decided by the single read itself.
+// validation. A tie of equal rank is decided by the single read's smallest ID.
 func TestStaffImportResolvesRolesLikeTheSingleRoleRead(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -104,6 +104,9 @@ func TestStaffImportResolvesRolesLikeTheSingleRoleRead(t *testing.T) {
 	gast := namedTenantRole(t, db, "Gast")   // exact name before the alias Gast → guest
 	tieLower := namedTenantRole(t, db, "Team")
 	tieUpper := namedTenantRole(t, db, "TEAM")
+	require.Less(t, tieLower, tieUpper)
+	_, err = db.NewRaw(`UPDATE auth.roles SET description = description WHERE id = ?`, tieLower).Exec(t.Context())
+	require.NoError(t, err)
 	permission := testpkg.CreateTestPermission(t, db, "import-role-grant", "groups", "delete")
 	_, err = db.NewRaw(`INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)`, care, permission.ID).Exec(context.Background())
 	require.NoError(t, err)
@@ -119,7 +122,7 @@ func TestStaffImportResolvesRolesLikeTheSingleRoleRead(t *testing.T) {
 	require.Equal(t, staffRoleOutcome{RoleID: gast}, outcomes["Gast"])
 	require.Equal(t, staffRoleOutcome{RoleID: systemRoleID(t, db, "user")}, outcomes["Betreuer"], "a legacy alias resolves the system role")
 	require.Equal(t, staffRoleOutcome{RoleID: systemRoleID(t, db, "user")}, outcomes["Betreuung"])
-	require.Contains(t, []int64{tieLower, tieUpper}, outcomes["team"].RoleID, "a tie of equal rank resolves to one of its candidates")
+	require.Equal(t, staffRoleOutcome{RoleID: tieLower}, outcomes["team"], "a tie of equal rank resolves to the smallest ID")
 	require.Equal(t, staffRoleOutcome{Errors: []string{"role_not_found:Betreuungskraft"}}, outcomes["Betreungskraft"])
 	require.Equal(t, staffRoleOutcome{Errors: []string{"role_not_assignable:"}}, outcomes["Eltern"])
 	require.Equal(t, staffRoleOutcome{Errors: []string{"required:"}}, outcomes[""])

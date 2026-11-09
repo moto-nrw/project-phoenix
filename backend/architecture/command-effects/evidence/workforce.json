@@ -1201,6 +1201,86 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.BankDataRing",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.BankDataRing",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Open",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Open",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "binding_digest": "2b846846c1d86f0cd9de6c4d91d31331",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Seal",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Seal",
+      "binding_digest": "2b846846c1d86f0cd9de6c4d91d31331",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Seal",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.BankDataRing",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Open",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "binding_digest": "04f9698ef5b3ba14cda74a9cee4912d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Rewrap",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "binding_digest": "2b846846c1d86f0cd9de6c4d91d31331",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Seal",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ActivateStaffDocumentFileCleanup",
       "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.ActivateStaffDocumentFileCleanup",
@@ -7865,9 +7945,25 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.ApplyCancellation",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.ApplyCancellation",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.CreateSeries",
       "binding_digest": "385c7ec9453d007b5438bea73a076bf3",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.CreateSeries",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.CreateShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.CreateShift",
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
@@ -7889,6 +7985,14 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.MoveShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.MoveShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.Overview",
       "binding_digest": "4678f919ca6d573007d00a99f1bdfb37",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.Overview",
@@ -7908,6 +8012,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.SplitSeries",
       "binding_digest": "385c7ec9453d007b5438bea73a076bf3",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.SplitSeries",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.UpdateShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.UpdateShift",
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
@@ -16393,6 +16505,22 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffShifts",
       "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffShifts",
@@ -16641,6 +16769,22 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "binding_digest": "e7e3d3b169d96654e26948bc2e12caed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SickReportReader.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SickReportReader.ListStaffAbsences",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.FindWithPersonByIDs",
       "binding_digest": "0fd2278eb626b50f8452c28b3d87d205",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffOverviewReader.FindWithPersonByIDs",
@@ -16841,12 +16985,52 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.ApplyCancellation",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.ApplyCancellation",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.CreateShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.CreateShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.MoveShift",
       "binding_digest": "b33d26584942a40a62366eb05b351ea6",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.MoveShift",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DeviationEventRepository.Create",
       "target_owner": "audit-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.MoveShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.MoveShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShiftWithOptions",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShiftWithOptions",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffShifts",

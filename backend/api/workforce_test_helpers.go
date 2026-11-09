@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/spf13/viper"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -198,8 +200,12 @@ func NewStaffAdmin(db transactionruntime.Database, staff peoplePorts.StaffReposi
 	if err != nil {
 		return nil, err
 	}
+	bankData, err := BankDataCipher(viper.GetString("bank_data_keys"), "")
+	if err != nil {
+		return nil, err
+	}
 	return owners.ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
-		DB: db.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
+		DB: db.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now, BankData: bankData,
 	}, staff, persons, people, membership, deps.MasterDataAudit, deps.PersonnelNumber, deps.DataAccessLog)
 }
 

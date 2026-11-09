@@ -153,14 +153,22 @@ func (q StaffQualification) Validate() error {
 // syntax is validated by the personnel service; the store only requires the
 // owner.
 type StaffFinancialData struct {
-	ID                   int64
-	TenantID             int64
-	StaffID              int64
-	IBAN                 *string
-	TaxID                *string
-	SocialSecurityNumber *string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID       int64
+	TenantID int64
+	StaffID  int64
+	// IBAN, TaxID and SocialSecurityNumber are opened values (#6332): the
+	// store keeps them only sealed with the bank ring, plus the IBAN mask,
+	// and fills them from the plaintext columns only for rows the
+	// maintenance backfill has not sealed yet.
+	IBAN                       *string
+	TaxID                      *string
+	SocialSecurityNumber       *string
+	IBANSealed                 []byte
+	IBANMasked                 *string
+	TaxIDSealed                []byte
+	SocialSecurityNumberSealed []byte
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
 }
 
 func (f StaffFinancialData) Validate() error {

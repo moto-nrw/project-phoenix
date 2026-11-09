@@ -1,0 +1,62 @@
+{
+  "comment": "One case list for both sides of the DATEV settings (#4694): the save validation of the settings registry (modules/settings/internal/application) and the export readiness of the Elternabrechnung (modules/parentbilling/internal/application). save: whether the registry stores the value. export: ok, invalid or missing in the readiness check with every other key at base. Invariant: a value the export refuses as invalid is never stored, unless the case names the key it depends_on (a cross-field rule the Träger level cannot hold, ADR 0086). missing is the unset registry default.",
+  "base": {
+    "parent_billing.datev_consultant_number": "29098",
+    "parent_billing.datev_client_number": "55003",
+    "parent_billing.datev_account_length": "4",
+    "parent_billing.datev_chart_of_accounts": "04",
+    "parent_billing.datev_fiscal_year_start": "1",
+    "parent_billing.datev_revenue_account": "4400",
+    "parent_billing.datev_locked": false
+  },
+  "cases": [
+    {"key": "parent_billing.datev_consultant_number", "value": "1001", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_consultant_number", "value": "9999999", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_consultant_number", "value": "1000", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_consultant_number", "value": "999", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_consultant_number", "value": "10000000", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_consultant_number", "value": "0123", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_consultant_number", "value": "12 34", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_consultant_number", "value": "", "save": true, "export": "missing"},
+
+    {"key": "parent_billing.datev_client_number", "value": "1", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_client_number", "value": "99999", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_client_number", "value": "0", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_client_number", "value": "100000", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_client_number", "value": "1a", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_client_number", "value": "01", "save": false, "export": "ok"},
+    {"key": "parent_billing.datev_client_number", "value": "", "save": true, "export": "missing"},
+
+    {"key": "parent_billing.datev_account_length", "value": "4", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_account_length", "value": "8", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_account_length", "value": "3", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_account_length", "value": "9", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_account_length", "value": "x", "save": false, "export": "invalid"},
+
+    {"key": "parent_billing.datev_chart_of_accounts", "value": "03", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_chart_of_accounts", "value": "04", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_chart_of_accounts", "value": "SKR04", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_chart_of_accounts", "value": "4", "save": false, "export": "invalid"},
+
+    {"key": "parent_billing.datev_fiscal_year_start", "value": "1", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_fiscal_year_start", "value": "12", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_fiscal_year_start", "value": "0", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_fiscal_year_start", "value": "13", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_fiscal_year_start", "value": "Januar", "save": false, "export": "invalid"},
+
+    {"key": "parent_billing.datev_revenue_account", "value": "85", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_revenue_account", "value": "0085", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_revenue_account", "value": "8400", "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_revenue_account", "value": "0", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_revenue_account", "value": "0000", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_revenue_account", "value": "00000000", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_revenue_account", "value": "123456789", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_revenue_account", "value": "44-00", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_revenue_account", "value": " 4400", "save": false, "export": "invalid"},
+    {"key": "parent_billing.datev_revenue_account", "value": "44000", "save": true, "export": "invalid", "depends_on": "parent_billing.datev_account_length"},
+    {"key": "parent_billing.datev_revenue_account", "value": "", "save": true, "export": "missing"},
+
+    {"key": "parent_billing.datev_locked", "value": true, "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_locked", "value": false, "save": true, "export": "ok"}
+  ]
+}

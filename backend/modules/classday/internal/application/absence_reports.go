@@ -188,7 +188,7 @@ func (a absenceReports) unreportedAmong(ctx context.Context, studentIDs []int64,
 	if len(absent) == 0 {
 		return nil, nil
 	}
-	entries, err := a.reads.ActiveStatusDays(ctx, absent, date)
+	entries, err := a.reads.StandingStatusDays(ctx, absent, date)
 	if err != nil {
 		return nil, fmt.Errorf("class day absence report: load status days: %w", err)
 	}

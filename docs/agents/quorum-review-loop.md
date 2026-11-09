@@ -1,12 +1,53 @@
 # quorum Review Loop
 
+## Merge policy
+
+When implementation and merge are authorized, that authorization includes the
+implementing delegate. After self-review and a successful `quorum babysit`, the
+implementer merges without waiting for a separate orchestrator approval or a
+mandatory third review. Keep Quorum's review/fix loop and stopping conditions;
+do not cap its rounds. Request another review only for a concrete unresolved
+concern or an explicit user requirement.
+
+Run `BASE_UPDATE=conflicts quorum babysit <pr-number>`: Quorum otherwise updates
+a branch whenever it is behind, even without conflicts. This setting changes
+only base-update behavior; the review/fix loop stays as configured.
+
+Before merging, fetch the PR's base and check mergeability. Fetching updates
+remote references; it does not merge or rebase the base into the PR. Update the
+branch to resolve actual conflicts (`DIRTY`), not merely because it is `BEHIND`
+or the base has advanced. For stacks, follow the
+[stacked-PR workflow](../../.agents/skills/stacked-pr/SKILL.md#keep-the-stack-current).
+Check new migration numbers against the fetched base and open PRs without
+merging the base just to inspect them. Check relevant interactions with recent
+base changes; investigate concrete integration risks without routine sync commits.
+
+The final check still applies: the PR is ready, its current head has passed
+required local checks and CI, review blockers are resolved, and it is
+conflict-free. A skipped draft run is not evidence of passing CI. Unknown
+mergeability or blocked checks must be resolved before merging. Bind ordinary
+merges to the checked head with `gh pr merge --match-head-commit <SHA>`; for
+stacks, use the [asynchronous merge endpoint](../../.agents/skills/stacked-pr/SKILL.md#merge)
+with its `sha` field set to that head. If the head changes, check that revision
+before retrying. Branch protection remains binding. After a
+conflict fix or other code change, run affected checks and the review loop again.
+Confirm the merged state and report it to the orchestrator for tracking.
+
 ## Local test gate and CI
 
 [`.quorum/testcmd`](../../.quorum/testcmd) sets the local gate to
 `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast`. The wrapper pins
 the Devbox Go toolchain even when Quorum runs outside a Devbox shell.
 For backend changes, `--fast` selects changed packages and direct importers,
-not transitive importers or the automatically appended `./test` ratchets.
+plus affected source checks from `./test` using an anchored `-run` filter.
+The filesystem-input inventory is in
+[`scripts/backend-source-ratchets.mjs`](../../scripts/backend-source-ratchets.mjs),
+including checks without `Ratchet` in their name. Selection includes committed,
+staged, unstaged and untracked paths, both sides of renames and deleted inputs.
+Source checks use `-count=1`; ordinary package tests retain their cache and
+receive no `-run` filter. A full `./test` selection runs once, without a filter.
+The fast path does not expand transitive importers or run the full `./test`
+database suite for every backend edit. Runtime schema checks stay in that suite.
 Changes to `go.mod` or `go.sum` still select all backend packages. Frontend
 selection is unchanged. CI keeps the full affected closure, including test
 importers and ratchets; the manual full run remains available:
@@ -21,7 +62,7 @@ branch**, not the PR head. Check for a local override before relying on this
 gate. To verify a gate change before it merges, pass the command explicitly:
 
 ```bash
-quorum babysit <pr-number> --test-cmd 'scripts/run-go-toolchain.sh scripts/test-changed.sh --fast'
+BASE_UPDATE=conflicts quorum babysit <pr-number> --test-cmd 'scripts/run-go-toolchain.sh scripts/test-changed.sh --fast'
 ```
 
 With a shared admission gate such as `~/bin/agent-heavy`, wrap only the

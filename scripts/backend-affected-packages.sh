@@ -4,8 +4,8 @@
 #
 # --direct limits the selection to depth 1: only direct importers instead of
 # the transitive closure, and without the always-appended repo-wide ./test
-# ratchet package. For the fast local fix loop (scripts/test-changed.sh
-# --fast); gates keep using the default full closure.
+# ratchet package. scripts/test-changed.sh --fast separately selects source
+# ratchets by their filesystem inputs; CI keeps the default full closure.
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
@@ -20,7 +20,7 @@ merge_base=$(git merge-base HEAD "$base")
 
 backend_changes=$(
   {
-    git diff --name-only "$merge_base" -- backend
+    git diff --no-renames --name-only "$merge_base" -- backend
     git ls-files --others --exclude-standard -- backend
   } | sort -u
 )
@@ -149,8 +149,9 @@ fi
   printf '%s\n' "$changed"
   # The test package contains repository-wide source scanners and ratchets.
   # Import-graph selection cannot discover that dependency, so every non-empty
-  # backend selection must include it explicitly. --direct skips it on
-  # purpose: the fast loop trades the repo-wide ratchets for iteration speed.
+  # backend selection must include it explicitly. --direct leaves the targeted
+  # filesystem dependency selection to test-changed.sh instead of running all
+  # of ./test (which includes database integration tests).
   if [ "$direct" != true ]; then
     printf '%s/test\n' "$module"
   fi
