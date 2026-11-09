@@ -98,7 +98,11 @@ class ChildCareRefreshError extends Error {
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
 
-export type AbsenceSubmissionOutcome = "applied" | "pending";
+/**
+ * How a report landed: written directly, sent as a request for every day, or
+ * written for the free days with a request for days the school holds (#5698).
+ */
+export type AbsenceSubmissionOutcome = "applied" | "pending" | "partly_pending";
 
 // Stable empty default for SickStatusSummary's optional excusedRequests prop —
 // a fresh [] literal per render would break referential equality (oxlint
@@ -581,7 +585,7 @@ export function useChildCare(studentId: string): ChildCare {
       status: StudentStatusKind,
       recipientGuardianProfileIds: string[] = [],
     ) => {
-      const { status_days } = await submitSickNote(
+      const { status_days, pending_request } = await submitSickNote(
         studentId,
         dates,
         reason,
@@ -621,7 +625,7 @@ export function useChildCare(studentId: string): ChildCare {
           setTodayAbsent(true);
           setWeekPlanDate(berlinTodayISO());
         }
-        return "applied" as const;
+        if (!pending_request) return "applied" as const;
       }
       // Empty status days means the school gated this absence: the backend
       // created a pending request instead. Reload authoritatively to surface
@@ -638,7 +642,9 @@ export function useChildCare(studentId: string): ChildCare {
         // idempotently, so it won't create a duplicate request (#1845 review).
         throw new ChildCareRefreshError();
       }
-      return "pending" as const;
+      return status_days.length > 0
+        ? ("partly_pending" as const)
+        : ("pending" as const);
     },
     [studentId, load],
   );
@@ -781,9 +787,8 @@ export function SickNoteModal({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
   /**
-   * Die Tagesänderungen des Kindes. Tage mit einer Teil-Abwesenheit der OGS
-   * (`excused_from`) meldet der Dialog nicht mit, weil der Server sie für
-   * eine Abmeldung über den ganzen Tag ablehnt (#5698).
+   * Die Tagesänderungen des Kindes. Für Tage mit einer Teil-Abwesenheit der
+   * OGS (`excused_from`) geht die Meldung als Anfrage an die OGS (#5698).
    */
   careExceptions?: readonly CareException[];
 }>) {
@@ -802,7 +807,9 @@ export function SickNoteModal({
         : selectedStatus;
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<
+    Exclude<AbsenceSubmissionOutcome, "applied"> | false
+  >(false);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
   // unsichtbar unter ihm.
@@ -816,9 +823,9 @@ export function SickNoteModal({
   // window the page reads.
   const [reloadedExceptions, setReloadedExceptions] =
     useState<readonly CareException[]>(NO_CARE_EXCEPTIONS);
-  // Only a manual partial absence blocks a full-day report; the backend
-  // ignores automatic excusals from a pulled-forward pickup time, and so does
-  // the read that fills excused_from.
+  // Only a manual partial absence is a school entry; the backend ignores
+  // automatic excusals from a pulled-forward pickup time, and so does the
+  // read that fills excused_from. Such days go to the school as a request.
   const schoolExcusedFrom = useMemo(
     () =>
       new Map(
@@ -828,12 +835,11 @@ export function SickNoteModal({
       ),
     [careExceptions, reloadedExceptions],
   );
-  const blockedDays = dates.flatMap((date) => {
+  const schoolDays = dates.flatMap((date) => {
     const time = schoolExcusedFrom.get(date);
     return time ? [{ date, time }] : [];
   });
-  const freeDates = dates.filter((date) => !schoolExcusedFrom.has(date));
-  const allDaysBlocked = dates.length > 0 && freeDates.length === 0;
+  const freeDayCount = dates.length - schoolDays.length;
   const noteMissing = reason.trim() === "";
   const requiresApproval =
     status === "sick" ? sickRequiresApproval : excusedRequiresApproval;
@@ -846,11 +852,11 @@ export function SickNoteModal({
         ? "sick.kindHintExcused"
         : "sick.kindHintExcusedUnknown";
   const dayCopy =
-    blockedDays.length > 0
-      ? allDaysBlocked
+    schoolDays.length > 0 && requiresApproval === false
+      ? freeDayCount === 0
         ? null
         : t("sick.freeDaysCount", {
-            count: freeDates.length,
+            count: freeDayCount,
             total: dates.length,
           })
       : requiresApproval === undefined
@@ -865,7 +871,6 @@ export function SickNoteModal({
       form.invalid(t("sick.invalidDate"));
       return;
     }
-    if (freeDates.length === 0) return;
     if (reasonRequired && noteMissing) {
       form.invalid(t("sick.reasonRequiredError"), {
         [SICK_REASON_FIELD]: t("sick.reasonRequiredError"),
@@ -875,15 +880,16 @@ export function SickNoteModal({
     setSubmitting(true);
     form.clear();
     try {
-      const outcome = await onSubmit(freeDates, reason, status, recipientIds);
-      if (outcome === "pending") setSubmitted(true);
+      const outcome = await onSubmit(dates, reason, status, recipientIds);
+      if (outcome === "pending" || outcome === "partly_pending")
+        setSubmitted(outcome);
       else onClose();
     } catch (err) {
       const known = knownSickErrorKey(err);
       if (known === "sick.schoolPartialConflict" && studentId) {
         form.invalid(t(known));
-        // Name the day: once the notice lists it, it explains the refusal
-        // and the next send reports only the free days.
+        // The school entered a day while the dialog was open. Once the
+        // notice names it, sending again turns that day into a request.
         const reloaded = await listCareExceptions(studentId, {
           from: dates[0]!,
           to: dates[dates.length - 1]!,
@@ -915,7 +921,13 @@ export function SickNoteModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={submitted ? t("sick.requestSentTitle") : t("sick.title")}
+      title={
+        submitted === "partly_pending"
+          ? t("sick.requestSentPartlyTitle")
+          : submitted
+            ? t("sick.requestSentTitle")
+            : t("sick.title")
+      }
       closeLabel={t("close")}
       mobileSheet
       footer={
@@ -935,11 +947,7 @@ export function SickNoteModal({
               size="md"
               className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
-              disabled={
-                submitting ||
-                allDaysBlocked ||
-                (!sickEnabled && !excusedEnabled)
-              }
+              disabled={submitting || (!sickEnabled && !excusedEnabled)}
               isLoading={submitting}
               loadingText={t("sick.submitting")}
             >
@@ -953,7 +961,11 @@ export function SickNoteModal({
     >
       {submitted ? (
         <p role="status" className="text-sm leading-6 text-gray-700">
-          {t("sick.requestSentBody")}
+          {submitted === "partly_pending"
+            ? t("sick.requestSentPartlyBody")
+            : requiresApproval === false
+              ? t("sick.requestSentSchoolBody")
+              : t("sick.requestSentBody")}
         </p>
       ) : (
         <div className="space-y-4">
@@ -1007,15 +1019,15 @@ export function SickNoteModal({
               />
             </div>
           </fieldset>
-          {blockedDays.length > 0 && (
+          {schoolDays.length > 0 && requiresApproval !== true && (
             <Alert
-              type="warning"
+              type="info"
               title={t("sick.schoolPartialTitle", {
-                count: blockedDays.length,
+                count: schoolDays.length,
               })}
               message={
                 <ul className="space-y-0.5 tabular-nums">
-                  {blockedDays.map((day) => (
+                  {schoolDays.map((day) => (
                     <li key={day.date}>
                       {t("sick.schoolPartialDay", {
                         date: formatCalendarDate(
@@ -1031,11 +1043,9 @@ export function SickNoteModal({
               }
               details={
                 <p className="mt-2">
-                  {allDaysBlocked
-                    ? t("sick.schoolPartialAllBlocked")
-                    : t("sick.schoolPartialSkipped", {
-                        count: blockedDays.length,
-                      })}
+                  {t("sick.schoolPartialRequest", {
+                    count: schoolDays.length,
+                  })}
                 </p>
               }
             />
