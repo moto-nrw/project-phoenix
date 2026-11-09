@@ -85,6 +85,9 @@ const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
 const CodeParentBillingSepaCreditorInvalid = "parent_billing.sepa_creditor_invalid"
 const CodeParentBillingSepaCreditorMissing = "parent_billing.sepa_creditor_missing"
+const CodeParentBillingSepaImportFileInvalid = "parent_billing.sepa_import_file_invalid"
+const CodeParentBillingSepaImportFileTooLarge = "parent_billing.sepa_import_file_too_large"
+const CodeParentBillingSepaImportMappingInvalid = "parent_billing.sepa_import_mapping_invalid"
 const CodeParentBillingSepaMandateInForce = "parent_billing.sepa_mandate_in_force"
 const CodeParentBillingSepaMandateInvalid = "parent_billing.sepa_mandate_invalid"
 const CodeParentBillingSepaMandateNotFound = "parent_billing.sepa_mandate_not_found"
@@ -179,6 +182,9 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
 	{CodeParentBillingSepaCreditorInvalid, "input"},
 	{CodeParentBillingSepaCreditorMissing, "business_rejection"},
+	{CodeParentBillingSepaImportFileInvalid, "input"},
+	{CodeParentBillingSepaImportFileTooLarge, "input"},
+	{CodeParentBillingSepaImportMappingInvalid, "input"},
 	{CodeParentBillingSepaMandateInForce, "business_rejection"},
 	{CodeParentBillingSepaMandateInvalid, "input"},
 	{CodeParentBillingSepaMandateNotFound, "business_rejection"},

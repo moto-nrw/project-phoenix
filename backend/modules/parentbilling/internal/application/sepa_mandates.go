@@ -66,6 +66,8 @@ type MandateStore interface {
 	SEPAMandateEvents(ctx context.Context, organizationID, id int64) ([]parentbilling.SEPAMandateEvent, error)
 	// SealedSEPAMandates reads mandates with their sealed IBAN.
 	SealedSEPAMandates(ctx context.Context, organizationID int64, ids []int64) ([]parentbilling.SealedSEPAMandate, error)
+	// MandateImportStore records the imports of existing mandates (#6198).
+	MandateImportStore
 }
 
 // SEPAMandates serves parentbilling.SEPAMandates. The family of a contract

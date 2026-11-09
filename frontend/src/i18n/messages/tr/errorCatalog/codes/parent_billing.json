@@ -90,5 +90,8 @@
   "sepa_mandate_reference_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "sepa_mandate_revoked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "direct_debit_without_mandate": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "sepa_creditor_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "sepa_creditor_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sepa_import_file_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "sepa_import_file_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "sepa_import_mapping_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

@@ -978,6 +978,12 @@ export const ERROR_CATALOG = {
         "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
       "parent_billing.sepa_creditor_missing":
         "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+      "parent_billing.sepa_import_file_invalid":
+        "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften.",
+      "parent_billing.sepa_import_file_too_large":
+        "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
+      "parent_billing.sepa_import_mapping_invalid":
+        "Bitte ordnen Sie zuerst alle Pflichtspalten zu.",
       "parent_billing.sepa_mandate_in_force":
         "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
       "parent_billing.sepa_mandate_invalid":

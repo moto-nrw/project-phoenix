@@ -332,4 +332,6 @@ type SEPAMandates interface {
 	// SEPAMandateDebits opens the IBAN of mandates for the debit file
 	// (#4697) and records the reveal of each.
 	SEPAMandateDebits(ctx context.Context, reviewer HolidayReviewer, ids []int64) ([]SEPAMandateDebit, error)
+	// SEPAMandateImports takes over existing mandates from a file (#6198).
+	SEPAMandateImports
 }

@@ -90,5 +90,8 @@
   "sepa_mandate_reference_taken": "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
   "sepa_mandate_revoked": "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
   "direct_debit_without_mandate": "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg.",
-  "sepa_creditor_missing": "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein."
+  "sepa_creditor_missing": "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+  "sepa_import_file_invalid": "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften.",
+  "sepa_import_file_too_large": "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
+  "sepa_import_mapping_invalid": "Bitte ordnen Sie zuerst alle Pflichtspalten zu."
 }

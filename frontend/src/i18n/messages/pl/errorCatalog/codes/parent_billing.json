@@ -90,5 +90,8 @@
   "sepa_mandate_reference_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "sepa_mandate_revoked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "direct_debit_without_mandate": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "sepa_creditor_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "sepa_creditor_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "sepa_import_file_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "sepa_import_file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "sepa_import_mapping_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

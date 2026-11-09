@@ -200,8 +200,8 @@ func (s *Store) InsertSEPAMandate(ctx context.Context, organizationID, accountID
 	row := &sepaMandateRow{
 		OrganizationID: organizationID, FamilyEmail: m.FamilyEmail, CareContractID: m.ContractID, Reference: m.Reference,
 		SignedOn: m.SignedOn, Kind: m.Kind, Sequence: m.Sequence, CreditorID: m.CreditorID, HolderSealed: mandate.Holder,
-		IBANMasked: m.IBANMasked,
-		BIC:        m.BIC, Source: m.Source, CreatedByAccountID: accountRef(accountID), UpdatedByAccountID: accountRef(accountID),
+		IBANMasked: m.IBANMasked, LastCollectedOn: m.LastCollectedOn,
+		BIC: m.BIC, Source: m.Source, CreatedByAccountID: accountRef(accountID), UpdatedByAccountID: accountRef(accountID),
 		IBANSealed: mandate.IBAN,
 	}
 	if _, err := db.NewInsert().Model(row).Returning(mandateReturning).Exec(ctx); err != nil {
