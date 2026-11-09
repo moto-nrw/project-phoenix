@@ -64,6 +64,44 @@ func isBelegTable(table string) bool {
 	return belegSchemaTable(table) && !operative
 }
 
+// belegIdentifier is a schema-qualified table name of the guarded schemas,
+// with or without quotes around each part.
+const belegIdentifier = `"?(parent_billing|care_contract|audit)"?\s*\.\s*"?(\w+)"?`
+
+// belegDeleteStatement finds DELETE FROM [ONLY] and TRUNCATE [TABLE] [ONLY]
+// with a list of tables; belegDeleteTargets splits the list.
+var (
+	belegDeleteStatement = regexp.MustCompile(`(?is)(?:delete\s+from|truncate(?:\s+table)?)(?:\s+only)?\s+(` +
+		belegIdentifier + `(?:\s*,\s*(?:only\s+)?"?\w+"?\s*\.\s*"?\w+"?)*)`)
+	belegTableName = regexp.MustCompile(`(?i)` + belegIdentifier)
+)
+
+// belegDeleteTargets returns the guarded tables a function source deletes
+// from or truncates, in lower case.
+func belegDeleteTargets(source string) []string {
+	var targets []string
+	for _, statement := range belegDeleteStatement.FindAllStringSubmatch(source, -1) {
+		for _, name := range belegTableName.FindAllStringSubmatch(statement[1], -1) {
+			targets = append(targets, strings.ToLower(name[1]+"."+name[2]))
+		}
+	}
+	return targets
+}
+
+func TestBelegDeleteTargetsReadsEveryDeletionForm(t *testing.T) {
+	t.Parallel()
+	source := `DELETE FROM parent_billing.care_invoices WHERE true;
+		delete from "care_contract"."contract_documents";
+		DELETE FROM ONLY "parent_billing" . sepa_debits;
+		TRUNCATE TABLE parent_billing.runs, "care_contract".contracts;
+		truncate only audit.traeger_signatures;
+		DELETE FROM enrollment.holiday_registrations;`
+	assert.Equal(t, []string{
+		"parent_billing.care_invoices", "care_contract.contract_documents", "parent_billing.sepa_debits",
+		"parent_billing.runs", "care_contract.contracts", "audit.traeger_signatures",
+	}, belegDeleteTargets(source))
+}
+
 func TestBelegeHaveNoDeletionPathFromOperativeData(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -138,20 +176,20 @@ func TestBelegeHaveNoDeletionPathFromOperativeData(t *testing.T) {
 	sort.Strings(cascades)
 	assert.Empty(t, cascades, "deleting operative data cascades into a Beleg table")
 
-	// No database function deletes a Beleg row except the erasure of a
-	// whole Träger.
+	// No database function deletes or truncates a Beleg table by name except
+	// the demo erasure, also with quoted identifiers or ONLY. Statements built
+	// at run time (EXECUTE) are outside this check.
 	var functions []struct {
 		Name   string `bun:"name"`
 		Source string `bun:"source"`
 	}
 	require.NoError(t, db.NewRaw(`SELECT n.nspname || '.' || p.proname AS name, p.prosrc AS source
 		FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-		WHERE p.prosrc ~* 'delete\s+from\s+(parent_billing|care_contract|audit)\.'`).Scan(ctx, &functions))
-	deleteFrom := regexp.MustCompile(`(?i)delete\s+from\s+((?:parent_billing|care_contract|audit)\.\w+)`)
+		WHERE p.prosrc ~* '(delete|truncate)'`).Scan(ctx, &functions))
 	var deleters []string
 	for _, function := range functions {
-		for _, match := range deleteFrom.FindAllStringSubmatch(function.Source, -1) {
-			if isBelegTable(strings.ToLower(match[1])) && !slices.Contains(deleters, function.Name) {
+		for _, table := range belegDeleteTargets(function.Source) {
+			if isBelegTable(table) && !slices.Contains(deleters, function.Name) {
 				deleters = append(deleters, function.Name)
 			}
 		}

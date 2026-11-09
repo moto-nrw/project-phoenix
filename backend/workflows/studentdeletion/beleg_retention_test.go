@@ -22,23 +22,30 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
 
-// belegTables are the tables of the Belege the fixture fills for one child.
-var belegTables = []string{
+// seededBelegTables are the tables of the Belege the fixture fills for one
+// child; each must hold a row before the deletions start.
+var seededBelegTables = []string{
 	"care_contract.contracts", "care_contract.contract_versions", "care_contract.contract_parties",
+	"care_contract.contract_documents", "care_contract.contract_signatures", "audit.traeger_signatures",
 	"parent_billing.sepa_mandates", "parent_billing.sepa_mandate_events", "parent_billing.sepa_debits",
 	"parent_billing.care_runs", "parent_billing.care_invoices", "parent_billing.care_invoice_corrections",
-	"parent_billing.care_invoice_cancellations", "parent_billing.care_notice_runs", "parent_billing.care_notices",
+	"parent_billing.care_run_amendments", "parent_billing.care_invoice_cancellations",
+	"parent_billing.care_notice_runs", "parent_billing.care_notices",
+	"parent_billing.runs", "parent_billing.documents",
 }
 
 // seedBelege writes the Belege of one child and its guardian account as the
-// releases write them: the contract with its version and party, a monthly
-// invoice with a correction and a cancellation, a released Jahresbescheid,
-// a SEPA mandate with its trail and the debit of the invoice.
+// releases write them: the contract with its first and a requested second
+// version, its PDF and the online signature, a monthly invoice with a
+// correction, an amendment of the run and a cancellation, a released
+// Jahresbescheid, a SEPA mandate with its trail and the debit of the invoice,
+// and a holiday invoice with its cancellation and a credit.
 func seedBelege(t *testing.T, ctx context.Context, db *bun.DB, organization, studentID, guardianAccountID int64, family string) {
 	t.Helper()
 	school := testpkg.Tenant(t)
 	const creditor = "DE98ZZZ09999999999"
-	var contract, version, mandate, run, invoice, noticeRun int64
+	const sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	var contract, version, document, signature, mandate, run, invoice, noticeRun, holidayRun, holidayInvoice int64
 	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, student_id,
 			status, sent_at, concluded_at, conclusion_method)
 		VALUES (?, ?, ?, ?, 'aktiv', NOW(), NOW(), 'papier') RETURNING id`,
@@ -50,6 +57,26 @@ func seedBelege(t *testing.T, ctx context.Context, db *bun.DB, organization, stu
 			false, '', false, '', '', 'SJR Pforzheim') RETURNING id`, organization, contract).Scan(ctx, &version))
 	_, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_parties (organization_id, contract_id, first_name, last_name,
 			email, account_id) VALUES (?, ?, 'Eva', 'Beispiel', ?, ?)`, organization, contract, family, guardianAccountID)
+	require.NoError(t, err)
+	// A requested change keeps the history of versions.
+	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number,
+			status, effective_from, child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to,
+			special_termination, special_termination_note, statute_required, statute_title, statute_url, contract_partner, source)
+		VALUES (?, ?, 2, 'beantragt', DATE '2029-08-01', 'Lia', 'Beispiel', 'OGS', 'open_ended', 1, 'month_end',
+			false, '', false, '', '', 'SJR Pforzheim', 'buchungsaenderung')`, organization, contract)
+	require.NoError(t, err)
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
+			template_version, filename, pdf) VALUES (?, ?, ?, 1, 'Betreuungsvertrag.pdf', '%PDF-1.4'::bytea) RETURNING id`,
+		organization, contract, version).Scan(ctx, &document))
+	require.NoError(t, db.NewRaw(`INSERT INTO audit.traeger_signatures (organization_id, purpose, care_contract_version_id,
+			signer_account_id, signer_name, method, image_png, image_sha256, document_sha256, record_hash, signed_at)
+		VALUES (?, 'care_contract', ?, ?, 'Eva Beispiel', 'drawn', '\x89'::bytea, ?, ?, ?, NOW()) RETURNING id`,
+		organization, version, guardianAccountID, sha, sha, sha).Scan(ctx, &signature))
+	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_signatures (organization_id, contract_id, contract_version_id,
+			contract_document_id, method, channel, audit_signature_id, signer_name, signer_account_id, version_sha256,
+			document_sha256, withdrawal_notice_at, signed_on, signed_at)
+		VALUES (?, ?, ?, ?, 'drawn', 'parent_account', ?, 'Eva Beispiel', ?, ?, ?, NOW(), DATE '2029-04-20', NOW())`,
+		organization, contract, version, document, signature, guardianAccountID, sha, sha)
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(ctx, `INSERT INTO parent_billing.sepa_creditors (organization_id, creditor_id) VALUES (?, ?)`,
@@ -77,6 +104,10 @@ func seedBelege(t *testing.T, ctx context.Context, db *bun.DB, organization, stu
 			label, amount_cents, reason, account_id, amended_at, carried_from_number)
 		VALUES (?, ?, 1, 'amount', 'Betreuung bis 14:00 Uhr', -500, 'Erste Woche krank, halber Beitrag', ?, NOW(), 'MB-ALT-1')`,
 		organization, invoice, guardianAccountID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO parent_billing.care_run_amendments (organization_id, run_id, care_contract_id, service,
+			kind, label, amount_cents, reason, account_id) VALUES (?, ?, ?, 'care', 'amount', 'Betreuung bis 14:00 Uhr', -500,
+			'Erste Woche krank, halber Beitrag', ?)`, organization, run, contract, guardianAccountID)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `UPDATE parent_billing.care_runs SET status = 'released', released_at = NOW(),
 		issued_on = DATE '2029-05-20', document_count = 1, total_cents = 7750, month_rule = 'pro_rata' WHERE id = ?`, run)
@@ -106,18 +137,54 @@ func seedBelege(t *testing.T, ctx context.Context, db *bun.DB, organization, stu
 			'Widerspruch binnen eines Monats.')`,
 		organization, noticeRun, contract, school, studentID, family, family)
 	require.NoError(t, err)
+
+	// A holiday invoice of the child with its cancellation and a credit.
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name,
+			service_from, service_until, status, released_at, issued_on, document_count, total_cents)
+		VALUES (?, 'holiday', ?, 'Herbstferien', DATE '2029-10-01', DATE '2029-10-05', 'released', NOW(), DATE '2029-09-20', 1, 6500)
+		RETURNING id`, organization, testpkg.UniqueTestTenantID(t)).Scan(ctx, &holidayRun))
+	holidayRegistration := testpkg.UniqueTestTenantID(t)
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
+			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
+			recipient_email, service_from, service_until, total_cents)
+		SELECT organization_id, id, 'holiday', 'FE-BELEG-1', 2029, 1, DATE '2029-09-20', holiday_period_id, ?, 'Eva', 'Beispiel', ?,
+			service_from, service_until, 6500 FROM parent_billing.runs WHERE id = ? RETURNING id`,
+		holidayRegistration, family, holidayRun).Scan(ctx, &holidayInvoice))
+	_, err = db.ExecContext(ctx, `INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
+			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
+			recipient_email, service_from, service_until, total_cents, kind, reference_document_id, reason)
+		SELECT organization_id, run_id, 'holiday', v.number, 2029, v.sequence, DATE '2029-09-25', holiday_period_id,
+			holiday_registration_id, 'Eva', 'Beispiel', recipient_email, service_from, service_until, v.total, v.kind, id, v.reason
+		FROM parent_billing.documents,
+			(VALUES ('FE-BELEG-2', 2, -1000, 'credit', 'Ein Tag ausgefallen'),
+				('FE-BELEG-3', 3, -6500, 'cancellation', 'Anmeldung storniert')) AS v(number, sequence, total, kind, reason)
+		WHERE id = ?`, holidayInvoice)
+	require.NoError(t, err)
 }
 
-// belegSnapshot reads every row of the Belege of the Träger, whole.
+// belegSnapshot reads every row of every Beleg table of the Träger, whole:
+// all tables of the schemas parent_billing and care_contract and the
+// signatures of Träger documents. Tables the fixture left empty count too,
+// so a row that appears or vanishes anywhere fails the comparison.
 func belegSnapshot(t *testing.T, ctx context.Context, db *bun.DB, organization int64) map[string]string {
 	t.Helper()
+	var tables []string
+	require.NoError(t, db.NewRaw(`SELECT c.table_schema || '.' || c.table_name FROM information_schema.columns AS c
+		JOIN information_schema.tables AS t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+		WHERE t.table_type = 'BASE TABLE' AND c.column_name = 'organization_id'
+			AND (c.table_schema IN ('parent_billing', 'care_contract')
+				OR (c.table_schema = 'audit' AND c.table_name = 'traeger_signatures'))`).Scan(ctx, &tables))
 	snapshot := map[string]string{}
-	for _, table := range belegTables {
+	for _, table := range tables {
 		var rows *string
-		require.NoError(t, db.NewRaw(`SELECT jsonb_agg(row ORDER BY row.id)::text FROM `+table+` AS row
+		require.NoError(t, db.NewRaw(`SELECT jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text)::text FROM `+table+` AS row
 			WHERE row.organization_id = ?`, organization).Scan(ctx, &rows))
-		require.NotNil(t, rows, "the fixture wrote %s", table)
-		snapshot[table] = *rows
+		if rows != nil {
+			snapshot[table] = *rows
+		}
+	}
+	for _, table := range seededBelegTables {
+		require.Contains(t, snapshot, table, "the fixture wrote %s", table)
 	}
 	return snapshot
 }
