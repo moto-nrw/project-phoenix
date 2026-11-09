@@ -36,6 +36,15 @@ import {
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
 
+/** Whether any row of the list names a sibling price. */
+function hasSiblingPrices(rows: readonly PriceRow[]): boolean {
+  return rows.some(
+    (row) =>
+      Object.keys(row.siblingPrices).length > 0 ||
+      Object.keys(row.siblingSteps).length > 0,
+  );
+}
+
 /** A price with the price for every further child under it. */
 function PriceCell({
   cents,
@@ -101,11 +110,12 @@ function moduleColumn(): DataTableColumn<PriceRow> {
 
 function weekdayColumns(
   weekdays: readonly CareWeekday[],
+  siblings: boolean,
 ): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, weekday: CareWeekday) => (
     <PriceCell
       cents={row.prices[weekday]}
-      sibling={row.siblingPrices[weekday]}
+      sibling={siblings ? row.siblingPrices[weekday] : undefined}
       booked={row.bookedWeekdays.includes(weekday)}
     />
   );
@@ -127,11 +137,11 @@ function weekdayColumns(
   ];
 }
 
-function scaleColumns(): DataTableColumn<PriceRow>[] {
+function scaleColumns(siblings: boolean): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, days: number) => (
     <PriceCell
       cents={row.steps[days]}
-      sibling={row.siblingSteps[days]}
+      sibling={siblings ? row.siblingSteps[days] : undefined}
       booked={row.bookedDaysPerWeek.includes(days)}
     />
   );
@@ -162,9 +172,16 @@ export function CarePriceListCard({
   onShownMonthChange,
   onEdit,
   onDelete,
+  siblingPricesApply = true,
 }: Readonly<{
   data: CareTariffs;
   school: { id: string; name: string };
+  /**
+   * Whether a sibling rule bills the sibling prices of the list
+   * („Preis laut Preisliste“). Without one they are never charged, so the
+   * cells leave them out and the card says so once.
+   */
+  siblingPricesApply?: boolean;
   /** The price list the card shows, "YYYY-MM-01"; empty without one. */
   shownMonth: string;
   currentMonth: string;
@@ -202,6 +219,9 @@ export function CarePriceListCard({
       : null,
     billedUntil
       ? `Abgerechnet bis ${formatMonth(billedUntil)}. Preise, mit denen schon abgerechnet ist, bleiben. Fehlende Preise können Sie ergänzen.`
+      : null,
+    !siblingPricesApply && hasSiblingPrices(rows)
+      ? "Geschwisterpreise gelten zurzeit nicht: Keine Geschwisterregel rechnet „Preis laut Preisliste“. Ihre Regeln stehen unter „Ermäßigungen“."
       : null,
   ]
     .filter(Boolean)
@@ -282,13 +302,13 @@ export function CarePriceListCard({
           <>
             {table(
               weekdayRows,
-              weekdayColumns(weekdays),
+              weekdayColumns(weekdays, siblingPricesApply),
               PRICE_FORM_LABELS.weekday,
               "Jeder Betrag ist der Monatspreis für einen gebuchten Wochentag.",
             )}
             {table(
               scaleRows,
-              scaleColumns(),
+              scaleColumns(siblingPricesApply),
               PRICE_FORM_LABELS.days_per_week,
               "Jeder Betrag ist der Monatspreis bei so vielen gebuchten Tagen je Woche.",
             )}

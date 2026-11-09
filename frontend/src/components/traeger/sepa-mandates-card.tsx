@@ -377,6 +377,7 @@ export function SepaMandatesCard({
   contractId,
   holder = "",
   mandates: given,
+  scopeLabel = "Alle",
   onChanged,
 }: Readonly<{
   /** The contract whose family the card shows; none shows every family. */
@@ -385,6 +386,8 @@ export function SepaMandatesCard({
   holder?: string;
   /** Mandates the page loaded itself; the card loads them otherwise. */
   mandates?: SepaMandate[];
+  /** Which mandates the page shows, named in the card („Gültige“). */
+  scopeLabel?: string;
   onChanged?: () => void;
 }>) {
   const own = useSepaMandates(given === undefined, contractId);
@@ -541,7 +544,7 @@ export function SepaMandatesCard({
       description={
         forFamily
           ? "Damit buchen Sie den Beitrag dieser Familie ab. Die IBAN sehen Sie nur verdeckt."
-          : "Alle Mandate Ihrer Familien. Ein neues Mandat erfassen Sie beim Vertrag der Familie unter „Mandat erfassen“."
+          : `${scopeLabel} Mandate Ihrer Familien. Ein neues Mandat erfassen Sie beim Vertrag der Familie unter „Mandat erfassen“.`
       }
       actions={createAction}
       loading={mandates === null && !own.error}

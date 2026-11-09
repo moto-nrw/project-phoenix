@@ -182,12 +182,16 @@ function TraegerSettingsContent() {
           message="Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro das Recht dazu hat."
         />
       ) : null}
-      {schema && contactActive && contact.loaded ? (
-        <TraegerContactSection
-          masterData={contact.masterData}
-          letterheadText={letterheadText(schema)}
-          onSaved={contact.refresh}
-        />
+      {schema && contact.loaded ? (
+        // Stays mounted while another tab is open: a typed contact that is
+        // not saved yet survives a switch of the tab.
+        <div className={contactActive ? "contents" : "hidden"}>
+          <TraegerContactSection
+            masterData={contact.masterData}
+            letterheadText={letterheadText(schema)}
+            onSaved={contact.refresh}
+          />
+        </div>
       ) : null}
       {activeTab?.categories.map((category) => (
         <SettingsCategory

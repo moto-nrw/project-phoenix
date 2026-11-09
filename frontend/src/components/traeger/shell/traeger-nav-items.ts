@@ -55,6 +55,8 @@ export interface TraegerNavItem {
   /** Pfad mit /traeger-Präfix; die Leisten schreiben ihn per `traegerPath` um. */
   readonly href: string;
   readonly label: string;
+  /** Kurzer Name für die mobile Leiste, wo der aktive Name wenig Platz hat. */
+  readonly shortLabel?: string;
   readonly concept: MotoConcept;
   /** Das Recht, ohne das der Eintrag fehlt; `null` für jede Person. */
   readonly right: string | null;
@@ -112,6 +114,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "ferien",
         href: "/traeger/ferien",
         label: "Ferienbetreuung",
+        shortLabel: "Ferien",
         concept: holidayWeeksConcept,
         right: ENROLLMENT_RIGHT,
       },
@@ -152,6 +155,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "abrechnung",
         href: "/traeger/abrechnung",
         label: "Abrechnungsläufe",
+        shortLabel: "Abrechnung",
         concept: billingConcept,
         right: BILLING_RIGHT,
       },
@@ -159,6 +163,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "familien",
         href: "/traeger/abrechnung/familien",
         label: "Familien und Zahlung",
+        shortLabel: "Familien",
         concept: parentsConcept,
         right: BILLING_RIGHT,
       },
@@ -166,6 +171,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "preise",
         href: "/traeger/abrechnung/preise",
         label: "Preise und Ermäßigungen",
+        shortLabel: "Preise",
         concept: contributionsConcept,
         right: BILLING_RIGHT,
       },
@@ -199,6 +205,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "mitglieder",
     href: "/traeger/einstellungen/mitglieder",
     label: "Mitglieder und Rollen",
+    shortLabel: "Mitglieder",
     concept: peopleConcept,
     right: ACCOUNTS_RIGHT,
   },
@@ -206,6 +213,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "briefkopf",
     href: "/traeger/einstellungen/briefkopf",
     label: "Briefkopf und Vorlagen",
+    shortLabel: "Briefkopf",
     concept: documentsConcept,
     right: OVERVIEW_RIGHT,
   },
@@ -213,6 +221,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "abrechnungsvorgaben",
     href: "/traeger/einstellungen/abrechnung",
     label: "Abrechnungsvorgaben",
+    shortLabel: "Vorgaben",
     concept: contributionsConcept,
     right: OVERVIEW_RIGHT,
   },
@@ -227,6 +236,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "zugriffsprotokoll",
     href: "/traeger/einstellungen/zugriffsprotokoll",
     label: "Zugriffsprotokoll",
+    shortLabel: "Protokoll",
     concept: changeHistoryConcept,
     right: ACCESS_LOG_RIGHT,
   },

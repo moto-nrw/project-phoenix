@@ -32,6 +32,10 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import {
+  type CareRule,
+  fetchCareRules,
+} from "~/lib/traeger-care-reductions-api";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -75,6 +79,24 @@ function PriceListPage() {
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const deleteErrors = useApiFormError();
   const { success } = useToast();
+
+  // The sibling rules decide whether the list's sibling prices are charged;
+  // without them (not loaded, no right) the cells keep showing them.
+  const [siblingRules, setSiblingRules] = useState<readonly CareRule[] | null>(
+    null,
+  );
+  useEffect(() => {
+    fetchCareRules()
+      .then((set) =>
+        setSiblingRules(set.rules.filter((rule) => rule.kind === "sibling")),
+      )
+      .catch((err: unknown) => {
+        // Silent on purpose: the page shows the sibling prices as before.
+        logger.warn("traeger_care_rules_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -237,6 +259,20 @@ function PriceListPage() {
                 }
                 onEdit={() => setEditing(school)}
                 onDelete={(validFrom) => setDeleting({ ...school, validFrom })}
+                siblingPricesApply={
+                  siblingRules === null ||
+                  siblingRules.some(
+                    (rule) =>
+                      rule.tariffSiblingPrice === true &&
+                      (rule.schoolIds.length === 0 ||
+                        rule.schoolIds.includes(school.id)) &&
+                      rule.validFrom <=
+                        (shownMonth(school.id) || currentMonth) &&
+                      (rule.validUntil === null ||
+                        rule.validUntil >=
+                          (shownMonth(school.id) || currentMonth)),
+                  )
+                }
               />
             </div>
           ))

@@ -40,6 +40,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
+import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SelectionBar } from "~/components/ui/selection-bar";
@@ -217,6 +218,9 @@ export default function TraegerVertraegePage() {
   const [status, setStatus] = useState<StatusChoice>("all");
   const [schoolId, setSchoolId] = useState("");
   const [search, setSearch] = useState("");
+  const isPhone = useMediaQuery("(max-width: 639px)");
+  // Null until the person opens or closes the card: then the device decides.
+  const [rulesOpen, setRulesOpen] = useState<boolean | null>(null);
   const debouncedSearch = useDebounce(search.trim(), 250);
   const context = useRef<{
     candidates: ContractCandidate[];
@@ -510,6 +514,10 @@ export default function TraegerVertraegePage() {
         <SectionCard
           title="Wann gilt der Vertrag?"
           description={conclusionDescription(data.modes)}
+          // On a phone the rule card starts closed: the contracts come first.
+          collapsible
+          collapsed={!(rulesOpen ?? !isPhone)}
+          onCollapsedChange={(collapsed) => setRulesOpen(!collapsed)}
           action={
             hasPermission(session, "traeger_overview:read") ? (
               <ButtonLink

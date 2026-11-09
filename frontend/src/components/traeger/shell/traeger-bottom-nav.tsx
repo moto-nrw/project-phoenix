@@ -82,6 +82,7 @@ export function TraegerBottomNav() {
     key: item.key,
     href: item.direct ? item.href : traegerPath(item.href),
     label: item.label,
+    shortLabel: "shortLabel" in item ? item.shortLabel : undefined,
     concept: item.concept,
     active: item.direct !== true && isTraegerNavActive(item.href, pathname),
     newTab: item.help === true,
