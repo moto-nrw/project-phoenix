@@ -732,3 +732,28 @@ func TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch(t *testing.T) {
 	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id))
 	assert.True(t, visitExists(t, admin, school.expired), "nothing runs while the switch cannot be read")
 }
+
+// TestNightlyCleanupStoresTheStreakOfAnUnreadableCleanupTime: without a
+// readable cleanup time a school's run cannot be due. Its streak must reach
+// the database anyway and the job run must report the failure.
+func TestNightlyCleanupStoresTheStreakOfAnUnreadableCleanupTime(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	_, err := admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.data_cleanup_time', '42'::jsonb)`, school.id)
+	require.NoError(t, err)
+	var outcome string
+	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
+
+	for _, after := range []time.Duration{0, 30 * time.Minute, time.Hour, 3 * time.Hour} {
+		now = start.Add(after)
+		scheduler.NewCleanupTestRunner(deps)()
+		assert.Equal(t, "failed", outcome, "the job run fails while the cleanup time cannot be read")
+	}
+
+	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id), "02:00, 03:00 and 05:00 count; 02:30 waits")
+	assert.True(t, visitExists(t, admin, school.expired), "nothing runs without a cleanup time")
+}

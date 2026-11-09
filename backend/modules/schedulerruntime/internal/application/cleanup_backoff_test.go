@@ -344,3 +344,37 @@ func TestNightlyCleanupRecoversAnAlertWhoseFailureWasNotStored(t *testing.T) {
 	require.Len(t, recovered, 1, "the success ends the alert")
 	assert.InDelta(t, 0, recovered[0]["consecutive_failures"], 0)
 }
+
+// A school whose cleanup time cannot be read cannot tell when its run is
+// due. Each attempt after the wait counts as a failed run, so the streak
+// backs off and raises the alert like any other failure.
+func TestNightlyCleanupCountsAnUnreadableCleanupTimeAsFailure(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{}
+	logs := &cleanupLogs{}
+	s := unitScheduler(&unitSchedulerDependencies{
+		logger: logs.logger(), timetableCleanup: cleanup, cleanupRuns: runs, cleanupClock: clock.Now,
+		settings: &stubSettingsResolver{boolVal: true, stringErr: errors.New("cleanup time unreadable"), intVal: 30},
+	})
+	tick := func(at time.Time) {
+		clock.Set(at)
+		runTimetableTick(s)
+	}
+
+	tick(berlin(14, 2, 0))
+	tick(berlin(14, 2, 30))
+	tick(berlin(14, 3, 0))
+	tick(berlin(14, 4, 59))
+	tick(berlin(14, 5, 0))
+	tick(berlin(14, 5, 1))
+
+	assert.Zero(t, cleanup.calls(), "nothing runs without a cleanup time")
+	assert.Equal(t, 3, runs.failureCount("timetable-cleanup"), "failures at 02:00, 03:00 and 05:00, none within the wait")
+	alerts := logs.take(t, alertMessage)
+	require.Len(t, alerts, 1, "the third failure alerts once")
+	assert.Equal(t, "run", alerts[0]["failed_steps"])
+}

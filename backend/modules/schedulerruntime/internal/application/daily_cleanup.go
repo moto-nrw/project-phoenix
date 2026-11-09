@@ -243,17 +243,13 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 }
 
 func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, attempts *cleanupAttempts, runForTenant func(context.Context, int64, string) error) error {
-	enabled, err := s.dataCleanupEnabled(tenantCtx)
-	if err != nil {
-		return s.failUnreadableCleanupSwitch(tenantCtx, tenantID, dayCache, taskName, attempts, err)
-	}
-	if !enabled {
+	enabled, switchErr := s.dataCleanupEnabled(tenantCtx)
+	if switchErr == nil && !enabled {
 		return nil
 	}
-
-	cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
-	if timeErr != nil {
-		return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
+	cleanupTime, timeErr := s.resolveCleanupTime(tenantCtx)
+	if switchErr != nil || timeErr != nil {
+		return s.failUnreadableCleanupSettings(tenantCtx, tenantID, dayCache, taskName, attempts, cleanupTime, timeErr == nil, errors.Join(switchErr, timeErr))
 	}
 	now := s.cleanupNow()
 	state, due, err := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
@@ -285,17 +281,37 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 	return nil
 }
 
-// failUnreadableCleanupSwitch fails the school's run when the cleanup switch
-// cannot be read. A due run counts as failed and is retried after its wait.
-// Nothing ran, so the transaction commits the failure streak and the job run
-// still reports the failure.
-func (s *Scheduler) failUnreadableCleanupSwitch(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, attempts *cleanupAttempts, err error) error {
-	cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
-	if timeErr != nil {
-		return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
+// resolveCleanupTime reads the school's cleanup time. A value that is no
+// HH:MM clock time is as unreadable as a failed read: no run could ever be
+// due at it.
+func (s *Scheduler) resolveCleanupTime(ctx context.Context) (string, error) {
+	cleanupTime, err := s.settings.ResolveString(ctx, settingDataCleanupTime)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", settingDataCleanupTime, err)
 	}
+	if _, err := time.Parse("15:04", cleanupTime); err != nil {
+		return "", fmt.Errorf("%s %q is no HH:MM time: %w", settingDataCleanupTime, cleanupTime, err)
+	}
+	return cleanupTime, nil
+}
+
+// failUnreadableCleanupSettings fails the school's run when its cleanup
+// switch or cleanup time cannot be read (#6327). A due run counts as failed
+// and is retried after its wait; without a cleanup time a run is due once
+// the wait after the last failure is over. Nothing ran, so the transaction
+// commits the failure streak and the job run still reports the failure.
+func (s *Scheduler) failUnreadableCleanupSettings(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, attempts *cleanupAttempts, cleanupTime string, timeKnown bool, err error) error {
 	now := s.cleanupNow()
-	state, due, dueErr := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
+	var (
+		state  cleanupRunState
+		due    bool
+		dueErr error
+	)
+	if timeKnown {
+		state, due, dueErr = s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
+	} else {
+		state, due, dueErr = s.cleanupRetryDue(tenantCtx, dayCache, taskName, tenantID, now)
+	}
 	if dueErr != nil {
 		return errors.Join(err, dueErr)
 	}
@@ -306,14 +322,24 @@ func (s *Scheduler) failUnreadableCleanupSwitch(tenantCtx context.Context, tenan
 			return errors.Join(err, storeErr)
 		}
 	}
-	s.getLogger().Error("data cleanup switch unreadable",
+	s.getLogger().Error("data cleanup settings unreadable",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("job_id", taskName),
 		slog.String("error", err.Error()),
 	)
-	recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup switch unreadable", err, nil)
+	recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup settings unreadable", err, nil)
 	addJobCommandFailure(tenantCtx, err)
 	return nil
+}
+
+// cleanupRetryDue decides, without a cleanup time, whether the next attempt
+// of a failing job is due: at once without failures, else after the wait.
+func (s *Scheduler) cleanupRetryDue(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64, now time.Time) (cleanupRunState, bool, error) {
+	state, err := s.readCleanupRunState(ctx, dayCache, jobID, tenantID)
+	if err != nil {
+		return state, false, err
+	}
+	return state, state.Failures == 0 || now.Sub(state.LastFailure) >= cleanupRetryDelay(state.Failures), nil
 }
 
 func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64) error {

@@ -26,6 +26,10 @@ letzten Erfolg (`succeeded_at`).
   Ein neuer Tag setzt die Serie nicht zurück.
 - Die Serie steht in der Datenbank. Ein Neustart des Workers setzt sie fort.
 - Nur ein erfolgreicher Lauf setzt die Serie auf 0.
+- Ein nicht lesbarer Schalter `gdpr.data_cleanup_enabled` und eine nicht
+  lesbare oder ungültige Uhrzeit `gdpr.data_cleanup_time` zählen als
+  Fehlschlag (`failed_steps=run`). Ohne Uhrzeit ist der nächste Versuch fällig,
+  sobald die Wartezeit abgelaufen ist.
 - Jede Schule und jeder Job hat eine eigene Serie. Ein Fehler hält keine andere
   Schule und keinen anderen Job auf.
 - Ein fehlgeschlagener Schritt der Hauptlöschung (`visit-cleanup`) macht nur
