@@ -121,8 +121,9 @@ Rechnungsmonat, eine Doppelung zwischen Rechnung und Rate gibt es also nicht.
 Ein Monatslauf ohne Rechnung lässt sich nicht freigeben (`billing_run_empty`).
 Deshalb haben die Raten **eine eigene Datei je Fälligkeitsmonat**
 (`run_kind = 'notice'`, Lauf-ID `JJJJMM`, `GET
-/traeger/sepa-debits/notice-months/{JJJJMM}`). Die Kämmerei findet sie auf der
-Seite des freigegebenen Jahresbescheid-Laufs.
+/traeger/sepa-debits/notice-months/{JJJJMM}`). Die Kämmerei findet sie auf einer eigenen Seite des freigegebenen
+Jahreslaufs (`/traeger/abrechnung/jahresbescheide/{id}/lastschrift`), die der
+Kopf des Laufs verlinkt; die Seite des Laufs lädt die Karte nicht mit.
 
 - Die einzige Quelle der Raten ist dieselbe Lesung und Auflösung wie in
   `CareFeeNotices.EffectiveNoticeDues(ctx, organizationID, month)`: die

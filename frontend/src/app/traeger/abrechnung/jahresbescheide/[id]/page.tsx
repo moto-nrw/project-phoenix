@@ -7,7 +7,6 @@
 // Öffnen steht im Protokoll des Laufs.
 
 import { useParams, useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import {
   NOTICE_KIND_LABELS,
@@ -44,15 +43,6 @@ import {
   releaseCareNoticeRun,
 } from "~/lib/traeger-care-notices-api";
 import { traegerPath } from "~/lib/traeger-url";
-
-// The direct debit of the installments loads with an issued run (#4697).
-const NoticeSepaDebits = dynamic(
-  () =>
-    import("~/components/traeger/notice-sepa-debits").then(
-      (module) => module.NoticeSepaDebits,
-    ),
-  { ssr: false },
-);
 const logger = createLogger({ component: "TraegerCareNoticeRunPage" });
 
 const noticeColumns: DataTableColumn<CareNotice>[] = [
@@ -242,6 +232,17 @@ export default function TraegerCareNoticeRunPage() {
               ? "Jahreslauf abschließen"
               : "Bescheide ausstellen"}
           </Button>
+        ) : run?.status === "released" && run.previewCount > 0 ? (
+          // The PAIN.008 file of the installments has its own page (#4697).
+          <ButtonLink
+            href={traegerPath(
+              `/traeger/abrechnung/jahresbescheide/${run.id}/lastschrift`,
+            )}
+            variant="outline"
+            size="md"
+          >
+            Lastschrift der Raten
+          </ButtonLink>
         ) : undefined
       }
       error={pageLoad.error}
@@ -358,12 +359,6 @@ export default function TraegerCareNoticeRunPage() {
               ]
                 .filter(Boolean)
                 .join(" ")}
-            />
-          ) : null}
-          {run.status === "released" && run.previewCount > 0 ? (
-            <NoticeSepaDebits
-              periodFrom={run.periodFrom}
-              periodUntil={run.periodUntil}
             />
           ) : null}
           <DataTable
