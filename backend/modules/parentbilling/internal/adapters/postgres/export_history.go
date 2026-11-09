@@ -65,6 +65,11 @@ SELECT 'mail_requested', mailing.created_at, mailing.requested_by_account_id, 0,
 FROM parent_billing.document_mailings AS mailing
 WHERE mailing.organization_id = ?0 AND mailing.document_id = ?1
 UNION ALL
+SELECT 'mail_requested', mailing.created_at, mailing.requested_by_account_id, 0, later.kind, mailing.run_id, mailing.delivery_id
+FROM parent_billing.document_mailings AS mailing
+JOIN parent_billing.documents AS later ON later.organization_id = mailing.organization_id AND later.id = mailing.document_id
+WHERE mailing.organization_id = ?0 AND later.organization_id = ?0 AND later.reference_document_id = ?1
+UNION ALL
 SELECT 'cancelled', later.issued_at, NULL::bigint, 0, later.number, 0, 0
 FROM parent_billing.documents AS later
 WHERE later.organization_id = ?0 AND later.reference_document_id = ?1 AND later.kind = 'cancellation'

@@ -355,3 +355,50 @@ func TestExportRunContentNamesBothParentsAndThePeriodOfThePositions(t *testing.T
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// The history of a holiday invoice shows the mail of its Storno too: the
+// Storno is a document of its own that names the invoice (review round 3).
+func TestHolidayInvoiceHistoryShowsTheMailOfItsCancellation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newMandateScope(t, db, "Träger Ferienverlauf")
+	store := NewStore()
+	rollback := errors.New("roll the holiday history back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		var run, invoice, cancellation int64
+		require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name,
+			service_from, service_until, status, released_at, issued_on, document_count, total_cents)
+			VALUES (?, 'holiday', 1, 'Herbst', DATE '2029-10-01', DATE '2029-10-05', 'released', NOW(), DATE '2029-09-20', 1, 1000)
+			RETURNING id`, scope.organization).Scan(ctx, &run))
+		insertDocument := `INSERT INTO parent_billing.documents (organization_id, run_id, service, number, number_year,
+			number_sequence, issued_on, holiday_period_id, holiday_registration_id, recipient_first_name, recipient_last_name,
+			recipient_email, service_from, service_until, total_cents, kind, reference_document_id, reason)
+			VALUES (?, ?, 'holiday', ?, 2029, ?, DATE '2029-09-20', 1, ?, 'Eva', 'Beispiel', '', DATE '2029-10-01', DATE '2029-10-05',
+				?, ?, ?, ?) RETURNING id`
+		require.NoError(t, tx.NewRaw(insertDocument, scope.organization, run, "FE-1", 1, 1, 1000, "invoice", nil, "").Scan(ctx, &invoice))
+		require.NoError(t, tx.NewRaw(insertDocument, scope.organization, run, "FE-2", 2, 2, -1000, "cancellation", invoice, "Abgesagt").
+			Scan(ctx, &cancellation))
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id,
+			recipient_email) VALUES (?, ?, ?, 4242, 'eltern@example.org')`, scope.organization, run, cancellation)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		require.NoError(t, err)
+
+		_, steps, _, err := store.InvoiceHistory(ctx, scope.organization, parentbilling.HistoryHolidayDocument, invoice)
+		require.NoError(t, err)
+		notes := map[string]string{}
+		for _, step := range steps {
+			notes[step.Kind] = step.Note
+		}
+		assert.Equal(t, "cancellation", notes["mail_requested"], "the Storno's mail is in the invoice's history")
+		assert.Equal(t, "FE-2", notes[parentbilling.HistoryCancelled])
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
