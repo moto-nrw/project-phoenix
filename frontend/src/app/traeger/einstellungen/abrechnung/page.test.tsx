@@ -55,6 +55,8 @@ const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
     createTraegerBankAccount: vi.fn(),
     updateTraegerBankAccount: vi.fn(),
     deleteTraegerBankAccount: vi.fn(),
+    // The switch of the online mandate (#4696) reads the Träger settings.
+    fetchTraegerSettingsSchema: vi.fn().mockResolvedValue({ tabs: [] }),
   },
   api: {
     fetchContributionRules: vi.fn(),

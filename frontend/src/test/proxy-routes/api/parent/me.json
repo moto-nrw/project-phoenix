@@ -105,6 +105,16 @@
   "api/parent/me/documents": [
     "GET parent /parent/me/documents"
   ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/sepa-mandate": [
+    "GET parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sepa-mandate",
+    "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sepa-mandate"
+  ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/sepa-mandate/preview": [
+    "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sepa-mandate/preview"
+  ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/sepa-mandate/revoke": [
+    "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sepa-mandate/revoke"
+  ],
   "api/parent/me/documents/[organizationId]/contracts/[contractId]/sign": [
     "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sign"
   ],
