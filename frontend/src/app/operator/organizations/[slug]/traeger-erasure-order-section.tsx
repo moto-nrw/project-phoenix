@@ -578,7 +578,7 @@ function RecordsHandoverFields({
           im internen Verfahren (Runbook „Interne Auskunft und Datenrückgabe“):
         </p>
         <CopyField
-          value={`tenant export --organization ${organizationId} --operator <IHRE_OPERATOR_ID> --out <NEUES_VERZEICHNIS>`}
+          value={`tenant export --organization ${organizationId} --operator <IHRE_OPERATOR_ID> --uploads <UPLOAD_VERZEICHNIS> --out <NEUES_VERZEICHNIS>`}
           monospace
           copyLabel="Befehl kopieren"
         />

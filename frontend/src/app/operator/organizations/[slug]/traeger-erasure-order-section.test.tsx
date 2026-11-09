@@ -198,6 +198,22 @@ describe("TraegerErasureOrderSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("copies the export command with every flag the CLI requires for a Träger package", async () => {
+    mockGetOrder.mockResolvedValue(null);
+
+    renderSection(false);
+
+    // backend/cmd/tenant.go runTenantExport: --organization, --out and
+    // --uploads are required, --operator with --organization.
+    const command = await screen.findByText(/^tenant export /);
+    expect(command).toHaveTextContent(
+      "tenant export --organization 1 --operator <IHRE_OPERATOR_ID> --uploads <UPLOAD_VERZEICHNIS> --out <NEUES_VERZEICHNIS>",
+    );
+    for (const flag of ["--organization", "--operator", "--uploads", "--out"]) {
+      expect(command.textContent?.split(" ")).toContain(flag);
+    }
+  });
+
   it("records the handover of the Rückgabe export with its day and checksum", async () => {
     mockGetOrder.mockResolvedValueOnce(null).mockResolvedValue(openOrder);
     mockRecordOrder.mockResolvedValue(openOrder);
