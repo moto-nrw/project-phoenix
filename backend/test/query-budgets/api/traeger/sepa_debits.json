@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.sepa_debits",
+  "max": 7,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/sepa-debits/{kind}/{id} (#4697, ADR 0181):\nthe selects: the Träger binding of the Träger transaction, the released run, the debits with the state of\ntheir mandates and invoices in one statement, the creditor, and the letterhead with the default bank account\n(profile with bank accounts, branding settings, template). Flat in the number of debits.",
+  "route": "GET /traeger/sepa-debits/{kind}/{id}"
+}

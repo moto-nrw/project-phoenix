@@ -76,12 +76,14 @@ type sepaMandateRow struct {
 }
 
 func (r sepaMandateRow) mandate() parentbilling.SEPAMandate {
-	return parentbilling.SEPAMandate{
+	mandate := parentbilling.SEPAMandate{
 		ID: r.ID, ContractID: r.CareContractID, FamilyEmail: r.FamilyEmail, Reference: r.Reference, SignedOn: r.SignedOn,
 		Kind: r.Kind, Sequence: r.Sequence, CreditorID: r.CreditorID, CreditorCurrent: r.CreditorCurrent,
 		LastCollectedOn: r.LastCollectedOn, HolderSealed: r.HolderSealed, IBANMasked: r.IBANMasked, BIC: r.BIC,
 		Source: r.Source, RevokedOn: r.RevokedOn, RevokedAt: r.RevokedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
+	mandate.ExpiresOn = mandate.ExpiryDay()
+	return mandate
 }
 
 // mandateReturning lists the columns of a mandate without the sealed IBAN.

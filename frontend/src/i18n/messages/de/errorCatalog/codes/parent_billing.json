@@ -90,5 +90,11 @@
   "sepa_mandate_reference_taken": "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
   "sepa_mandate_revoked": "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
   "direct_debit_without_mandate": "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg.",
-  "sepa_creditor_missing": "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein."
+  "sepa_creditor_missing": "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+  "sepa_debit_run_not_found": "Diesen Lauf gibt es nicht, oder er ist noch nicht freigegeben. Eine Lastschriftdatei gibt es erst nach der Freigabe.",
+  "sepa_debits_empty": "In diesem Lauf gibt es keine offene Lastschrift. Es gibt keine Datei zum Herunterladen oder Bestätigen.",
+  "sepa_debits_changed": "Die Lastschriftdatei hat sich geändert. Laden Sie die Datei neu herunter und reichen Sie die neue Datei bei Ihrer Bank ein.",
+  "sepa_creditor_account_missing": "Es fehlt das Konto, auf das die Lastschriften gehen. Legen Sie unter Einstellungen → Abrechnung eine Bankverbindung als Standard fest. Das darf, wer das Recht „Einstellungen“ hat.",
+  "sepa_account_holder_unsupported": "Die Lastschriftdatei braucht Kontonamen in lateinischer Schrift. Prüfen Sie die Kontonamen der Mandate und des Trägers.",
+  "sepa_end_to_end_duplicate": "Zwei Lastschriften hätten in der Datei dieselbe Kennung. Die Bank könnte sie nicht unterscheiden. Bitte wenden Sie sich an den moto-Support."
 }

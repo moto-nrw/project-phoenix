@@ -48,6 +48,10 @@ export interface SepaMandate {
   readonly source: MandateSource;
   /** Calendar date the revocation arrived; null while in force. */
   readonly revokedOn: string | null;
+  /** Day of the last collection moto counted (#4697); null before one. */
+  readonly lastCollectedOn: string | null;
+  /** First day the mandate no longer holds: 36 months without a collection (#4697). */
+  readonly expiresOn: string | null;
   readonly createdAt: string;
 }
 
@@ -98,6 +102,8 @@ interface BackendMandate {
   bic: string;
   source: MandateSource;
   revoked_on: string | null;
+  last_collected_on?: string | null;
+  expires_on?: string | null;
   created_at: string;
 }
 
@@ -137,6 +143,8 @@ function mandateFromBackend(mandate: BackendMandate): SepaMandate {
     bic: mandate.bic,
     source: mandate.source,
     revokedOn: mandate.revoked_on,
+    lastCollectedOn: mandate.last_collected_on ?? null,
+    expiresOn: mandate.expires_on || null,
     createdAt: mandate.created_at,
   };
 }

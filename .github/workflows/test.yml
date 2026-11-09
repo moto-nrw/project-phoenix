@@ -180,6 +180,15 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
+      # The SEPA direct debit file is checked against the official ISO
+      # schema with xmllint (#4697); the runner image does not carry it.
+      # Refresh the package lists only when the cached ones miss it.
+      - name: Install xmllint for the XML schema tests
+        run: |
+          command -v xmllint >/dev/null && exit 0
+          sudo apt-get install -y -qq --no-install-recommends libxml2-utils \
+            || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libxml2-utils; }
+
       # setup-go's go.sum-only key is immutable. It restores dependencies but
       # never saves later source builds on an exact hit. Keep a source-keyed
       # build layer per shard, with the last source build as a warm fallback.

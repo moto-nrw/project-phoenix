@@ -13,6 +13,7 @@
 // lassen sich bis zur Freigabe ändern (#4689).
 
 import { useSession } from "next-auth/react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -64,6 +65,14 @@ import {
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
+// The direct debit file of a released run (#4697) loads with the run.
+const SepaDebitCard = dynamic(
+  () =>
+    import("~/components/traeger/sepa-debit-card").then(
+      (module) => module.SepaDebitCard,
+    ),
+  { ssr: false },
+);
 const logger = createLogger({ component: "TraegerBillingRunPage" });
 
 /** Das Recht, das die Ferienzeiträume öffnet (#4659). */
@@ -428,6 +437,14 @@ export default function TraegerBillingRunPage() {
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
               documentKind={run.documentKind}
+            />
+          ) : null}
+          {run.status === "released" ? (
+            // A Storno or a Gutschrift changes the file (#4697).
+            <SepaDebitCard
+              key={run.documents.length}
+              kind="holiday-runs"
+              runId={run.id}
             />
           ) : null}
           {run.status === "released" && run.letters ? (

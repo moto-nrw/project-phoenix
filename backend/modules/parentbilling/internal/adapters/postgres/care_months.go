@@ -532,7 +532,10 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 		}
 		return fmt.Errorf("insert care invoices: %w", err)
 	}
-	return insertCareInvoiceParts(ctx, db, organizationID, rows, invoices)
+	if err := insertCareInvoiceParts(ctx, db, organizationID, rows, invoices); err != nil {
+		return err
+	}
+	return insertSEPADebits(ctx, db, organizationID, false, careInvoiceIDs(rows))
 }
 
 // insertCareInvoiceParts stores what the invoices just issued carry: their
