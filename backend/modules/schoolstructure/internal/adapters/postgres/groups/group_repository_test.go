@@ -521,7 +521,7 @@ func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 	err = testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		return testpkg.TenantCommand1(t, ctx, db, repo.Create, forgedInsert)
 	})
-	require.ErrorContains(t, err, "row-level security", "the catalog must retain PostgreSQL WITH CHECK isolation")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err), "the catalog must retain PostgreSQL WITH CHECK isolation")
 
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, foreignTenant, func(ctx context.Context, _ bun.Tx) error {
 		kept, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(foreign.ID))
