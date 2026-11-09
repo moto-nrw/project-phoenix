@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -82,6 +84,26 @@ func TestTenantExportOrganizationPackageOnTheMigratedSchema(t *testing.T) {
 	testpkg.CreateTestStudentForTenant(t, db, school, "Synthetic", "Traeger", "1a")
 	var organization int64
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(t.Context(), &organization))
+	other, _ := testpkg.CreateTestTenant(t, db)
+	var otherOrganization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, other).Scan(t.Context(), &otherOrganization))
+	require.NotEqual(t, organization, otherOrganization)
+	// A Träger mail has organization_id instead of tenant_id; no school
+	// package carries it, so the Träger package must (#3838). No tenant owns
+	// these rows, so the test removes them; their events go with the mail.
+	t.Cleanup(func() {
+		_, err := db.NewRaw(`DELETE FROM platform.email_outbox WHERE organization_id IN (?, ?)`, organization, otherOrganization).Exec(context.Background())
+		require.NoError(t, err)
+	})
+	var mail int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload)
+		VALUES (?, 'holiday_registration_received', '{}'::jsonb, '{}'::jsonb) RETURNING id`, organization).Scan(t.Context(), &mail))
+	_, err := db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload)
+		VALUES (?, 'holiday_registration_received', '{}'::jsonb, '{}'::jsonb)`, otherOrganization).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO platform.email_delivery_events (outbox_id, provider, provider_event_id, state, occurred_at)
+		VALUES (?, 'synthetic', 'synthetic-event', 'delivered', now())`, mail).Exec(t.Context())
+	require.NoError(t, err)
 
 	sealed, err := tenantExportSealedFields()
 	require.NoError(t, err)
@@ -103,4 +125,11 @@ func TestTenantExportOrganizationPackageOnTheMigratedSchema(t *testing.T) {
 	}
 	require.Contains(t, schools, school)
 	require.NoFileExists(t, filepath.Join(out, "users.persons.jsonl"), "school-held rows go in the school package")
+
+	mails := readExportRows(t, filepath.Join(out, "platform.email_outbox.jsonl"))
+	require.Len(t, mails, 1, "only the mail of this Träger")
+	require.Equal(t, strconv.FormatInt(mail, 10), string(mails[0]["id"]))
+	events := readExportRows(t, filepath.Join(out, "platform.email_delivery_events.jsonl"))
+	require.Len(t, events, 1)
+	require.Equal(t, strconv.FormatInt(mail, 10), string(events[0]["outbox_id"]))
 }

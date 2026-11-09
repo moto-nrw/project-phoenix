@@ -45,7 +45,21 @@ func (r *exportRun) inSchoolPackages(table organizationtenancy.LifecycleTable) b
 
 var errInSchoolPackage = errors.New("tenant export: held by a school")
 
+// organizationRows names the tenant-scoped tables that also hold rows of a
+// Träger: those carry organization_id instead of tenant_id, so neither a
+// school package nor the tenant scope finds them. Their delivery events
+// follow their mail.
+var organizationRows = map[string]string{
+	"auth.tokens":                    ".organization_id = ?0",
+	"platform.email_outbox":          ".organization_id = ?0",
+	"platform.push_outbox":           ".organization_id = ?0",
+	"platform.email_delivery_events": ".outbox_id IN (SELECT id FROM platform.email_outbox WHERE organization_id = ?0)",
+}
+
 func (r *exportRun) organizationScope(table organizationtenancy.LifecycleTable, alias string, depth int) (string, error) {
+	if where, ok := organizationRows[table.Name]; ok {
+		return alias + where, nil
+	}
 	switch table.Scope {
 	case "organization":
 		return alias + "." + quoteExportIdentifier(table.ScopeColumn) + " = ?0", nil

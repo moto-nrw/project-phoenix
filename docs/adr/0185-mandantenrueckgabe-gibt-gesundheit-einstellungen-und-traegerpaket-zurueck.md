@@ -48,7 +48,10 @@ Nach ADR 0184 blieben drei Lücken im Rückgabepaket von `tenant export`:
    Mail kommt als Vorlage, Empfänger, Status und verknüpfter Datensatz zurück.
 4. **Trägerpaket.** `tenant export --organization <id>` exportiert die
    Trägertabellen, die Stammzeilen der Schulen des Trägers und die Konten aus
-   `platform.organization_accounts`, alles in einem Snapshot. Was eine Schule
+   `platform.organization_accounts`, alles in einem Snapshot. Mails, Pushes,
+   deren Zustellereignisse und Sitzungen des Trägers tragen `organization_id`
+   statt `tenant_id`; das Trägerpaket wählt sie darüber, kein Schulpaket
+   enthält sie. Was eine Schule
    hält, steht im Manifest als `schoolPackage` ohne Zeilen und kommt mit dem
    Schulpaket. Schuldateien gehören ins Schulpaket; das Trägerpaket kopiert nur
    die Avatare seiner Konten. `--organization` schließt `--school` und

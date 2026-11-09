@@ -85,6 +85,9 @@ func exportFixtureColumns(table organizationtenancy.LifecycleTable) map[string]s
 	if table.Name == "auth.accounts" {
 		columns["username"] = "text"
 	}
+	if table.Name == "platform.email_delivery_events" {
+		columns["outbox_id"] = "bigint"
+	}
 	if slices.Contains([]string{"documents.files", "documents.announcement_attachments", "users.student_documents", "users.staff_documents"}, table.Name) {
 		columns["filename_stored"], columns["file_deleted_at"] = "text", "timestamptz"
 	}
@@ -119,6 +122,9 @@ func insertExportFixtureRow(t *testing.T, db *bun.DB, table organizationtenancy.
 	}
 	if table.Name == "enrollment.requests" {
 		row["guardian_account_id"] = school
+	}
+	if table.Name == "platform.email_delivery_events" {
+		row["outbox_id"] = school
 	}
 	for name := range table.ExcludeSecretColumns {
 		row[name] = "excluded-" + table.Name + "-" + name

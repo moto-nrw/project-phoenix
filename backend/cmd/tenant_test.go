@@ -56,9 +56,10 @@ func TestTenantExportOrganizationExcludesSchoolAndPerson(t *testing.T) {
 		got = options
 		return nil
 	})
-	command.SetArgs([]string{"export", "--organization", "7", "--out", "out", "--uploads", "uploads"})
+	organization := testpkg.UniqueTestTenantID(t)
+	command.SetArgs([]string{"export", "--organization", strconv.FormatInt(organization, 10), "--out", "out", "--uploads", "uploads"})
 	require.NoError(t, command.Execute())
-	require.Equal(t, int64(7), got.OrganizationID)
+	require.Equal(t, organization, got.OrganizationID)
 	require.Zero(t, got.SchoolID)
 
 	for _, args := range [][]string{
