@@ -935,7 +935,8 @@ function TenantPageTabs({
       // Auf dem Telefon Pillen statt Grundlinie: eine graue Schrift mit
       // 3-px-Strich liest sich in einer 390-px-Spalte als Text, nicht als
       // Navigation. Die gefüllte Pille ist erkennbar ein Bedienelement.
-      "max-sm:rounded-full max-sm:border-0 max-sm:px-3 max-sm:py-1.5 max-sm:pb-1.5 max-sm:text-sm",
+      // 44 px high like every control under sm (spec rule 17).
+      "max-sm:min-h-11 max-sm:rounded-full max-sm:border-0 max-sm:px-3 max-sm:py-1.5 max-sm:pb-1.5 max-sm:text-sm",
       active
         ? "border-moto-green font-semibold text-gray-900 max-sm:bg-gray-900 max-sm:text-white"
         : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900 max-sm:bg-gray-100 max-sm:text-gray-700",

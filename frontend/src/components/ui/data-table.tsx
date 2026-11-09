@@ -249,7 +249,7 @@ const ACTIVE_ROW_CLASS =
 // (the scroll area carries `data-overflow-end`), so cut-off values read as
 // "more to the left of the action", not as missing.
 const pinnedCellClass =
-  "sticky right-0 group-data-[overflow-end=true]/tablescroll:shadow-[-8px_0_8px_-8px_var(--color-gray-400)]";
+  "sticky right-0 group-data-[overflow-end=true]/tablescroll:shadow-[-12px_0_12px_-8px_rgb(0_0_0/0.18)]";
 
 const ROW_TONE_CLASS: Record<DataTableRowTone, string> = {
   today: "bg-moto-blue-soft/60",
