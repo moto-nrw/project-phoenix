@@ -36,7 +36,7 @@ type Scheduler struct {
 	retention                   RetentionRun
 	cleanupRuns                 ports.CleanupRunLedger
 	cleanupClock                func() time.Time
-	cleanupFailures             sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
+	cleanupFailures             sync.Map // cleanupAttemptKey → cleanupFailureStreak this process last recorded
 	staffDocumentFileCleaner    ports.StaffDocumentFileCleaner
 	studentDocumentFileCleaner  ports.StudentDocumentFileCleaner
 	fileStoreCleaner            ports.FileStoreCleaner

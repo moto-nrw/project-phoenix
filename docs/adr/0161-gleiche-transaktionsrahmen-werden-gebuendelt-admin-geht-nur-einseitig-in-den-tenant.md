@@ -465,3 +465,12 @@ nach `…/feed.go:*service.parentCalendarFeed:s.cfg.Runtime.WithinTenant#1`, dam
 derselbe Rahmen mit bytegleichem Rumpf und wörtlich gleichem Grund; die Zahl der
 Tenant-Startstellen bleibt gleich, und der neue Schlüssel steht in
 `transactionFrameBundleSites`.
+
+## Nachtrag 09.11.2026: Port-Bindung der Übergabe (#5862)
+
+Schritt 4 braucht zusätzlich die reine Port-Bindung
+`roots/owners/parent_portal_runtime.go:ParentPortalRuntime.WithinAdminThenTenant:tenant.WithinAdminThenTenant#1`,
+die den Aufruf wie `ParentPortalRuntime.WithinAdmin` nur weiterreicht und
+keinen eigenen Rahmen öffnet. Schritt 4 bringt damit +4 Admin statt +3, das
+Register wächst insgesamt um sechs Admin-Stellen und eine Kommando-Stelle.
+Den dafür nötigen Composition-Etat hebt [ADR 0185](0185-transaktionslaufzeit-bindet-die-uebergabe-von-admin-an-tenant.md).

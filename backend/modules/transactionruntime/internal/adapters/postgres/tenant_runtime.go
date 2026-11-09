@@ -138,6 +138,42 @@ func (r *PostgresUnitOfWork) WithinTraeger(ctx context.Context, organizationID i
 	})
 }
 
+// WithinAdminThenTenant implements the one-way handoff of ADR 0161 point 2.
+// One transaction runs discover as phoenix_admin, then sets phoenix_tenant
+// and app.current_tenant_id of the discovered school, both transaction-local
+// like WithinTenant, and runs fn. An error from discover rolls back without
+// the switch. fn's context carries only the tenant scope: an administrative
+// join inside it fails as in any school unit, and even a retained
+// administrative context runs as phoenix_tenant after the switch. An ambient
+// transaction and the demo runtime are refused.
+func (r *PostgresUnitOfWork) WithinAdminThenTenant(ctx context.Context, discover func(context.Context, any) (int64, error), fn func(context.Context, any) error) error {
+	if discover == nil || fn == nil {
+		return fmt.Errorf("tenant runtime: callbacks are required")
+	}
+	if _, ok := transactionFromContext(ctx); ok {
+		return fmt.Errorf("tenant runtime: an admin-to-tenant handoff cannot join an ambient transaction")
+	}
+	if r.skipTenantRole {
+		return fmt.Errorf("tenant runtime: the demo runtime opens no admin-to-tenant handoff")
+	}
+	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); err != nil {
+			return fmt.Errorf("tenant runtime: set admin role: %w", err)
+		}
+		tenantID, err := discover(contextWithTransaction(context.WithValue(txCtx, adminTxKey{}, true), &tx), tx)
+		if err != nil {
+			return err
+		}
+		if tenantID <= 0 {
+			return fmt.Errorf("tenant runtime: tenant ID must be positive")
+		}
+		if _, err := tx.NewRaw("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', ?, true)", fmt.Sprint(tenantID)).Exec(txCtx); err != nil {
+			return fmt.Errorf("tenant runtime: set tenant role: %w", err)
+		}
+		return fn(contextWithTransaction(context.WithValue(txCtx, tenantTxKey{}, tenantID), &tx), tx)
+	})
+}
+
 func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Context, any) error) error {
 	return r.withinGlobal(ctx, true, fn)
 }

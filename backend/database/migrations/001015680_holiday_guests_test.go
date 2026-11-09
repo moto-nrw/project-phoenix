@@ -118,7 +118,7 @@ func TestHolidayGuestContactsReachOnlyTheHostOfAConfirmedGuest(t *testing.T) {
 			VALUES (?, ?, ?, ?, 1)`, host, own, ended, group)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a school writes no guest data of another school")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a school writes no guest data of another school")
 }
 
 // rollBackHolidayGuests rolls back 1.15.681 and 1.15.680 in an isolated

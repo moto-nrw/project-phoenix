@@ -1,7 +1,15 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { FormEvent } from "react";
 import { flushSync } from "react-dom";
-import { describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import { CustomSelect } from "./custom-select";
 
@@ -529,6 +537,176 @@ describe("CustomSelect", () => {
       rectSpy.mockRestore();
       widthSpy.mockRestore();
     }
+  });
+
+  describe("trigger pushed out of view while the menu is open", () => {
+    // #6356: recipients that load after the calendar's Wiederholung menu
+    // opened grew the lists above the field. The trigger slid below the
+    // drawer's visible area without a scroll event, the menu followed it, and
+    // its options sat outside the viewport where no click could reach them.
+    type Recorded = { callback: ResizeObserverCallback; targets: Element[] };
+    let observers: Recorded[];
+    let triggerTop: number;
+    let scrollIntoViewMock: Mock<
+      (this: Element, arg?: boolean | ScrollIntoViewOptions) => void
+    >;
+
+    // Like a browser, every observer reports once right after observe().
+    class RecordingResizeObserver {
+      private readonly entry: Recorded;
+      constructor(callback: ResizeObserverCallback) {
+        this.entry = { callback, targets: [] };
+        observers.push(this.entry);
+      }
+      observe(target: Element) {
+        const first = this.entry.targets.length === 0;
+        this.entry.targets.push(target);
+        if (first) {
+          queueMicrotask(() =>
+            this.entry.callback([], this as unknown as ResizeObserver),
+          );
+        }
+      }
+      unobserve() {}
+      disconnect() {
+        this.entry.targets = [];
+      }
+    }
+
+    const watching = () =>
+      observers.filter((entry) => entry.targets.length > 0);
+    const reportResize = () =>
+      act(() => {
+        for (const entry of watching()) {
+          entry.callback([], {} as ResizeObserver);
+        }
+      });
+    const renderInDrawer = (selectOptions: typeof options) => (
+      <div data-testid="drawer-body" style={{ overflowY: "auto" }}>
+        <div data-testid="drawer-content">
+          <CustomSelect
+            value=""
+            options={selectOptions}
+            onChange={vi.fn()}
+            ariaLabel="Wiederholung"
+          />
+        </div>
+      </div>
+    );
+
+    beforeEach(() => {
+      observers = [];
+      triggerTop = 500;
+      vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+      vi.spyOn(window, "innerHeight", "get").mockReturnValue(720);
+      vi.spyOn(
+        HTMLButtonElement.prototype,
+        "getBoundingClientRect",
+      ).mockImplementation(
+        () =>
+          ({
+            top: triggerTop,
+            bottom: triggerTop + 40,
+            left: 40,
+            right: 300,
+            width: 260,
+            height: 40,
+            x: 40,
+            y: triggerTop,
+            toJSON: () => ({}),
+          }) as DOMRect,
+      );
+      scrollIntoViewMock = vi.fn(function (this: Element) {
+        // The browser scrolls the drawer body so the trigger shows again.
+        if (this.getAttribute("role") === "combobox") triggerTop = 600;
+      });
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+    });
+
+    afterEach(() => {
+      Element.prototype.scrollIntoView = vi.fn();
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    it("brings the trigger and its open menu back when content above grows", async () => {
+      render(renderInDrawer(options));
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      const listbox = screen.getByRole("listbox");
+      expect(listbox.style.top).toBe("544px");
+      expect(watching().flatMap((entry) => entry.targets)).toEqual([
+        screen.getByTestId("drawer-content"),
+      ]);
+      // The observer's first report after observe() is no layout change.
+      await act(async () => {});
+      expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+
+      // Content above grows: the trigger is now below the 720 px viewport.
+      triggerTop = 1060;
+      reportResize();
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        block: "nearest",
+        inline: "nearest",
+      });
+      expect(scrollIntoViewMock.mock.contexts).toContain(trigger);
+      // The menu sits at the trigger's restored place, inside the viewport.
+      expect(listbox.style.top).toBe(`${600 + 40 + 4}px`);
+    });
+
+    it("leaves the trigger where the person scrolled it when the menu re-renders", async () => {
+      const view = render(renderInDrawer(options));
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      // A parent render with a fresh options array, as inline literals do.
+      view.rerender(renderInDrawer([...options]));
+      await act(async () => {});
+
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(watching()).toHaveLength(1);
+      expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+    });
+
+    it("stops watching once the menu closes", async () => {
+      render(renderInDrawer(options));
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(watching()).toHaveLength(1);
+      await act(async () => {});
+
+      fireEvent.keyDown(trigger, { key: "Escape" });
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+      // Content grows after the menu closed: a closed select scrolls nothing.
+      triggerTop = 1060;
+      reportResize();
+
+      expect(watching()).toHaveLength(0);
+      expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+    });
+
+    it("stops watching when the select unmounts with its menu open", async () => {
+      const consoleError = vi.spyOn(console, "error");
+      const view = render(renderInDrawer(options));
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(watching()).toHaveLength(1);
+      await act(async () => {});
+
+      // The drawer closes with the menu still open.
+      view.unmount();
+      triggerTop = 1060;
+      reportResize();
+
+      expect(watching()).toHaveLength(0);
+      expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+      expect(consoleError).not.toHaveBeenCalled();
+    });
   });
 
   describe("scroll behaviour in long lists", () => {

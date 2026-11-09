@@ -116,7 +116,7 @@ func TestSubmissionRateLimitRejectsForeignTenantWrite(t *testing.T) {
 		_, incrementErr := module.IncrementAttempts(ctx, otherTenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, "foreign-tenant", time.Hour)
 		return incrementErr
 	})
-	require.ErrorContains(t, err, "row-level security")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *testing.T) {
