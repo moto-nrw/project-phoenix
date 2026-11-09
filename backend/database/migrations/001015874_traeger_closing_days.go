@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerClosingDaysVersion = "1.15.873"
+const traegerClosingDaysVersion = "1.15.874"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
