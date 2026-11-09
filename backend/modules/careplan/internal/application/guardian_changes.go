@@ -39,6 +39,9 @@ func (s *GuardianAbsences) reportGuardianAbsence(ctx context.Context, report car
 	if err := s.refuseManualPartialAbsence(ctx, report.StudentID, sorted); err != nil {
 		return nil, err
 	}
+	if err := s.refuseSchoolStatus(ctx, report.StudentID, sorted); err != nil {
+		return nil, err
+	}
 	if err := s.write(ctx, report); err != nil {
 		return nil, err
 	}
@@ -73,6 +76,23 @@ func (s *GuardianAbsences) refuseManualPartialAbsence(ctx context.Context, stude
 	for _, row := range rows {
 		if row.HasManualPartialAbsence() && slices.Contains(sorted, row.ExceptionDate) {
 			return careplan.ErrManualPartialAbsenceConflict
+		}
+	}
+	return nil
+}
+
+// refuseSchoolStatus keeps a school-set full-day status (any source but the
+// family's) on its day; the caller already holds the care-day locks.
+func (s *GuardianAbsences) refuseSchoolStatus(ctx context.Context, studentID int64, sorted []careplan.Date) error {
+	rows, err := s.Records.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{
+		StudentIDs: []int64{studentID}, From: sorted[0], To: sorted[len(sorted)-1], ActiveOnly: true,
+	})
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row.Source != careplan.StudentStatusSourceParent && slices.Contains(sorted, row.Date) {
+			return careplan.ErrSchoolStatusDayConflict
 		}
 	}
 	return nil

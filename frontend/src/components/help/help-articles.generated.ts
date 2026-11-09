@@ -536,7 +536,8 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
       "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Dann ist das Kind heute krank gemeldet oder entschuldigt.",
       "Fehlt `Ab Uhrzeit`? Dann dürfen Sie nur ganze Tage entschuldigen.",
       "Steht beim Tag `Automatisch (Abholzeit)`? Dann kommt die Entschuldigung aus der früheren Abholzeit. Ändern Sie dafür die Abholzeit des Tages.",
-      "Ist ein gewählter Tag schon `Ab Uhrzeit` entschuldigt? Dann nennt das Fenster den Tag und speichert nur die anderen Tage. Für den ganzen Tag entfernen Sie zuerst unter `Bereits ab Uhrzeit entschuldigt` die Teilentschuldigung.",
+      // #5698: Teilentschuldigung bewusst durch eine Tagesmeldung ersetzen.
+      "Ist ein gewählter Tag schon `Ab Uhrzeit` entschuldigt? Dann nennt das Fenster den Tag und speichert nur die anderen Tage. Soll die Meldung den ganzen Tag gelten, wählen Sie zum Beispiel `Durch Krankmeldung ersetzen`. Geänderte Betreuungsblöcke und die Abholzeit gelten dann wieder wie geplant. Die Wahl fehlt, wenn Sie `Ab Uhrzeit` nicht bearbeiten dürfen.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -6975,7 +6976,8 @@ export const parentReportAbsenceTopic =
         "Manche OGS bestätigen jede Meldung erst. Dann steht `Freigabe ausstehend`, und Ihr Kind gilt bis dahin als erwartet.",
         "Am Kind steht danach `Krank` oder `Entschuldigt` mit den Tagen.",
         "Wurde eine Anfrage abgelehnt, steht dort `Abgelehnt`.",
-        "Hat die OGS einen Tag schon ab einer Uhrzeit entschuldigt? Dann nennt das Fenster diesen Tag. moto meldet nur die anderen Tage. Soll Ihr Kind den ganzen Tag fehlen, schreiben Sie der OGS.",
+        // #5698: Schuleinträge überschreibt keine Elternmeldung.
+        "Hat die OGS einen Tag schon eingetragen, etwa ab einer Uhrzeit entschuldigt? Dann geht für diesen Tag eine Anfrage an die OGS. Sie entscheidet. Bis dahin gilt ihr Eintrag. Die anderen Tage meldet moto direkt.",
       ],
       troubleshootingDetails: [
         "moto meldet, für einen Tag liege schon eine Abmeldung vor? Prüfen Sie die bestehende Meldung mit `Anfrage bearbeiten`.",
@@ -7028,6 +7030,8 @@ export const parentRequestsTopic = function parentRequestsTopic(
       "Eine Anfrage für einen Tag kann auch eine Abholperson nennen. Nach dem Freigeben steht beim Kind für diesen Tag `Abholung durch ... (Erlaubnis der Eltern)`.",
       "Eine `Abholberechtigung` trägt eine Kontaktperson als abholberechtigt ein, an allen Tagen oder nur an bestimmten Tagen. Sie gilt erst nach dem Freigeben.",
       "Haben die Eltern unterschrieben, öffnen Sie mit `Nachweis (PDF)` die Erklärung und die Unterschrift.",
+      // #5698: Elternmeldung für einen Tag mit Teilentschuldigung.
+      "Hat die OGS einen beantragten Tag schon ab einer Uhrzeit entschuldigt? Dann steht dort `Aktuell ab ... Uhr entschuldigt`. Zum Freigeben bestätigen Sie zuerst `Teilentschuldigung durch Krankmeldung ersetzen` oder `Teilentschuldigung durch Entschuldigung ersetzen`.",
       // #3946: freigegebene Tagesänderung markiert die Kinderkarte.
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
