@@ -28,9 +28,12 @@ func TestParentBillingDatevSettings(t *testing.T) {
 	assert.Equal(t, false, config.GetDefinition(config.KeyParentBillingDatevLocked).Default)
 
 	patterns := map[string]struct{ valid, invalid []string }{
-		config.KeyParentBillingDatevConsultantNumber: {valid: []string{"1001", "29098", "9999999"}, invalid: []string{"999", "0123", "12345678", "12 34"}},
-		config.KeyParentBillingDatevClientNumber:     {valid: []string{"1", "55003", "99999"}, invalid: []string{"0", "100000", "1a"}},
-		config.KeyParentBillingDatevRevenueAccount:   {valid: []string{"85", "4400", "44000000"}, invalid: []string{"440000000", "44-00"}},
+		config.KeyParentBillingDatevConsultantNumber: {
+			valid:   []string{"1001", "1009", "1010", "1099", "1100", "1999", "2000", "9999", "10000", "29098", "100000", "1000000", "9999999"},
+			invalid: []string{"999", "1000", "0123", "12345678", "12 34"},
+		},
+		config.KeyParentBillingDatevClientNumber:   {valid: []string{"1", "55003", "99999"}, invalid: []string{"0", "100000", "1a"}},
+		config.KeyParentBillingDatevRevenueAccount: {valid: []string{"85", "4400", "44000000"}, invalid: []string{"440000000", "44-00"}},
 	}
 	for key, values := range patterns {
 		pattern := regexp.MustCompile(*config.GetDefinition(key).Validation.Pattern)

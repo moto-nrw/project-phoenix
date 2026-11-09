@@ -19,7 +19,7 @@ func init() {
 }
 
 var (
-	datevConsultantPattern = `^[1-9]\d{3,6}$`
+	datevConsultantPattern = `^(100[1-9]|10[1-9]\d|1[1-9]\d{2}|[2-9]\d{3}|[1-9]\d{4,6})$`
 	datevClientPattern     = `^[1-9]\d{0,4}$`
 	datevAccountPattern    = `^\d{1,8}$`
 )
