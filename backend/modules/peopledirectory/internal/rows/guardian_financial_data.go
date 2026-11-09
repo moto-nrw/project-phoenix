@@ -19,12 +19,19 @@ import (
 type GuardianFinancialData struct {
 	Model `bun:"schema:users,table:guardian_financial_data"`
 	TenantModel
-	GuardianProfileID int64   `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
-	IBAN              *string `bun:"iban" json:"-"`
-	// AccountHolder names the Kontoinhaber when the account does not run on
-	// the guardian's own name (a spouse, a maiden name). nil means the
-	// guardian is the holder; readers fall back to the guardian's name.
+	GuardianProfileID int64 `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
+	// IBAN and AccountHolder are the plaintext columns before #6332. Writers
+	// always store NULL there; only rows the maintenance backfill has not
+	// sealed yet still carry a value. Migration 1.15.836 drops them.
+	IBAN          *string `bun:"iban" json:"-"`
 	AccountHolder *string `bun:"account_holder" json:"-"`
+	// IBANSealed and AccountHolderSealed are sealed with the bank ring and
+	// bound to field, school and guardian. AccountHolder names the
+	// Kontoinhaber when the account does not run on the guardian's own name
+	// (a spouse, a maiden name); nil means the guardian is the holder.
+	IBANSealed          []byte  `bun:"iban_sealed" json:"-"`
+	IBANMasked          *string `bun:"iban_masked" json:"-"`
+	AccountHolderSealed []byte  `bun:"account_holder_sealed" json:"-"`
 }
 
 // Validate ensures the financial row is storable. IBAN syntax is validated in

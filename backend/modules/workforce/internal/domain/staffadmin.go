@@ -521,11 +521,28 @@ type StaffFinancialMasked struct {
 func MaskFinancial(staffID int64, data *StaffFinancialData) StaffFinancialMasked {
 	masked := StaffFinancialMasked{StaffID: staffID}
 	if data != nil {
-		masked.IBANMasked = maskTail(data.IBAN, 4)
-		masked.TaxIDMasked = maskAll(data.TaxID)
-		masked.SocialSecurityNumberMasked = maskAll(data.SocialSecurityNumber)
+		// Stored masks and the presence of a sealed value; nothing is opened.
+		masked.IBANMasked = data.IBANMasked
+		if masked.IBANMasked == nil {
+			masked.IBANMasked = maskTail(data.IBAN, 4)
+		}
+		masked.TaxIDMasked = maskSealed(data.TaxIDSealed, data.TaxID)
+		masked.SocialSecurityNumberMasked = maskSealed(data.SocialSecurityNumberSealed, data.SocialSecurityNumber)
 	}
 	return masked
+}
+
+// MaskIBAN is the stored mask form of an IBAN: "•••• 1234".
+func MaskIBAN(iban *string) *string { return maskTail(iban, 4) }
+
+// maskSealed is the fixed mask of a sealed value, or of a plaintext the
+// backfill has not sealed yet.
+func maskSealed(sealed []byte, plaintext *string) *string {
+	if len(sealed) > 0 {
+		masked := maskedAll
+		return &masked
+	}
+	return maskAll(plaintext)
 }
 
 // maskTail masks all but the last visible characters: "•••• 1234".

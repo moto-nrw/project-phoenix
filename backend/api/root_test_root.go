@@ -162,7 +162,10 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			people, peopleIdentity = owners.BuildPeopleRows(db, env.Observe.IdentityAccess, groups, rooms, membership, workTime)
 			return nil
 		},
-		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit); return },
+		func() (err error) {
+			guardian, err = owners.BuildGuardianService(db, people, audit, env.BankData)
+			return
+		},
 		func() error {
 			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
 			photoRuntime = owners.BuildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, actingAccountID)

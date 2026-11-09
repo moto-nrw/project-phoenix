@@ -319,7 +319,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			people, peopleIdentity = BuildPeopleRows(db, env.Observe.IdentityAccess, groups, rooms, membership, workTime)
 			return nil
 		},
-		func() (err error) { guardian, err = BuildGuardianService(db, people, audit); return },
+		func() (err error) { guardian, err = BuildGuardianService(db, people, audit, env.BankData); return },
 		func() error {
 			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
 			photoRuntime = BuildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, func(ctx context.Context) int64 { claims, _ := tokens.Claims(ctx); return claims.AccountID })

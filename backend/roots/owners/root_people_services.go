@@ -47,7 +47,10 @@ type PeopleServices struct {
 // the guardian rows and Identity & Access's invitation reads, which need
 // only the database: the People Directory module serves it as its guardian
 // provider (#2663), and Identity & Access is composed over the module.
-func BuildGuardianService(db transactionruntime.Database, people PeopleRows, audit AuditOwner) (peoplePorts.GuardianService, error) {
+func BuildGuardianService(db transactionruntime.Database, people PeopleRows, audit AuditOwner, bankData BankDataCipher) (peoplePorts.GuardianService, error) {
+	if bankData == nil {
+		return nil, fmt.Errorf("guardian service: the bank data cipher is required")
+	}
 	invitations, err := identityaccessCompose.NewGuardianInvitationReads(db.Pool())
 	if err != nil {
 		return nil, err
@@ -59,6 +62,7 @@ func BuildGuardianService(db transactionruntime.Database, people PeopleRows, aud
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audit.Persistence.GuardianFinancialChange),
 		DataAccessLog:          NewGuardianDataAccessLog(audit.Persistence.DataAccessLog),
+		BankData:               bankData,
 		RolePresets: peoplePorts.GuardianRolePresetFuncs{
 			Default: securityruntime.DefaultStudentGuardianRole, Presets: securityruntime.StudentGuardianRolePreset,
 		}}, db.Pool()), nil
@@ -123,7 +127,7 @@ func BuildPeopleServices(
 // the staff and person rows and the trail are bound here.
 func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironment, persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, audit AuditOwner) (*workforceModule.StaffAdmin, error) {
 	admin, err := ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
-		DB: db.Pool(), Logger: env.Logger.With("service", "staff_documents"), Now: env.Now,
+		DB: db.Pool(), Logger: env.Logger.With("service", "staff_documents"), Now: env.Now, BankData: env.BankData,
 	}, people.Staff, people.Persons, persons, membership,
 		audit.Persistence.StaffMasterDataChange, audit.Persistence.PersonnelNumberChange, audit.Persistence.DataAccessLog)
 	if err != nil {
