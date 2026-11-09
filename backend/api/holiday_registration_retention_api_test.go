@@ -92,6 +92,9 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 		require.NotEmpty(t, part, "the run issued invoices with positions and letters")
 	}
 	assert.Contains(t, issued[1], `"kind": "correction"`)
+	// The correction of the run goes with the registration; the invoice
+	// keeps its own copy of amount and reason (#4720).
+	assert.Contains(t, issued[1], `"note": "Erste Woche krank, halber Beitrag"`, "the invoice keeps the reason of its correction")
 	assert.Contains(t, issued[0], `"recipient_address_street": "Musterweg 12"`, "the invoice copied the address (#5625)")
 
 	personal := func() map[string]int {
