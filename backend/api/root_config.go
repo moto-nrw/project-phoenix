@@ -100,6 +100,7 @@ func CurrentServiceConfig() owners.ServiceConfig {
 		VAPIDSubscriber:            viper.GetString("vapid_subscriber"),
 		StudentDailyCheckoutTime:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
 		HealthDataKeys:             viper.GetString("health_data_keys"),
+		BankDataKeys:               viper.GetString("bank_data_keys"), BankDataLegacyKeys: viper.GetString("bank_data_legacy_keys"),
 	}
 }
 

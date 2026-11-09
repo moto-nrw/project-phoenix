@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
@@ -26,6 +28,8 @@ type RootEnvironment struct {
 	// HealthData seals and opens the health information of the holiday
 	// registrations (#4722); the root builds it from HEALTH_DATA_KEYS.
 	HealthData HealthDataCipher
+	// BankData uses only BANK_DATA_KEYS and the explicit temporary legacy ring.
+	BankData parentbilling.BankDataCipher
 }
 
 // HealthDataCipher seals and opens single database values bound to their

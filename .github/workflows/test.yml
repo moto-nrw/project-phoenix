@@ -546,6 +546,8 @@ jobs:
       TURNSTILE_SECRET_KEY: ${{ matrix.scenario == 'queue' && '2x0000000000000000000000000000000AA' || '1x0000000000000000000000000000000AA' }}
       # The development key ring of .env.example for the holiday health data (#4722).
       HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
+      BANK_DATA_KEYS: devbank:bW90by1kZXYtb25seS1iYW5rLWtleSEhISEhISEhISE=
+      BANK_DATA_LEGACY_KEYS: ""
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000

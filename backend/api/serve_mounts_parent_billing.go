@@ -55,7 +55,7 @@ import (
 // right (#6219),
 // and the SEPA mandates and the creditor at /traeger/sepa-mandates and
 // /traeger/sepa-creditor behind the same right (#4695).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
+func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
@@ -81,7 +81,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-billing", terms.FamilyRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/billing-run-due-dates", terms.DueDateRouter(ProtectedTraegerRoutes))
-	mandates := NewSEPAMandateHTTP(healthData)
+	mandates := NewSEPAMandateHTTP(bankData)
 	root.Mount("/traeger/sepa-creditor", mandates.CreditorRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-mandates", mandates.MandateRouter(ProtectedTraegerRoutes))
 }
@@ -89,7 +89,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 // NewSEPAMandateHTTP binds the SEPA mandates and the creditor of the Träger
 // (#4695, ADR 0171) to the right "Abrechnung", to the parties of the
 // Betreuungsvertrag, which name the family of a contract, and to the field
-// cipher of the root, which seals the IBAN like the health information.
+// independent bank-data cipher of the root.
 func NewSEPAMandateHTTP(cipher parentbilling.BankDataCipher) *parentBillingHTTP.SEPAMandateResource {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	return parentBillingHTTP.NewSEPAMandateResource(parentBillingCompose.NewSEPAMandates(contracts, cipher),

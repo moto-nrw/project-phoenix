@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 OPTIONAL_VALUES = {
+    "BANK_DATA_LEGACY_KEYS",
     "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "NEXT_PUBLIC_POSTHOG_KEY",
     "NEXT_PUBLIC_SENTRY_DSN", "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
     "SENTRY_DSN", "SENTRY_PYREPORTAL_DSN", "POSTHOG_API_KEY", "POSTHOG_HOST",
@@ -91,7 +92,7 @@ def check(path, target, expected):
 
 def check_missing_config(path, directory):
     lines = (ROOT / ".env.example").read_text().splitlines()
-    for key in ("NEXTAUTH_SECRET", "PHOENIX_AUTH_PASSWORD", "POSTGRES_PASSWORD", "DB_DSN"):
+    for key in ("NEXTAUTH_SECRET", "PHOENIX_AUTH_PASSWORD", "POSTGRES_PASSWORD", "DB_DSN", "BANK_DATA_KEYS", "BANK_DATA_LEGACY_KEYS"):
         fixture = Path(directory) / "missing.env"
         fixture.write_text("\n".join(line for line in lines if not line.startswith(key + "=")) + "\n")
         try:

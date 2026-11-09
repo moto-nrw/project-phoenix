@@ -57,36 +57,28 @@
       "target_owner": "document-rendering"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "binding_digest": "f9ed55d97ea06c7ce2dd2e9041a5de6b",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
       "source_owner": "parent-billing",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "binding_digest": "4ab735e5309894f97cf5327b48785022",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "target_owner": "enrollment"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "binding_digest": "d4d924ed8d1ab6110adbd13e744575df",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "binding_digest": "52cf434db5ec77b4ab32a21ba7c44773",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
       "source_owner": "parent-billing",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "binding_digest": "9b5ea30a5204439d4da13d9f13655df4",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "binding_digest": "04f9698ef5b3ba14cda74a9cee4912d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataRewrapper.Rewrap",
       "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "target_owner": "enrollment"
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "target_owner": "security-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",

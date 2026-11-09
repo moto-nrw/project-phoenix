@@ -84,3 +84,8 @@ func NewCareFeeNotices(contracts parentbilling.CareContracts, schools parentbill
 func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher) parentbilling.SEPAMandates {
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
 }
+
+// NewBankDataRekey builds maintenance-only re-encryption; never bind it to HTTP.
+func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.BankDataRekey {
+	return application.NewBankDataRekey(postgres.NewBankDataRekeyStore(), cipher)
+}
