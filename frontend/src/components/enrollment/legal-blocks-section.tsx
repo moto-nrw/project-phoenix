@@ -410,13 +410,13 @@ export function LegalBlocksSection({
           ) : null}
         </div>
         {block.kind === "consent" ? (
-          <p className="mt-2 text-xs leading-5 text-gray-500">
+          <p className="mt-2 text-sm text-gray-600">
             Freiwillige Einwilligung: Eltern können das Formular auch ohne
             Häkchen abschicken.
           </p>
         ) : null}
         {block.kind === "terms" && !isStandard(block) ? (
-          <p className="mt-2 text-xs leading-5 text-gray-500">
+          <p className="mt-2 text-sm text-gray-600">
             Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
             sie das Formular nicht abschicken. Das ist keine freiwillige
             Einwilligung.

@@ -231,7 +231,7 @@ export function AttachmentEditor({
             ? "Weitere PDFs hinzufügen"
             : "PDFs hinzufügen"}
         </Button>
-        <p className="text-xs leading-5 text-gray-500">
+        <p className="text-sm text-gray-600">
           Sie können mehrere PDFs gleichzeitig auswählen. Höchstens{" "}
           {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
         </p>
