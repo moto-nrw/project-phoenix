@@ -498,3 +498,28 @@ Kontext zur Schule der Ankündigung passt. Passt er nicht, antwortet der
 Einzelweg wie bisher, ohne dass ein weiterer Rahmen startet. Ein
 Kontextabbruch nach abgelehnter Zielgruppe antwortet 404 statt 500 (E4).
 Invariantentabelle und Belege: #6388.
+
+## Nachtrag 09.11.2026: Schreibrouten der Übergabe (#5862, E16/E21)
+
+Punkt 2 gilt ab jetzt auch für schreibende Eltern-Kind-Routen, freigegeben
+am 09.11.2026 (E16) mit den Invarianten der Leserouten. Die Übergabe läuft
+über eine eigene Startstelle
+`workflows/parentportal/internal/care/child.go:*Service.WithPermittedChildForWrite:s.Runtime.WithinAdminThenTenant#1`
+(Admin-Register und `transactionFrameBundleSites`); die Lese-Startstelle und
+ihr Grund bleiben unverändert.
+
+Gebündelt wird nur eine Route, bei der zwischen Kindprüfung und Schreibrahmen
+kein eigener Rahmen liegt, also nur Go-Prüfungen. Liegt dort ein
+Settings-Rahmen, bleibt die Route beim bisherigen Ablauf, weil der Read sonst
+in den Schreibrahmen wandern müsste. Für fail-open Reads schließt E21 das
+aus; für strikte Reads ist es nicht entschieden. Sperren und ihre Reihenfolge
+im Tenant-Teil bleiben unverändert, der Admin-Teil sperrt keine Zeile.
+
+Zeitpunkte (E21): Ein DB-Zeitanker (`now()`, `CURRENT_TIMESTAMP`, Default,
+Trigger) stammt danach vom Beginn der gemeinsamen Transaktion, also von vor
+der Kindprüfung. In Go berechnete Fristen und Kalendertage werden weiter nach
+der Kindprüfung berechnet; Settings-Reads, frische Antwort-Reads nach dem
+Commit und Arbeit nach dem Commit (Dateilöschung, Broadcasts) bleiben an
+ihrer Stelle. Start-, Rollenwechsel-, COMMIT- und ROLLBACK-Fehler antworten
+500 ohne Retry und ohne zweiten Weg (E9/E15). Routenliste, Invariantentabelle
+und Belege stehen im PR zu #5862.
