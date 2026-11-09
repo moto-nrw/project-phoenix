@@ -170,12 +170,8 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
-	// Only an edit of the day or the check-in is checked, so a row an
-	// earlier edit already broke can still get its notes and be repaired.
-	if session.Date != recordedDay || !session.CheckInTime.Equal(recordedCheckIn) {
-		if err := checkInWithinSessionDay(session.Date, session.CheckInTime); err != nil {
-			return nil, err
-		}
+	if err := checkEditedSessionDay(session, recordedDay, recordedCheckIn); err != nil {
+		return nil, err
 	}
 
 	// Edited times must not slide into a sibling block.
@@ -284,6 +280,16 @@ func validateAdminCreateSession(targetStaffID int64, req *AdminCreateSessionRequ
 		return workforce.ErrAdminBreakMinutesNegative
 	}
 	return checkInWithinSessionDay(calendar.DateFromTime(req.Date), req.CheckInTime)
+}
+
+// checkEditedSessionDay applies checkInWithinSessionDay only when an edit
+// changed the day or the check-in, so a row an earlier edit already broke can
+// still get its notes and be repaired.
+func checkEditedSessionDay(session *WorkSession, recordedDay calendar.Date, recordedCheckIn time.Time) error {
+	if session.Date == recordedDay && session.CheckInTime.Equal(recordedCheckIn) {
+		return nil
+	}
+	return checkInWithinSessionDay(session.Date, session.CheckInTime)
 }
 
 // checkInWithinSessionDay rejects a session filed on a day before its

@@ -213,24 +213,34 @@ func (s *CareLifecycle) reconcileBookingEvaluation(
 	}
 	if pending != nil {
 		pendingDay := calendar.Date(pending.FirstBookinglessDay)
-		if *evaluation.FirstBookinglessDay != pendingDay {
-			realGap, err := s.rebookedAfterRealGap(ctx, evaluation, pendingDay)
-			if err != nil || realGap {
-				return false, err
+		if *evaluation.FirstBookinglessDay == pendingDay {
+			if !change.WasCompleteWithdrawal {
+				return false, nil
 			}
-			changed, err := s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(pendingDay), time.Now())
-			if err != nil {
-				return false, err
-			}
-			if !changed {
-				return false, errors.New("care lifecycle: pending booking completion changed during reconciliation")
-			}
-		} else if !change.WasCompleteWithdrawal {
-			return false, nil
+		} else if replaced, err := s.replaceMovedPendingTask(ctx, evaluation, pendingDay); err != nil || !replaced {
+			return false, err
 		}
 	}
 	if err := s.upsertBookingCompletion(ctx, evaluation, change); err != nil {
 		return false, err
+	}
+	return true, nil
+}
+
+// replaceMovedPendingTask closes the open task whose first bookingless day
+// the booking moved, so a new one can take the new boundary. It keeps the
+// task and reports false after a real gap (#6288).
+func (s *CareLifecycle) replaceMovedPendingTask(ctx context.Context, evaluation domain.CareBookingEvaluation, pendingDay calendar.Date) (bool, error) {
+	realGap, err := s.rebookedAfterRealGap(ctx, evaluation, pendingDay)
+	if err != nil || realGap {
+		return false, err
+	}
+	changed, err := s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(pendingDay), time.Now())
+	if err != nil {
+		return false, err
+	}
+	if !changed {
+		return false, errors.New("care lifecycle: pending booking completion changed during reconciliation")
 	}
 	return true, nil
 }
