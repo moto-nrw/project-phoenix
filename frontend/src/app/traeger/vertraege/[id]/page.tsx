@@ -497,7 +497,9 @@ export default function TraegerVertragPage() {
               <SectionCard concept={parentsConcept} title="Eltern">
                 {party ? (
                   <DataGrid columns={1}>
-                    <DataField label="Vertragspartei">
+                    {/* „Vertragspartner“ names the Träger's side on this
+                        page; the family's side is named by what it is. */}
+                    <DataField label="Vertrag mit">
                       {`${party.firstName} ${party.lastName}`.trim()}
                     </DataField>
                     <DataField label="E-Mail bei Vertragserstellung">
@@ -513,7 +515,7 @@ export default function TraegerVertragPage() {
                   </DataGrid>
                 ) : (
                   <p className="text-sm text-gray-600">
-                    Keine Vertragspartei hinterlegt.
+                    Im Vertrag steht kein Elternteil.
                   </p>
                 )}
               </SectionCard>

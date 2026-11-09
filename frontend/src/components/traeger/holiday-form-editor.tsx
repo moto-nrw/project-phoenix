@@ -25,7 +25,7 @@ import {
   useDraftDocuments,
   type DraftDocumentSave,
 } from "~/components/enrollment/draft-documents";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -257,19 +257,33 @@ export function HolidayFormEditor({
             stickyFooter
             footer={editActions}
             action={
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={saving || uploading || missingTemplateFields === 0}
-                onClick={() =>
-                  setFields((current) =>
-                    insertTemplateFields(current, form.template),
-                  )
-                }
-              >
-                Standardvorlage einfügen
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={saving || uploading || missingTemplateFields === 0}
+                  onClick={() =>
+                    setFields((current) =>
+                      insertTemplateFields(current, form.template),
+                    )
+                  }
+                >
+                  Standardvorlage einfügen
+                </Button>
+                {/* Below xl the preview stands after all questions: the
+                    way there is one tap, not a long scroll. */}
+                <a
+                  href="#holiday-form-preview"
+                  className={buttonClassName({
+                    variant: "ghost",
+                    size: "md",
+                    className: "xl:hidden",
+                  })}
+                >
+                  Zur Vorschau
+                </a>
+              </div>
             }
           >
             <div className="space-y-4">
@@ -392,7 +406,11 @@ export function HolidayFormEditor({
             </div>
           </SectionCard>
 
-          <aside aria-label="Vorschau für Eltern">
+          <aside
+            id="holiday-form-preview"
+            aria-label="Vorschau für Eltern"
+            className="scroll-mt-24"
+          >
             <FormPreview
               title="Ferienanmeldung"
               headerInside

@@ -86,7 +86,8 @@ function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
     return "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern.";
   }
-  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt, mit ihren Korrekturen als Vorschlag. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+  // The re-issue of a cancelled invoice is explained by its own card.
+  return "Vorschau aller bestätigten Anmeldungen ohne gültige Rechnung. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */

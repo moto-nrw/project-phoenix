@@ -214,8 +214,10 @@ function BillingRunsPage() {
     (period) => period.id === periodFilter,
   );
 
+  // The filter stands from the start, so the head does not jump when the
+  // runs arrive; without any period it has nothing to choose.
   const filters: FilterConfig[] =
-    options.length > 0
+    !data || options.length > 0
       ? [
           {
             id: "period",

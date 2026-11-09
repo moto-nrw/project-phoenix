@@ -134,8 +134,9 @@ function OverrunFigure({
   children,
 }: Readonly<{ value: number; children?: ReactNode }>) {
   return (
+    // One line: hours and minutes split over two lines read as two values.
     <span
-      className="text-sm font-semibold tabular-nums"
+      className="text-sm font-semibold whitespace-nowrap tabular-nums"
       style={value > 0 ? OVERRUN_TEXT : undefined}
     >
       {children ?? value}
