@@ -145,10 +145,9 @@ export function TraegerLetterheadPreview({
           >
             {letterFacts.map((fact) => (
               <p key={fact.label} className="flex justify-between gap-4">
-                <span className="shrink-0 whitespace-nowrap text-gray-500">
-                  {fact.label}
-                </span>
-                <span className="min-w-0 text-right wrap-break-word text-gray-900 tabular-nums">
+                {/* A number or date stays whole; the label wraps instead. */}
+                <span className="min-w-0 text-gray-500">{fact.label}</span>
+                <span className="shrink-0 text-right whitespace-nowrap text-gray-900 tabular-nums">
                   {fact.value}
                 </span>
               </p>

@@ -28,6 +28,7 @@ import {
   plannedVersion,
 } from "~/components/traeger/care-contract-versions";
 import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
+import { EmailText } from "~/components/traeger/email-text";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
@@ -368,9 +369,9 @@ export default function TraegerVertragPage() {
             }}
           >
             <p className="text-sm text-gray-700">
-              {party?.email
-                ? `Der Vertrag geht per Mail an ${party.email} und in die Eltern-App.`
-                : "Der Vertrag geht per Mail an die Eltern und in die Eltern-App."}{" "}
+              {`Der Vertrag geht per Mail an ${party?.email ?? "die Eltern"}${
+                party?.hasAccount ? " und in die Eltern-App" : ""
+              }.`}{" "}
               Eine gesendete Mail lässt sich nicht zurückholen.
             </p>
           </ConfirmationModal>
@@ -545,8 +546,8 @@ export default function TraegerVertragPage() {
                             tone={contractMailBadge(mailing).tone}
                           />
                         </span>
-                        <span className="mt-0.5 block wrap-anywhere text-gray-500">
-                          an {mailing.recipient}
+                        <span className="mt-0.5 block text-gray-500">
+                          an <EmailText email={mailing.recipient} />
                         </span>
                       </li>
                     ))}
@@ -572,6 +573,7 @@ export default function TraegerVertragPage() {
                       Versanddaten bleiben erhalten.
                     </p>
                     <Input
+                      controlSize="touch"
                       name="recipient_email"
                       type="email"
                       label="Neue Versandadresse"
@@ -751,7 +753,12 @@ function StatusNotice({
     return (
       <Alert
         type="success"
-        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. Die Eltern bekommen ihn per E-Mail und in der Eltern-App.`}
+        // The app shows the contract only with a linked parent account.
+        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. ${
+          contract.parties.some((party) => party.hasAccount)
+            ? "Die Eltern bekommen ihn per E-Mail und in der Eltern-App."
+            : "Die Eltern bekommen ihn per E-Mail. In der Eltern-App sehen sie ihn, sobald sie ein Konto verknüpft haben."
+        }`}
       />
     );
   }

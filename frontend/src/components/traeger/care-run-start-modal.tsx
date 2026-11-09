@@ -108,6 +108,15 @@ export function CareRunStartModal({
     ),
   ];
   const allSelected = free.length > 0 && selected.length === free.length;
+  // Every school of the month is in one open run: the dialog leads there
+  // instead of offering a start that cannot run.
+  const blockedRunId =
+    schools !== null &&
+    schools.length > 0 &&
+    free.length === 0 &&
+    openRunIds.length === 1
+      ? openRunIds[0]
+      : null;
   const bounds = invoiceDateBounds(month);
 
   const toggle = (schoolId: string, checked: boolean) =>
@@ -158,13 +167,30 @@ export function CareRunStartModal({
       size="md"
       error={formErrors.error}
       footer={
-        <EditActions
-          onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
-          saving={saving}
-          disabled={schools === null || free.length === 0}
-          saveLabel="Vorschau öffnen"
-        />
+        blockedRunId ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" size="md" onClick={onClose}>
+              Abbrechen
+            </Button>
+            <ButtonLink
+              href={traegerPath(
+                `/traeger/abrechnung/monatsbeitraege/${blockedRunId}`,
+              )}
+              variant="primary"
+              size="md"
+            >
+              Offenen Lauf öffnen
+            </ButtonLink>
+          </div>
+        ) : (
+          <EditActions
+            onCancel={onClose}
+            onSave={() => formRef.current?.requestSubmit()}
+            saving={saving}
+            disabled={schools === null || free.length === 0}
+            saveLabel="Vorschau öffnen"
+          />
+        )
       }
     >
       <form
@@ -196,19 +222,10 @@ export function CareRunStartModal({
           ) : free.length === 0 && schools.length > 0 ? (
             <Alert
               type="info"
-              message={`Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf oder wählen Sie einen anderen Monat.`}
-              action={
-                openRunIds.length === 1 ? (
-                  <ButtonLink
-                    href={traegerPath(
-                      `/traeger/abrechnung/monatsbeitraege/${openRunIds[0]}`,
-                    )}
-                    variant="surface"
-                    size="compact"
-                  >
-                    Offenen Lauf öffnen
-                  </ButtonLink>
-                ) : undefined
+              message={
+                blockedRunId
+                  ? `Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf unten oder wählen Sie einen anderen Monat.`
+                  : `Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Wählen Sie einen anderen Monat.`
               }
             />
           ) : (

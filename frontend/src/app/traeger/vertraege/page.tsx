@@ -29,6 +29,7 @@ import {
   childName,
 } from "~/components/traeger/care-contract-format";
 import { careContractTabs } from "~/components/traeger/care-contract-tabs";
+import { emptySearchText } from "~/components/traeger/empty-search";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -578,10 +579,10 @@ export default function TraegerVertraegePage() {
                 candidates.length,
                 data.modes.length > 0 &&
                   data.modes.every((school) => school.mode === "bei_annahme"),
-                [
-                  search.trim() ? `„${search.trim()}“` : "",
-                  ...activeFilters.map((filter) => filter.label),
-                ].filter(Boolean),
+                emptySearchText(
+                  search,
+                  activeFilters.map((filter) => filter.label),
+                ).description,
               )}
               action={
                 total > 0 &&
@@ -596,7 +597,12 @@ export default function TraegerVertraegePage() {
                       setSchoolId("");
                     }}
                   >
-                    Filter zurücksetzen
+                    {
+                      emptySearchText(
+                        search,
+                        activeFilters.map((filter) => filter.label),
+                      ).actionLabel
+                    }
                   </Button>
                 ) : undefined
               }
@@ -663,13 +669,12 @@ function emptyText(
   contracts: number,
   candidates: number,
   allOnAcceptance: boolean,
-  active: readonly string[],
+  searchText: string,
 ): { title: string; description?: string } {
   if (contracts > 0) {
     return {
       title: "Kein Vertrag passt zu Ihrer Suche.",
-      description:
-        active.length > 0 ? `Aktiv: ${active.join(", ")}.` : undefined,
+      description: searchText || undefined,
     };
   }
   if (allOnAcceptance) {
@@ -704,10 +709,13 @@ function statusFigures(
   active: number,
   candidates: number,
 ): { value: number; label: string }[] {
+  // The line holds three figures: the work waiting (drafts, children
+  // without a contract) comes before what only waits for the parents.
   const figures = [
     { value: active, label: "aktiv" },
-    { value: sent, label: "versendet" },
     { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
+    { value: candidates, label: "ohne Vertrag" },
+    { value: sent, label: "versendet" },
   ].filter((figure) => figure.value > 0);
   if (figures.length < 2) {
     figures.unshift({
@@ -715,7 +723,5 @@ function statusFigures(
       label: total === 1 ? "Vertrag" : "Verträge",
     });
   }
-  if (candidates > 0)
-    figures.push({ value: candidates, label: "ohne Vertrag" });
   return figures.slice(0, 3);
 }

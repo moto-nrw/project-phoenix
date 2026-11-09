@@ -190,6 +190,7 @@ export function TraegerDocumentUploadModal({
           live
         />
         <Input
+          controlSize="touch"
           id="traeger-document-title"
           name="title"
           label="Titel"

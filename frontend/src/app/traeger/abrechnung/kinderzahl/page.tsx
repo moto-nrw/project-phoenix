@@ -262,6 +262,7 @@ export default function TraegerKinderzahlPage() {
   const countStatus = (status: FamilyChildren["status"]) =>
     families.filter((family) => family.status === status).length;
   const expired = countStatus("expired");
+  const missing = countStatus("missing");
 
   return (
     <TenantPage
@@ -270,14 +271,11 @@ export default function TraegerKinderzahlPage() {
       stats={
         families.length > 0 ? (
           <TenantPageStats
+            // Three figures fit the line; each counts one pill of the table.
             items={[
-              {
-                value: families.length,
-                label: families.length === 1 ? "Familie" : "Familien",
-              },
               { value: countStatus("confirmed"), label: "bestätigt" },
               ...(expired > 0 ? [{ value: expired, label: "abgelaufen" }] : []),
-              { value: countStatus("missing"), label: "ohne Angabe" },
+              { value: missing, label: "ohne Angabe" },
             ]}
           />
         ) : null
@@ -342,7 +340,7 @@ export default function TraegerKinderzahlPage() {
           titleBadge={
             <StatusBadge tone="orange" label={`${toCheck.length} offen`} />
           }
-          description="Bis Sie prüfen, zählt der Monatslauf die bisher bestätigte Zahl. Ohne sie zählen nur die Kinder mit Vertrag."
+          description={`Bis Sie prüfen, zählt der Monatslauf die bisher bestätigte Zahl. Ohne sie zählen nur die Kinder mit Vertrag.${missing > 0 ? ` So auch bei ${missing === 1 ? "der 1 Familie" : `den ${missing} Familien`} ohne Angabe.` : ""}`}
           leading={
             <TriangleAlert
               className="text-moto-orange-strong mt-0.5 size-5 shrink-0"

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { CheckCircleIcon } from "@phosphor-icons/react/ssr";
 import { useSession } from "next-auth/react";
+import { emptySearchText } from "~/components/traeger/empty-search";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -484,6 +485,8 @@ export default function TraegerDashboardPage() {
                 type="button"
                 variant="surface"
                 size="compact"
+                // One line: the action keeps its word whole in the table.
+                className="whitespace-nowrap"
                 aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
                 title="Öffnet in einem neuen Tab"
                 disabled={opening !== null}
@@ -747,7 +750,7 @@ export default function TraegerDashboardPage() {
             <EmptyState
               icon={<School className="h-12 w-12" aria-hidden="true" />}
               title="Keine Schule passt zu Ihrer Suche."
-              description={`Gesucht: „${search.trim()}“. Prüfen Sie den Namen oder suchen Sie nach dem Ort.`}
+              description={`${emptySearchText(search, []).description} Prüfen Sie den Namen oder suchen Sie nach dem Ort.`}
               action={
                 <Button
                   type="button"

@@ -266,6 +266,11 @@ export default function TraegerCareRunPage() {
     ? run.mealGaps.filter((gap) => !gap.expired).length
     : 0;
   const unpriced = preview ? run.unpriced.length : 0;
+  // What cost bearers pay apart from the families, named in the release.
+  const takeoverCents = (run?.costBearers ?? []).reduce(
+    (sum, bearer) => sum + bearer.amountCents,
+    0,
+  );
   const releaseOpenPoints = [
     debitHintCount > 0
       ? `${familiesLabel(debitHintCount)}: Die Lastschrift klappt so nicht.`
@@ -349,6 +354,9 @@ export default function TraegerCareRunPage() {
                   {formatMonth(run.billingMonth)} bekommen ihre Nummer und das
                   Rechnungsdatum {invoiceDateLabel(run.invoiceDate)}. Danach
                   lassen sie sich nicht mehr ändern.
+                  {takeoverCents > 0
+                    ? ` Kostenträger übernehmen zusätzlich ${formatEuro(takeoverCents)}.`
+                    : ""}
                 </>
               )}
             </p>

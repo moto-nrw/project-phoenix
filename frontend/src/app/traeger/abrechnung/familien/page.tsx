@@ -24,6 +24,7 @@ import {
 } from "~/components/traeger/billing-family-format";
 import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { emptySearchText } from "~/components/traeger/empty-search";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -239,6 +240,10 @@ export default function TraegerBillingFamiliesPage() {
     setSearch("");
     setOpenFilter("");
   };
+  const emptySearch = emptySearchText(
+    search,
+    activeFilters.map((filter) => filter.label),
+  );
 
   return (
     <TenantPage
@@ -301,7 +306,7 @@ export default function TraegerBillingFamiliesPage() {
               filtered ? (
                 <EmptyState
                   title="Keine Familie passt zur Suche."
-                  description="Ändern Sie die Suche oder den Filter."
+                  description={emptySearch.description}
                   action={
                     <Button
                       type="button"
@@ -309,7 +314,7 @@ export default function TraegerBillingFamiliesPage() {
                       size="md"
                       onClick={resetFilters}
                     >
-                      Filter zurücksetzen
+                      {emptySearch.actionLabel}
                     </Button>
                   }
                 />

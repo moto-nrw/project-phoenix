@@ -165,10 +165,11 @@ const HOURS = new Intl.NumberFormat("de-DE");
 export function formatExtraTime(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  // „1.486 Std.“: große Stundenzahlen mit Tausenderpunkt.
-  if (hours === 0) return `${rest} Min.`;
-  if (rest === 0) return `${HOURS.format(hours)} Std.`;
-  return `${HOURS.format(hours)} Std. ${rest} Min.`;
+  // „1.486 Std.“: große Stundenzahlen mit Tausenderpunkt. Zahl und Einheit
+  // halten mit einem geschützten Leerzeichen zusammen.
+  if (hours === 0) return `${rest}\u00A0Min.`;
+  if (rest === 0) return `${HOURS.format(hours)}\u00A0Std.`;
+  return `${HOURS.format(hours)}\u00A0Std. ${rest}\u00A0Min.`;
 }
 
 /** Tage mit längerer Betreuung, ob gebucht oder nicht. */

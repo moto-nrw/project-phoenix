@@ -305,7 +305,7 @@ function FamilyMandates({
               </DataField>
               <DataField label="Konto">
                 <span
-                  className="block font-mono whitespace-nowrap tabular-nums"
+                  className="block font-mono tabular-nums md:whitespace-nowrap"
                   data-analytics-block
                 >
                   {inForce.ibanMasked}
@@ -445,7 +445,8 @@ export function SepaMandatesCard({
       stacked: "field",
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
-          <span className="block font-mono whitespace-nowrap text-gray-900 tabular-nums">
+          {/* Groups may wrap on a phone; a group itself never breaks. */}
+          <span className="block font-mono text-gray-900 tabular-nums md:whitespace-nowrap">
             {mandate.ibanMasked}
           </span>
           <span className="block truncate text-sm text-gray-500">
@@ -455,21 +456,24 @@ export function SepaMandatesCard({
       ),
     },
     {
+      // The next debit is a second line under the signature date: one
+      // column less keeps „Stand“ readable on a tablet.
       key: "signed",
       header: "Unterschrieben",
       stacked: "field",
       sortValue: (mandate) => mandate.signedOn,
       render: (mandate) => (
-        <span className="whitespace-nowrap tabular-nums">
-          {formatDate(mandate.signedOn)}
+        <span className="block">
+          <span className="block whitespace-nowrap tabular-nums">
+            {formatDate(mandate.signedOn)}
+          </span>
+          {mandate.revokedOn ? null : (
+            <span className="block text-sm text-gray-500">
+              Nächste Abbuchung: {nextDebitLabel(mandate)}
+            </span>
+          )}
         </span>
       ),
-    },
-    {
-      key: "next",
-      header: "Art der nächsten Abbuchung",
-      stacked: "field",
-      render: (mandate) => nextDebitLabel(mandate),
     },
     {
       key: "state",

@@ -70,16 +70,31 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
       const reference = referenceText(document);
       return (
         <span className="block min-w-0">
-          <span className="block font-medium text-gray-900">
-            {BILLING_DOCUMENT_KIND_LABELS[document.kind]}{" "}
-            <span className="font-mono whitespace-nowrap">
-              {document.number}
+          {/* The state sits beside the number: a column of its own no
+              longer fit beside the amounts on a tablet. */}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-gray-900">
+            <span>
+              {BILLING_DOCUMENT_KIND_LABELS[document.kind]}{" "}
+              <span className="font-mono whitespace-nowrap">
+                {document.number}
+              </span>
             </span>
+            {document.status ? (
+              <StatusBadge
+                label={INVOICE_STATUS_LABELS[document.status]}
+                tone={INVOICE_STATUS_TONES[document.status]}
+              />
+            ) : null}
           </span>
           {reference ? (
             <span className="block text-sm text-gray-500">{reference}</span>
           ) : null}
-          {document.kind === "invoice" && document.paymentMethod ? (
+          {/* Payment and due date only while the invoice still asks for
+              something: a cancelled one is due nowhere. */}
+          {document.kind === "invoice" &&
+          document.paymentMethod &&
+          document.status !== "cancelled" &&
+          document.status !== "credited" ? (
             <span className="block text-sm text-gray-500">
               {PAYMENT_METHOD_LABELS[document.paymentMethod]}
               {document.dueOn
@@ -132,22 +147,6 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
         {formatEuro(document.totalCents)}
       </span>
     ),
-  },
-  {
-    key: "status",
-    header: "Stand",
-    // The pill keeps its word whole („Storniert“), also on a tablet.
-    className: "min-w-28",
-    render: (document) =>
-      document.status ? (
-        <StatusBadge
-          label={INVOICE_STATUS_LABELS[document.status]}
-          tone={INVOICE_STATUS_TONES[document.status]}
-          wrap
-        />
-      ) : (
-        "–"
-      ),
   },
   {
     key: "open",

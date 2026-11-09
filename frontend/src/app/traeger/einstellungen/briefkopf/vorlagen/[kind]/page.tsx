@@ -317,6 +317,7 @@ function TemplateEditorPage({
                 >
                   <FormErrorAlert message={formErrors.error} />
                   <Input
+                    controlSize="touch"
                     id="template-subject"
                     label="Betreff"
                     name="subject"
@@ -328,6 +329,7 @@ function TemplateEditorPage({
                     disabled={!canEdit || saving}
                   />
                   <Input
+                    controlSize="touch"
                     id="template-salutation"
                     label="Anrede"
                     name="salutation"

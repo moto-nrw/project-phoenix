@@ -329,6 +329,7 @@ export function CareRuleModal({
         }}
       >
         <Input
+          controlSize="touch"
           id="care-rule-name"
           name="name"
           label="Name auf der Rechnung"
@@ -478,6 +479,7 @@ export function CareRuleModal({
           </p>
         ) : (
           <Input
+            controlSize="touch"
             id="care-rule-value"
             name={valueField}
             label={valueLabel}

@@ -358,6 +358,7 @@ function DraftFields({
     case "amount":
       return (
         <Input
+          controlSize="touch"
           id="care-amendment-total"
           name="total"
           label="Neuer Betrag in Euro"
@@ -373,6 +374,7 @@ function DraftFields({
       return (
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
           <Input
+            controlSize="touch"
             id="care-amendment-label"
             name="label"
             label="Bezeichnung"
@@ -384,6 +386,7 @@ function DraftFields({
             onChange={set("label")}
           />
           <Input
+            controlSize="touch"
             id="care-amendment-amount"
             name="amount"
             label="Betrag in Euro"
@@ -400,6 +403,7 @@ function DraftFields({
       return (
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
+            controlSize="touch"
             id="care-amendment-first-name"
             name="firstName"
             label="Vorname"
@@ -409,6 +413,7 @@ function DraftFields({
             onChange={set("firstName")}
           />
           <Input
+            controlSize="touch"
             id="care-amendment-last-name"
             name="lastName"
             label="Nachname"
@@ -418,6 +423,7 @@ function DraftFields({
             onChange={set("lastName")}
           />
           <Input
+            controlSize="touch"
             id="care-amendment-second-name"
             name="secondName"
             label="Zweite Person (optional)"
@@ -426,6 +432,7 @@ function DraftFields({
             onChange={set("secondName")}
           />
           <Input
+            controlSize="touch"
             id="care-amendment-email"
             name="email"
             type="email"

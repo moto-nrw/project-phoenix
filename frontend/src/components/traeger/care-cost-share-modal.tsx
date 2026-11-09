@@ -373,6 +373,7 @@ export function CareCostShareModal({
               }
             />
             <Input
+              controlSize="touch"
               id="care-cost-share-value"
               name={valueField}
               aria-label={
@@ -392,6 +393,7 @@ export function CareCostShareModal({
             />
           </div>
           <Input
+            controlSize="touch"
             id="care-cost-share-reference"
             name="reference"
             label="Bescheid"

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText } from "lucide-react";
 import type { DateRange } from "react-day-picker";
+import { EmailText } from "~/components/traeger/email-text";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
@@ -82,13 +83,17 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
   {
     key: "person",
     header: "Person",
-    render: (entry) => (
-      // A Träger-Büro address can be long; it wraps on a phone instead of
-      // running into the time beside it.
-      <span className="font-medium wrap-anywhere text-gray-900">
-        {entry.person}
-      </span>
-    ),
+    render: (entry) => {
+      // A Träger-Büro address can be long; it wraps after its „@“ on a
+      // phone, never at a hyphen, instead of running into the time.
+      const [first = "", ...rest] = entry.person.split(" ");
+      return (
+        <span className="font-medium text-gray-900">
+          {first.includes("@") ? <EmailText email={first} /> : first}
+          {rest.length > 0 ? ` ${rest.join(" ")}` : ""}
+        </span>
+      );
+    },
     stacked: "title",
   },
   {

@@ -63,9 +63,12 @@ function debtorNumberText(change: {
   readonly before: string;
   readonly after: string;
 }): string {
-  if (!change.before) return `Debitorennummer ${change.after}`;
-  if (!change.after) return `Debitorennummer ${change.before} entfernt`;
-  return `Debitorennummer vorher ${change.before}, jetzt ${change.after}`;
+  // No-break spaces keep a number with its label and whole on a phone.
+  const nb = (value: string) => value.replaceAll(" ", "\u00A0");
+  if (!change.before) return `Debitorennummer\u00A0${nb(change.after)}`;
+  if (!change.after)
+    return `Debitorennummer\u00A0${nb(change.before)} entfernt`;
+  return `Debitorennummer vorher\u00A0${nb(change.before)}, jetzt\u00A0${nb(change.after)}`;
 }
 
 function eventDetail(
