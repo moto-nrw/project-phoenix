@@ -188,9 +188,12 @@ export function ParentMessagesPage() {
     return (
       <ParentPage>
         {/* Bei offener Handy-Tastatur braucht der Chat den Platz, sonst liegt
-            das Schreibfeld unter der Tastatur (#3664). */}
+            das Schreibfeld unter der Tastatur (#3664). Auf kleinen Handys
+            ebenso: Die Navigation zeigt schon „Nachrichten“, und der Kopf des
+            Gesprächs sagt, mit wem man schreibt. Das Tourziel steht dann
+            dort (`tourAnchor`). */}
         <div
-          className="in-data-chat-keyboard:hidden"
+          className="in-data-chat-compact:hidden in-data-chat-keyboard:hidden"
           data-parent-tour="messages"
         >
           <ParentPageHeader
@@ -211,7 +214,11 @@ export function ParentMessagesPage() {
           </div>
         )}
         <SharedParentFeaturesProvider linkedChildren={children}>
-          <OgsConversation studentId={children[0]!.student_id} showChild />
+          <OgsConversation
+            studentId={children[0]!.student_id}
+            showChild
+            tourAnchor="messages"
+          />
         </SharedParentFeaturesProvider>
       </ParentPage>
     );
