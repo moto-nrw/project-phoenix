@@ -124,20 +124,31 @@ func (r *exportRun) writeTableDocuments(ctx context.Context, table string, colum
 		if err != nil {
 			return err
 		}
-		for i, column := range columns {
-			entry, err := r.writeDocument(table, column, rowID, row)
-			if err != nil || entry == nil {
-				return err
-			}
-			entry.RowKey = rowKey
-			if index.Encode(entry) != nil {
-				return errors.New("tenant export: cannot write the document index")
-			}
-			summary.Columns[first+i].Files++
-			summary.Columns[first+i].Bytes += entry.Bytes
-		}
-		return nil
+		return r.writeRowDocuments(table, columns, rowID, rowKey, row, index, summary.Columns[first:first+len(columns)])
 	})
+}
+
+// writeRowDocuments writes the documents of one row, one per column; a NULL
+// column has none, and the next column of the row still gets its file.
+func (r *exportRun) writeRowDocuments(table string, columns []string, rowID string, rowKey map[string]json.RawMessage,
+	row map[string]json.RawMessage, index *json.Encoder, counts []organizationtenancy.ExportDocumentColumn,
+) error {
+	for i, column := range columns {
+		entry, err := r.writeDocument(table, column, rowID, row)
+		if err != nil {
+			return err
+		}
+		if entry == nil {
+			continue
+		}
+		entry.RowKey = rowKey
+		if index.Encode(entry) != nil {
+			return errors.New("tenant export: cannot write the document index")
+		}
+		counts[i].Files++
+		counts[i].Bytes += entry.Bytes
+	}
+	return nil
 }
 
 // documentRow names a row by its primary key, joined with "_".
