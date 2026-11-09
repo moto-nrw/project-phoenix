@@ -475,7 +475,7 @@ export function OverflowMenu({
         className={
           triggerButton
             ? buttonClassName({ ...triggerButton, className: triggerClassName })
-            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`
+            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none ${triggerClassName}`
         }
       >
         {triggerContent ?? (

@@ -51,6 +51,8 @@ interface SettingsCategoryProps {
   readonly autosaveNote?: boolean;
   /** Asks before a reset throws away an own text (see SettingsField). */
   readonly confirmTextReset?: boolean;
+  /** Text areas hold plain text that prints as typed (see SettingsField). */
+  readonly plainTextareas?: boolean;
   /**
    * Lower-cased search query. When set, only matching settings are listed
    * (all of them when the category name itself matches). The category
@@ -80,6 +82,7 @@ export function SettingsCategory({
   headingLevel = 3,
   autosaveNote = false,
   confirmTextReset = false,
+  plainTextareas = false,
   filterQuery = "",
   tabLabel,
 }: SettingsCategoryProps) {
@@ -135,6 +138,7 @@ export function SettingsCategory({
             revealFn={revealFn}
             labelLevel={headingLevel === 2 ? 3 : 4}
             confirmTextReset={confirmTextReset}
+            plainTextareas={plainTextareas}
           />
         ))}
       </div>

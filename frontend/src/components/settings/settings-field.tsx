@@ -379,6 +379,8 @@ interface SettingsFieldProps {
    * footer): the reset saves at once and has no undo.
    */
   readonly confirmTextReset?: boolean;
+  /** Text areas hold plain text that prints as typed, not Markdown. */
+  readonly plainTextareas?: boolean;
 }
 
 /** The first line of a text, cut after 60 characters. */
@@ -406,6 +408,7 @@ export function SettingsField({
   revealFn,
   labelLevel = 4,
   confirmTextReset = false,
+  plainTextareas = false,
 }: SettingsFieldProps) {
   const LabelHeading = labelLevel === 3 ? "h3" : "h4";
   const [confirmingTextReset, setConfirmingTextReset] = useState(false);
@@ -1228,6 +1231,7 @@ export function SettingsField({
               revealFn,
               hint ? hintId : undefined,
               handlePresetPick,
+              plainTextareas,
             )}
 
         {offersReset(setting, audience, deletesRoomHistory) && (
@@ -2100,6 +2104,7 @@ function renderField(
   revealFn?: (key: string) => Promise<string | null>,
   errorId?: string,
   onPresetPick?: (value: unknown) => Promise<void>,
+  plainTextareas = false,
 ) {
   const disabled = !setting.writable;
 
@@ -2206,6 +2211,7 @@ function renderField(
           }
           rows={exampleRows(setting.placeholder)}
           errorId={errorId}
+          plainText={plainTextareas}
         />
       );
     case "password":

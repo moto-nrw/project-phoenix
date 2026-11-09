@@ -47,7 +47,9 @@ export function Switch({
         "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
         "focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:ring-offset-2 focus-visible:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-gray-900" : "bg-gray-200",
+        // Off, the light track carries a gray-500 edge: without it the
+        // switch stands at 1.2:1 against a white card (WCAG 1.4.11).
+        checked ? "bg-gray-900" : "border-gray-500 bg-gray-200",
         className,
       )}
       {...rest}
