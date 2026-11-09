@@ -5,10 +5,10 @@
 //           lint, frontend lint/types/knip/guard inventory, as selected by
 //           the changed paths
 //   tests   scripts/test-changed.sh --fast: affected Go packages and their
-//           direct importers, plus the frontend tests the shared selector picks
+//           direct importers, affected source ratchets and selected frontend tests
 // CI still runs the full affected closure.
 //
-//   scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]   (default origin/development)
+//   scripts/run-go-toolchain.sh scripts/check-changed.mjs [--fast] [base]   (default origin/development)
 //
 // The steps run side by side when the machine has room (8 CPUs, 16 GB and a
 // load average below half the CPUs), otherwise one after the other, static
@@ -168,8 +168,10 @@ export function inputsKey(root, mergeBase, env = process.env) {
 }
 
 async function main(argv) {
+  // The default already is the fast local gate; accept its explicit spelling.
+  if (argv[0] === '--fast') argv = argv.slice(1);
   if (argv.length > 1 || argv[0] === '-h' || argv[0] === '--help') {
-    console.error('Usage: scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]');
+    console.error('Usage: scripts/run-go-toolchain.sh scripts/check-changed.mjs [--fast] [base]');
     return 2;
   }
   const base = argv[0] ?? 'origin/development';

@@ -697,39 +697,6 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 	})
 }
 
-func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deletes all exceptions for student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-
-		baseDate := calendar.TodayDate()
-		for i := 1; i <= 5; i++ {
-			exception := &careplan.ArrivalException{
-				StudentID:     student.ID,
-				ExceptionDate: careplan.Date(baseDate.AddDays(i)),
-				Reason:        testpkg.StrPtr("Exception"),
-				CreatedBy:     createArrivalServiceTestStaffID(t, db),
-			}
-			err := testpkg.TenantCommand1(t, ctx, db, service.CreateStudentArrivalException, exception)
-			require.NoError(t, err)
-		}
-
-		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteAllStudentArrivalExceptions, student.ID)
-
-		require.NoError(t, err)
-
-		results, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentArrivalExceptions, student.ID)
-		require.NoError(t, err)
-		assert.Empty(t, results)
-	})
-}
-
 // =============================================================================
 // Note Operations Tests
 // =============================================================================

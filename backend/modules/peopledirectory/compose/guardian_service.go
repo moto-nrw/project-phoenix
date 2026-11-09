@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -29,3 +30,8 @@ func (t guardianTransactions) WithTenantTx(ctx context.Context, fn func(context.
 }
 
 func (guardianTransactions) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
+
+// NewGuardianBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
+func NewGuardianBankDataRekey(cipher peopledirectory.BankDataRekeyCipher) peopledirectory.GuardianBankDataRekey {
+	return application.NewGuardianBankDataRekey(boundaryBinding.NewGuardianBankRekeyStore(), cipher)
+}
