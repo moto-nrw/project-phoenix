@@ -239,12 +239,13 @@ type ExportedFile struct {
 // ExportFileRecord is what an export writes into the protocol: the file and
 // the invoices, holiday documents and Jahresbescheide it holds.
 type ExportFileRecord struct {
-	Format         string
-	RunKind        string
-	RunID          int64
-	FileNumber     int64
-	FileName       string
-	Fingerprint    string
+	Format     string
+	RunKind    string
+	RunID      int64
+	FileNumber int64
+	FileName   string
+	// Content is the file; the store keeps only its SHA-256 fingerprint.
+	Content        []byte
 	TotalCents     int64
 	Reference      string
 	CareInvoiceIDs []int64

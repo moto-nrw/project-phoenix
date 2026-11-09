@@ -68,14 +68,14 @@ SELECT 'submitted', debit.submitted_at, debit.submitted_by_account_id, 0, debit.
 FROM parent_billing.sepa_debits AS debit
 WHERE debit.organization_id = ?0 AND debit.document_id = ?1 AND debit.status = 'submitted'`
 
-// exportFilesOfInvoiceQuery reads every protocol entry that holds an
-// invoice, with the label of its run; %s names the column of the invoice.
-const exportFilesOfInvoiceQuery = `SELECT file.*,
+// exportFilesOfCareInvoiceQuery reads every protocol entry that holds a
+// monthly invoice, with the label of its run.
+const exportFilesOfCareInvoiceQuery = `SELECT file.*,
 	(SELECT run.billing_month FROM parent_billing.care_runs AS run
 		WHERE run.organization_id = ?0 AND run.id = file.run_id AND file.run_kind = 'care') AS care_month,
 	(SELECT run.period_name FROM parent_billing.runs AS run
 		WHERE run.organization_id = ?0 AND run.id = file.run_id AND file.run_kind = 'holiday') AS period_name,
-	CASE WHEN file.run_kind = 'notice' THEN make_date((file.run_id / 100)::int, (file.run_id %% 100)::int, 1) END AS notice_month,
+	CASE WHEN file.run_kind = 'notice' THEN make_date((file.run_id / 100)::int, (file.run_id % 100)::int, 1) END AS notice_month,
 	(SELECT MIN(earlier.file_number) FROM parent_billing.export_files AS earlier
 		WHERE earlier.organization_id = ?0 AND earlier.run_kind = file.run_kind AND earlier.run_id = file.run_id
 			AND earlier.format = file.format AND earlier.content_sha256 = file.content_sha256
@@ -83,7 +83,24 @@ const exportFilesOfInvoiceQuery = `SELECT file.*,
 FROM parent_billing.export_files AS file
 WHERE file.organization_id = ?0 AND EXISTS (
 	SELECT 1 FROM parent_billing.export_file_invoices AS held
-	WHERE held.organization_id = ?0 AND held.export_file_id = file.id AND held.%s = ?1)
+	WHERE held.organization_id = ?0 AND held.export_file_id = file.id AND held.care_invoice_id = ?1)
+ORDER BY file.exported_at, file.id`
+
+// exportFilesOfHolidayDocumentQuery is the same for a holiday document.
+const exportFilesOfHolidayDocumentQuery = `SELECT file.*,
+	(SELECT run.billing_month FROM parent_billing.care_runs AS run
+		WHERE run.organization_id = ?0 AND run.id = file.run_id AND file.run_kind = 'care') AS care_month,
+	(SELECT run.period_name FROM parent_billing.runs AS run
+		WHERE run.organization_id = ?0 AND run.id = file.run_id AND file.run_kind = 'holiday') AS period_name,
+	CASE WHEN file.run_kind = 'notice' THEN make_date((file.run_id / 100)::int, (file.run_id % 100)::int, 1) END AS notice_month,
+	(SELECT MIN(earlier.file_number) FROM parent_billing.export_files AS earlier
+		WHERE earlier.organization_id = ?0 AND earlier.run_kind = file.run_kind AND earlier.run_id = file.run_id
+			AND earlier.format = file.format AND earlier.content_sha256 = file.content_sha256
+			AND earlier.file_number < file.file_number) AS repeat_of
+FROM parent_billing.export_files AS file
+WHERE file.organization_id = ?0 AND EXISTS (
+	SELECT 1 FROM parent_billing.export_file_invoices AS held
+	WHERE held.organization_id = ?0 AND held.export_file_id = file.id AND held.document_id = ?1)
 ORDER BY file.exported_at, file.id`
 
 // InvoiceHistory reads the number and the steps of an invoice of the
@@ -93,31 +110,36 @@ func (s *Store) InvoiceHistory(ctx context.Context, organizationID int64, kind s
 	if err != nil {
 		return "", nil, nil, err
 	}
-	numberQuery, stepsQuery, column := "", "", ""
+	var number string
+	var steps []invoiceStepRow
+	var files []exportFileListRow
 	switch kind {
 	case parentbilling.HistoryCareInvoice:
-		numberQuery, stepsQuery, column = `SELECT number FROM parent_billing.care_invoices WHERE organization_id = ? AND id = ?`,
-			careInvoiceStepsQuery, "care_invoice_id"
+		err = db.NewRaw(`SELECT number FROM parent_billing.care_invoices WHERE organization_id = ? AND id = ?`, organizationID, id).
+			Scan(ctx, &number)
+		if err == nil {
+			err = db.NewRaw(careInvoiceStepsQuery, organizationID, id).Scan(ctx, &steps)
+		}
+		if err == nil {
+			err = db.NewRaw(exportFilesOfCareInvoiceQuery, organizationID, id).Scan(ctx, &files)
+		}
 	case parentbilling.HistoryHolidayDocument:
-		numberQuery, stepsQuery, column = `SELECT number FROM parent_billing.documents WHERE organization_id = ? AND id = ? AND kind = 'invoice'`,
-			holidayDocumentStepsQuery, "document_id"
+		err = db.NewRaw(`SELECT number FROM parent_billing.documents WHERE organization_id = ? AND id = ? AND kind = 'invoice'`,
+			organizationID, id).Scan(ctx, &number)
+		if err == nil {
+			err = db.NewRaw(holidayDocumentStepsQuery, organizationID, id).Scan(ctx, &steps)
+		}
+		if err == nil {
+			err = db.NewRaw(exportFilesOfHolidayDocumentQuery, organizationID, id).Scan(ctx, &files)
+		}
 	default:
 		return "", nil, nil, parentbilling.ErrExportInvoiceNotFound
 	}
-	var number string
-	if err := db.NewRaw(numberQuery, organizationID, id).Scan(ctx, &number); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", nil, nil, parentbilling.ErrExportInvoiceNotFound
-		}
-		return "", nil, nil, fmt.Errorf("read the invoice: %w", err)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil, nil, parentbilling.ErrExportInvoiceNotFound
 	}
-	var steps []invoiceStepRow
-	if err := db.NewRaw(stepsQuery, organizationID, id).Scan(ctx, &steps); err != nil {
-		return "", nil, nil, fmt.Errorf("read the steps of the invoice: %w", err)
-	}
-	var files []exportFileListRow
-	if err := db.NewRaw(fmt.Sprintf(exportFilesOfInvoiceQuery, column), organizationID, id).Scan(ctx, &files); err != nil {
-		return "", nil, nil, fmt.Errorf("read the exports of the invoice: %w", err)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("read the history of the invoice: %w", err)
 	}
 	entries := make([]parentbilling.InvoiceHistoryEntry, len(steps))
 	for i, step := range steps {

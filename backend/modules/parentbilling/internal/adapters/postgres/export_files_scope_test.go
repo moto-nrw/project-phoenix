@@ -66,11 +66,11 @@ func TestExportFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		assert.Equal(t, parentbilling.ExportFileNumbers{Next: 1}, numbers, "ExportFileNumbers reads only the own counter")
 		number, err := store.ReserveExportFileNumber(ctx, own.organization)
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), number, "the own counter starts at 1, not after the other Träger's 500")
+		assert.Equal(t, numbers.Next, number, "the own counter starts at 1, not after the other Träger's 500")
 
 		entry, err := store.InsertExportFile(ctx, own.organization, 0, parentbilling.ExportFileRecord{Format: parentbilling.ExportFormatPain008,
 			RunKind: parentbilling.DebitRunCare, RunID: own.run, FileNumber: number, FileName: "lastschrift-1.xml",
-			Fingerprint: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", TotalCents: 7750, Reference: "MOTO-SAME",
+			Content: []byte("b"), TotalCents: 7750, Reference: "MOTO-SAME",
 			SEPADebitIDs: []int64{own.debit, other.debit}})
 		require.NoError(t, err)
 		assert.Equal(t, 2, entry.InvoiceCount)
@@ -162,7 +162,7 @@ func TestExportFileNumbersStayUniqueAndGaplessUnderConcurrentDownloads(t *testin
 			}
 			if _, err := store.InsertExportFile(ctx, scope.organization, 0, parentbilling.ExportFileRecord{
 				Format: parentbilling.ExportFormatSollstellung, RunKind: parentbilling.DebitRunCare, RunID: seeded.run, FileNumber: number,
-				FileName: "s.csv", Fingerprint: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}); err != nil {
+				FileName: "s.csv", Content: []byte("c")}); err != nil {
 				return err
 			}
 			if rollback {
@@ -224,7 +224,7 @@ func TestExportFileKeepsWhatTheDownloadWrote(t *testing.T) {
 		seeded := seedDebitScope(t, ctx, tx, scope, school, "DE98ZZZ09999999999", "SJR-PR-1")
 		record := parentbilling.ExportFileRecord{Format: parentbilling.ExportFormatPain008, RunKind: parentbilling.DebitRunCare,
 			RunID: seeded.run, FileNumber: 3, FileName: "l-3.xml", Reference: "MOTO-P",
-			Fingerprint: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", SEPADebitIDs: []int64{seeded.debit}}
+			Content: []byte("d"), SEPADebitIDs: []int64{seeded.debit}}
 		entry, err := store.InsertExportFile(ctx, scope.organization, 0, record)
 		require.NoError(t, err)
 		refused := func(statement, want string, args ...any) {

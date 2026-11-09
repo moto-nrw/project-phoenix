@@ -2,8 +2,6 @@ package application
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,10 +95,9 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 			return parentbilling.ExportProtocolEntry{}, nil, err
 		}
 	}
-	sum := sha256.Sum256(data)
 	entry, err := store.InsertExportFile(ctx, reviewer.OrganizationID, reviewer.AccountID, parentbilling.ExportFileRecord{
 		Format: file.format, RunKind: file.runKind, RunID: file.runID, FileNumber: number, FileName: file.fileName(number),
-		Fingerprint: hex.EncodeToString(sum[:]), TotalCents: file.totalCents, Reference: file.reference,
+		Content: data, TotalCents: file.totalCents, Reference: file.reference,
 		CareInvoiceIDs: file.careInvoices, DocumentIDs: file.documents, CareNoticeIDs: file.notices, SEPADebitIDs: file.debits,
 	})
 	if err != nil {
@@ -115,7 +112,11 @@ func (f *FinanceExports) ExportSettings(ctx context.Context, reviewer parentbill
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	soll, err := f.sollstellung(ctx, reviewer.OrganizationID)
+	stored, updatedAt, err := f.store.ExportMapping(ctx, reviewer.OrganizationID, parentbilling.ExportFormatSollstellung)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	soll, err := decodeSollstellung(stored, updatedAt)
 	if err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
@@ -132,6 +133,11 @@ func (f *FinanceExports) sollstellung(ctx context.Context, organizationID int64)
 	if err != nil {
 		return parentbilling.SollstellungSettings{}, err
 	}
+	return decodeSollstellung(stored, updatedAt)
+}
+
+// decodeSollstellung reads a stored mapping, the default without one.
+func decodeSollstellung(stored json.RawMessage, updatedAt *time.Time) (parentbilling.SollstellungSettings, error) {
 	if stored == nil {
 		return parentbilling.SollstellungSettings{Mapping: parentbilling.DefaultSollstellungMapping()}, nil
 	}
@@ -170,7 +176,12 @@ func (f *FinanceExports) ResetSollstellungMapping(ctx context.Context, reviewer 
 	if err := f.store.DeleteExportMapping(ctx, reviewer.OrganizationID, parentbilling.ExportFormatSollstellung); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	return f.ExportSettings(ctx, reviewer)
+	numbers, err := f.store.ExportFileNumbers(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	return parentbilling.ExportSettings{Sollstellung: parentbilling.SollstellungSettings{Mapping: parentbilling.DefaultSollstellungMapping()},
+		FileNumbers: numbers}, nil
 }
 
 // SetExportFileNumberStart sets the number of the first file once, so the
@@ -186,7 +197,15 @@ func (f *FinanceExports) SetExportFileNumberStart(ctx context.Context, reviewer 
 	if err := f.store.StartExportFileNumbers(ctx, reviewer.OrganizationID, start); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	return f.ExportSettings(ctx, reviewer)
+	soll, err := f.sollstellung(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	numbers, err := f.store.ExportFileNumbers(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	return parentbilling.ExportSettings{Sollstellung: soll, FileNumbers: numbers}, nil
 }
 
 // ExportRuns lists the released runs with their exports.

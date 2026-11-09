@@ -276,7 +276,7 @@ func TestSEPADebitDownloadTwiceGivesTheSameFile(t *testing.T) {
 	assert.Equal(t, "lastschrift-1-"+store.files[0].Reference+".xml", first.Filename)
 	assert.Equal(t, "lastschrift-2-"+store.files[0].Reference+".xml", second.Filename)
 	require.Len(t, store.files, 2)
-	assert.Equal(t, store.files[0].Fingerprint, store.files[1].Fingerprint, "the same content has the same fingerprint")
+	assert.Equal(t, store.files[0].Content, store.files[1].Content, "the protocol gets the same content twice")
 	assert.Equal(t, parentbilling.ExportFormatPain008, store.files[1].Format)
 	assert.Empty(t, store.submitted)
 	assert.Equal(t, parentbilling.SequenceTypeFirst, store.debits[0].Debit.SequenceType)

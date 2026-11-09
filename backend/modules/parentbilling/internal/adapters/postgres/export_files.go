@@ -168,29 +168,48 @@ func (r exportFileListRow) entry() parentbilling.ExportProtocolEntry {
 	return entry
 }
 
-// InsertExportFile records a file and the invoices it holds. A number the
-// Träger already used fails on uq_export_files_number.
+// InsertExportFile records a file and the invoices it holds; the database
+// computes the fingerprint of the content. A number the Träger already used
+// fails on uq_export_files_number.
 func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID int64, record parentbilling.ExportFileRecord) (parentbilling.ExportProtocolEntry, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.ExportProtocolEntry{}, err
 	}
-	row := &exportFileRow{OrganizationID: organizationID, FileNumber: record.FileNumber, Format: record.Format,
-		RunKind: record.RunKind, RunID: record.RunID, FileName: record.FileName, ContentSHA256: record.Fingerprint,
-		InvoiceCount: len(record.CareInvoiceIDs) + len(record.DocumentIDs) + len(record.CareNoticeIDs) + len(record.SEPADebitIDs),
-		TotalCents:   record.TotalCents, Reference: textRef(record.Reference), ExportedByAccountID: accountRef(accountID)}
-	if _, err := db.NewInsert().Model(row).Returning("id, exported_at").Exec(ctx); err != nil {
+	var row exportFileRow
+	if err := db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
+		content_sha256, invoice_count, total_cents, reference, exported_by_account_id)
+		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), ?, ?, ?, ?)
+		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
+		len(record.CareInvoiceIDs)+len(record.DocumentIDs)+len(record.CareNoticeIDs)+len(record.SEPADebitIDs), record.TotalCents,
+		textRef(record.Reference), accountRef(accountID)).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
-	for column, ids := range map[string][]int64{"care_invoice_id": record.CareInvoiceIDs, "document_id": record.DocumentIDs,
-		"care_notice_id": record.CareNoticeIDs} {
-		if len(ids) == 0 {
-			continue
+	if err := insertExportFileInvoices(ctx, db, organizationID, row.ID, record); err != nil {
+		return parentbilling.ExportProtocolEntry{}, err
+	}
+	return row.entry(), nil
+}
+
+// insertExportFileInvoices links the invoices, holiday documents,
+// Jahresbescheide and the invoices of the SEPA debits of a file to it.
+func insertExportFileInvoices(ctx context.Context, db bun.IDB, organizationID, fileID int64, record parentbilling.ExportFileRecord) error {
+	if len(record.CareInvoiceIDs) > 0 {
+		if _, err := db.ExecContext(ctx, `INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, care_invoice_id)
+			SELECT DISTINCT ?, ?, unnest(?::bigint[])`, organizationID, fileID, pgdialect.Array(record.CareInvoiceIDs)); err != nil {
+			return fmt.Errorf("insert the invoices of the export file: %w", err)
 		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, `+column+`)
-			SELECT ?, ?, invoice_id FROM (SELECT DISTINCT unnest(?::bigint[]) AS invoice_id) AS ids`,
-			organizationID, row.ID, pgdialect.Array(ids)); err != nil {
-			return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the invoices of the export file: %w", err)
+	}
+	if len(record.DocumentIDs) > 0 {
+		if _, err := db.ExecContext(ctx, `INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, document_id)
+			SELECT DISTINCT ?, ?, unnest(?::bigint[])`, organizationID, fileID, pgdialect.Array(record.DocumentIDs)); err != nil {
+			return fmt.Errorf("insert the holiday documents of the export file: %w", err)
+		}
+	}
+	if len(record.CareNoticeIDs) > 0 {
+		if _, err := db.ExecContext(ctx, `INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, care_notice_id)
+			SELECT DISTINCT ?, ?, unnest(?::bigint[])`, organizationID, fileID, pgdialect.Array(record.CareNoticeIDs)); err != nil {
+			return fmt.Errorf("insert the Jahresbescheide of the export file: %w", err)
 		}
 	}
 	if len(record.SEPADebitIDs) > 0 {
@@ -198,11 +217,11 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 			care_invoice_id, document_id)
 			SELECT DISTINCT ?0, ?1, debit.care_invoice_id, debit.document_id FROM parent_billing.sepa_debits AS debit
 			WHERE debit.organization_id = ?0 AND debit.id = ANY(?2) AND (debit.care_invoice_id IS NOT NULL OR debit.document_id IS NOT NULL)`,
-			organizationID, row.ID, pgdialect.Array(record.SEPADebitIDs)); err != nil {
-			return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the invoices of the debit file: %w", err)
+			organizationID, fileID, pgdialect.Array(record.SEPADebitIDs)); err != nil {
+			return fmt.Errorf("insert the invoices of the debit file: %w", err)
 		}
 	}
-	return row.entry(), nil
+	return nil
 }
 
 // exportFileListQuery reads the protocol entries of a Träger with the

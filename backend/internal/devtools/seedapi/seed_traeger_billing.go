@@ -72,23 +72,7 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID 
 	}); err != nil {
 		return 0, fmt.Errorf("release the billing run: %w", err)
 	}
-	// The overview for the Kämmerei (#4672) is downloaded once, so the trail
-	// of the run shows a download.
-	overview, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/export?format=csv", runID))
-	if err != nil {
-		return 0, fmt.Errorf("download the overview of the billing run: %w", err)
-	}
-	if len(overview) == 0 {
-		return 0, fmt.Errorf("the overview of the billing run is empty")
-	}
-	// The list for the reimbursement by the cost bearer (#5627) is
-	// downloaded once too.
-	if costBearerID > 0 {
-		if _, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/cost-takeovers/%d/export?format=csv", runID, costBearerID)); err != nil {
-			return 0, fmt.Errorf("download the list of the cost bearer: %w", err)
-		}
-	}
-	if err := seedSollstellung(client, auth, runID); err != nil {
+	if err := seedHolidayRunDownloads(client, auth, runID, costBearerID); err != nil {
 		return 0, err
 	}
 	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction, overview downloaded\n", run.PreviewCount)

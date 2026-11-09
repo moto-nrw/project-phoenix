@@ -192,28 +192,29 @@ func (s *Store) ExportRunContent(ctx context.Context, organizationID int64, runK
 		return parentbilling.ExportRunContent{}, err
 	}
 	var head exportRunRow
-	query, invoices := "", ""
+	var rows []exportInvoiceRow
 	switch runKind {
 	case parentbilling.DebitRunCare:
-		query = `SELECT 'care' AS run_kind, id AS run_id, billing_month AS care_month, issued_on, document_count AS invoice_count, total_cents
-			FROM parent_billing.care_runs WHERE organization_id = ? AND id = ? AND status = 'released'`
-		invoices = careExportInvoicesQuery
+		err = db.NewRaw(`SELECT 'care' AS run_kind, id AS run_id, billing_month AS care_month, issued_on, document_count AS invoice_count,
+			total_cents FROM parent_billing.care_runs WHERE organization_id = ? AND id = ? AND status = 'released'`,
+			organizationID, runID).Scan(ctx, &head)
+		if err == nil {
+			err = db.NewRaw(careExportInvoicesQuery, organizationID, runID).Scan(ctx, &rows)
+		}
 	case parentbilling.DebitRunHoliday:
-		query = `SELECT 'holiday' AS run_kind, id AS run_id, period_name, issued_on, document_count AS invoice_count, total_cents
-			FROM parent_billing.runs WHERE organization_id = ? AND id = ? AND status = 'released'`
-		invoices = holidayExportInvoicesQuery
+		err = db.NewRaw(`SELECT 'holiday' AS run_kind, id AS run_id, period_name, issued_on, document_count AS invoice_count, total_cents
+			FROM parent_billing.runs WHERE organization_id = ? AND id = ? AND status = 'released'`, organizationID, runID).Scan(ctx, &head)
+		if err == nil {
+			err = db.NewRaw(holidayExportInvoicesQuery, organizationID, runID).Scan(ctx, &rows)
+		}
 	default:
 		return parentbilling.ExportRunContent{}, parentbilling.ErrExportRunNotFound
 	}
-	if err := db.NewRaw(query, organizationID, runID).Scan(ctx, &head); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return parentbilling.ExportRunContent{}, parentbilling.ErrExportRunNotFound
-		}
-		return parentbilling.ExportRunContent{}, fmt.Errorf("read the run to export: %w", err)
+	if errors.Is(err, sql.ErrNoRows) {
+		return parentbilling.ExportRunContent{}, parentbilling.ErrExportRunNotFound
 	}
-	var rows []exportInvoiceRow
-	if err := db.NewRaw(invoices, organizationID, runID).Scan(ctx, &rows); err != nil {
-		return parentbilling.ExportRunContent{}, fmt.Errorf("read the invoices to export: %w", err)
+	if err != nil {
+		return parentbilling.ExportRunContent{}, fmt.Errorf("read the run to export: %w", err)
 	}
 	content := parentbilling.ExportRunContent{Run: head.run(), Invoices: make([]parentbilling.ExportInvoice, len(rows))}
 	for i, row := range rows {

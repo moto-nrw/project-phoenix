@@ -53,23 +53,7 @@ func normalizeSollMapping(mapping parentbilling.SollstellungMapping) (parentbill
 		errs["columns"] = errors.New("has too many columns")
 	}
 	for i := range mapping.Columns {
-		column := &mapping.Columns[i]
-		column.Header, column.Value = strings.TrimSpace(column.Header), strings.TrimSpace(column.Value)
-		key := "columns." + strconv.Itoa(i)
-		switch {
-		case !slices.Contains(parentbilling.SollstellungFields, column.Field):
-			errs[key+".field"] = errors.New("is no field of the Sollstellung")
-		case utf8.RuneCountInString(column.Header) > parentbilling.MaxSollHeaderLength || strings.ContainsAny(column.Header, "\r\n"):
-			errs[key+".header"] = errors.New("is too long or has a line break")
-		case mapping.HeaderRow && column.Header == "":
-			errs[key+".header"] = errors.New("is required with a header row")
-		case column.Field == parentbilling.SollFieldConstant && (utf8.RuneCountInString(column.Value) > parentbilling.MaxSollConstantLength ||
-			strings.ContainsAny(column.Value, "\r\n")):
-			errs[key+".value"] = errors.New("is too long or has a line break")
-		}
-		if column.Field != parentbilling.SollFieldConstant {
-			column.Value = ""
-		}
+		checkSollColumn(errs, "columns."+strconv.Itoa(i), &mapping.Columns[i], mapping.HeaderRow)
 	}
 	if !slices.Contains(sollDelimiters, mapping.Delimiter) {
 		errs["delimiter"] = errors.New("must be ; , tab or |")
@@ -92,6 +76,25 @@ func normalizeSollMapping(mapping parentbilling.SollstellungMapping) (parentbill
 		return mapping, errs
 	}
 	return mapping, nil
+}
+
+// checkSollColumn trims one column and checks its field, header and value.
+func checkSollColumn(errs validation.Errors, key string, column *parentbilling.SollstellungColumn, headerRow bool) {
+	column.Header, column.Value = strings.TrimSpace(column.Header), strings.TrimSpace(column.Value)
+	switch {
+	case !slices.Contains(parentbilling.SollstellungFields, column.Field):
+		errs[key+".field"] = errors.New("is no field of the Sollstellung")
+	case utf8.RuneCountInString(column.Header) > parentbilling.MaxSollHeaderLength || strings.ContainsAny(column.Header, "\r\n"):
+		errs[key+".header"] = errors.New("is too long or has a line break")
+	case headerRow && column.Header == "":
+		errs[key+".header"] = errors.New("is required with a header row")
+	case column.Field == parentbilling.SollFieldConstant && (utf8.RuneCountInString(column.Value) > parentbilling.MaxSollConstantLength ||
+		strings.ContainsAny(column.Value, "\r\n")):
+		errs[key+".value"] = errors.New("is too long or has a line break")
+	}
+	if column.Field != parentbilling.SollFieldConstant {
+		column.Value = ""
+	}
 }
 
 // sollFileName writes the file number into the pattern.
