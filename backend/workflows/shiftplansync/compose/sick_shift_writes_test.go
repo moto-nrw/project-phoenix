@@ -240,6 +240,46 @@ func TestSickReport_EditedShiftTakesSickStateOfItsNewDay(t *testing.T) {
 	assert.Nil(t, sameDayEdit.SickAbsenceID, "a same-day edit takes ownership, as before #6302")
 }
 
+// An edit that changes only the notes, or a reactivation that resends the
+// sick label, is a real change: the sick report no longer owns the shift.
+func TestSickReport_SameDayChangesReleaseTheStamp(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	notesOnly := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "08:00", "10:00")
+	restored := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "13:00", "15:00")
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	assertSickCancelled(t, e.reloadShift(t, notesOnly.ID), absenceID, "cascade cancelled it")
+
+	var noted workforce.PlannedShift
+	e.inTx(t, func(ctx context.Context) error {
+		var err error
+		noted, err = e.Planning.UpdateShift(ctx, workforce.UpdateStaffShift{
+			ID: notesOnly.ID,
+			StaffShiftInput: workforce.StaffShiftInput{
+				StaffID: e.subject.ID, Date: stampWeekTwo.String(), StartTime: clock("08:00"), EndTime: clock("10:00"),
+				Notes: "Bitte Vertretung klären", ActorStaffID: e.admin.ID,
+			},
+			PreserveExistingShiftType: true, PreserveExistingChangeReason: true,
+		})
+		return err
+	})
+	assert.True(t, noted.Cancelled, "notes edit keeps the cancellation")
+	assert.Nil(t, noted.SickAbsenceID, "notes edit takes ownership")
+
+	label := workforce.SickShiftChangeReason
+	var reactivated workforce.StaffShiftCancellation
+	e.inTx(t, func(ctx context.Context) error {
+		var err error
+		reactivated, err = e.Planning.ApplyCancellation(ctx, workforce.CancelStaffShift{
+			ShiftID: restored.ID, Cancelled: false, ChangeReason: &label, ActorStaffID: e.admin.ID,
+		})
+		return err
+	})
+	assert.False(t, reactivated.Shift.Cancelled, "planner restored the presence")
+	assert.Nil(t, reactivated.Shift.SickAbsenceID, "a planned shift carries no sick stamp")
+}
+
 // W3: a sick person cannot cover a gap; a healthy day can.
 func TestSickReport_SickPersonCannotCoverAShift(t *testing.T) {
 	t.Parallel()
