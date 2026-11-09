@@ -70,7 +70,7 @@ function TimeModelRow({
         name={`${field}.name`}
         label="Name"
         required
-        controlSize="compact"
+        controlSize="touch"
         placeholder="bis 13 Uhr"
         value={model.name}
         maxLength={80}
@@ -109,7 +109,7 @@ function TimeModelRow({
         name={`${field}.price_cents`}
         label="Preis in Euro"
         required
-        controlSize="compact"
+        controlSize="touch"
         inputMode="decimal"
         placeholder="45,00"
         value={model.price}

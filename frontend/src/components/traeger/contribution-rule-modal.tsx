@@ -268,7 +268,7 @@ export function ContributionRuleModal({
                   ariaLabel="Wie viel weniger"
                 />
                 <Input
-                  controlSize="compact"
+                  controlSize="touch"
                   id="contribution-rule-value"
                   name={
                     draft.mode === "share"

@@ -174,7 +174,7 @@ function InviteForm({
           id="password"
           name="password"
           type="password"
-          controlSize="compact"
+          controlSize="touch"
           autoComplete={existing ? "current-password" : "new-password"}
           required
           disabled={submitting}
@@ -202,7 +202,7 @@ function InviteForm({
               name="confirm_password"
               type={showPassword ? "text" : "password"}
               label="Passwort wiederholen"
-              controlSize="compact"
+              controlSize="touch"
               autoComplete="new-password"
               required
               disabled={submitting}

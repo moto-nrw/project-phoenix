@@ -79,7 +79,7 @@ function ContactRow({
         <Input
           id={`billing-letters-contact-${index}-name`}
           label="Betreuung"
-          controlSize="compact"
+          controlSize="touch"
           placeholder="Zum Beispiel: OGS Am Lindenhof"
           value={contact.name}
           maxLength={120}
@@ -93,7 +93,7 @@ function ContactRow({
         <Input
           id={`billing-letters-contact-${index}-phone`}
           label="Telefon"
-          controlSize="compact"
+          controlSize="touch"
           inputMode="tel"
           placeholder="0170 1234567"
           value={contact.phone}

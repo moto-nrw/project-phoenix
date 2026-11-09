@@ -135,7 +135,7 @@ function SepaCreditorModal({
         }}
       >
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="sepa-creditor-id"
           name="creditor_id"
           label="Gläubiger-ID"
@@ -156,7 +156,7 @@ function SepaCreditorModal({
           />
         ) : null}
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="sepa-prenotification-days"
           name="prenotification_days"
           label="Vorabankündigung in Tagen"

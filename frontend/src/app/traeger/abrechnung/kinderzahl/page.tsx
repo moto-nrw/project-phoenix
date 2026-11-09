@@ -258,9 +258,10 @@ export default function TraegerKinderzahlPage() {
     },
   ];
 
-  const confirmed = families.filter(
-    (family) => family.count?.confirmedChildren,
-  ).length;
+  // Each figure of the status line counts one pill of the table.
+  const countStatus = (status: FamilyChildren["status"]) =>
+    families.filter((family) => family.status === status).length;
+  const expired = countStatus("expired");
 
   return (
     <TenantPage
@@ -274,12 +275,9 @@ export default function TraegerKinderzahlPage() {
                 value: families.length,
                 label: families.length === 1 ? "Familie" : "Familien",
               },
-              { value: confirmed, label: "bestätigt" },
-              {
-                value: families.filter((family) => family.status === "missing")
-                  .length,
-                label: "ohne Angabe",
-              },
+              { value: countStatus("confirmed"), label: "bestätigt" },
+              ...(expired > 0 ? [{ value: expired, label: "abgelaufen" }] : []),
+              { value: countStatus("missing"), label: "ohne Angabe" },
             ]}
           />
         ) : null

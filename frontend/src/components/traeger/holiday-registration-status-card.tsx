@@ -191,7 +191,7 @@ function DebtorNumberField({
             label="Debitorennummer"
             required={required}
             autoComplete="off"
-            controlSize="compact"
+            controlSize="touch"
             maxLength={DEBTOR_NUMBER_MAX_LENGTH}
             value={value}
             aria-describedby="holiday-debtor-number-hint"
@@ -588,7 +588,7 @@ export function HolidayRegistrationStatusCard({
                   label="Debitorennummer"
                   required
                   autoComplete="off"
-                  controlSize="compact"
+                  controlSize="touch"
                   maxLength={DEBTOR_NUMBER_MAX_LENGTH}
                   value={debtorNumber}
                   aria-describedby="holiday-registration-debtor-number-hint"

@@ -198,7 +198,7 @@ export function HolidayPeriodForm({
         <fieldset disabled={saving} className="min-w-0 space-y-6">
           <div className="space-y-4">
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name="name"
               label="Name des Ferienzeitraums"
               required

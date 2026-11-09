@@ -100,7 +100,7 @@ function CostBearerFields({
   return (
     <>
       <Input
-        controlSize="compact"
+        controlSize="touch"
         id={`${idPrefix}-name`}
         name="name"
         label="Name"
@@ -121,7 +121,7 @@ function CostBearerFields({
         onChange={(event) => onChange({ address: event.target.value })}
       />
       <Input
-        controlSize="compact"
+        controlSize="touch"
         id={`${idPrefix}-file-reference`}
         name="file_reference"
         label="Ihr Aktenzeichen beim Kostenträger (freiwillig)"

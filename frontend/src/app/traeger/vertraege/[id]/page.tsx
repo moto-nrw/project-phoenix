@@ -35,6 +35,7 @@ import {
   type OverflowMenuItem,
 } from "~/components/ui/page-header/OverflowMenu";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -86,6 +87,7 @@ export default function TraegerVertragPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [confirmingSend, setConfirmingSend] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const actionError = useApiErrorDisplay();
@@ -246,12 +248,29 @@ export default function TraegerVertragPage() {
       contract.status === "widerrufen" ||
       contract.status === "beendet");
 
+  const sendBlocked =
+    sending ||
+    refreshing ||
+    lastMail?.state === "queued" ||
+    (!isDraft && !!lastMail?.sendBlock);
+  // An active contract is mostly looked up, not mailed again: its PDF is
+  // the visible action and a new mail waits in the menu.
+  const resendFromMenu = contract?.status === "aktiv";
+  const sendInHead = canSend && !resendFromMenu;
+
   const headMenu: OverflowMenuItem[] = [];
-  if (contract && canSend) {
+  if (contract && sendInHead) {
     headMenu.push({
       label: "PDF herunterladen",
       icon: <Download className="h-4 w-4" aria-hidden="true" />,
       onClick: () => void download(),
+    });
+  }
+  if (contract && resendFromMenu && !sendBlocked) {
+    headMenu.push({
+      label: "Erneut senden",
+      icon: <Send className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => setConfirmingSend(true),
     });
   }
   if (contract && !isDraft && contract.mailings.length > 0 && !refreshing) {
@@ -296,18 +315,13 @@ export default function TraegerVertragPage() {
       actions={
         contract ? (
           <>
-            {canSend ? (
+            {sendInHead ? (
               <Button
                 type="button"
                 variant={isDraft ? "success" : "outline"}
                 size="md"
-                disabled={
-                  sending ||
-                  refreshing ||
-                  lastMail?.state === "queued" ||
-                  (!isDraft && !!lastMail?.sendBlock)
-                }
-                onClick={() => void send()}
+                disabled={sendBlocked}
+                onClick={() => setConfirmingSend(true)}
               >
                 <Send className="mr-2 h-4 w-4" aria-hidden="true" />
                 {sending
@@ -338,21 +352,44 @@ export default function TraegerVertragPage() {
       error={pageLoad.error}
       loading={!pageLoad.error && !contract}
       overlays={
-        <ConfirmDeleteModal
-          isOpen={confirmDiscard}
-          title="Entwurf verwerfen?"
-          description={
-            contract
-              ? `Der Entwurf für ${childName(contract)} wird gelöscht. Die Anmeldung bleibt; Sie können danach einen neuen Entwurf erstellen.`
-              : ""
-          }
-          gate={{ mode: "twoStep" }}
-          confirmLabel="Entwurf verwerfen"
-          loading={discarding}
-          error={discardErrors.error}
-          onConfirm={discard}
-          onClose={() => setConfirmDiscard(false)}
-        />
+        <>
+          {/* Sending mails the parents at once and cannot be taken back,
+              so the button asks first and names who gets it. */}
+          <ConfirmationModal
+            isOpen={confirmingSend}
+            title={isDraft ? "Vertrag senden?" : "Vertrag noch einmal senden?"}
+            confirmText={isDraft ? "Vertrag senden" : "Erneut senden"}
+            isConfirmLoading={sending}
+            loadingText="Wird gesendet …"
+            onClose={() => setConfirmingSend(false)}
+            onConfirm={() => {
+              setConfirmingSend(false);
+              void send();
+            }}
+          >
+            <p className="text-sm text-gray-700">
+              {party?.email
+                ? `Der Vertrag geht per Mail an ${party.email} und in die Eltern-App.`
+                : "Der Vertrag geht per Mail an die Eltern und in die Eltern-App."}{" "}
+              Eine gesendete Mail lässt sich nicht zurückholen.
+            </p>
+          </ConfirmationModal>
+          <ConfirmDeleteModal
+            isOpen={confirmDiscard}
+            title="Entwurf verwerfen?"
+            description={
+              contract
+                ? `Der Entwurf für ${childName(contract)} wird gelöscht. Die Anmeldung bleibt; Sie können danach einen neuen Entwurf erstellen.`
+                : ""
+            }
+            gate={{ mode: "twoStep" }}
+            confirmLabel="Entwurf verwerfen"
+            loading={discarding}
+            error={discardErrors.error}
+            onConfirm={discard}
+            onClose={() => setConfirmDiscard(false)}
+          />
+        </>
       }
     >
       {contract ? (

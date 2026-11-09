@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -327,6 +333,14 @@ describe("TraegerVertragPage", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Vertrag senden/ }),
     );
+    // Sending mails the parents and cannot be taken back: it asks first.
+    expect(api.sendCareContracts).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Vertrag senden?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Vertrag senden" }),
+    );
 
     await waitFor(() =>
       expect(api.sendCareContracts).toHaveBeenCalledWith(["7"]),
@@ -574,14 +588,15 @@ describe("TraegerVertragPage", () => {
       screen.getByText("So steht es im abgeschlossenen Vertrag."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Aktiv")[0]).toBeInTheDocument();
+    // An active contract shows its download; resending waits in the head
+    // menu (one visible action per head). A concluded contract offers no
+    // discarding there.
     expect(
-      screen.getByRole("button", { name: "Erneut senden" }),
+      screen.getByRole("button", { name: "PDF herunterladen" }),
     ).toBeInTheDocument();
-    // Download and the other entries wait in the head menu (one visible
-    // action per head); a concluded contract offers no discarding there.
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     expect(
-      await screen.findByRole("menuitem", { name: /PDF herunterladen/ }),
+      await screen.findByRole("menuitem", { name: /Erneut senden/ }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: /Entwurf verwerfen/ }),
@@ -589,6 +604,13 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
     ).not.toBeInTheDocument();
+    // Resending asks first and names the recipient.
+    fireEvent.click(screen.getByRole("menuitem", { name: /Erneut senden/ }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Vertrag noch einmal senden?",
+    });
+    expect(within(dialog).getByText(/erika@example\.org/)).toBeInTheDocument();
+    expect(api.resendCareContract).not.toHaveBeenCalled();
   });
 
   it("shows the versions of an active contract and from when a change applies", async () => {

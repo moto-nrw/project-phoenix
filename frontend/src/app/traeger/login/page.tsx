@@ -292,7 +292,7 @@ function LoginForm() {
                   name="email"
                   type="email"
                   label="E-Mail-Adresse"
-                  controlSize="compact"
+                  controlSize="touch"
                   data-testid="input-email"
                   autoComplete="username"
                   required
@@ -315,7 +315,7 @@ function LoginForm() {
                   id="password"
                   name="password"
                   type="password"
-                  controlSize="compact"
+                  controlSize="touch"
                   data-testid="input-password"
                   autoComplete="current-password"
                   required

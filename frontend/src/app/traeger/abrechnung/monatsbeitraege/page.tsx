@@ -198,7 +198,7 @@ export default function TraegerMonatsbeitraegePage() {
                 label: runs.length === 1 ? "Monatslauf" : "Monatsläufe",
               },
               { value: released.length, label: "freigegeben" },
-              { value: formatEuro(billedCents), label: "abgerechnet" },
+              { value: formatEuro(billedCents), label: "ausgestellt" },
             ]}
           />
         ) : null

@@ -195,6 +195,12 @@ export default function TraegerBillingFamilyPage() {
     void load();
   }, [load]);
 
+  // An invoice stays valid until a Storno cancels it; a credit only lowers it.
+  const validInvoices = (family?.documents ?? []).filter(
+    (document) =>
+      document.kind === "invoice" && document.status !== "cancelled",
+  ).length;
+
   return (
     <TenantPage
       title={family ? familyName(family) : "Familie"}
@@ -210,7 +216,7 @@ export default function TraegerBillingFamilyPage() {
                 value: family.invoiceCount,
                 label: family.invoiceCount === 1 ? "Rechnung" : "Rechnungen",
               },
-              { value: family.openInvoiceCount, label: "ausgestellt" },
+              { value: validInvoices, label: "gültig" },
               {
                 value: family.documentCount - family.invoiceCount,
                 label:
@@ -248,7 +254,9 @@ export default function TraegerBillingFamilyPage() {
               </DataField>
               <DataField label="Zahlungsweg">
                 {paymentMethodsText(family.paymentMethods) ??
-                  "– noch keine Rechnung"}
+                  (validInvoices > 0
+                    ? "– auf den Rechnungen nicht genannt"
+                    : "– keine gültige Rechnung")}
               </DataField>
               <DataField label="Wer zahlt" fullWidth>
                 {family.payments.length > 0 ? (
@@ -263,7 +271,7 @@ export default function TraegerBillingFamilyPage() {
                     ))}
                   </span>
                 ) : (
-                  "– noch keine gültige Rechnung"
+                  "– keine gültige Rechnung"
                 )}
               </DataField>
             </DataGrid>

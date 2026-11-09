@@ -354,7 +354,7 @@ export function BillingCorrectionModal({
           ) : null}
           {mode.amount ? (
             <Input
-              controlSize="compact"
+              controlSize="touch"
               id={mode.amount.id}
               name={mode.amount.name}
               label={mode.amount.label}

@@ -153,7 +153,7 @@ export function TraegerWithdrawalContactCard({
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 md:grid-cols-2">
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-withdrawal-phone"
             label="Telefon für Widerrufe"
             name="phone"
@@ -167,7 +167,7 @@ export function TraegerWithdrawalContactCard({
             disabled={!canEdit}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-withdrawal-email"
             label="E-Mail für Widerrufe"
             name="email"

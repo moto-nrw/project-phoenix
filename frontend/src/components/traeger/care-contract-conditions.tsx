@@ -307,7 +307,7 @@ function ConditionsForm({
           />
           {draft.termKind === "fixed_months" ? (
             <Input
-              controlSize="compact"
+              controlSize="touch"
               name="term_months"
               label="Anzahl der Monate"
               type="number"
@@ -331,7 +331,7 @@ function ConditionsForm({
             Kündigung
           </legend>
           <Input
-            controlSize="compact"
+            controlSize="touch"
             name="notice_months"
             label="Frist in Monaten"
             type="number"
@@ -405,7 +405,7 @@ function ConditionsForm({
           {draft.statuteRequired ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
-                controlSize="compact"
+                controlSize="touch"
                 name="statute_title"
                 label="Name der Satzung"
                 required
@@ -416,7 +416,7 @@ function ConditionsForm({
                 onChange={(event) => set("statuteTitle", event.target.value)}
               />
               <Input
-                controlSize="compact"
+                controlSize="touch"
                 name="statute_url"
                 label="Link zur Satzung (freiwillig)"
                 type="url"
@@ -431,7 +431,7 @@ function ConditionsForm({
         </fieldset>
 
         <Input
-          controlSize="compact"
+          controlSize="touch"
           name="contract_partner"
           label="Vertragspartner"
           maxLength={300}

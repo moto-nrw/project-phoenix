@@ -166,7 +166,7 @@ function ServiceTermsModal({
           </p>
         </div>
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id={`billing-terms-days-${service}`}
           name="due_days"
           label="Zahlungsziel in Tagen"
