@@ -56,9 +56,8 @@ type DatevBatchHeader struct {
 	// From and To are the period of the batch (fields 15 and 16). They lie
 	// in one fiscal year and every document date lies in them.
 	From, To calendar.Date
-	// Label is the Bezeichnung of the batch (field 17), at most 30
-	// characters; a longer one is cut, one with a character outside
-	// Windows-1252 is refused.
+	// Label is the Bezeichnung of the batch (field 17): at most 30 of
+	// [A-Za-z0-9_./ ], refused otherwise, never changed.
 	Label string
 	// FileNumber is the number of the file from the export protocol; it
 	// names the file. The format has no header field for it.
@@ -88,9 +87,8 @@ type DatevBooking struct {
 	// DocumentNumber is the invoice number (Belegfeld 1, field 11), the key
 	// DATEV matches open items by; it is never cut.
 	DocumentNumber string
-	// Text is the Buchungstext (field 14), at most 60 characters; a longer
-	// one is cut. Characters outside Windows-1252 are replaced or left out
-	// (datevTransliterate).
+	// Text is the Buchungstext (field 14), built from names: datevPersonText
+	// brings it onto printable Windows-1252 and 60 characters.
 	Text string
 	// CostCenter1 and CostCenter2 are KOST1 and KOST2 (fields 37 and 38),
 	// optional.
@@ -122,6 +120,10 @@ const (
 	DatevFieldDocumentNumber   = "document_number"
 	DatevFieldCostCenter1      = "cost_center_1"
 	DatevFieldCostCenter2      = "cost_center_2"
+	DatevFieldText             = "text"
+	// DatevFieldEncoding is text the strict Windows-1252 encoder cannot
+	// write; the rules make it unreachable.
+	DatevFieldEncoding = "encoding"
 )
 
 // Reasons a DatevProblem gives.
@@ -164,41 +166,48 @@ func FormatDatevBookingBatch(header DatevBatchHeader, bookings []DatevBooking) (
 	if len(problems) > 0 {
 		return DatevBatchFile{}, &DatevFormatError{Problems: problems}
 	}
+	writer := &datevLineWriter{}
 	var text strings.Builder
-	text.WriteString(datevHeaderLine(header))
+	text.WriteString(datevHeaderLine(writer, header))
 	text.WriteString(datevLineEnd)
 	text.WriteString(strings.Join(datevColumns[:], ";"))
 	text.WriteString(datevLineEnd)
-	for _, booking := range bookings {
-		text.WriteString(datevBookingLine(booking, header.Locked))
+	for i, booking := range bookings {
+		writer.line = i + 1
+		text.WriteString(datevBookingLine(writer, booking, header.Locked))
 		text.WriteString(datevLineEnd)
 	}
-	content, err := datevEncode(text.String())
-	if err != nil {
-		return DatevBatchFile{}, err
+	if len(writer.problems) > 0 {
+		return DatevBatchFile{}, &DatevFormatError{Problems: writer.problems}
+	}
+	content, ok := datevEncode(text.String())
+	if !ok {
+		return DatevBatchFile{}, &DatevFormatError{Problems: []DatevProblem{{Field: DatevFieldEncoding, Reason: DatevInvalid}}}
 	}
 	return DatevBatchFile{FileName: "EXTF_Buchungsstapel_" + strconv.Itoa(header.FileNumber) + ".csv", Content: content}, nil
 }
 
 const datevLineEnd = "\r\n"
 
-// datevHeaderLine is the 31 fields of the header (portal, "Header").
-func datevHeaderLine(h DatevBatchHeader) string {
+// datevHeaderLine is the 31 fields of the header (portal, "Header"); every
+// text field goes through its rule.
+func datevHeaderLine(w *datevLineWriter, h DatevBatchHeader) string {
 	festschreibung := "0"
 	if h.Locked {
 		festschreibung = "1"
 	}
 	created := h.CreatedAt.In(calendar.Berlin)
+	r := datevTextRules
 	fields := []string{
-		datevQuote("EXTF"), "700", "21", datevQuote("Buchungsstapel"), "13",
+		w.text(r.kennzeichen, "EXTF"), "700", "21", w.text(r.formatname, "Buchungsstapel"), "13",
 		created.Format("20060102150405") + fmt.Sprintf("%03d", created.Nanosecond()/int(time.Millisecond)),
-		"", datevQuote(""), datevQuote(""), datevQuote(""),
+		"", w.text(r.herkunft, ""), w.text(r.exportedBy, ""), w.text(r.importedBy, ""),
 		strconv.Itoa(h.ConsultantNumber), strconv.Itoa(h.ClientNumber),
 		h.FiscalYearStart.Format("20060102"), strconv.Itoa(h.AccountLength),
 		h.From.Format("20060102"), h.To.Format("20060102"),
-		datevQuote(datevCut(h.Label, datevLabelLength)), datevQuote(""),
-		"1", "0", festschreibung, datevQuote("EUR"),
-		"", datevQuote(""), "", "", datevQuote(h.ChartOfAccounts), "", "", datevQuote(""), datevQuote(""),
+		w.text(r.label, h.Label), w.text(r.dictation, ""),
+		"1", "0", festschreibung, w.text(r.currency, "EUR"),
+		"", w.text(r.empty, ""), "", "", w.text(r.chart, h.ChartOfAccounts), "", "", w.text(r.empty, ""), w.text(r.applicationInfo, ""),
 	}
 	return strings.Join(fields, ";")
 }
@@ -208,31 +217,34 @@ func datevHeaderLine(h DatevBatchHeader) string {
 // (Festschreibung) is always written: empty means "not defined; locked
 // automatically" (developer portal, Buchungsstapel field 114), so a batch
 // without Festschreibung needs 0 on every line, and 1 on one line locks the
-// whole batch.
-func datevBookingLine(b DatevBooking, locked bool) string {
+// whole batch. Only the Buchungstext is replaced (datevPersonText).
+func datevBookingLine(w *datevLineWriter, b DatevBooking, locked bool) string {
 	festschreibung := "0"
 	if locked {
 		festschreibung = "1"
 	}
-	values := map[int]string{
-		1:   datevAmount(b.AmountCents),
-		2:   string(b.Side),
-		7:   b.Account,
-		8:   b.CounterAccount,
-		10:  b.DocumentDate.Format("0201"),
-		11:  b.DocumentNumber,
-		14:  datevCut(datevTransliterate(b.Text), datevTextLength),
-		37:  b.CostCenter1,
-		38:  b.CostCenter2,
-		114: festschreibung,
+	r := datevTextRules
+	texts := map[int]struct {
+		rule  datevTextRule
+		value string
+	}{
+		2: {r.side, string(b.Side)}, 11: {r.documentNumber, b.DocumentNumber}, 14: {r.text, datevPersonText(b.Text)},
+		37: {r.costCenter1, b.CostCenter1}, 38: {r.costCenter2, b.CostCenter2},
+	}
+	numbers := map[int]string{
+		1: datevAmount(b.AmountCents), 7: b.Account, 8: b.CounterAccount, 10: b.DocumentDate.Format("0201"), 114: festschreibung,
 	}
 	fields := make([]string, len(datevColumns))
 	for i := range fields {
-		value := values[i+1]
-		if datevTextColumns[i+1] {
-			value = datevQuote(value)
+		column := i + 1
+		switch text, ok := texts[column]; {
+		case ok:
+			fields[i] = w.text(text.rule, text.value)
+		case datevTextColumns[column]:
+			fields[i] = w.text(r.empty, "")
+		default:
+			fields[i] = numbers[column]
 		}
-		fields[i] = value
 	}
 	return strings.Join(fields, ";")
 }
@@ -240,31 +252,4 @@ func datevBookingLine(b DatevBooking, locked bool) string {
 // datevAmount writes cents with a decimal comma: 12345 is "123,45".
 func datevAmount(cents int64) string {
 	return strconv.FormatInt(cents/100, 10) + "," + fmt.Sprintf("%02d", cents%100)
-}
-
-// datevQuote encloses a text field in quotes and doubles a quote inside.
-func datevQuote(value string) string {
-	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
-}
-
-// Lengths after which a free text is cut (portal: Bezeichnung 30,
-// Buchungstext 60 characters).
-const (
-	datevLabelLength = 30
-	datevTextLength  = 60
-)
-
-// datevCut replaces control characters by a space and cuts the text to its
-// first max characters.
-func datevCut(value string, maxRunes int) string {
-	runes := []rune(strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
-			return ' '
-		}
-		return r
-	}, value))
-	if len(runes) > maxRunes {
-		runes = runes[:maxRunes]
-	}
-	return strings.TrimSpace(string(runes))
 }

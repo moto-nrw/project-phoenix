@@ -30,7 +30,7 @@ func datevTestHeader() DatevBatchHeader {
 		ConsultantNumber: 29098, ClientNumber: 55003,
 		FiscalYearStart: calendar.NewDate(2026, time.January, 1), AccountLength: 4, ChartOfAccounts: "04",
 		From: calendar.NewDate(2026, time.October, 1), To: calendar.NewDate(2026, time.October, 31),
-		Label: "Elternbeiträge 10/2026", FileNumber: 110,
+		Label: "Elternbeitraege 10/2026", FileNumber: 110,
 		CreatedAt: time.Date(2026, time.October, 30, 14, 4, 40, 439_000_000, calendar.Berlin),
 	}
 }
@@ -64,7 +64,7 @@ func datevTestBookings() []DatevBooking {
 func TestDatevBookingBatchGoldens(t *testing.T) {
 	t.Parallel()
 	label := datevTestHeader()
-	label.Label = "Elternbeiträge Oktober 2026 Ispringen und Birkenfeld"
+	label.Label = "Elternbeitraege Oktober 2026 A" // exactly 30 characters
 	label.Locked = true
 	label.ChartOfAccounts = ""
 	cases := []struct {
@@ -73,7 +73,7 @@ func TestDatevBookingBatchGoldens(t *testing.T) {
 		bookings []DatevBooking
 	}{
 		{name: "invoices_credit_notes_cancellations", header: datevTestHeader(), bookings: datevTestBookings()},
-		{name: "header_only_label_cut_locked", header: label},
+		{name: "header_only_locked", header: label},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -214,7 +214,13 @@ func TestDatevBookingBatchRefusesInvalidValues(t *testing.T) {
 				{Line: 1, Field: DatevFieldDocumentDate, Reason: DatevOutOfPeriod}}},
 		{name: "label with a colon", header: func(h *DatevBatchHeader) { h.Label = "Beiträge: Oktober" },
 			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
-		{name: "label with characters outside Windows-1252", header: func(h *DatevBatchHeader) { h.Label = "Beiträge 東京" },
+		{name: "label with characters outside Windows-1252", header: func(h *DatevBatchHeader) { h.Label = "Beitraege 東京" },
+			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
+		{name: "label is never shortened", header: func(h *DatevBatchHeader) { h.Label = strings.Repeat("A", 31) },
+			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
+		{name: "label with a superscript two", header: func(h *DatevBatchHeader) { h.Label = "Beitrag ²" },
+			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
+		{name: "label with a letter that a name would replace", header: func(h *DatevBatchHeader) { h.Label = "Beitrag ł" },
 			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
 		{name: "no file number and no time", header: func(h *DatevBatchHeader) { h.FileNumber, h.CreatedAt = 0, time.Time{} },
 			want: []DatevProblem{{Field: DatevFieldFileNumber, Reason: DatevMissing}, {Field: DatevFieldCreatedAt, Reason: DatevMissing}}},
@@ -254,11 +260,15 @@ func TestDatevBookingBatchFestschreibung(t *testing.T) {
 	}
 }
 
+// Invariant 4: the encoder writes strict Windows-1252 and refuses a
+// character without a code instead of replacing it.
 func TestDatevEncodeRefusesWhatItCannotWrite(t *testing.T) {
 	t.Parallel()
-	_, err := datevEncode("Beitrag 東京")
-	require.Error(t, err)
-	encoded, err := datevEncode("Weiß € ő ł")
-	require.NoError(t, err)
-	assert.Equal(t, []byte("Wei\xdf \x80 o l"), encoded)
+	for _, text := range []string{"Beitrag 東京", "Wałęsa", "Ődön", "😀"} {
+		_, ok := datevEncode(text)
+		assert.False(t, ok, "%q", text)
+	}
+	encoded, ok := datevEncode("Weiß € ²")
+	require.True(t, ok)
+	assert.Equal(t, []byte("Wei\xdf \x80 \xb2"), encoded)
 }

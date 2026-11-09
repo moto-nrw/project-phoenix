@@ -1,34 +1,15 @@
 package application
 
 import (
-	"fmt"
-	"regexp"
 	"strings"
-	"unicode"
-
-	"golang.org/x/text/encoding/charmap"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The checks of the DATEV booking batch (#4694). They follow the regular
+// The checks of the DATEV booking batch (#4694). They follow the
 // expressions of the DATEV developer portal for the header and the
-// Buchungsstapel; where a value is a key (account, invoice number, cost
-// centre) the batch refuses it instead of changing it.
-
-var (
-	// Bezeichnung: ^["][\w.-/ ]{0,30}["]$ — letters, digits, underscore,
-	// space, dot, slash and hyphen.
-	datevLabelPattern = regexp.MustCompile(`^[\p{L}\p{N}_ ./-]*$`)
-	// Belegfeld 1: ^(["][\w$&%*+\-\/]{0,36}["])$; the portal names
-	// umlauts, spaces, dots, commas, semicolons and colons as invalid.
-	datevDocumentNumberPattern = regexp.MustCompile(`^[A-Za-z0-9_$&%*+\-/]{1,36}$`)
-	// KOST1, KOST2: ^(["][\w ]{0,36}["])$.
-	datevCostCenterPattern = regexp.MustCompile(`^[A-Za-z0-9_ ]{0,36}$`)
-	// Sachkontenrahmen: ^["](\d{2}){0,2}["]$.
-	datevChartPattern = regexp.MustCompile(`^(\d{2}){0,2}$`)
-)
+// Buchungsstapel; the text fields follow datevTextRules
+// (datev_booking_batch_fields.go). A value is refused, never changed.
 
 // Limits of the portal: Beraternummer 1001 to 9999999, Mandantennummer 1 to
 // 99999, Sachkontenlänge 4 to 8, Umsatz at most ten digits before the comma.
@@ -56,18 +37,14 @@ func datevHeaderProblems(h DatevBatchHeader) []DatevProblem {
 	datevRange(p, DatevFieldConsultantNumber, h.ConsultantNumber, datevMinConsultant, datevMaxConsultant)
 	datevRange(p, DatevFieldClientNumber, h.ClientNumber, 1, datevMaxClient)
 	datevRange(p, DatevFieldAccountLength, h.AccountLength, datevMinAccountLength, datevMaxAccountLength)
-	if !datevChartPattern.MatchString(h.ChartOfAccounts) {
-		p.add(DatevFieldChartOfAccounts, DatevInvalid)
-	}
+	// Invariant 2: the values of the header are checked as they are and
+	// never changed.
+	datevRuleProblem(p, datevTextRules.chart, h.ChartOfAccounts)
 	if h.FiscalYearStart.IsZero() {
 		p.add(DatevFieldFiscalYearStart, DatevMissing)
 	}
 	datevPeriodProblems(p, h)
-	// The label is the Träger's own text: a character Windows-1252 cannot
-	// write is refused, never replaced (see datevWritable).
-	if label := datevCut(h.Label, datevLabelLength); !datevLabelPattern.MatchString(label) || !datevWritableText(label) {
-		p.add(DatevFieldLabel, DatevInvalid)
-	}
+	datevRuleProblem(p, datevTextRules.label, h.Label)
 	if h.FileNumber < 1 {
 		p.add(DatevFieldFileNumber, DatevMissing)
 	}
@@ -120,19 +97,21 @@ func datevBookingProblems(line int, b DatevBooking, h DatevBatchHeader) []DatevP
 	datevAccountProblem(p, DatevFieldAccount, b.Account, datevDebtorAccount(h.AccountLength))
 	datevAccountProblem(p, DatevFieldCounterAccount, b.CounterAccount, datevGeneralAccount(h.AccountLength))
 	datevDateProblem(p, b.DocumentDate, h)
-	switch {
-	case b.DocumentNumber == "":
+	if b.DocumentNumber == "" {
 		p.add(DatevFieldDocumentNumber, DatevMissing)
-	case !datevDocumentNumberPattern.MatchString(b.DocumentNumber):
-		p.add(DatevFieldDocumentNumber, DatevInvalid)
+	} else {
+		datevRuleProblem(p, datevTextRules.documentNumber, b.DocumentNumber)
 	}
-	if !datevCostCenterPattern.MatchString(b.CostCenter1) {
-		p.add(DatevFieldCostCenter1, DatevInvalid)
-	}
-	if !datevCostCenterPattern.MatchString(b.CostCenter2) {
-		p.add(DatevFieldCostCenter2, DatevInvalid)
-	}
+	datevRuleProblem(p, datevTextRules.costCenter1, b.CostCenter1)
+	datevRuleProblem(p, datevTextRules.costCenter2, b.CostCenter2)
 	return p.list
+}
+
+// datevRuleProblem reports a value outside the rule of its field.
+func datevRuleProblem(p *datevProblems, rule datevTextRule, value string) {
+	if !rule.allows(value) {
+		p.add(rule.field, DatevInvalid)
+	}
 }
 
 func datevAccountProblem(p *datevProblems, field, account string, valid func(string) bool) {
@@ -184,77 +163,6 @@ func datevDigits(value string) bool {
 		}
 	}
 	return true
-}
-
-// Characters outside Windows-1252 (#4694). The file has no "?" for a
-// character it cannot write: the label of the batch is the Träger's own text
-// and is refused with such a character; the Buchungstext comes from names of
-// families and children and is written by a defined replacement instead, so
-// a name in another script does not block the export. A character without
-// a code loses its accents (ő becomes o); a few letters without such a base
-// letter have a fixed replacement (ł becomes l); any other is left out.
-var datevBaseLetters = map[rune]string{'ł': "l", 'Ł': "L", 'đ': "d", 'Đ': "D", 'ı': "i", 'ħ': "h", 'Ħ': "H"}
-
-// datevWritable is how a character is written in Windows-1252, and false
-// when it cannot be written.
-func datevWritable(r rune) (string, bool) {
-	if _, ok := charmap.Windows1252.EncodeRune(r); ok {
-		return string(r), true
-	}
-	if base, ok := datevBaseLetters[r]; ok {
-		return base, true
-	}
-	var out strings.Builder
-	for _, part := range norm.NFD.String(string(r)) {
-		if unicode.Is(unicode.Mn, part) {
-			continue
-		}
-		if _, ok := charmap.Windows1252.EncodeRune(part); !ok {
-			return "", false
-		}
-		out.WriteRune(part)
-	}
-	return out.String(), out.Len() > 0
-}
-
-// datevWritableText reports whether every character of text can be written.
-func datevWritableText(text string) bool {
-	for _, r := range text {
-		if _, ok := datevWritable(r); !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// datevTransliterate writes every character that can be written, leaves out
-// the others and joins the remaining words with single spaces.
-func datevTransliterate(text string) string {
-	var out strings.Builder
-	for _, r := range text {
-		if written, ok := datevWritable(r); ok {
-			out.WriteString(written)
-		}
-	}
-	return strings.Join(strings.Fields(out.String()), " ")
-}
-
-// datevEncode writes text in Windows-1252. Every free text passed the label
-// check or datevTransliterate before, so a character it cannot write is a
-// defect of the formatter, never a silent "?".
-func datevEncode(text string) ([]byte, error) {
-	out := make([]byte, 0, len(text))
-	for _, r := range text {
-		written, ok := datevWritable(r)
-		if !ok {
-			return nil, fmt.Errorf("datev booking batch: %U has no code in Windows-1252", r)
-		}
-		for _, part := range written {
-			b, _ := charmap.Windows1252.EncodeRune(part)
-			out = append(out, b)
-		}
-	}
-	return out, nil
 }
 
 // datevColumns is the column line of format version 13 as the DATEV sample
