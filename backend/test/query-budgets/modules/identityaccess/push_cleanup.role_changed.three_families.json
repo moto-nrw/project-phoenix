@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.push_cleanup.role_changed.three_families",
+  "max": 14,
+  "exact": true,
+  "description": "modules/identityaccess — a school-scoped revocation (role_changed) of three\nsession families at one school, with its push cleanup (#5878, ADR 0161 step 6):\nthe revocation unit (BEGIN, role, lock, revoke, audit, COMMIT), then one\nadministrative unit: BEGIN, SET LOCAL ROLE, one DELETE per family, one per\nschool × portal, COMMIT. Each family adds one DELETE, not a unit."
+}

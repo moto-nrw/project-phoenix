@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.push_cleanup.role_changed.five_families",
+  "max": 18,
+  "exact": true,
+  "description": "modules/identityaccess — the role_changed revocation of five families (the\nsession cap) with its push cleanup in one administrative unit (#5878, ADR 0161\nstep 6). Measured beside the three-family scenario: two more families add two\nDELETEs and two revoked rows' audit, no transaction."
+}

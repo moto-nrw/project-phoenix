@@ -379,15 +379,23 @@ func (s *AccountAuthentication) RevokeTokensByTenantID(ctx context.Context, tena
 // cleanupPushAfterRevocation removes the push subscriptions the revocation
 // orphaned: every portal's rows for an account-wide reason, otherwise the
 // rows bound to the revoked families plus the unbound rows at the schools
-// the sessions belonged to.
+// the sessions belonged to. The family and school deletions share one
+// administrative unit in their former order and commit all or nothing
+// (ADR 0161 step 6, #5878); without anything to delete no unit opens.
 func (s *AccountAuthentication) cleanupPushAfterRevocation(ctx context.Context, accountID int64, sessions []domain.AccountSession, reason string) error {
 	if domain.IsAccountWideRevocation(reason) {
 		return s.deletePushAcrossTenants(ctx, accountID)
 	}
-	if err := s.deletePushForFamilies(ctx, accountID, domain.SessionFamilyIDs(sessions)); err != nil {
-		return err
+	familyIDs := domain.SessionFamilyIDs(sessions)
+	if len(familyIDs) == 0 && !hasUnboundPushSchool(sessions) {
+		return nil
 	}
-	return s.deletePushUnboundForSessions(ctx, accountID, sessions)
+	return s.withPushAdminTx(ctx, func(adminCtx context.Context) error {
+		if err := s.deletePushForFamilies(adminCtx, accountID, familyIDs); err != nil {
+			return err
+		}
+		return s.deletePushUnboundForSessions(adminCtx, accountID, sessions)
+	})
 }
 
 func (s *AccountAuthentication) deletePushAcrossTenants(ctx context.Context, accountID int64) error {
@@ -402,18 +410,30 @@ func (s *AccountAuthentication) deletePushAcrossTenants(ctx context.Context, acc
 	})
 }
 
+// deletePushForFamilies and the unbound deletions below run on the caller's
+// administrative unit, one statement per family and per school × portal, so no
+// statement waits for more than one position's row locks.
 func (s *AccountAuthentication) deletePushForFamilies(ctx context.Context, accountID int64, familyIDs []string) error {
 	for _, familyID := range familyIDs {
 		if familyID == "" {
 			continue
 		}
-		if err := s.withPushAdminTx(ctx, func(adminCtx context.Context) error {
-			return s.push.DeleteByTokenFamily(adminCtx, accountID, familyID)
-		}); err != nil {
+		if err := s.push.DeleteByTokenFamily(ctx, accountID, familyID); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// hasUnboundPushSchool reports whether a session names a school whose
+// unbound push rows the cleanup deletes on some portal.
+func hasUnboundPushSchool(sessions []domain.AccountSession) bool {
+	for _, portal := range domain.AllPushPortals() {
+		if len(sessionTenantIDsForPortal(sessions, portal)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func sessionMatchesPushPortal(portalScope, portal string) bool {
@@ -453,9 +473,7 @@ func (s *AccountAuthentication) deletePushUnboundAtTenants(ctx context.Context, 
 		if tenantID <= 0 {
 			continue
 		}
-		if err := s.withPushAdminTx(ctx, func(adminCtx context.Context) error {
-			return s.push.DeleteUnboundByAccount(adminCtx, accountID, tenantID, portal)
-		}); err != nil {
+		if err := s.push.DeleteUnboundByAccount(ctx, accountID, tenantID, portal); err != nil {
 			return err
 		}
 	}

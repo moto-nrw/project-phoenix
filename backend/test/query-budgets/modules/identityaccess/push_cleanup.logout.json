@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.push_cleanup.logout",
+  "max": 16,
+  "exact": true,
+  "description": "modules/identityaccess — logout of one family at one school with its push\ncleanup (#5878, ADR 0161 step 6): the revocation unit, one administrative unit\nwith the family's and the school's unbound staff DELETE, then the audit."
+}
