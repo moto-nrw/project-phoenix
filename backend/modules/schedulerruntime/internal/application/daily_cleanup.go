@@ -98,7 +98,7 @@ func (s *Scheduler) checkAndRunCleanup(ctx context.Context, task *ScheduledTask)
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		failed, err := s.runCleanupSteps(cleanupCtx, tenantID)
+		failed, err := s.executeCleanupForTenant(cleanupCtx, tenantID)
 		if err != nil {
 			return fmt.Errorf("data cleanup failed for tenant %d: %w", tenantID, err)
 		}
@@ -129,16 +129,9 @@ type cleanupStep struct {
 // result is success or failure, a partial failure counts as failure; a failed
 // step prevents no other step; the run stays due while any step failed, every
 // step being required; every failure is logged with school and step.
-// complete is false when a step failed; an error means the tenant
-// transaction itself is unusable.
-func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) (complete bool, err error) {
-	failed, err := s.runCleanupSteps(ctx, tenantID)
-	return err == nil && len(failed) == 0, err
-}
-
-// runCleanupSteps runs the steps of executeCleanupForTenant and names the
-// ones that failed.
-func (s *Scheduler) runCleanupSteps(ctx context.Context, tenantID int64) (failed []string, err error) {
+// failed names the steps that failed; an error means the tenant transaction
+// itself is unusable.
+func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) (failed []string, err error) {
 	steps := []cleanupStep{
 		{name: "visits", run: s.cleanupExpiredVisits},
 		{name: "supervisors", run: s.cleanupStaleSupervisors},
