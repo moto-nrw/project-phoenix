@@ -316,7 +316,13 @@ func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) 
 }
 
 func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
+	if ended := rs.Failures.requestEnded(r, err); ended != nil {
+		common.RenderError(w, r, ended)
+		return
+	}
 	switch {
+	case rs.Failures.savepointControlFailed(r, err):
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	case errors.Is(err, capability.ErrDecisionChildNotFound),
 		errors.Is(err, capability.ErrDecisionRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))

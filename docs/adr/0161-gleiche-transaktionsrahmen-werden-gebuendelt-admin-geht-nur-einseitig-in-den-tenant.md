@@ -474,3 +474,70 @@ die den Aufruf wie `ParentPortalRuntime.WithinAdmin` nur weiterreicht und
 keinen eigenen Rahmen öffnet. Schritt 4 bringt damit +4 Admin statt +3, das
 Register wächst insgesamt um sechs Admin-Stellen und eine Kommando-Stelle.
 Den dafür nötigen Composition-Etat hebt [ADR 0185](0185-transaktionslaufzeit-bindet-die-uebergabe-von-admin-an-tenant.md).
+
+## Nachtrag 09.11.2026: Schritte 3 und 5 (#5894)
+
+Schritt 3 verlagert die Admin-Startstelle der Zielgruppe
+`workflows/parentportal/internal/messaging/parent_announcement_attachments.go:*Service.GuardianAnnouncementTenant:s.Runtime.WithinAdmin#1`
+nach `…:*Service.guardianAnnouncementAudience:s.Runtime.WithinAdmin#1`, damit
+die erneute Prüfung und der gebündelte Weg dieselbe Admin-Einheit nutzen. Der
+Grund bleibt wörtlich gleich; der neue Schlüssel steht in
+`transactionFrameBundleSites`. Startfehler, Rollenwechsel-, COMMIT- und
+ROLLBACK-Fehler des gebündelten Rahmens antworten 500 statt 404 (E9/E15:
+Infrafehler des Rahmens, unabhängig von der Existenz der Zeile), ohne Retry
+und ohne zweiten Weg. Ein Aufruf in einer offenen Einheit oder aus einem an
+eine andere Schule gebundenen Kontext wählt vor dem Start den Einzelweg
+(Punkt 7); dafür fragt der Workflow `Runtime.AmbientScope` ab.
+
+Schritt 5 ersetzt Zielgruppe und Schul-Rahmen durch die Übergabe
+`…/parent_announcement_attachments.go:*Service.WithinGuardianAnnouncementTenant:s.Runtime.WithinAdminThenTenant#1`
+(Admin-Register und `transactionFrameBundleSites`, Grund mit ADR 0161). Eine
+abgelehnte Zielgruppe endet als 404 am Ende von `discover`, ohne
+Rollenwechsel; ebendort steht die Prüfung, ob ein an eine Schule gebundener
+Kontext zur Schule der Ankündigung passt. Passt er nicht, antwortet der
+Einzelweg wie bisher, ohne dass ein weiterer Rahmen startet. Ein
+Kontextabbruch nach abgelehnter Zielgruppe antwortet 404 statt 500 (E4).
+Invariantentabelle und Belege: #6388.
+
+## Nachtrag 09.11.2026: Schreibrouten der Übergabe (#5862, E16/E21)
+
+Punkt 2 gilt ab jetzt auch für schreibende Eltern-Kind-Routen, freigegeben
+am 09.11.2026 (E16) mit den Invarianten der Leserouten. Die Übergabe läuft
+über eine eigene Startstelle
+`workflows/parentportal/internal/care/child.go:*Service.WithPermittedChildForWrite:s.Runtime.WithinAdminThenTenant#1`
+(Admin-Register und `transactionFrameBundleSites`); die Lese-Startstelle und
+ihr Grund bleiben unverändert.
+
+Gebündelt wird nur eine Route, bei der zwischen Kindprüfung und Schreibrahmen
+kein eigener Rahmen liegt, also nur Go-Prüfungen. Prüfungen, die heute vor
+jedem Rahmen laufen, bleiben dort. Liegt zwischen Kindprüfung und
+Schreibrahmen ein Settings-Rahmen, bleibt die Route beim bisherigen Ablauf,
+weil der Read sonst in den Schreibrahmen wandern müsste. Für fail-open Reads
+schließt E21 das aus; für strikte Reads ist es nicht entschieden. Sperren und
+ihre Reihenfolge im Tenant-Teil bleiben unverändert, der Admin-Teil sperrt
+keine Zeile.
+
+Ambiente Einstiege (Punkt 7): `WithinAdminThenTenant` lehnt eine offene
+Einheit ab, bevor die Kindprüfung läuft. Eine Schreibroute wählt deshalb vor
+dem Start den bisherigen Weg (`ResolvePermittedChild`, danach der eigene
+Tenant-Rahmen), sobald `Runtime.AmbientScope` eine offene Einheit oder einen
+an eine Schule gebundenen Kontext meldet. Dort bleiben Status und Code wie
+bisher, etwa 403 aus der Kindprüfung.
+
+Zeitpunkte (E21): Ein DB-Zeitanker (`now()`, `CURRENT_TIMESTAMP`, Default,
+Trigger) stammt danach vom Beginn der gemeinsamen Transaktion, also von vor
+der Kindprüfung. In Go berechnete Fristen und Kalendertage werden weiter nach
+der Kindprüfung berechnet; Settings-Reads, frische Antwort-Reads nach dem
+Commit und Arbeit nach dem Commit (Dateilöschung, Broadcasts) bleiben an
+ihrer Stelle.
+
+Fehler des Rahmens: Start- und Rollenwechselfehler antworten 500 ohne Retry
+und ohne zweiten Weg (E9/E15). Ein COMMIT, das mit Deadlock (40P01) oder
+Serialisierungsfehler (40001) scheitert, antwortet wie bisher 500 und hat
+nichts gespeichert; die Schreibrouten wiederholen nicht. Jedes andere
+gescheiterte COMMIT bleibt ein Fehler mit unbekanntem Ausgang (500). Ein gescheitertes normales
+ROLLBACK ändert den Status nicht: Der Adapter hängt es an den auslösenden
+Fehler, und die Route antwortet nach diesem Fehler wie bisher. Die Regel für
+gescheiterte Savepoint-Rollbacks (E19, immer 500) bleibt davon getrennt;
+dieser Nachtrag führt keinen Savepoint ein. Routenliste,
+Invariantentabelle und Belege stehen im PR zu #5862.

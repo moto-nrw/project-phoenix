@@ -13,9 +13,11 @@ import (
 
 // InboxRow is a contract of the inbox with what its withdrawal period
 // needs: the conclusion and the earliest recorded provision of the notice,
-// the stored one or that of the latest online signature (#6105).
+// the stored one or that of the latest online signature (#6105), and the
+// school whose holidays move its last day (#6350).
 type InboxRow struct {
 	Contract   carecontract.InboxContract
+	SchoolID   int64
 	Concluded  *carecontract.Concluded
 	InformedAt *time.Time
 }

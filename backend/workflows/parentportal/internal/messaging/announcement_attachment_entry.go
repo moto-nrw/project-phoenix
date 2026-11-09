@@ -24,14 +24,17 @@ type AttachmentFiles[A, C any] interface {
 // AttachmentAudience is the guardian-side gate: the school of a live
 // announcement whose audience includes the account, or of an attachment
 // frozen in the account's declaration proof. Tenant id 0 with no error means
-// "not for you".
+// "not for you". WithinGuardianAnnouncementTenant is the announcement gate's
+// first pass with read in the unit of the school switch (ADR 0161); read runs
+// only when the gate admits the account.
 type AttachmentAudience interface {
 	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
+	WithinGuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64, read func(ctx context.Context, tenantID int64) error) (int64, error)
 	GuardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error)
 }
 
 // AnnouncementAttachments is the guardian's attachment entry. The first
-// audience check and the row read run in separate transactions, and the
+// audience check and the row read may run in separate transactions, and the
 // announcement may be withdrawn in between. The audience is therefore asked a
 // second time after the rows were read and before anything is handed out,
 // and a different school counts as "not visible". Every refusal is
@@ -53,11 +56,12 @@ func NewAnnouncementAttachments[A, C any](audience AttachmentAudience, files Att
 // ListGuardianAttachments returns the attachments a guardian account may see.
 func (a *AnnouncementAttachments[A, C]) ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]A, error) {
 	gate := func(ctx context.Context) (int64, error) { return a.announcementTenant(ctx, accountID, announcementID) }
-	tenantID, err := gate(ctx)
-	if err != nil {
-		return nil, err
-	}
-	attachments, err := a.files.ListAnnouncementAttachmentsInTenant(ctx, tenantID, announcementID)
+	var attachments []A
+	tenantID, err := a.withinAnnouncementTenant(ctx, accountID, announcementID, func(txCtx context.Context, tenantID int64) error {
+		var listErr error
+		attachments, listErr = a.files.ListAnnouncementAttachmentsInTenant(txCtx, tenantID, announcementID)
+		return listErr
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +74,17 @@ func (a *AnnouncementAttachments[A, C]) ListGuardianAttachments(ctx context.Cont
 // OpenGuardianAttachment opens one attachment of a live announcement for a
 // guardian in its audience, under the announcement's school.
 func (a *AnnouncementAttachments[A, C]) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (C, error) {
-	return a.open(ctx, func(ctx context.Context) (int64, error) {
+	var none C
+	tenantID, err := a.withinAnnouncementTenant(ctx, accountID, announcementID, func(txCtx context.Context, tenantID int64) error {
+		_, findErr := a.files.FindAnnouncementAttachmentInTenant(txCtx, tenantID, announcementID, attachmentID)
+		return findErr
+	})
+	if err != nil {
+		return none, err
+	}
+	return a.handOut(ctx, func(ctx context.Context) (int64, error) {
 		return a.announcementTenant(ctx, accountID, announcementID)
-	}, announcementID, attachmentID)
+	}, tenantID, announcementID, attachmentID)
 }
 
 // OpenGuardianDeclarationProofAttachment opens an attachment frozen in the
@@ -99,6 +111,12 @@ func (a *AnnouncementAttachments[A, C]) open(ctx context.Context, gate func(cont
 	if _, err := a.files.FindAnnouncementAttachmentInTenant(ctx, tenantID, announcementID, attachmentID); err != nil {
 		return none, err
 	}
+	return a.handOut(ctx, gate, tenantID, announcementID, attachmentID)
+}
+
+// handOut asks the gate again and only then opens the bytes.
+func (a *AnnouncementAttachments[A, C]) handOut(ctx context.Context, gate func(context.Context) (int64, error), tenantID, announcementID, attachmentID int64) (C, error) {
+	var none C
 	if err := revalidate(ctx, gate, tenantID); err != nil {
 		return none, err
 	}
@@ -110,6 +128,15 @@ func (a *AnnouncementAttachments[A, C]) announcementTenant(ctx context.Context, 
 		return 0, ErrAttachmentNotFound
 	}
 	return visibleTenant(a.audience.GuardianAnnouncementTenant(ctx, accountID, announcementID))
+}
+
+// withinAnnouncementTenant is the announcement gate's first pass: read runs
+// in the unit of the school switch, for the school the gate admits.
+func (a *AnnouncementAttachments[A, C]) withinAnnouncementTenant(ctx context.Context, accountID, announcementID int64, read func(context.Context, int64) error) (int64, error) {
+	if accountID <= 0 || announcementID <= 0 {
+		return 0, ErrAttachmentNotFound
+	}
+	return visibleTenant(a.audience.WithinGuardianAnnouncementTenant(ctx, accountID, announcementID, read))
 }
 
 // visibleTenant turns the gate's "0, no error" into the not-found refusal.

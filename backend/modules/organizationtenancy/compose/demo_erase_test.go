@@ -400,7 +400,7 @@ func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
 			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document),
 		outbox AS (
 			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
+			SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
 				jsonb_build_object('guardian_name', '` + visitorFull + `'), 'pending' FROM document
 			RETURNING organization_id, id),
 		push AS (
@@ -693,13 +693,18 @@ func retireVisitorOrder(t *testing.T, db *bun.DB, schoolID int64, accounts visit
 }
 
 // visitorMail writes a mail to address into the school (nil: no school) and
-// the Träger (nil: none) and returns its id.
+// the Träger (nil: none) and returns its id. A mail of the Träger takes one
+// of its declared kinds (chk_email_outbox_traeger_kind), with no contract.
 func visitorMail(t *testing.T, db *bun.DB, schoolID, organizationID *int64, address string) int64 {
 	t.Helper()
+	kind := "transactional_mail"
+	if organizationID != nil {
+		kind = "care_contract"
+	}
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, organization_id, kind, recipient, payload, status)
-		VALUES (?, ?, 'transactional_mail', jsonb_build_object('address', ?), '{}'::jsonb, 'pending') RETURNING id`,
-		schoolID, organizationID, address).Scan(t.Context(), &id))
+		VALUES (?, ?, ?, jsonb_build_object('address', ?), '{}'::jsonb, 'pending') RETURNING id`,
+		schoolID, organizationID, kind, address).Scan(t.Context(), &id))
 	return id
 }
 
