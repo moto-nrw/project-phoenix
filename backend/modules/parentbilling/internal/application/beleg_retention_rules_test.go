@@ -158,8 +158,8 @@ func withType(base parentbilling.NewRetentionInstruction, belegType, trigger str
 }
 
 // An invoice, credit or cancellation note and a submitted debit are booking
-// vouchers: a Weisung citing § 147 AO, § 257 HGB or § 14b UStG cannot keep
-// them shorter than eight years after the end of their issue year
+// vouchers: without the basis "the statutes do not apply" a Weisung cannot
+// keep them shorter than eight years after the end of their issue year
 // (Löschkonzept section 2).
 func TestBookingInstructionCitingTheStatutesKeepsEightYears(t *testing.T) {
 	t.Parallel()
@@ -167,49 +167,50 @@ func TestBookingInstructionCitingTheStatutesKeepsEightYears(t *testing.T) {
 		for _, basis := range []string{"§ 147 AO", "§ 257 HGB", "§ 14b UStG"} {
 			short := parentbilling.NewRetentionInstruction{BelegType: belegType, TriggerEvent: parentbilling.TriggerIssued, Period: 1,
 				LegalBasis: basis, InstructedBy: "Kämmerei", InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
-			for _, kind := range []string{"", parentbilling.BasisBookingVoucher, parentbilling.BasisNotApplicable} {
-				short.Basis, short.BasisJustification = kind, ""
-				if kind == parentbilling.BasisNotApplicable {
-					short.BasisJustification = "nur ein Jahr gewünscht"
-				}
+			for _, kind := range []string{"", parentbilling.BasisBookingVoucher, parentbilling.BasisBusinessLetter} {
+				short.Basis = kind
 				assert.ErrorIs(t, ValidateRetentionInstruction(short), parentbilling.ErrBelegRetentionInvalid, "%s with %s as %q", belegType, basis, kind)
 			}
 		}
 	}
 }
 
-// statuteSpellings cite § 147 AO, § 257 HGB or § 14b UStG without the
-// spaces and word boundaries the earlier pattern needed; the migration test
-// TestInstructionTableRefusesEverySpellingOfTheStatutes holds the database
-// to the same list.
-var statuteSpellings = []string{
-	"§147AO", "§ 147 Abs. 1 AO", "147ao", "HGB§257", "UStG14b", "Abgabenordnung", "ABGABENORDNUNG", "aBgAbEnOrDnUnG",
-	"Handelsgesetzbuch", "Umsatzsteuergesetz", "§\u00a0147\u00a0AO", "§\u2009257\u2009HGB", "§\u202f14b\u202fUStG", "A.O.", "A-O",
-	"§ 14 b UStG", "§ 257 Abs. 4 Nr. 1 HGB", "Paragraph 147 der Abgaben-Ordnung", "\uff21\uff2f", "A\u200bO", "nach §147",
-}
-
-// A Weisung whose statutes do not apply cites none of them, however it is
-// spelled (#4720, third review): a citation hidden by missing spaces,
-// unicode spaces or case kept a 2026 invoice for one year.
-func TestNotApplicableRefusesEverySpellingOfTheStatutes(t *testing.T) {
+// Below the statutory periods the structured confirmation of the Träger
+// decides, not the text of the basis (#4720, fourth review): Cyrillic
+// letters, abbreviations and numbers in words passed every citation check
+// and let a 2026 invoice and a debit go on 2028-01-01. Without the
+// confirmation no spelling passes; with it the application leaves the
+// citation heuristic to the database (TestInstructionTableRefusesEverySpellingOfTheStatutes,
+// TestOperatorRecordsBelegRetentionWithAudit), so the two cannot disagree.
+func TestNotApplicableNeedsTheTraegersConfirmation(t *testing.T) {
 	t.Parallel()
 	short := parentbilling.NewRetentionInstruction{BelegType: parentbilling.BelegCareInvoice, TriggerEvent: parentbilling.TriggerIssued,
 		Period: 1, Basis: parentbilling.BasisNotApplicable, BasisJustification: "Träger ist nicht buchführungspflichtig",
-		InstructedBy: "Kämmerei", InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
+		InstructedBy: "Kämmerei", InstructedOn: date(2026, 11, 9), InstructionReference: "Mail der Kämmerei vom 09.11.2026"}
+	spellings := []string{"Satzung des Trägers § 12", "\u0410\u041e", "Abgabenordn.", "Abg.-Ord.", "Handelsges.",
+		"§ einhundertsiebenundvierzig Abgabenordn.", "\U0001CCD6\U0001CCE4", "§ 147 AO"}
 	for _, belegType := range []string{parentbilling.BelegHolidayDocument, parentbilling.BelegCareInvoice, parentbilling.BelegSEPADebit,
 		parentbilling.BelegCareNotice, parentbilling.BelegCareContract} {
 		short.BelegType, short.TriggerEvent = belegType, parentbilling.TriggerIssued
 		if belegType == parentbilling.BelegCareContract {
 			short.TriggerEvent = parentbilling.TriggerContractEnded
 		}
-		for _, spelling := range statuteSpellings {
-			short.LegalBasis = spelling
-			assert.ErrorIs(t, ValidateRetentionInstruction(short), parentbilling.ErrBelegRetentionInvalid, "%s: %q", belegType, spelling)
+		for _, spelling := range spellings {
+			short.LegalBasis, short.StatutesNotApplicableConfirmed = spelling, false
+			assert.ErrorIs(t, ValidateRetentionInstruction(short), parentbilling.ErrBelegRetentionInvalid, "%s without the confirmation: %q", belegType, spelling)
+			short.StatutesNotApplicableConfirmed = true
+			assert.NoError(t, ValidateRetentionInstruction(short), "%s with the confirmation: %q", belegType, spelling)
 		}
-		for _, basis := range []string{"Satzung des Trägers § 12", "Beschluss des Vorstands vom 01.02.2026", "Kommunalhaushaltsverordnung NRW § 58"} {
-			short.LegalBasis = basis
-			assert.NoError(t, ValidateRetentionInstruction(short), "%s: %q", belegType, basis)
-		}
+	}
+	confirmed := short
+	for name, change := range map[string]func(*parentbilling.NewRetentionInstruction){
+		"without the reference to the written instruction": func(i *parentbilling.NewRetentionInstruction) { i.InstructionReference = " " },
+		"without the instructing person":                   func(i *parentbilling.NewRetentionInstruction) { i.InstructedBy = "" },
+		"without the justification":                        func(i *parentbilling.NewRetentionInstruction) { i.BasisJustification = "" },
+	} {
+		instruction := confirmed
+		change(&instruction)
+		assert.ErrorIs(t, ValidateRetentionInstruction(instruction), parentbilling.ErrBelegRetentionInvalid, name)
 	}
 }
 
@@ -223,6 +224,7 @@ func TestInstructionBasisSetsTheLeastPeriod(t *testing.T) {
 		InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
 	notApplicable := func(instruction parentbilling.NewRetentionInstruction, justification string) parentbilling.NewRetentionInstruction {
 		instruction.Basis, instruction.BasisJustification = parentbilling.BasisNotApplicable, justification
+		instruction.StatutesNotApplicableConfirmed = true
 		return instruction
 	}
 	valid := []parentbilling.NewRetentionInstruction{
@@ -235,8 +237,10 @@ func TestInstructionBasisSetsTheLeastPeriod(t *testing.T) {
 	for _, instruction := range valid {
 		assert.NoError(t, ValidateRetentionInstruction(instruction), "%+v", instruction)
 	}
-	cited := withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 1)
-	cited.LegalBasis = "§ 147 AO"
+	unconfirmed := notApplicable(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 1), "Träger ist nicht buchführungspflichtig")
+	unconfirmed.StatutesNotApplicableConfirmed = false
+	confirmedStatutory := withBasis(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8), parentbilling.BasisBookingVoucher)
+	confirmedStatutory.StatutesNotApplicableConfirmed = true
 	invalid := map[string]parentbilling.NewRetentionInstruction{
 		"booking voucher below eight years":   withBasis(withType(base, parentbilling.BelegSEPADebit, parentbilling.TriggerIssued, 7), parentbilling.BasisBookingVoucher),
 		"business letter below six years":     withBasis(withType(base, parentbilling.BelegCareContract, parentbilling.TriggerContractEnded, 5), parentbilling.BasisBusinessLetter),
@@ -245,7 +249,8 @@ func TestInstructionBasisSetsTheLeastPeriod(t *testing.T) {
 		"no basis":                            withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8),
 		"mandate without the agreement":       withBasis(withType(base, parentbilling.BelegSEPAMandate, parentbilling.TriggerLastCollection, 14), parentbilling.BasisNotApplicable),
 		"not applicable without a reason":     notApplicable(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 1), "  "),
-		"not applicable citing § 147 AO":      notApplicable(cited, "Träger ist nicht buchführungspflichtig"),
+		"not applicable without confirmation": unconfirmed,
+		"confirmation on a statutory basis":   confirmedStatutory,
 		"justification on a statutory basis": func() parentbilling.NewRetentionInstruction {
 			instruction := withBasis(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8), parentbilling.BasisBookingVoucher)
 			instruction.BasisJustification = "überflüssig"

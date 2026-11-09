@@ -128,6 +128,10 @@ var (
 	// ErrBelegRetentionInvalid reports an instruction or suspension that
 	// breaks a rule of its type.
 	ErrBelegRetentionInvalid = errors.New("invalid beleg retention instruction")
+	// ErrBelegBasisCitesStatute reports a basis "the statutes do not apply"
+	// that the database's citation heuristic finds naming § 147 AO, § 257
+	// HGB or § 14b UStG. Only the database decides it.
+	ErrBelegBasisCitesStatute = errors.New("a basis without statutes cites § 147 AO, § 257 HGB or § 14b UStG")
 	// ErrBelegSuspensionNotFound reports a suspension that is not active
 	// for the Träger.
 	ErrBelegSuspensionNotFound = errors.New("beleg retention suspension not found")
@@ -140,7 +144,9 @@ var (
 
 // RetentionInstruction is the documented instruction of a Träger for one
 // Beleg type. Period is years after the end of the year of the event, for
-// a SEPA mandate months after the event.
+// a SEPA mandate months after the event. A basis "the statutes do not
+// apply" carries the structured confirmation of the Träger and when the
+// moto team recorded it.
 type RetentionInstruction struct {
 	ID                   int64         `json:"id"`
 	OrganizationID       int64         `json:"organization_id"`
@@ -153,7 +159,11 @@ type RetentionInstruction struct {
 	InstructedBy         string        `json:"instructed_by"`
 	InstructedOn         calendar.Date `json:"instructed_on"`
 	InstructionReference string        `json:"instruction_reference"`
-	RecordedAt           time.Time     `json:"recorded_at"`
+	// StatutesNotApplicableConfirmed: the Träger confirmed in writing that
+	// § 147 AO, § 257 HGB and § 14b UStG do not apply.
+	StatutesNotApplicableConfirmed bool       `json:"statutes_not_applicable_confirmed"`
+	ConfirmedAt                    *time.Time `json:"confirmed_at,omitempty"`
+	RecordedAt                     time.Time  `json:"recorded_at"`
 }
 
 // RetentionSuspension holds back the deletion of one Beleg or of every
@@ -251,6 +261,9 @@ type NewRetentionInstruction struct {
 	InstructedBy         string
 	InstructedOn         calendar.Date
 	InstructionReference string
+	// StatutesNotApplicableConfirmed is the explicit confirmation a basis
+	// "the statutes do not apply" needs and every other basis lacks.
+	StatutesNotApplicableConfirmed bool
 }
 
 // NewRetentionSuspension is a suspension the moto team records.

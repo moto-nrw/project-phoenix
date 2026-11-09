@@ -100,5 +100,6 @@
   "sepa_import_file_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "sepa_import_file_too_large": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "sepa_import_mapping_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-  "sepa_import_changed": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "sepa_import_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "beleg_retention_basis_cites_statute": "Не вдалося зберегти: {object}. Перевірте введені дані."
 }

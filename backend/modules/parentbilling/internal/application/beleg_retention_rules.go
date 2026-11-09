@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -57,34 +55,6 @@ var basesByType = map[string][]string{
 var statutoryYears = map[string]int{
 	parentbilling.BasisBookingVoucher: parentbilling.MinBookingVoucherYears,
 	parentbilling.BasisBusinessLetter: parentbilling.MinBusinessLetterYears,
-}
-
-// statuteTokens are the statutes and sections a Weisung whose statutes do
-// not apply must not name: § 147 AO, § 257 HGB, § 14b UStG. The migration
-// 1.15.828 checks the same tokens in parent_billing.beleg_basis_cites_statute.
-var statuteTokens = []string{"ao", "hgb", "ustg", "abgabenordnung", "handelsgesetzbuch", "umsatzsteuergesetz", "147", "257", "14b"}
-
-// citesStatute reports whether a basis names one of the statutes in any
-// spelling: it folds the text like the database does (NFKC, ASCII letters
-// lowercased, everything but a-z and 0-9 dropped) and refuses any
-// occurrence of a token, without word boundaries. A rare false refusal
-// ("Kakao") is the price of catching "§147AO".
-func citesStatute(basis string) bool {
-	var folded strings.Builder
-	for _, r := range norm.NFKC.String(basis) {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			folded.WriteRune(r)
-		case r >= 'A' && r <= 'Z':
-			folded.WriteRune(r + 'a' - 'A')
-		}
-	}
-	for _, token := range statuteTokens {
-		if strings.Contains(folded.String(), token) {
-			return true
-		}
-	}
-	return false
 }
 
 // bookingTypes have the period the Löschkonzept proposes; contracts and
@@ -217,8 +187,12 @@ func ValidateRetentionInstruction(instruction parentbilling.NewRetentionInstruct
 
 // validateBasis holds a Weisung to the statutes it names: a booking voucher
 // keeps eight years, a business letter six. Only the stated basis that the
-// statutes do not apply, with its written justification, allows a shorter
-// period, and such a Weisung cites none of them.
+// statutes do not apply allows a shorter period, with its written
+// justification and the explicit confirmation that the Träger confirmed in
+// writing that § 147 AO, § 257 HGB and § 14b UStG do not apply; the
+// instructing person and the reference to the written instruction are
+// required of every Weisung. The text of the basis is no gate here: the
+// database alone runs its citation heuristic (ErrBelegBasisCitesStatute).
 func validateBasis(instruction parentbilling.NewRetentionInstruction) error {
 	if !slices.Contains(basesByType[instruction.BelegType], instruction.Basis) {
 		return fmt.Errorf("%w: basis %q does not fit %s", parentbilling.ErrBelegRetentionInvalid, instruction.Basis, instruction.BelegType)
@@ -228,16 +202,16 @@ func validateBasis(instruction parentbilling.NewRetentionInstruction) error {
 	}
 	justification := strings.TrimSpace(instruction.BasisJustification)
 	if instruction.Basis != parentbilling.BasisNotApplicable {
-		if justification != "" {
-			return fmt.Errorf("%w: a justification belongs only to a basis without statutes", parentbilling.ErrBelegRetentionInvalid)
+		if justification != "" || instruction.StatutesNotApplicableConfirmed {
+			return fmt.Errorf("%w: a justification and the confirmation belong only to a basis without statutes", parentbilling.ErrBelegRetentionInvalid)
 		}
 		return nil
 	}
 	if justification == "" || len([]rune(justification)) > parentbilling.MaxJustificationLength {
 		return fmt.Errorf("%w: why the statutes do not apply is required and at most %d characters", parentbilling.ErrBelegRetentionInvalid, parentbilling.MaxJustificationLength)
 	}
-	if citesStatute(instruction.LegalBasis) {
-		return fmt.Errorf("%w: a basis citing § 147 AO, § 257 HGB or § 14b UStG keeps their periods", parentbilling.ErrBelegRetentionInvalid)
+	if !instruction.StatutesNotApplicableConfirmed {
+		return fmt.Errorf("%w: the Träger's written confirmation that § 147 AO, § 257 HGB and § 14b UStG do not apply is required", parentbilling.ErrBelegRetentionInvalid)
 	}
 	return nil
 }

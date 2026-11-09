@@ -93,6 +93,9 @@ func (r *BelegRetention) RecordInstruction(ctx context.Context, organizationID, 
 	if input.InstructedOn.After(r.today()) {
 		return parentbilling.RetentionInstruction{}, fmt.Errorf("%w: the instruction cannot lie in the future", parentbilling.ErrBelegRetentionInvalid)
 	}
+	if input.StatutesNotApplicableConfirmed && operatorID <= 0 {
+		return parentbilling.RetentionInstruction{}, fmt.Errorf("%w: the confirmation names the operator who records it", parentbilling.ErrBelegRetentionInvalid)
+	}
 	instruction, err := r.store.InsertInstruction(ctx, organizationID, operatorID, input)
 	if err != nil {
 		return parentbilling.RetentionInstruction{}, err

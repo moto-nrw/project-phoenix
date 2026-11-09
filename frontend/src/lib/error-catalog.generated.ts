@@ -813,6 +813,8 @@ export const ERROR_CATALOG = {
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "parent_billing.bank_account_missing":
         "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Abrechnungsvorgaben“ ein Konto ein.",
+      "parent_billing.beleg_retention_basis_cites_statute":
+        "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
       "parent_billing.benefits_exemption_unavailable":
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Abrechnungsvorgaben“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":

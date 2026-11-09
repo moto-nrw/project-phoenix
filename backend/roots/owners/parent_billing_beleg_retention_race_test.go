@@ -322,18 +322,26 @@ func TestInstructionTableRefusesAShortStatutoryPeriod(t *testing.T) {
 		"notice as business letter, 5":        insert("care_notice", "issued", 5, "business_letter", "§ 257 HGB", nil),
 		"no statutes, no justification":       insert("sepa_debit", "issued", 1, "not_applicable", "Satzung", nil),
 		"no statutes, citing § 14b UStG":      insert("holiday_document", "issued", 1, "not_applicable", "§ 14b UStG", &reason),
+		"no statutes, without confirmation":   insert("care_invoice", "issued", 1, "not_applicable", "Satzung des Trägers § 12", &reason),
 	} {
 		var pgErr interface{ Field(byte) string }
 		require.ErrorAs(t, err, &pgErr, name)
 		assert.Equal(t, "23514", pgErr.Field('C'), name)
 	}
-	require.NoError(t, insert("care_invoice", "issued", 1, "not_applicable", "Satzung des Trägers § 12", &reason))
+	_, err := db.ExecContext(ctx, `INSERT INTO parent_billing.beleg_retention_instructions (organization_id, beleg_type, trigger_event,
+			period, basis, legal_basis, basis_justification, instructed_by, instructed_on, instruction_reference,
+			statutes_not_applicable_confirmed, confirmed_by_operator_id, confirmed_at)
+		VALUES (?, 'care_invoice', 'issued', 1, 'not_applicable', 'Satzung des Trägers § 12', ?, 'Frau Beispiel, Kämmerei', '2026-11-09',
+			'Nachtrag 2026-11', TRUE, ?, CURRENT_TIMESTAMP)`, organization, reason, testpkg.CreateTestOperator(t, db).ID)
+	require.NoError(t, err, "with the confirmation of the Träger")
 }
 
-// TestInstructionTableRefusesEverySpellingOfTheStatutes: the database holds
-// "Vorschriften nicht anwendbar" to the same normalized citation check as
-// the application (statuteSpellings in beleg_retention_rules_test.go), also
-// for a row written past it (#4720, third review).
+// TestInstructionTableRefusesEverySpellingOfTheStatutes: the citation
+// heuristic of the database refuses "Vorschriften nicht anwendbar" naming
+// the statutes in these spellings even with the confirmation of the Träger
+// (#4720, third review). It is the only implementation; the application maps
+// its refusal. It is no gate: the spellings it misses still need the
+// confirmation (TestInstructionTableRequiresTheTraegersConfirmation).
 func TestInstructionTableRefusesEverySpellingOfTheStatutes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -341,12 +349,14 @@ func TestInstructionTableRefusesEverySpellingOfTheStatutes(t *testing.T) {
 	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
 		Name: "Träger Zitate", Slug: "beleg-zitate-" + time.Now().Format("150405.000000"),
 	}).ID
+	operator := testpkg.CreateTestOperator(t, db).ID
 	insert := func(legalBasis string) error {
 		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.beleg_retention_instructions (organization_id, beleg_type, trigger_event,
-					period, basis, legal_basis, basis_justification, instructed_by, instructed_on, instruction_reference)
+					period, basis, legal_basis, basis_justification, instructed_by, instructed_on, instruction_reference,
+					statutes_not_applicable_confirmed, confirmed_by_operator_id, confirmed_at)
 				VALUES (?, 'care_invoice', 'issued', 1, 'not_applicable', ?, 'Träger ist nicht buchführungspflichtig',
-					'Frau Beispiel, Kämmerei', '2026-11-09', 'Nachtrag 2026-11')`, organization, legalBasis)
+					'Frau Beispiel, Kämmerei', '2026-11-09', 'Nachtrag 2026-11', TRUE, ?, CURRENT_TIMESTAMP)`, organization, legalBasis, operator)
 			if err == nil {
 				// Keep the active instruction free for the next spelling.
 				return errRollbackSpelling
@@ -363,6 +373,7 @@ func TestInstructionTableRefusesEverySpellingOfTheStatutes(t *testing.T) {
 		err := insert(spelling)
 		require.ErrorAs(t, err, &pgErr, "%q", spelling)
 		assert.Equal(t, "23514", pgErr.Field('C'), "%q", spelling)
+		assert.Equal(t, "chk_beleg_retention_instructions_basis_cites_statute", pgErr.Field('n'), "%q", spelling)
 	}
 	for _, basis := range []string{"Satzung des Trägers § 12", "Beschluss des Vorstands vom 01.02.2026", "Kommunalhaushaltsverordnung NRW § 58"} {
 		assert.ErrorIs(t, insert(basis), errRollbackSpelling, "%q", basis)

@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -103,11 +104,69 @@ func TestOperatorRecordsBelegRetentionWithAudit(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "an invoice under § 147 AO keeps eight years: %s", rec.Body.String())
 	short["basis"], short["legal_basis"] = "not_applicable", "Satzung des Trägers"
 	short["basis_justification"] = "Träger ist nicht buchführungspflichtig, Bescheid des Finanzamts"
+	short["statutes_not_applicable_confirmed"] = true
 	rec = call(http.MethodPost, base+"/instructions", short)
 	require.Equal(t, http.StatusCreated, rec.Code, "a shorter period with the written reason why the statutes do not apply: %s", rec.Body.String())
 	recorded := decodeSchoolPortalData[parentbilling.RetentionInstruction](t, rec.Body.Bytes())
 	assert.Equal(t, parentbilling.BasisNotApplicable, recorded.Basis)
 	assert.Equal(t, "Träger ist nicht buchführungspflichtig, Bescheid des Finanzamts", recorded.BasisJustification)
+
+	assertConfirmationGatesTheShortPeriod(t, db, call, audits, base, operatorID)
+}
+
+// assertConfirmationGatesTheShortPeriod: below the statutory periods the
+// structured confirmation of the Träger decides, not the text of the basis
+// (#4720, fourth review). Without it no spelling passes; with it the
+// instruction is recorded with the operator and time of the confirmation
+// and audited. Whether a basis cites the statutes only the database decides,
+// so the application and the database cannot disagree.
+func assertConfirmationGatesTheShortPeriod(t *testing.T, db *bun.DB, call func(string, string, any) *httptest.ResponseRecorder,
+	audits func(string) int, base string, operatorID int64,
+) {
+	t.Helper()
+	ctx := context.Background()
+	before := audits("create")
+	short := map[string]any{"beleg_type": "sepa_debit", "trigger_event": "issued", "period": 1, "basis": "not_applicable",
+		"basis_justification": "Träger ist nicht buchführungspflichtig", "instructed_by": "Frau Beispiel, Kämmerei",
+		"instructed_on": "2026-11-09", "instruction_reference": "Mail der Kämmerei vom 09.11.2026"}
+	for _, spelling := range []string{"Satzung des Trägers", "\u0410\u041e", "Abgabenordn.", "Abg.-Ord.", "Handelsges.", "§ einhundertsiebenundvierzig Abgabenordn."} {
+		short["legal_basis"] = spelling
+		rec := call(http.MethodPost, base+"/instructions", short)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "%q without the confirmation: %s", spelling, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), `"code":"general.input"`, spelling)
+	}
+	assert.Equal(t, before, audits("create"), "a refused instruction leaves no audit entry")
+
+	short["legal_basis"], short["statutes_not_applicable_confirmed"] = "\u0410\u041e", true
+	rec := call(http.MethodPost, base+"/instructions", short)
+	require.Equal(t, http.StatusCreated, rec.Code, "the confirmation carries the short period: %s", rec.Body.String())
+	recorded := decodeSchoolPortalData[map[string]any](t, rec.Body.Bytes())
+	assert.Equal(t, true, recorded["statutes_not_applicable_confirmed"])
+	assert.NotEmpty(t, recorded["confirmed_at"])
+	var confirmedBy int64
+	require.NoError(t, db.NewRaw(`SELECT confirmed_by_operator_id FROM parent_billing.beleg_retention_instructions WHERE id = ?`,
+		int64(recorded["id"].(float64))).Scan(ctx, &confirmedBy))
+	assert.Equal(t, operatorID, confirmedBy, "the confirmation names the operator who recorded it")
+	assert.Equal(t, before+1, audits("create"), "the confirmed instruction is audited")
+
+	short["legal_basis"] = "§ 147 AO"
+	rec = call(http.MethodPost, base+"/instructions", short)
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"parent_billing.beleg_retention_basis_cites_statute"`)
+
+	// The outlined letters U+1CCD6 U+1CCE4 ("AO") split the earlier Go and
+	// SQL folding; now the database alone answers for both.
+	outlined := "\U0001CCD6\U0001CCE4"
+	var cites bool
+	require.NoError(t, db.NewRaw(`SELECT parent_billing.beleg_basis_cites_statute(?)`, outlined).Scan(ctx, &cites))
+	short["legal_basis"] = outlined
+	rec = call(http.MethodPost, base+"/instructions", short)
+	if cites {
+		assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), `"code":"parent_billing.beleg_retention_basis_cites_statute"`)
+	} else {
+		assert.Equal(t, http.StatusCreated, rec.Code, "the application accepts what the database accepts: %s", rec.Body.String())
+	}
 }
 
 // TestOperatorRecordsTheReviewOfAClarificationEntry: the moto team notes

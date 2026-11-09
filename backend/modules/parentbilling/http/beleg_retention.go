@@ -78,6 +78,9 @@ type instructionRequest struct {
 	InstructedBy         string        `json:"instructed_by"`
 	InstructedOn         calendar.Date `json:"instructed_on"`
 	InstructionReference string        `json:"instruction_reference"`
+	// StatutesNotApplicableConfirmed is the checkbox the Operator portal
+	// asks for with the basis "the statutes do not apply".
+	StatutesNotApplicableConfirmed bool `json:"statutes_not_applicable_confirmed"`
 }
 
 type suspensionRequest struct {
@@ -201,6 +204,8 @@ func decodeBelegRetention(w http.ResponseWriter, r *http.Request, req any) (int6
 // belegRetentionError answers a refused change with the code of its class.
 func belegRetentionError(err error) render.Renderer {
 	switch {
+	case errors.Is(err, capability.ErrBelegBasisCitesStatute):
+		return common.OperatorInvalidRequestWithCode(err, common.CodeParentBillingBelegRetentionBasisCitesStatute)
 	case errors.Is(err, capability.ErrBelegRetentionInvalid):
 		return common.OperatorInvalidRequestWithCode(err, common.CodeGeneralInput)
 	case errors.Is(err, capability.ErrBelegSuspensionNotFound), errors.Is(err, capability.ErrBelegTraegerNotFound),

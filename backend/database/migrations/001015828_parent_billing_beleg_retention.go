@@ -43,11 +43,14 @@ func init() {
 // Operator portal reads and writes them; the request role has no privilege.
 // Everything goes with the Träger.
 const parentBillingBelegRetentionUpSQL = `
--- beleg_basis_cites_statute reports whether a basis names § 147 AO, § 257
--- HGB or § 14b UStG in any spelling: the text folded to NFKC, ASCII letters
--- lowercased and everything but a-z and 0-9 dropped contains one of the
--- tokens, without word boundaries. The application folds the same way
--- (citesStatute in parent-billing).
+-- beleg_basis_cites_statute is a heuristic that refuses a basis "the
+-- statutes do not apply" naming § 147 AO, § 257 HGB or § 14b UStG in a
+-- common spelling: the text folded to NFKC, ASCII letters lowercased and
+-- everything but a-z and 0-9 dropped contains one of the tokens, without
+-- word boundaries. It is no gate: spellings it misses (Cyrillic letters,
+-- abbreviations, numbers in words) exist, so a short period rests on the
+-- structured confirmation of the Träger instead (ADR 0184). It is the only
+-- implementation; the application maps its refusal and folds no text.
 CREATE OR REPLACE FUNCTION parent_billing.beleg_basis_cites_statute(p_basis TEXT)
 RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
 	SELECT COALESCE(regexp_replace(
@@ -68,6 +71,9 @@ CREATE TABLE parent_billing.beleg_retention_instructions (
 	instructed_by TEXT NOT NULL,
 	instructed_on DATE NOT NULL,
 	instruction_reference TEXT NOT NULL,
+	statutes_not_applicable_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+	confirmed_by_operator_id BIGINT REFERENCES platform.operators(id) ON DELETE SET NULL,
+	confirmed_at TIMESTAMPTZ,
 	recorded_by_operator_id BIGINT REFERENCES platform.operators(id) ON DELETE SET NULL,
 	recorded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	replaced_at TIMESTAMPTZ,
@@ -89,8 +95,13 @@ CREATE TABLE parent_billing.beleg_retention_instructions (
 	-- contract or notice is classified as booking voucher or business letter;
 	-- a mandate follows the Inkassovereinbarung. A booking voucher keeps at
 	-- least eight years, a business letter six. A shorter period needs the
-	-- explicit basis that the statutes do not apply, with its written
-	-- justification, and then cites none of them.
+	-- explicit basis that the statutes do not apply with its written
+	-- justification, the instructing person, the reference to the written
+	-- instruction and the structured confirmation that the Träger confirmed
+	-- in writing that § 147 AO, § 257 HGB and § 14b UStG do not apply, with
+	-- the time it was recorded. The operator who recorded it is required on
+	-- insert (trg_beleg_retention_instructions_confirmation) and may go with
+	-- the operator account later. The text of the basis is no gate.
 	CONSTRAINT chk_beleg_retention_instructions_basis CHECK (
 		(beleg_type IN ('holiday_document', 'care_invoice', 'sepa_debit') AND basis IN ('booking_voucher', 'not_applicable'))
 		OR (beleg_type IN ('care_contract', 'care_notice') AND basis IN ('booking_voucher', 'business_letter', 'not_applicable'))
@@ -99,9 +110,30 @@ CREATE TABLE parent_billing.beleg_retention_instructions (
 		(basis <> 'booking_voucher' OR period >= 8) AND (basis <> 'business_letter' OR period >= 6)),
 	CONSTRAINT chk_beleg_retention_instructions_not_applicable CHECK (
 		(basis = 'not_applicable') = (basis_justification IS NOT NULL)
-		AND (basis_justification IS NULL OR (btrim(basis_justification) <> '' AND char_length(basis_justification) <= 1000))
-		AND (basis <> 'not_applicable' OR NOT parent_billing.beleg_basis_cites_statute(legal_basis)))
+		AND (basis_justification IS NULL OR (btrim(basis_justification) <> '' AND char_length(basis_justification) <= 1000))),
+	CONSTRAINT chk_beleg_retention_instructions_confirmation CHECK (
+		statutes_not_applicable_confirmed = (basis = 'not_applicable')
+		AND statutes_not_applicable_confirmed = (confirmed_at IS NOT NULL)
+		AND (statutes_not_applicable_confirmed OR confirmed_by_operator_id IS NULL)),
+	CONSTRAINT chk_beleg_retention_instructions_basis_cites_statute CHECK (
+		basis <> 'not_applicable' OR NOT parent_billing.beleg_basis_cites_statute(legal_basis))
 );
+-- trg_beleg_retention_instructions_confirmation names the operator of a
+-- confirmation when it is written; a CHECK cannot, because the operator
+-- account may be deleted later (ON DELETE SET NULL).
+CREATE OR REPLACE FUNCTION parent_billing.beleg_retention_confirmation_names_operator()
+RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog AS $$
+BEGIN
+	IF NEW.statutes_not_applicable_confirmed AND NEW.confirmed_by_operator_id IS NULL THEN
+		RAISE EXCEPTION 'the confirmation that the statutes do not apply names the operator who recorded it'
+			USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_beleg_retention_instructions_confirmation';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_beleg_retention_instructions_confirmation
+	BEFORE INSERT OR UPDATE OF statutes_not_applicable_confirmed ON parent_billing.beleg_retention_instructions
+	FOR EACH ROW EXECUTE FUNCTION parent_billing.beleg_retention_confirmation_names_operator();
 CREATE UNIQUE INDEX uq_beleg_retention_instructions_active
 	ON parent_billing.beleg_retention_instructions (organization_id, beleg_type) WHERE replaced_at IS NULL;
 
@@ -285,6 +317,7 @@ DROP TABLE IF EXISTS parent_billing.beleg_deletions;
 DROP TABLE IF EXISTS parent_billing.beleg_retentions;
 DROP TABLE IF EXISTS parent_billing.beleg_retention_suspensions;
 DROP TABLE IF EXISTS parent_billing.beleg_retention_instructions;
+DROP FUNCTION IF EXISTS parent_billing.beleg_retention_confirmation_names_operator();
 DROP FUNCTION IF EXISTS parent_billing.beleg_basis_cites_statute(TEXT);
 `
 

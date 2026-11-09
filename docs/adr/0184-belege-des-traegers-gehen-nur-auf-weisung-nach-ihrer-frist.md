@@ -61,19 +61,36 @@ Weisung vor.
    als Buchungsbeleg (mindestens 8) oder als Handels- oder Geschäftsbrief
    (mindestens 6 Jahre) ein. Das Mandat folgt der Inkassovereinbarung
    (mindestens 14 Monate). Kürzer geht es nur mit der ausdrücklichen Grundlage
-   „Vorschriften nicht anwendbar“, einer schriftlichen Begründung und der
-   weisungsberechtigten Person; eine solche Weisung zitiert weder § 147 AO
-   noch § 257 HGB noch § 14b UStG. Geprüft wird die Fundstelle in jeder
-   Schreibweise: Sie wird normalisiert (NFKC, nur ASCII-Buchstaben und
-   Ziffern, klein) und darf keines der Zeichen `ao`, `hgb`, `ustg`,
-   `abgabenordnung`, `handelsgesetzbuch`, `umsatzsteuergesetz`, `147`, `257`,
-   `14b` enthalten, auch ohne Leerzeichen („§147AO“). Selten trifft das eine
-   unbeteiligte Fundstelle; dann formuliert das moto-Team sie um. Anwendung
-   (`citesStatute`) und Datenbank (`parent_billing.beleg_basis_cites_statute`
-   in `chk_beleg_retention_instructions_not_applicable`) prüfen dasselbe. Ein
-   zusätzliches Bestätigungsfeld gibt es nicht: die ausdrücklich gewählte
-   Grundlage, ihre schriftliche Begründung und die weisungsberechtigte Person
-   sind die Bestätigung.
+   „Vorschriften nicht anwendbar“ und allem davon: einer schriftlichen
+   Begründung, der weisungsberechtigten Person des Trägers, dem Verweis auf
+   die schriftliche Weisung (Dokument oder Mail, Pflichttext) und der
+   ausdrücklichen, strukturierten Bestätigung, dass der Träger schriftlich
+   bestätigt hat, dass § 147 AO, § 257 HGB und § 14b UStG nicht anwendbar
+   sind. Die Bestätigung ist eine eigene Spalte
+   (`statutes_not_applicable_confirmed`) mit dem Operator, der sie erfasst hat
+   (`confirmed_by_operator_id`), und dem Zeitpunkt (`confirmed_at`); das
+   Operator-Portal fragt sie als Kontrollkästchen ab. Sie gehört zu jeder
+   Weisung mit „Vorschriften nicht anwendbar“ und zu keiner anderen. Die
+   Datenbank erzwingt das (`chk_beleg_retention_instructions_confirmation`;
+   den Operator beim Schreiben ein Trigger, weil ein Operator-Konto später
+   gehen darf und dann `NULL` hinterlässt), die Anwendung ebenso.
+
+   **Der Text der Fundstelle ist kein Tor.** Eine Sperrliste von
+   Schreibweisen lässt sich nicht sicher machen: Kyrillisch „АО“,
+   „Abgabenordn.“, „Abg.-Ord.“, „Handelsges.“ und „§ einhundertsiebenundvierzig
+   Abgabenordn.“ kamen durch Anwendung und Datenbank (eine Rechnung und eine
+   Lastschrift aus 2026 gingen am 01.01.2028), und Go und PostgreSQL
+   normalisieren 37 Codepunkte verschieden (U+1CCD6 U+1CCE4 lehnte Go ab, die
+   Datenbank nahm sie an). Die Sicherheit kommt allein aus der Bestätigung.
+   Als zusätzliche Ablehnung bleibt eine Heuristik nur in der Datenbank
+   (`parent_billing.beleg_basis_cites_statute` in
+   `chk_beleg_retention_instructions_basis_cites_statute`: NFKC, nur
+   ASCII-Buchstaben und Ziffern, klein, enthält `ao`, `hgb`, `ustg`,
+   `abgabenordnung`, `handelsgesetzbuch`, `umsatzsteuergesetz`, `147`, `257`
+   oder `14b`). Die Anwendung normalisiert keinen Text; sie übersetzt die
+   Ablehnung dieses Constraints in 400 mit
+   `parent_billing.beleg_retention_basis_cites_statute`. So können Anwendung
+   und Datenbank nicht verschieden entscheiden.
 
    **Auslöser des Mandats.** Der Einreichungstag der letzten eingereichten
    Lastschrift steht im Datensatz des Mandats (`collection_trigger_on`),
@@ -157,6 +174,11 @@ Weisung vor.
   was ein beteiligter Befehl nicht schon leistet.
 - **`phoenix_admin` Rechte auf die SEPA-Tabellen geben:** öffnete die
   versiegelten Bankdaten für jede Admin-Transaktion.
+- **Sperrliste der Fundstelle als Tor** (dritte und vierte Prüfung,
+  #4720): jede neue Schreibweise (andere Schrift, Abkürzung, Zahl in Worten)
+  kam durch, und zwei Normalisierungen in Go und SQL widersprachen sich.
+  Ersetzt durch die strukturierte Bestätigung des Trägers; die Heuristik
+  bleibt nur als zusätzliche Ablehnung in der Datenbank.
 
 ## Folgen
 

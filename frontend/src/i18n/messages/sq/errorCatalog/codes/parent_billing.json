@@ -100,5 +100,6 @@
   "sepa_import_file_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_import_file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_import_mapping_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "sepa_import_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "sepa_import_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "beleg_retention_basis_cites_statute": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }
