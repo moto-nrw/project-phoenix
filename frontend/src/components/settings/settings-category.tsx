@@ -130,6 +130,7 @@ export function SettingsCategory({
             onBookingAuthorityEnable={onBookingAuthorityEnable}
             audience={audience}
             revealFn={revealFn}
+            labelLevel={headingLevel === 2 ? 3 : 4}
           />
         ))}
       </div>

@@ -372,6 +372,8 @@ interface SettingsFieldProps {
   // Defaults to the tenant reveal endpoint; the operator page passes a
   // school-bound function so reveal hits the operator endpoint instead.
   readonly revealFn?: (key: string) => Promise<string | null>;
+  /** Heading level of the setting's name: one below its category card. */
+  readonly labelLevel?: 3 | 4;
 }
 
 interface PendingSettingSave {
@@ -391,7 +393,9 @@ export function SettingsField({
   onBookingAuthorityEnable,
   audience = "admin",
   revealFn,
+  labelLevel = 4,
 }: SettingsFieldProps) {
+  const LabelHeading = labelLevel === 3 ? "h3" : "h4";
   const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
@@ -1132,7 +1136,9 @@ export function SettingsField({
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
+          <LabelHeading className="text-sm font-medium text-gray-900">
+            {setting.label}
+          </LabelHeading>
           {showsStandardBadge(setting, audience) && (
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
               Standard
