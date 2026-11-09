@@ -245,6 +245,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0181: the SEPA debit constructor (+5).
 // ADR 0183: bank cipher (+6), rekey (+5).
+// ADR 0184: the Beleg retention of modules/parentbilling/compose (+6), the
+// contract retention of modules/carecontract/compose (+4) and the operator
+// audit of modules/organizationtenancy/compose (+11).
 // ADR 0185: the admin-to-tenant handoff binding of
 // modules/transactionruntime/compose adds exactly 2 LOC.
 // ADR 0188: the guardian bank backfill/rekey constructor of
@@ -252,7 +255,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // backfill/rekey constructor of modules/workforce/compose (+7).
 // ADR 0191: the constructor of the stored originals of the Jahresbescheide
 // of modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13172
+const moduleComposeBudgetTotal = 13193
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -313,7 +316,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
 	// Raised by ADR 0152: the document template constructor (+6).
 	// Raised by ADR 0157: the shared document constructors (+10).
-	"modules/organizationtenancy/compose": 309,
+	// Raised by ADR 0184: the operator audit of the Beleg retention (+11).
+	"modules/organizationtenancy/compose": 320,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
@@ -324,8 +328,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
 	// ADR 0155: the signature, the paper contract and the reminders (+58),
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
-	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5).
-	"modules/carecontract/compose": 178,
+	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5);
+	// ADR 0184: the contract retention of the Belege (+4).
+	"modules/carecontract/compose": 182,
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
@@ -334,9 +339,10 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0182: the constructor of the Jahresbescheide (+7);
 	// ADR 0181: the constructor of the SEPA direct debit file (+5);
 	// ADR 0183: rekey constructor (+5);
+	// ADR 0184: the Beleg retention constructor (+6);
 	// ADR 0191: the constructor of the stored originals of the
 	// Jahresbescheide (+5).
-	"modules/parentbilling/compose":               101,
+	"modules/parentbilling/compose":               107,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
