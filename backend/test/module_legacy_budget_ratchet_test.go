@@ -245,7 +245,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0181: the SEPA debit constructor (+5).
 // ADR 0183: bank cipher (+6), rekey (+5).
-const moduleComposeBudgetTotal = 13158
+// ADR 0185: the admin-to-tenant handoff binding of
+// modules/transactionruntime/compose adds exactly 2 LOC.
+const moduleComposeBudgetTotal = 13160
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -363,8 +365,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
-	// Raised by ADR 0105: the Träger transaction binding (+4).
-	"modules/transactionruntime/compose": 137,
+	// Raised by ADR 0105: the Träger transaction binding (+4), and by
+	// ADR 0185: the admin-to-tenant handoff binding (+2).
+	"modules/transactionruntime/compose": 139,
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
 	// ADR 0151: the school figure constructor (+13).
 	"modules/workforce/compose":         909,
