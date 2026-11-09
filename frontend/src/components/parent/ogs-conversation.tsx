@@ -906,15 +906,12 @@ function QuickActions({
     );
   const actions = getOgsActions(features).filter((action) => action.enabled);
   if (actions.length === 0) return null;
-  // Auf dem Telefon nebeneinander in gleich breiten Spalten wie die Aktionen
-  // der Tageskarte: zwei Pillen in voller Breite brachen sonst auf 360 px in
-  // zwei Zeilen um und nahmen dem Verlauf rund 50 px.
+  // Auf dem Telefon in einer Zeile, die sich die Knöpfe teilen: zwei Pillen
+  // brachen auf 360 px sonst in zwei Zeilen um und nahmen dem Verlauf rund
+  // 50 px. Reicht die Breite nicht, bricht die Beschriftung um, nicht die
+  // Zeile.
   return (
-    <div
-      className={`mb-3 grid gap-2 in-data-chat-keyboard:hidden sm:flex sm:flex-wrap ${
-        actions.length > 1 ? "grid-cols-2" : "grid-cols-1"
-      }`}
-    >
+    <div className="mb-3 flex gap-2 in-data-chat-keyboard:hidden sm:flex-wrap">
       {actions.map((action) => (
         <QuickActionPill
           key={action.key}
@@ -957,7 +954,7 @@ function QuickActionPill({
       size="md"
       onClick={() => onPick(action.key)}
       title={careT(`actions.${action.key}.hint`)}
-      className="w-full min-w-0 gap-1.5 sm:w-auto sm:shrink-0"
+      className="min-w-0 grow gap-1.5 sm:grow-0"
     >
       {action.key === "sick" ? (
         <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
