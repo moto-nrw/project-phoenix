@@ -93,6 +93,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	review.billed = countInRun(month.billedBySchool, inRun)
 	review.free = countInRun(month.freeBySchool, inRun)
+	narrowFeeNotices(&review, month, inRun)
 	for _, invoice := range month.invoices {
 		if !inRun(invoice.SchoolID) {
 			continue
@@ -118,6 +119,24 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		}
 	}
 	return review
+}
+
+// narrowFeeNotices keeps the Jahresbescheide of the run's schools that
+// assess the month (#6219) and the contracts they took back (ADR 0182).
+func narrowFeeNotices(review *reviewedMonth, month careMonth, inRun func(int64) bool) {
+	review.feeNotices = []string{}
+	for schoolID, numbers := range month.feeNoticesBySchool {
+		if inRun(schoolID) {
+			review.feeNotices = append(review.feeNotices, numbers...)
+		}
+	}
+	slices.Sort(review.feeNotices)
+	review.feeNoticeHeld = []parentbilling.CareFeeNoticeHold{}
+	for _, hold := range month.feeNoticeHeld {
+		if inRun(hold.SchoolID) {
+			review.feeNoticeHeld = append(review.feeNoticeHeld, hold)
+		}
+	}
 }
 
 // countInRun adds the counts of the schools the run bills.
@@ -195,7 +214,8 @@ func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvo
 // dates of the run per payment method, which every invoice's payment also
 // carries (#4689); and the Mensa (#4686): its positions on the invoices,
 // the months without a release, the months no longer billable and the
-// children left out. A change of any of them since the review makes the
+// children left out; and the Jahresbescheide that bill a month of the
+// run's contracts (#6219). A change of any of them since the review makes the
 // release refuse (#5916).
 func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedMonth) string {
 	state, err := json.Marshal(struct {
@@ -215,10 +235,11 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
 		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
 		LegalRemedy string                           `json:"legal_remedy"`
+		FeeNotices  []string                         `json:"fee_notices"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed, review.free,
 		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged,
-		review.legalRemedy})
+		review.legalRemedy, review.feeNotices})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -429,6 +450,8 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.Duplicates, detail.MealGaps, detail.MealUnbilled = review.duplicates, review.mealGaps, review.mealUnbilled
 	detail.MealChanged = review.mealChanged
 	detail.UncountedFamilies = review.uncounted
+	detail.FeeNoticeContracts = len(review.feeNotices)
+	detail.FeeNoticeHeld = review.feeNoticeHeld
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
 	detail.AmendmentConflicts = review.conflicts

@@ -60,6 +60,24 @@ vi.mock("vaul", async () => {
                     if (!event.defaultPrevented) onOpenChange?.(false);
                   }}
                 />
+                {/* Ein Klick in einem Kit-Modal über dem Panel: Radix meldet
+                  ihn als Außenklick mit dem Modal-Element als Ziel. */}
+                <button
+                  type="button"
+                  data-testid="vaul-outside-in-modal"
+                  onClick={() => {
+                    const event = new Event("pointerdown", {
+                      cancelable: true,
+                    });
+                    Object.defineProperty(event, "target", {
+                      value: document.querySelector(
+                        '[data-testid="modal-option"]',
+                      ),
+                    });
+                    interactOutsideHandler.current?.(event);
+                    if (!event.defaultPrevented) onOpenChange?.(false);
+                  }}
+                />
                 {children}
               </div>
             </InteractOutsideContext.Provider>
@@ -245,6 +263,37 @@ describe("SlideOver", () => {
 
     fireEvent.click(screen.getByTestId("vaul-outside"));
 
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("bleibt bei einem Klick in einem Kit-Modal darüber offen (#6148)", () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <>
+        <SlideOver open onOpenChange={onOpenChange}>
+          <SlideOverContent>
+            <StatefulContent />
+          </SlideOverContent>
+        </SlideOver>
+        <div data-modal-focus-scope="true">
+          <button type="button" data-testid="modal-option">
+            Bestehendes Kind verwenden
+          </button>
+        </div>
+      </>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Entwurf"), {
+      target: { value: "Felix" },
+    });
+    fireEvent.click(screen.getByTestId("vaul-outside-in-modal"));
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Entwurf")).toHaveValue("Felix");
+
+    // Ein Klick neben Panel und Modal schließt weiter.
+    fireEvent.click(screen.getByTestId("vaul-outside"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

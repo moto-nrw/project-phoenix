@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.staff_batch.import",
+  "max": 190,
+  "exact": false,
+  "description": "Ten-row staff create with role, personnel number, weekly hours and one qualification, without e-mail, so no invitation. Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

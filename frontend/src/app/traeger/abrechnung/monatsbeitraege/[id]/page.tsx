@@ -53,6 +53,7 @@ import {
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  type CareFeeNoticeHold,
   type CareInvoice,
   type CareLetters,
   type CareRunDetail,
@@ -108,6 +109,24 @@ const RUN_STEPS = [
  * "1 Kind mit doppeltem Vertrag wird nicht abgerechnet.", after the release
  * "… ist nicht abgerechnet."
  */
+function feeNoticeHeldText(held: readonly CareFeeNoticeHold[]): string {
+  const names = held
+    .slice(0, 5)
+    .map((hold) => `${hold.childFirstName} ${hold.childLastName}`.trim());
+  const rest = held.length - names.length;
+  const list =
+    rest > 0
+      ? `${names.join(", ")} und ${rest} weitere`
+      : names.length > 1
+        ? `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`
+        : (names[0] ?? "");
+  const subject =
+    held.length === 1
+      ? `Der Jahresbescheid von ${list} setzt diesen Monat auf 0,00 €.`
+      : `Die Jahresbescheide von ${list} setzen diesen Monat auf 0,00 €.`;
+  return `${subject} Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.`;
+}
+
 function notBilledLabel(children: number, released = false): string {
   if (children === 1) {
     return `1 Kind mit doppeltem Vertrag ${released ? "ist" : "wird"} nicht abgerechnet.`;
@@ -541,6 +560,22 @@ export default function TraegerCareRunPage() {
                   size="compact"
                 >
                   Kinderzahl prüfen
+                </ButtonLink>
+              }
+            />
+          ) : null}
+          {run.feeNoticeHeld?.length ? (
+            <Alert
+              type="warning"
+              title="Durch aufgehobenen Bescheid gesperrt"
+              message={feeNoticeHeldText(run.feeNoticeHeld)}
+              action={
+                <ButtonLink
+                  href={traegerPath("/traeger/abrechnung/jahresbescheide")}
+                  variant="surface"
+                  size="compact"
+                >
+                  Neuen Bescheid ausstellen
                 </ButtonLink>
               }
             />

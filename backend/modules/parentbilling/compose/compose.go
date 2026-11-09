@@ -73,6 +73,13 @@ func NewBillingTerms(contracts parentbilling.CareContracts) parentbilling.Billin
 	return application.NewBillingTerms(postgres.NewStore(), contracts)
 }
 
+// NewCareFeeNotices builds the Jahresbescheide of the monthly care (#6219, ADR 0182) over the monthly computation and the letterhead of the Träger, which carries the template of the fee notice; the root binds the ports.
+func NewCareFeeNotices(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, meals parentbilling.CareMeals, letterheads parentbilling.BillingLetterheads) parentbilling.CareFeeNotices {
+	store := postgres.NewStore()
+	billing := application.NewCareBilling(store, contracts, schools, settings, rendering.NewRenderer(), store, meals, letterheads, calendar.TodayDate)
+	return application.NewCareFeeNotices(billing, store, letterheads)
+}
+
 // NewSEPAMandates builds the SEPA mandates and the creditor of the Träger (#4695, ADR 0171) over the contracts and the field cipher the root binds.
 func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher) parentbilling.SEPAMandates {
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)

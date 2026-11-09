@@ -877,6 +877,14 @@ export const ERROR_CATALOG = {
         "Mit diesem Mensa-Preis ist schon eine Rechnung ausgestellt. Er bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
       "parent_billing.care_meal_tariff_not_found":
         "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_notice_not_found":
+        "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_run_invalid":
+        "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
+      "parent_billing.care_notice_run_not_found":
+        "Diesen Jahreslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Jahresbescheide“.",
+      "parent_billing.care_notice_run_open":
+        "Für dieses Jahr gibt es schon einen offenen Jahreslauf. Öffnen Sie ihn in der Liste und stellen Sie ihn aus.",
       "parent_billing.care_recipient_changed":
         "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
       "parent_billing.care_rule_in_use":

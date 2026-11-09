@@ -51,6 +51,8 @@ import (
 // /traeger/billing-run-due-dates behind the same right (#4689),
 // and the kind of document of each service at
 // /traeger/billing-document-kinds behind the right "Abrechnung" (#4688),
+// and the Jahresbescheide at /traeger/care-notice-runs behind the same
+// right (#6219),
 // and the SEPA mandates and the creditor at /traeger/sepa-mandates and
 // /traeger/sepa-creditor behind the same right (#4695), and the SEPA direct
 // debit file of the issued runs at /traeger/sepa-debits (#4697).
@@ -75,6 +77,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/care-meal-tariffs", meals.Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-cost-shares", reductions.CostShareRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-notice-runs", NewCareNoticeHTTP(organizations, settings, schoolSettings, marks).Router(ProtectedTraegerRoutes))
 	terms := NewBillingTermsHTTP()
 	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-billing", terms.FamilyRouter(ProtectedTraegerRoutes))
@@ -134,6 +137,18 @@ func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBran
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
 	return parentBillingHTTP.NewCareBillingResource(billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
 		parentBillingHTTP.NewCareMealTariffResource(billing, requireBilling), parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
+}
+
+// NewCareNoticeHTTP binds the Jahresbescheide of the monthly care (#6219,
+// ADR 0182) to the right "Abrechnung" and to the same ports as the monthly
+// run, plus the letterhead of the Träger for page 1 of the Bescheid.
+func NewCareNoticeHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings,
+	marks owners.MealAttendanceMarks,
+) *parentBillingHTTP.CareNoticeResource {
+	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
+	notices := parentBillingCompose.NewCareFeeNotices(contracts, parentBillingCareSchools{organizations: organizations},
+		parentBillingSettings{settings: settings}, newParentBillingCareMeals(schoolSettings, marks), newParentBillingLetterheads(settings))
+	return parentBillingHTTP.NewCareNoticeResource(notices, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

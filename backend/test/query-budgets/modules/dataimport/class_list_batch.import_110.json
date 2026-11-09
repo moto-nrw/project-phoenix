@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.class_list_batch.import_110",
+  "max": 786,
+  "exact": false,
+  "description": "110-row class-list create like class_list_batch.import in two write transactions. Measured by TestClassListImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

@@ -1,6 +1,9 @@
 "use client";
 
-import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import {
+  DocumentAttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
 import { Alert } from "~/components/ui/alert";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -19,9 +22,20 @@ type FieldInputTranslator = (key: string) => string;
  * preserved via `whitespace-pre-line`. Content is plain text by design (no
  * HTML/markdown), so it is safe to render directly.
  */
-export function InfoBlock({ field }: { readonly field: FormField }) {
+export function InfoBlock({
+  field,
+  attachmentLabels,
+}: {
+  readonly field: FormField;
+  /** Labels of the attachment buttons where the parent messages are not
+   *  loaded, such as the staff's German form. */
+  readonly attachmentLabels?: AttachmentLabels;
+}) {
   const attachments = (
-    <DocumentAttachmentList attachments={field.attachments} />
+    <DocumentAttachmentList
+      attachments={field.attachments}
+      labels={attachmentLabels}
+    />
   );
   // Mit Titel und Text steht das Symbol oben am Titel (Alert mit `details`),
   // sonst trägt die Meldung allein den Titel oder den Text.

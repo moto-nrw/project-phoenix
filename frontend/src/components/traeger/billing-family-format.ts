@@ -17,6 +17,7 @@ import { traegerPath } from "~/lib/traeger-url";
 export type BillingTab =
   | "laeufe"
   | "monatsbeitraege"
+  | "jahresbescheide"
   | "preise"
   | "mensa"
   | "ermaessigungen"
@@ -44,6 +45,11 @@ export function billingTabs(
         value: "monatsbeitraege",
         label: "Monatsbeiträge",
         href: traegerPath("/traeger/abrechnung/monatsbeitraege"),
+      },
+      {
+        value: "jahresbescheide",
+        label: "Jahresbescheide",
+        href: traegerPath("/traeger/abrechnung/jahresbescheide"),
       },
       {
         value: "preise",

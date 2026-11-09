@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.staff_batch.preview_upsert",
+  "max": 19,
+  "exact": true,
+  "description": "Preview of the ten-row staff upsert of staff_batch.upsert; validation looks up each row's existing record (skipStaffRoleGrantCheck). Upsert mix: rows with an even index exist and change fixed cells, rows with an odd index are new, so the file and every 100-row chunk are half new and half existing. Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

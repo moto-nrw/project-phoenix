@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.opening_balance_batch.preview_110",
+  "max": 2099,
+  "exact": true,
+  "description": "110-row opening-balance preview like opening_balance_batch.preview. Measured by TestOpeningBalanceImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

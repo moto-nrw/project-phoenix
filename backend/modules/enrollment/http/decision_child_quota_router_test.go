@@ -240,7 +240,16 @@ func setupManualEnrollmentRouter(t *testing.T) manualEnrollmentRouter {
 // postManualEnrollment posts one manual enrollment of the child.
 func (m manualEnrollmentRouter) postManualEnrollment(t *testing.T, child enrollmentAPI.SubmitChildRequest) *httptest.ResponseRecorder {
 	t.Helper()
+	return m.postManualEnrollmentChoosing(t, child, "", false)
+}
+
+// postManualEnrollmentChoosing posts one manual enrollment of the child with
+// the office's answer to an already enrolled child (#6148).
+func (m manualEnrollmentRouter) postManualEnrollmentChoosing(t *testing.T, child enrollmentAPI.SubmitChildRequest, existingStudentID string, createNewStudent bool) *httptest.ResponseRecorder {
+	t.Helper()
 	payload, err := json.Marshal(enrollmentAPI.AdminManualApprovedEnrollmentRequest{
+		ExistingStudentID: existingStudentID,
+		CreateNewStudent:  createNewStudent,
 		SubmitEnrollmentRequest: enrollmentAPI.SubmitEnrollmentRequest{
 			GuardianFirstName: "Anna", GuardianLastName: "Beispiel",
 			GuardianEmail: fmt.Sprintf("manuell-%d@example.test", testpkg.Tenant(t)),
@@ -281,7 +290,8 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 // A manual enrollment of a child the school already cares for is refused
 // with the actionable conflict, not a server error, and leaves nothing
 // behind: staff entry never renews or duplicates an enrolled child on name
-// and birthday alone (#6053; the choice in the manual flow is #6148).
+// and birthday alone (#6053). The office's choice is in
+// manual_existing_child_router_test.go (#6148).
 func TestCreateManualApprovedEnrollment_PossiblyEnrolledChildIsAConflict(t *testing.T) {
 	t.Parallel()
 	m := setupManualEnrollmentRouter(t)

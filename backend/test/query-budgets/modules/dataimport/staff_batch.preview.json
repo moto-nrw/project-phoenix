@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.staff_batch.preview",
+  "max": 29,
+  "exact": true,
+  "description": "Ten-row staff preview with role, personnel number, weekly hours and one qualification, without e-mail; each row resolves its role and permissions on its own. Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}
