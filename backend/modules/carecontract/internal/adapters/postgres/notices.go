@@ -24,22 +24,23 @@ var _ ports.NoticeStore = Store{}
 type noticeRow struct {
 	bun.BaseModel `bun:"table:care_contract.contract_notices"`
 
-	DispatchedOn     *calendar.Date `bun:"dispatched_on,type:date"`
-	Kind             string         `bun:"kind"`
-	NoticeKind       *string        `bun:"notice_kind"`
-	Channel          string         `bun:"channel"`
-	DeclaredAt       time.Time      `bun:"declared_at"`
-	ReceivedOn       calendar.Date  `bun:"received_on,type:date"`
-	EndsOn           *calendar.Date `bun:"ends_on,type:date"`
-	Reason           *string        `bun:"reason"`
-	Recipient        string         `bun:"recipient_email"`
-	ConfirmationText string         `bun:"confirmation_text"`
-	ID               int64          `bun:"id"`
-	EndDecision      *string        `bun:"end_decision"`
-	EndDecidedAt     *time.Time     `bun:"end_decided_at"`
-	EndNoticeText    *string        `bun:"end_notice_text"`
-	EndNoticeOutbox  *int64         `bun:"end_notice_outbox_id"`
-	AccountID        *int64         `bun:"account_id"`
+	DispatchedOn           *calendar.Date `bun:"dispatched_on,type:date"`
+	Kind                   string         `bun:"kind"`
+	NoticeKind             *string        `bun:"notice_kind"`
+	Channel                string         `bun:"channel"`
+	DeclaredAt             time.Time      `bun:"declared_at"`
+	ReceivedOn             calendar.Date  `bun:"received_on,type:date"`
+	EndsOn                 *calendar.Date `bun:"ends_on,type:date"`
+	Reason                 *string        `bun:"reason"`
+	Recipient              string         `bun:"recipient_email"`
+	ConfirmationText       string         `bun:"confirmation_text"`
+	ID                     int64          `bun:"id"`
+	EndDecision            *string        `bun:"end_decision"`
+	EndDecidedAt           *time.Time     `bun:"end_decided_at"`
+	EndNoticeText          *string        `bun:"end_notice_text"`
+	EndNoticeNotSentReason *string        `bun:"end_notice_not_sent_reason"`
+	EndNoticeOutbox        *int64         `bun:"end_notice_outbox_id"`
+	AccountID              *int64         `bun:"account_id"`
 }
 
 // NoticeState reads the first and last day of the contract's effective
@@ -96,8 +97,12 @@ func text(value *string) string {
 func readNotice(ctx context.Context, db bun.IDB, organizationID, contractID int64, state *ports.NoticeState) error {
 	var notices []noticeRow
 	if err := db.NewRaw(`SELECT id, account_id, kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text,
-			end_decision, end_decided_at, end_notice_text, end_notice_outbox_id
-		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
+			end_decision, end_decided_at, end_notice_text, end_notice_outbox_id,
+			(SELECT e.details->>'notice_not_sent_reason' FROM care_contract.contract_events AS e
+				WHERE e.organization_id = n.organization_id AND e.contract_id = n.contract_id
+					AND e.action IN ('set_end', 'reject_reason') AND e.details->>'notice_id' = n.id::text
+				ORDER BY e.id DESC LIMIT 1) AS end_notice_not_sent_reason
+		FROM care_contract.contract_notices AS n WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
 		organizationID, contractID).Scan(ctx, &notices); err != nil {
 		return fmt.Errorf("care contract postgres: read notice: %w", err)
 	}
@@ -111,6 +116,7 @@ func readNotice(ctx context.Context, db bun.IDB, organizationID, contractID int6
 		EndDecidedAt: notice.EndDecidedAt, EndNoticeSent: notice.EndNoticeOutbox != nil,
 		TerminationKind: text(notice.NoticeKind), Reason: text(notice.Reason),
 		EndDecision: text(notice.EndDecision), EndNoticeText: text(notice.EndNoticeText),
+		EndNoticeNotSentReason: text(notice.EndNoticeNotSentReason),
 	}
 	state.NoticeID = notice.ID
 	if notice.AccountID != nil && !slices.Contains(state.Accounts, *notice.AccountID) {
