@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"testing"
@@ -276,10 +277,13 @@ func (f *failingFeedbackCleanup) DeleteExpired(ctx context.Context) (int, error)
 	return 0, testpkg.FailInCurrentTransaction(ctx)
 }
 
+// cleanupRunCount counts the recorded successes of the school's nightly
+// cleanup. A failed run leaves a row with its failure streak only (#6327).
 func cleanupRunCount(t *testing.T, admin *bun.DB, school int64) int {
 	t.Helper()
 	var runs int
-	require.NoError(t, admin.NewRaw(`SELECT count(*) FROM platform.cleanup_runs WHERE tenant_id = ? AND job_id = 'visit-cleanup'`, school).
+	require.NoError(t, admin.NewRaw(`SELECT count(*) FROM platform.cleanup_runs
+		WHERE tenant_id = ? AND job_id = 'visit-cleanup' AND succeeded_at IS NOT NULL`, school).
 		Scan(context.Background(), &runs))
 	return runs
 }
@@ -588,4 +592,244 @@ func loggedStepFailure(t *testing.T, run cleanupScenario, step string) bool {
 func openSharedCleanupDatabase(t *testing.T) {
 	t.Helper()
 	testpkg.SetupIsolatedTestDB(t)
+}
+
+// schoolFailingFeedback fails the feedback step of one school while fail is
+// set; other schools pass.
+type schoolFailingFeedback struct {
+	mu     sync.Mutex
+	school int64
+	fail   bool
+}
+
+func (f *schoolFailingFeedback) DeleteExpired(ctx context.Context) (int, error) {
+	f.mu.Lock()
+	fail := f.fail && testpkg.TenantIDFromContext(ctx) == f.school
+	f.mu.Unlock()
+	if fail {
+		return 0, testpkg.FailInCurrentTransaction(ctx)
+	}
+	return 0, nil
+}
+
+func (f *schoolFailingFeedback) heal() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fail = false
+}
+
+type storedCleanupRun struct {
+	SucceededAt *time.Time `bun:"succeeded_at"`
+	Failures    int        `bun:"consecutive_failures"`
+}
+
+func storedRun(t *testing.T, admin *bun.DB, school int64) storedCleanupRun {
+	t.Helper()
+	var run storedCleanupRun
+	require.NoError(t, admin.NewRaw(`SELECT succeeded_at, consecutive_failures FROM platform.cleanup_runs
+		WHERE tenant_id = ? AND job_id = 'visit-cleanup'`, school).Scan(context.Background(), &run))
+	return run
+}
+
+func visitDeletionAudits(t *testing.T, admin *bun.DB, school int64) int {
+	t.Helper()
+	var audits int
+	require.NoError(t, admin.NewRaw(`SELECT count(*) FROM audit.data_deletions WHERE tenant_id = ?`, school).
+		Scan(context.Background(), &audits))
+	return audits
+}
+
+// TestNightlyCleanupFailureStreakIsPerSchool covers #6327 against the
+// database and the RLS roles: a school whose required step keeps failing
+// builds up a stored failure streak, backs off, alerts once per failed run
+// from the third failure on and recovers with its first success. Every run
+// builds a new scheduler, so the streak also survives a restart. Another
+// school is neither delayed nor marked, and the visit retention of the
+// failing school commits once, without duplicate deletion audits (#6288).
+func TestNightlyCleanupFailureStreakIsPerSchool(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	failing := seedCleanupSchool(t, admin, false, false, 10)
+	healthy := seedCleanupSchool(t, admin, false, false, 10)
+	feedback := &schoolFailingFeedback{school: failing.id, fail: true}
+	deps.FeedbackCleaner = feedback
+	logs := &lockedBuffer{}
+	deps.Logger = slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// run starts a new Worker after the given time since the first run.
+	run := func(after time.Duration) {
+		now = start.Add(after)
+		scheduler.NewCleanupTestRunner(deps)()
+	}
+	alerts := func(msg string) []map[string]any {
+		var matched []map[string]any
+		for _, record := range logs.records(t) {
+			tenantID, _ := record["tenant_id"].(float64)
+			if record["msg"] == msg && int64(tenantID) == failing.id {
+				matched = append(matched, record)
+			}
+		}
+		return matched
+	}
+
+	run(0)
+	assert.False(t, visitExists(t, admin, failing.expired), "the visit retention of the failing school commits")
+	audits := visitDeletionAudits(t, admin, failing.id)
+	require.Positive(t, audits)
+	assert.Equal(t, storedCleanupRun{Failures: 1}, storedRun(t, admin, failing.id), "a failed first run is stored as a failure, not as a success")
+	healthyRun := storedRun(t, admin, healthy.id)
+	require.NotNil(t, healthyRun.SucceededAt)
+	assert.True(t, healthyRun.SucceededAt.Equal(start))
+	assert.Zero(t, healthyRun.Failures, "the other school keeps no streak")
+
+	run(59 * time.Minute)
+	assert.Equal(t, 1, storedRun(t, admin, failing.id).Failures, "the restarted Worker waits one hour")
+	run(time.Hour)
+	assert.Equal(t, 2, storedRun(t, admin, failing.id).Failures)
+	run(3*time.Hour - time.Minute)
+	assert.Equal(t, 2, storedRun(t, admin, failing.id).Failures, "the restarted Worker waits two hours")
+	assert.Empty(t, alerts("nightly cleanup failing repeatedly"), "two failures stay below the threshold")
+
+	run(3 * time.Hour)
+	assert.Equal(t, 3, storedRun(t, admin, failing.id).Failures)
+	got := alerts("nightly cleanup failing repeatedly")
+	require.Len(t, got, 1, "the third failed run alerts once")
+	assert.Equal(t, "feedback", got[0]["failed_steps"])
+	assert.Equal(t, "visit-cleanup", got[0]["job_id"])
+	assert.InDelta(t, 3, got[0]["consecutive_failures"], 0)
+	assert.Equal(t, audits, visitDeletionAudits(t, admin, failing.id), "retries write no duplicate deletion audits")
+	assert.True(t, storedRun(t, admin, healthy.id).SucceededAt.Equal(start), "the healthy school is not rerun")
+
+	feedback.heal()
+	run(7 * time.Hour)
+	recovered := storedRun(t, admin, failing.id)
+	require.NotNil(t, recovered.SucceededAt)
+	assert.True(t, recovered.SucceededAt.Equal(now))
+	assert.Zero(t, recovered.Failures, "the success ends the streak")
+	require.Len(t, alerts("nightly cleanup recovered"), 1)
+	assert.Len(t, alerts("nightly cleanup failing repeatedly"), 1, "a success raises no alert")
+}
+
+// TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch: a school whose
+// cleanup switch cannot be read fails every due run, and each tick of it
+// used to roll back. Its streak must reach the database anyway, across
+// restarts.
+func TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	_, err := admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.data_cleanup_enabled', '"unreadable"'::jsonb)`, school.id)
+	require.NoError(t, err)
+
+	for _, after := range []time.Duration{0, time.Hour, 3 * time.Hour} {
+		now = start.Add(after)
+		scheduler.NewCleanupTestRunner(deps)()
+	}
+
+	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id))
+	assert.True(t, visitExists(t, admin, school.expired), "nothing runs while the switch cannot be read")
+}
+
+// TestNightlyCleanupStoresTheStreakOfAnUnreadableCleanupTime: without a
+// readable cleanup time a school's run cannot be due. Its streak must reach
+// the database anyway and the job run must report the failure.
+func TestNightlyCleanupStoresTheStreakOfAnUnreadableCleanupTime(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	_, err := admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.data_cleanup_time', '42'::jsonb)`, school.id)
+	require.NoError(t, err)
+	var outcome string
+	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
+
+	for _, after := range []time.Duration{0, 30 * time.Minute, time.Hour, 3 * time.Hour} {
+		now = start.Add(after)
+		scheduler.NewCleanupTestRunner(deps)()
+		assert.Equal(t, "failed", outcome, "the job run fails while the cleanup time cannot be read")
+	}
+
+	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id), "02:00, 03:00 and 05:00 count; 02:30 waits")
+	assert.True(t, visitExists(t, admin, school.expired), "nothing runs without a cleanup time")
+}
+
+// refuseCleanupRunWrites installs a test trigger that makes writes to the
+// school's row in platform.cleanup_runs fail with a real SQL error, which
+// aborts the surrounding transaction unless a savepoint contains it: every
+// write, or with failuresOnly only writes of a failure streak. Calling it
+// again replaces the trigger. The isolated database dies with the test.
+func refuseCleanupRunWrites(t *testing.T, admin *bun.DB, school int64, failuresOnly bool) {
+	t.Helper()
+	condition := fmt.Sprintf("NEW.tenant_id = %d", school)
+	if failuresOnly {
+		condition += " AND NEW.consecutive_failures > 0"
+	}
+	_, err := admin.ExecContext(context.Background(), `
+		CREATE OR REPLACE FUNCTION public.test_refuse_cleanup_run() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test refuses the cleanup run write'; END $$`)
+	require.NoError(t, err)
+	_, err = admin.ExecContext(context.Background(), `DROP TRIGGER IF EXISTS test_refuse_cleanup_run ON platform.cleanup_runs`)
+	require.NoError(t, err)
+	_, err = admin.ExecContext(context.Background(), fmt.Sprintf(`
+		CREATE TRIGGER test_refuse_cleanup_run BEFORE INSERT OR UPDATE ON platform.cleanup_runs
+		FOR EACH ROW WHEN (%s) EXECUTE FUNCTION public.test_refuse_cleanup_run()`, condition))
+	require.NoError(t, err)
+}
+
+// TestNightlyCleanupStreakWriteErrorKeepsTheCommittedSteps: an incomplete
+// run commits its successful steps and stores its streak in a savepoint of
+// the same transaction. A streak write that fails in SQL must not abort the
+// transaction and take the committed visit retention with it.
+func TestNightlyCleanupStreakWriteErrorKeepsTheCommittedSteps(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	deps.FeedbackCleaner = &schoolFailingFeedback{school: school.id, fail: true}
+	refuseCleanupRunWrites(t, admin, school.id, true)
+	var outcome string
+	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
+
+	scheduler.NewCleanupTestRunner(deps)()
+
+	assert.Equal(t, "failed", outcome, "the incomplete run still fails the job")
+	assert.False(t, visitExists(t, admin, school.expired), "the visit retention commits although the streak write failed")
+	assert.Zero(t, cleanupRunCount(t, admin, school.id), "the incomplete run is no success")
+}
+
+// TestNightlyCleanupPendingFailureWriteErrorKeepsTheJobRunning: a run that
+// rolled back leaves its failure with the process, which writes it at the
+// job's next tick in a savepoint before the due check. A write that fails in
+// SQL must not abort that tick's transaction: the due run goes on, deletes
+// and records its success.
+func TestNightlyCleanupPendingFailureWriteErrorKeepsTheJobRunning(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	var outcome string
+	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
+	run := scheduler.NewCleanupTestRunner(deps) // one Worker for both ticks
+
+	// The success write fails: the whole run rolls back and its failure
+	// stays with the process.
+	refuseCleanupRunWrites(t, admin, school.id, false)
+	run()
+	require.Equal(t, "failed", outcome)
+	require.True(t, visitExists(t, admin, school.expired), "the failed run rolled back")
+
+	refuseCleanupRunWrites(t, admin, school.id, true)
+	now = start.Add(time.Hour)
+	run()
+
+	assert.Equal(t, "completed", outcome, "the pending failure write fails, the due run goes on")
+	assert.False(t, visitExists(t, admin, school.expired), "the run deletes")
+	assert.Equal(t, 1, cleanupRunCount(t, admin, school.id), "the run records its success")
 }

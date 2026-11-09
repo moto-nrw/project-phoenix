@@ -3,8 +3,9 @@ package ports
 import (
 	"context"
 	"errors"
-
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // ErrGuardianEmailInUse marks a guardian e-mail that another profile of the
@@ -58,6 +59,9 @@ type GuardianServiceDependencies struct {
 	GuardianFinancialRepo  GuardianFinancialDataRepository
 	GuardianFinancialAudit GuardianFinancialAudit
 	DataAccessLog          GuardianDataAccessLog
+	// BankData seals and opens IBAN and account holder with the bank ring
+	// (#6332, ADR 0183). Without it the path refuses to store or open them.
+	BankData peopledirectory.BankDataCipher
 
 	// RolePresets assigns a relationship's role and the parent-portal
 	// permissions it grants.

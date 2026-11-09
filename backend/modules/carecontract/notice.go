@@ -153,11 +153,12 @@ type Notice struct {
 	EndDecision   string     `json:"end_decision,omitempty"`
 	EndDecidedAt  *time.Time `json:"end_decided_at,omitempty"`
 	EndNoticeText string     `json:"end_notice_text,omitempty"`
-	// EndNoticeSent tells that the notice went out by mail. It stays false
-	// when no address of the contract still belongs to a guardian whose
-	// relationship to the child grants GuardianPermissionEnrollmentSubmit:
-	// the office then tells the parents another way.
+	// EndNoticeSent tells that the notice was queued by mail. Otherwise the
+	// office tells the parents another way; EndNoticeNotSentReason explains why.
 	EndNoticeSent bool `json:"end_notice_sent,omitempty"`
+	// EndNoticeNotSentReason records why no mail was queued at decision time.
+	// Empty for sent notices and historical decisions without recorded evidence.
+	EndNoticeNotSentReason string `json:"end_notice_not_sent_reason,omitempty"`
 }
 
 // NoticeOptions is what the parents (or the office for them) can still
@@ -277,3 +278,9 @@ type Notices interface {
 	// expectedEndsOn, when set, refuses an end other than the one shown.
 	RejectNoticeReason(ctx context.Context, reviewer Reviewer, contractID int64, expectedEndsOn calendar.Date) (NoticeOptions, error)
 }
+
+// Stable reasons why a decided end could not be mailed.
+const (
+	EndNoticeMissingStudent     = "missing_student"
+	EndNoticeNoPermittedAddress = "no_permitted_address"
+)

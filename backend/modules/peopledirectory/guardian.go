@@ -313,15 +313,21 @@ type GuardianPaymentActor struct {
 }
 
 // GuardianPayment is the bank section of one guardian: masked after the
-// default read, unmasked after the audited reveal.
+// default read, unmasked after the audited reveal. IBAN and AccountHolder are
+// opened values (#6332): the store keeps them only sealed with the bank ring,
+// plus the IBAN mask, and fills them from the plaintext columns only for rows
+// the maintenance backfill has not sealed yet.
 type GuardianPayment struct {
-	ID                int64
-	TenantID          int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	GuardianProfileID int64
-	IBAN              *string
-	AccountHolder     *string
+	ID                  int64
+	TenantID            int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	GuardianProfileID   int64
+	IBAN                *string
+	AccountHolder       *string
+	IBANSealed          []byte
+	IBANMasked          *string
+	AccountHolderSealed []byte
 }
 
 type GuardianPaymentInput struct {
