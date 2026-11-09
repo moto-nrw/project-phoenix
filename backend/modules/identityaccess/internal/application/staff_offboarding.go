@@ -121,10 +121,8 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 }
 
 func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID int64, preview identityaccess.StaffOffboardingPreview) (result identityaccess.StaffOffboardingResult, err error) {
-	for _, roleID := range preview.RoleIDs {
-		if err := l.admin.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
-			return result, err
-		}
+	if err := l.admin.RemoveRolesFromAccount(txCtx, accountID, preview.RoleIDs); err != nil {
+		return result, err
 	}
 	if err := l.auth.RevokeAllTokensWithReason(txCtx, accountID, "role_changed"); err != nil {
 		return result, err
