@@ -143,6 +143,57 @@ Trägerbestand; bei einer Trägerrückgabe ist das Trägerpaket desselben Auftra
 für diese Tabellen maßgeblich. Wechselt nur eine Schule, enthält ihr Schulpaket
 die Trägerdaten aller Schulen des Trägers: Umfang mit dem Träger abstimmen.
 
+Das Trägerpaket verlangt zusätzlich `--operator "$OPERATOR_ID"` und legt die
+PAIN.008-Dateien bei (ADR 0187):
+
+```bash
+umask 077
+scripts/dev-native.sh backend go run . tenant export \
+  --organization "$ORGANIZATION_ID" --operator "$OPERATOR_ID" \
+  --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
+```
+
+- **Offline:** Nur mit gestoppten Schreibern ausführen (API, Worker, Uploads,
+  Importe und geplante Läufe aus, wie beim Löschverfahren mit
+  `--writers-stopped`). Die PAIN.008-Dateien liest die Elternabrechnung in
+  einer eigenen Transaktion **nach** dem Katalog-Snapshot; nur ohne Schreiber
+  passen Tabellen-Dateien und Dateien zusammen. Der deaktivierte Träger allein
+  reicht nicht.
+- **Operator-Protokoll:** `--operator` muss ein bestehender, **aktiver**
+  Operator sein (wie beim Löschverfahren); sonst liest und schreibt der Lauf
+  nichts. Jeder Lauf steht zweimal in `platform.operator_audit_log` (Aktion
+  `export`, Ressource `organization`), ohne Personendaten und ohne lokalen
+  Pfad: vor dem ersten Lesen der Versuch (`outcome: started`), danach das
+  Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`, die Anzahlen und
+  die Herkunft jeder PAIN.008-Datei; erst danach entsteht `COMPLETE`.
+  `failed` nennt die Fehlerklasse (`snapshot`, `filesystem`,
+  `sepa_debit_files`, `manifest`, `audit`, `complete_marker`) und
+  `partial_files_removed`: Der Lauf löscht sein unvollständiges Verzeichnis.
+  Steht dort `false`, das Verzeichnis von Hand löschen. Ein Schulpaket
+  schreibt (noch) keinen Eintrag (#6326).
+- **PAIN.008-Dateien:** `SEPA-LASTSCHRIFTDATEIEN/<Nachrichten-ID>.xml` je
+  eingereichte Lastschriftnachricht, mit `LIESMICH.txt`; `manifest.json`
+  nennt sie unter `sepaDebitFiles` mit Herkunft und prüft jede mit Prüfsumme.
+  IBAN und Kontoinhaber je Mandat und Lastschrift stehen nicht dort, sondern
+  geöffnet in den Tabellen-Dateien (siehe Exportformat).
+  - **Original:** Seit Migration `1.15.833` speichert moto beim Download die
+    Datei bytegenau, versiegelt mit dem Bank-Schlüssel, mit SHA-256 und dem
+    Gläubigerkonto darin (`parent_billing.sepa_debit_files`); ein späterer
+    Download derselben Nachricht ersetzt sie bis zur Bestätigung der
+    Einreichung. Ein nicht eingereichter Download geht nach 30 Tagen; eine
+    eingereichte Datei bleibt, solange eine ihrer Lastschriften bleibt. Das
+    Paket enthält diese Datei unverändert und prüft die Prüfsumme. Ein
+    späterer Wechsel des Standardkontos ändert sie nicht.
+  - **Rekonstruiert:** Fehlt das Original, erzeugt der Export die Datei mit
+    demselben Generator neu aus den gespeicherten Lastschriften
+    (Nachrichten-ID, eingereichte Beträge, Sequenz, Einzugstag, Konto zur
+    Freigabe, Gläubiger-ID). Die Erstellzeit ist dann die Bestätigung der
+    Einreichung. Das Gläubigerkonto ist das bei der Einreichung gespeicherte,
+    für Nachrichten von vor `1.15.833` das heutige Standardkonto des Trägers;
+    ohne Standardkonto scheitert der Export.
+- Den Wert aus `COMPLETE` beim Löschauftrag im Operator-Portal als Prüfsumme
+  eintragen; so belegt der Auftrag, welche Rückgabe übergeben wurde.
+
 `EXPORT_DIR` darf noch nicht existieren. Die CLI erzeugt Verzeichnisse mit
 0700 und Dateien mit 0600. Sie schreibt keine Datenzeilen oder Originalnamen
 ins Terminal. Jeden Exit-Code ungleich 0 als fehlgeschlagen behandeln.
