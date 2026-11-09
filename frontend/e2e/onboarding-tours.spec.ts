@@ -25,6 +25,7 @@ import {
   type StaffOnboardingStepKey,
 } from "../src/lib/staff-onboarding-api";
 import { loadSeedAccess } from "../scripts/seed-state";
+import { Deadline } from "./deadline";
 import { frontendPort } from "./frontend-port";
 import {
   loginToTenant,
@@ -681,16 +682,21 @@ for (const device of VIEWPORTS) {
         // Speicherung antwortet mit dem erledigten Schritt, und die
         // Checkliste zeigt ihn. Beides in derselben Zeit; so sagt ein
         // Fehlschlag, ob die Antwort fehlt, scheiterte oder nicht ankam.
-        const deadline = Date.now() + STEP_SAVED_TIMEOUT;
+        // Jedes Warten, auch das Lesen der Antwort, bekommt nur die Restzeit.
+        const deadline = new Deadline(STEP_SAVED_TIMEOUT);
         await expect
           .poll(() => saves.length, {
             message: "Die Speicherung des Schritts antwortet nicht.",
-            timeout: STEP_SAVED_TIMEOUT,
+            timeout: deadline.remaining("Antwort der Speicherung"),
           })
           .toBe(1);
         const saved = saves[0]!;
-        expect(saved.ok(), await saved.text()).toBe(true);
-        const body = (await saved.json()) as { data?: object };
+        const text = await deadline.within(
+          "Inhalt der Speicherantwort",
+          saved.text(),
+        );
+        expect(saved.ok(), text).toBe(true);
+        const body = JSON.parse(text) as { data?: object };
         expect(mapStaffOnboardingState(body.data ?? body).doneSteps).toContain(
           step,
         );
@@ -699,7 +705,7 @@ for (const device of VIEWPORTS) {
         });
         await expect(
           checklist.getByRole("button", { name: `${title} Erledigt` }),
-        ).toBeVisible({ timeout: Math.max(deadline - Date.now(), 1) });
+        ).toBeVisible({ timeout: deadline.remaining("Anzeige „Erledigt“") });
       });
     }
   });
