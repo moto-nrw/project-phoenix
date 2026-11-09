@@ -333,28 +333,6 @@ func (s *Store) UpdateTemplate(ctx context.Context, id int64, fields timetable.T
 	return rows, stats, err
 }
 
-func (s *Store) UpdateTemplateNotes(ctx context.Context, ids []int64, notes *string) (int64, domain.OperationStats, error) {
-	if len(ids) == 0 {
-		return 0, domain.OperationStats{}, nil
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	result, err := db.NewUpdate().Table("activities.groups").
-		Set("notes = ?", notes).Set("updated_at = ?", started).
-		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)).
-		Where("is_template = TRUE").Where("archived_at IS NULL").Exec(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return 0, stats, classifyWriteError("update template notes", err, &stats)
-	}
-	rows, err := rowsAffected(result, "updated template notes", &stats)
-	return rows, stats, err
-}
-
 func (s *Store) ArchiveTemplate(ctx context.Context, id int64) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

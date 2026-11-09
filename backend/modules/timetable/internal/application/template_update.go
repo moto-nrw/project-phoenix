@@ -627,43 +627,6 @@ func (s *TemplateService) updateTemplateFields(ctx context.Context, in TemplateU
 	return nil
 }
 
-func (s *TemplateService) propagateNotesToPredecessors(ctx context.Context, in TemplateUpdateInput) error {
-	if !in.PropagateNotesToPredecessors {
-		return nil
-	}
-	segments, err := loadTemplateSeriesSegments(
-		ctx,
-		s.deps.ActivityGroupRepo,
-		s.deps.ActivityScheduleRepo,
-		s.getLogger(),
-		in.TemplateID,
-	)
-	if err != nil {
-		return err
-	}
-	predecessorIDs := make([]int64, 0, len(segments)-1)
-	for _, segment := range segments {
-		if segment.Group == nil || segment.Group.ID == in.TemplateID || segment.ValidUntil == nil {
-			continue
-		}
-		predecessorIDs = append(predecessorIDs, segment.Group.ID)
-	}
-	if len(predecessorIDs) == 0 {
-		return nil
-	}
-	updated, err := s.deps.ActivityGroupRepo.UpdateTemplateNotes(ctx, predecessorIDs, in.Fields.Notes)
-	if err != nil {
-		return &ports.ScheduleError{Op: "update template: propagate notes to predecessors", Err: err}
-	}
-	if updated != int64(len(predecessorIDs)) {
-		return &ports.ScheduleError{
-			Op:  "update template: propagate notes to predecessors",
-			Err: fmt.Errorf("expected %d predecessor templates to change, got %d", len(predecessorIDs), updated),
-		}
-	}
-	return nil
-}
-
 // propagateListKindToInstances carries a series Listenart change onto the
 // template's already-materialized future occurrences. Without it a list_kind
 // edit reaches only occurrences materialized AFTER the edit, so the classified

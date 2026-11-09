@@ -271,10 +271,6 @@ type ActivityGroupCommand interface {
 	UpdateGroup(context.Context, int64, GroupInput) (Group, error)
 	DeleteGroup(context.Context, int64) error
 	UpdateTemplate(context.Context, int64, TemplateUpdate) (int64, error)
-	// UpdateTemplateNotes updates only the Wochennotiz of the supplied active
-	// template segments. Split-series reconciliation uses it so a series-wide
-	// note remains visible on occurrences linked to capped predecessors.
-	UpdateTemplateNotes(context.Context, []int64, *string) (int64, error)
 	ArchiveTemplate(context.Context, int64) (int64, error)
 	UpdateGroupOfferingSource(context.Context, int64, OfferingSourceInput) error
 	ReplaceGroupTargets(context.Context, int64, []GroupTargetInput) error

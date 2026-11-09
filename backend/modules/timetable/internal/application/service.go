@@ -495,19 +495,6 @@ func (s *Service) UpdateTemplate(ctx context.Context, id int64, fields timetable
 	return result, err
 }
 
-func (s *Service) UpdateTemplateNotes(ctx context.Context, ids []int64, notes *string) (result int64, err error) {
-	if len(ids) == 0 || hasInvalidOrDuplicateIDs(ids) {
-		return 0, s.reject("update_template_notes", timetable.ErrInvalidGroup)
-	}
-	err = s.runWrite(ctx, "update_template_notes", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, updateErr := s.store.UpdateTemplateNotes(txCtx, ids, notes)
-		stats.Add(queryStats)
-		result = rows
-		return updateErr
-	})
-	return result, err
-}
-
 func (s *Service) ArchiveTemplate(ctx context.Context, id int64) (result int64, err error) {
 	if id <= 0 {
 		return 0, s.reject("archive_template", timetable.ErrInvalidGroup)
