@@ -71,13 +71,8 @@ type InviteRelatedAccountResult struct {
 // ListRelatedAccounts returns every guardian linked to the child, annotated
 // with portal-access status. Ownership of the child is verified first.
 func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID int64) ([]*RelatedAccount, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-
 	var out []*RelatedAccount
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, _ *Child) error {
 		links, err := s.StudentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
@@ -85,8 +80,8 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 		out, err = s.relatedAccountsForLinks(txCtx, links, accountID, studentID)
 		return err
 	})
-	if txErr != nil {
-		return nil, txErr
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }

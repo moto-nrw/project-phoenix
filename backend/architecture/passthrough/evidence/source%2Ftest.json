@@ -1,6 +1,20 @@
 {
   "sites": [
     {
+      "build": "testhooks",
+      "evidence": "func (f *BeginFault) Arm() {\n\tf.armed.Store(true)\n}",
+      "form": "unclassified-evidence",
+      "id": "test/BeginFault.Arm",
+      "owner": "source/test"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f *BeginFault) Begins() int64 {\n\treturn f.begins.Load()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "test/BeginFault.Begins",
+      "owner": "source/test"
+    },
+    {
       "build": "test-support",
       "evidence": "func (creator GroupSupervisorCreator) CreateGroupSupervisor(ctx context.Context, supervisor *studentpresence.GroupSupervision) error {\n\tsupervisor.TenantID = tenant.FromContext(ctx)\n\treturn creator.Repository.CreateSupervision(ctx, supervisor)\n}",
       "form": "unclassified-evidence",
@@ -26,6 +40,20 @@
       "evidence": "func (p *TransactionProbe) Committed(tb testing.TB) bool {\n\ttb.Helper()\n\tif p.id == 0 {\n\t\treturn false\n\t}\n\texists, err := p.db.NewSelect().TableExpr(`users.guardian_profiles`).Where(\"id = ?\", p.id).Exists(context.Background())\n\trequire.NoError(tb, err)\n\treturn exists\n}",
       "form": "unclassified-evidence",
       "id": "test/TransactionProbe.Committed",
+      "owner": "source/test"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (c beginFaultConnector) Connect(ctx context.Context) (driver.Conn, error) {\n\tconn, err := c.inner.Connect(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026beginFaultConn{Conn: conn.(*pgdriver.Conn), fault: c.fault}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "test/beginFaultConnector.Connect",
+      "owner": "source/test"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (c beginFaultConnector) Driver() driver.Driver {\n\treturn c.inner.Driver()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "test/beginFaultConnector.Driver",
       "owner": "source/test"
     },
     {
