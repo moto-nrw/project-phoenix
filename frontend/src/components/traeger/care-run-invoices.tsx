@@ -374,6 +374,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
       header: "Betrag",
       align: "right",
       stacked: "meta",
+      stackedTone: "figure",
       className: "align-top",
       render: ({ invoice, letter, storno }) => (
         <span

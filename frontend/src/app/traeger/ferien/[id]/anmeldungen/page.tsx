@@ -216,34 +216,34 @@ function columns(
         <ul className="space-y-2">
           {registration.children.map((child) => (
             <li key={child.id}>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="font-medium text-gray-900">
                   {child.firstName} {child.lastName}
                 </span>
                 <span className="text-gray-500">
                   {childSchoolLabel(child, names)}
                 </span>
-                {child.duplicateRegistrationIds.length > 0 ? (
-                  <>
-                    <StatusBadge
-                      tone="orange"
-                      label="Mögliche Doppelanmeldung"
-                    />
-                    {/* Visible, not only a tooltip: a finger has no hover. */}
-                    <span className="text-sm text-gray-600">
-                      auch in Nr. {child.duplicateRegistrationIds.join(", ")}
-                    </span>
-                  </>
-                ) : null}
               </div>
-              <ul className="text-sm text-gray-500">
+              {child.duplicateRegistrationIds.length > 0 ? (
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <StatusBadge tone="orange" label="Mögliche Doppelanmeldung" />
+                  {/* Visible, not only a tooltip: a finger has no hover. */}
+                  <span className="text-sm whitespace-nowrap text-gray-600">
+                    auch in Nr. {child.duplicateRegistrationIds.join(", ")}
+                  </span>
+                </div>
+              ) : null}
+              <ul className="mt-1 space-y-1 text-sm text-gray-500">
                 {child.bookings.map((booking) => (
-                  <li key={booking.weekId}>
+                  <li key={booking.weekId} className="tabular-nums">
                     {formatHolidayWeek(
                       booking.weekStartsOn,
                       booking.weekEndsOn,
                     )}
                     ,{" "}
+                    {/* The week first, school and time below: a narrow
+                        column breaks there, not inside the school name. */}
+                    <br />
                     {names.get(booking.hostSchoolId) ??
                       "Schule nicht mehr vorhanden"}
                     : {booking.timeModelName}
@@ -680,6 +680,9 @@ export default function TraegerHolidayRegistrationsPage() {
         )
       }
       filters={filters}
+      // Four filters squeeze the search below 1280 px: a tablet gets them
+      // behind the filter button, a laptop keeps them in the row (#5146).
+      desktopFiltersFrom="xl"
       activeFilters={activeFilters}
       onClearAllFilters={clearFilters}
       error={loadError}

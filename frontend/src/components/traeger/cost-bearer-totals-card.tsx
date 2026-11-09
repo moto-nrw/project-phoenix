@@ -81,6 +81,7 @@ export function CostBearerTotalsCard({
         <span className="tabular-nums">{formatEuro(total.cents)}</span>
       ),
       stacked: "meta",
+      stackedTone: "figure",
     },
   ];
   if (list) {

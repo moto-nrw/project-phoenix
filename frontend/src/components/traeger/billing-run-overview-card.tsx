@@ -321,6 +321,7 @@ export function BillingRunOverviewCard({
       ),
       sortValue: (document) => document.totalCents,
       stacked: "meta",
+      stackedTone: "figure",
     },
     {
       key: "actions",

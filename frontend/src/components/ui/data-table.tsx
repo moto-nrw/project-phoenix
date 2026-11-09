@@ -56,6 +56,9 @@ export interface DataTableColumn<T> {
   // "lines" layout a "field" then takes the full width (an invoice's
   // positions); screen readers keep the header. Defaults to true.
   stackedLabel?: boolean;
+  // "figure" shows the meta value of a "lines" phone row as the figure it
+  // is (an amount): 14 px, semibold, dark. Defaults to a muted 12-px note.
+  stackedTone?: "figure";
 }
 
 /**
@@ -699,7 +702,13 @@ function StackedRows<T>({
                           {title?.render(row)}
                         </span>
                         {meta ? (
-                          <span className="shrink-0 text-xs text-gray-500">
+                          <span
+                            className={
+                              meta.stackedTone === "figure"
+                                ? "shrink-0 text-sm font-semibold text-gray-900 tabular-nums"
+                                : "shrink-0 text-xs text-gray-500"
+                            }
+                          >
                             {meta.render(row)}
                           </span>
                         ) : null}
