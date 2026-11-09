@@ -379,13 +379,13 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
     },
     {
       key: "total",
-      // The invoice's sum, at the foot of its positions: the first
-      // position's amount beside it must not read as the total.
+      // The invoice's sum under its own header, in the middle of its row
+      // (the table's default), not on the line of the first position,
+      // whose amount must not read as the total.
       header: "Rechnungsbetrag",
       align: "right",
       stacked: "meta",
       stackedTone: "figure",
-      className: "align-bottom",
       render: ({ invoice, letter, storno }) => (
         <span
           className={`font-semibold tabular-nums ${!storno && letter?.cancelled ? "text-gray-500 line-through" : "text-gray-900"}`}
