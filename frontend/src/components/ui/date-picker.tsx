@@ -850,6 +850,8 @@ interface ISODateInputProps {
   readonly minDateError?: string;
   readonly maxDateError?: string;
   readonly disabled?: boolean;
+  /** Marks the field as required: star at the label, `aria-required`. */
+  readonly required?: boolean;
   /**
    * A check of the surrounding form on the stored value (missing date, date
    * range, overlap). It is shown and wired like the field's own check, which
@@ -870,6 +872,7 @@ export function ISODateInput({
   minDateError = "Das Datum liegt vor dem zulässigen Zeitraum.",
   maxDateError = "Das Datum liegt nach dem zulässigen Zeitraum.",
   disabled,
+  required = false,
   error,
 }: ISODateInputProps) {
   const [inputValue, setInputValue] = useState(() =>
@@ -939,12 +942,19 @@ export function ISODateInput({
 
   return (
     <div>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel
+        htmlFor={id}
+        required={required}
+        invalid={Boolean(shownError)}
+      >
+        {label}
+      </FieldLabel>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Input
             id={id}
             name={id}
+            aria-required={required || undefined}
             type="text"
             controlSize="compact"
             inputMode="numeric"

@@ -180,7 +180,7 @@ export function TimeField({
   return (
     <div className="block">
       {!inline && (
-        <FieldLabel htmlFor={inputId} required={required}>
+        <FieldLabel htmlFor={inputId} required={required} invalid={invalid}>
           {label}
         </FieldLabel>
       )}
@@ -222,7 +222,7 @@ export function TimeField({
             completedOneDigitHour.current = null;
             handleFocusLeave(event);
           }}
-          className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 pointer-coarse:pr-12 ${
+          className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 pointer-coarse:pr-12 ${
             inline ? "bg-white text-sm" : "text-base"
           } ${
             invalid

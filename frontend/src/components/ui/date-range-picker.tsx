@@ -306,12 +306,12 @@ function formatDraftRangeLabel(
   draftFrom: Date | undefined,
   draftTo: Date | undefined,
 ): string {
-  if (!draftFrom) return "Klicke ein Startdatum";
-  if (!draftTo) return "Klicke ein Enddatum";
+  if (!draftFrom) return "Startdatum wählen";
+  if (!draftTo) return "Enddatum wählen";
   if (isSameCalendarDay(draftFrom, draftTo)) {
     return format(draftFrom, "d. MMM yyyy", { locale: de });
   }
-  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} - ${format(
+  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} – ${format(
     draftTo,
     "d. MMM yyyy",
     { locale: de },
@@ -421,8 +421,10 @@ export function RangeCalendarInline({
           </button>
           <span className="text-sm font-medium text-gray-900">
             {format(month, "MMMM yyyy", { locale: de })}
-            {" - "}
-            {format(addMonths(month, 1), "MMMM yyyy", { locale: de })}
+            {/* A phone shows one month, so the heading names only that one. */}
+            {isSingleMonth
+              ? null
+              : ` – ${format(addMonths(month, 1), "MMMM yyyy", { locale: de })}`}
           </span>
           <button
             type="button"

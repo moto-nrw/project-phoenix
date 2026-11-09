@@ -40,6 +40,16 @@ interface SettingsCategoryProps {
   readonly collapsed?: boolean;
   readonly onToggle?: () => void;
   /**
+   * Heading level of the category card: 3 (default) below a section heading,
+   * 2 where the categories stand right under the page title.
+   */
+  readonly headingLevel?: 2 | 3;
+  /**
+   * Names the immediate saving on the open card (Bauart 4, rule 1), where the
+   * page also holds forms with their own save button.
+   */
+  readonly autosaveNote?: boolean;
+  /**
    * Lower-cased search query. When set, only matching settings are listed
    * (all of them when the category name itself matches). The category
    * renders nothing when no setting matches.
@@ -65,6 +75,8 @@ export function SettingsCategory({
   collapsible = false,
   collapsed = false,
   onToggle,
+  headingLevel = 3,
+  autosaveNote = false,
   filterQuery = "",
   tabLabel,
 }: SettingsCategoryProps) {
@@ -79,7 +91,7 @@ export function SettingsCategory({
 
   return (
     <SectionCard
-      headingLevel={3}
+      headingLevel={headingLevel}
       title={displayCategoryLabel(category)}
       titleClassName={hasCategoryLabel(category) ? undefined : "capitalize"}
       titleBadge={
@@ -94,7 +106,13 @@ export function SettingsCategory({
       }
       // While collapsed the card names what it holds, so a person can tell
       // from the closed header whether the setting they need lives here.
-      description={isCollapsed ? categorySummary(visibleItems) : undefined}
+      description={
+        isCollapsed
+          ? categorySummary(visibleItems)
+          : autosaveNote
+            ? "Änderungen werden sofort gespeichert."
+            : undefined
+      }
       collapsible={collapsible}
       collapsed={collapsible ? collapsed : undefined}
       onCollapsedChange={onToggle}

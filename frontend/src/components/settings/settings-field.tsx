@@ -1213,7 +1213,9 @@ export function SettingsField({
             }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">Zurücksetzen</span>
+            {/* The word stays on a phone too: a bare arrow next to a text
+                field does not say that it throws the own text away. */}
+            <span>Zurücksetzen</span>
           </Button>
         )}
       </div>

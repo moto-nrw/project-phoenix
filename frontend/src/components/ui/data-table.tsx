@@ -80,6 +80,12 @@ interface DataTableSelection<T> {
 export interface DataTableHeading {
   readonly title: string;
   readonly count?: number;
+  /**
+   * Heading level of the title. 3 (default) under a section heading; 2 when
+   * the table is a top-level block right under the page title, so the outline
+   * skips no level.
+   */
+  readonly level?: 2 | 3;
 }
 
 /**
@@ -507,11 +513,12 @@ function RowStackedRow<T>({
  * (BAUARTEN-SPEC, Teil 3) — the same place SectionCard gives a tile group.
  */
 function SurfaceHeading({ heading }: Readonly<{ heading: DataTableHeading }>) {
+  const Heading = heading.level === 2 ? "h2" : "h3";
   return (
     <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3 max-sm:px-4">
-      <h3 className="text-base font-semibold text-balance text-gray-900">
+      <Heading className="text-base font-semibold text-balance text-gray-900">
         {heading.title}
-      </h3>
+      </Heading>
       {heading.count === undefined ? null : (
         <StatusBadge tone="gray" compact label={String(heading.count)} />
       )}
@@ -1021,6 +1028,11 @@ export function DataTable<T>({
                         >
                           {col.headerSrOnly ? (
                             <span className="sr-only">{col.header}</span>
+                          ) : col.header === "" &&
+                            col.key === PINNED_COLUMN_KEY ? (
+                            // The row-menu column shows no header, but a
+                            // screen reader names it when it reads a cell.
+                            <span className="sr-only">Aktionen</span>
                           ) : (
                             col.header
                           )}
@@ -1061,7 +1073,7 @@ export function DataTable<T>({
                         <button
                           type="button"
                           onClick={() => toggleSort(col.key)}
-                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${align}`}
+                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600 ${align}`}
                         >
                           <span>{col.header}</span>
                           <span

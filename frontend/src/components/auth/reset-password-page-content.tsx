@@ -80,7 +80,7 @@ export interface ResetPasswordPageCopy {
 
 const DEFAULT_ERROR_OBJECT = "das Zurücksetzen des Passworts";
 
-const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
+export const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
   missingToken:
     "Der Link ist unvollständig. Bitte fordern Sie einen neuen Link an.",
   passwordTooShort: "Das Passwort muss mindestens 8 Zeichen lang sein.",

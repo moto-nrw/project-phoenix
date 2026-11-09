@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { ChevronDown, Eye, HelpCircle } from "lucide-react";
 import { FilePreviewInput } from "~/components/enrollment/file-field-editor";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { RequiredMark } from "~/components/ui/field-label";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -46,11 +46,10 @@ export function PreviewSection({
           const field = typeof entry === "string" ? { label: entry } : entry;
           return (
             <InsetPanel key={field.label} tone="white" padding="compact">
-              <span className="block text-sm font-medium text-gray-500">
+              <span className="block text-sm font-medium text-gray-600">
                 {field.label}
                 {field.required && <RequiredMark />}
               </span>
-              <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
             </InsetPanel>
           );
         })}
@@ -203,9 +202,18 @@ export function FormPreviewFrame({
 
         <div className="space-y-5 p-4">
           {children}
-          <Button type="button" variant="primary" size="md" className="w-full">
+          {/* Only a picture of the parents' send button: the preview sends
+              nothing, so it is neither focusable nor clickable. */}
+          <p
+            aria-hidden="true"
+            className={buttonClassName({
+              variant: "primary",
+              size: "md",
+              className: "pointer-events-none w-full select-none",
+            })}
+          >
             {submitLabel}
-          </Button>
+          </p>
         </div>
       </SectionCard>
     </div>

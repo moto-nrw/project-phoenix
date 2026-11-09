@@ -139,7 +139,7 @@ export function AttachmentEditor({
   return (
     <div className="space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-gray-900">PDF-Anhänge</h4>
+        <h3 className="text-sm font-semibold text-gray-900">PDF-Anhänge</h3>
         <p className="mt-1 text-sm text-gray-600">
           Eltern können alle PDFs öffnen und herunterladen.
         </p>
