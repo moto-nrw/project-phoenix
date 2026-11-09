@@ -62,7 +62,7 @@ func TestHolidayLegalMigrationPreservesExistingPeriodsAndIsolatesPDFs(t *testing
 		_, err := tx.ExecContext(ctx, `UPDATE enrollment.holiday_form_documents SET filename='neu.pdf' WHERE holiday_period_id=?`, period)
 		return err
 	})
-	assert.ErrorContains(t, err, "permission denied", "PDFs are immutable under the request role")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "PDFs are immutable under the request role")
 	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_periods WHERE id=?`, period)
 	require.NoError(t, err)
 	var count int

@@ -44,14 +44,18 @@ func qualificationsToPublic(values []domain.StaffQualification) []workforce.Staf
 func financialToDomain(value workforce.StaffFinancialData) domain.StaffFinancialData {
 	return domain.StaffFinancialData{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, IBAN: value.IBAN, TaxID: value.TaxID,
-		SocialSecurityNumber: value.SocialSecurityNumber, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		SocialSecurityNumber: value.SocialSecurityNumber, IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked,
+		TaxIDSealed: value.TaxIDSealed, SocialSecurityNumberSealed: value.SocialSecurityNumberSealed,
+		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
 func financialToPublic(value domain.StaffFinancialData) workforce.StaffFinancialData {
 	return workforce.StaffFinancialData{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, IBAN: value.IBAN, TaxID: value.TaxID,
-		SocialSecurityNumber: value.SocialSecurityNumber, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		SocialSecurityNumber: value.SocialSecurityNumber, IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked,
+		TaxIDSealed: value.TaxIDSealed, SocialSecurityNumberSealed: value.SocialSecurityNumberSealed,
+		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

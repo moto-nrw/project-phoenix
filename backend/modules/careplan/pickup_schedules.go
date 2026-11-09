@@ -63,7 +63,6 @@ type PickupExceptions interface {
 	CreateStudentPickupException(ctx context.Context, exception *PickupException) error
 	UpdateStudentPickupException(ctx context.Context, exception *PickupException) error
 	DeleteStudentPickupException(ctx context.Context, exceptionID, studentID int64) error
-	DeleteAllStudentPickupExceptions(ctx context.Context, studentID int64) error
 	CreateOrReclaimException(ctx context.Context, studentID int64, date calendar.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*PickupException, error)
 	UpdateException(ctx context.Context, exceptionID, studentID int64, date calendar.Date, reason *string, pickupTime *time.Time, clearPickupTime bool, resolveStaffID func() (int64, error)) (*PickupException, error)
 }

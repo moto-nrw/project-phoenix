@@ -94,8 +94,8 @@ func (s *Store) MatchClassListEntries(ctx context.Context, keys []schoolmembersh
 	err = db.NewRaw(`SELECT k.ord, `+classListEntryColumns+`
 		FROM unnest(?::text[], ?::text[], ?::text[]) WITH ORDINALITY AS k(first_name, last_name, school_class, ord)
 		JOIN users.class_list_entries AS e ON e.tenant_id = ?
-			AND LOWER(NORMALIZE(BTRIM(e.first_name), NFC)) = LOWER(NORMALIZE(BTRIM(k.first_name), NFC))
-			AND LOWER(NORMALIZE(BTRIM(e.last_name), NFC)) = LOWER(NORMALIZE(BTRIM(k.last_name), NFC))
+			AND LOWER(NORMALIZE(BTRIM(e.first_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(BTRIM(k.first_name), NFC) COLLATE public.german_name)
+			AND LOWER(NORMALIZE(BTRIM(e.last_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(BTRIM(k.last_name), NFC) COLLATE public.german_name)
 			AND LOWER(BTRIM(e.school_class)) = LOWER(BTRIM(k.school_class))
 		ORDER BY k.ord, LOWER(e.last_name) ASC, LOWER(e.first_name) ASC, e.id ASC`,
 		pgdialect.Array(firsts), pgdialect.Array(lasts), pgdialect.Array(classes), scope.TenantID).Scan(ctx, &rows)

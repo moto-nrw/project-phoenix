@@ -1335,7 +1335,7 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, result)
 }
@@ -1356,7 +1356,7 @@ func TestExecuteCleanupForTenant_VisitFailureStillRunsLaterSteps(t *testing.T) {
 	feedback := &countingFeedbackCleaner{}
 	s := unitScheduler(&unitSchedulerDependencies{cleanupService: cleanup, feedbackCleaner: feedback, logger: slog.Default()})
 
-	complete, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	complete, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, complete, "a failed visit retention leaves the run due")
 	assert.Equal(t, 1, cleanup.attendanceCalls, "the attendance cleanup still runs")
@@ -1372,7 +1372,7 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, result)
 }
@@ -1386,7 +1386,7 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
 		logger:          slog.Default(),
 	})
 
-	complete, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	complete, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, complete)
 }
@@ -1401,7 +1401,7 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	// Every step is required and a failed step keeps the run due (#6288).
 	assert.False(t, result, "a failed attendance step keeps the run due")
@@ -1421,7 +1421,7 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, result, "a failed attendance step keeps the run due")
 }
@@ -1440,7 +1440,7 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, result)
 }
@@ -1458,7 +1458,7 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, result)
 }
@@ -1473,7 +1473,7 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, result)
 }
@@ -2186,4 +2186,11 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 		close(s.done)
 		s.wg.Wait()
 	})
+}
+
+// cleanupComplete reports whether every nightly cleanup step of the school
+// succeeded.
+func cleanupComplete(ctx context.Context, s *Scheduler, tenantID int64) (bool, error) {
+	failed, err := s.executeCleanupForTenant(ctx, tenantID)
+	return err == nil && len(failed) == 0, err
 }

@@ -75,31 +75,26 @@ func applyDateArrivalLeg(out *CareException, arrival *ArrivalException) bool {
 // (via DeleteCareException) clear overrides they created, even after the school
 // switches the feature off, so existing entries never become stuck.
 func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID int64, from, to calendar.Date) ([]*CareException, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-
 	var out []*CareException
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, _ *Child) error {
+		filter := StudentScheduleFilter{StudentIDs: []int64{studentID}, From: from, To: to}
+		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list care exceptions: %w", err)
 		}
-		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
+		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list care exceptions: %w", err)
 		}
-		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
+		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list care exceptions: %w", err)
 		}
-		out = mergeCareExceptions(pickups, arrivals, accountID)
-		out = mergeDepartureExceptions(out, departures)
+		out = mergeDepartureExceptions(mergeCareExceptions(pickups, arrivals, accountID), departures)
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list care exceptions: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
