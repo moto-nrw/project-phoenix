@@ -394,15 +394,17 @@ func (s *ImportService[T]) applyBatchRow(ctx context.Context, request importMode
 	if skip {
 		return nil
 	}
+	// A failed write returns and aborts the chunk; the row needs no savepoint.
+	write := importModels.WithBatchRowWrite(ctx)
 	if action == "create" {
-		if _, err := s.config.Create(ctx, *row); err != nil {
+		if _, err := s.config.Create(write, *row); err != nil {
 			recordCreationError(result, rowNum, row, err)
 			return err
 		}
 		result.CreatedCount++
 		return nil
 	}
-	if err := s.config.Update(ctx, *id, *row); err != nil {
+	if err := s.config.Update(write, *id, *row); err != nil {
 		recordUpdateError(result, rowNum, row, err)
 		return err
 	}
