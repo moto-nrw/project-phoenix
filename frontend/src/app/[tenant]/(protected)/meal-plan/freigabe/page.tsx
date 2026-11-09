@@ -156,36 +156,6 @@ function columns(released: boolean): DataTableColumn<MealBillingChild>[] {
   ];
 }
 
-/**
- * How a released month is corrected (#6346, decision B): a release is never
- * taken back. A changed attendance makes the month releasable again with a
- * reason; an invoice the Träger issued already is cancelled and reissued
- * there. Read only: the card carries no action.
- */
-function ReleaseCorrection() {
-  return (
-    <SectionCard
-      title="Zahlen korrigieren"
-      description="Eine Freigabe lässt sich nicht zurücknehmen. So korrigieren Sie einen freigegebenen Monat:"
-    >
-      <ol
-        aria-label="Schritte zur Korrektur"
-        className="list-decimal space-y-2 pl-5 text-sm text-gray-700 marker:font-semibold marker:text-gray-500"
-      >
-        <li>Tragen Sie die fehlende oder falsche Anwesenheit nach.</li>
-        <li>
-          Oben steht dann „Seit der Freigabe hat sich die Anwesenheit geändert“.
-          Wählen Sie „Erneut freigeben“ und nennen Sie den Grund.
-        </li>
-        <li>
-          Hat der Träger den Monat schon abgerechnet, sieht er die neue Zahl. Er
-          storniert die Rechnung und stellt sie neu aus.
-        </li>
-      </ol>
-    </SectionCard>
-  );
-}
-
 export default function MealBillingReleasePage() {
   const [months, setMonths] = useState<MealBillingSummary[] | null>(null);
   const [selected, setSelected] = useState("");
@@ -447,7 +417,28 @@ export default function MealBillingReleasePage() {
               hint="Angemeldet, aber nicht da. Zählt nicht."
             />
           </div>
-          {month.status === "released" ? <ReleaseCorrection /> : null}
+          {month.status === "released" ? (
+            <SectionCard
+              title="Zahlen korrigieren"
+              description="Eine Freigabe lässt sich nicht zurücknehmen. So korrigieren Sie einen freigegebenen Monat:"
+            >
+              <ol
+                aria-label="Schritte zur Korrektur"
+                className="list-decimal space-y-2 pl-5 text-sm text-gray-700 marker:font-semibold marker:text-gray-500"
+              >
+                <li>Tragen Sie die fehlende oder falsche Anwesenheit nach.</li>
+                <li>
+                  Oben steht dann „Seit der Freigabe hat sich die Anwesenheit
+                  geändert“. Wählen Sie „Erneut freigeben“ und nennen Sie den
+                  Grund.
+                </li>
+                <li>
+                  Hat der Träger den Monat schon abgerechnet, sieht er die neue
+                  Zahl. Er storniert die Rechnung und stellt sie neu aus.
+                </li>
+              </ol>
+            </SectionCard>
+          ) : null}
           <SectionCard
             title="Kinder"
             titleBadge={
