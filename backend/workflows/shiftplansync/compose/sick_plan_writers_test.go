@@ -285,3 +285,22 @@ func TestSickReport_ReplanKeepsActiveSubstituteOfSickPerson(t *testing.T) {
 	assert.True(t, substitute.IsSubstitute, "the substitute is recreated")
 	assert.False(t, substitute.IsAbsent, "the substitute covers")
 }
+
+// A re-plan whose occurrence no longer materializes records no dropped
+// deviation for it when it held only present staff: the presence the
+// re-plan keeps (I4) is no deviation of its own.
+func TestSickReport_ReplanRecordsNoDropForPresentOnlyOccurrence(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	e.materialize(t, stampWeekOne, stampWeekOne)
+	_, err := e.db.NewRaw(`DELETE FROM activities.schedules WHERE activity_group_id = ? AND tenant_id = ?`, templateID, e.tenantID).Exec(e.ctx)
+	require.NoError(t, err)
+
+	e.replan(t, templateID, stampWeekOne)
+
+	for _, event := range e.deviationEvents(t, stampWeekOne, stampWeekOne) {
+		assert.NotEqual(t, "deviation_dropped_by_replan", event.EventType, "present staff alone is no dropped deviation")
+	}
+}
