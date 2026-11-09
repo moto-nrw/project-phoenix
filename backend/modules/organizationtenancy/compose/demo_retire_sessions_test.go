@@ -16,17 +16,6 @@ import (
 // open. A session lock in use defers the whole unit, school and sessions,
 // like every other lock of the run (#5540).
 
-// demoSession writes a session of the account at the school, as a login
-// leaves it, and returns its family.
-func demoSession(t *testing.T, db *bun.DB, accountID, schoolID int64) string {
-	t.Helper()
-	var family string
-	require.NoError(t, db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id)
-		VALUES (?0, encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?1, 'tenant', gen_random_uuid()::text)
-		RETURNING family_id`, accountID, schoolID).Scan(t.Context(), &family))
-	return family
-}
-
 // schoolSessions lists the sessions of the school, as JSON for comparison.
 func schoolSessions(t *testing.T, db *bun.DB, schoolID int64) string {
 	t.Helper()
@@ -44,8 +33,8 @@ func (o demoOrder) colleague(t *testing.T) int64 {
 	account := testpkg.CreateTestAccount(t, o.db, "demo-kollegin")
 	testpkg.MapAccountToTenant(t, o.db, account.ID, o.schoolID)
 	testpkg.MapAccountToTenant(t, o.db, account.ID, o.realID)
-	demoSession(t, o.db, account.ID, o.schoolID)
-	demoSession(t, o.db, account.ID, o.realID)
+	testpkg.CreateTestSessionFamily(t, o.db, account.ID, o.schoolID, "")
+	testpkg.CreateTestSessionFamily(t, o.db, account.ID, o.realID, "")
 	return account.ID
 }
 

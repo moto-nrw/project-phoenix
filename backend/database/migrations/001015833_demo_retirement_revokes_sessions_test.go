@@ -63,15 +63,6 @@ func schoolSessionCount(t *testing.T, db bun.IDB, schoolID int64) int {
 	return count
 }
 
-func insertSchoolSession(t *testing.T, db *bun.DB, schoolID int64) {
-	t.Helper()
-	account := testpkg.CreateTestAccount(t, db, "demo-backfill")
-	_, err := db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id)
-		VALUES (?, encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?, 'tenant', gen_random_uuid()::text)`,
-		account.ID, schoolID).Exec(t.Context())
-	require.NoError(t, err)
-}
-
 // The demo schools hidden before 1.15.833 lose their sessions with it. A
 // school without a recorded demo origin, or one still open, keeps them.
 func TestDemoRetiredSchoolSessionsBackfill(t *testing.T) {
@@ -87,7 +78,7 @@ func TestDemoRetiredSchoolSessionsBackfill(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for _, schoolID := range []int64{retiredDemo, openDemo, deletedSchool} {
-		insertSchoolSession(t, db, schoolID)
+		testpkg.CreateTestSessionFamily(t, db, testpkg.CreateTestAccount(t, db, "demo-backfill").ID, schoolID, "")
 	}
 	_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id IN (?, ?)`, retiredDemo, deletedSchool).Exec(ctx)
 	require.NoError(t, err)
