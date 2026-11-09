@@ -98,8 +98,8 @@ Basis liegt, genehmigt es keine weitere Diagnose.
 
 ## Folgen
 
-- Offen bleibt die Lücke zwischen früherem Ende und Wiederaufnahme eines
-  zurückkehrenden Kindes
+- Die Lücke zwischen früherem Ende und Wiederaufnahme eines zurückkehrenden
+  Kindes regelt [ADR 0180](0180-mitgliedschaft-merkt-sich-die-betreuungsluecke-eines-zurueckkehrenden-kindes.md)
   ([#6073](https://github.com/moto-nrw/project-phoenix/issues/6073)).
 - Wird der Beginn eines neuen Kindes nach Erreichen verschoben, bleibt der
   frühere Tag; die Tage dazwischen zählen wie vor diesem ADR.
