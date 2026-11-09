@@ -31,5 +31,7 @@ type TenantRuntime interface {
 	// error comes back after fn's writes and after-commit hooks were undone;
 	// usable then stays true and the transaction can go on. usable is false
 	// when the savepoint itself failed: the transaction must be rolled back.
+	// Outside a transaction each statement commits on its own and fn runs
+	// directly.
 	WithSavepoint(ctx context.Context, fn func(context.Context) error) (usable bool, err error)
 }

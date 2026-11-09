@@ -258,6 +258,11 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 		if errors.Is(err, errCleanupIncomplete) {
 			// The failed steps undid their own writes: commit the others and
 			// still report the run as failed.
+			s.getLogger().Error("data cleanup incomplete, succeeded steps committed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("job_id", taskName),
+				slog.String("error", err.Error()),
+			)
 			recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup incomplete", err, nil)
 			addJobCommandFailure(tenantCtx, err)
 			return nil

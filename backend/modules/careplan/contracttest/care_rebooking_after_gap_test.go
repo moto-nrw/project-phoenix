@@ -91,3 +91,35 @@ func TestRebookingAfterARealGapKeepsTheBookingAndTheOpenTask(t *testing.T) {
 	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	assert.Equal(t, firstGap, requirePendingCompletion(t, repo, scope.Context(), studentID).FirstBookinglessDay)
 }
+
+// TestRetroactiveRebookingWithoutGapReplacesTheStaleTask is the other side of
+// the #6288 (EC-1) decision: a booking entered after the open task's first
+// bookingless day that still covers that day leaves no gap. The stale task is
+// replaced by one at the new booking end, it is not kept as a gap.
+func TestRetroactiveRebookingWithoutGapReplacesTheStaleTask(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Ohne", "Lücke", "3e")
+	firstGap := rebookingGapDay.AddDays(-10)
+	createCareBooking(t, db, scope, student.ID, "before", nil, &firstGap)
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
+	studentID := student.ID
+	require.NoError(t, api.SeedPendingCareWithdrawal(scope.Context(), repo, &careplan.WithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: firstGap,
+		Trigger: careplan.WithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+	}))
+	stale := requirePendingCompletion(t, repo, scope.Context(), studentID)
+	extendedUntil := rebookingGapDay.AddDays(20)
+	createCareBooking(t, db, scope, student.ID, "continued", &firstGap, &extendedUntil)
+
+	_, err := fixedDayBookingAuthorityService(t, db, rebookingGapDay).ApplyDueEffects(scope.Context(), rebookingGapDay)
+	require.NoError(t, err)
+	current := requirePendingCompletion(t, repo, scope.Context(), studentID)
+	assert.NotEqual(t, stale.ID, current.ID)
+	assert.Equal(t, extendedUntil, current.FirstBookinglessDay)
+	replaced, err := repo.FindByID(scope.Context(), stale.ID)
+	require.NoError(t, err)
+	require.NotNil(t, replaced)
+	assert.Equal(t, careplan.WithdrawalStateObsolete, replaced.State)
+}

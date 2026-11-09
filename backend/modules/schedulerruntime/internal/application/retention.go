@@ -146,8 +146,9 @@ type RetentionRun func(ctx context.Context, tenantID int64) error
 // newRetentionRun builds the retention run over the owners' steps. Each step
 // that deletes something writes one deletion-log entry, unless it logs each
 // deleted subject itself (LogsSubjects); a failing step or log
-// entry aborts the run, so the tenant transaction rolls back and the run is
-// caught up later.
+// entry aborts the run. The nightly cleanup runs it in its own savepoint, so
+// its deletions roll back together with their log entries and the run is
+// caught up later (#6288).
 func newRetentionRun(steps []ports.RetentionStep, log ports.RetentionLog, logger *slog.Logger) (RetentionRun, error) {
 	if len(steps) > 0 && log == nil {
 		return nil, errors.New("retention run: a deletion log is required for retention steps")

@@ -102,3 +102,20 @@ func TestWSAdminSessionWrites_RejectCheckInAfterTheSessionDay(t *testing.T) {
 	})
 	require.ErrorIs(t, err, workforce.ErrSessionCheckInAfterDate)
 }
+
+// TestBalanceSessionEnd_NeverEndsBeforeACheckInAfterTheSessionDay covers the
+// rows #6288 found already in the database: an open session filed on a day
+// before its check-in. Its stale limit used to be the end of its date, before
+// its check-in, so the balance credited negative time and the next check-in
+// closed the row against chk_work_sessions_checkout_after_checkin and failed.
+func TestBalanceSessionEnd_NeverEndsBeforeACheckInAfterTheSessionDay(t *testing.T) {
+	t.Parallel()
+	checkIn := sessionDayValidationNow.Add(-2 * maxOpenWorkSessionDuration)
+	session := &WorkSession{Date: calendar.DateFromTime(checkIn).AddDays(-3), CheckInTime: checkIn}
+
+	end := BalanceSessionEnd(session, sessionDayValidationNow)
+	assert.True(t, end.After(checkIn), "a stale open block ends after its check-in")
+	expired, stale := ExpireStaleOpenBlock(session, sessionDayValidationNow)
+	require.True(t, stale)
+	assert.True(t, expired.CheckOutTime.After(checkIn), "the check-in repair closes the row after its check-in")
+}
