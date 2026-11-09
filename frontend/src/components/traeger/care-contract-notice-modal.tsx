@@ -42,8 +42,18 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { TERMINATION_KIND_LABELS } from "./care-contract-format";
+
+/** No answer arrived, or a gateway gave up: the request may have run. */
+function connectionLost(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    (err.noResponse === true ||
+      [408, 499, 502, 503, 504].includes(err.status ?? 0))
+  );
+}
 
 const logger = createLogger({ component: "CareContractNoticeModal" });
 
@@ -169,6 +179,31 @@ export function RecordNoticeModal({
       logger.error("traeger_care_contract_notice_record_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // After a lost connection the notice may be recorded all the same, its
+      // mail to the parents sent: read the contract again before a second
+      // try could record it twice.
+      if (connectionLost(err)) {
+        const recorded = await fetchContractNoticeOptions(contractId).catch(
+          (readErr: unknown) => {
+            // The original error stays the message; this read only spares
+            // a second entry.
+            logger.warn("traeger_care_contract_notice_recheck_failed", {
+              error:
+                readErr instanceof Error ? readErr.message : String(readErr),
+            });
+            return null;
+          },
+        );
+        if (recorded?.notice) {
+          success(
+            kind === "widerruf"
+              ? "Der Widerruf ist eingetragen. Die Eltern haben eine Bestätigung bekommen."
+              : "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
+          );
+          onRecorded(recorded);
+          return;
+        }
+      }
       void formErrors.show(err, { object: "die Kündigung" });
     } finally {
       savingRef.current = false;

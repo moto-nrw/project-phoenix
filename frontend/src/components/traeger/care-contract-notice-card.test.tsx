@@ -12,6 +12,7 @@ import "@testing-library/jest-dom/vitest";
 import { RejectReasonModal } from "./care-contract-notice-modal";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ContractNoticeOptions } from "~/lib/care-contract-notices";
+import { unavailableApiError } from "~/lib/api-error";
 
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
@@ -247,6 +248,55 @@ describe("CareContractNoticeCard (#4682)", () => {
       expect.objectContaining({ expectedEndsOn: "2026-12-31" }),
     );
   });
+  // A lost connection may still have recorded the notice and sent its
+  // mail: the dialog reads the contract before a second try could repeat it.
+  it("shows a notice recorded despite a lost connection instead of a retry", async () => {
+    const recorded = {
+      ...active,
+      status: "gekuendigt" as const,
+      notice: {
+        kind: "kuendigung" as const,
+        terminationKind: "ordentlich" as const,
+        channel: "post" as const,
+        declaredAt: "2026-09-09T09:30:00Z",
+        receivedOn: "2026-09-09",
+        endsOn: "2026-12-31",
+        recipient: "birgit.jansen@email.de",
+        confirmationText: "wir bestätigen Ihre Kündigung.",
+      },
+    };
+    mocks.fetchContractNoticeOptions
+      .mockResolvedValueOnce(active)
+      .mockResolvedValueOnce(active)
+      .mockResolvedValue(recorded);
+    mocks.recordContractNotice.mockRejectedValue(
+      unavailableApiError(new TypeError("Failed to fetch")),
+    );
+    const onChanged = vi.fn();
+    render(
+      <CareContractNoticeCard
+        contractId="25"
+        status="aktiv"
+        concludedAt="2026-08-19T09:00:00Z"
+        onChanged={onChanged}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kündigung eintragen" }),
+    );
+    await screen.findByText(/Nächster Termin:/);
+    fireEvent.click(
+      document.querySelector('button[form="care-contract-notice-form"]')!,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.recordContractNotice).toHaveBeenCalledTimes(1);
+  });
+
   it("records a timely dispatch separately from a late receipt", async () => {
     mocks.fetchContractNoticeOptions.mockResolvedValue({
       ...active,
