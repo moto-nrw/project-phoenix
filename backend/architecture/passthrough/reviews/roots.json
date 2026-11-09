@@ -1361,6 +1361,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "reason": "#6314: Consumer-port adapter that reads the Träger's master data in the caller's Träger transaction and translates its default bank account into the creditor account of the regenerated PAIN.008 files."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/ArrivalBaselineProjector.ProjectArrivals",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

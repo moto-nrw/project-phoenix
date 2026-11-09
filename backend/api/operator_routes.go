@@ -119,6 +119,10 @@ func operatorRouter(
 	if staffPersonMerge == nil {
 		panic("operator api: staff person merge routes are required")
 	}
+	erasureOrderRecords, err := provisioningOperatorAPI.NewTraegerErasureOrderRecordsResource(provisioning.ErasureOrderRecords)
+	if err != nil {
+		panic("operator api: " + err.Error())
+	}
 	identityRoutes := identity.routes()
 	provisioningRoutes := provisioningOperatorAPI.NewProvisioningResource(provisioning)
 	announcementRoutes := operatorannouncements.NewAnnouncementsResource(announcements)
@@ -134,6 +138,7 @@ func operatorRouter(
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
+		mountOperatorErasureOrderRecordsRoute(r, erasureOrderRecords)
 		if schoolSettings != nil && schoolSettings.traegerValues != nil {
 			mountOperatorTraegerSettingsRoutes(r, provisioningRoutes, schoolSettings.traegerValues)
 		}
@@ -315,6 +320,12 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 			r.Post("/{id}/sample-children", sampleChildren)
 		}
 	})
+}
+
+// mountOperatorErasureOrderRecordsRoute registers the hint and the
+// customer's choice recorded on an older open erasure order (#4720).
+func mountOperatorErasureOrderRecordsRoute(r chi.Router, records *provisioningOperatorAPI.TraegerErasureOrderRecordsResource) {
+	r.Put("/organizations/{id}/erasure-order/records", records.RecordTraegerErasureOrderRecords)
 }
 
 // mountOperatorTraegerSettingsRoutes registers the settings of a Träger

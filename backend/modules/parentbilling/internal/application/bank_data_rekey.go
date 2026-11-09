@@ -24,8 +24,18 @@ func NewBankDataRekey(store BankDataRekeyStore, cipher parentbilling.BankDataRew
 }
 
 func (r *BankDataRekey) Batch(ctx context.Context, organizationID int64, source string, afterID int64, limit int) (parentbilling.BankDataRekeyResult, error) {
-	if (source != "mandates" && source != "debits") || organizationID <= 0 || afterID < 0 || limit < 1 || limit > 1000 {
+	if (source != "mandates" && source != "debits" && source != "debit_files") || organizationID <= 0 || afterID < 0 || limit < 1 || limit > 1000 {
 		return parentbilling.BankDataRekeyResult{}, errors.New("bank data rekey requires organization, nonnegative cursor and batch size 1..1000")
+	}
+	if source == "debit_files" {
+		// One sealed value per row: the stored PAIN.008 file (ADR 0187).
+		return r.store.RewriteBankData(ctx, organizationID, source, afterID, limit, func(messageID string, file, _ []byte) ([]byte, []byte, error) {
+			rewrapped, err := r.cipher.Rewrap(file, debitFileContext(organizationID, messageID))
+			if err != nil {
+				return nil, nil, errors.New("bank data rekey: sealed SEPA debit file does not open")
+			}
+			return rewrapped, nil, nil
+		})
 	}
 	return r.store.RewriteBankData(ctx, organizationID, source, afterID, limit, func(reference string, iban, holder []byte) ([]byte, []byte, error) {
 		newIBAN, err := r.cipher.Rewrap(iban, ibanContext(organizationID, reference))

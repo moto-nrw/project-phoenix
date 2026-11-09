@@ -248,6 +248,8 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 			// The creditor of the SEPA direct debit (#4695); the mandates go
 			// with the care contracts.
 			"parent_billing.sepa_creditors",
+			// The stored PAIN.008 files of the downloads (ADR 0187).
+			"parent_billing.sepa_debit_files",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
 			require.NoError(tb, err, "Failed to clean up test Elternabrechnung rows")

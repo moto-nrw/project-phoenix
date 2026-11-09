@@ -22,4 +22,5 @@ POST /operator/organizations/{id}/traeger-members -> basis
 POST /operator/organizations/{id}/traeger-members/invitations -> basis
 POST /operator/organizations/{id}/traeger-members/invitations/{invitationId}/resend -> basis
 PUT /operator/organizations/{id} -> basis
+PUT /operator/organizations/{id}/erasure-order/records -> basis
 PUT /operator/organizations/{id}/traeger-settings/values/{key} -> basis

@@ -30,6 +30,9 @@
     "POST operator /operator/organizations/id%2F1/erasure-order",
     "DELETE operator /operator/organizations/id%2F1/erasure-order"
   ],
+  "api/operator/provisioning/organizations/[id]/erasure-order/records": [
+    "PUT operator /operator/organizations/id%2F1/erasure-order/records"
+  ],
   "api/operator/provisioning/organizations/[id]/traeger-members": [
     "GET operator /operator/organizations/id%2F1/traeger-members",
     "POST operator /operator/organizations/id%2F1/traeger-members"

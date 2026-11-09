@@ -109,7 +109,7 @@ func newOperatorRouter(
 	db transactionruntime.Database, logger *slog.Logger, sessionAuth *sessiontoken.TokenAuth, limiters authRateLimiters,
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
-	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
+	provisioning organizationtenancy.OperatorProvisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 	students importModels.RowImporter[importModels.StudentImportRow], traegerSettings settingsOperatorAPI.TraegerOperations,
 ) (chi.Router, error) {
@@ -142,6 +142,7 @@ func newOperatorRouter(
 		Service:             provisioning,
 		CaregiverCapability: caregiverCapabilityViews(db, caregivers),
 		AppEnv:              viper.GetString("app_env"),
+		ErasureOrderRecords: provisioning.ErasureOrderRecords,
 	}
 	isLocalSeedRequest := func(r *http.Request) bool {
 		return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))

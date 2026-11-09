@@ -152,6 +152,7 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.family_billing_events":      "the trail of the deviations above (#4689); present exactly when a deviation is",
 	"parent_billing.sepa_mandates":              "SEPA mandates of the families (#4695); the seed gives them to the contracts the monthly run bills, so present exactly when the run has an invoice, see parent_billing.care_invoices",
 	"parent_billing.sepa_mandate_events":        "the trail of the mandates above (#4695); present exactly when a mandate is",
+	"parent_billing.sepa_debit_files":           "the stored PAIN.008 file of a message (#6314, ADR 0187); the office's download writes it, which the seed never does, so present exactly when someone downloaded a debit file",
 	"parent_billing.sepa_debits":                "debits of the released monthly invoices by direct debit (#4697); the release writes them for the families with a mandate above, so present exactly when the released run has such an invoice",
 	"parent_billing.care_run_holds":             "children a release held back for a duplicate contract (#4684, ADR 0158 E5); present only after a release that found one, which the seed's contracts never are",
 	"parent_billing.care_invoice_positions":     "positions of the monthly invoices above (#4684); present exactly when an invoice is",

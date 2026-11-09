@@ -18,6 +18,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	studentDirectoryViewCompose "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -108,6 +109,7 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 	}
 	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
 	export.Flags().Int64Var(&options.OrganizationID, "organization", 0, "Authorized Träger ID: the Träger package, without the data its schools hold")
+	export.Flags().Int64Var(&options.OperatorID, "operator", 0, "Active operator ID for the operator audit; required with --organization")
 	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
 	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
 	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
@@ -121,6 +123,9 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	if (options.SchoolID <= 0 && options.OrganizationID <= 0) || options.Output == "" || options.Uploads == "" {
 		return errors.New("tenant export: --school or --organization, --out and --uploads are required")
 	}
+	if (options.OrganizationID > 0) != (options.OperatorID > 0) {
+		return errors.New("tenant export: --operator is required with --organization and belongs to it only")
+	}
 	db, err := transactionCompose.OpenDatabase()
 	if err != nil {
 		return errors.New("tenant export: database unavailable")
@@ -130,16 +135,17 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	if err != nil {
 		return err
 	}
-	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
-		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	}, sealed, tenantExportProjectedFields())
+	exporter, err := newTenantExporter(db, sealed, tenantExportProjectedFields(), options.OrganizationID > 0)
 	if err != nil {
 		return err
 	}
-	if err := exporter.Export(cmd.Context(), options); err != nil {
+	if err := exporter.Export(tenant.WithUnitOfWork(cmd.Context(), db.UnitOfWork()), options); err != nil {
 		return err
 	}
 	message := "Tenant export complete; verify COMPLETE and manifest before handover."
+	if options.OrganizationID > 0 {
+		message = "Träger package complete and in the operator audit; it holds FULL BANK DATA. Verify COMPLETE and manifest; hand over encrypted only."
+	}
 	if options.Person != "" {
 		message = "Person review workspace created; completeness, third-party review and school approval REQUIRED before handover."
 	}

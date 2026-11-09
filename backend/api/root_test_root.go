@@ -55,7 +55,7 @@ func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg ow
 	env owners.RootEnvironment, mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, settings owners.SettingsOwner,
 	persons *peopleCompose.Directory, services owners.PeopleServices, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests,
 	active studentpresence.Presence, reports owners.PresenceReports, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
-	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
+	materialization timetable.MaterializationCapability, provisioning organizationtenancy.OperatorProvisioning,
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
 	deviceFleet devicefleetModule.Capability, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
@@ -66,7 +66,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	env owners.RootEnvironment, mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, settings owners.SettingsOwner,
 	persons *peopleCompose.Directory, services owners.PeopleServices, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests,
 	active studentpresence.Presence, reports owners.PresenceReports, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
-	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
+	materialization timetable.MaterializationCapability, provisioning organizationtenancy.OperatorProvisioning,
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
 	deviceFleet devicefleetModule.Capability, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {

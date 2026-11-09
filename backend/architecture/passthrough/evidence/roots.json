@@ -1906,6 +1906,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (c traegerCreditorAccounts) CreditorAccount(ctx context.Context, organizationID int64) (*parentbilling.LetterheadBankAccount, error) {\n\tprofile, err := c.masterData.Profile(ctx, organizationID, 0)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tfor _, account := range profile.BankAccounts {\n\t\tif account.IsDefault {\n\t\t\treturn \u0026parentbilling.LetterheadBankAccount{AccountHolder: account.AccountHolder, IBAN: account.IBAN, BIC: account.BIC, BankName: account.BankName}, nil\n\t\t}\n\t}\n\treturn nil, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p ArrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetablePorts.ArrivalBaselines, error) {\n\tprojection, err := p.Reader.Project(ctx, studentIDs, from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn arrivalBaselineProjection{projection: projection}, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ArrivalBaselineProjector.ProjectArrivals",

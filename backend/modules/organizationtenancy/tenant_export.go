@@ -61,6 +61,96 @@ func (owners TenantExportProjectedFieldsByTable) ProjectExportField(table, colum
 	return owner.ProjectExportField(table, column, row, raw)
 }
 
+// TenantExportDependencies binds the Träger package as the CLI runs it
+// (ADR 0187): the owners that open sealed and project container values
+// (ADR 0184, ADR 0185), the stored PAIN.008 files only Parent Billing opens,
+// and the operator audit of each run. A school package needs neither of
+// the last two; a Träger package refuses without them.
+type TenantExportDependencies struct {
+	Fingerprints   ExportFingerprints
+	Sealed         TenantExportSealedFields
+	Projected      TenantExportProjectedFields
+	SEPADebitFiles TenantExportSEPADebitFiles
+	Audit          TenantExportAudit
+}
+
+// TenantExportSEPADebitFiles answers the PAIN.008 file of each submitted
+// SEPA message of a Träger (#6314, ADR 0187): the stored original, else a
+// file reconstructed from the stored debits, each with its origin. The rows
+// of the mandates and debits already carry the opened account (ADR 0184);
+// the files are what those rows cannot carry. The root binds it to Parent
+// Billing, which owns the bank key.
+type TenantExportSEPADebitFiles interface {
+	SEPADebitFiles(ctx context.Context, organizationID int64) ([]ExportSEPADebitFile, error)
+}
+
+// ExportSEPADebitFile is one PAIN.008 file: its name (message ID with .xml),
+// its bytes and whether it is the stored original or reconstructed, and why.
+type ExportSEPADebitFile struct {
+	Name   string
+	Data   []byte
+	Origin string
+	Reason string
+}
+
+// ExportSEPADebitFileOrigin names the origin of one PAIN.008 file in the
+// manifest: its path, Original or rekonstruiert, and why.
+type ExportSEPADebitFileOrigin struct {
+	Path   string `json:"path"`
+	Origin string `json:"origin"`
+	Reason string `json:"reason"`
+}
+
+// ExportSEPADebitFiles marks the directory of the PAIN.008 files of a Träger
+// package in the manifest and the audit: names and origins, never contents.
+type ExportSEPADebitFiles struct {
+	Directory string                      `json:"directory"`
+	Notice    string                      `json:"notice"`
+	Files     []ExportSEPADebitFileOrigin `json:"files"`
+}
+
+// TenantExportAudit records each run of a Träger package in the operator
+// audit (#4720: every access to personal data is audited).
+// BeginTenantExport runs before anything is read or written and refuses an
+// unknown or inactive operator; RecordTenantExport records the outcome. A
+// run whose completion is not recorded never completes.
+type TenantExportAudit interface {
+	BeginTenantExport(ctx context.Context, attempt TenantExportAttempt) error
+	RecordTenantExport(ctx context.Context, record TenantExportRecord) error
+}
+
+// TenantExportAttempt names a run before its extraction: who, which Träger,
+// when it started. No personal data.
+type TenantExportAttempt struct {
+	OperatorID     int64  `json:"operator_id"`
+	OrganizationID int64  `json:"organization_id"`
+	StartedAt      string `json:"started_at"`
+}
+
+// The outcomes of a Träger package run in the operator audit.
+const (
+	TenantExportCompleted = "completed"
+	TenantExportFailed    = "failed"
+)
+
+// TenantExportRecord names the outcome of a run without personal data. A
+// completed run carries the manifest checksum of the COMPLETE file and the
+// counts; a failed run its error class (the step that failed) and whether
+// its partial files were removed.
+type TenantExportRecord struct {
+	OperatorID          int64                 `json:"operator_id"`
+	OrganizationID      int64                 `json:"organization_id"`
+	Outcome             string                `json:"outcome"`
+	StartedAt           string                `json:"started_at"`
+	ErrorClass          string                `json:"error_class,omitempty"`
+	PartialFilesRemoved bool                  `json:"partial_files_removed,omitempty"`
+	ManifestSHA256      string                `json:"manifest_sha256,omitempty"`
+	ExportedAt          string                `json:"exported_at,omitempty"`
+	Tables              int                   `json:"tables,omitempty"`
+	Artifacts           int                   `json:"artifacts,omitempty"`
+	SEPADebitFiles      *ExportSEPADebitFiles `json:"sepa_debit_files,omitempty"`
+}
+
 type TenantExportOptions struct {
 	// SchoolID or OrganizationID, exactly one. A school package carries the
 	// school's data and, as before, the data of its Träger. A Träger package
@@ -69,6 +159,9 @@ type TenantExportOptions struct {
 	// in the package of that school.
 	SchoolID       int64
 	OrganizationID int64
+	// OperatorID is the moto operator who runs a Träger package; the
+	// operator audit names it (ADR 0187). Required with OrganizationID.
+	OperatorID int64
 	// Person optionally derives an INTERNAL review workspace: kind:<profile ID>,
 	// guardian:<profile ID>, staff:<school membership ID>. Never hand it over
 	// without the completeness and third-party review in the runbook.
@@ -87,13 +180,15 @@ type ExportManifest struct {
 	ReviewRequired bool `json:"reviewRequired,omitempty"`
 	// Package is "organization" for a Träger package; a school package has
 	// none, as in format version 1 before it.
-	Package        string           `json:"package,omitempty"`
-	FormatVersion  int              `json:"formatVersion"`
-	CatalogVersion int              `json:"catalogVersion"`
-	CatalogSHA256  string           `json:"catalogSHA256"`
-	ExportedAt     string           `json:"exportedAt"`
-	Tables         []ExportTable    `json:"tables"`
-	Artifacts      []ExportArtifact `json:"artifacts"`
+	Package        string        `json:"package,omitempty"`
+	FormatVersion  int           `json:"formatVersion"`
+	CatalogVersion int           `json:"catalogVersion"`
+	CatalogSHA256  string        `json:"catalogSHA256"`
+	ExportedAt     string        `json:"exportedAt"`
+	Tables         []ExportTable `json:"tables"`
+	// SEPADebitFiles marks the PAIN.008 files of a Träger package (ADR 0187).
+	SEPADebitFiles *ExportSEPADebitFiles `json:"sepaDebitFiles,omitempty"`
+	Artifacts      []ExportArtifact      `json:"artifacts"`
 }
 
 type ExportTable struct {

@@ -37,6 +37,9 @@ type ProvisioningConfig struct {
 	CaregiverCapability SchoolAccountCaregivers
 	// AppEnv decides whether a seeding client may read invitation tokens.
 	AppEnv string
+	// ErasureOrderRecords serves the records route of an older erasure
+	// order (#4720) through NewTraegerErasureOrderRecordsResource; required.
+	ErasureOrderRecords organizationtenancy.TraegerErasureOrderRecordsProvisioning
 }
 
 // NewProvisioningResource creates a new provisioning resource.

@@ -257,6 +257,9 @@ func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	if !isNilDependency(deps.TraegerDocumentReadRetention) {
 		jobs = append(jobs, CleanupJob{Description: "Träger document read retention", Run: deps.TraegerDocumentReadRetention.DeleteExpiredTraegerDocumentReads})
 	}
+	if !isNilDependency(deps.SEPADebitDownloadRetention) {
+		jobs = append(jobs, CleanupJob{Description: "SEPA debit download retention", Run: deps.SEPADebitDownloadRetention.DeleteExpiredSEPADebitDownloads})
+	}
 	return jobs
 }
 

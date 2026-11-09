@@ -61,6 +61,61 @@
       "target_owner": "operator-dashboard-view"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.BeginTenantExport",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.tenantExportAudit.BeginTenantExport. The Rückgabe of a Träger records its attempt (operator, Träger, start time; no personal data) before anything is read or written (#4720, ADR 0187). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.BeginTenantExport",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
+      "reason": "Capability read: before the attempt is recorded, the root reads the operator through Identity \u0026 Access and refuses an unknown or inactive one, like the erasure (#4720, ADR 0187). It writes no identity row.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.BeginTenantExport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.tenantExportAudit.BeginTenantExport, the administrative unit of the operator audit append of the attempt (#4720). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.RecordTenantExport",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.RecordTenantExport",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.tenantExportAudit.RecordTenantExport. The Rückgabe of a Träger records each run (operator, Träger, manifest checksum, counts; no personal data) before COMPLETE (#4720, #6314). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.RecordTenantExport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.RecordTenantExport",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.tenantExportAudit.RecordTenantExport, the administrative unit of the operator audit append (#4720). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ExportFields.ProjectExportField",
       "classification": "query",
       "effect": "query",
@@ -69,6 +124,28 @@
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.ExportFields.ProjectExportField",
       "target_owner": "settings-platform"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "reason": "Capability read (#6314, ADR 0187): Parent Billing opens the stored PAIN.008 originals of one Träger, or regenerates the file of a submitted message from its stored debits, in the Träger transaction the root opens; it writes no billing row. The opened IBAN and account holder of the catalog rows are the separate SEPAExportFields binding (ADR 0184). Its creditor-account read is a separate reviewed binding.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAReturn.SEPAReturn",
+      "target_owner": "parent-billing"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinTraeger (tenant-runtime) through cmd.traegerSEPADebitFiles.SEPADebitFiles. The Träger package opens the Träger transaction of Parent Billing after its read-only catalog snapshot committed, never both at once (#6314, ADR 0187). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",

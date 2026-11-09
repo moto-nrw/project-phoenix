@@ -36,6 +36,14 @@ type DebitStore interface {
 		mandates []parentbilling.SEPAMandate) error
 	// SEPACreditor reads the creditor of the Träger, nil without one.
 	SEPACreditor(ctx context.Context, organizationID int64) (*parentbilling.SEPACreditor, error)
+	// SaveSEPADebitFile keeps the downloaded file of a message (ADR 0187),
+	// replacing an earlier download until the message is submitted.
+	SaveSEPADebitFile(ctx context.Context, organizationID, accountID int64, file parentbilling.StoredSEPADebitFile) error
+	// SubmitSEPADebitFile marks the stored file of a message submitted; a
+	// message without a stored download keeps the creditor account of file.
+	// It drops the unsubmitted downloads of the run that share a member
+	// with file: the confirmation superseded them.
+	SubmitSEPADebitFile(ctx context.Context, organizationID, accountID int64, file parentbilling.StoredSEPADebitFile) error
 }
 
 // SEPADebits serves parentbilling.SEPADebits.
@@ -45,18 +53,20 @@ type SEPADebits struct {
 	cipher      parentbilling.BankDataCipher
 	today       func() calendar.Date
 	now         func() time.Time
+	// fingerprint is the platform's SHA-256 of a stored file (ADR 0187).
+	fingerprint func([]byte) string
 }
 
 var _ parentbilling.SEPADebits = (*SEPADebits)(nil)
 
 // NewSEPADebits builds the debit file.
 func NewSEPADebits(store DebitStore, letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher,
-	today func() calendar.Date, now func() time.Time,
+	today func() calendar.Date, now func() time.Time, fingerprint func([]byte) string,
 ) *SEPADebits {
-	if store == nil || letterheads == nil || cipher == nil || today == nil || now == nil {
-		panic("parent billing: the store, the letterhead, the cipher and the clocks are required")
+	if store == nil || letterheads == nil || cipher == nil || today == nil || now == nil || fingerprint == nil {
+		panic("parent billing: the store, the letterhead, the cipher, the clocks and the fingerprint are required")
 	}
-	return &SEPADebits{store: store, letterheads: letterheads, cipher: cipher, today: today, now: now}
+	return &SEPADebits{store: store, letterheads: letterheads, cipher: cipher, today: today, now: now, fingerprint: fingerprint}
 }
 
 // debitPlan is the file of a run as it is now.
@@ -234,7 +244,54 @@ func (d *SEPADebits) SEPADebitFile(ctx context.Context, reviewer parentbilling.H
 	if err != nil {
 		return parentbilling.SEPADebitFile{}, err
 	}
+	if err := d.storeFile(ctx, reviewer, runKind, runID, plan, data); err != nil {
+		return parentbilling.SEPADebitFile{}, err
+	}
 	return parentbilling.SEPADebitFile{Filename: plan.run.MessageID + ".xml", ContentType: "application/xml", Data: data}, nil
+}
+
+// storeFile keeps the exact bytes the office downloads, sealed with the
+// bank key, with their SHA-256 and the creditor account in the file: the
+// Rückgabe ships this original of a submitted file (#6314, ADR 0187).
+func (d *SEPADebits) storeFile(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
+	plan debitPlan, data []byte,
+) error {
+	sealed, err := d.cipher.Seal(data, debitFileContext(reviewer.OrganizationID, plan.run.MessageID))
+	if err != nil {
+		return fmt.Errorf("parent billing: seal the SEPA direct debit file: %w", err)
+	}
+	file := fileCreditor(runKind, runID, plan)
+	file.Sealed, file.SHA256 = sealed, d.fingerprint(data)
+	if err := d.store.SaveSEPADebitFile(ctx, reviewer.OrganizationID, reviewer.AccountID, file); err != nil {
+		return fmt.Errorf("parent billing: keep the SEPA direct debit file: %w", err)
+	}
+	return nil
+}
+
+// fileCreditor names the message, the creditor account of its file and
+// its members (ADR 0187).
+func fileCreditor(runKind string, runID int64, plan debitPlan) parentbilling.StoredSEPADebitFile {
+	file := parentbilling.StoredSEPADebitFile{MessageID: plan.run.MessageID, RunKind: runKind, RunID: runID, CreditorID: plan.run.CreditorID,
+		DebitIDs: []int64{}, NoticeIDs: []int64{}, MandateIDs: []int64{}}
+	if account := plan.account; account != nil {
+		file.CreditorName, file.CreditorIBAN, file.CreditorBIC = account.AccountHolder, sepa.Compact(account.IBAN), sepa.Compact(account.BIC)
+	}
+	for _, entry := range plan.included {
+		if debit := entry.Debit; isNoticeRate(debit) {
+			file.NoticeIDs = append(file.NoticeIDs, debit.NoticeID)
+		} else {
+			file.DebitIDs = append(file.DebitIDs, debit.ID)
+		}
+		if !slices.Contains(file.MandateIDs, entry.Debit.MandateID) {
+			file.MandateIDs = append(file.MandateIDs, entry.Debit.MandateID)
+		}
+	}
+	return file
+}
+
+// debitFileContext binds a sealed debit file to the Träger and its message.
+func debitFileContext(organizationID int64, messageID string) []byte {
+	return []byte("parent_billing.sepa_debit_files.file|" + strconv.FormatInt(organizationID, 10) + "|" + messageID)
 }
 
 // creditorAccount is the default bank account of the Träger the debits
@@ -259,11 +316,21 @@ func berlin() *time.Location {
 // openBatches opens the account of each included debit and groups the
 // debits into batches; it answers the mandates it opened, once each.
 func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitFileBatch, []parentbilling.SEPAMandate, error) {
+	return openDebitBatches(d.cipher, organizationID, plan.run.MessageID, plan.included, plan.collectOn)
+}
+
+// openDebitBatches opens the account of each debit of the file messageID
+// and groups the debits into batches by sequence type and collection day.
+// The download and the Rückgabe of a submitted file (#6314) share it, so
+// the same debits give the same batches.
+func openDebitBatches(cipher parentbilling.BankDataCipher, organizationID int64, messageID string,
+	included []parentbilling.SealedSEPADebit, collectOns map[int64]calendar.Date,
+) ([]debitFileBatch, []parentbilling.SEPAMandate, error) {
 	var batches []debitFileBatch
 	index := map[[2]string]int{}
 	endToEnd := map[string]bool{}
 	var revealed []parentbilling.SEPAMandate
-	for _, entry := range plan.included {
+	for _, entry := range included {
 		debit := entry.Debit
 		endToEndID := debitEndToEndID(debit)
 		if endToEnd[endToEndID] {
@@ -272,22 +339,18 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 			return nil, nil, parentbilling.ErrSEPAEndToEndDuplicate
 		}
 		endToEnd[endToEndID] = true
-		iban, err := d.cipher.Open(entry.IBAN, ibanContext(organizationID, debit.MandateReference))
+		iban, holder, err := openDebitAccount(cipher, organizationID, entry)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parent billing: open the IBAN of debit %d: %w", debit.ID, err)
+			return nil, nil, err
 		}
-		holder, err := d.cipher.Open(entry.Holder, holderContext(organizationID, debit.MandateReference))
-		if err != nil {
-			return nil, nil, fmt.Errorf("parent billing: open the account holder of debit %d: %w", debit.ID, err)
-		}
-		collectOn := plan.collectOn[debit.ID]
+		collectOn := collectOns[debit.ID]
 		key := [2]string{debit.SequenceType, collectOn.String()}
 		at, ok := index[key]
 		if !ok {
 			at = len(batches)
 			index[key] = at
 			batches = append(batches, debitFileBatch{SequenceType: debit.SequenceType, CollectOn: collectOn,
-				ID: sepaIdentifier(fmt.Sprintf("%s-%d", plan.run.MessageID[:min(len(plan.run.MessageID), 30)], at+1))})
+				ID: sepaIdentifier(fmt.Sprintf("%s-%d", messageID[:min(len(messageID), 30)], at+1))})
 		}
 		batches[at].Entries = append(batches[at].Entries, debitFileEntry{
 			EndToEndID: endToEndID, AmountCents: debit.AmountCents,
@@ -305,12 +368,26 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 	return batches, revealed, nil
 }
 
+// openDebitAccount opens the IBAN and the account holder a debit copied.
+func openDebitAccount(cipher parentbilling.BankDataCipher, organizationID int64, entry parentbilling.SealedSEPADebit) (iban, holder []byte, err error) {
+	reference := entry.Debit.MandateReference
+	if iban, err = cipher.Open(entry.IBAN, ibanContext(organizationID, reference)); err != nil {
+		return nil, nil, fmt.Errorf("parent billing: open the IBAN of debit %d: %w", entry.Debit.ID, err)
+	}
+	if holder, err = cipher.Open(entry.Holder, holderContext(organizationID, reference)); err != nil {
+		return nil, nil, fmt.Errorf("parent billing: open the account holder of debit %d: %w", entry.Debit.ID, err)
+	}
+	return iban, holder, nil
+}
+
 // debitEndToEndID is the ID the bank keeps for one debit: the invoice
 // number when it fits the SEPA characters and 35 characters unchanged, else
 // MOTO-D and the debit's own ID, which is unique. A cut-down number could
 // give two invoices the same ID; the remittance text keeps the full number.
 func debitEndToEndID(debit parentbilling.SEPADebit) string {
-	if isNoticeRate(debit) {
+	// A stored installment (its confirmation wrote the row) keeps the ID of
+	// the file it was collected with.
+	if isNoticeRate(debit) || debit.NoticeID > 0 {
 		return noticeEndToEndID(debit)
 	}
 	if sepaIdentifier(debit.InvoiceNumber) == debit.InvoiceNumber {
@@ -363,6 +440,9 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 	}
 	if err := d.store.SubmitSEPADebits(ctx, reviewer.OrganizationID, reviewer.AccountID, plan.run.MessageID, invoices, collected); err != nil {
 		return parentbilling.SEPADebitRun{}, err
+	}
+	if err := d.store.SubmitSEPADebitFile(ctx, reviewer.OrganizationID, reviewer.AccountID, fileCreditor(runKind, runID, plan)); err != nil {
+		return parentbilling.SEPADebitRun{}, fmt.Errorf("parent billing: keep the submitted SEPA direct debit file: %w", err)
 	}
 	if err := d.store.InsertSEPAMandateEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, mandateCollect,
 		parentbilling.MandateFromOffice, nil, mandates); err != nil {

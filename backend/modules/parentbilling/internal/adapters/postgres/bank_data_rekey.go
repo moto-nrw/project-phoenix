@@ -71,6 +71,13 @@ func lockedBankRekeyRows(ctx context.Context, tx bun.IDB, organizationID int64, 
 		err := tx.NewRaw(`SELECT id, mandate_reference AS reference, iban_sealed, account_holder_sealed
    FROM parent_billing.sepa_debits WHERE organization_id = ? AND id > ? ORDER BY id LIMIT ? FOR UPDATE`, organizationID, afterID, limit).Scan(ctx, &rows)
 		return rows, err
+	case "debit_files":
+		// The stored PAIN.008 file (ADR 0187) is one sealed value, bound to its
+		// message ID; rows without a stored download have nothing to rewrap.
+		err := tx.NewRaw(`SELECT id, message_id AS reference, file_sealed AS iban_sealed, NULL::bytea AS account_holder_sealed
+   FROM parent_billing.sepa_debit_files WHERE organization_id = ? AND id > ? AND file_sealed IS NOT NULL ORDER BY id LIMIT ? FOR UPDATE`,
+			organizationID, afterID, limit).Scan(ctx, &rows)
+		return rows, err
 	default:
 		return nil, errors.New("unsupported bank data source")
 	}
@@ -107,6 +114,10 @@ func updateBankRekeyRow(ctx context.Context, tx bun.IDB, organizationID int64, s
 	case "debits":
 		_, err := tx.NewRaw(`UPDATE parent_billing.sepa_debits SET iban_sealed = ?, account_holder_sealed = ?
    WHERE organization_id = ? AND id = ?`, iban, holder, organizationID, id).Exec(ctx)
+		return err
+	case "debit_files":
+		_, err := tx.NewRaw(`UPDATE parent_billing.sepa_debit_files SET file_sealed = ?
+   WHERE organization_id = ? AND id = ?`, iban, organizationID, id).Exec(ctx)
 		return err
 	default:
 		return errors.New("unsupported bank data source")

@@ -28,6 +28,7 @@ export const codes = [
   "provisioning.traeger_active",
   "provisioning.traeger_erasure_order_not_found",
   "provisioning.traeger_erasure_order_open",
+  "provisioning.traeger_erasure_records_recorded",
   "provisioning.traeger_erasure_started",
 ] as const;
 
@@ -60,6 +61,7 @@ export const classes = {
   "provisioning.traeger_active": "business_rejection",
   "provisioning.traeger_erasure_order_not_found": "business_rejection",
   "provisioning.traeger_erasure_order_open": "business_rejection",
+  "provisioning.traeger_erasure_records_recorded": "business_rejection",
   "provisioning.traeger_erasure_started": "business_rejection",
 } as const;
 
@@ -92,5 +94,6 @@ export const parameters = {
   "provisioning.traeger_active": [],
   "provisioning.traeger_erasure_order_not_found": [],
   "provisioning.traeger_erasure_order_open": [],
+  "provisioning.traeger_erasure_records_recorded": [],
   "provisioning.traeger_erasure_started": [],
 } as const;
