@@ -192,6 +192,8 @@ type HolidayBookingChange struct {
 	// Waitlisted marks a booking the rebooking replaced while it waited for
 	// a place (#4699); the host school's care windows skip it.
 	Waitlisted bool `json:"waitlisted,omitempty"`
+	// PromotedAt preserves the earliest care day when rebooking removes the booking.
+	PromotedAt *time.Time `json:"promoted_at,omitempty"`
 }
 
 // HolidayDebtorNumberChange is the debtor number before and after a

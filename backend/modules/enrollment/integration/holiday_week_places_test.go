@@ -83,7 +83,7 @@ func TestHolidayWeekPlacesKeepTheirTraegerBeneathRLS(t *testing.T) {
 		assert.Empty(t, locked, "A locks no week of B")
 
 		require.NoError(t, store.SetHolidayWeekCapacity(ctx, own.organization, foreign.period, foreign.week, &nine))
-		placed, err := store.PlaceHolidayWaitlist(ctx, own.organization, foreign.week, 0)
+		placed, err := store.PlaceHolidayWaitlist(ctx, own.organization, foreign.week, 0, 0)
 		require.NoError(t, err)
 		assert.Empty(t, placed, "A moves no booking of B up")
 

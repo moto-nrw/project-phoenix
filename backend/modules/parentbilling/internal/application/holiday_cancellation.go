@@ -28,7 +28,7 @@ func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, re
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayCancellation{}, errTraegerRequired
 	}
-	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
+	groups, _, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidayCancellation{}, err
 	}
@@ -43,7 +43,7 @@ func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, re
 	// The freed places went to the waiting lists (#4699): the registrations
 	// that moved up get their contribution again, after the group of the
 	// cancelled one.
-	if err := h.refreezeMovedUp(ctx, reviewer, periodID, registration.MovedUp, issued); err != nil {
+	if err := h.refreezeMovedUp(ctx, reviewer, periodID, registration.MovedUp); err != nil {
 		return parentbilling.HolidayCancellation{}, err
 	}
 	return cancelled, nil

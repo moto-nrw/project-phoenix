@@ -36,7 +36,8 @@ import {
   rebookingChanged,
   rebookingDraft,
 } from "./holiday-rebooking-model";
-import { HolidayPlacementBadge } from "./holiday-placement-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { holidayPlacementStatus } from "./holiday-placement";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -217,7 +218,10 @@ export function HolidayRegistrationChildCard({
                       "Schule nicht mehr vorhanden"}
                   </span>
                   {cancelled ? null : (
-                    <HolidayPlacementBadge booking={booking} />
+                    <StatusBadge
+                      {...holidayPlacementStatus(booking)}
+                      size="xs"
+                    />
                   )}
                 </li>
               ))}

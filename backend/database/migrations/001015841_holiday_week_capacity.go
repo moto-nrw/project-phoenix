@@ -299,7 +299,9 @@ AS $function$
 	),
 	segment AS (
 		SELECT own.child_id, booking.holiday_period_week_id AS week_id, booking.holiday_week_time_model_id AS model_id,
-			(SELECT max(rebook.on_date) FROM rebook WHERE rebook.child_id = own.child_id) AS valid_from,
+			`
+	holidayCurrentStart = `(SELECT max(rebook.on_date) FROM rebook WHERE rebook.child_id = own.child_id)`
+	holidayHostSQL3End  = ` AS valid_from,
 			NULL::date AS valid_until
 		FROM own
 		JOIN enrollment.holiday_registration_bookings AS booking
@@ -307,8 +309,10 @@ AS $function$
 	holidayHostSQL4 = `
 		UNION ALL
 		SELECT rebook.child_id, (previous->>'week_id')::bigint, (previous->>'time_model_id')::bigint,
-			(SELECT max(earlier.on_date) FROM rebook AS earlier
-				WHERE earlier.child_id = rebook.child_id AND earlier.occurred_at < rebook.occurred_at),
+			`
+	holidayPreviousStart = `(SELECT max(earlier.on_date) FROM rebook AS earlier
+				WHERE earlier.child_id = rebook.child_id AND earlier.occurred_at < rebook.occurred_at)`
+	holidayHostSQL4End = `,
 			rebook.on_date - 1
 		FROM rebook
 		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(rebook.details->'before', '[]'::jsonb)) AS previous`
@@ -349,15 +353,17 @@ const (
 		holidayHostSQL2 +
 		holidayPlacedBooking +
 		holidayHostSQL3 +
+		"GREATEST(" + holidayCurrentStart + ", (booking.promoted_at AT TIME ZONE 'Europe/Berlin')::date)" + holidayHostSQL3End +
 		holidayPlacedBooking +
 		holidayHostSQL4 +
+		"GREATEST(" + holidayPreviousStart + ", ((previous->>'promoted_at')::timestamptz AT TIME ZONE 'Europe/Berlin')::date)" + holidayHostSQL4End +
 		holidayPlacedPrevious +
 		holidayHostSQL5
 	holidayHostUnplacedSQL = holidayHostSQL0 +
 		holidayHostSQL1 +
 		holidayHostSQL2 +
-		holidayHostSQL3 +
-		holidayHostSQL4 +
+		holidayHostSQL3 + holidayCurrentStart + holidayHostSQL3End +
+		holidayHostSQL4 + holidayPreviousStart + holidayHostSQL4End +
 		holidayHostSQL5
 )
 

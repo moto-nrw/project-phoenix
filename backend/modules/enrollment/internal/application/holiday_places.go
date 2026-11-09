@@ -27,8 +27,9 @@ type HolidayPlaceStore interface {
 	LockHolidayWeeks(ctx context.Context, organizationID, periodID int64, weekIDs []int64) ([]int64, error)
 	// PlaceHolidayWaitlist gives the free places of a locked week to its
 	// waiting list in its order and returns the bookings that got one;
-	// those of submittedID are the registration being sent.
-	PlaceHolidayWaitlist(ctx context.Context, organizationID, weekID, submittedID int64) ([]enrollment.HolidayPromotion, error)
+	// those of submittedID are initial placements, restricted to initialChildID
+	// when nonzero (a direct rebooking).
+	PlaceHolidayWaitlist(ctx context.Context, organizationID, weekID, submittedID, initialChildID int64) ([]enrollment.HolidayPromotion, error)
 	SetHolidayWeekCapacity(ctx context.Context, organizationID, periodID, weekID int64, capacity *int) error
 	ReadHolidayWeekPlaces(ctx context.Context, organizationID, periodID int64) ([]enrollment.HolidayWeekPlaces, error)
 	ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error)
@@ -49,6 +50,9 @@ type holidayPlacement struct {
 	store   HolidayPlaceStore
 	traeger enrollment.HolidayTraegerDirectory
 	mail    enrollment.TraegerMailOutbox
+	// initialChildID restricts an initial placement to the rebooked child.
+	// Zero places every child of a newly submitted registration initially.
+	initialChildID int64
 }
 
 // holidayPromotionDetails is the audit entry of a booking that moved up.
@@ -58,8 +62,8 @@ type holidayPromotionDetails struct {
 }
 
 // place locks the weeks in ascending ID and gives their free places to their
-// waiting lists. The bookings of submittedID, the registration being sent,
-// come back as own; every other booking that got a place moved up: it is
+// waiting lists. The initial bookings of submittedID, restricted to
+// initialChildID for a direct rebooking, come back as own; every other booking that got a place moved up: it is
 // recorded in its registration's trail and its parents get a mail, in this
 // transaction.
 func (p holidayPlacement) place(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, weekIDs []int64, submittedID, actorAccountID int64) (own, promoted []enrollment.HolidayPromotion, err error) {
@@ -72,12 +76,12 @@ func (p holidayPlacement) place(ctx context.Context, organizationID int64, perio
 		return nil, nil, fmt.Errorf("enrollment: lock holiday weeks: %w", err)
 	}
 	for _, weekID := range locked {
-		placed, err := p.store.PlaceHolidayWaitlist(ctx, organizationID, weekID, submittedID)
+		placed, err := p.store.PlaceHolidayWaitlist(ctx, organizationID, weekID, submittedID, p.initialChildID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("enrollment: place holiday waiting list: %w", err)
 		}
 		for _, booking := range placed {
-			if booking.RegistrationID == submittedID {
+			if booking.RegistrationID == submittedID && (p.initialChildID == 0 || booking.ChildID == p.initialChildID) {
 				own = append(own, booking)
 			} else {
 				promoted = append(promoted, booking)
@@ -135,12 +139,13 @@ func (p holidayPlacement) announceRegistration(ctx context.Context, organization
 	}
 	registration := read[0]
 	weeks := map[int64][]int64{}
+	keys := make([]string, 0, len(promoted))
 	for _, booking := range promoted {
+		keys = append(keys, strconv.FormatInt(booking.BookingID, 10))
 		weeks[booking.ChildID] = append(weeks[booking.ChildID], booking.WeekID)
 	}
 	lines := holidayWeekLines(traeger, period)
 	children := []enrollment.HolidayRegistrationMailChild{}
-	keys := []string{}
 	for _, child := range registration.Children {
 		moved := weeks[child.ID]
 		if len(moved) == 0 {
@@ -154,11 +159,11 @@ func (p holidayPlacement) announceRegistration(ctx context.Context, organization
 		for _, booking := range child.Bookings {
 			if slices.Contains(moved, booking.WeekID) {
 				mailChild.Weeks = append(mailChild.Weeks, lines(booking.WeekID, booking.TimeModelID))
-				keys = append(keys, strconv.FormatInt(child.ID, 10)+"-"+strconv.FormatInt(booking.WeekID, 10))
 			}
 		}
 		children = append(children, mailChild)
 	}
+	slices.Sort(keys)
 	payload, err := json.Marshal(enrollment.HolidayPlaceGrantedMail{
 		Recipient: registration.GuardianEmail, GuardianName: registration.GuardianFirstName + " " + registration.GuardianLastName,
 		TraegerName: traeger.Name, PeriodName: period.Name, Binding: period.Binding, Children: children,

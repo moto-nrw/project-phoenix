@@ -388,7 +388,11 @@ func (h *HolidayRegistrationReview) RebookHolidayChild(ctx context.Context, revi
 		}
 		// A week the child left frees its place, a new week waits for one;
 		// the places are given before the trail records the rebooking.
-		promoted, err = h.moveUp(ctx, reviewer, period, changed)
+		// Only new weeks of this child are initial placements. A waiting
+		// sibling in the same registration still moves up and is billed.
+		placement := h.placement
+		placement.initialChildID = childID
+		_, promoted, err = placement.place(ctx, reviewer.OrganizationID, period, changed, current.ID, reviewer.AccountID)
 		return enrollment.HolidayAuditRebook, details, err
 	})
 	detail.Promotions = promoted
@@ -412,6 +416,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	for i, booking := range child.Bookings {
 		before[i] = enrollment.HolidayBookingChange{
 			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted,
+			PromotedAt: booking.PromotedAt,
 		}
 		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
 	}

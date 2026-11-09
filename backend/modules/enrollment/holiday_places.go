@@ -60,6 +60,8 @@ type HolidayReceiptPlacement struct {
 
 // HolidayPromotion is one booking that moved up from the waiting list.
 type HolidayPromotion struct {
+	// BookingID identifies the persisted booking generation for mail deduplication.
+	BookingID      int64 `json:"-"`
 	RegistrationID int64 `json:"registration_id"`
 	ChildID        int64 `json:"child_id"`
 	WeekID         int64 `json:"week_id"`

@@ -34,7 +34,8 @@ const (
 	// placed bookings of received and confirmed registrations. Run in READ
 	// COMMITTED after the lock, the statement sees every placement committed
 	// before; a NULL capacity places every booking. submitted names the
-	// registration being sent: its own bookings get no promoted_at.
+	// registration being sent or rebooked: its initial bookings (restricted
+	// to initialChildID when nonzero) get no promoted_at.
 	placeHolidayWaitlistQuery = `WITH week AS (
 			SELECT capacity FROM enrollment.holiday_period_weeks
 			WHERE organization_id = ? AND id = ?
@@ -58,11 +59,11 @@ const (
 		)
 		UPDATE enrollment.holiday_registration_bookings AS booking
 		SET placement = 'placed',
-			promoted_at = CASE WHEN queue.registration_id = ? THEN NULL ELSE statement_timestamp() END
+			promoted_at = CASE WHEN queue.registration_id = ? AND (?::bigint = 0 OR queue.child_id = ?) THEN NULL ELSE statement_timestamp() END
 		FROM queue, free
 		WHERE booking.organization_id = ? AND booking.id = queue.id
 			AND (free.places IS NULL OR queue.rank <= free.places)
-		RETURNING queue.registration_id, queue.child_id, queue.position, booking.holiday_period_week_id`
+		RETURNING booking.id AS booking_id, queue.registration_id, queue.child_id, queue.position, booking.holiday_period_week_id`
 	setHolidayWeekCapacityQuery = `UPDATE enrollment.holiday_period_weeks SET capacity = ?
 		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?`
 	holidayWeekPlacesQuery = `SELECT week.id, week.starts_on, week.ends_on, week.host_school_id, week.capacity,
@@ -111,26 +112,28 @@ func (s *HolidayRegistrationStore) LockHolidayWeeks(ctx context.Context, organiz
 
 // PlaceHolidayWaitlist gives the free places of a week the caller holds to
 // its waiting list and returns the bookings that got one. submittedID names
-// the registration being sent, zero for none.
-func (s *HolidayRegistrationStore) PlaceHolidayWaitlist(ctx context.Context, organizationID, weekID, submittedID int64) ([]enrollment.HolidayPromotion, error) {
+// the registration being sent or rebooked, zero for none. A nonzero
+// initialChildID restricts its initial placements to the rebooked child.
+func (s *HolidayRegistrationStore) PlaceHolidayWaitlist(ctx context.Context, organizationID, weekID, submittedID, initialChildID int64) ([]enrollment.HolidayPromotion, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var placed []enrollment.HolidayPromotion
 	var rows []struct {
+		BookingID      int64 `bun:"booking_id"`
 		RegistrationID int64 `bun:"registration_id"`
 		ChildID        int64 `bun:"child_id"`
 		Position       int   `bun:"position"`
 		WeekID         int64 `bun:"holiday_period_week_id"`
 	}
-	if err := db.NewRaw(placeHolidayWaitlistQuery, organizationID, weekID, organizationID, weekID, submittedID, organizationID).
+	if err := db.NewRaw(placeHolidayWaitlistQuery, organizationID, weekID, organizationID, weekID, submittedID, initialChildID, initialChildID, organizationID).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: place holiday waiting list: %w", err)
 	}
 	for _, row := range rows {
 		placed = append(placed, enrollment.HolidayPromotion{
-			RegistrationID: row.RegistrationID, ChildID: row.ChildID, ChildPosition: row.Position, WeekID: row.WeekID,
+			BookingID: row.BookingID, RegistrationID: row.RegistrationID, ChildID: row.ChildID, ChildPosition: row.Position, WeekID: row.WeekID,
 		})
 	}
 	return placed, nil

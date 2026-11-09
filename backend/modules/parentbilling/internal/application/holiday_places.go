@@ -21,7 +21,8 @@ import (
 // state before or after, never a placement without its contribution.
 
 // withMovedUpBookings adds to the frozen children the placed bookings of the
-// registration that the frozen contribution does not price yet.
+// registration that actually moved up and the frozen contribution does
+// not price yet. Direct rebookings keep their frozen contribution.
 func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentbilling.HolidayChild {
 	byID := make(map[int64]int, len(frozen))
 	for i, child := range frozen {
@@ -33,7 +34,7 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 			continue
 		}
 		for _, booking := range child.Bookings {
-			if booking.Waitlisted || slices.ContainsFunc(frozen[i].Bookings, func(priced parentbilling.HolidayBooking) bool {
+			if !booking.Promoted || booking.Waitlisted || slices.ContainsFunc(frozen[i].Bookings, func(priced parentbilling.HolidayBooking) bool {
 				return priced.WeekStartsOn == booking.WeekStartsOn && priced.WeekEndsOn == booking.WeekEndsOn
 			}) {
 				continue
@@ -46,9 +47,9 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 
 // refreezeMovedUp computes the contribution of every registration that moved
 // up again, with its sibling group; only confirmed ones keep a new version. The caller holds the
-// invoices of the period; issued names the registrations an issued invoice
-// bills, which keep their contribution.
-func (h *HolidayContributions) refreezeMovedUp(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, movedUp []int64, issued map[int64]bool) error {
+// invoices of the period. Issued invoices keep their positions, while the
+// new contribution exposes any correction needed.
+func (h *HolidayContributions) refreezeMovedUp(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, movedUp []int64) error {
 	done := map[int64]bool{}
 	for _, registrationID := range movedUp {
 		if done[registrationID] {
@@ -69,7 +70,7 @@ func (h *HolidayContributions) refreezeMovedUp(ctx context.Context, reviewer par
 		// A received registration freezes nothing yet, but a child of it
 		// that now has a place can change the ranks of its confirmed
 		// siblings.
-		if err := h.refreeze(ctx, reviewer, periodID, members, issued, true); err != nil {
+		if err := h.refreeze(ctx, reviewer, periodID, members, nil, true); err != nil {
 			return err
 		}
 	}
@@ -85,7 +86,7 @@ func (h *HolidayContributions) RebookHolidayChild(ctx context.Context, reviewer 
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayPlaceChange{}, errTraegerRequired
 	}
-	_, issued, err := h.lockSiblings(ctx, reviewer, periodID)
+	_, _, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidayPlaceChange{}, err
 	}
@@ -93,7 +94,7 @@ func (h *HolidayContributions) RebookHolidayChild(ctx context.Context, reviewer 
 	if err != nil {
 		return parentbilling.HolidayPlaceChange{}, err
 	}
-	if err := h.refreezeMovedUp(ctx, reviewer, periodID, registration.MovedUp, issued); err != nil {
+	if err := h.refreezeMovedUp(ctx, reviewer, periodID, registration.MovedUp); err != nil {
 		return parentbilling.HolidayPlaceChange{}, err
 	}
 	return parentbilling.HolidayPlaceChange{
@@ -108,7 +109,7 @@ func (h *HolidayContributions) SetHolidayWeekCapacity(ctx context.Context, revie
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayPlaceChange{}, errTraegerRequired
 	}
-	_, issued, err := h.lockSiblings(ctx, reviewer, periodID)
+	_, _, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidayPlaceChange{}, err
 	}
@@ -116,7 +117,7 @@ func (h *HolidayContributions) SetHolidayWeekCapacity(ctx context.Context, revie
 	if err != nil {
 		return parentbilling.HolidayPlaceChange{}, err
 	}
-	if err := h.refreezeMovedUp(ctx, reviewer, periodID, movedUp, issued); err != nil {
+	if err := h.refreezeMovedUp(ctx, reviewer, periodID, movedUp); err != nil {
 		return parentbilling.HolidayPlaceChange{}, err
 	}
 	return parentbilling.HolidayPlaceChange{WeekID: weekID, Capacity: capacity, MovedUp: movedUpOrEmpty(movedUp)}, nil

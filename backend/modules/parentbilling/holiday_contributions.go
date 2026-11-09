@@ -196,6 +196,8 @@ type HolidayBooking struct {
 	// Waitlisted marks a booking that waits for a place (#4699). It costs
 	// nothing and gives the child no sibling rank until it moves up.
 	Waitlisted bool
+	// Promoted distinguishes waiting-list admissions from direct rebookings.
+	Promoted bool
 }
 
 // HolidayChild is a child of a registration with its bookings. Position is

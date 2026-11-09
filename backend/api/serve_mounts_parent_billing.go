@@ -738,6 +738,7 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 				WeekID: booking.WeekID, WeekStartsOn: booking.WeekStartsOn, WeekEndsOn: booking.WeekEndsOn,
 				TimeModelID: booking.TimeModelID, TimeModelName: booking.TimeModelName, PriceCents: booking.PriceCents,
 				Waitlisted: booking.Placement == enrollmentOwner.HolidayPlacementWaitlisted,
+				Promoted:   booking.PromotedAt != nil,
 			}
 		}
 		registration.Children[i] = parentbilling.HolidayChild{
