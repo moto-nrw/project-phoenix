@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const demoRetirementRevokesSessionsVersion = "1.15.833"
+const demoRetirementRevokesSessionsVersion = "1.15.838"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
