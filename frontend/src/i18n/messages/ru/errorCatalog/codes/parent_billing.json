@@ -106,6 +106,7 @@
   "export_file_number_start_locked": "The file numbers have already started. The first number can no longer be changed.",
   "export_invoice_not_found": "This invoice does not exist. Please reload the page.",
   "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",
+  "beleg_retention_basis_cites_statute": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "online_mandate_disabled": "Ваш попечитель сейчас не принимает мандат на прямое дебетование в приложении.",
   "sepa_mandate_text_changed": "Текст мандата изменился. Пожалуйста, прочитайте и подтвердите его ещё раз."
 }

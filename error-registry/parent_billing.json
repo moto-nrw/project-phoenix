@@ -655,6 +655,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "parent_billing.export_mapping_invalid"
+    },
+    {
+      "code": "parent_billing.beleg_retention_basis_cites_statute",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.beleg_retention_basis_cites_statute"
     }
   ]
 }

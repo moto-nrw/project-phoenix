@@ -2,6 +2,7 @@
 package common
 
 const CodeParentBillingBankAccountMissing = "parent_billing.bank_account_missing"
+const CodeParentBillingBelegRetentionBasisCitesStatute = "parent_billing.beleg_retention_basis_cites_statute"
 const CodeParentBillingBenefitsExemptionUnavailable = "parent_billing.benefits_exemption_unavailable"
 const CodeParentBillingBillingCorrectionInvalid = "parent_billing.billing_correction_invalid"
 const CodeParentBillingBillingDocumentCorrectionInvalid = "parent_billing.billing_document_correction_invalid"
@@ -113,6 +114,7 @@ const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_
 
 var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
+	{CodeParentBillingBelegRetentionBasisCitesStatute, "input"},
 	{CodeParentBillingBenefitsExemptionUnavailable, "business_rejection"},
 	{CodeParentBillingBillingCorrectionInvalid, "input"},
 	{CodeParentBillingBillingDocumentCorrectionInvalid, "input"},
