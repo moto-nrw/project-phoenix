@@ -509,17 +509,33 @@ am 09.11.2026 (E16) mit den Invarianten der Leserouten. Die Übergabe läuft
 ihr Grund bleiben unverändert.
 
 Gebündelt wird nur eine Route, bei der zwischen Kindprüfung und Schreibrahmen
-kein eigener Rahmen liegt, also nur Go-Prüfungen. Liegt dort ein
-Settings-Rahmen, bleibt die Route beim bisherigen Ablauf, weil der Read sonst
-in den Schreibrahmen wandern müsste. Für fail-open Reads schließt E21 das
-aus; für strikte Reads ist es nicht entschieden. Sperren und ihre Reihenfolge
-im Tenant-Teil bleiben unverändert, der Admin-Teil sperrt keine Zeile.
+kein eigener Rahmen liegt, also nur Go-Prüfungen. Prüfungen, die heute vor
+jedem Rahmen laufen, bleiben dort. Liegt zwischen Kindprüfung und
+Schreibrahmen ein Settings-Rahmen, bleibt die Route beim bisherigen Ablauf,
+weil der Read sonst in den Schreibrahmen wandern müsste. Für fail-open Reads
+schließt E21 das aus; für strikte Reads ist es nicht entschieden. Sperren und
+ihre Reihenfolge im Tenant-Teil bleiben unverändert, der Admin-Teil sperrt
+keine Zeile.
+
+Ambiente Einstiege (Punkt 7): `WithinAdminThenTenant` lehnt eine offene
+Einheit ab, bevor die Kindprüfung läuft. Eine Schreibroute wählt deshalb vor
+dem Start den bisherigen Weg (`ResolvePermittedChild`, danach der eigene
+Tenant-Rahmen), sobald `Runtime.AmbientScope` eine offene Einheit oder einen
+an eine Schule gebundenen Kontext meldet. Dort bleiben Status und Code wie
+bisher, etwa 403 aus der Kindprüfung.
 
 Zeitpunkte (E21): Ein DB-Zeitanker (`now()`, `CURRENT_TIMESTAMP`, Default,
 Trigger) stammt danach vom Beginn der gemeinsamen Transaktion, also von vor
 der Kindprüfung. In Go berechnete Fristen und Kalendertage werden weiter nach
 der Kindprüfung berechnet; Settings-Reads, frische Antwort-Reads nach dem
 Commit und Arbeit nach dem Commit (Dateilöschung, Broadcasts) bleiben an
-ihrer Stelle. Start-, Rollenwechsel-, COMMIT- und ROLLBACK-Fehler antworten
-500 ohne Retry und ohne zweiten Weg (E9/E15). Routenliste, Invariantentabelle
-und Belege stehen im PR zu #5862.
+ihrer Stelle.
+
+Fehler des Rahmens: Start- und Rollenwechselfehler antworten 500 ohne Retry
+und ohne zweiten Weg (E9/E15). Ein gescheitertes COMMIT bleibt wie bisher
+ein Fehler mit unbekanntem Ausgang (500). Ein gescheitertes normales
+ROLLBACK ändert den Status nicht: Der Adapter hängt es an den auslösenden
+Fehler, und die Route antwortet nach diesem Fehler wie bisher. Die Regel für
+gescheiterte Savepoint-Rollbacks (E19, immer 500) bleibt davon getrennt;
+dieser Nachtrag führt keinen Savepoint ein. Routenliste,
+Invariantentabelle und Belege stehen im PR zu #5862.
