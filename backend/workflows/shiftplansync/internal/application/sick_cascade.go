@@ -27,10 +27,10 @@ import (
 // sickShiftChangeReason / sickBlockAbsenceReason are the neutral machine
 // labels the cascade writes. The absence note is deliberately NOT propagated:
 // plan surfaces (Dienstplan cells, block badges) are visible to the whole
-// team, while the note may carry private medical detail. The block label is
-// the Timetable owner's, which the materializer writes as well (#6292).
+// team, while the note may carry private medical detail. Each label is its
+// plan owner's, which that owner's materializer writes as well (#6292, #6302).
 const (
-	sickShiftChangeReason  = "Krankheit"
+	sickShiftChangeReason  = workforce.SickShiftChangeReason
 	sickBlockAbsenceReason = timetable.SickBlockAbsenceReason
 )
 

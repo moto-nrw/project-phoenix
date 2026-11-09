@@ -13,9 +13,7 @@ import (
 // (#4682): the Träger's confirmation templates and Delivery's outbox.
 type NoticePorts = application.NoticePorts
 
-// NewNotices builds withdrawal and termination (#4682): the office
-// operations open their own Träger unit, the parents' run in the parents
-// portal's Träger unit.
+// NewNotices builds withdrawal and termination (#4682): the office operations open their own Träger unit, the parents' run in the parents portal's.
 func NewNotices(contracts ContractPorts, notices NoticePorts) carecontract.Notices {
 	store, clock := postgres.NewStore(), application.Clock{Now: time.Now}
 	return application.NewNotices(store, store, notices, clock,

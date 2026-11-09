@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The conclusion of a signed contract (#4679). A signature, online or on
@@ -47,13 +46,4 @@ func versionChecksum(fingerprint func([]byte) string, version carecontract.Versi
 		return "", fmt.Errorf("care contract: encode version: %w", err)
 	}
 	return fingerprint(encoded), nil
-}
-
-// withdrawalEnd is the last day of the 14-day withdrawal period that starts
-// with the conclusion of a distance contract (§ 355 section 2 BGB); a last
-// day on a Saturday, Sunday or nationwide holiday moves to the next working
-// day (§ 193 BGB), the day the withdrawal and termination page names too
-// (#4682).
-func withdrawalEnd(signedAt time.Time) calendar.Date {
-	return *withdrawalUntil(&carecontract.Concluded{Method: carecontract.MethodElectronic, At: signedAt}, &signedAt)
 }

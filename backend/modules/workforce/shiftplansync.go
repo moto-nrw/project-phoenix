@@ -2,6 +2,13 @@ package workforce
 
 import "context"
 
+// SickShiftChangeReason is the neutral change reason of a shift a sick
+// report cancels (#1843): the sick cascade writes it on shifts planned before
+// the report, the series materializer on shifts planned after it (#6302). The
+// absence note never reaches the plan: the Dienstplan is team-visible and the
+// note may carry private medical detail.
+const SickShiftChangeReason = "Krankheit"
+
 // SickCascadeInput identifies one sick report and the range it covers
 // (#1843). Both cascade directions take the same shape. DateStart and
 // DateEnd are calendar days in DateLayout.

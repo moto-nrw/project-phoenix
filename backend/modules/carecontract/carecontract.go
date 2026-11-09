@@ -258,6 +258,8 @@ type ContractFilter struct {
 }
 
 type ContractSummary struct {
+	// StudentID is the child linked to this contract, nil before takeover.
+	StudentID      *int64   `json:"student_id"`
 	ID             int64    `json:"id"`
 	Status         string   `json:"status"`
 	SchoolID       int64    `json:"school_id"`

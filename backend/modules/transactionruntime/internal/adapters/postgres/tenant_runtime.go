@@ -60,12 +60,28 @@ func NewDemoPostgresUnitOfWork(db *bun.DB, observePoolWait func(context.Context,
 	return unitOfWork, nil
 }
 
+// rollbackDiagnostic is an operation error whose transaction ROLLBACK failed
+// as well. The rollback failure is diagnostics in the text only: Unwrap
+// yields the operation error, so retry, connectivity and error mapping decide
+// on what the operation itself returned (#6316). The transaction ends either
+// way: ROLLBACK or the broken connection discards it.
+type rollbackDiagnostic struct {
+	err      error
+	rollback error
+}
+
+func (e *rollbackDiagnostic) Error() string {
+	return e.err.Error() + "; unit of work: rollback: " + e.rollback.Error()
+}
+
+func (e *rollbackDiagnostic) Unwrap() error { return e.err }
+
 // IsRetryableTransactionError classifies PostgreSQL deadlock and
 // serialization failures. The UnitOfWork uses it only when the outer command
 // explicitly opts into replay.
 func IsRetryableTransactionError(err error) bool {
-	var state interface{ Field(byte) string }
-	return errors.As(err, &state) && (state.Field('C') == "40P01" || state.Field('C') == "40001")
+	state, ok := operationAs[interface{ Field(byte) string }](err)
+	return ok && (state.Field('C') == "40P01" || state.Field('C') == "40001")
 }
 
 func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context, any) error) error {
@@ -233,7 +249,7 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 		rollbackErr := tx.Rollback()
 		finished = true
 		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			return errors.Join(err, fmt.Errorf("unit of work: rollback: %w", rollbackErr))
+			return &rollbackDiagnostic{err: err, rollback: rollbackErr}
 		}
 		return err
 	}

@@ -437,13 +437,13 @@ func NewTraegerMealMonths(store ports.BillingMonthStore) TraegerMealMonths {
 }
 
 // ReleasedMealMonths reads the released months of the schools of the Träger
-// up to until, in its Träger transaction, and groups the children per
+// within [from, until], in its Träger transaction, and groups the children per
 // school and month; a release without children is a month without meals.
-func (m TraegerMealMonths) ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]mealplan.ReleasedMealMonth, error) {
+func (m TraegerMealMonths) ReleasedMealMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]mealplan.ReleasedMealMonth, error) {
 	if organizationID <= 0 {
 		return nil, errors.New("meal plan billing months: the Träger is required")
 	}
-	rows, err := m.store.TraegerMonths(ctx, organizationID, until)
+	rows, err := m.store.TraegerMonths(ctx, organizationID, from, until)
 	if err != nil {
 		return nil, err
 	}

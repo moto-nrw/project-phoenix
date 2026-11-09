@@ -27,6 +27,8 @@ var transactionFrameBundleSites = map[string]string{
 	"roots/owners/parent_portal_runtime.go:ParentPortalRuntime.WithinAdminThenTenant:tenant.WithinAdminThenTenant#1": "ADR 0161: binds the one-way admin-to-tenant handoff to the parents portal workflow's runtime port; it only forwards and opens no unit of its own.",
 	// Admin, Schritt 5 (#5894): Übergabe der Anhangliste
 	"workflows/parentportal/internal/messaging/parent_announcement_attachments.go:*Service.WithinGuardianAnnouncementTenant:s.Runtime.WithinAdminThenTenant#1": "ADR 0161: a guardian's attachment read discovers the live announcement and the account's audience before any tenant statement, then reads the school's switch and the attachment rows under that school's RLS in the same transaction; it writes nothing, and the post-read audience check keeps its own unit.",
+	// Admin, Schritt 4 für Schreibrouten (#5862, E16/E21)
+	"workflows/parentportal/internal/care/child.go:*Service.WithPermittedChildForWrite:s.Runtime.WithinAdminThenTenant#1": "ADR 0161 (Nachtrag Schreibrouten, #5862): a parent child write discovers active schools and the relationship-level permission without locking a row, runs only the route's Go checks, then writes the child's school under RLS in the same transaction with the locks of its former school unit; an ambient caller keeps the unbundled way.",
 	// Kommando, Schritt 4 (#5862)
 	"modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go:*PostgresUnitOfWork.WithinAdminThenTenant:r.runInTx#1": "ADR 0161: implements the one-way admin-to-tenant handoff; role and school are transaction-local.",
 	// Admin, Schritt 3 (#5894): verlagert aus

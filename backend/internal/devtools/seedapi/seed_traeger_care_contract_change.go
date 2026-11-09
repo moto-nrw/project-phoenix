@@ -9,7 +9,7 @@ import (
 
 // seedCareContractChange lets the parents of the first active contract
 // whose party has a parents-app account ask to give up the last weekday of
-// the modules they choose the days of (#5979). The Träger-Büro then finds an open change on the contract
+// one module they choose the days of (#5979) and keep the others (#6334). The Träger-Büro then finds an open change on the contract
 // page that it can approve or reject itself. It answers whether it asked;
 // a seed without such a contract asks nothing.
 func seedCareContractChange(rt *Runtime, auth AuthRef) (bool, error) {
@@ -22,6 +22,7 @@ func seedCareContractChange(rt *Runtime, auth AuthRef) (bool, error) {
 			Contracts []struct {
 				ID         int64  `json:"id"`
 				PartyEmail string `json:"party_email"`
+				StudentID  *int64 `json:"student_id"`
 			} `json:"contracts"`
 		} `json:"data"`
 	}
@@ -30,14 +31,14 @@ func seedCareContractChange(rt *Runtime, auth AuthRef) (bool, error) {
 	}
 	for _, contract := range list.Data.Contracts {
 		parent, ok := seedParentByEmail(rt, contract.PartyEmail)
-		if !ok || len(parent.StudentIDs) == 0 {
+		if !ok || contract.StudentID == nil || !slices.Contains(parent.StudentIDs, *contract.StudentID) {
 			continue
 		}
 		parentAuth, err := rt.Client.adapter.LoginParent(context.Background(), parent.Email, parent.Password)
 		if err != nil {
 			return false, fmt.Errorf("sign in the parents of contract %d: %w", contract.ID, err)
 		}
-		return seedOneDayLess(rt, parentAuth, parent.StudentIDs[0])
+		return seedOneDayLess(rt, parentAuth, *contract.StudentID)
 	}
 	return false, nil
 }
@@ -52,8 +53,9 @@ func seedParentByEmail(rt *Runtime, email string) (ParentCredentials, bool) {
 }
 
 // seedOneDayLess asks for the child's booked modules without the last
-// weekday of each module whose days the parents choose, from the earliest
-// day the school allows. Modules with fixed days stay as they are.
+// weekday of the first module whose days the parents choose, from the
+// earliest day the school allows. Every other module stays as it is, so the
+// office sees a change next to modules that stay booked.
 func seedOneDayLess(rt *Runtime, parentAuth AuthRef, studentID int64) (bool, error) {
 	raw, err := rt.Client.GetWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-offerings/catalog", studentID))
 	if err != nil {
@@ -81,7 +83,7 @@ func seedOneDayLess(rt *Runtime, parentAuth AuthRef, studentID int64) (bool, err
 			continue
 		}
 		days := slices.Clone(item.SelectedDays)
-		if item.DaysOfWeekMode == "parent_choice" && len(days) > 1 {
+		if !changed && item.DaysOfWeekMode == "parent_choice" && len(days) > 1 {
 			days, changed = days[:len(days)-1], true
 		}
 		selections = append(selections, map[string]any{"offering_id": item.ID, "selected_days": days})

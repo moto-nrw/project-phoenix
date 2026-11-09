@@ -12,6 +12,29 @@ import (
 // can no longer be trusted.
 var ErrSavepointControl = errors.New("savepoint control failed")
 
+// ErrSavepointRollback classifies a savepoint whose rollback failed: ROLLBACK
+// TO SAVEPOINT itself, or the RELEASE after it. Such a failure also wraps
+// ErrSavepointControl. The transaction's state is unknown, so the unit is
+// never replayed (E19, #6316). A failure to create or to release a savepoint
+// after success is a savepoint-control failure the runtime may still replay
+// as a whole.
+var ErrSavepointRollback = errors.New("savepoint rollback failed")
+
+// SavepointRollbackFailure marks err, a savepoint-control failure of a
+// rollback, with ErrSavepointRollback. Its text stays err's text, and
+// database classifiers skip it as attached diagnostics.
+func SavepointRollbackFailure(err error) error { return savepointRollbackFailure{err} }
+
+type savepointRollbackFailure struct{ error }
+
+func (f savepointRollbackFailure) Unwrap() error      { return f.error }
+func (savepointRollbackFailure) Is(target error) bool { return target == ErrSavepointRollback }
+
+// CleanupDiagnostic marks the failure as diagnostics attached to the
+// operation's error: database classifiers (retry, connectivity, constraint,
+// unique) read the operation's own result only (#6316).
+func (savepointRollbackFailure) CleanupDiagnostic() {}
+
 // operationSavepointName is internal and fixed, so no caller-controlled SQL
 // identifier is interpolated. PostgreSQL permits nested savepoints with the
 // same name; RELEASE and ROLLBACK TO address the most recently established
@@ -43,11 +66,11 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 	operationErr := fn(ctx)
 	if operationErr != nil {
 		if err := uow.savepoint(ctx, RollbackSavepoint); err != nil {
-			return errors.Join(operationErr, fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err))
+			return errors.Join(operationErr, SavepointRollbackFailure(fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err)))
 		}
 		runSavepointRollbackHooks(hooks, commitHookCount, rollbackHookCount)
 		if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
-			return errors.Join(operationErr, fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err))
+			return errors.Join(operationErr, SavepointRollbackFailure(fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err)))
 		}
 		return operationErr
 	}
