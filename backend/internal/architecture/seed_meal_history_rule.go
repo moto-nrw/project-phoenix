@@ -1,6 +1,6 @@
 package architecture
 
-// reviewedSeedMealHistoryRule pins ADR 0189's CLI wiring to the single
+// reviewedSeedMealHistoryRule pins ADR 0190's CLI wiring to the single
 // Meal Plan composition package, without granting access to its persistence.
 func reviewedSeedMealHistoryRule(rule Rule) bool {
 	return rule.SourceOwner == "dev-tools" && rule.SourceOwnerKind == "" && rule.SourceRole == "compose" && rule.SourcePackage == "" &&

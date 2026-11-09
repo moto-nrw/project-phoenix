@@ -1,6 +1,6 @@
 package test
 
-// ADR 0189 extracts the existing Meal Plan runner binding into one shared
+// ADR 0190 extracts the existing Meal Plan runner binding into one shared
 // adapter. Both constructors use it; the register keeps exactly one boundary
 // and its original reason. No additional transaction site is admitted.
 func originalSeedMealTransactionKey(key string, current, previous map[string]string) string {

@@ -142,7 +142,7 @@
     },
     {
       "id": "dev-tools.compose.meal-plan",
-      "description": "The dev CLI binds historical demo registrations through exactly Meal Plan composition (ADR 0189).",
+      "description": "The dev CLI binds historical demo registrations through exactly Meal Plan composition (ADR 0190).",
       "scopes": [
         "production"
       ],
