@@ -24,8 +24,8 @@ import (
 // child profile either.
 //
 // Every table of the schemas parent_billing and care_contract is a Beleg
-// table unless operativeBillingTables names it. A new table is therefore
-// guarded until someone states why it is operative.
+// table unless operativeBillingTables or retentionControlTables names it. A
+// new table is therefore guarded until someone states why it holds no Beleg.
 
 // operativeBillingTables are the tables of the two schemas that hold no
 // Beleg: inputs of a calculation that go with the registration or the child
@@ -38,12 +38,34 @@ var operativeBillingTables = map[string]string{
 	"parent_billing.holiday_sibling_group_members": "registration in a sibling group, goes with the registration",
 }
 
+// retentionControlTables hold the retention of the Belege, not a Beleg
+// (#4720 slice 2, ADR 0184): the Weisungen and suspensions the moto team
+// records, the record per Beleg, the deletion log and the reviews of the
+// clarification list. They name the operator who recorded them, so beside
+// the Träger they may reference platform.operators, and only with ON
+// DELETE SET NULL; a Beleg table may not.
+var retentionControlTables = map[string]string{
+	"parent_billing.beleg_retention_instructions": "Weisung of a Träger per Beleg type, recorded by an operator",
+	"parent_billing.beleg_retention_suspensions":  "suspension of the deletion of a type or Beleg, recorded and lifted by an operator",
+	"parent_billing.beleg_retentions":             "retention record per Beleg: IDs and days only, no content",
+	"parent_billing.beleg_deletions":              "deletion log: counts per Träger, type and day, no content",
+	"parent_billing.beleg_clarification_reviews":  "review of a clarification entry with note and escalation, recorded by an operator",
+}
+
 // belegErasureFunctions are the only database functions allowed to delete
-// rows of a Beleg table by name: the erasure of a retired demo school, whose
-// Träger keeps no books. The erasure of a whole Träger after its export
-// (#4657) deletes the organization and reaches the Belege through its
-// cascade.
+// rows of a Beleg table by name:
+//   - the erasure of a retired demo school, whose Träger keeps no books;
+//   - the Beleg retention (#4720 slice 2, ADR 0184), which deletes a Beleg
+//     only after the period its Träger instructed, under the current
+//     Weisung, without an active suspension, after locking the Träger and
+//     the rows, and only when every Beleg its cascade would take passed the
+//     same check. It is never reached from operative data: only the hourly
+//     job calls it, in the administrative transaction.
+//
+// The erasure of a whole Träger after its export (#4657) deletes the
+// organization and reaches the Belege through its cascade.
 var belegErasureFunctions = []string{
+	"parent_billing.delete_due_belege",
 	"platform.erase_closed_demo_visitors",
 }
 
@@ -61,7 +83,8 @@ func belegSchemaTable(table string) bool {
 
 func isBelegTable(table string) bool {
 	_, operative := operativeBillingTables[table]
-	return belegSchemaTable(table) && !operative
+	_, control := retentionControlTables[table]
+	return belegSchemaTable(table) && !operative && !control
 }
 
 // belegIdentifier is a schema-qualified table name of the guarded schemas,
@@ -113,6 +136,9 @@ func TestBelegeHaveNoDeletionPathFromOperativeData(t *testing.T) {
 	for table := range operativeBillingTables {
 		assert.Contains(t, tables, table, "operativeBillingTables names a table that no longer exists")
 	}
+	for table := range retentionControlTables {
+		assert.Contains(t, tables, table, "retentionControlTables names a table that no longer exists")
+	}
 
 	var keys []belegForeignKey
 	require.NoError(t, db.NewRaw(`SELECT child_ns.nspname || '.' || child.relname AS child,
@@ -131,13 +157,17 @@ func TestBelegeHaveNoDeletionPathFromOperativeData(t *testing.T) {
 	// A Beleg table references outside its schemas only the Träger, which
 	// takes it along on its erasure, and accounts, whose reference it drops.
 	// Any other key would tie it to operative data: a cascade deletes it, a
-	// restriction keeps the operative row alive (data minimisation).
+	// restriction keeps the operative row alive (data minimisation). A
+	// retention-control table may also name its operator and drops that
+	// reference when the operator goes.
 	var outside []string
 	for _, key := range keys {
-		if !isBelegTable(key.Child) || belegSchemaTable(key.Parent) {
+		_, control := retentionControlTables[key.Child]
+		if (!isBelegTable(key.Child) && !control) || belegSchemaTable(key.Parent) {
 			continue
 		}
-		allowed := key.Parent == "platform.organizations" || (key.Parent == "auth.accounts" && key.OnDelete == "n")
+		allowed := key.Parent == "platform.organizations" || (key.Parent == "auth.accounts" && key.OnDelete == "n") ||
+			(control && key.Parent == "platform.operators" && key.OnDelete == "n")
 		if !allowed {
 			outside = append(outside, key.Child+" -> "+key.Parent+" ("+key.Name+", on delete "+key.OnDelete+")")
 		}
@@ -195,5 +225,5 @@ func TestBelegeHaveNoDeletionPathFromOperativeData(t *testing.T) {
 		}
 	}
 	sort.Strings(deleters)
-	assert.Equal(t, belegErasureFunctions, deleters, "only the demo erasure deletes Belege by name")
+	assert.Equal(t, belegErasureFunctions, deleters, "only the demo erasure and the Beleg retention delete Belege by name")
 }
