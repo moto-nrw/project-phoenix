@@ -3,7 +3,6 @@ package staffcalendarhttp
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -117,7 +116,7 @@ func (rs *TraegerClosingDayResource) update(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(traegercalendar.ErrClosingDayNotFound, common.CodeTraegerClosingDayNotFound))
 		return
@@ -140,7 +139,7 @@ func (rs *TraegerClosingDayResource) delete(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(traegercalendar.ErrClosingDayNotFound, common.CodeTraegerClosingDayNotFound))
 		return

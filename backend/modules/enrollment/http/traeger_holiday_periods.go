@@ -220,6 +220,9 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	var fields validation.Errors
 	var refusedHost *capability.HolidayHostSchoolRefusal
 	var refusedDates *capability.HolidayWeeksBookedTogetherRefusal
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayPeriodInvalid))

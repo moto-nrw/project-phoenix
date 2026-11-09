@@ -9,14 +9,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger-Portal's Träger transaction (ADR 0105);
-// schoolCalendar names the host schools' days without care (#4702), nil only for a reader that writes no week.
+// NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger transaction (ADR 0105); schoolCalendar (#4702) may be nil only for a reader.
 func NewHolidayPeriods(today func() calendar.Date, schoolCalendar enrollment.HolidaySchoolCalendar) enrollment.HolidayPeriods {
 	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today, schoolCalendar)
 }
 
-// NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722).
-// schoolCalendar names the host schools' days without care (#4702), nil only for a caller that resolves links or quotes.
+// NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722); schoolCalendar (#4702) may be nil only for links and quotes.
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
@@ -29,8 +27,7 @@ func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.Holi
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
 }
 
-// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722); schoolCalendar names the host
-// schools' days without care (#4702), nil only for a caller that rebooks no child.
+// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722); schoolCalendar (#4702) may be nil without rebooking.
 func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar) enrollment.HolidayRegistrationReview {
 	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, schoolCalendar)
 }

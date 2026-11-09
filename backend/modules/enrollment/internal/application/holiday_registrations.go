@@ -245,10 +245,7 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	input = normalizeHolidayRegistration(input)
 	input.BenefitsProofTokens = normalizeHolidayProofTokens(input.BenefitsProofTokens)
 	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
-	if err := validateHolidayRegistration(input, period, form, answers, link.Traeger.Schools, today); err != nil {
-		return enrollment.HolidayRegistrationReceipt{}, err
-	}
-	if err := h.refuseWeeksWithoutCare(ctx, period, input.Children); err != nil {
+	if err := h.validateBookable(ctx, input, period, form, answers, link.Traeger.Schools, today); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if !holidayRegistrationHasHealth(input, form, answers) {
@@ -274,6 +271,16 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	return receipt, nil
+}
+
+// validateBookable checks the registration and refuses a booking of a week
+// without care at its host school (#4702).
+func (h *HolidayRegistrations) validateBookable(ctx context.Context, input enrollment.HolidayRegistrationInput, period enrollment.HolidayPeriod,
+	form enrollment.HolidayPeriodForm, answers holidayAnswerSet, schools []enrollment.HolidaySchool, today calendar.Date) error {
+	if err := validateHolidayRegistration(input, period, form, answers, schools, today); err != nil {
+		return err
+	}
+	return h.refuseWeeksWithoutCare(ctx, period, input.Children)
 }
 
 // refuseWeeksWithoutCare refuses a booking of a week in which the host school

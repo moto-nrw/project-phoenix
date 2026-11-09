@@ -34,6 +34,8 @@ type TraegerClosingDayStore struct{}
 func NewTraegerClosingDayStore() *TraegerClosingDayStore { return &TraegerClosingDayStore{} }
 
 type traegerClosingDayRow struct {
+	bun.BaseModel `bun:"table:schedule.traeger_closing_days"`
+
 	ID        int64         `bun:"id"`
 	StartDate calendar.Date `bun:"start_date"`
 	EndDate   calendar.Date `bun:"end_date"`
@@ -53,14 +55,18 @@ const (
 		SET start_date = ?, end_date = ?, reason = ?, school_ids = ?
 		WHERE organization_id = ? AND id = ? RETURNING ` + traegerClosingDayColumns
 	deleteTraegerClosingDayQuery = `DELETE FROM schedule.traeger_closing_days WHERE organization_id = ? AND id = ?`
-	// schoolTraegerClosingDaysQuery lists the Träger closing days naming
-	// the school. The school filter stands here as well as in the read
-	// policy, so a connection without row security never reads another
-	// school's closing days.
-	schoolTraegerClosingDaysQuery = `SELECT id, start_date::text AS start_date, end_date::text AS end_date, reason, updated_at
+	// schoolClosingDaysQuery lists a school's own closing days and those
+	// its Träger planned for it. Both filters name the school here as well
+	// as in the read policies, so a connection without row security never
+	// reads another school's closing days.
+	schoolClosingDaysQuery = `SELECT id, created_at, updated_at, start_date::text AS start_date, end_date::text AS end_date, reason, false AS traeger
+		FROM schedule.closing_days
+		WHERE tenant_id = ? AND start_date <= ? AND end_date >= ?
+		UNION ALL
+		SELECT id, created_at, updated_at, start_date::text, end_date::text, reason, true
 		FROM schedule.traeger_closing_days
 		WHERE ? = ANY (school_ids) AND start_date <= ? AND end_date >= ?
-		ORDER BY start_date, id`
+		ORDER BY start_date, traeger, id`
 )
 
 // traegerDB returns the Träger transaction of organizationID. A school,
@@ -168,54 +174,42 @@ func traegerClosingDayToDomain(row traegerClosingDayRow) domain.TraegerClosingDa
 	}
 }
 
-type schoolTraegerClosingDayRow struct {
+type schoolClosingDayRow struct {
 	ID        int64        `bun:"id"`
+	CreatedAt time.Time    `bun:"created_at"`
+	UpdatedAt time.Time    `bun:"updated_at"`
 	StartDate calendarDate `bun:"start_date"`
 	EndDate   calendarDate `bun:"end_date"`
 	Reason    string       `bun:"reason"`
-	UpdatedAt time.Time    `bun:"updated_at"`
+	Traeger   bool         `bun:"traeger"`
 }
 
-// schoolTraegerClosingDays lists the Träger closing days that name the school
-// tenantID and touch [from, to]; an empty window lists all of them.
-func schoolTraegerClosingDays(ctx context.Context, db bun.IDB, tenantID int64, from, to string) ([]schoolcalendar.ClosingDay, error) {
+// listSchoolClosingDays lists the school's own closing days and those its
+// Träger planned for it touching [from, to] in one statement, ordered by
+// start date with the school's own first; an empty window lists all of them.
+func listSchoolClosingDays(ctx context.Context, db bun.IDB, tenantID int64, from, to string) ([]schoolcalendar.ClosingDay, domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
 	if tenantID <= 0 {
-		return nil, errors.New("schoolcalendar: tenant is required")
+		return nil, domain.OperationStats{}, errors.New("schoolcalendar: tenant is required")
 	}
 	if from == "" {
 		from, to = "0001-01-01", "9999-12-31"
 	}
-	var rows []schoolTraegerClosingDayRow
-	if err := db.NewRaw(schoolTraegerClosingDaysQuery, tenantID, calendarDate(to), calendarDate(from)).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("school calendar postgres: list the Träger's closing days of the school: %w", err)
+	started := time.Now()
+	var rows []schoolClosingDayRow
+	err := db.NewRaw(schoolClosingDaysQuery, tenantID, calendarDate(to), calendarDate(from),
+		tenantID, calendarDate(to), calendarDate(from)).Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("school calendar postgres: list closing days: %w", err)
 	}
 	result := make([]schoolcalendar.ClosingDay, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, schoolcalendar.ClosingDay{
-			ID: row.ID, TenantID: tenantID, UpdatedAt: row.UpdatedAt,
-			StartDate: string(row.StartDate), EndDate: string(row.EndDate), Reason: row.Reason, Traeger: true,
+			ID: row.ID, TenantID: tenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			StartDate: string(row.StartDate), EndDate: string(row.EndDate), Reason: row.Reason, Traeger: row.Traeger,
 		})
 	}
-	return result, nil
-}
-
-// mergeClosingDays orders the school's and the Träger's closing days by start
-// date; on the same start the school's own row comes first.
-func mergeClosingDays(own, traeger []schoolcalendar.ClosingDay) []schoolcalendar.ClosingDay {
-	if len(traeger) == 0 {
-		return own
-	}
-	merged := make([]schoolcalendar.ClosingDay, 0, len(own)+len(traeger))
-	i, j := 0, 0
-	for i < len(own) && j < len(traeger) {
-		if traeger[j].StartDate < own[i].StartDate {
-			merged = append(merged, traeger[j])
-			j++
-		} else {
-			merged = append(merged, own[i])
-			i++
-		}
-	}
-	merged = append(merged, own[i:]...)
-	return append(merged, traeger[j:]...)
+	stats.Rows = int64(len(result))
+	return result, stats, nil
 }

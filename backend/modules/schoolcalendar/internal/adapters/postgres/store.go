@@ -236,14 +236,18 @@ func (s *Store) ListClosingDays(ctx context.Context, filter schoolcalendar.Closi
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	// A window read names the Träger's closing days of the school too
+	// (#4702), in the same statement; a read by ID names only the school's
+	// own rows, which it may change.
+	if filter.IDs == nil {
+		return listSchoolClosingDays(ctx, db, tenantID, filter.OverlappingFrom, filter.OverlappingTo)
+	}
 	rows := []closingDayRow{}
 	query := withTenant(closingDaySelect(db, &rows), "closing_day", tenantID)
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []schoolcalendar.ClosingDay{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"closing_day".id IN (?)`, bun.List(filter.IDs))
+	if len(filter.IDs) == 0 {
+		return []schoolcalendar.ClosingDay{}, domain.OperationStats{}, nil
 	}
+	query = query.Where(`"closing_day".id IN (?)`, bun.List(filter.IDs))
 	if filter.OverlappingFrom != "" {
 		query = query.
 			Where(`"closing_day".start_date <= ?`, calendarDate(filter.OverlappingTo)).
@@ -257,16 +261,6 @@ func (s *Store) ListClosingDays(ctx context.Context, filter schoolcalendar.Closi
 	result := make([]schoolcalendar.ClosingDay, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, closingDayToDomain(row))
-	}
-	// A filter by ID names the school's own rows, which it may change; the
-	// Träger's closing days of the school join every window read (#4702).
-	if filter.IDs == nil {
-		traeger, err := schoolTraegerClosingDays(ctx, db, tenantID, filter.OverlappingFrom, filter.OverlappingTo)
-		stats.Queries++
-		if err != nil {
-			return nil, stats, err
-		}
-		result = mergeClosingDays(result, traeger)
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
