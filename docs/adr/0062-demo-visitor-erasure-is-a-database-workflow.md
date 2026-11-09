@@ -76,7 +76,13 @@ school row, which it holds until the caller commits; only then does it delete.
 Every caller ends the sessions before it hides or deletes the school. Every
 sign-in and refresh, of every portal, locks the school its session row is kept
 at under a share lock after the account lock, right before the row is written,
-so none mints a session at a school whose sessions are ending.
+so none mints a session at a school whose sessions are ending. Creating a
+guardian invitation, and inviting a guardian to a child, take the same order
+in the school's own transaction: account, school, profile, before any child
+link, profile or school mapping is written. The tenant role may only read
+`platform.schools`, so Organisation & Tenancy's
+`platform.lock_tenant_school_for_share` holds the transaction's own school
+and no other.
 
 The function runs with its caller's rights. Only `phoenix_admin` may execute
 it; the demo role reaches it only through the retirement and gets no grant on

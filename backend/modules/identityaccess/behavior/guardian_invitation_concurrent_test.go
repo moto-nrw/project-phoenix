@@ -348,3 +348,88 @@ func TestGuardianInvitationCreateAndAcceptShareLockOrder(t *testing.T) {
 	}
 	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
 }
+
+// schoolThenProfile stands in for a transaction that holds the school
+// exclusively and then locks a guardian profile. While it holds the school,
+// run is started and must queue for the school without holding the profile
+// (account, school, profile; #6305): the stand-in gets the profile at once,
+// rolls back, and run then succeeds. A run that held the profile, or the
+// child link that references it, would close a cycle (40P01).
+func schoolThenProfile(t *testing.T, db *bun.DB, profileID int64, run func(context.Context) error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	var workers sync.WaitGroup
+	defer func() {
+		_ = holder.Rollback()
+		cancel()
+		workers.Wait()
+	}()
+	var holderPID int
+	require.NoError(t, holder.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &holderPID))
+	_, err = holder.NewRaw(`SELECT id FROM platform.schools WHERE id = ? FOR UPDATE`, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		done <- run(ctx)
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND ? = ANY(pg_blocking_pids(pid))`, holderPID).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 10*time.Millisecond, "the invitation queues for the school the other transaction holds")
+
+	_, err = holder.NewRaw(`SET LOCAL lock_timeout = '3s'`).Exec(ctx)
+	require.NoError(t, err)
+	_, err = holder.NewRaw(`SELECT id FROM users.guardian_profiles WHERE id = ? FOR UPDATE`, profileID).Exec(ctx)
+	require.NoError(t, err, "the other transaction gets the profile: the invitation may not hold it while it waits for the school")
+	require.NoError(t, holder.Rollback())
+	select {
+	case runErr := <-done:
+		require.NoError(t, runErr)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+}
+
+func TestCreateGuardianInvitationLocksSchoolBeforeProfile(t *testing.T) {
+	t.Parallel()
+	env := setupGuardianInvitationTest(t)
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "create-school-before-profile")
+	creatorID := env.inviterAccountID(t)
+
+	schoolThenProfile(t, env.db, profile.ID, func(ctx context.Context) error {
+		_, err := env.service.CreateGuardianInvitation(testpkg.TenantContext(testpkg.Tenant(t)), identityaccess.GuardianInvitationRequest{
+			GuardianProfileID: profile.ID, CreatedBy: creatorID,
+		})
+		return err
+	})
+}
+
+// Inviting to a child writes the child link, a profile and the account's
+// school mapping; each comes after the account, school and profile locks.
+func TestInviteToStudentLocksSchoolBeforeProfileAndLink(t *testing.T) {
+	t.Parallel()
+	env := setupGuardianInvitationTest(t)
+	creatorID := env.inviterAccountID(t)
+	sibling := testpkg.CreateTestStudent(t, env.db, "Order", "Sibling", "2a")
+	student := testpkg.CreateTestStudent(t, env.db, "Order", "Child", "2b")
+	email := fmt.Sprintf("invite-school-before-profile-%d@example.test", time.Now().UnixNano())
+	first, err := env.service.InviteToStudent(testpkg.Ctx(t), identityaccess.InviteToStudentRequest{
+		StudentID: sibling.ID, Email: email, CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+
+	schoolThenProfile(t, env.db, first.GuardianProfileID, func(ctx context.Context) error {
+		_, err := env.service.InviteToStudent(testpkg.TenantContext(testpkg.Tenant(t)), identityaccess.InviteToStudentRequest{
+			StudentID: student.ID, Email: email, CreatedBy: creatorID,
+		})
+		return err
+	})
+}

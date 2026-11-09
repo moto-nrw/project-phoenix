@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -151,4 +152,38 @@ func TestDemoRetirementRevokesSessionsRetriesAfterBackfillFailure(t *testing.T) 
 
 	require.NoError(t, demoRetirementRevokesSessionsUp(ctx, db), "startup can retry the unapplied migration")
 	assert.Zero(t, schoolSessionCount(t, db, school))
+}
+
+// A school transaction holds its own school under a share lock through
+// platform.lock_tenant_school_for_share (#6305), and no other school: the
+// tenant role reads platform.schools only.
+func TestTenantSchoolShareLockIsTheSchoolTransactionsOwn(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	own, _ := testpkg.CreateTestTenant(t, db)
+	other, _ := testpkg.CreateTestTenant(t, db)
+	for role, allowed := range map[string]bool{
+		"phoenix_tenant": true, "phoenix_demo": false, "phoenix_auth": false,
+	} {
+		var canCall bool
+		require.NoError(t, db.NewRaw(`SELECT has_function_privilege(?, 'platform.lock_tenant_school_for_share(bigint)', 'EXECUTE')`, role).Scan(ctx, &canCall))
+		assert.Equal(t, allowed, canCall, role)
+	}
+	lockAs := func(schoolID int64) (bool, error) {
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		_, err = tx.NewRaw(`SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', ?, true)`, fmt.Sprint(own)).Exec(ctx)
+		require.NoError(t, err)
+		var live bool
+		err = tx.NewRaw(`SELECT platform.lock_tenant_school_for_share(?)`, schoolID).Scan(ctx, &live)
+		return live, err
+	}
+	live, err := lockAs(own)
+	require.NoError(t, err)
+	assert.True(t, live, "the school transaction holds its own live school")
+	_, err = lockAs(other)
+	require.Error(t, err, "it may not lock another school")
+	assert.Contains(t, err.Error(), "42501")
 }

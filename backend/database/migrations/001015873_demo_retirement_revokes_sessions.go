@@ -65,6 +65,38 @@ const schoolSessionRevocationSQL = `
 			'Identity & Access (#6305): ends every session of the school, accounts locked first, then the school until commit. Called before the school is hidden or deleted.';
 `
 
+// tenantSchoolShareLockSQL lets a school's own transaction hold its school
+// row under a share lock (#6305): the lock order of a sign-in, an invitation
+// and its acceptance is account, school, profile, and the tenant role may
+// only read platform.schools, which is not enough for FOR SHARE. The
+// function belongs to Organisation & Tenancy and locks nothing but the
+// school the transaction is bound to (app.current_tenant_id); it returns
+// whether that school is live (active and not deleted). It changes no row.
+const tenantSchoolShareLockSQL = `
+		CREATE OR REPLACE FUNCTION platform.lock_tenant_school_for_share(school_id BIGINT)
+		RETURNS BOOLEAN
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		AS $$
+		DECLARE
+			live BOOLEAN;
+		BEGIN
+			IF school_id IS NULL OR NULLIF(current_setting('app.current_tenant_id', true), '') IS DISTINCT FROM school_id::TEXT THEN
+				RAISE EXCEPTION 'a school transaction may lock only its own school' USING ERRCODE = '42501';
+			END IF;
+			SELECT school.active AND school.deleted_at IS NULL INTO live
+			FROM platform.schools AS school WHERE school.id = school_id FOR SHARE;
+			RETURN COALESCE(live, false);
+		END;
+		$$;
+		REVOKE ALL ON FUNCTION platform.lock_tenant_school_for_share(BIGINT) FROM PUBLIC;
+		GRANT EXECUTE ON FUNCTION platform.lock_tenant_school_for_share(BIGINT) TO phoenix_tenant;
+		COMMENT ON FUNCTION platform.lock_tenant_school_for_share(BIGINT) IS
+			'Organisation & Tenancy (#6305): the school transaction holds its own school under a share lock, between account and profile.';
+`
+
 // demoRetirementRevokesSessionsSQL is platform.retire_expired_demo_schools
 // of 1.15.734 that ends the sessions of each school it hides, in the
 // subtransaction that hides it (#6305). Before, they lived on until the
@@ -205,6 +237,9 @@ func demoRetirementRevokesSessionsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, schoolSessionRevocationSQL); err != nil {
 		return fmt.Errorf("create the session revocation of a school: %w", err)
 	}
+	if _, err := db.ExecContext(ctx, tenantSchoolShareLockSQL); err != nil {
+		return fmt.Errorf("create the share lock of a school transaction on its school: %w", err)
+	}
 	if _, err := db.ExecContext(ctx, demoRetirementRevokesSessionsSQL); err != nil {
 		return fmt.Errorf("end the sessions of a demo school in its retirement: %w", err)
 	}
@@ -317,6 +352,9 @@ func demoRetirementRevokesSessionsDown(ctx context.Context, db *bun.DB) error {
 	}
 	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS auth.revoke_school_sessions(BIGINT)`); err != nil {
 		return fmt.Errorf("drop the session revocation of a school: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS platform.lock_tenant_school_for_share(BIGINT)`); err != nil {
+		return fmt.Errorf("drop the share lock of a school transaction on its school: %w", err)
 	}
 	return nil
 }
