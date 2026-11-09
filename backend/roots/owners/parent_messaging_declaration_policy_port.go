@@ -34,10 +34,6 @@ func BindParentDeclarationPolicy(source communication.PortalDeclarationPolicy) p
 			result0 := source.AllowedActions(revocable, deadline, canSubmit, latest, now)
 			return result0
 		},
-		ActionAllowed: func(revocable bool, deadline *time.Time, canSubmit bool, latest string, action string, now time.Time) bool {
-			result0 := source.ActionAllowed(revocable, deadline, canSubmit, latest, action, now)
-			return result0
-		},
 		OwesAction: func(deadline *time.Time, canSubmit bool, latest string, state string, now time.Time) bool {
 			result0 := source.OwesAction(deadline, canSubmit, latest, state, now)
 			return result0

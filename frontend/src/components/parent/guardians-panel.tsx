@@ -825,7 +825,7 @@ function GuardianRow({
               )}
               {pendingPermission && (
                 <StatusBadge
-                  tone="orange"
+                  tone="warning"
                   compact
                   label={tPermission("pending", {
                     days:
@@ -986,7 +986,7 @@ function GuardianRow({
 
 function accessTone(status: RelatedAccount["status"]): StatusBadgeTone {
   if (status === "active") return "green";
-  if (status === "pending") return "orange";
+  if (status === "pending") return "warning";
   return "gray";
 }
 

@@ -42,10 +42,10 @@ func (s *Store) InsertSchoolAccount(ctx context.Context, account domain.NewSchoo
 	}
 	var rows []registeredAccountRow
 	started := time.Now()
-	err = db.NewRaw(`INSERT INTO auth.accounts (email, username, password_hash, active, last_login, created_at, updated_at)
-		VALUES (?, ?, NULLIF(?, ''), TRUE, NOW(), NOW(), NOW())
+	err = db.NewRaw(`INSERT INTO auth.accounts (email, username, active, last_login, created_at, updated_at)
+		VALUES (?, ?, TRUE, NOW(), NOW(), NOW())
 		RETURNING id, email, username, active, created_at, updated_at, last_login`,
-		account.Email, account.Username, account.PasswordHash).Scan(ctx, &rows)
+		account.Email, account.Username).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return domain.RegisteredAccount{}, stats, fmt.Errorf("identity access postgres: insert school account: %w", err)
@@ -53,7 +53,17 @@ func (s *Store) InsertSchoolAccount(ctx context.Context, account domain.NewSchoo
 	if len(rows) == 0 {
 		return domain.RegisteredAccount{}, stats, fmt.Errorf("identity access postgres: insert school account: no row returned")
 	}
-	return rows[0].toDomain(), stats, nil
+	registered := rows[0].toDomain()
+	if account.PasswordHash == "" {
+		return registered, stats, nil
+	}
+	// The credential goes through the one credential writer (#6289).
+	written, writeStats, err := s.WriteAccountCredential(ctx, registered.ID, domain.CredentialWrite{Initial: true, PasswordHash: account.PasswordHash})
+	stats.Add(writeStats)
+	if err != nil || !written {
+		return domain.RegisteredAccount{}, stats, fmt.Errorf("identity access postgres: insert school account credential: %w (written=%t)", err, written)
+	}
+	return registered, stats, nil
 }
 
 // FindLoginAccountByUsername matches case-insensitively and across every

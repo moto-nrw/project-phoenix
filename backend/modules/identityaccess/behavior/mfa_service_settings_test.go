@@ -217,7 +217,7 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-challenge")
 	require.NoError(t, fix.svc.EnrollMFA(ctx, acc.ID))
 
-	_, err := fix.svc.StartMFAChallenge(ctx, acc.ID, fix.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
+	_, err := fix.svc.StartMFAChallenge(ctx, acc.ID, fix.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"), 0)
 	require.NoError(t, err)
 
 	templates := fix.mailer.Templates()

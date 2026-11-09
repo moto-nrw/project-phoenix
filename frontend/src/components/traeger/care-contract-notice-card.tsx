@@ -59,7 +59,7 @@ const SetNoticeEndModal = dynamic(
 /** How the office decided the end of an extraordinary termination. */
 const DECISION_LABELS = {
   festgelegt: { label: "Grund anerkannt", tone: "green" },
-  umgedeutet: { label: "Grund nicht anerkannt", tone: "orange" },
+  umgedeutet: { label: "Grund nicht anerkannt", tone: "warning" },
 } as const;
 
 /** Who declared, as the office reads it. */
@@ -294,7 +294,7 @@ function NoticeFacts({
           ) : notice.endsOn ? (
             formatDate(notice.endsOn)
           ) : (
-            <StatusBadge label="Ende noch offen" tone="orange" />
+            <StatusBadge label="Ende noch offen" tone="warning" />
           )}
         </DataField>
         {notice.terminationKind ? (

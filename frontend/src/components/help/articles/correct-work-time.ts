@@ -28,6 +28,9 @@ export function correctWorkTimeTopic(): HelpTopic {
       "Einen vollständig fehlenden Arbeitstag trägt nur nach, wer die Zeiten des Teams verwalten darf.",
       "Ein abgeschlossener Monat kann nachträgliche Änderungen anzeigen, sein übertragener Saldo bleibt jedoch festgeschrieben.",
     ],
+    troubleshootingDetails: [
+      "Der Beginn darf nicht in der Zukunft liegen. Wählen Sie eine Uhrzeit, die schon vorbei ist.",
+    ],
     notes: [
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
       "Öffnen Sie für Ihren Zeitnachweis oben rechts das Drei-Punkte-Menü. Wählen Sie `Exportieren`, den Zeitraum und das Format. Mit `Herunterladen` bekommen Sie die Datei.",

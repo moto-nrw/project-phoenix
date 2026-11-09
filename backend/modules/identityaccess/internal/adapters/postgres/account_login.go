@@ -16,11 +16,11 @@ import (
 // the rows a mint authorizes on until that transaction commits.
 
 type loginAccountRow struct {
-	MFAResetGeneration int64     `bun:"mfa_reset_generation"`
+	MFAResetGeneration int64     `bun:"mfa_reset_generation,scanonly"`
 	ID                 int64     `bun:"id"`
 	Email              string    `bun:"email"`
 	Username           *string   `bun:"username"`
-	PasswordHash       *string   `bun:"password_hash"`
+	PasswordHash       *string   `bun:"password_hash,scanonly"`
 	Active             bool      `bun:"active"`
 	UpdatedAt          time.Time `bun:"updated_at"`
 }

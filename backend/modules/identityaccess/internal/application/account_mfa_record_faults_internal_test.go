@@ -237,7 +237,7 @@ func TestAccountMFA_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.
 	}).capability
 
 	challengeToken, err := svc.StartMFAChallenge(
-		context.Background(), 1, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),
+		context.Background(), 1, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0,
 	)
 
 	require.Error(t, err)

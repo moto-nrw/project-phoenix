@@ -447,7 +447,7 @@ function NoticeDone({
         <div className="space-y-4">
           <StatusBadge
             label={withdrawn ? t("statusWithdrawn") : t("statusTerminated")}
-            tone={withdrawn ? "red" : "orange"}
+            tone={withdrawn ? "red" : "warning"}
           />
           <DataGrid>
             {notice.terminationKind ? (

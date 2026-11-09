@@ -1240,6 +1240,13 @@ export interface ParentDeclaration {
   readonly requires_signature: boolean;
   readonly deadline: string | null;
   readonly closed: boolean;
+  /**
+   * The school no longer shows this Einverständnis (withdrawn, deactivated
+   * or expired).
+   * It stays in the feed because this guardian answered it; only revoking an
+   * own consent remains (#6290).
+   */
+  readonly ended: boolean;
   readonly version: {
     readonly id: string;
     readonly version_no: number;

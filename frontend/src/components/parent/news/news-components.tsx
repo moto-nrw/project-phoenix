@@ -52,6 +52,7 @@ import {
 import {
   DeclarationSection,
   isDeclarationItem,
+  isEndedDeclaration,
   isOpenDeclaration,
 } from "~/components/parent/news/declaration-section";
 import {
@@ -110,6 +111,9 @@ export function isOpenPoll(item: ParentAnnouncement): boolean {
 
 /** One shared definition for the list hierarchy and the sidebar count. */
 export function isOutstandingAnnouncement(item: ParentAnnouncement): boolean {
+  // An ended Einverständnis stays only so a consent can be revoked; it asks
+  // for nothing, read or not.
+  if (isEndedDeclaration(item)) return false;
   return (
     !item.read ||
     (item.requires_acknowledgement && !item.acknowledged) ||
@@ -202,7 +206,7 @@ function NewsCardState({
 
   if (!isPoll(item)) {
     if (item.requires_acknowledgement && !item.acknowledged) {
-      return <StatusBadge label={t("newsLetterBadge")} tone="orange" />;
+      return <StatusBadge label={t("newsLetterBadge")} tone="warning" />;
     }
     const complete = item.requires_acknowledgement
       ? item.acknowledged
@@ -246,7 +250,7 @@ function NewsCardState({
   return (
     <>
       {!closed && !complete ? (
-        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="warning" />
       ) : (
         <span
           className={`flex items-center gap-1.5 font-semibold ${settled ? "text-moto-green-strong" : "text-gray-600"}`}
@@ -311,7 +315,7 @@ function SurveyCardState({
       ) : closed ? (
         <span className="text-gray-600">{ts("closed")}</span>
       ) : (
-        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="warning" />
       )}
       <StatusBadge
         label={
@@ -356,7 +360,7 @@ function DeclarationCardState({
   if (isOpenDeclaration(item)) {
     return (
       <>
-        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="warning" />
         {deadline}
       </>
     );
@@ -384,8 +388,11 @@ function DeclarationCardState({
         )}
         {summary}
       </span>
-      {declaration.closed && !settled && (
-        <span className="text-gray-500">{td("closed")}</span>
+      {declaration.ended ? (
+        <StatusBadge label={td("ended")} tone="gray" />
+      ) : (
+        declaration.closed &&
+        !settled && <span className="text-gray-500">{td("closed")}</span>
       )}
     </>
   );
@@ -614,7 +621,7 @@ function usePollChildStatus(
   const t = useTranslations("parentDashboard");
   const dirty = poll.isDirty(child);
   const answered = child.selected_options.length > 0;
-  if (dirty) return { label: t("newsPollUnsaved"), tone: "orange" as const };
+  if (dirty) return { label: t("newsPollUnsaved"), tone: "warning" as const };
   if (answered) return { label: t("newsPollAnswered"), tone: "green" as const };
   return { label: t("newsPollOpen"), tone: "gray" as const };
 }
@@ -842,7 +849,7 @@ export function NewsCard({
         <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm empty:hidden">
           <NewsCardState item={item} />
           {item.priority === "important" && (
-            <StatusBadge label={t("newsImportant")} tone="orange" />
+            <StatusBadge label={t("newsImportant")} tone="warning" />
           )}
           {item.reminder_sent_at && (
             <StatusBadge label={t("newsReminder")} tone="gray" />
@@ -1012,7 +1019,9 @@ function NewsMessageSection({
         <LinkifiedText text={item.body} />
       </p>
 
-      <NewsAttachments item={item} />
+      {/* The files of an ended Einverständnis stay in the proof of each
+          answer; the message itself no longer serves them. */}
+      {!isEndedDeclaration(item) && <NewsAttachments item={item} />}
 
       {item.link_url && (
         <a
@@ -1145,10 +1154,13 @@ export function NewsDetailModal({
     markedRef.current = false;
   }, [item.id, item.published_at, clearActionError]);
 
+  // An ended Einverständnis is no live message: the backend refuses a read
+  // mark for it, which would wrongly report it as outdated.
+  const ended = isEndedDeclaration(item);
   useEffect(() => {
     // published_at is the version the backend verifies; feed items always carry
     // it, so a missing value just means there is nothing to mark yet.
-    if (item.read || markedRef.current || !item.published_at) return;
+    if (ended || item.read || markedRef.current || !item.published_at) return;
     markedRef.current = true;
     markAnnouncementRead(item.id, item.published_at)
       .then(() => {
@@ -1171,7 +1183,7 @@ export function NewsDetailModal({
           markedRef.current = false;
         }
       });
-  }, [item.id, item.read, item.published_at, onUpdated, onStale]);
+  }, [ended, item.id, item.read, item.published_at, onUpdated, onStale]);
 
   const handleAcknowledge = useCallback(async () => {
     if (!item.published_at) return;

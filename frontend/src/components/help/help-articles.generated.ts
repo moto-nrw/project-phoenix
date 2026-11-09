@@ -1606,6 +1606,9 @@ export const correctWorkTimeTopic = function correctWorkTimeTopic(): HelpTopic {
       "Einen vollständig fehlenden Arbeitstag trägt nur nach, wer die Zeiten des Teams verwalten darf.",
       "Ein abgeschlossener Monat kann nachträgliche Änderungen anzeigen, sein übertragener Saldo bleibt jedoch festgeschrieben.",
     ],
+    troubleshootingDetails: [
+      "Der Beginn darf nicht in der Zukunft liegen. Wählen Sie eine Uhrzeit, die schon vorbei ist.",
+    ],
     notes: [
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
       "Öffnen Sie für Ihren Zeitnachweis oben rechts das Drei-Punkte-Menü. Wählen Sie `Exportieren`, den Zeitraum und das Format. Mit `Herunterladen` bekommen Sie die Datei.",
@@ -5785,7 +5788,7 @@ export const parentDeclarationTopic =
       result:
         "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
       notes: [
-        "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+        "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen. Das geht auch nach der Frist und nach dem Zurückziehen.",
         "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
         "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
         "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
@@ -5795,6 +5798,7 @@ export const parentDeclarationTopic =
       differences: [
         "Nach dem Veröffentlichen stehen Text und Dateien fest.",
         "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+        "Eltern, die schon geantwortet haben, sehen ein zurückgezogenes Einverständnis weiter. Dort steht `Einverständnis beendet`. Neu antworten können sie nicht mehr.",
       ],
       troubleshootingDetails: [
         "Sollen Eltern nur bestätigen, dass sie etwas gelesen haben? Schreiben Sie dann einen Elternbrief mit Lesebestätigung.",
@@ -6773,6 +6777,14 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
+      {
+        title: "Eine Zustimmung widerrufen",
+        steps: [
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`.",
+          "Tippen Sie beim Kind auf `Zustimmung widerrufen`.",
+          "Bestätigen Sie im Fenster mit `Widerrufen`.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
@@ -6787,11 +6799,14 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
+      "Steht bei einem Einverständnis `Einverständnis beendet`? Dann fragt die Schule nicht mehr nach. Eine Zustimmung können Sie dort weiter widerrufen, wenn die Schule das erlaubt.",
+      "Steht beim Kind, dass Sie nicht mehr neu antworten können? Dann hat die OGS das für Sie geändert. Ihre Zustimmung können Sie trotzdem widerrufen.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "Fehlt `Zustimmung widerrufen`? Dann erlaubt die Schule keinen Widerruf im Eltern-Portal. Wenden Sie sich an die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,
@@ -11159,7 +11174,7 @@ export const traegerDashboardTopic =
         "Mit einem Klick auf eine Spaltenüberschrift sortieren Sie die Schulen, zum Beispiel nach `Heute krank`.",
         "Bei vielen Schulen finden Sie eine Schule schneller über das Suchfeld. Sie können nach dem Namen oder dem Ort suchen.",
         "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder. Oben gilt das für alle Schulen zusammen.",
-        "`Auffälligkeiten` kennt drei Hinweise: `Zu wenig Personal`, `Viele Krankmeldungen` und `Offene Anmeldungen`. In der Tabelle sind die Zahlen dazu orange mit einem Warnzeichen.",
+        "`Auffälligkeiten` kennt drei Hinweise: `Zu wenig Personal`, `Viele Krankmeldungen` und `Offene Anmeldungen`. In der Tabelle sind die Zahlen dazu gelb mit einem Warnzeichen.",
         "Mit dem Feld `Alle Schulen` zeigen Sie nur die Hinweise einer Schule.",
         "Ab wann eine Schule auffällt, legen Sie selbst fest. Wählen Sie dazu `Grenzen ändern`. Mehr dazu steht im Artikel `Einstellungen für alle Schulen festlegen`.",
         "`Offene Anmeldungen` zählt die Kinder aus der Online-Anmeldung, über die die Schule noch nicht entschieden hat.",
@@ -12174,6 +12189,21 @@ export const traegerSepaMandatesTopic =
           ],
         },
         {
+          title: "Bestehende Mandate importieren",
+          description:
+            "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
+          steps: [
+            "Speichern Sie die Mandate im anderen Programm als CSV-Datei. Die erste Zeile enthält die Überschriften.",
+            "Öffnen Sie unter `Abrechnung` den Reiter `Lastschrift` und wählen Sie `Mandate importieren`.",
+            "Ziehen Sie die Datei in das Feld oder wählen Sie `Datei wählen`.",
+            "Prüfen Sie unter `Spalten zuordnen`, aus welcher Spalte jedes Feld kommt. moto schlägt passende Spalten vor.",
+            "Wählen Sie bei `Die Spalte „Zahler“ enthält`, ob dort die E-Mail der Familie oder die Vertragsnummer steht.",
+            "Hat Ihre Datei keine Spalte mit der Gläubiger-ID? Dann bestätigen Sie, dass alle Mandate zu Ihrer Gläubiger-ID gehören.",
+            "Prüfen Sie die Zeilen unter `Prüfen und übernehmen`. Bei `Bitte klären` wählen Sie unter `Schon abgebucht?` die Antwort `Ja` oder `Nein`.",
+            "Wählen Sie `Mandate übernehmen`.",
+          ],
+        },
+        {
           title: "Mandat widerrufen",
           steps: [
             "Öffnen Sie unter `Abrechnung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
@@ -12188,7 +12218,10 @@ export const traegerSepaMandatesTopic =
       notes: [
         "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
-        "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Kontodaten stehen dort nicht.",
+        "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
+        "Beim Import übernimmt moto nur Zeilen mit dem Stand `Bereit`. Zeilen mit Fehlern oder Konflikten bleiben draußen. Korrigieren Sie die Datei und laden Sie sie noch einmal: Was schon da ist, zeigt moto als `Schon vorhanden`.",
+        "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
+        "Wissen Sie, dass die letzte Abbuchung lange her ist? Dann tragen Sie das Datum in der Datei ein oder holen ein neues Mandat ein. Ohne Datum geht moto davon aus, dass das Mandat bis kurz vor dem Import genutzt wurde.",
       ],
       differences: [
         "Die Familie hat kein gültiges Mandat? Mit `Als Überweisung ausstellen` bekommt sie eine Rechnung zum Überweisen. Die Prüfung des Monatslaufs zeigt sie in der Karte `Lastschrift`.",
@@ -12196,7 +12229,10 @@ export const traegerSepaMandatesTopic =
         "`Mandat erfassen` fehlt? Die Familie hat schon ein gültiges Mandat. Widerrufen Sie es zuerst.",
       ],
       troubleshootingDetails: [
+        "Die Mandate sind übernommen, aber die Liste der Importe fehlt? Wählen Sie dort `Erneut laden`. Die Mandate müssen Sie nicht noch einmal übernehmen.",
         "Die IBAN wird nicht angenommen? Prüfen Sie jedes Zeichen. moto prüft die Prüfziffer.",
+        "Beim Import steht `Konflikt`? Das Mandat passt nicht zu dem, was moto schon hat: eine andere Gläubiger-ID, eine schon vergebene Mandatsreferenz oder eine Familie mit einem anderen gültigen Mandat. moto überschreibt nichts. Klären Sie das Mandat und erfassen Sie es bei Bedarf von Hand.",
+        "Beim Import steht `Zu diesem Zahler gibt es bei Ihnen keinen Vertrag`? Prüfen Sie die E-Mail-Adresse oder Vertragsnummer in der Datei. Sie muss zu einem Vertrag Ihres Trägers passen.",
         "Die Prüfung meldet `früher als Ihre Vorabankündigung erlaubt`? Die Abbuchung kommt zu früh nach dem Rechnungsdatum. Ändern Sie die Fälligkeit des Laufs oder das Rechnungsdatum.",
       ],
       related: [

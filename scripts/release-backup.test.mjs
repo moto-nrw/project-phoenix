@@ -110,6 +110,19 @@ test('repeated demo deploy stops the sidecar before the snapshot and restarts it
   assert.match(f.calls(), /^compose stop server frontend demo-runtime$/m);
   assert.match(f.calls(), sidecarStart);
 });
+// bank-data-rekey sits in the maintenance profile and only runs by hand, so it
+// never has a container; the snapshot pins it to the serving backend image.
+test('deploy snapshots a never-run maintenance job with the server image', t => {
+  const f = fixture(t);
+  const stack = 'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:staging\n' +
+    '  bank-data-rekey:\n    image: ghcr.io/moto-nrw/phoenix-server:staging\n';
+  writeFileSync(join(f.cwd, 'docker-compose.yml'), stack);
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), stack);
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const id = readFileSync(join(f.cwd, '.deploy-state'), 'utf8').match(/BACKUP_ID=(.+)/)[1];
+  assert.match(readFileSync(join(f.root, 'backups/staging', id, 'images.tsv'), 'utf8'), /^bank-data-rekey\t\S+@sha256:/m);
+});
 // Redeploying the same revision rebuilds the demo frontend under the same tag.
 // The pull must not leave the running images nameless, or the snapshot cannot
 // resolve their registry digests on Docker's containerd image store.

@@ -38,11 +38,12 @@ type RefreshClaims struct {
 
 // MFAChallengeClaims is the content of a test MFA challenge token.
 type MFAChallengeClaims struct {
-	AccountID   int64
-	Scope       string
-	TenantID    int64
-	ChallengeID int64
-	MFAPending  bool
+	AccountID            int64
+	Scope                string
+	TenantID             int64
+	ChallengeID          int64
+	CredentialGeneration int64
+	MFAPending           bool
 	sessiontoken.CommonClaims
 }
 
@@ -116,6 +117,7 @@ func ParseExpiredAccessJWT(a *sessiontoken.TokenAuth, tokenString string) (*sess
 func CreateMFAChallengeJWT(a *sessiontoken.TokenAuth, c MFAChallengeClaims, ttl time.Duration) (string, error) {
 	return sign(a, tokenprimitives.EncodeChallenge(tokenprimitives.ChallengeClaims{
 		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, ChallengeID: c.ChallengeID,
+		CredentialGeneration: c.CredentialGeneration,
 	}, time.Now(), ttl))
 }
 
@@ -132,14 +134,14 @@ func ParseMFAChallengeJWT(a *sessiontoken.TokenAuth, tokenString string) (*MFACh
 	}
 	return &MFAChallengeClaims{
 		AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID, ChallengeID: claims.ChallengeID,
-		MFAPending: true,
+		CredentialGeneration: claims.CredentialGeneration, MFAPending: true,
 	}, nil
 }
 
 // CreateMFAEnrollmentJWT mints an MFA enrollment token with the given TTL.
 func CreateMFAEnrollmentJWT(a *sessiontoken.TokenAuth, c sessiontoken.MFAEnrollmentClaims, ttl time.Duration) (string, error) {
 	wire, err := tokenprimitives.EncodeEnrollment(tokenprimitives.EnrollmentClaims{
-		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID,
+		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, CredentialGeneration: c.CredentialGeneration,
 	}, time.Now(), ttl)
 	if err != nil {
 		return "", err
@@ -159,7 +161,7 @@ func ParseMFAEnrollmentJWT(a *sessiontoken.TokenAuth, tokenString string) (*sess
 	}
 	claims := verified.Enrollment
 	return &sessiontoken.MFAEnrollmentClaims{
-		AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID, MFAEnrollmentPending: true,
+		AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID, CredentialGeneration: claims.CredentialGeneration, MFAEnrollmentPending: true,
 		CommonClaims: sessiontoken.CommonClaims{ExpiresAt: claims.ExpiresAt},
 	}, nil
 }

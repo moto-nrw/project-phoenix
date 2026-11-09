@@ -358,12 +358,12 @@ function CourseState({ course }: Readonly<{ course: CourseItem }>) {
         label={t("courses.waitlist", {
           position: course.waitlist_position ?? 1,
         })}
-        tone="orange"
+        tone="warning"
       />
     );
   }
   if (course.requested) {
-    return <StatusBadge label={t("courses.requested")} tone="orange" />;
+    return <StatusBadge label={t("courses.requested")} tone="warning" />;
   }
   return null;
 }

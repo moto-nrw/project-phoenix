@@ -100,7 +100,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r), claims.CredentialGeneration)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return

@@ -6,6 +6,8 @@
   "version": "Sürüm {version}",
   "deadline": "Son tarih {date}",
   "closed": "Süre doldu",
+  "ended": "Onay talebi sona erdi",
+  "endedNote": "Okul bu onay talebini sonlandırdı. Artık yeni yanıt veremezsiniz.",
   "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
   "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
   "state": {
@@ -45,6 +47,7 @@
   "oneIsEnough": "Bir yanıt yeterlidir.",
   "ownAnyway": "Yine de kendiniz yanıtlayabilirsiniz.",
   "cannotSubmit": "{name} için burada yanıt veremezsiniz. Bunu velayet sahibi kişiler yapar.",
+  "cannotSubmitAnymore": "{name} için artık yeni yanıt veremezsiniz.",
   "myAction": "Yanıtınız: {action}, {date}",
   "myActionNoDate": "Yanıtınız: {action}",
   "proof": "Belgeyi görüntüle",

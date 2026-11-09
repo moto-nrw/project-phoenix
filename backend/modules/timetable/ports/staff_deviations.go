@@ -94,6 +94,7 @@ type StaffDeviationDependencies struct {
 	Protocol        DeviationProtocol
 	ActivityUpdates ActivityUpdateAnnouncer
 	Locks           TransactionLocks
+	SickReports     SickReportReader // nil: a substitute is never sick (#6292)
 	Logger          *slog.Logger
 	Now             func() time.Time
 }

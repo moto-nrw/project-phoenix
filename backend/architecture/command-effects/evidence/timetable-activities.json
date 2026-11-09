@@ -30145,6 +30145,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "binding_digest": "9d3694a913352550529245e607944588",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "target_owner": "workforce"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.staffNoticeRecords.Acknowledge",
       "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.StaffNoticeRecords.Acknowledge",

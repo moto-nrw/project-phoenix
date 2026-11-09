@@ -218,7 +218,7 @@ export function SepaCreditorCard({
       title="Lastschrift"
       titleBadge={
         missingId ? (
-          <StatusBadge tone="orange" label="Gläubiger-ID fehlt" />
+          <StatusBadge tone="warning" label="Gläubiger-ID fehlt" />
         ) : null
       }
       description="Damit buchen Sie Beiträge per SEPA-Lastschrift ab. Das Mandat jeder Familie erfassen Sie bei ihrem Vertrag."
