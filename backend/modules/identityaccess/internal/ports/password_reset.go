@@ -23,9 +23,6 @@ type PasswordResetStore interface {
 
 	// RevokePasswordResetTokens spends every link of the account.
 	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
-	// RevokeAccountTrustedDevices ends the account's remembered devices
-	// with the redeemed link (#6289).
-	RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error)
 	InsertPasswordResetToken(ctx context.Context, token domain.PasswordResetToken) (domain.PasswordResetToken, domain.OperationStats, error)
 	FindRedeemablePasswordResetToken(ctx context.Context, token string, now time.Time) (domain.PasswordResetToken, bool, domain.OperationStats, error)
 	// RedeemPasswordResetToken spends the link and reports whether it was
@@ -36,9 +33,9 @@ type PasswordResetStore interface {
 	// were used.
 	DeleteSpentPasswordResetTokens(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
-	// SetAccountPassword replaces the credential and clears the one-time
-	// password flag; it reports whether the account is live.
-	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
+	// WriteAccountCredential is the one credential writer (#6289): it moves
+	// the credential generation on with every write; see the adapter.
+	WriteAccountCredential(ctx context.Context, accountID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 }
 
 // PasswordResetDelivery is the consumer-owned port over the Delivery

@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -95,7 +94,7 @@ func (c *CatererAccess) changePasswordInTx(ctx context.Context, accountID int64,
 		}
 		return refusal, nil
 	}
-	updated, _, err := c.store.SetAccountPassword(ctx, accountID, hash)
+	updated, _, err := c.store.WriteAccountCredential(ctx, accountID, domain.CredentialWrite{PasswordHash: hash})
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +102,6 @@ func (c *CatererAccess) changePasswordInTx(ctx context.Context, accountID int64,
 		return nil, domain.ErrAccountNotFound
 	}
 	if _, err := c.store.RevokePasswordResetTokens(ctx, accountID); err != nil {
-		return nil, err
-	}
-	if _, err := c.store.RevokeAccountTrustedDevices(ctx, accountID, time.Now()); err != nil {
 		return nil, err
 	}
 	return nil, c.auth.revokeAccountWideInContext(ctx, accountID, catererPasswordChangeReason, ipAddress, userAgent)

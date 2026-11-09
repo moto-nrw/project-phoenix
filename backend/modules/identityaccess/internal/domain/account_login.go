@@ -364,3 +364,17 @@ func (c SessionClaims) SessionKind() (SessionKind, bool) {
 	}
 	return SessionKindOf(portal, c.ViaTraeger), true
 }
+
+// CredentialWrite is one write of an account's credential (#6289). Every
+// write but the initial one moves the credential generation on. PasswordHash replaces the
+// password; empty keeps it (an MFA reset). ExpectedPasswordHash and
+// ExpectedGeneration, when set, make the write a compare-and-swap on the
+// state the caller's proof was checked against.
+type CredentialWrite struct {
+	// Initial sets the first credential of an account just created: it
+	// lands only on a row without a password and keeps its generation.
+	Initial              bool
+	PasswordHash         string
+	ExpectedPasswordHash string
+	ExpectedGeneration   *int64
+}

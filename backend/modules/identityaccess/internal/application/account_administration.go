@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -271,7 +270,7 @@ func (a *AccountAdministration) changeAccountPassword(ctx context.Context, chang
 	// and the revocation; it also moves the credential generation on, which
 	// ends every code, enrollment token and remembered device still bound to
 	// the old password.
-	written, _, err := a.store.UpdateAccountPasswordHash(ctx, change.AccountID, account.PasswordHash, hash)
+	written, _, err := a.store.WriteAccountCredential(ctx, change.AccountID, domain.CredentialWrite{PasswordHash: hash, ExpectedPasswordHash: account.PasswordHash})
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}
@@ -281,13 +280,11 @@ func (a *AccountAdministration) changeAccountPassword(ctx context.Context, chang
 	return a.revokeAfterPasswordChange(ctx, change)
 }
 
+// revokeAfterPasswordChange ends the sessions of the account but the one
+// the change was made in. Reset links and remembered devices need no step of
+// their own: they are bound to the credential generation the write just
+// moved on (#6289).
 func (a *AccountAdministration) revokeAfterPasswordChange(ctx context.Context, change identityaccess.OwnPasswordChange) error {
-	if _, err := a.store.RevokePasswordResetTokens(ctx, change.AccountID); err != nil {
-		return failed(opRevokeAfterPasswordChange, err)
-	}
-	if _, err := a.store.RevokeAccountTrustedDevices(ctx, change.AccountID, time.Now()); err != nil {
-		return failed(opRevokeAfterPasswordChange, err)
-	}
 	if err := a.auth.revokeOtherSessionsWithAudit(ctx, change.AccountID, change.SessionFamilyID, ownPasswordChangeReason, change.IPAddress, change.UserAgent); err != nil {
 		return failed(opRevokeAfterPasswordChange, err)
 	}

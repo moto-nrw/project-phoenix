@@ -561,3 +561,30 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 	assert.Equal(t, tenantID, pinnedTenantID,
 		"the enrollment token's school must be pinned INSIDE the verify, before the code is consumed")
 }
+
+// The school enrollment start hands the credential generation its token
+// names on to the second factor (#6289), from the signed token through the
+// enrollment authenticator.
+func TestSchoolMFAEnrollStartPassesTheTokensCredentialGeneration(t *testing.T) {
+	t.Parallel()
+	db, resource, tenantID, _ := setupSchoolRoute(t)
+	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-generation")
+	enrollmentToken, err := tokentest.CreateMFAEnrollmentJWT(testutil.TestTokenAuth(t), sessiontoken.MFAEnrollmentClaims{
+		AccountID: accountID, Scope: tokenprimitives.PortalSchool, TenantID: tenantID, CredentialGeneration: 9,
+	}, 5*time.Minute)
+	require.NoError(t, err)
+	var started []int64
+	mfa := stubSchoolMFA(schoolportal.MFARuntime{
+		StartChallenge: func(_ context.Context, _, _ int64, _ net.IP, credentialGeneration int64) (string, error) {
+			started = append(started, credentialGeneration)
+			return "school-challenge", nil
+		},
+	})
+	enrollStart := httptest.NewRequest(http.MethodPost, "/auth/mfa/enroll/start", nil)
+	enrollStart.Header.Set("Authorization", "Bearer "+enrollmentToken)
+	rec := httptest.NewRecorder()
+	newSchoolRouter(resource, mfa).ServeHTTP(rec, enrollStart)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []int64{9}, started)
+}

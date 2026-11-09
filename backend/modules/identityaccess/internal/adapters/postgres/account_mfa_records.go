@@ -189,7 +189,8 @@ func (r *AccountMFARecords) InvalidateSessionMFA(ctx context.Context, accountID 
 	if err != nil {
 		return err
 	}
-	if _, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = mfa_reset_generation + 1 WHERE id = ?`, accountID).Exec(ctx); err != nil {
+	// An MFA reset is a credential write without a password (#6289).
+	if _, _, err = r.store.WriteAccountCredential(ctx, accountID, domain.CredentialWrite{}); err != nil {
 		return err
 	}
 	_, err = db.NewUpdate().Model((*accountSessionRow)(nil)).Set("mfa_verified = FALSE").Where("account_id = ?", accountID).Exec(ctx)

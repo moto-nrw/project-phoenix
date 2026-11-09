@@ -266,23 +266,35 @@ func TestChallengeBeforeAPasswordWriteIsNotRedeemable(t *testing.T) {
 
 // TestEnrollmentTokenBeforeAPasswordChangeStartsNoEnrollment binds the
 // enrollment token to the credential generation its password sign-in
-// checked: after a password change the token starts no enrollment code.
+// checked. The account starts past generation 0, so a token naming 0 (or no
+// generation) would fail the positive start below: the token carries the
+// generation actually checked, starts an enrollment while it holds, and
+// starts none after a password change.
 func TestEnrollmentTokenBeforeAPasswordChangeStartsNoEnrollment(t *testing.T) {
 	t.Parallel()
 	sc := newLoginGateScenario(t)
-	sc.setOverride(identityaccess.MFAAdminOverrideForceOn)
 	ctx := context.Background()
-	result, err := sc.svc.LoginWithMFAGate(ctx, sc.email, loginGatePassword, loginGateIP, "ua-test", "", "")
+	current := testpkg.NewTestPassword()
+	require.NoError(t, sc.svc.ChangeAccountPassword(ctx, identityaccess.OwnPasswordChange{
+		AccountID: sc.accountID, CurrentPassword: loginGatePassword, NewPassword: current,
+	}))
+	var checked int64
+	require.NoError(t, sc.db.NewRaw(`SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?`, sc.accountID).Scan(ctx, &checked))
+	require.Positive(t, checked)
+	sc.setOverride(identityaccess.MFAAdminOverrideForceOn)
+	result, err := sc.svc.LoginWithMFAGate(ctx, sc.email, current, loginGateIP, "ua-test", "", "")
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
 	claims := decodePreviewTokenPayload(t, result.AccessToken)
-	generation, ok := claims["credential_generation"].(float64)
+	claimed, ok := claims["credential_generation"].(float64)
 	require.True(t, ok, "the enrollment token names the checked credential generation")
+	require.EqualValues(t, checked, claimed, "the token names the generation the password check read")
 
+	_, err = sc.mfa.StartMFAChallenge(ctx, sc.accountID, sc.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP(loginGateIP), int64(claimed))
+	require.NoError(t, err, "while the generation holds, the token starts the enrollment")
 	require.NoError(t, sc.svc.ChangeAccountPassword(ctx, identityaccess.OwnPasswordChange{
-		AccountID: sc.accountID, CurrentPassword: loginGatePassword, NewPassword: testpkg.NewTestPassword(),
+		AccountID: sc.accountID, CurrentPassword: current, NewPassword: testpkg.NewTestPassword(),
 	}))
-
-	_, err = sc.mfa.StartMFAChallenge(ctx, sc.accountID, sc.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP(loginGateIP), int64(generation))
+	_, err = sc.mfa.StartMFAChallenge(ctx, sc.accountID, sc.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP(loginGateIP), int64(claimed))
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "the token of the old password starts no enrollment")
 }

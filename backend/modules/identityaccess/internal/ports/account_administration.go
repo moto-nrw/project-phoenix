@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -39,16 +38,9 @@ type AccountAdministrationStore interface {
 	// SetManageableAccountActive flips the active flag within the caller's
 	// visibility. found=false when the predicate matched no row.
 	SetManageableAccountActive(ctx context.Context, id int64, active bool, visibility domain.AccountVisibility) (bool, domain.OperationStats, error)
-	// UpdateAccountPasswordHash replaces the credential of the account
-	// holder when the stored hash is still verifiedHash (compare-and-swap)
-	// and moves the credential generation on; written=false when the row is
-	// gone, erased or holds another hash by now.
-	UpdateAccountPasswordHash(ctx context.Context, id int64, verifiedHash, hash string) (bool, domain.OperationStats, error)
-	// RevokePasswordResetTokens spends every reset link of the account.
-	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
-	// RevokeAccountTrustedDevices revokes the account's remembered devices
-	// at every school and in every portal.
-	RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error)
+	// WriteAccountCredential is the one credential writer (#6289): it moves
+	// the credential generation on with every write; see the adapter.
+	WriteAccountCredential(ctx context.Context, accountID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 	// FindAnalyticsConsent reads the holder's usage analytics answer (#4901);
 	// found=false when the row is gone or erased.
 	FindAnalyticsConsent(ctx context.Context, id int64) (domain.AnalyticsConsent, bool, domain.OperationStats, error)

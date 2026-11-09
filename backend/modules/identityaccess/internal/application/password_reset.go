@@ -228,17 +228,14 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 	})
 }
 
-// redeemResetInAdmin sets the new password, spends the link and revokes the
-// account's remembered devices (#6289) and sessions inside the
-// administrative transaction.
+// redeemResetInAdmin spends the link, sets the new password and revokes the
+// account's sessions inside the administrative transaction. The link is
+// bound to the credential generation it was issued under (#6289): it redeems
+// only while that is current, and the write is a compare-and-swap on it, so a
+// credential write that committed since the link was mailed (a change, a
+// restore by invitation, another reset) leaves it worthless. The write moves
+// the generation on, which also ends the remembered devices.
 func (r *PasswordReset) redeemResetInAdmin(txCtx context.Context, link domain.PasswordResetToken, hash string) error {
-	updated, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash)
-	if setErr != nil {
-		return setErr
-	}
-	if !updated {
-		return identityaccess.ErrInvalidToken
-	}
 	redeemed, _, redeemErr := r.store.RedeemPasswordResetToken(txCtx, link.ID)
 	if redeemErr != nil {
 		return redeemErr
@@ -246,8 +243,13 @@ func (r *PasswordReset) redeemResetInAdmin(txCtx context.Context, link domain.Pa
 	if !redeemed {
 		return identityaccess.ErrInvalidToken
 	}
-	if _, revokeErr := r.store.RevokeAccountTrustedDevices(txCtx, link.AccountID, r.now()); revokeErr != nil {
-		return fmt.Errorf("revoke remembered devices during password reset: %w", revokeErr)
+	generation := link.CredentialGeneration
+	updated, _, setErr := r.store.WriteAccountCredential(txCtx, link.AccountID, domain.CredentialWrite{PasswordHash: hash, ExpectedGeneration: &generation})
+	if setErr != nil {
+		return setErr
+	}
+	if !updated {
+		return identityaccess.ErrInvalidToken
 	}
 	if _, revokeErr := r.auth.DeleteAccountSessionsWithAudit(txCtx, link.AccountID, "password_reset", "", ""); revokeErr != nil {
 		return fmt.Errorf("revoke tokens during password reset: %w", revokeErr)

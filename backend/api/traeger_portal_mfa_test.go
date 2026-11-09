@@ -216,3 +216,31 @@ func traegerSessionVerified(t *testing.T, db *bun.DB, accountID int64) bool {
 		WHERE account_id = ? AND organization_id IS NOT NULL`, accountID).Scan(context.Background(), &total, &verified))
 	return total > 0 && total == verified
 }
+
+// A Träger enrollment start is bound to the credential generation its
+// sign-in checked (#6289): on an account past generation 0 the token's own
+// generation starts the enrollment, and after a password write it starts
+// none.
+func TestTraegerEnrollmentStartIsBoundToTheCheckedCredential(t *testing.T) {
+	t.Parallel()
+	db, portal, _, _ := newTraegerPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Generation", true)
+	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Generation")
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
+	_, err := db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = 3 WHERE id = ?`, account.ID).Exec(context.Background())
+	require.NoError(t, err)
+
+	code, login := traegerLogin(t, portal, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, "mfa_enrollment_required", login.Status)
+	started, _ := traegerPost(t, portal, "/traeger/auth/mfa/enroll/start", login.AccessToken, map[string]any{})
+	require.Equal(t, http.StatusOK, started, "the token names the generation the sign-in checked")
+
+	_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = 4 WHERE id = ?`, account.ID).Exec(context.Background())
+	require.NoError(t, err)
+	refused, answer := traegerPost(t, portal, "/traeger/auth/mfa/enroll/start", login.AccessToken, map[string]any{})
+	assert.Equal(t, http.StatusUnauthorized, refused)
+	assert.Equal(t, "identity.invalid_credentials", answer.Code)
+}

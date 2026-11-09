@@ -894,11 +894,18 @@ issues no session. An account's own password change (`POST /auth/password`,
 at every school and portal ends, its reset links are spent and its remembered
 devices revoked; only the family of the access token the change is made with
 stays signed in. The caterer's own change ends its current session too.
-A redeemed reset link and an operator's password change revoke the remembered
-devices as well. The account's credential generation
+An operator's password change revokes the operator's remembered devices as
+well. The account's credential generation
 (`auth.accounts.mfa_reset_generation`) binds every artifact a password check
-hands out: every password write (own change, caterer change, reset,
-invitation) and every MFA reset moves it on. A sign-in records the generation
+hands out. Exactly one function writes the account credential
+(`Store.WriteAccountCredential`: password hash, one-time flag, generation;
+`TestAccountCredentialHasOneWriter` rejects a second writer): every password
+write (own change, caterer change, reset, restore by invitation) and every MFA
+reset moves the generation on, only the first credential of a new account
+keeps it. Reset links and remembered devices record their generation
+(`credential_generation`, migration 1.15.828) and count only while it is the
+account's current one, at every school, so no write needs to revoke them; a
+reset writes by compare-and-swap on its link's generation. A sign-in records the generation
 its password check read; the session mint, the code a sign-in or an
 enrollment start mails (the enrollment token carries `credential_generation`),
 a resend (the challenge token carries it too) and the remembered device of an

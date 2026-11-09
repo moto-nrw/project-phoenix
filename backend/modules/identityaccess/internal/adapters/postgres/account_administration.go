@@ -48,7 +48,7 @@ type administeredAccountRow struct {
 	Email        string     `bun:"email"`
 	Username     *string    `bun:"username"`
 	Active       bool       `bun:"active"`
-	PasswordHash *string    `bun:"password_hash"`
+	PasswordHash *string    `bun:"password_hash,scanonly"`
 	CreatedAt    time.Time  `bun:"created_at"`
 	UpdatedAt    time.Time  `bun:"updated_at"`
 	LastLogin    *time.Time `bun:"last_login"`
@@ -199,40 +199,6 @@ func (s *Store) SetManageableAccountActive(ctx context.Context, id int64, active
 		Where(`"account".id = ?`, id).
 		Where(liveAccountSQL)
 	return execManageableAccountWrite(ctx, scopeAccounts(query, visibility), "set manageable account active")
-}
-
-func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, verifiedHash, hash string) (bool, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return false, domain.OperationStats{}, err
-	}
-	query := db.NewUpdate().
-		Model((*administeredAccountRow)(nil)).
-		ModelTableExpr(`auth.accounts AS "account"`).
-		Set(`password_hash = ?`, hash).
-		Set(`mfa_reset_generation = "account".mfa_reset_generation + 1`).
-		Set(`updated_at = NOW()`).
-		Where(`"account".id = ?`, id).
-		Where(`"account".password_hash = ?`, verifiedHash).
-		Where(liveAccountSQL)
-	return execManageableAccountWrite(ctx, query, "update account password hash")
-}
-
-// RevokeAccountTrustedDevices revokes the account's remembered devices at
-// every school and in every portal: an own password change ends them (#6289).
-func (s *Store) RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	started := time.Now()
-	result, err := db.NewRaw("UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL", revokedAt, accountID).Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return stats, fmt.Errorf("identity access postgres: revoke account trusted devices: %w", err)
-	}
-	stats.Rows, _ = result.RowsAffected()
-	return stats, nil
 }
 
 func execManageableAccountWrite(ctx context.Context, query *bun.UpdateQuery, operation string) (bool, domain.OperationStats, error) {
