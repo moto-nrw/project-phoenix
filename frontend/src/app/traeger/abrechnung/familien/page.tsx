@@ -149,7 +149,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
             {formatEuro(family.openCents)}
           </span>
           {breakdown ? (
-            <span className="block text-xs text-gray-500 tabular-nums">
+            <span className="block text-sm text-gray-500 tabular-nums">
               {breakdown}
             </span>
           ) : null}
@@ -165,7 +165,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
         >
           {formatEuro(family.openCents)}
         </span>
-        <span className="block text-xs text-gray-500">berechnet</span>
+        <span className="block text-sm text-gray-500">berechnet</span>
       </span>
     ),
     stacked: "meta",

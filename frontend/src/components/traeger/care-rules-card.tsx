@@ -4,7 +4,7 @@
 // Geschwisterregeln. Jede Zeile zeigt Name, Wirkung, Monate und Schulen; die
 // Aktionen stehen im Menü der Zeile.
 
-import { BadgePercent, Crown, HeartHandshake, Users } from "lucide-react";
+import { BadgePercent, Crown, HeartHandshake, User } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -25,7 +25,8 @@ import {
 
 const KIND_ICONS = {
   income_level: BadgePercent,
-  sibling: Users,
+  // One head means a child (concept icons): a sibling rule is about children.
+  sibling: User,
   single_parent: HeartHandshake,
   cap: Crown,
 } as const;

@@ -256,7 +256,7 @@ export function TraegerDocumentReleaseModal({
           <p className="mt-0.5 text-sm font-semibold text-gray-900">
             {preview ?? "Bitte wählen Sie oben aus."}
           </p>
-          <p className="mt-1 text-xs text-gray-600">{WHERE[audience]}</p>
+          <p className="mt-1 text-sm text-gray-600">{WHERE[audience]}</p>
         </InsetPanel>
       </form>
     </FormModal>

@@ -83,7 +83,7 @@ function FigureWithChange({
     <span className="inline-flex items-baseline gap-2 text-sm tabular-nums">
       <span className="font-semibold text-gray-900">{value}</span>
       {change !== null && previousMonth ? (
-        <span className="text-xs text-gray-500">
+        <span className="text-sm text-gray-500">
           {formatKeyDateChange(change)}
           <span className="sr-only"> gegenüber {previousMonth}</span>
         </span>

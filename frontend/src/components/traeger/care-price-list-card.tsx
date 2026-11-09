@@ -47,7 +47,7 @@ function PriceCell({
       <span className="inline-flex flex-col items-end leading-tight">
         <span className="text-gray-900 tabular-nums">{formatEuro(cents)}</span>
         {sibling !== undefined && sibling !== cents ? (
-          <span className="text-xs text-gray-600 tabular-nums">
+          <span className="text-sm text-gray-600 tabular-nums">
             ab 2. Kind {formatEuro(sibling)}
           </span>
         ) : null}
@@ -84,7 +84,7 @@ function moduleColumn(): DataTableColumn<PriceRow> {
             />
           ) : null}
         </p>
-        <p className="mt-0.5 text-xs text-gray-600">
+        <p className="mt-0.5 text-sm text-gray-600">
           {[
             endsAtLabel(row.endsAt),
             row.contractCount > 0

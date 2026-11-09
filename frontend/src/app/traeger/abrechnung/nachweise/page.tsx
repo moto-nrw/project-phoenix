@@ -75,7 +75,7 @@ function EvidenceCell({
         ) : null}
         {expired ? <StatusBadge tone="gray" label="Abgelaufen" /> : null}
       </p>
-      <p className="mt-0.5 text-xs text-gray-600">
+      <p className="mt-0.5 text-sm text-gray-600">
         {evidencePeriod(evidence)}
         {" · "}
         {evidence.evidence} · geprüft am {formatDate(evidence.checkedOn)}

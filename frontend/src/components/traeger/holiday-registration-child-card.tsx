@@ -212,7 +212,7 @@ export function HolidayRegistrationChildCard({
               ))}
             </ul>
             {registration.frozen && !cancelled ? (
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-sm text-gray-500">
                 Zum Umbuchen öffnen Sie die Anmeldung zuerst wieder.
               </p>
             ) : null}

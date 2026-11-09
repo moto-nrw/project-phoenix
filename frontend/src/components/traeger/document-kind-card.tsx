@@ -1,7 +1,7 @@
 "use client";
 
 // Die Dokumentart einer Leistung (#4688): Rechnung, Gebührenbescheid oder
-// (nur Ferien) Bestätigung mit Rechnung. Die Wahl gilt ab der nächsten
+// (nur Ferien) Bestätigung und Rechnung. Die Wahl gilt ab der nächsten
 // Freigabe; ausgestellte Belege behalten ihre Art.
 
 import { useEffect, useId, useRef, useState } from "react";

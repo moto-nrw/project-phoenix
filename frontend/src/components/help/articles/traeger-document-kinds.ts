@@ -3,7 +3,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
  * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
- * oder Bestätigung mit Rechnung je Leistung; die Rechtsbehelfsbelehrung des
+ * oder Bestätigung und Rechnung je Leistung; die Rechtsbehelfsbelehrung des
  * Bescheids schreibt der Träger in der Vorlage „Bescheid“.
  */
 export function traegerDocumentKindsTopic(): HelpTopic {
@@ -13,7 +13,7 @@ export function traegerDocumentKindsTopic(): HelpTopic {
     question:
       "Wie lege ich fest, ob Familien eine Rechnung oder einen Bescheid bekommen?",
     summary:
-      "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung mit Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
+      "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung und Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
     group: "konfiguration",
     audience: "traeger",
     icon: "ClipboardList",
@@ -23,10 +23,10 @@ export function traegerDocumentKindsTopic(): HelpTopic {
       {
         title: "Dokumentart wählen",
         description:
-          "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung mit Rechnung und beim Monatsbeitrag eine Rechnung.",
+          "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung und Rechnung und beim Monatsbeitrag eine Rechnung.",
         steps: [
           "Wählen Sie unten in der Navigation `Einstellungen` und dann `Dokumentarten`.",
-          "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung mit Rechnung`.",
+          "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung und Rechnung`.",
           "Wählen Sie `Speichern`.",
         ],
       },

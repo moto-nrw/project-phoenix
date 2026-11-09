@@ -47,7 +47,7 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
             <span className="block truncate font-medium text-gray-900">
               {document.title}
             </span>
-            <span className="block truncate text-xs text-gray-500">
+            <span className="block truncate text-sm text-gray-500">
               {document.fileName} · {documentFileFacts(document)}
             </span>
           </span>

@@ -269,6 +269,8 @@ function ConditionsForm({
       concept={careContractsConcept}
       title={selected.offeringName}
       description={`${selected.schoolName}. Gilt für neue Verträge; bestehende behalten ihre Bedingungen.`}
+      // The save stays in view while the long legal texts scroll.
+      stickyFooter
       footer={
         <EditActions
           onCancel={() => {

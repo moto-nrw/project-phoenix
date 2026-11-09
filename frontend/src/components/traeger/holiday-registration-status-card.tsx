@@ -201,7 +201,7 @@ function DebtorNumberField({
           />
           <p
             id="holiday-debtor-number-hint"
-            className="mt-1 text-xs text-gray-600"
+            className="mt-1 text-sm text-gray-600"
           >
             {DEBTOR_NUMBER_HINT}
           </p>
@@ -305,7 +305,7 @@ function PayerChoice({
                 <span className="block text-sm font-medium text-gray-900">
                   {option.label}
                 </span>
-                <span className="mt-0.5 block text-xs font-normal text-gray-600">
+                <span className="mt-0.5 block text-sm font-normal text-gray-600">
                   {option.description}
                 </span>
               </span>
@@ -639,7 +639,7 @@ export function HolidayRegistrationStatusCard({
                 />
                 <p
                   id="holiday-registration-debtor-number-hint"
-                  className="mt-1 text-xs text-gray-600"
+                  className="mt-1 text-sm text-gray-600"
                 >
                   {DEBTOR_NUMBER_HINT}
                 </p>

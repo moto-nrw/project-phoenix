@@ -221,12 +221,17 @@ export default function TraegerKinderzahlPage() {
       header: "Stand",
       stacked: "field",
       className: "w-44 align-top",
-      render: (family) => (
-        <StatusBadge
-          tone={STATUS_TONES[family.status]}
-          label={STATUS_LABELS[family.status]}
-        />
-      ),
+      // „Keine Angabe“ is plain text: a missing number is no state of its
+      // own, and the gray pill belongs to „Abgelaufen“.
+      render: (family) =>
+        family.status === "missing" ? (
+          <span className="text-sm text-gray-600">{STATUS_LABELS.missing}</span>
+        ) : (
+          <StatusBadge
+            tone={STATUS_TONES[family.status]}
+            label={STATUS_LABELS[family.status]}
+          />
+        ),
     },
     {
       key: "actions",

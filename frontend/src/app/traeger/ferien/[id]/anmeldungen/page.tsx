@@ -236,7 +236,7 @@ function columns(
                   </>
                 ) : null}
               </div>
-              <ul className="text-xs text-gray-500">
+              <ul className="text-sm text-gray-500">
                 {child.bookings.map((booking) => (
                   <li key={booking.weekId}>
                     {formatHolidayWeek(

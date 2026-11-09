@@ -376,17 +376,17 @@ export function CareAmendmentHistoryCard({
                   >
                     {changeText(amendment)}
                   </p>
-                  <p className="text-xs break-words text-gray-600">
+                  <p className="text-sm break-words text-gray-600">
                     Grund: {amendment.reason} ·{" "}
                     {formatInstant(amendment.amendedAt)}
                   </p>
                   {active && amendment.conflict ? (
-                    <p className="text-moto-orange-strong text-xs font-medium">
+                    <p className="text-moto-orange-strong text-sm font-medium">
                       {CONFLICT_TEXTS[amendment.conflict]}
                     </p>
                   ) : null}
                   {amendment.revocation ? (
-                    <p className="text-xs break-words text-gray-600">
+                    <p className="text-sm break-words text-gray-600">
                       Zurückgenommen: {amendment.revocation.reason} ·{" "}
                       {formatInstant(amendment.revocation.revokedAt)}
                     </p>

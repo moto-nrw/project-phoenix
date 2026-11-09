@@ -171,7 +171,7 @@ function CostShareLines({ invoice }: Readonly<{ invoice: CareInvoice }>) {
             <p className="text-sm break-words hyphens-auto text-gray-900">
               {share.costBearerName}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">
+            <p className="mt-0.5 text-sm text-gray-600">
               übernimmt · {COST_SHARE_KIND_LABELS[share.kind]} ·{" "}
               {costShareAmountText(share)}
             </p>
@@ -278,7 +278,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
               {invoice.childFirstName} {invoice.childLastName}
             </p>
             {invoice.service === "meal" ? (
-              <p className="mt-0.5 text-xs font-medium text-gray-700">
+              <p className="mt-0.5 text-sm font-medium text-gray-700">
                 Mensa-Rechnung
               </p>
             ) : null}
@@ -295,7 +295,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
             ) : null}
             {number ? (
               <p className="mt-1 flex flex-wrap items-center gap-1.5">
-                <span className="font-mono text-xs text-gray-500">
+                <span className="font-mono text-sm text-gray-500">
                   {number}
                 </span>
                 {storno ? <StatusBadge label="Storno" tone="blue" /> : null}
@@ -305,7 +305,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
               </p>
             ) : null}
             {issuedOn ? (
-              <p className="mt-0.5 text-xs text-gray-500">
+              <p className="mt-0.5 text-sm text-gray-500">
                 Ausgestellt am {formatDate(issuedOn)}
               </p>
             ) : null}

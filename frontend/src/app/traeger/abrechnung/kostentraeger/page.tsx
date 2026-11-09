@@ -96,7 +96,7 @@ function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
         </span>
         <ShareStatus share={share} />
       </p>
-      <p className="mt-0.5 text-xs wrap-anywhere text-gray-600">
+      <p className="mt-0.5 text-sm wrap-anywhere text-gray-600">
         {sharePeriod(share)} · {share.reference} · geprüft am{" "}
         {formatDate(share.checkedOn)}
       </p>
@@ -283,7 +283,7 @@ export default function TraegerKostentraegerPage() {
               },
               {
                 value: data.expiring,
-                label: data.expiring === 1 ? "endet bald" : "enden bald",
+                label: data.expiring === 1 ? "läuft bald ab" : "laufen bald ab",
               },
             ]}
           />

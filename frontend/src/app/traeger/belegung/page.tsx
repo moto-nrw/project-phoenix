@@ -100,7 +100,7 @@ function ShareCell({
       <span className="text-sm text-gray-900 tabular-nums">
         <span className="font-semibold">{part}</span>
         <span className="text-gray-500"> von {whole}</span>
-        <span className="ml-2 text-xs text-gray-500">
+        <span className="ml-2 text-sm text-gray-500">
           {formatShare(part, whole)}
         </span>
       </span>
@@ -408,7 +408,7 @@ function TotalFigures({
         }
         icon={<MotoConceptIcon concept={groupsConcept} />}
         loading={loading}
-        tone="green"
+        tone="neutral"
       />
       <StatCard
         label="Mit Betreuungsform"
@@ -425,7 +425,7 @@ function TotalFigures({
         }
         icon={<MotoConceptIcon concept={carePlanConcept} />}
         loading={loading}
-        tone="green"
+        tone="neutral"
       />
       <StatCard
         label="Freie Plätze"
@@ -442,7 +442,8 @@ function TotalFigures({
         }
         icon={<MotoConceptIcon concept={utilizationConcept} />}
         loading={loading}
-        tone={places.limited > 0 && places.free === 0 ? "orange" : "blue"}
+        // Colour only for a state: orange when no place is left.
+        tone={places.limited > 0 && places.free === 0 ? "orange" : "neutral"}
       />
     </div>
   );

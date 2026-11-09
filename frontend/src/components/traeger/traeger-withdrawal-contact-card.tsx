@@ -205,7 +205,7 @@ export function TraegerWithdrawalContactCard({
               <ReachField label="Telefon" reach={reach.phone} />
               <ReachField label="E-Mail" reach={reach.email} />
             </DataGrid>
-            <p className="text-xs text-gray-600">
+            <p className="text-sm text-gray-600">
               Name und Anschrift kommen aus dem{" "}
               {/* A new tab keeps what is typed in the contact form beside
                   this text; leaving the page would drop it. */}

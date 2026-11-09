@@ -143,6 +143,18 @@ function OverrunFigure({
   );
 }
 
+/**
+ * A count beside the extra time, in the text colour: only the extra time
+ * itself is red, so it stands out (red means a deviation, not a count).
+ */
+function PlainFigure({ value }: Readonly<{ value: number }>) {
+  return (
+    <span className="text-sm font-semibold text-gray-900 tabular-nums">
+      {value}
+    </span>
+  );
+}
+
 function DaysCell({
   overrunDays,
   unbookedDays,
@@ -150,9 +162,9 @@ function DaysCell({
   const total = overrunDays + unbookedDays;
   return (
     <span className="inline-flex flex-col items-end">
-      <OverrunFigure value={total} />
+      <PlainFigure value={total} />
       {unbookedDays > 0 ? (
-        <span className="text-xs text-gray-500">
+        <span className="text-sm text-gray-500">
           davon {unbookedDays} ohne Buchung
         </span>
       ) : null}
@@ -181,20 +193,20 @@ function schoolColumns(
             {school.schoolName}
           </NavigationLink>
           {school.dataFrom > to ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               Keine Check-ins mehr gespeichert
             </span>
           ) : school.comparedDays === 0 && school.uncomparedDays === 0 ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               Keine Check-ins im Zeitraum
             </span>
           ) : school.dataFrom > from ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               Check-ins erst ab {formatDate(school.dataFrom)} gespeichert
             </span>
           ) : null}
           {school.uncomparedDays > 0 ? (
-            <span className="block text-xs text-gray-500">
+            <span className="block text-sm text-gray-500">
               {school.uncomparedDays === 1
                 ? "1 Tag nicht verglichen: ohne Plan oder ohne Auschecken"
                 : `${school.uncomparedDays} Tage nicht verglichen: ohne Plan oder ohne Auschecken`}
@@ -211,7 +223,7 @@ function schoolColumns(
       align: "right",
       render: (school) =>
         schoolHasFigures(school, to) ? (
-          <OverrunFigure value={school.figures.children} />
+          <PlainFigure value={school.figures.children} />
         ) : (
           <NoData />
         ),
@@ -249,7 +261,7 @@ function schoolColumns(
             <ProgressBar
               value={school.figures.extraMinutes}
               max={Math.max(maxMinutes, 1)}
-              color={LOCATION_COLORS.DANGER}
+              color={LOCATION_COLORS.HOME}
               size="sm"
               className="w-full"
               label={`${formatExtraTime(school.figures.extraMinutes)} zusätzliche Zeit an ${school.schoolName}`}
@@ -364,7 +376,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Kinder"
         value={noData ? "–" : total.children}
-        tone={!noData && total.children > 0 ? "red" : "neutral"}
+        tone="neutral"
         hint={
           noData
             ? noDataTitle(evaluation)
@@ -377,7 +389,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Tage"
         value={noData ? "–" : days}
-        tone={!noData && days > 0 ? "red" : "neutral"}
+        tone="neutral"
         hint={
           noData
             ? "Ohne verglichene Check-ins zählt moto keine Tage."
@@ -391,7 +403,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
         <StatCard
           label="Zusätzliche Zeit"
           value={noData ? "–" : formatExtraTime(total.extraMinutes)}
-          tone={!noData && total.extraMinutes > 0 ? "red" : "neutral"}
+          tone="neutral"
           hint={`Zählt ab ${evaluation.toleranceMinutes || 15} Minuten früher oder später.`}
           icon={<MotoConceptIcon concept={careTimesConcept} />}
         />

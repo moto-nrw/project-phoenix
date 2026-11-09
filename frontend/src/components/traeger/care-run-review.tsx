@@ -173,7 +173,7 @@ export function CareExcludedCard({
                 Grund: {invoice.exclusion?.reason}
               </p>
               {invoice.exclusion ? (
-                <p className="mt-0.5 text-xs text-gray-500">
+                <p className="mt-0.5 text-sm text-gray-500">
                   Ausgeschlossen am {formatDate(invoice.exclusion.excludedAt)}
                 </p>
               ) : null}

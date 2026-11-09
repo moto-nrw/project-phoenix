@@ -156,7 +156,7 @@ export function TraegerDocumentUploadModal({
               <p className="truncate text-sm font-medium text-gray-900">
                 {file.name}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-gray-500">
                 {documentKindLabel(file.type)} · {formatBytes(file.size)}
               </p>
             </div>

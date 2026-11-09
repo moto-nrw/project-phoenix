@@ -24,7 +24,7 @@ export function DocumentTemplateVersionsCard({
   return (
     <SectionCard
       title="Versionen"
-      description="Jede gespeicherte Fassung bleibt erhalten. Schreiben, die schon erstellt sind, behalten ihre Version."
+      description="Jede gespeicherte Version bleibt erhalten. Schreiben, die schon erstellt sind, behalten ihre Version."
     >
       {versions.length === 0 ? (
         <p className="text-sm text-gray-600">

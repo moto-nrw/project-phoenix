@@ -256,7 +256,7 @@ export default function TraegerBillingRunPage() {
       title={run?.periodName ?? "Abrechnungslauf"}
       back
       backHref={traegerPath("/traeger/abrechnung")}
-      backLabel="Zurück zur Abrechnung"
+      backLabel="Zurück zu den Abrechnungsläufen"
       stats={
         run ? (
           <HolidayHeadFacts>
@@ -430,7 +430,7 @@ export default function TraegerBillingRunPage() {
             <Alert
               type="warning"
               title="Rechtsbehelfsbelehrung fehlt"
-              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer die Rolle „Verwaltung“ hat, muss sie eintragen. Danach können Sie freigeben."
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Gebührenbescheid“ fehlt die Rechtsbehelfsbelehrung. Wer die Rolle „Verwaltung“ hat, muss sie eintragen. Danach können Sie freigeben."
               action={
                 <ButtonLink
                   href={traegerPath(
