@@ -14,6 +14,7 @@
 
 import { FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -41,6 +42,7 @@ import {
 import { BillingLetterPreview } from "./billing-letter-preview";
 import {
   BILLING_DOCUMENT_KIND_LABELS,
+  billingPositionLabel,
   billingReferenceText,
   isCancelled,
   isCredited,
@@ -88,13 +90,37 @@ function leftForChild(
 
 function invoicesDescription(released: boolean, canPreview: boolean) {
   if (!released) {
-    return "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile.";
+    return "Je Familie eine Rechnung. Eine Zeile öffnet ihre Aufschlüsselung je Kind; auf dem Handy steht sie im Menü der Zeile.";
   }
   const overview =
     "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
   return canPreview
     ? `${overview} Wählen Sie eine Zeile, um ihr Schreiben als PDF zu sehen.`
     : overview;
+}
+
+/** The positions of a row's children, opened in place under the row. */
+function InlineBreakdown({
+  document,
+}: Readonly<{ document: BillingDocument }>) {
+  return (
+    <div className="max-w-xl py-1">
+      <ContributionBreakdown
+        items={document.children.map((child) => ({
+          key: child.childId,
+          name: `${child.firstName} ${child.lastName}`,
+          lines: child.positions.map((position) => ({
+            label: billingPositionLabel(position),
+            amount: formatEuro(position.amountCents),
+          })),
+          total: formatEuro(child.totalCents),
+        }))}
+        childTotalLabel="Summe"
+        totalLabel="Rechnungsbetrag"
+        total={formatEuro(document.totalCents)}
+      />
+    </div>
+  );
 }
 
 /** The empty letter frame beside the list before a row is chosen. */
@@ -379,6 +405,30 @@ export function BillingRunOverviewCard({
       rows={[...run.documents]}
       getRowKey={rowKey}
       onRowClick={canPreview ? openPreview : undefined}
+      // Before the release a row opens its breakdown in place, so checking
+      // the run needs no menu per row; afterwards a row opens its letter.
+      expandable={
+        canPreview
+          ? undefined
+          : {
+              rowLabel: (document, expanded) =>
+                `${recipientName(document)}: Aufschlüsselung ${expanded ? "schließen" : "öffnen"}`,
+              canExpand: (document) => document.children.length > 0,
+            }
+      }
+      renderSubRows={
+        canPreview
+          ? undefined
+          : (document, expanded) =>
+              expanded
+                ? [
+                    {
+                      key: `${rowKey(document)}-breakdown`,
+                      content: <InlineBreakdown document={document} />,
+                    },
+                  ]
+                : []
+      }
       activeRowKey={previewed ? rowKey(previewed) : null}
       rowHasInteractiveControls
       stackedOnMobile
