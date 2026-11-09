@@ -43,13 +43,15 @@ Er ersetzt für Bankdaten die gemeinsame Schlüsselverwendung aus ADR 0171.
    transaktionslokal: Der bestehende Trigger verbietet jede Änderung eines
    widerrufenen Mandats, auch eine reine Umschlüsselung. Kein Schemaeingriff,
    keine Datenmigration, kein Abschalten eines Triggers für andere Sitzungen.
-   Der Adapter öffnet die Admin-Transaktion über den Tenant Runtime und setzt
-   deren Rolle auf den ursprünglichen Wartungslogin zurück; ein normaler
+   Die CLI-Root öffnet je Batch die bestehende Träger-Transaktion des Tenant
+   Runtime. Der Adapter verlangt genau diesen Träger-Kontext und setzt deren
+   Rolle auf den ursprünglichen Wartungslogin zurück; ein normaler
    HTTP-Login hat weiterhin keine Superuser-Rechte. Die einzigen UPDATEs schreiben explizit die beiden versiegelten Spalten und
    filtern nochmals nach Träger und gesperrter ID. Fachliche Felder, Zeitstempel
    und Audit bleiben bytegleich. Das privilegierte Verfahren verlangt denselben
    Vertrauensbereich wie Migrationen, nicht zusätzliche HTTP-Rechte.
-6. Ausgabe ausschließlich Quelle und Mengen (`scanned`, `changed`). Die CLI
+6. Ausgabe ausschließlich Quelle und Mengen (`scanned`, `changed` je Batch;
+   `scanned_total`, `changed_total` je vollständigem Quell-Durchlauf). Die CLI
    aktiviert kein SQL-Logging, reicht keine DB-/Crypto-Fehlerdetails weiter und
    gibt weder Werte noch Referenzen oder Schlüssel aus. PostgreSQL- und
    Backup-Zugriffsrechte bleiben unverändert.
@@ -77,11 +79,11 @@ Verantwortlich: Yannick. Keine Live-Zugriffe durch Implementierungsagenten.
    Dieselbe Anweisung setzt den Lauf durch idempotente Wiederholung fort.
 4. Nach vollständigem Ausrollen und nachdem keine alten Schreiber mehr laufen,
    für jeden Träger erneut vollständig laufen lassen. Bei Fehlern nicht
-   abschalten. Erfolgreicher Durchlauf mit `changed=0` authentifiziert den
+   abschalten. Erfolgreicher Durchlauf mit `changed_total=0` authentifiziert den
    gesamten vorhandenen Bestand. Auch widerrufene Mandate und vorhandene
    Lastschriftkopien müssen darin enthalten sein.
 5. `BANK_DATA_LEGACY_KEYS` per SOPS leeren und neue Prozesse starten. Den Job
-   noch einmal ohne Legacy-Ring laufen lassen: alles lesbar, `changed=0`.
+   noch einmal ohne Legacy-Ring laufen lassen: alles lesbar, `changed_total=0`.
    Der Bankbestand ist jetzt unabhängig von Gesundheitsdatenschlüsseln.
    `HEALTH_DATA_KEYS` wird nicht verändert; die Gesundheitsdaten benötigen ihn.
 
@@ -89,7 +91,7 @@ Verantwortlich: Yannick. Keine Live-Zugriffe durch Implementierungsagenten.
 
 - Neue unabhängige Bankschlüssel mit neuer ID vorne im Bankring ergänzen;
   bisherige Bankschlüssel zum Lesen behalten. Ausrollen, Job für alle Träger,
-  zweiter vollständiger Durchlauf mit `changed=0`, dann alte Bankschlüssel aus
+  zweiter vollständiger Durchlauf mit `changed_total=0`, dann alte Bankschlüssel aus
   dem Online-Ring entfernen. Der Gesundheitsring bleibt unverändert.
 - Vor dem ersten neuen Bankchiffrat kann die alte Anwendung zurückgerollt
   werden. Danach nur eine Version mit Bankring-Unterstützung verwenden; ein

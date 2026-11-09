@@ -71,21 +71,21 @@
       "target_owner": "document-rendering"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
-      "reason": "ADR 0183 (#6252): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the parent-billing maintenance adapter owns the separately guarded batch writes.",
+      "reason": "ADR 0183 (#6252): the owner-neutral root bank-value port binds only Security Runtime bank crypto. Pure in-memory authentication or sealing; no database write, locking read or audit mutation.",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Seal",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
-      "reason": "ADR 0183 (#6252): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the parent-billing maintenance adapter owns the separately guarded batch writes.",
+      "reason": "ADR 0183 (#6252): the owner-neutral root bank-value port binds only Security Runtime bank crypto. Pure in-memory authentication or sealing; no database write, locking read or audit mutation.",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"

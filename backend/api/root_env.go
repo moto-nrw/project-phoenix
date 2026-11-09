@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -93,7 +91,7 @@ func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) 
 }
 
 // BankDataCipher has no implicit dependency on HEALTH_DATA_KEYS.
-func BankDataCipher(keys, legacyKeys string) (parentbilling.BankDataCipher, error) {
+func BankDataCipher(keys, legacyKeys string) (owners.BankDataCipher, error) {
 	if strings.TrimSpace(keys) == "" {
 		return nil, fmt.Errorf("root environment: BANK_DATA_KEYS is required")
 	}

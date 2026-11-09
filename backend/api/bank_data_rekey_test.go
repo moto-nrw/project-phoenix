@@ -70,16 +70,25 @@ func TestBankDataRekeyKeepsHistoryAndTraegerAndResumes(t *testing.T) {
 	var logged bankRekeyLogBuffer
 	testpkg.NewDatabase(t, db).LogQueries(slog.New(slog.NewJSONHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	job := parentBillingCompose.NewBankDataRekey(cipher)
-	first, err := job.Batch(ctx, own, "mandates", 0, 1)
+	// Even a correctly scoped HTTP connection cannot use the maintenance bypass.
+	serveDB := testpkg.SetupServeTestDB(t)
+	serveCtx := tenant.WithUnitOfWork(context.Background(), testpkg.NewDatabase(t, serveDB).UnitOfWork())
+	refused, err := bankDataRekeyBatch(serveCtx, job, own, "mandates", 0, 100)
+	require.Error(t, err)
+	require.Zero(t, refused.Changed)
+	// A bare context never permits maintenance access either.
+	_, err = job.Batch(context.Background(), own, "mandates", 0, 100)
+	require.Error(t, err)
+	first, err := bankDataRekeyBatch(ctx, job, own, "mandates", 0, 1)
 	require.NoError(t, err)
 	require.Equal(t, 1, first.Changed)
-	repeated, err := job.Batch(ctx, own, "mandates", 0, 1)
+	repeated, err := bankDataRekeyBatch(ctx, job, own, "mandates", 0, 1)
 	require.NoError(t, err)
 	require.Zero(t, repeated.Changed)
-	second, err := job.Batch(ctx, own, "mandates", first.LastID, 1)
+	second, err := bankDataRekeyBatch(ctx, job, own, "mandates", first.LastID, 1)
 	require.NoError(t, err)
 	require.Equal(t, 1, second.Changed)
-	finished, err := job.Batch(ctx, own, "mandates", second.LastID, 1)
+	finished, err := bankDataRekeyBatch(ctx, job, own, "mandates", second.LastID, 1)
 	require.NoError(t, err)
 	require.Zero(t, finished.Scanned)
 	independent, err := securityRuntimeCompose.NewBankDataCipher(bankKeys, "")
@@ -119,7 +128,7 @@ func TestBankDataRekeyKeepsHistoryAndTraegerAndResumes(t *testing.T) {
 	// A new ring without a legacy key cannot process the foreign row. Its
 	// error is deliberately content-free, even on crypto/SQL failure.
 	failedJob := parentBillingCompose.NewBankDataRekey(independent)
-	failed, err := failedJob.Batch(ctx, other, "mandates", 0, 100)
+	failed, err := bankDataRekeyBatch(ctx, failedJob, other, "mandates", 0, 100)
 	require.Error(t, err)
 	require.Zero(t, failed.Changed)
 	require.NotContains(t, err.Error(), plainIBAN)
@@ -157,7 +166,7 @@ func assertBankRekeySerializesWriter(t *testing.T, db *bun.DB, organizationID in
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := parentBillingCompose.NewBankDataRekey(blocker).Batch(ctx, organizationID, "mandates", 0, 100)
+		_, err := bankDataRekeyBatch(ctx, parentBillingCompose.NewBankDataRekey(blocker), organizationID, "mandates", 0, 100)
 		done <- err
 	}()
 	select {
@@ -217,7 +226,7 @@ func assertBankRekeyRollsBackBatch(t *testing.T, ctx context.Context, db *bun.DB
 	nextKeys := "next" + testpkg.NewTestHealthDataKeys()
 	cipher, err := securityRuntimeCompose.NewBankDataCipher(nextKeys+","+bankKeys, "")
 	require.NoError(t, err)
-	batch, err := parentBillingCompose.NewBankDataRekey(cipher).Batch(ctx, organizationID, "mandates", 0, 100)
+	batch, err := bankDataRekeyBatch(ctx, parentBillingCompose.NewBankDataRekey(cipher), organizationID, "mandates", 0, 100)
 	require.Error(t, err)
 	require.Zero(t, batch.Changed)
 	require.NoError(t, db.NewRaw(query, organizationID).Scan(ctx, &after))
@@ -225,4 +234,17 @@ func assertBankRekeyRollsBackBatch(t *testing.T, ctx context.Context, db *bun.DB
 	var replicationRole string
 	require.NoError(t, db.NewRaw("SHOW session_replication_role").Scan(ctx, &replicationRole))
 	require.Equal(t, "origin", replicationRole, "trigger bypass must not survive the transaction")
+}
+
+func bankDataRekeyBatch(ctx context.Context, job parentbilling.BankDataRekey, organizationID int64, source string, cursor int64, batchSize int) (parentbilling.BankDataRekeyResult, error) {
+	var batch parentbilling.BankDataRekeyResult
+	err := tenant.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
+		var err error
+		batch, err = job.Batch(ctx, organizationID, source, cursor, batchSize)
+		return err
+	})
+	if err != nil {
+		return parentbilling.BankDataRekeyResult{}, err
+	}
+	return batch, nil
 }

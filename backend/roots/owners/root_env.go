@@ -4,8 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
@@ -29,12 +27,19 @@ type RootEnvironment struct {
 	// registrations (#4722); the root builds it from HEALTH_DATA_KEYS.
 	HealthData HealthDataCipher
 	// BankData uses only BANK_DATA_KEYS and the explicit temporary legacy ring.
-	BankData parentbilling.BankDataCipher
+	BankData BankDataCipher
 }
 
 // HealthDataCipher seals and opens single database values bound to their
 // context. The roots bind Security Runtime's field cipher (#4722).
 type HealthDataCipher interface {
+	Seal(plaintext, context []byte) ([]byte, error)
+	Open(sealed, context []byte) ([]byte, error)
+}
+
+// BankDataCipher is the root's owner-neutral bank-value port, kept nominally
+// separate from HealthDataCipher so their bindings cannot be conflated.
+type BankDataCipher interface {
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }
