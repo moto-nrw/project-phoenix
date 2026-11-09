@@ -301,6 +301,7 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	var ranked []siblingMember
 	var chain []holidayMember
 	var children []parentbilling.HolidayChild
+	var requested []parentbilling.HolidayChild
 	for _, member := range sentOrder(slices.Clone(members)) {
 		if member.cancelled() {
 			continue
@@ -312,6 +313,7 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 		ranked = append(ranked, member)
 		chain = append(chain, next)
 		children = append(children, next.children...)
+		requested = append(requested, member.registration.Children...)
 	}
 	rules, err := h.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceHoliday)
 	if err != nil {
@@ -321,7 +323,8 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	if err != nil {
 		return nil, err
 	}
-	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid := validHolidayRules(rules, firstHolidayDay(placedHolidayChildren(children)))
+	valid.exemption = validHolidayRules(rules, firstHolidayDay(requested)).exemption
 	valid.chain = groupChain(ranked, current)
 	results := computeHolidaySiblings(chain, valid)
 	computed := make(map[int64]parentbilling.HolidayContribution, len(ranked))

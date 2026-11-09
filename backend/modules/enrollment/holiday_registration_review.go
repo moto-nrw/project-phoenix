@@ -97,6 +97,13 @@ type HolidayRegistrationFilter struct {
 	TimeModel string
 }
 
+// HolidayBookingReplacement identifies a week replaced by a rebooking.
+// The review reconstructs these ranges from its durable audit trail.
+type HolidayBookingReplacement struct {
+	WeekStartsOn calendar.Date
+	WeekEndsOn   calendar.Date
+}
+
 // HolidayRegistrationBooking is the time model a child books in one week.
 type HolidayRegistrationBooking struct {
 	WeekID        int64         `json:"week_id"`
@@ -114,6 +121,8 @@ type HolidayRegistrationBooking struct {
 	Placement        string     `json:"placement"`
 	WaitlistPosition *int       `json:"waitlist_position,omitempty"`
 	PromotedAt       *time.Time `json:"promoted_at,omitempty"`
+	// ReplacedWeeks is an internal projection for contribution calculation.
+	ReplacedWeeks []HolidayBookingReplacement `json:"-"`
 }
 
 // HolidayRegistrationChild is one child of a reviewed registration. A nil

@@ -51,16 +51,13 @@ func validHolidayRules(rules []parentbilling.ContributionRule, day calendar.Date
 	return valid
 }
 
-// firstHolidayDay is the first booked day of the children, the day whose
-// rules apply. Without a booking it is the zero date and no rule applies. A
-// booking on the waiting list books no day (#4699).
+// firstHolidayDay is the first requested day, including waiting bookings.
+// Eligibility can apply before a place is available; pricing still filters
+// waiting bookings separately. Without a request no rule applies.
 func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 	var first calendar.Date
 	for _, child := range children {
 		for _, booking := range child.Bookings {
-			if booking.Waitlisted {
-				continue
-			}
 			if first == "" || booking.WeekStartsOn.Before(first) {
 				first = booking.WeekStartsOn
 			}
@@ -273,9 +270,8 @@ func siblingDiscount(base int64, rule *parentbilling.ContributionRule) int64 {
 // applyExemption frees the child from what is left of its contribution and
 // writes the rule's note, even when nothing is left.
 func applyExemption(child *parentbilling.HolidayChildContribution, rule *parentbilling.ContributionRule) {
-	if len(child.Lines) == 0 {
-		return
-	}
+	// A zero line persists the confirmed exemption even while every week
+	// waits. Otherwise the stored contribution loses that choice on read.
 	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
 		Kind: parentbilling.LineBenefitsExemption, AmountCents: -child.TotalCents, Note: rule.Note,
 	})

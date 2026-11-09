@@ -272,7 +272,8 @@ func (h *HolidayContributions) compute(ctx context.Context, organizationID int64
 	if err != nil {
 		return parentbilling.HolidayContribution{}, err
 	}
-	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid := validHolidayRules(rules, firstHolidayDay(placedHolidayChildren(children)))
+	valid.exemption = validHolidayRules(rules, firstHolidayDay(children)).exemption
 	valid.chain = chain
 	return computeHolidayContribution(children, valid, exemption, bearer), nil
 }

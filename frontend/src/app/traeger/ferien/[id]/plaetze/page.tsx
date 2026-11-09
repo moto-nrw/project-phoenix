@@ -69,7 +69,9 @@ export default function TraegerHolidayPlacesPage() {
     const all = weeks ?? [];
     return {
       placed: all.reduce((sum, week) => sum + week.placed, 0),
-      waiting: all.reduce((sum, week) => sum + week.waitlist.length, 0),
+      waiting: new Set(
+        all.flatMap((week) => week.waitlist.map((entry) => entry.childId)),
+      ).size,
       limited: all.filter((week) => week.capacity !== null).length,
     };
   }, [weeks]);

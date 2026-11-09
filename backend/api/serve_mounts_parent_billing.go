@@ -734,11 +734,16 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 	for i, child := range detail.Children {
 		bookings := make([]parentbilling.HolidayBooking, len(child.Bookings))
 		for j, booking := range child.Bookings {
+			replacements := make([]parentbilling.HolidayBookingReplacement, len(booking.ReplacedWeeks))
+			for k, previous := range booking.ReplacedWeeks {
+				replacements[k] = parentbilling.HolidayBookingReplacement{WeekStartsOn: previous.WeekStartsOn, WeekEndsOn: previous.WeekEndsOn}
+			}
 			bookings[j] = parentbilling.HolidayBooking{
 				WeekID: booking.WeekID, WeekStartsOn: booking.WeekStartsOn, WeekEndsOn: booking.WeekEndsOn,
 				TimeModelID: booking.TimeModelID, TimeModelName: booking.TimeModelName, PriceCents: booking.PriceCents,
-				Waitlisted: booking.Placement == enrollmentOwner.HolidayPlacementWaitlisted,
-				Promoted:   booking.PromotedAt != nil,
+				Waitlisted:    booking.Placement == enrollmentOwner.HolidayPlacementWaitlisted,
+				Promoted:      booking.PromotedAt != nil,
+				ReplacedWeeks: replacements,
 			}
 		}
 		registration.Children[i] = parentbilling.HolidayChild{

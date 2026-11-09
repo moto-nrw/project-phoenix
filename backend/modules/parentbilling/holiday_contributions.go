@@ -184,6 +184,12 @@ type HolidayConfirmation struct {
 	Contribution   HolidayContribution `json:"contribution"`
 }
 
+// HolidayBookingReplacement is a week whose frozen charge a rebooking retains.
+type HolidayBookingReplacement struct {
+	WeekStartsOn calendar.Date
+	WeekEndsOn   calendar.Date
+}
+
 // HolidayBooking is the time model a child books in one week, with the
 // price the time model has now.
 type HolidayBooking struct {
@@ -198,6 +204,8 @@ type HolidayBooking struct {
 	Waitlisted bool
 	// Promoted distinguishes waiting-list admissions from direct rebookings.
 	Promoted bool
+	// ReplacedWeeks preserves the lineage of replacements admitted later.
+	ReplacedWeeks []HolidayBookingReplacement
 }
 
 // HolidayChild is a child of a registration with its bookings. Position is

@@ -35,7 +35,10 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 		}
 		for _, booking := range child.Bookings {
 			if !booking.Promoted || booking.Waitlisted || slices.ContainsFunc(frozen[i].Bookings, func(priced parentbilling.HolidayBooking) bool {
-				return priced.WeekStartsOn == booking.WeekStartsOn && priced.WeekEndsOn == booking.WeekEndsOn
+				return priced.WeekStartsOn == booking.WeekStartsOn && priced.WeekEndsOn == booking.WeekEndsOn ||
+					slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
+						return previous.WeekStartsOn == priced.WeekStartsOn && previous.WeekEndsOn == priced.WeekEndsOn
+					})
 			}) {
 				continue
 			}

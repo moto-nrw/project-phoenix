@@ -106,26 +106,22 @@ const (
 	// list of the week (#4699): the order of the placement.
 	reviewBookingsQuery = `SELECT booking.holiday_registration_child_id, booking.holiday_period_week_id,
 			booking.holiday_week_time_model_id, booking.placement, booking.promoted_at,
-			CASE WHEN booking.placement = 'waitlisted' AND registration.status IN ('received', 'confirmed') THEN (
-				SELECT count(*) + 1
-				FROM enrollment.holiday_registration_bookings AS ahead
-				JOIN enrollment.holiday_registration_children AS ahead_child
-					ON ahead_child.organization_id = ahead.organization_id AND ahead_child.id = ahead.holiday_registration_child_id
-				JOIN enrollment.holiday_registrations AS ahead_registration
-					ON ahead_registration.organization_id = ahead_child.organization_id
-						AND ahead_registration.id = ahead_child.holiday_registration_id
-				WHERE ahead.organization_id = booking.organization_id
-					AND ahead.holiday_period_week_id = booking.holiday_period_week_id
-					AND ahead.placement = 'waitlisted'
-					AND ahead_registration.status IN ('received', 'confirmed')
-					AND (ahead_registration.submitted_at, ahead_registration.id, ahead_child.position)
-						< (registration.submitted_at, registration.id, child.position)
-			) END AS waitlist_position
+			waiting.position AS waitlist_position
 		FROM enrollment.holiday_registration_bookings AS booking
 		JOIN enrollment.holiday_registration_children AS child
 			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
-		JOIN enrollment.holiday_registrations AS registration
-			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+		LEFT JOIN (
+			SELECT waiting_booking.id, row_number() OVER (
+				PARTITION BY waiting_booking.holiday_period_week_id
+				ORDER BY registration.submitted_at, registration.id, waiting_child.position) AS position
+			FROM enrollment.holiday_registration_bookings AS waiting_booking
+			JOIN enrollment.holiday_registration_children AS waiting_child
+				ON waiting_child.organization_id = waiting_booking.organization_id AND waiting_child.id = waiting_booking.holiday_registration_child_id
+			JOIN enrollment.holiday_registrations AS registration
+				ON registration.organization_id = waiting_child.organization_id AND registration.id = waiting_child.holiday_registration_id
+			WHERE waiting_booking.organization_id = ? AND waiting_booking.holiday_period_id = ?
+				AND waiting_booking.placement = 'waitlisted' AND registration.status IN ('received', 'confirmed')
+		) AS waiting ON waiting.id = booking.id
 		WHERE booking.organization_id = ? AND booking.holiday_period_id = ? AND (?::bigint = 0 OR child.holiday_registration_id = ?)`
 )
 
@@ -153,7 +149,7 @@ func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organi
 		return nil, nil, fmt.Errorf("enrollment postgres: read holiday registration children: %w", err)
 	}
 	var bookings []holidayReviewBookingRow
-	if err := db.NewRaw(reviewBookingsQuery, organizationID, periodID, registrationID, registrationID).
+	if err := db.NewRaw(reviewBookingsQuery, organizationID, periodID, organizationID, periodID, registrationID, registrationID).
 		Scan(ctx, &bookings); err != nil {
 		return nil, nil, fmt.Errorf("enrollment postgres: read holiday registration bookings: %w", err)
 	}

@@ -24,11 +24,12 @@ import (
 )
 
 type reviewBooking struct {
-	WeekID        int64  `json:"week_id"`
-	HostSchoolID  int64  `json:"host_school_id"`
-	TimeModelID   int64  `json:"time_model_id"`
-	TimeModelName string `json:"time_model_name"`
-	PriceCents    int64  `json:"price_cents"`
+	WaitlistPosition *int   `json:"waitlist_position"`
+	WeekID           int64  `json:"week_id"`
+	HostSchoolID     int64  `json:"host_school_id"`
+	TimeModelID      int64  `json:"time_model_id"`
+	TimeModelName    string `json:"time_model_name"`
+	PriceCents       int64  `json:"price_cents"`
 }
 
 type reviewChild struct {
