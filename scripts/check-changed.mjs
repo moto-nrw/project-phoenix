@@ -24,6 +24,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFile
 import { availableParallelism, loadavg, totalmem, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { checkMigrationVersions, fetchMigrationBases } from './check-migration-versions.mjs';
 
 // Side by side only while the machine has room. Under load from other agents
 // (load 18 to 30 on 16 CPUs), parallel steps starved the oxlint guard tests
@@ -174,7 +175,14 @@ async function main(argv) {
   }
   const base = argv[0] ?? 'origin/development';
   const root = git(process.cwd(), ['rev-parse', '--show-toplevel']);
-  if (base === 'origin/development') git(root, ['fetch', '--quiet', 'origin', 'development']);
+  fetchMigrationBases(root, base);
+  // Always run before the cache: a remote tip can advance without changing
+  // our merge-base or worktree, invalidating an earlier passing result.
+  const migrationErrors = checkMigrationVersions({ cwd: root, base, worktree: true });
+  if (migrationErrors.length) {
+    console.error(migrationErrors.join('\n'));
+    return 1;
+  }
   const mergeBase = git(root, ['merge-base', 'HEAD', base]);
   const recordPath = resolve(root, git(root, ['rev-parse', '--git-path', 'check-changed.pass']));
   const key = inputsKey(root, mergeBase);

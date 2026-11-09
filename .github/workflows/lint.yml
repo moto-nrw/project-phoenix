@@ -63,6 +63,19 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # This job already runs for every migration change. Fail before Go setup.
+      # development -> main promotes migrations already checked on development;
+      # it is a release, not a stack whose additions must exceed development.
+      - name: Check new migration versions against current base tips
+        if: github.event_name == 'pull_request' && !(github.base_ref == 'main' && github.head_ref == 'development' && github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The default checkout is shallow and may be a synthetic merge.
+          git fetch --no-tags --unshallow origin "$HEAD_SHA"
+          node scripts/check-migration-versions.mjs "origin/$BASE_REF" "$HEAD_SHA"
+
       - name: Setup Go with cache
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
