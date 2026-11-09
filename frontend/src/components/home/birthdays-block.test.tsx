@@ -26,7 +26,7 @@ vi.mock("~/lib/swr", () => ({
   },
 }));
 vi.mock("~/lib/hooks/use-media-query", () => ({
-  BELOW_SM: "(max-width: 639px)",
+  BELOW_SM: "not all and (min-width: 40rem)",
   useMediaQuery: () => false,
 }));
 

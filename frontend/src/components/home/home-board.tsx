@@ -39,7 +39,7 @@ import {
   type HomeMoveDirection,
   type HomeMoveTarget,
 } from "~/lib/home-blocks";
-import { useMediaQuery } from "~/lib/hooks/use-media-query";
+import { AT_LEAST_XL, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 /**
@@ -145,7 +145,7 @@ const DRAG_THRESHOLD_PX = 6;
 /** Der Abstand zwischen zwei Zellen (`gap-4`). */
 const GRID_GAP_PX = 16;
 /** Ab hier zeichnet das Brett die vier Spalten der Anordnung. */
-const WIDE_BOARD = "(min-width: 1280px)";
+const WIDE_BOARD = AT_LEAST_XL;
 /** So lange hält man am Handy, bevor die Kachel dem Finger folgt. */
 const TOUCH_HOLD_MS = 220;
 
