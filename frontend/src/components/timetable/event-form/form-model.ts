@@ -494,6 +494,31 @@ export function conflictWarningText(
   return `${name} ist zur selben Zeit schon ${where} eingeplant.`;
 }
 
+/**
+ * True when a series edit changes the Wochennotiz and nothing else (#6141).
+ * The Wochennotiz lives on the template and is read onto every occurrence,
+ * so such a save needs no rebuild of the occurrences — and must not discard
+ * their individual adjustments. Whitespace-only changes do not count: the
+ * save trims the note.
+ */
+export function isSeriesNotesOnlyEdit(
+  current: EventFormState,
+  initial: EventFormState,
+): boolean {
+  if (current.seriesNotes.trim() === initial.seriesNotes.trim()) return false;
+  const keys = new Set([
+    ...Object.keys(current),
+    ...Object.keys(initial),
+  ]) as Set<keyof EventFormState>;
+  for (const key of keys) {
+    if (key === "seriesNotes") continue;
+    if (JSON.stringify(current[key]) !== JSON.stringify(initial[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function isoWeekday(dateISO: string): number {
   const d = new Date(`${dateISO}T00:00:00`);
   const day = d.getDay();

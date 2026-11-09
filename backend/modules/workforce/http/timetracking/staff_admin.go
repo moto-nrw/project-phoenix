@@ -204,9 +204,12 @@ func (rs *StaffAdminResource) registerPersonnelRoutes(r chi.Router, withTx commo
 	r.With(stammdaten, withTx).Put("/{id}/stammdaten/kontakt", rs.updateStammdatenKontakt)
 	r.With(stammdaten, withTx).Put("/{id}/stammdaten/arbeitsvertrag", rs.updateStammdatenArbeitsvertrag)
 	r.With(stammdaten, withTx).Put("/{id}/stammdaten/qualifikationen", rs.updateStammdatenQualifikationen)
-	r.With(financial, withTx).Get("/{id}/stammdaten/bank-steuer", rs.getStammdatenFinancial)
+	// The audited financial reads commit their access audit in their own
+	// school transaction before decrypting (#6332), so they hold no request
+	// transaction that would pin a second pool connection.
+	r.With(financial).Get("/{id}/stammdaten/bank-steuer", rs.getStammdatenFinancial)
 	r.With(financial, withTx).Put("/{id}/stammdaten/bank-steuer", rs.updateStammdatenFinancial)
-	r.With(financial, withTx).Post("/{id}/stammdaten/bank-steuer/reveal", rs.revealStammdatenFinancial)
+	r.With(financial).Post("/{id}/stammdaten/bank-steuer/reveal", rs.revealStammdatenFinancial)
 }
 
 // registerDocumentRoutes serves the Dokumente tab (#1424). The route gate
