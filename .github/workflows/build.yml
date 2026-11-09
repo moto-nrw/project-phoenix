@@ -436,8 +436,12 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt staging environment
@@ -556,8 +560,12 @@ jobs:
           fi
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt production environment
@@ -676,8 +684,12 @@ jobs:
           fi
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt demo environment
