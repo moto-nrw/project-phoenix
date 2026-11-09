@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -16,17 +16,28 @@ function fixture(t) {
     copyFileSync(new URL(file, import.meta.url), join(root, 'scripts', file));
   }
   assert.equal(spawnSync('git', ['init', '-q', root]).status, 0);
-  const temp = join(root, '.git/moto-nix-tmp');
+  const namespaceRoot = join(root, '.git/moto-nix-tmp');
+  const temp = process.platform === 'linux'
+    ? join(namespaceRoot, `pid-${/^pid:\[([0-9]+)\]$/.exec(readlinkSync('/proc/self/ns/pid'))[1]}`)
+    : namespaceRoot;
   const env = { ...process.env };
   delete env.TMPDIR;
   const setup = (overrides = {}) => spawnSync('bash', ['-c', 'source scripts/devbox-tmpdir.sh || exit; printf "%s" "$TMPDIR"'], {
     cwd: root, env: { ...env, ...overrides }, encoding: 'utf8',
   });
-  const cleanup = (elapsed = 0, denyReferences = false) => spawnSync(process.execPath, [
+  const cleanup = (elapsed = 0, denyReferences = false, pidNamespace = null, tempdir = temp) => spawnSync(process.execPath, [
     '--import', `data:text/javascript,${encodeURIComponent(`
       import fs from 'node:fs';
       import { syncBuiltinESMExports } from 'node:module';
       Date.now = () => ${Date.now() + elapsed};
+      if (${JSON.stringify(pidNamespace)} !== null) {
+        const readlink = fs.readlinkSync;
+        const readdir = fs.readdirSync;
+        fs.readlinkSync = path => path === '/proc/self/ns/pid' ? ${JSON.stringify(pidNamespace)} : readlink(path);
+        // An isolated procfs can expose no references to the host's tree.
+        fs.readdirSync = path => path === '/proc' ? [] : readdir(path);
+        syncBuiltinESMExports();
+      }
       if (${denyReferences}) {
         const readlink = fs.readlinkSync;
         fs.readlinkSync = path => {
@@ -38,10 +49,10 @@ function fixture(t) {
     `)}`,
     'scripts/cleanup-devbox-tmp.mjs',
   ], {
-    cwd: root, env: { ...env, TMPDIR: temp }, encoding: 'utf8',
+    cwd: root, env: { ...env, TMPDIR: tempdir }, encoding: 'utf8',
   });
   const tree = name => { const path = join(temp, name); mkdirSync(path, { recursive: true }); writeFileSync(join(path, 'manifest.json'), '{}'); return path; };
-  return { root, temp, setup, cleanup, tree };
+  return { root, temp, namespaceRoot, setup, cleanup, tree };
 }
 
 test('bootstrap selects a private repo path and respects explicit TMPDIR, including spaces', t => {
@@ -49,6 +60,7 @@ test('bootstrap selects a private repo path and respects explicit TMPDIR, includ
   assert.equal(f.setup().stdout, f.temp);
   assert.equal(f.setup({ TMPDIR: '/caller/custom temp' }).stdout, '/caller/custom temp');
   assert.equal(f.setup({ TMPDIR: '/tmp' }).stdout, '/tmp');
+  assert.equal(f.setup({ TMPDIR: '123' }).stdout, '123');
   const result = spawnSync('stat', process.platform === 'darwin' ? ['-f', '%Lp', f.temp] : ['-c', '%a', f.temp], { encoding: 'utf8' });
   assert.equal(result.stdout.trim(), '700');
 });
@@ -57,7 +69,7 @@ test('bootstrap rejects symlinked namespace without touching its target', t => {
   const f = fixture(t);
   const target = join(f.root, 'unrelated');
   mkdirSync(target);
-  symlinkSync(target, f.temp);
+  symlinkSync(target, f.namespaceRoot);
   assert.notEqual(f.setup().status, 0);
   assert.ok(existsSync(target));
 });
@@ -216,4 +228,49 @@ test('incomplete Linux inspection retains young trees and allows the agreed aged
   assert.ok(existsSync(orphan));
   assert.equal(f.cleanup(61 * 60 * 1000, true).status, 0);
   assert.equal(existsSync(orphan), false);
+});
+
+test('a different Linux PID namespace cannot sweep shared trees even with complete local inspection', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const tree = f.tree('nix-2147483647-123');
+  for (const elapsed of [0, 61 * 60 * 1000]) {
+    const result = f.cleanup(elapsed, false, 'pid:[999999999]');
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(existsSync(tree), 'another PID namespace must retain the tree regardless of its age');
+  }
+});
+
+test('Linux bootstrap re-scopes inherited defaults and cleanup stays within that PID namespace', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const original = f.tree('nix-2147483647-123');
+  const bin = join(f.root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'readlink'), '#!/bin/bash\nprintf "pid:[999999999]\\n"\n', { mode: 0o755 });
+  const isolated = join(f.namespaceRoot, 'pid-999999999');
+  for (const inherited of [f.temp, f.namespaceRoot]) {
+    const result = f.setup({ TMPDIR: inherited, PATH: `${bin}:${process.env.PATH}` });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, isolated);
+  }
+  const orphan = join(isolated, 'nix-2147483647-123');
+  mkdirSync(orphan);
+  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+  assert.ok(existsSync(orphan), 'the host must not sweep the sandbox namespace');
+  assert.equal(existsSync(original), false);
+  const result = f.cleanup(0, false, 'pid:[999999999]', isolated);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(orphan), false, 'cleanup still sweeps its own namespace');
+});
+
+test('Linux cleanup retains legacy trees with an unknown PID namespace', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const legacy = join(f.namespaceRoot, 'nix-2147483647-123');
+  mkdirSync(legacy);
+  for (const tempdir of [f.temp, f.namespaceRoot]) {
+    assert.equal(f.cleanup(61 * 60 * 1000, false, null, tempdir).status, 0);
+    assert.ok(existsSync(legacy));
+  }
 });

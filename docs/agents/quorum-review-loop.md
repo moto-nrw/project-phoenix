@@ -38,8 +38,13 @@ Confirm the merged state and report it to the orchestrator for tracking.
 Before its first Devbox call, `.envrc` sources
 [`scripts/devbox-tmpdir.sh`](../../scripts/devbox-tmpdir.sh). With no non-empty
 caller `TMPDIR`, this creates private (0700) `moto-nix-tmp` inside the
-repository's Git common directory (`.git` in the main checkout). All worktrees
-share this temp namespace, so new reviews also sweep older review leftovers.
+repository's Git common directory (`.git` in the main checkout). On Linux,
+trees go into `moto-nix-tmp/pid-<namespace-inode>`, using `/proc/self/ns/pid`.
+Worktrees in the same PID namespace share cleanup; sandboxes with a different
+PID namespace use separate directories. Cleanup accepts only its current
+namespace's path. Bootstrap re-scopes inherited default paths to the current
+namespace before invoking Devbox. Legacy trees directly under
+`moto-nix-tmp` are retained because their PID namespace is unknown.
 Keep the namespace on disk; Linux rejects tmpfs/ramfs and asks for an explicit,
 disk-backed `TMPDIR`. macOS keeps its existing system
 `TMPDIR`; an unset value uses the same repo-local fallback. Explicit values,

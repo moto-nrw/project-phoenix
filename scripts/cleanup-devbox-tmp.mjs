@@ -9,14 +9,14 @@ import { fileURLToPath } from 'node:url';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd: repo, encoding: 'utf8' });
 if (common.status !== 0) throw new Error('Cannot locate repository temp namespace');
-const root = join(realpathSync(resolve(repo, common.stdout.trim())), 'moto-nix-tmp');
+const namespaceRoot = join(realpathSync(resolve(repo, common.stdout.trim())), 'moto-nix-tmp');
 const uid = process.getuid();
 const inside = (path, directory) => path === directory || path.startsWith(`${directory}/`);
 const alive = pid => {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code !== 'ESRCH'; }
 };
 
-function references() {
+function references(root) {
   if (process.platform === 'linux') {
     const paths = [];
     let complete = true;
@@ -57,6 +57,12 @@ export function unchangedForHour(path, now) {
 }
 
 function cleanup() {
+  let root = namespaceRoot;
+  if (process.platform === 'linux') {
+    const namespace = /^pid:\[([0-9]+)\]$/.exec(readlinkSync('/proc/self/ns/pid'));
+    if (!namespace) return;
+    root = join(root, `pid-${namespace[1]}`);
+  }
   if (resolve(process.env.TMPDIR || '/tmp') !== root) return;
   const stat = lstatSync(root);
   if (!stat.isDirectory() || stat.uid !== uid || (stat.mode & 0o777) !== 0o700 || realpathSync(root) !== root) return;
@@ -68,13 +74,13 @@ function cleanup() {
     return stat.isDirectory() && stat.uid === uid ? [{ path, pid: Number(match[1]), stat }] : [];
   });
   if (!candidates.length) return;
-  const { paths: open, complete } = references();
+  const { paths: open, complete } = references(root);
   const now = Date.now();
   for (const { path, pid, stat } of candidates) {
     if (open.some(reference => inside(reference.replace(/ \(deleted\)$/, ''), path))) continue;
     // ptrace_scope can hide unrelated same-user processes. Retain uncertain
-    // trees, except the explicitly bounded Linux fallback: /proc proves the
-    // creator dead and every entry has been unchanged for over 60 minutes.
+    // trees, except the explicitly bounded Linux fallback within the same PID
+    // namespace: the creator is absent and every entry is unchanged for an hour.
     if (!complete && !(process.platform === 'linux' && !existsSync(`/proc/${pid}`) && unchangedForHour(path, now))) continue;
     try {
       const current = lstatSync(path);
