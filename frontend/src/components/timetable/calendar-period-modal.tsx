@@ -42,6 +42,10 @@ import {
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import {
+  useFormModalPending,
+  type FormModalOperation,
+} from "~/components/ui/use-form-modal-pending";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
 
@@ -140,8 +144,12 @@ export function CalendarPeriodModal({
 }: CalendarPeriodModalProps) {
   const { success: toastSuccess } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  // Speichern und Löschen sperren das Panel, bis der Server antwortet
+  // (#6593); `pendingAction` sagt, welche der beiden Aktionen läuft.
+  const save = useFormModalPending(isOpen, initial?.id);
+  const [pendingAction, setPendingAction] = useState<"save" | "delete">("save");
+  const submitting = save.pending && pendingAction === "save";
+  const deleting = save.pending && pendingAction === "delete";
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   // Entwurf der Phasen-Verknüpfungen: phase.id → gewünscht verknüpft. Leer
   // heißt: keine Abweichung vom gespeicherten Stand.
@@ -225,7 +233,7 @@ export function CalendarPeriodModal({
     form.name.trim().length > 0 &&
     form.startDate !== "" &&
     form.endDate !== "" &&
-    !submitting;
+    !save.pending;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -255,8 +263,6 @@ export function CalendarPeriodModal({
       return;
     }
 
-    setSubmitting(true);
-    formErrors.clear();
     const body = {
       name: form.name.trim(),
       period_type: form.periodType,
@@ -269,61 +275,67 @@ export function CalendarPeriodModal({
         : {}),
     };
 
-    let period: CalendarPeriod;
-    let warnings: CalendarPeriodWarning[];
-    try {
-      ({ period, warnings } = persisted
-        ? await calendarPeriodService.update(persisted.id, body)
-        : await calendarPeriodService.create(body));
-    } catch (err) {
-      logger.error("period_save_failed", {
-        mode: isEdit ? "edit" : "create",
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setSubmitting(false);
-      void formErrors.show(err, {
-        object: "das Speichern des Kalenderzeitraums",
-        retry: () => latestSubmitRef.current(),
-      });
-      return;
-    }
+    await save.run(async (op) => {
+      setPendingAction("save");
+      formErrors.clear();
+      let period: CalendarPeriod;
+      let warnings: CalendarPeriodWarning[];
+      try {
+        ({ period, warnings } = persisted
+          ? await calendarPeriodService.update(persisted.id, body)
+          : await calendarPeriodService.create(body));
+      } catch (err) {
+        logger.error("period_save_failed", {
+          mode: isEdit ? "edit" : "create",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: "das Speichern des Kalenderzeitraums",
+          retry: () => latestSubmitRef.current(),
+        });
+        return;
+      }
 
-    setSavedPeriod(period);
-    if (!periodSaveNotified) {
-      onSaved(period);
-      setPeriodSaveNotified(true);
-    }
-    try {
-      await applyPhaseDraft();
-    } catch (err) {
-      logger.error("period_phase_link_save_failed", {
-        period_id: period.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setSubmitting(false);
-      // Der Zeitraum ist gespeichert; offen sind nur die Verknüpfungen, die
-      // noch im Entwurf stehen. Wiederholen speichert genau diese erneut.
-      void formErrors.show(err, {
-        object: "die Verknüpfung der Anmeldephase",
-        retry: () => latestSubmitRef.current(),
-      });
-      return;
-    }
+      // Der Elternteil lädt neu, auch wenn das Panel inzwischen zu ist;
+      // Formularzustand gehört nur zum Vorgang, der noch offen ist.
+      if (!periodSaveNotified) onSaved(period);
+      if (op.isCurrent()) {
+        setSavedPeriod(period);
+        setPeriodSaveNotified(true);
+      }
+      try {
+        await applyPhaseDraft(op);
+      } catch (err) {
+        logger.error("period_phase_link_save_failed", {
+          period_id: period.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        // Der Zeitraum ist gespeichert; offen sind nur die Verknüpfungen, die
+        // noch im Entwurf stehen. Wiederholen speichert genau diese erneut.
+        void formErrors.show(err, {
+          object: "die Verknüpfung der Anmeldephase",
+          retry: () => latestSubmitRef.current(),
+        });
+        return;
+      }
 
-    toastSuccess(
-      persisted
-        ? `Der Kalenderzeitraum „${period.name}“ ist gespeichert.`
-        : `Der Kalenderzeitraum „${period.name}“ ist angelegt.`,
-    );
-    if (warnings.length === 0) {
-      onClose();
-    } else {
-      // Advisory only: the save succeeded. Keep the modal open so the
-      // user reads the overlap warning, then closes it explicitly (or
-      // edits the form, which re-enables saving).
-      setSaveWarnings(warnings);
-    }
-    setSubmitting(false);
+      toastSuccess(
+        persisted
+          ? `Der Kalenderzeitraum „${period.name}“ ist gespeichert.`
+          : `Der Kalenderzeitraum „${period.name}“ ist angelegt.`,
+      );
+      if (!op.isCurrent()) return;
+      if (warnings.length === 0) {
+        onClose();
+      } else {
+        // Advisory only: the save succeeded. Keep the modal open so the
+        // user reads the overlap warning, then closes it explicitly (or
+        // edits the form, which re-enables saving).
+        setSaveWarnings(warnings);
+      }
+    });
   };
 
   const isPhaseLinked = (phase: LinkablePhase) =>
@@ -346,12 +358,14 @@ export function CalendarPeriodModal({
   // Schreibt die geänderten Verknüpfungen nach dem Speichern des Zeitraums,
   // eine nach der anderen. Der Aufrufer lädt danach neu; Fehler bleiben hier
   // im Modal, damit die betroffene Änderung erneut versucht werden kann.
-  const applyPhaseDraft = async () => {
+  const applyPhaseDraft = async (op: FormModalOperation) => {
     if (!phaseLink) return;
     for (const phase of phaseLink.phases) {
       const wanted = phaseDraft[phase.id];
       if (wanted === undefined) continue;
       await phaseLink.onToggle(phase, wanted);
+      // Ein neu geöffnetes Panel hat seinen eigenen Entwurf.
+      if (!op.isCurrent()) continue;
       setPhaseDraft((prev) => {
         const next = { ...prev };
         delete next[phase.id];
@@ -362,28 +376,31 @@ export function CalendarPeriodModal({
 
   const handleDelete = async () => {
     if (!initial) return;
-    setDeleting(true);
-    deleteErrors.clear();
-    try {
-      await calendarPeriodService.delete(initial.id);
-      toastSuccess(`Der Kalenderzeitraum „${initial.name}“ ist gelöscht.`);
-      setDeleteConfirmOpen(false);
-      onDeleted?.(initial);
-      onClose();
-    } catch (err) {
-      logger.error("period_delete_failed", {
-        period_id: initial.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Der Dialog bleibt offen und nennt den Grund; ein Toast läge
-      // darunter.
-      void deleteErrors.show(err, {
-        object: "das Löschen des Kalenderzeitraums",
-        retry: () => latestDeleteRef.current(),
-      });
-    } finally {
-      setDeleting(false);
-    }
+    await save.run(async (op) => {
+      setPendingAction("delete");
+      deleteErrors.clear();
+      try {
+        await calendarPeriodService.delete(initial.id);
+        toastSuccess(`Der Kalenderzeitraum „${initial.name}“ ist gelöscht.`);
+        // Der Elternteil lädt neu, auch wenn das Panel inzwischen zu ist.
+        onDeleted?.(initial);
+        if (!op.isCurrent()) return;
+        setDeleteConfirmOpen(false);
+        onClose();
+      } catch (err) {
+        logger.error("period_delete_failed", {
+          period_id: initial.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        // Der Dialog bleibt offen und nennt den Grund; ein Toast läge
+        // darunter.
+        void deleteErrors.show(err, {
+          object: "das Löschen des Kalenderzeitraums",
+          retry: () => latestDeleteRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -394,6 +411,7 @@ export function CalendarPeriodModal({
   return (
     <SlideOver
       open={isOpen}
+      pending={save}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
@@ -552,7 +570,7 @@ export function CalendarPeriodModal({
                           >
                             <Checkbox
                               checked={linked}
-                              disabled={submitting}
+                              disabled={save.pending}
                               onChange={(e) =>
                                 handlePhaseToggle(phase, e.target.checked)
                               }
@@ -599,7 +617,6 @@ export function CalendarPeriodModal({
                 onClick={() => setDeleteConfirmOpen(true)}
                 isLoading={deleting}
                 loadingText="Lösche …"
-                disabled={submitting}
                 className="w-full sm:w-auto"
               >
                 Löschen
@@ -614,7 +631,6 @@ export function CalendarPeriodModal({
                 size="md"
                 className="flex-1 sm:flex-none"
                 onClick={onClose}
-                disabled={submitting || deleting}
               >
                 Abbrechen
               </Button>
@@ -638,7 +654,7 @@ export function CalendarPeriodModal({
                 className="flex-1 sm:flex-none"
                 isLoading={submitting}
                 loadingText="Speichere …"
-                disabled={!canSubmit || deleting}
+                disabled={!canSubmit}
               >
                 {persisted ? "Speichern" : "Anlegen"}
               </Button>

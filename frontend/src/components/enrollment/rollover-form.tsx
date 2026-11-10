@@ -38,6 +38,11 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import {
+  type FormModalOperation,
+  type FormModalPending,
+  useFormModalPending,
+} from "~/components/ui/use-form-modal-pending";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -77,7 +82,16 @@ function prefillFromSource(source: Phase): RolloverInput {
 interface Props {
   readonly source: Phase;
   readonly onCancel: () => void;
-  readonly onSuccess: (result: RolloverResult) => void;
+  /**
+   * The rollover exists. `op.isCurrent()` is false once the panel the form
+   * sits in was closed or switched to another phase meanwhile (#6593).
+   */
+  readonly onSuccess: (result: RolloverResult, op: FormModalOperation) => void;
+  /**
+   * The pending contract of the `SlideOver` the form is embedded in, so its
+   * submit locks the panel (#6593). Without it the form tracks its own.
+   */
+  readonly pending?: FormModalPending;
   /**
    * "page": das Formular ist die Seite und rendert das Seitengerüst
    * (`TenantPage`) um die Formularkarte (eigene Route /rollover).
@@ -94,6 +108,7 @@ export function RolloverForm({
   source,
   onCancel,
   onSuccess,
+  pending,
   variant = "embedded",
 }: Props) {
   const [draft, setDraft] = useState<RolloverInput>(() =>
@@ -102,7 +117,9 @@ export function RolloverForm({
   const [deadlineLocal, setDeadlineLocal] = useState(
     toDateTimeLocalValue(draft.rollover_deadline),
   );
-  const [submitting, setSubmitting] = useState(false);
+  const ownSave = useFormModalPending();
+  const save = pending ?? ownSave;
+  const submitting = save.pending;
   const formErrors = useApiFormError();
   const [preview, setPreview] = useState<RolloverPreview | null>(null);
   const previewLoad = useApiLoadError();
@@ -192,26 +209,26 @@ export function RolloverForm({
       });
       return;
     }
-    setSubmitting(true);
-    try {
-      const payload: RolloverInput = {
-        ...draft,
-        rollover_deadline: fromDateTimeLocalValue(deadlineLocal) ?? "",
-      };
-      const result = await createRollover(source.id, payload);
-      onSuccess(result);
-    } catch (err) {
-      logger.error("rollover_create_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        code: (err as { code?: unknown } | undefined)?.code,
-      });
-      await formErrors.show(err, {
-        object: "die Anschlussphase",
-        retry: () => void latestSubmit.current(),
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const payload: RolloverInput = {
+          ...draft,
+          rollover_deadline: fromDateTimeLocalValue(deadlineLocal) ?? "",
+        };
+        const result = await createRollover(source.id, payload);
+        onSuccess(result, op);
+      } catch (err) {
+        logger.error("rollover_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          code: (err as { code?: unknown } | undefined)?.code,
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Anschlussphase",
+          retry: () => void latestSubmit.current(),
+        });
+      }
+    });
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
   const latestSubmit = useRef(submit);

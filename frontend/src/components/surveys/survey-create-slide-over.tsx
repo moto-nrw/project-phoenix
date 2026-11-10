@@ -18,6 +18,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useParentTargetLookups } from "~/components/announcements/parent-target-picker";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -47,7 +48,9 @@ export function SurveyCreateSlideOver({
 }>) {
   const [draft, setDraft] = useState<SurveyEditorDraft>(emptySurveyDraft);
   const [errors, setErrors] = useState<SurveyEditorErrors | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Locks the panel while the draft is created (#6593).
+  const save = useFormModalPending();
+  const saving = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den vom
@@ -70,21 +73,22 @@ export function SurveyCreateSlideOver({
       formErrors.invalid(SURVEY_FORM_CHECK_MESSAGE);
       return;
     }
-    setSaving(true);
-    try {
-      const created = await createSurvey(surveyInputFromDraft(draft));
-      onCreated(created);
-    } catch (err: unknown) {
-      logger.error("survey_create_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, {
-        object: "die Umfrage",
-        retry: () => void latestSaveDraft.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const created = await createSurvey(surveyInputFromDraft(draft));
+        // The page closes the panel and opens the new survey.
+        if (op.isCurrent()) onCreated(created);
+      } catch (err: unknown) {
+        logger.error("survey_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: "die Umfrage",
+          retry: () => void latestSaveDraft.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSaveDraft.current = saveDraft;
@@ -93,9 +97,9 @@ export function SurveyCreateSlideOver({
   return (
     <SlideOver
       open
-      isDismissDisabled={saving}
+      pending={save}
       onOpenChange={(open) => {
-        if (!open && !saving) onClose();
+        if (!open) onClose();
       }}
     >
       <SlideOverContent size="lg" isBackdropDismissDisabled>

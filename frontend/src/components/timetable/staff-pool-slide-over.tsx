@@ -17,7 +17,14 @@
  */
 
 import { EmptyState } from "~/components/ui/empty-state";
-import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { UserPlus } from "lucide-react";
 
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -39,6 +46,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
@@ -83,9 +91,16 @@ export function StaffPoolSlideOver({
 }: StaffPoolSlideOverProps) {
   const toast = useToast();
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
-  const [saving, setSaving] = useState(false);
 
   const instanceId = instance?.id ?? null;
+  // Der Move läuft aus der Rückfrage über dem Panel; das Panel bleibt bis zur
+  // Antwort gesperrt (#6593). Ein anderer Block ist ein neuer Vorgang.
+  const save = useFormModalPending(open, instanceId);
+  // Die Rückfrage gehört zum offenen Panel und seinem Block: nach dem
+  // Schließen oder einem Blockwechsel taucht sie nicht wieder auf.
+  useEffect(() => {
+    setPendingMove(null);
+  }, [open, instanceId]);
   const {
     data: pool,
     error,
@@ -113,32 +128,33 @@ export function StaffPoolSlideOver({
 
   const handleConfirmMove = async () => {
     if (!canManage || !pendingMove || !instanceId) return;
-    setSaving(true);
-    moveErrors.clear();
-    try {
-      const result = await timetableService.moveStaff(instanceId, {
-        staffId: pendingMove.entry.staffId,
-        sourceInstanceId: pendingMove.assignment?.instanceId,
-      });
-      announceMoveResult(result, pendingMove, toast);
-      setPendingMove(null);
-      await mutate();
-      onMoved();
-    } catch (err) {
-      logger.error("staff_move_failed", {
-        target_instance_id: instanceId,
-        staff_id: pendingMove.entry.staffId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void moveErrors.show(err, {
-        object: pendingMove.assignment
-          ? "das Verschieben der Person"
-          : "die Zuweisung der Person",
-        retry: () => latestMoveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    const move = pendingMove;
+    await save.run(async (op) => {
+      moveErrors.clear();
+      try {
+        const result = await timetableService.moveStaff(instanceId, {
+          staffId: move.entry.staffId,
+          sourceInstanceId: move.assignment?.instanceId,
+        });
+        announceMoveResult(result, move, toast);
+        if (op.isCurrent()) setPendingMove(null);
+        await mutate();
+        onMoved();
+      } catch (err) {
+        logger.error("staff_move_failed", {
+          target_instance_id: instanceId,
+          staff_id: move.entry.staffId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void moveErrors.show(err, {
+          object: move.assignment
+            ? "das Verschieben der Person"
+            : "die Zuweisung der Person",
+          retry: () => latestMoveRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -149,6 +165,7 @@ export function StaffPoolSlideOver({
     <>
       <SlideOver
         open={open}
+        pending={save}
         dismissible={!canManage || pendingMove === null}
         onOpenChange={(next) => {
           if (!next) onClose();
@@ -209,7 +226,7 @@ export function StaffPoolSlideOver({
                               type="button"
                               variant="outline"
                               size="compact"
-                              disabled={saving}
+                              disabled={save.pending}
                               onClick={() =>
                                 openMoveConfirm({ entry, assignment })
                               }
@@ -238,7 +255,7 @@ export function StaffPoolSlideOver({
                             type="button"
                             variant="outline"
                             size="compact"
-                            disabled={saving}
+                            disabled={save.pending}
                             onClick={() => openMoveConfirm({ entry })}
                           >
                             <span className="inline-flex items-center gap-1.5">
@@ -287,7 +304,7 @@ export function StaffPoolSlideOver({
           }
           confirmText={pendingMove.assignment ? "Verschieben" : "Zuweisen"}
           cancelText="Abbrechen"
-          isConfirmLoading={saving}
+          isConfirmLoading={save.pending}
         >
           <FormErrorAlert message={moveErrors.error} className="mb-3" />
           <p className="text-sm text-gray-600">

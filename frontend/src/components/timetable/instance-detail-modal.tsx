@@ -35,6 +35,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -619,12 +620,25 @@ export function InstanceDetailModal({
     instance?.completeAvailableAt ?? "",
     now,
   );
-  const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
-    null,
-  );
+  // Lebenszyklus, Löschen und Anwesenheit sperren das Panel, bis der
+  // Aufrufer antwortet (#6593). Der Vorgang ist der gewählte Termin: die
+  // Rückfragen blenden das Panel nur aus, ein anderer Termin beginnt neu.
+  const save = useFormModalPending(instance !== null, instance?.id);
+  const [running, setRunning] = useState<
+    | { kind: "lifecycle"; action: LifecycleAction }
+    | { kind: "delete" }
+    | { kind: "attendance"; studentId: string }
+    | null
+  >(null);
+  // Nur der laufende Vorgang dieses Termins zählt; eine späte Antwort eines
+  // anderen lässt hier nichts belegt.
+  const current = save.pending ? running : null;
+  const pendingAction = current?.kind === "lifecycle" ? current.action : null;
+  const pendingDelete = current?.kind === "delete";
+  const pendingStudentId =
+    current?.kind === "attendance" ? current.studentId : null;
   const [pendingConfirm, setPendingConfirm] =
     useState<PendingConfirmAction | null>(null);
-  const [pendingDelete, setPendingDelete] = useState(false);
   // Löschen (#3110): ein Dialog, die Scope-Wahl (nur diese Woche / ab jetzt
   // dauerhaft) liegt als Slot in der ConfirmDeleteModal statt davor.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -632,7 +646,6 @@ export function InstanceDetailModal({
   const [deleteScope, setDeleteScope] = useState<"single" | "following" | null>(
     null,
   );
-  const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   // Personalpool (#1884) nur für bearbeitbare Blöcke ab heute — vergangene
   // Blöcke sind Historie (gleiche Regel wie das Backend erzwingt).
   const poolAvailable =
@@ -700,17 +713,15 @@ export function InstanceDetailModal({
     action: LifecycleAction,
     options?: LifecycleActionOptions,
   ) => {
-    setPendingAction(action);
-    try {
+    await save.run(async () => {
+      setRunning({ kind: "lifecycle", action });
       // Callers without extras keep the plain single-argument call.
       await awaitReportedAction(() =>
         options
           ? onLifecycleAction(action, options)
           : onLifecycleAction(action),
       );
-    } finally {
-      setPendingAction(null);
-    }
+    });
   };
 
   // Löschen läuft im Bestätigungsdialog. Der liegt über den Toasts, also
@@ -720,39 +731,31 @@ export function InstanceDetailModal({
   const latestConfirmDeleteRef = useRef<() => void>(() => undefined);
 
   const runDelete = async (
-    remove: (target: EnrichedInstance) => Promise<void>,
+    remove: ((target: EnrichedInstance) => Promise<void>) | undefined,
     object: string,
-  ): Promise<boolean> => {
-    if (!instance) return false;
-    setPendingDelete(true);
-    clearDeleteError();
-    try {
-      await remove(instance);
-      return true;
-    } catch (err) {
-      logger.warn("instance_delete_dialog_failed", {
-        instance_id: instance.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showDeleteError(err, {
-        object,
-        retry: () => latestConfirmDeleteRef.current(),
-      });
-      return false;
-    } finally {
-      setPendingDelete(false);
-    }
+  ) => {
+    if (!instance || !remove) return;
+    const target = instance;
+    await save.run(async (op) => {
+      setRunning({ kind: "delete" });
+      clearDeleteError();
+      try {
+        await remove(target);
+        if (op.isCurrent()) setDeleteOpen(false);
+      } catch (err) {
+        logger.warn("instance_delete_dialog_failed", {
+          instance_id: target.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Ein inzwischen gewählter anderer Termin zeigt den Fehler nicht.
+        if (!op.isCurrent()) return;
+        void showDeleteError(err, {
+          object,
+          retry: () => latestConfirmDeleteRef.current(),
+        });
+      }
+    });
   };
-
-  const handleDeleteCancelled = async (): Promise<boolean> =>
-    onDeleteCancelled
-      ? runDelete(onDeleteCancelled, "das Löschen des Termins")
-      : false;
-
-  const handleDeleteFollowing = async (): Promise<boolean> =>
-    onDeleteFollowing
-      ? runDelete(onDeleteFollowing, "das Beenden des Regeltermins")
-      : false;
 
   // "Ab jetzt dauerhaft" beendet den Regeltermin ab dem Datum des Termins —
   // das Backend lehnt ein Datum vor heute ab, weil das Vergangenheit löschen
@@ -804,13 +807,9 @@ export function InstanceDetailModal({
       setDeleteScope("single");
       return;
     }
-    const succeeded =
-      deleteScope === "following"
-        ? await handleDeleteFollowing()
-        : await handleDeleteCancelled();
-    if (succeeded) {
-      setDeleteOpen(false);
-    }
+    await (deleteScope === "following"
+      ? runDelete(onDeleteFollowing, "das Beenden des Regeltermins")
+      : runDelete(onDeleteCancelled, "das Löschen des Termins"));
   };
 
   useLayoutEffect(() => {
@@ -836,14 +835,13 @@ export function InstanceDetailModal({
     body: AttendancePatchBody,
   ) => {
     if (!instance || !onAttendancePatch) return;
-    setPendingStudentId(studentId);
-    try {
+    const instanceId = instance.id;
+    await save.run(async () => {
+      setRunning({ kind: "attendance", studentId });
       await awaitReportedAction(() =>
-        onAttendancePatch(instance.id, studentId, body),
+        onAttendancePatch(instanceId, studentId, body),
       );
-    } finally {
-      setPendingStudentId(null);
-    }
+    });
   };
 
   const attendancePatch = attendancePatchForInstance(
@@ -1021,6 +1019,7 @@ export function InstanceDetailModal({
           gestapelt (gleiches Muster wie staff/shift-move-dialog.tsx). */}
       <SlideOver
         open={pendingConfirm === null && !deleteOpen && !suspended}
+        pending={save}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}

@@ -713,6 +713,7 @@ export function PersonalCalendar({
         ) : null}
       </div>
 
+      {/* oxlint-disable-next-line ui-kit/slide-over-pending -- Zusagen und Absagen übergeben synchron an onRespond und schließen; gespeichert wird außerhalb des Panels. */}
       <SlideOver
         open={selectedEvent !== null}
         onOpenChange={(open) => {

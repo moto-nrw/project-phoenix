@@ -27,6 +27,7 @@ function renderModal(onStart = vi.fn().mockResolvedValue(undefined)) {
         initialMonth="2026-10-01"
         onClose={vi.fn()}
         onStart={onStart}
+        onStarted={vi.fn()}
       />
     </ToastProvider>,
   );

@@ -21,6 +21,10 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import {
+  type FormModalOperation,
+  useFormModalPending,
+} from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -174,8 +178,24 @@ export function ShiftEditModal({
   const [breakMinutesStr, setBreakMinutesStr] = useState(
     String(initial.breakMinutes),
   );
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Every write runs through the panel's pending contract (#6593), also
+  // the ones started from the delete confirmation or the scope question
+  // while the panel is hidden behind them. A late answer must not close or
+  // fill the dialog for another shift.
+  const write = useFormModalPending(isOpen, shift?.id ?? `${staffId}:${date}`);
+  // Which write runs: the save buttons and the scope question show a save,
+  // the delete confirmation a delete.
+  const [runningWrite, setRunningWrite] = useState<"save" | "delete">("save");
+  const isSaving = write.pending && runningWrite === "save";
+  const isDeleting = write.pending && runningWrite === "delete";
+  const runWrite = (
+    kind: "save" | "delete",
+    task: (op: FormModalOperation) => Promise<void>,
+  ) =>
+    write.run((op) => {
+      setRunningWrite(kind);
+      return task(op);
+    });
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -585,35 +605,38 @@ export function ShiftEditModal({
       formErrors.invalid(seriesNoOccurrenceMessage);
       return;
     }
-    setIsSaving(true);
-    try {
-      const result = await staffShiftSeriesService.splitSeries(seriesRule.id, {
-        effectiveDate: seriesEffectiveDate,
-        occurrenceShiftId: shift.id,
-        startTime,
-        endTime,
-        breakMinutes: breakMinutes ?? 0,
-        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
-        weekdays: seriesWeekdays,
-        weekPattern: seriesRuleWeekPattern,
-        // The picker is inclusive, the API's valid_until exclusive.
-        validUntil:
-          seriesValidUntil === "" ? null : dayAfterISO(seriesValidUntil),
-        includeSchoolBreaks: seriesIncludeSchoolBreaks,
-      });
-      finishSeriesMutation(result);
-    } catch (err: unknown) {
-      logger.error("shift_series_rule_save_failed", {
-        series_id: seriesRule.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Serie",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    await runWrite("save", async (op) => {
+      try {
+        const result = await staffShiftSeriesService.splitSeries(
+          seriesRule.id,
+          {
+            effectiveDate: seriesEffectiveDate,
+            occurrenceShiftId: shift.id,
+            startTime,
+            endTime,
+            breakMinutes: breakMinutes ?? 0,
+            shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+            weekdays: seriesWeekdays,
+            weekPattern: seriesRuleWeekPattern,
+            // The picker is inclusive, the API's valid_until exclusive.
+            validUntil:
+              seriesValidUntil === "" ? null : dayAfterISO(seriesValidUntil),
+            includeSchoolBreaks: seriesIncludeSchoolBreaks,
+          },
+        );
+        finishSeriesMutation(result, op);
+      } catch (err: unknown) {
+        logger.error("shift_series_rule_save_failed", {
+          series_id: seriesRule.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Serie",
+          retry: () => latestSaveRef.current(),
+        });
+      }
+    });
   };
 
   const toggleWeekday = (value: number) => {
@@ -624,8 +647,12 @@ export function ShiftEditModal({
     );
   };
 
-  const finishSeriesMutation = (result: SeriesResult) => {
+  const finishSeriesMutation = (
+    result: SeriesResult,
+    op: FormModalOperation,
+  ) => {
     onSaved();
+    if (!op.isCurrent()) return;
     const notices: string[] = [];
     if (result.skippedNonWorkingDays > 0) {
       notices.push(schoolBreaksNotice(result.skippedNonWorkingDays));
@@ -692,146 +719,148 @@ export function ShiftEditModal({
     return true;
   };
 
-  const createSeries = async () => {
-    setIsSaving(true);
-    try {
-      const result = await staffShiftSeriesService.createSeries({
-        staffId,
-        weekdays,
-        startTime,
-        endTime,
-        breakMinutes: breakMinutes ?? 0,
-        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
-        calendarPeriodId: periodId,
-        // Guard against stale biweekly state: switching to a period without
-        // a week cycle hides the A/B control but does not reset the flag.
-        weekPattern: effectiveWeekPattern,
-        validFrom: date,
-        // The picker is inclusive ("Gültig bis" = last day WITH a shift);
-        // the API's valid_until is exclusive — send the day after.
-        validUntil: validUntil === "" ? null : dayAfterISO(validUntil),
-        includeSchoolBreaks,
-      });
-      finishSeriesMutation(result);
-    } catch (err: unknown) {
-      logger.error("shift_series_create_failed", {
-        staff_id: staffId,
-        date,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Serie",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const createSeries = () =>
+    runWrite("save", async (op) => {
+      try {
+        const result = await staffShiftSeriesService.createSeries({
+          staffId,
+          weekdays,
+          startTime,
+          endTime,
+          breakMinutes: breakMinutes ?? 0,
+          shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+          calendarPeriodId: periodId,
+          // Guard against stale biweekly state: switching to a period without
+          // a week cycle hides the A/B control but does not reset the flag.
+          weekPattern: effectiveWeekPattern,
+          validFrom: date,
+          // The picker is inclusive ("Gültig bis" = last day WITH a shift);
+          // the API's valid_until is exclusive — send the day after.
+          validUntil: validUntil === "" ? null : dayAfterISO(validUntil),
+          includeSchoolBreaks,
+        });
+        finishSeriesMutation(result, op);
+      } catch (err: unknown) {
+        logger.error("shift_series_create_failed", {
+          staff_id: staffId,
+          date,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Serie",
+          retry: () => latestSaveRef.current(),
+        });
+      }
+    });
 
-  const saveSingleShift = async () => {
-    setIsSaving(true);
-    try {
-      const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
-      if (mode === "edit" && shift) {
-        // Anything that touches the cancellation state (cancelling, editing the
-        // replacement set, or reactivating) goes through one atomic endpoint so
-        // the origin flag and the whole replacement set change together (#1841).
-        // Reactivating removes the now-obsolete replacements server-side; a plain
-        // edit never carries `cancelled`, so the stored flag is preserved.
-        const wasCancelled = shift.cancelled ?? false;
-        const cancellationInvolved =
-          !isReplacementRow && (cancelled || wasCancelled);
-        if (cancellationInvolved) {
-          await staffShiftService.applyCancellation(shift.id, {
-            cancelled,
-            changeReason,
-            // Carry the shift's own edited window/type so a time change made in
-            // the same save is applied to the origin, not silently dropped, and
-            // a reactivation re-checks overlap against the edited window (#1841).
-            startTime,
-            endTime,
-            breakMinutes: breakMinutes ?? 0,
-            shiftTypeId: resolvedShiftTypeId,
-            // Each cover keeps its own break and shift type — a replacement may
-            // have been edited directly in the grid to differ from the origin,
-            // so re-saving the origin must not reset them (#1841).
-            replacements: cancelled
-              ? replacements.map((row) => ({
-                  staffId: row.staffId,
-                  startTime: row.startTime,
-                  endTime: row.endTime,
-                  breakMinutes: row.breakMinutes,
-                  shiftTypeId: row.shiftTypeId === "" ? null : row.shiftTypeId,
-                }))
-              : [],
-          });
+  const saveSingleShift = () =>
+    runWrite("save", async (op) => {
+      try {
+        const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
+        if (mode === "edit" && shift) {
+          // Anything that touches the cancellation state (cancelling, editing the
+          // replacement set, or reactivating) goes through one atomic endpoint so
+          // the origin flag and the whole replacement set change together (#1841).
+          // Reactivating removes the now-obsolete replacements server-side; a plain
+          // edit never carries `cancelled`, so the stored flag is preserved.
+          const wasCancelled = shift.cancelled ?? false;
+          const cancellationInvolved =
+            !isReplacementRow && (cancelled || wasCancelled);
+          if (cancellationInvolved) {
+            await staffShiftService.applyCancellation(shift.id, {
+              cancelled,
+              changeReason,
+              // Carry the shift's own edited window/type so a time change made in
+              // the same save is applied to the origin, not silently dropped, and
+              // a reactivation re-checks overlap against the edited window (#1841).
+              startTime,
+              endTime,
+              breakMinutes: breakMinutes ?? 0,
+              shiftTypeId: resolvedShiftTypeId,
+              // Each cover keeps its own break and shift type — a replacement may
+              // have been edited directly in the grid to differ from the origin,
+              // so re-saving the origin must not reset them (#1841).
+              replacements: cancelled
+                ? replacements.map((row) => ({
+                    staffId: row.staffId,
+                    startTime: row.startTime,
+                    endTime: row.endTime,
+                    breakMinutes: row.breakMinutes,
+                    shiftTypeId:
+                      row.shiftTypeId === "" ? null : row.shiftTypeId,
+                  }))
+                : [],
+            });
+          } else {
+            await staffShiftService.updateShift(shift.id, {
+              staffId,
+              date,
+              startTime,
+              endTime,
+              breakMinutes: breakMinutes ?? 0,
+              shiftTypeId: resolvedShiftTypeId,
+              changeReason,
+            });
+          }
         } else {
-          await staffShiftService.updateShift(shift.id, {
+          await staffShiftService.createShift({
             staffId,
             date,
             startTime,
             endTime,
             breakMinutes: breakMinutes ?? 0,
             shiftTypeId: resolvedShiftTypeId,
-            changeReason,
           });
         }
-      } else {
-        await staffShiftService.createShift({
-          staffId,
+        onSaved();
+        if (op.isCurrent()) onClose();
+      } catch (err: unknown) {
+        logger.error("shift_save_failed", {
+          staff_id: staffId,
           date,
+          mode,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Schicht",
+          retry: () => latestSaveRef.current(),
+        });
+      } finally {
+        if (op.isCurrent()) setScopeQuestion(null);
+      }
+    });
+
+  const splitSeriesFromHere = async () => {
+    const seriesId = shift?.seriesId;
+    if (!shift || !seriesId) return;
+    await runWrite("save", async (op) => {
+      try {
+        const result = await staffShiftSeriesService.splitSeries(seriesId, {
+          effectiveDate: seriesEffectiveDate,
+          occurrenceShiftId: shift.id,
           startTime,
           endTime,
           breakMinutes: breakMinutes ?? 0,
-          shiftTypeId: resolvedShiftTypeId,
+          shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
         });
+        finishSeriesMutation(result, op);
+      } catch (err: unknown) {
+        logger.error("shift_series_split_failed", {
+          series_id: seriesId,
+          date: shift.date,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Serie",
+          retry: () => latestSaveRef.current(),
+        });
+      } finally {
+        if (op.isCurrent()) setScopeQuestion(null);
       }
-      onSaved();
-      onClose();
-    } catch (err: unknown) {
-      logger.error("shift_save_failed", {
-        staff_id: staffId,
-        date,
-        mode,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Schicht",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setIsSaving(false);
-      setScopeQuestion(null);
-    }
-  };
-
-  const splitSeriesFromHere = async () => {
-    if (!shift?.seriesId) return;
-    setIsSaving(true);
-    try {
-      const result = await staffShiftSeriesService.splitSeries(shift.seriesId, {
-        effectiveDate: seriesEffectiveDate,
-        occurrenceShiftId: shift.id,
-        startTime,
-        endTime,
-        breakMinutes: breakMinutes ?? 0,
-        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
-      });
-      finishSeriesMutation(result);
-    } catch (err: unknown) {
-      logger.error("shift_series_split_failed", {
-        series_id: shift.seriesId,
-        date: shift.date,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Serie",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setIsSaving(false);
-      setScopeQuestion(null);
-    }
+    });
   };
 
   const handleSubmit = async () => {
@@ -854,55 +883,57 @@ export function ShiftEditModal({
 
   const deleteSingleShift = async () => {
     if (!shift) return;
-    setIsDeleting(true);
-    deleteErrors.clear();
-    try {
-      await staffShiftService.deleteShift(shift.id);
-      setConfirmDeleteOpen(false);
-      onSaved();
-      onClose();
-    } catch (err: unknown) {
-      logger.error("shift_delete_failed", {
-        shift_id: shift.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // The confirmation stays open and says why.
-      await deleteErrors.show(err, {
-        object: "die Schicht",
-        retry: () => latestDeleteRef.current(),
-      });
-    } finally {
-      setIsDeleting(false);
-      setScopeQuestion(null);
-    }
+    await runWrite("delete", async (op) => {
+      deleteErrors.clear();
+      try {
+        await staffShiftService.deleteShift(shift.id);
+        onSaved();
+        if (!op.isCurrent()) return;
+        setConfirmDeleteOpen(false);
+        onClose();
+      } catch (err: unknown) {
+        logger.error("shift_delete_failed", {
+          shift_id: shift.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        // The confirmation stays open and says why.
+        await deleteErrors.show(err, {
+          object: "die Schicht",
+          retry: () => latestDeleteRef.current(),
+        });
+      } finally {
+        if (op.isCurrent()) setScopeQuestion(null);
+      }
+    });
   };
 
   const endSeriesFromHere = async () => {
-    if (!shift?.seriesId) return;
-    setIsDeleting(true);
-    deleteErrors.clear();
-    try {
-      await staffShiftSeriesService.endSeries(
-        shift.seriesId,
-        seriesEffectiveDate,
-      );
-      setConfirmDeleteOpen(false);
-      onSaved();
-      onClose();
-    } catch (err: unknown) {
-      logger.error("shift_series_end_failed", {
-        series_id: shift.seriesId,
-        date: seriesEffectiveDate,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await deleteErrors.show(err, {
-        object: "die Serie",
-        retry: () => latestDeleteRef.current(),
-      });
-    } finally {
-      setIsDeleting(false);
-      setScopeQuestion(null);
-    }
+    const seriesId = shift?.seriesId;
+    if (!seriesId) return;
+    await runWrite("delete", async (op) => {
+      deleteErrors.clear();
+      try {
+        await staffShiftSeriesService.endSeries(seriesId, seriesEffectiveDate);
+        onSaved();
+        if (!op.isCurrent()) return;
+        setConfirmDeleteOpen(false);
+        onClose();
+      } catch (err: unknown) {
+        logger.error("shift_series_end_failed", {
+          series_id: seriesId,
+          date: seriesEffectiveDate,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await deleteErrors.show(err, {
+          object: "die Serie",
+          retry: () => latestDeleteRef.current(),
+        });
+      } finally {
+        if (op.isCurrent()) setScopeQuestion(null);
+      }
+    });
   };
 
   // Löschen (#3110): ein Dialog; bei einer Serienschicht liegt die Scope-Wahl
@@ -1057,7 +1088,7 @@ export function ShiftEditModal({
           this modal's body. */}
       <SlideOver
         open={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
-        isDismissDisabled={isSaving || isDeleting}
+        pending={write}
         onOpenChange={(next) => {
           if (!next) onClose();
         }}

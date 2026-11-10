@@ -435,16 +435,24 @@ SlideOverBody.displayName = "SlideOverBody";
 /**
  * The panel's action row. A disabled fieldset locks every action in it
  * (Abbrechen too) while the panel's save runs, without each caller wiring it
- * again (#6593).
+ * again (#6593). A link (`ButtonLink`) ignores the fieldset, so a busy footer
+ * also swallows its clicks: leaving the page would look like a cancel too.
  */
 const SlideOverFooter = ({
   className,
+  onClickCapture,
   ...props
 }: React.FieldsetHTMLAttributes<HTMLFieldSetElement>) => {
   const busy = React.useContext(SlideOverBusyContext);
   return (
     <fieldset
       disabled={busy}
+      onClickCapture={(event) => {
+        onClickCapture?.(event);
+        if (!busy) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       className={cn(
         "flex min-w-0 flex-row flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
         className,

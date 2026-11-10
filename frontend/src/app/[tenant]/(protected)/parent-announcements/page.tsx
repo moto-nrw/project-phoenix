@@ -40,6 +40,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import type { FormError, FormErrorDetail } from "~/components/ui/form-error";
 import {
   errorAlertActions,
@@ -939,7 +940,10 @@ function AnnouncementFormModal({
   const latestRemoveAttachmentRef = useRef<(attachmentId: string) => void>(
     () => undefined,
   );
-  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  // Speichern und Entfernen eines Anhangs sperren das Panel (#6593); das
+  // Panel ist nur eingehängt, solange es offen ist.
+  const save = useFormModalPending();
+  const attachmentBusy = save.pending;
   // Ob die Anhänge dieser Mitteilung noch änderbar sind. Die Antwort der
   // Liste sagt es: ein Entwurf, der zwischenzeitlich anderswo veröffentlicht
   // wurde, ist es nicht mehr. Ohne diesen Zustand bietet der Assistent weiter
@@ -1244,24 +1248,25 @@ function AnnouncementFormModal({
       setAttachmentHint(lockedHint);
       return;
     }
-    setAttachmentBusy(true);
-    clearAttachmentErrors();
-    try {
-      await deleteAnnouncementAttachment(persistedId, attachmentId);
-      setExistingAttachments((prev) =>
-        prev.filter((a) => a.id !== attachmentId),
-      );
-    } catch (err) {
-      logger.error("announcement_attachment_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await attachmentErrors.show(err, {
-        object: "das Entfernen des Anhangs",
-        retry: () => latestRemoveAttachmentRef.current(attachmentId),
-      });
-    } finally {
-      setAttachmentBusy(false);
-    }
+    const announcementId = persistedId;
+    await save.run(async (op) => {
+      clearAttachmentErrors();
+      try {
+        await deleteAnnouncementAttachment(announcementId, attachmentId);
+        setExistingAttachments((prev) =>
+          prev.filter((a) => a.id !== attachmentId),
+        );
+      } catch (err) {
+        logger.error("announcement_attachment_delete_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await attachmentErrors.show(err, {
+          object: "das Entfernen des Anhangs",
+          retry: () => latestRemoveAttachmentRef.current(attachmentId),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestRemoveAttachmentRef.current = (attachmentId) =>
@@ -1334,82 +1339,95 @@ function AnnouncementFormModal({
         : {}),
     };
 
-    setSubmitting(publish ? "publish" : "draft");
-    clearFormError();
     const retry = () => latestSubmitRef.current(publish);
-    try {
-      const saved = persistedId
-        ? await updateAnnouncement(persistedId, input)
-        : await createAnnouncement(input);
-      setPersistedId(saved.id);
+    await save.run(async (op) => {
+      setSubmitting(publish ? "publish" : "draft");
+      clearFormError();
+      try {
+        const saved = persistedId
+          ? await updateAnnouncement(persistedId, input)
+          : await createAnnouncement(input);
+        setPersistedId(saved.id);
 
-      // Anhänge vor dem Veröffentlichen hochladen: danach ist die Mitteilung
-      // unveränderlich und das Backend lehnt jeden weiteren Anhang ab. Der
-      // Entwurf ist an dieser Stelle schon gespeichert, deshalb bleibt bei
-      // einem Fehlschlag nur der Upload offen — und in der Warteliste stehen
-      // dann genau die Dateien, die noch nicht oben sind, so dass ein zweiter
-      // Versuch nichts erneut auswählen und nichts doppelt hochladen muss.
-      if (pendingFiles.length > 0) {
-        try {
-          for (const file of pendingFiles) {
-            const uploaded = await uploadAnnouncementAttachment(saved.id, file);
-            // Jede Datei verlässt die Warteliste sofort nach ihrem Upload,
-            // nicht erst am Ende der Schleife: scheitert eine spätere, lädt der
-            // zweite Versuch sonst die schon übertragenen erneut hoch — der
-            // Anhang läge doppelt an, und die Höchstzahl wäre schneller
-            // erreicht als die Person Dateien ausgewählt hat.
-            setPendingFiles((prev) => prev.filter((entry) => entry !== file));
-            if (uploaded) {
-              setExistingAttachments((prev) => [...prev, uploaded]);
+        // Anhänge vor dem Veröffentlichen hochladen: danach ist die Mitteilung
+        // unveränderlich und das Backend lehnt jeden weiteren Anhang ab. Der
+        // Entwurf ist an dieser Stelle schon gespeichert, deshalb bleibt bei
+        // einem Fehlschlag nur der Upload offen — und in der Warteliste stehen
+        // dann genau die Dateien, die noch nicht oben sind, so dass ein zweiter
+        // Versuch nichts erneut auswählen und nichts doppelt hochladen muss.
+        if (pendingFiles.length > 0) {
+          try {
+            for (const file of pendingFiles) {
+              const uploaded = await uploadAnnouncementAttachment(
+                saved.id,
+                file,
+              );
+              // Jede Datei verlässt die Warteliste sofort nach ihrem Upload,
+              // nicht erst am Ende der Schleife: scheitert eine spätere, lädt der
+              // zweite Versuch sonst die schon übertragenen erneut hoch — der
+              // Anhang läge doppelt an, und die Höchstzahl wäre schneller
+              // erreicht als die Person Dateien ausgewählt hat.
+              setPendingFiles((prev) => prev.filter((entry) => entry !== file));
+              if (uploaded) {
+                setExistingAttachments((prev) => [...prev, uploaded]);
+              }
             }
+          } catch (err) {
+            logger.error("announcement_attachment_upload_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            // Der Entwurf ist gespeichert; das Objekt sagt es mit. Die noch
+            // offenen Dateien stehen weiter in der Warteliste, „Wiederholen“
+            // lädt nur sie hoch.
+            if (op.isCurrent()) {
+              await formErrors.show(err, {
+                object: "das Hochladen eines Anhangs zum gespeicherten Entwurf",
+                retry,
+              });
+            }
+            await onRefresh();
+            return;
           }
-        } catch (err) {
-          logger.error("announcement_attachment_upload_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          // Der Entwurf ist gespeichert; das Objekt sagt es mit. Die noch
-          // offenen Dateien stehen weiter in der Warteliste, „Wiederholen“
-          // lädt nur sie hoch.
-          await formErrors.show(err, {
-            object: "das Hochladen eines Anhangs zum gespeicherten Entwurf",
-            retry,
-          });
-          await onRefresh();
-          return;
         }
-      }
 
-      if (publish) {
-        try {
-          await publishAnnouncement(saved.id);
-        } catch (err) {
-          // The draft is saved — surface only the publish failure so nothing is
-          // lost. Refresh the list so the draft appears, but keep THIS modal
-          // open so the error stays visible and the user can retry publishing.
-          logger.error("announcement_publish_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          await formErrors.show(err, {
-            object: "das Veröffentlichen des gespeicherten Entwurfs",
-            retry,
-          });
-          await onRefresh();
-          return;
+        if (publish) {
+          try {
+            await publishAnnouncement(saved.id);
+          } catch (err) {
+            // The draft is saved — surface only the publish failure so nothing is
+            // lost. Refresh the list so the draft appears, but keep THIS modal
+            // open so the error stays visible and the user can retry publishing.
+            logger.error("announcement_publish_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            if (op.isCurrent()) {
+              await formErrors.show(err, {
+                object: "das Veröffentlichen des gespeicherten Entwurfs",
+                retry,
+              });
+            }
+            await onRefresh();
+            return;
+          }
         }
+        // Eine späte Antwort frischt nur die Liste auf; das Schließen gehört
+        // zum Panel, das gespeichert hat.
+        if (op.isCurrent()) await onSaved();
+        else await onRefresh();
+      } catch (err) {
+        logger.error("announcement_save_failed", {
+          mode: isEdit ? "update" : "create",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Speichern der Mitteilung",
+          retry,
+        });
+      } finally {
+        if (op.isCurrent()) setSubmitting(null);
       }
-      await onSaved();
-    } catch (err) {
-      logger.error("announcement_save_failed", {
-        mode: isEdit ? "update" : "create",
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Speichern der Mitteilung",
-        retry,
-      });
-    } finally {
-      setSubmitting(null);
-    }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = (publish) => void handleSubmit(publish);
@@ -1483,6 +1501,7 @@ function AnnouncementFormModal({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      pending={save}
     >
       <SlideOverContent size="xl">
         <SlideOverHeader>
@@ -1998,6 +2017,9 @@ function AnnouncementFormModal({
                             variant="ghost"
                             size="compact"
                             onClick={() => removePendingFile(index)}
+                            // Während des Speicherns lädt die Schleife genau
+                            // diese Liste hoch; entfernt wird danach.
+                            disabled={save.pending}
                           >
                             Entfernen
                           </Button>

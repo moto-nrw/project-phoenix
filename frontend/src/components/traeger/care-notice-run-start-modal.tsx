@@ -16,7 +16,10 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { CareSchool } from "~/lib/traeger-care-billing-api";
-import type { CareNoticeRunStartInput } from "~/lib/traeger-care-notices-api";
+import type {
+  CareNoticeRun,
+  CareNoticeRunStartInput,
+} from "~/lib/traeger-care-notices-api";
 import { formatMonth, monthRange } from "./care-billing-format";
 
 const logger = createLogger({ component: "CareNoticeRunStartModal" });
@@ -36,13 +39,17 @@ export function CareNoticeRunStartModal({
   suggestedYear,
   onClose,
   onStart,
+  onStarted,
 }: Readonly<{
   isOpen: boolean;
   schools: readonly CareSchool[];
   initialMonth: string;
   suggestedYear: number;
   onClose: () => void;
-  onStart: (input: CareNoticeRunStartInput) => Promise<void>;
+  /** Starts the run; may refresh data, but must not close or navigate. */
+  onStart: (input: CareNoticeRunStartInput) => Promise<CareNoticeRun>;
+  /** Closes and opens the run; called only while this dialog is current. */
+  onStarted: (run: CareNoticeRun) => void;
 }>) {
   const [fromMonth, setFromMonth] = useState(initialMonth);
   const [selected, setSelected] = useState<string[]>([]);
@@ -86,8 +93,9 @@ export function CareNoticeRunStartModal({
       return;
     }
     await save.run(async (op) => {
+      let run: CareNoticeRun;
       try {
-        await onStart({
+        run = await onStart({
           year,
           fromMonth,
           schoolIds: selected,
@@ -99,7 +107,10 @@ export function CareNoticeRunStartModal({
         });
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "der Jahreslauf" });
+        return;
       }
+      // A late answer must not close or navigate away from a newer dialog.
+      if (op.isCurrent()) onStarted(run);
     });
   };
 

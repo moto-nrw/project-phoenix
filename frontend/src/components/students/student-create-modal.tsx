@@ -12,6 +12,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
@@ -220,7 +221,8 @@ export function StudentCreateModal({
     allowed_departure_modes: {},
     pickup_status: "Geht alleine nach Hause",
   });
-  const [saveLoading, setSaveLoading] = useState(false);
+  // Bewusst `isOpen`: die Unter-Dialoge blenden das Panel nur aus.
+  const save = useFormModalPending(isOpen);
   const [guardians, setGuardians] = useState<StudentGuardianPayload[]>([]);
   const [guardianModalOpen, setGuardianModalOpen] = useState(false);
   // Weekly care plan staged in the create modal (no API calls here — persisted
@@ -476,26 +478,28 @@ export function StudentCreateModal({
   // Pflichtfelder wie beim Kind (Vorname, Nachname, Klasse).
   const submitListEntry = async () => {
     if (!onCreateListEntry || !validateForm()) return;
-    errors.clear();
-    setSaveLoading(true);
-    try {
-      await onCreateListEntry({
-        firstName: (formData.first_name ?? "").trim(),
-        lastName: (formData.second_name ?? "").trim(),
-        schoolClass: (formData.school_class ?? "").trim(),
-      });
-      onClose();
-    } catch (error) {
-      logger.error("class_list_entry_create_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      await errors.show(error, {
-        object: "die Klassenliste",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaveLoading(false);
-    }
+    await save.run(async (op) => {
+      errors.clear();
+      try {
+        await onCreateListEntry({
+          firstName: (formData.first_name ?? "").trim(),
+          lastName: (formData.second_name ?? "").trim(),
+          schoolClass: (formData.school_class ?? "").trim(),
+        });
+      } catch (error) {
+        logger.error("class_list_entry_create_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        await errors.show(error, {
+          object: "die Klassenliste",
+          retry: () => void latestSubmitRef.current(),
+        });
+        return;
+      }
+      if (op.isCurrent()) onClose();
+    });
   };
 
   const submitStudent = async () => {
@@ -514,23 +518,25 @@ export function StudentCreateModal({
         schedules: pickupSchedules,
       }).schedules;
     }
-    errors.clear();
-    setSaveLoading(true);
-    try {
-      await onCreate(payload);
-    } catch (error) {
-      logger.error("student_create_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Das volle Kinderkontingent nennt der Katalog samt Zahlen aus den
-      // Details der Antwort; kein Satz des Servers wird gelesen.
-      await errors.show(error, {
-        object: "das Kind",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaveLoading(false);
-    }
+    await save.run(async (op) => {
+      errors.clear();
+      try {
+        // Der Aufrufer schließt das Panel nach dem Anlegen selbst.
+        await onCreate(payload);
+      } catch (error) {
+        logger.error("student_create_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        // Das volle Kinderkontingent nennt der Katalog samt Zahlen aus den
+        // Details der Antwort; kein Satz des Servers wird gelesen.
+        await errors.show(error, {
+          object: "das Kind",
+          retry: () => void latestSubmitRef.current(),
+        });
+      }
+    });
   };
 
   const submit =
@@ -579,6 +585,7 @@ export function StudentCreateModal({
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
+        pending={save}
       >
         <SlideOverContent size="lg" isBackdropDismissDisabled>
           <SlideOverHeader
@@ -806,7 +813,7 @@ export function StudentCreateModal({
                                   variant="ghost_danger"
                                   size="icon"
                                   onClick={() => removeGuardian(index)}
-                                  disabled={saveLoading}
+                                  disabled={save.pending}
                                   aria-label="Erziehungsberechtigte/n entfernen"
                                   className="shrink-0"
                                 >
@@ -834,7 +841,7 @@ export function StudentCreateModal({
                             variant="dashed"
                             size="md"
                             onClick={() => setGuardianModalOpen(true)}
-                            disabled={saveLoading}
+                            disabled={save.pending}
                             className="flex-1 gap-2"
                           >
                             <Plus className="h-4 w-4" />
@@ -845,7 +852,7 @@ export function StudentCreateModal({
                             variant="dashed"
                             size="md"
                             onClick={() => setGuardianPickerOpen(true)}
-                            disabled={saveLoading}
+                            disabled={save.pending}
                             className="flex-1 gap-2"
                           >
                             <Search className="h-4 w-4" />
@@ -898,7 +905,7 @@ export function StudentCreateModal({
                             setArrivalSchedules([]);
                             setPickupSchedules([]);
                           }}
-                          disabled={saveLoading}
+                          disabled={save.pending}
                           aria-label="Betreuungszeiten entfernen"
                           className="shrink-0"
                         >
@@ -912,7 +919,7 @@ export function StudentCreateModal({
                       variant="dashed"
                       size="md"
                       onClick={handleOpenCarePlan}
-                      disabled={saveLoading}
+                      disabled={save.pending}
                       className="w-full gap-2"
                     >
                       <Plus className="h-4 w-4" />
@@ -979,7 +986,7 @@ export function StudentCreateModal({
                 variant="outline"
                 size="md"
                 onClick={onClose}
-                disabled={saveLoading}
+                disabled={save.pending}
                 className="flex-1"
               >
                 Abbrechen
@@ -990,7 +997,7 @@ export function StudentCreateModal({
                   variant="primary"
                   size="md"
                   data-setup-tour="student-submit"
-                  isLoading={saveLoading}
+                  isLoading={save.pending}
                   loadingText="Wird erstellt..."
                   className="flex-1"
                 >

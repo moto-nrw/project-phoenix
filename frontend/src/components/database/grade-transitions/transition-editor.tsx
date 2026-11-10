@@ -18,6 +18,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -98,7 +99,8 @@ export function TransitionEditor({
     clear: clearSaveError,
   } = useApiFormError();
   const latestContinueRef = useRef<() => void>(() => undefined);
-  const [saving, setSaving] = useState(false);
+  // Mounted only while open: one session per editor (#6593).
+  const save = useFormModalPending();
   const [allClasses, setAllClasses] = useState<string[]>([]);
   const [classToAdd, setClassToAdd] = useState("");
 
@@ -213,42 +215,44 @@ export function TransitionEditor({
 
   const handleContinue = async () => {
     if (validationError || !rows) return;
-    setSaving(true);
-    clearSaveError();
+    await save.run(async (op) => {
+      clearSaveError();
 
-    const mappings: MappingInput[] = rows.map((row) => ({
-      fromClass: row.fromClass,
-      toClass: row.mode === "graduate" ? null : row.toClass.trim(),
-    }));
+      const mappings: MappingInput[] = rows.map((row) => ({
+        fromClass: row.fromClass,
+        toClass: row.mode === "graduate" ? null : row.toClass.trim(),
+      }));
 
-    try {
-      const transition = existingDraft
-        ? await updateGradeTransition(existingDraft.id, {
-            academicYear,
-            // Send the raw value (including "") so clearing the field actually
-            // removes the stored note instead of leaving the old one in place.
-            notes,
-            mappings,
-          })
-        : await createGradeTransition({
-            academicYear,
-            notes: notes || undefined,
-            mappings,
-          });
-      onReadyForPreview(transition);
-    } catch (error) {
-      logger.error("draft_save_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // grade_transition.not_draft (jemand hat den Entwurf inzwischen
-      // angewendet) erklärt der Katalog; Wiederholen bietet er nur bei
-      // Server- und Verbindungsfehlern an (#405 review).
-      void showSaveError(error, {
-        object: "das Speichern des Entwurfs",
-        retry: () => latestContinueRef.current(),
-      });
-      setSaving(false);
-    }
+      try {
+        const transition = existingDraft
+          ? await updateGradeTransition(existingDraft.id, {
+              academicYear,
+              // Send the raw value (including "") so clearing the field actually
+              // removes the stored note instead of leaving the old one in place.
+              notes,
+              mappings,
+            })
+          : await createGradeTransition({
+              academicYear,
+              notes: notes || undefined,
+              mappings,
+            });
+        // A late answer must not switch a closed editor to the preview.
+        if (op.isCurrent()) onReadyForPreview(transition);
+      } catch (error) {
+        logger.error("draft_save_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!op.isCurrent()) return;
+        // grade_transition.not_draft (jemand hat den Entwurf inzwischen
+        // angewendet) erklärt der Katalog; Wiederholen bietet er nur bei
+        // Server- und Verbindungsfehlern an (#405 review).
+        void showSaveError(error, {
+          object: "das Speichern des Entwurfs",
+          retry: () => latestContinueRef.current(),
+        });
+      }
+    });
   };
 
   // Wiederholen speichert den aktuellen Stand des Entwurfs.
@@ -259,6 +263,7 @@ export function TransitionEditor({
   return (
     <SlideOver
       open
+      pending={save}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
@@ -411,9 +416,9 @@ export function TransitionEditor({
             type="button"
             size="md"
             onClick={handleContinue}
-            disabled={Boolean(validationError) || saving || !rows}
+            disabled={Boolean(validationError) || save.pending || !rows}
           >
-            {saving ? "Speichern …" : "Weiter zur Vorschau"}
+            {save.pending ? "Speichern …" : "Weiter zur Vorschau"}
           </Button>
         </SlideOverFooter>
       </SlideOverContent>

@@ -23,6 +23,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -67,7 +68,12 @@ export function TransitionPreviewModal({
   } = useApiLoadError();
   const [reloadKey, setReloadKey] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [applying, setApplying] = useState(false);
+  // Mounted only while a preview is shown. The session spans the hidden
+  // panel while the confirmation applies (#6593), so the panel stays locked
+  // when it comes back with an error, and "Wiederholen" in the panel locks it
+  // too.
+  const save = useFormModalPending(true, transition.id);
+  const applying = save.pending;
   const {
     error: applyError,
     show: showApplyError,
@@ -118,35 +124,37 @@ export function TransitionPreviewModal({
 
   const handleApply = async () => {
     if (!preview) return;
-    setApplying(true);
-    clearApplyError();
-    try {
-      // Bind the apply to exactly the cohort this modal displayed: the backend
-      // refuses it if the affected children or mappings changed in between,
-      // rather than silently graduating a different set (#405).
-      const result = await applyGradeTransition(
-        transition.id,
-        preview.fingerprint,
-      );
-      onApplied(result);
-    } catch (error) {
-      logger.error("apply_failed", {
-        transition_id: transition.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Den Text liefert der Katalog (grade_transition.*). Eine veraltete
-      // Vorschau wird neu geladen, damit über den aktuellen Stand entschieden
-      // wird (#405).
-      void showApplyError(error, {
-        object: "das Anwenden des Schuljahreswechsels",
-        retry: () => latestApplyRef.current(),
-      });
-      if (error instanceof ApiError && error.code === PREVIEW_STALE_CODE) {
-        await reloadPreview();
+    await save.run(async (op) => {
+      clearApplyError();
+      try {
+        // Bind the apply to exactly the cohort this modal displayed: the backend
+        // refuses it if the affected children or mappings changed in between,
+        // rather than silently graduating a different set (#405).
+        const result = await applyGradeTransition(
+          transition.id,
+          preview.fingerprint,
+        );
+        // Closes the preview; a late answer must not close a later dialog.
+        if (op.isCurrent()) onApplied(result);
+      } catch (error) {
+        logger.error("apply_failed", {
+          transition_id: transition.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!op.isCurrent()) return;
+        // Den Text liefert der Katalog (grade_transition.*). Eine veraltete
+        // Vorschau wird neu geladen, damit über den aktuellen Stand entschieden
+        // wird (#405).
+        void showApplyError(error, {
+          object: "das Anwenden des Schuljahreswechsels",
+          retry: () => latestApplyRef.current(),
+        });
+        if (error instanceof ApiError && error.code === PREVIEW_STALE_CODE) {
+          await reloadPreview();
+        }
+        if (op.isCurrent()) setConfirmOpen(false);
       }
-      setApplying(false);
-      setConfirmOpen(false);
-    }
+    });
   };
 
   // Wiederholen wendet mit der Vorschau an, die dann gilt.
@@ -160,6 +168,7 @@ export function TransitionPreviewModal({
         // Ausgeblendet, solange die Bestätigung offen ist — nie zwei
         // eigenständige Dialoge übereinander (#2774).
         open={!confirmOpen}
+        pending={save}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}

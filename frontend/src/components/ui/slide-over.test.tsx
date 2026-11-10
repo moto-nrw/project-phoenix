@@ -553,6 +553,45 @@ describe("SlideOver", () => {
       expectLocked(onOpenChange);
     });
 
+    it("lässt einen Link in der Fußleiste nicht wegführen, solange gespeichert wird", async () => {
+      const save = deferred();
+      const onNavigate = vi.fn();
+      function PanelWithLink() {
+        const pending = useFormModalPending(true);
+        return (
+          <SlideOver open pending={pending}>
+            <SlideOverContent>
+              <SlideOverFooter>
+                <a href="#weiter" onClick={onNavigate}>
+                  Weiter
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void pending.run(() => save.promise)}
+                >
+                  Speichern
+                </button>
+              </SlideOverFooter>
+            </SlideOverContent>
+          </SlideOver>
+        );
+      }
+      render(<PanelWithLink />);
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      const blocked = fireEvent.click(
+        screen.getByRole("link", { name: "Weiter" }),
+      );
+
+      expect(blocked).toBe(false);
+      expect(onNavigate).not.toHaveBeenCalled();
+      await act(async () => {
+        save.resolve();
+      });
+      fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+      expect(onNavigate).toHaveBeenCalledTimes(1);
+    });
+
     it("gibt nach einem Fehler alle Wege frei und behält die Eingabe", async () => {
       const onOpenChange = vi.fn();
       const save = deferred();
@@ -648,8 +687,8 @@ describe("SlideOver", () => {
     });
 
     it.each([
-      ["geschlossen und wieder geöffnet", { open: true }],
-      ["auf ein anderes Objekt gewechselt", { open: true, context: "b" }],
+      ["geschlossen und wieder geöffnet", { context: undefined }],
+      ["auf ein anderes Objekt gewechselt", { context: "b" }],
     ])(
       "lässt eine späte Antwort in Ruhe, nachdem das Panel %s wurde",
       async (_label, next) => {
@@ -682,7 +721,6 @@ describe("SlideOver", () => {
         }
         rerender(
           <PendingPanel
-            open={next.open}
             context={next.context ?? "a"}
             onOpenChange={onOpenChange}
             task={task}

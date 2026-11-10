@@ -33,6 +33,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -143,8 +144,8 @@ export default function SchoolParentLettersPage() {
     emptySchoolParentLetterDraft([]),
   );
   const [createdLetter, setCreatedLetter] = useState<Announcement | null>(null);
-  const submittingRef = useRef(false);
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(formOpen);
+  const submitting = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
@@ -167,44 +168,44 @@ export default function SchoolParentLettersPage() {
   // Anlegen und Senden in einem Schritt: die Lehrkraft schreibt einen Brief
   // und schickt ihn ab. Weitere Versuche senden denselben gespeicherten Brief.
   const submit = async () => {
-    if (submittingRef.current) return;
+    if (save.pending) return;
     const fields = schoolParentLetterFieldErrors(draft);
     if (Object.keys(fields).length > 0) {
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     formErrors.clear();
-    submittingRef.current = true;
-    setSubmitting(true);
-    try {
-      const created =
-        createdLetter ??
-        (await createAnnouncement(
-          schoolParentLetterRequest(draft),
-          SCHOOL_PARENT_LETTERS_BASE,
-        ));
-      setCreatedLetter(created);
+    await save.run(async (op) => {
       try {
-        await publishAnnouncement(created.id, SCHOOL_PARENT_LETTERS_BASE);
-      } finally {
-        await mutate();
+        const created =
+          createdLetter ??
+          (await createAnnouncement(
+            schoolParentLetterRequest(draft),
+            SCHOOL_PARENT_LETTERS_BASE,
+          ));
+        // Ein späterer Versuch im selben Vorgang sendet denselben Brief; ein
+        // neu geöffnetes Formular beginnt einen neuen.
+        if (op.isCurrent()) setCreatedLetter(created);
+        try {
+          await publishAnnouncement(created.id, SCHOOL_PARENT_LETTERS_BASE);
+        } finally {
+          await mutate();
+        }
+        toast.success(
+          `Der Elternbrief „${created.title}“ ist an die Eltern der ${schoolClassLabel(draft.schoolClass)} verschickt.`,
+        );
+        if (op.isCurrent()) closeForm();
+      } catch (err) {
+        logger.error("school_parent_letter_send_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Senden des Elternbriefs",
+          retry: () => latestSubmitRef.current(),
+        });
       }
-      toast.success(
-        `Der Elternbrief „${created.title}“ ist an die Eltern der ${schoolClassLabel(draft.schoolClass)} verschickt.`,
-      );
-      closeForm();
-    } catch (err) {
-      logger.error("school_parent_letter_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Senden des Elternbriefs",
-        retry: () => latestSubmitRef.current(),
-      });
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
-    }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = () => void submit();
@@ -244,13 +245,12 @@ export default function SchoolParentLettersPage() {
         <SlideOver
           open={formOpen}
           onOpenChange={(open) => {
-            if (!open && !submitting) closeForm();
+            if (!open) closeForm();
           }}
+          pending={save}
         >
           <SlideOverContent size="md">
-            <SlideOverHeader
-              close={<SlideOverCloseButton disabled={submitting} />}
-            >
+            <SlideOverHeader close={<SlideOverCloseButton />}>
               <SlideOverTitle>Neuer Elternbrief</SlideOverTitle>
             </SlideOverHeader>
             <form

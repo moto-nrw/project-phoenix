@@ -16,6 +16,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Textarea } from "~/components/ui/textarea";
 import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -187,7 +188,7 @@ export function VacationRequestModal({
   const [startHalf, setStartHalf] = useState(false);
   const [endHalf, setEndHalf] = useState(false);
   const [note, setNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(isOpen);
   // Prüf- und Speicherfehler stehen oben im Panel (SlideOverBody `error`),
   // nicht als Toast: Bauart 2 Regel 5. Der Text kommt aus dem Fehlerkatalog.
   const formErrors = useApiFormError();
@@ -283,33 +284,38 @@ export function VacationRequestModal({
     if (exceedsBalance) {
       return;
     }
-    setSubmitting(true);
-    formErrors.clear();
-    try {
-      await timeTrackingService.requestVacation({
-        date_start: toIsoDate(range.from),
-        date_end: toIsoDate(range.to),
-        start_half_day: startHalf,
-        end_half_day: endHalf,
-        note: note.trim() || undefined,
-      });
-    } catch (err) {
-      logger.error("vacation_request_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Urlaubsanfrage",
-        retry: () => void latestSubmitRef.current(),
-      });
-      return;
-    } finally {
-      setSubmitting(false);
-    }
-    toast.success("Der Urlaubsantrag ist gesendet.");
-    dispatchAbsencesRefresh();
-    onSubmitted();
-    handleReset();
-    onClose();
+    const { from, to } = range;
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await timeTrackingService.requestVacation({
+          date_start: toIsoDate(from),
+          date_end: toIsoDate(to),
+          start_half_day: startHalf,
+          end_half_day: endHalf,
+          note: note.trim() || undefined,
+        });
+      } catch (err) {
+        logger.error("vacation_request_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Urlaubsanfrage",
+          retry: () => void latestSubmitRef.current(),
+        });
+        return;
+      }
+      // Der Antrag ist gesendet: melden und neu laden, auch wenn das Panel
+      // inzwischen zu ist. Leeren und Schließen nur im selben Vorgang.
+      toast.success("Der Urlaubsantrag ist gesendet.");
+      dispatchAbsencesRefresh();
+      onSubmitted();
+      if (!op.isCurrent()) return;
+      handleReset();
+      onClose();
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = handleSubmit;
@@ -327,14 +333,15 @@ export function VacationRequestModal({
     <SlideOver
       open={isOpen}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && !submitting) {
+        if (!nextOpen) {
           handleReset();
           onClose();
         }
       }}
+      pending={save}
     >
       <SlideOverContent size="md">
-        <SlideOverHeader close={<SlideOverCloseButton disabled={submitting} />}>
+        <SlideOverHeader close={<SlideOverCloseButton />}>
           <SlideOverTitle>Urlaub beantragen</SlideOverTitle>
           <SlideOverDescription>
             Zeitraum wählen und den Antrag an die OGS-Leitung senden.
@@ -478,7 +485,7 @@ export function VacationRequestModal({
                   handleReset();
                   onClose();
                 }}
-                disabled={submitting}
+                disabled={save.pending}
               >
                 Abbrechen
               </Button>
@@ -488,7 +495,7 @@ export function VacationRequestModal({
                 size="md"
                 onClick={handleSubmit}
                 disabled={
-                  submitting ||
+                  save.pending ||
                   !range?.from ||
                   !range.to ||
                   workingDays === 0 ||
@@ -496,7 +503,7 @@ export function VacationRequestModal({
                   Boolean(overlapMessage)
                 }
               >
-                {submitting ? "Wird gesendet…" : "Antrag senden"}
+                {save.pending ? "Wird gesendet…" : "Antrag senden"}
               </Button>
             </div>
           </div>
