@@ -71,7 +71,7 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:             repos.schools,
-		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools},
+		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools, AccountRetention: organizationCompose.NewAccountRetention(observeOrganizationTenancy)},
 		PortalModules:       portalModules,
 		Persons:             PersonDirectory{Persons: repos.persons},
 		Passwords:           passwordVerifier{},
@@ -234,6 +234,7 @@ func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64)
 // port over Organisation & Tenancy (ADR 0084).
 type TraegerMembershipDirectory struct {
 	Memberships organizationtenancy.TraegerMembershipQuery
+	organizationtenancy.AccountRetention
 }
 
 // ListAccountTraegerOrganizations returns the Träger the account may sign in to.

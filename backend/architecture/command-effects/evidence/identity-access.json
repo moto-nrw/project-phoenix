@@ -21121,6 +21121,14 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.HasRetainedTraegerMembership",
+      "binding_digest": "5f426105dda1b14d5dbdff81d7210b86",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.HasRetainedTraegerMembership",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.AccountRetention.HasRetainedTraegerMembership",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
       "binding_digest": "7af32766e38160ff5cc16fa7e5d07f73",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
