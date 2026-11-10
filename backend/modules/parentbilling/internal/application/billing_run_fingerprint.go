@@ -9,7 +9,7 @@ import (
 )
 
 // The release of a holiday run issues exactly the preview the Abrechnung
-// checked (#6506, ADR 0203), as the monthly run does (#5916): the preview
+// checked (#6506, ADR 0204), as the monthly run does (#5916): the preview
 // carries a fingerprint of its content, and the release computes it again
 // under the lock of the run and refuses a missing or other one before it
 // reserves a number. Count and sum alone let a correction move an amount

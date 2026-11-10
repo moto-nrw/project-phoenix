@@ -1,5 +1,5 @@
 // Router-level tests of the release contract of a holiday run (#6506,
-// ADR 0203): the release names the fingerprint of the preview the
+// ADR 0204): the release names the fingerprint of the preview the
 // Abrechnung checked and refuses other content with the same count and sum,
 // before any number is reserved or invoice written. Every request runs in a
 // transaction of its own: the review, each correction and the release.
