@@ -14,6 +14,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
@@ -79,6 +80,13 @@ function git(args, options = {}) {
   return result.stdout;
 }
 
+const repoRoot = git(["rev-parse", "--show-toplevel"]).trim();
+/** Pfad des Frontends im Repository, ohne Schrägstrich am Ende („frontend“). */
+const frontendPrefix = path
+  .relative(realpathSync(repoRoot), realpathSync(frontendDir))
+  .split(path.sep)
+  .join("/");
+
 function buildStorybook(cwd, outputDir) {
   rmSync(outputDir, { recursive: true, force: true });
   console.log(`\nStorybook bauen: ${path.relative(frontendDir, cwd) || "."}`);
@@ -96,14 +104,18 @@ function exportFrontend(sha) {
   mkdirSync(sourceDir, { recursive: true });
   const archive = path.join(workDir, "source.tar");
   // git archive statt Worktree: registriert nichts im gemeinsamen Repository.
-  // Aus frontend/ aufgerufen, packt git archive nur dieses Verzeichnis.
-  git(["archive", "--format=tar", "-o", archive, sha]);
+  // `<sha>:frontend` ist der Baum des Frontend-Ordners; das Archiv enthält
+  // also `package.json` usw. ohne Präfix. Vom Repo-Stamm aus aufgerufen, weil
+  // git archive aus einem Unterordner nur dessen Teilbaum packt.
+  git(["archive", "--format=tar", "-o", archive, `${sha}:${frontendPrefix}`], {
+    cwd: repoRoot,
+  });
   const exportedFrontend = path.join(sourceDir, "frontend");
   mkdirSync(exportedFrontend);
   runChecked("tar", ["-xf", archive, "-C", exportedFrontend]);
   rmSync(archive);
 
-  const lockAtRef = git(["show", `${sha}:./pnpm-lock.yaml`]);
+  const lockAtRef = git(["show", `${sha}:${frontendPrefix}/pnpm-lock.yaml`]);
   const lockHere = readFileSync(
     path.join(frontendDir, "pnpm-lock.yaml"),
     "utf8",
