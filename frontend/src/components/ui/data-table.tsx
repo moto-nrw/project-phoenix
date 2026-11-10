@@ -511,7 +511,9 @@ function RowStackedRow<T>({
           taking the name's room, and the name may use that second line too
           rather than being cut. */}
       <div className="min-w-20 flex-1">
-        <span className="line-clamp-2 break-words">{title?.render(row)}</span>
+        <span className="line-clamp-2 break-words">
+          {title ? (title.stackedRender ?? title.render)(row) : null}
+        </span>
         {/* A detail without a value for this row (null) drops its line, as
             a field does in the "lines" layout, instead of a bare label. */}
         {detail && detailValue !== null ? (
