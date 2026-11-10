@@ -85,10 +85,10 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 
 func personExport(t *testing.T, fixture personExportFixture, subject string) string {
 	t.Helper()
-	exporter, err := compose.NewTenantExporter(fixture.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(fixture.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "person")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: fixture.school, Person: subject, Output: out, Uploads: fixture.uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: fixture.school, OperatorID: 42, Person: subject, Output: out, Uploads: fixture.uploads}))
 	manifest := readExportManifest(t, out)
 	require.True(t, manifest.ReviewRequired)
 	assertExportArtifacts(t, out, manifest)
@@ -216,17 +216,17 @@ func assertPersonReview(t *testing.T, out string, hasUnassigned bool) {
 func TestPersonExportRejectsForeignSubjectAndMissingOriginal(t *testing.T) {
 	t.Parallel()
 	f := newPersonExportFixture(t)
-	exporter, err := compose.NewTenantExporter(f.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(f.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	for _, subject := range []string{"kind:" + strconv.FormatInt(f.foreignChild, 10), "staff:" + strconv.FormatInt(f.otherStaff, 10), "student:1", "kind:0", "kind:01"} {
 		out := filepath.Join(t.TempDir(), "failed")
-		err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, Person: subject, Output: out, Uploads: f.uploads})
+		err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, OperatorID: 42, Person: subject, Output: out, Uploads: f.uploads})
 		require.Error(t, err)
 		require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	}
 	require.NoError(t, os.Remove(filepath.Join(f.uploads, fmt.Sprintf("student-photos/%d_%d.bin", f.school, f.child))))
 	out := filepath.Join(t.TempDir(), "missing")
-	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, Person: "kind:" + strconv.FormatInt(f.child, 10), Output: out, Uploads: f.uploads})
+	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, OperatorID: 42, Person: "kind:" + strconv.FormatInt(f.child, 10), Output: out, Uploads: f.uploads})
 	require.Error(t, err)
 	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	require.NotContains(t, err.Error(), f.uploads)

@@ -7,6 +7,8 @@ import {
   Fragment,
   useEffect,
   useId,
+  useLayoutEffect,
+  useRef,
   useState,
   type ComponentType,
   type ReactNode,
@@ -1239,6 +1241,7 @@ export function TimetableRosterContent({
     homeworkErrors.clear();
     setHomeworkRow(null);
   };
+  const retrySaveRef = useRef<() => Promise<void>>(async () => undefined);
   const saveHomework = async () => {
     if (!homeworkRow || !onSaveHomeworkFeedback) return;
     if (!homeworkStatus) {
@@ -1256,12 +1259,15 @@ export function TimetableRosterContent({
     } catch (cause) {
       void homeworkErrors.show(cause, {
         object: "die Rückmeldung",
-        retry: () => void saveHomework(),
+        retry: () => void retrySaveRef.current(),
       });
     } finally {
       setSavingHomework(false);
     }
   };
+  useLayoutEffect(() => {
+    retrySaveRef.current = saveHomework;
+  });
   const closeAddStudent = () => {
     setAddStudentOpen(false);
     // Der nächste Dialog startet ohne Suche und ohne Fehlermeldung; beides

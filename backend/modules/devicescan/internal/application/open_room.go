@@ -74,7 +74,10 @@ func (s *Service) openRoomStudent(ctx context.Context, device *devicescan.Princi
 	if err != nil {
 		return nil, nil, err
 	}
-	student := s.lookupStudent(ctx, person.ID)
+	student, err := s.lookupStudent(ctx, person.ID)
+	if err != nil {
+		return nil, nil, err
+	}
 	if student == nil {
 		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}

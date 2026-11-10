@@ -214,7 +214,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 		return fmt.Errorf("submit: generate status token: %w", err)
 	}
 	plan.statusToken = token
-	lifetime, err := s.resolveStatusTokenExpiry(ctx)
+	lifetime, err := resolveStatusTokenExpiry(ctx, s.deps.Settings)
 	if err != nil {
 		return err
 	}

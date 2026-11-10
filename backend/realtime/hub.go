@@ -685,36 +685,6 @@ func (h *Hub) localBroadcastToGuardian(tenantID, guardianAccountID int64, event 
 	return nil
 }
 
-// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
-func (h *Hub) BroadcastToAll(event Event) error {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	droppedCount := 0
-	for client := range h.clients {
-		// Parent (guardian-portal) clients are cross-tenant and addressed only
-		// by BroadcastParentMessage. A tenant-wide refresh (dashboard counts,
-		// arrival schedule) is staff-only data and must never fan out to every
-		// connected guardian nationwide.
-		// School (Lehrkraft) clients are addressed per account only; the
-		// tenant-wide refreshes are staff-portal data as well.
-		if client.IsParent || client.IsSchool {
-			continue
-		}
-		select {
-		case client.Channel <- event:
-		default:
-			droppedCount++
-			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-all",
-				slog.Int64("user_id", client.UserID),
-				slog.String("event_type", string(event.Type)),
-			)
-		}
-	}
-	h.observeDelivery(0, string(event.Type), "all", droppedCount)
-	return nil
-}
-
 // GetClientCount returns the total number of connected clients (for monitoring)
 func (h *Hub) GetClientCount() int {
 	h.mu.RLock()

@@ -302,8 +302,10 @@ export function AbwesenheitenTab({
   // silent skips the loading flag: the loading boundary unmounts the
   // whole tab subtree including any open modal, which would wipe the
   // SickReportModal's success state right after a report (#1843).
+  const reloadRequest = useRef(0);
   const reload = useCallback(
     async (opts?: { silent?: boolean }) => {
+      const requestId = ++reloadRequest.current;
       if (!opts?.silent) {
         setLoading(true);
       }
@@ -323,6 +325,7 @@ export function AbwesenheitenTab({
             absenceTypeService.getAllowance(type.id, staffId, year),
           ),
         );
+        if (requestId !== reloadRequest.current) return;
         setQuota(q);
         setAbsences(abs);
         setLoadedYear(year);
@@ -339,6 +342,7 @@ export function AbwesenheitenTab({
         // Sidebar pending counter (#1419) listens for this event.
         dispatchAbsencesRefresh();
       } catch (err) {
+        if (requestId !== reloadRequest.current) return;
         logger.error("load_failed", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
@@ -349,7 +353,7 @@ export function AbwesenheitenTab({
           retry: () => void latestReloadRef.current(),
         });
       } finally {
-        setLoading(false);
+        if (requestId === reloadRequest.current) setLoading(false);
       }
     },
     [staff, staffId, year, refreshPendingBadges, showLoadError, clearLoadError],
@@ -358,10 +362,15 @@ export function AbwesenheitenTab({
     latestReloadRef.current = () => reload();
   });
 
+  const cancelReload = useCallback(() => {
+    ++reloadRequest.current;
+  }, []);
+
   useEffect(() => {
     // Ein Jahreswechsel lädt still nach: der Reiter bleibt stehen.
     void reload({ silent: true });
-  }, [reload]);
+    return cancelReload;
+  }, [reload, cancelReload]);
 
   const pending = useMemo(() => pendingAbsences(absences), [absences]);
   const upcoming = useMemo(

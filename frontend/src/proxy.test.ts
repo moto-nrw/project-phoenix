@@ -1516,6 +1516,15 @@ describe("proxy", () => {
       expect(rewrite).toBeNull();
     });
 
+    it.each(["start", "invite", "onboarding", "reset-password", "monitoring"])(
+      "never rewrites the reserved %s host into a top-level route",
+      (slug) => {
+        const host = `${slug}.localhost:3000`;
+        const res = proxy(makeRequest(`http://${host}/dashboard`, host));
+        expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      },
+    );
+
     it("returns null slug for the reserved 'help' subdomain so it never rewrites to /help/*", () => {
       // A tenant slug of "help" would collide with the public /help docs route:
       // help.localhost/dashboard would rewrite to /help/dashboard, where the

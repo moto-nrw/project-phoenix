@@ -159,7 +159,7 @@
     "module": "tenant-runtime",
     "contract_package": "tenant",
     "test_file": "tenant/runtime_test.go",
-    "test": "TestUnitOfWorkRunsRollbackHooksWhenCommitFails"
+    "test": "TestUnitOfWorkDropsAfterCommitHooksWhenCommitFails"
   },
   {
     "module": "timetable-activities",

@@ -1,8 +1,4 @@
 {
-  "api/guardians": [
-    "GET tenant /api/guardians raw",
-    "POST tenant /api/guardians"
-  ],
   "api/guardians/[id]/delete-preview": [
     "GET tenant /api/guardians/id%2F1/delete-preview"
   ],

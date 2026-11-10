@@ -30,15 +30,16 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 	}
 
 	return &identityPorts.MFADependencies{
-		Settings:      mfaSettingsFor(settings),
-		Codec:         codec,
-		Codes:         shortCodeHasher{},
-		Mail:          mail,
-		ResetNotice:   mail,
-		OperatorAudit: operatorActionLog{ledger: operatorAuditLog, logger: logger},
-		JWTSecret:     jwtSecret,
-		Passkeys:      passkeys,
-		Logger:        logger,
+		PermissionGranted: securityruntime.HasPermission,
+		Settings:          mfaSettingsFor(settings),
+		Codec:             codec,
+		Codes:             shortCodeHasher{},
+		Mail:              mail,
+		ResetNotice:       mail,
+		OperatorAudit:     operatorActionLog{ledger: operatorAuditLog, logger: logger},
+		JWTSecret:         jwtSecret,
+		Passkeys:          passkeys,
+		Logger:            logger,
 	}, nil
 }
 

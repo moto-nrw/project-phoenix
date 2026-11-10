@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
 import {
   acceptGuardianInvitation,
-  validateGuardianInvitation,
+  mapValidation,
 } from "./guardian-invitation-api";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -25,34 +25,26 @@ describe("guardian invitation API", () => {
     vi.restoreAllMocks();
   });
 
-  it("validates invitations from wrapped backend data", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          email: "mara@example.test",
-          first_name: "Mara",
-          last_name: "Muster",
-          expires_at: "2026-02-01T12:00:00Z",
-          school_name: "OGS Demo",
-          tenant_slug: "demo",
-          school_logo_url: "https://example.test/logo.png",
-        },
+  it("maps invitation fields for the server-rendered acceptance page", () => {
+    expect(
+      mapValidation({
+        email: "mara@example.test",
+        first_name: "Mara",
+        last_name: "Muster",
+        expires_at: "2026-02-01T12:00:00Z",
+        school_name: "OGS Demo",
+        tenant_slug: "demo",
+        school_logo_url: "/uploads/login-images/logo.png",
       }),
-    );
-
-    await expect(validateGuardianInvitation("tok en")).resolves.toEqual({
+    ).toEqual({
       email: "mara@example.test",
       firstName: "Mara",
       lastName: "Muster",
       expiresAt: "2026-02-01T12:00:00Z",
       schoolName: "OGS Demo",
       tenantSlug: "demo",
-      schoolLogoUrl: "https://example.test/logo.png",
+      schoolLogoUrl: "/uploads/login-images/logo.png",
     });
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/guardian-invitations/tok%20en",
-      undefined,
-    );
   });
 
   it("accepts invitations and maps backend ids to strings", async () => {
@@ -101,8 +93,13 @@ describe("guardian invitation API", () => {
         }),
       );
 
-    await expect(validateGuardianInvitation("expired")).rejects.toMatchObject({
-      message: "Einladung konnte nicht geprüft werden.",
+    await expect(
+      acceptGuardianInvitation("expired", {
+        password: acceptedCredential(),
+        confirmPassword: acceptedCredential(),
+      }),
+    ).rejects.toMatchObject({
+      message: "Einladung konnte nicht angenommen werden.",
       detail: "Token abgelaufen",
       status: 410,
       code: "INVITE_EXPIRED",
@@ -151,7 +148,12 @@ describe("guardian invitation API", () => {
       new TypeError("Failed to fetch"),
     );
 
-    await expect(validateGuardianInvitation("tok")).rejects.toMatchObject({
+    await expect(
+      acceptGuardianInvitation("tok", {
+        password: acceptedCredential(),
+        confirmPassword: acceptedCredential(),
+      }),
+    ).rejects.toMatchObject({
       status: 503,
       code: "general.unavailable",
     });

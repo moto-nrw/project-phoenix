@@ -152,9 +152,12 @@ describe("authConfig", () => {
     expect(authConfig.pages?.signIn).toBe("/");
   });
 
-  it("should have providers array", () => {
-    expect(Array.isArray(authConfig.providers)).toBe(true);
-    expect(authConfig.providers.length).toBeGreaterThan(0);
+  it("registers only the supported credentials provider for tenant sessions", () => {
+    expect(authConfig.providers).toHaveLength(1);
+    expect(authConfig.providers[0]).toMatchObject({
+      id: "credentials",
+      type: "credentials",
+    });
   });
 
   describe("JWT callback", () => {

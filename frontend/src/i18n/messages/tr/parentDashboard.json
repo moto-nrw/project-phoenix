@@ -2,7 +2,6 @@
   "eyebrow": "Veli portalı",
   "title": "Hoş geldiniz",
   "description": "Bugün nelerin önemli olduğunu burada görürsünüz.",
-  "childrenDescription": "Doğrudan uygun işlemi seçin.",
   "actions": {
     "sick": "Devamsızlık bildir",
     "pickup": "Teslim almayı değiştir",
@@ -10,17 +9,7 @@
   },
   "open": "İşlemde",
   "loadError": "Genel bakış yüklenemedi. Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.",
-  "unknownError": "Bilinmeyen hata",
   "notSet": "Belirlenmemiş",
-  "status": {
-    "submitted": "Gönderildi",
-    "under_review": "İnceleniyor",
-    "approved": "Onaylandı",
-    "waitlisted": "Bekleme listesi",
-    "rejected": "Reddedildi",
-    "withdrawn": "Geri çekildi"
-  },
-  "newsNew": "Yeni veli mektubu",
   "newsOutstanding": "Bekliyor",
   "newsCareCancellation": "Bakım iptal edildi",
   "newsImportant": "Önemli",

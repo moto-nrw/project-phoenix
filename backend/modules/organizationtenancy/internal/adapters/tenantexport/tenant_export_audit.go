@@ -14,23 +14,28 @@ import (
 )
 
 // What the Träger package adds to the catalog export (ADR 0187): the
-// operator audit of each run and the PAIN.008 files of the submitted SEPA
-// messages. The rows, with their opened bank and health values, are the
-// catalog export of ADR 0192/0193.
+// PAIN.008 files of the submitted SEPA messages. The rows, with their opened
+// bank and health values, are the catalog export of ADR 0192/0193. Every
+// package, of a school (#6326) or a Träger, is in the operator audit.
 
-// exportOrganization records the attempt of a Träger package before
-// anything is read or written, then its outcome. A failed run removes its
-// partial files, so no readable package stays without its record (#4720);
-// the failure record says whether the removal succeeded.
-func (e *tenantExporter) exportOrganization(ctx context.Context, options organizationtenancy.TenantExportOptions) error {
-	if e.audit == nil || e.sepaFiles == nil {
-		return errors.New("tenant export: a Träger package needs its PAIN.008 files and its operator audit")
+// exportAudited records the attempt of a package before anything is read
+// or written, then its outcome (#4720: every access to personal data is
+// audited). A failed Träger package removes its partial files, so no
+// readable package stays without its record; the failure record says
+// whether the removal succeeded. A failed school package leaves them as
+// before, for the runbook to lock and remove.
+func (e *tenantExporter) exportAudited(ctx context.Context, options organizationtenancy.TenantExportOptions) error {
+	if e.audit == nil {
+		return errors.New("tenant export: a package needs its operator audit")
+	}
+	if options.OrganizationID > 0 && e.sepaFiles == nil {
+		return errors.New("tenant export: a Träger package needs its PAIN.008 files")
 	}
 	if options.OperatorID <= 0 {
-		return errors.New("tenant export: the operator of a Träger package is required for its audit")
+		return errors.New("tenant export: the operator of a package is required for its audit")
 	}
-	attempt := organizationtenancy.TenantExportAttempt{OperatorID: options.OperatorID, OrganizationID: options.OrganizationID,
-		StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	attempt := organizationtenancy.TenantExportAttempt{OperatorID: options.OperatorID, SchoolID: options.SchoolID,
+		OrganizationID: options.OrganizationID, StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}
 	if err := e.audit.BeginTenantExport(ctx, attempt); err != nil {
 		return fmt.Errorf("tenant export: attempt not recorded, nothing was read: %w", err)
 	}
@@ -44,9 +49,10 @@ func (e *tenantExporter) exportOrganization(ctx context.Context, options organiz
 	if err == nil {
 		return nil
 	}
-	failure := organizationtenancy.TenantExportRecord{OperatorID: options.OperatorID, OrganizationID: options.OrganizationID,
+	failure := organizationtenancy.TenantExportRecord{OperatorID: options.OperatorID, SchoolID: options.SchoolID,
+		OrganizationID: options.OrganizationID, PersonReview: options.Person != "",
 		Outcome: organizationtenancy.TenantExportFailed, StartedAt: attempt.StartedAt, ErrorClass: step}
-	if created {
+	if created && options.OrganizationID > 0 {
 		failure.PartialFilesRemoved = os.RemoveAll(options.Output) == nil
 	}
 	if auditErr := e.audit.RecordTenantExport(ctx, failure); auditErr != nil {
@@ -133,8 +139,8 @@ func (r *exportRun) writeSEPADebitFiles(ctx context.Context, owner organizationt
 // file origins, the documents per column and the manifest checksum, no contents, no local path.
 func (r *exportRun) auditRecord(checksum string) organizationtenancy.TenantExportRecord {
 	return organizationtenancy.TenantExportRecord{
-		OperatorID: r.options.OperatorID, OrganizationID: r.options.OrganizationID,
-		Outcome: organizationtenancy.TenantExportCompleted, ManifestSHA256: checksum,
+		OperatorID: r.options.OperatorID, SchoolID: r.options.SchoolID, OrganizationID: r.options.OrganizationID,
+		PersonReview: r.options.Person != "", Outcome: organizationtenancy.TenantExportCompleted, ManifestSHA256: checksum,
 		ExportedAt: r.manifest.ExportedAt, Tables: len(r.manifest.Tables), Artifacts: len(r.manifest.Artifacts),
 		SEPADebitFiles: r.manifest.SEPADebitFiles, DocumentFiles: r.manifest.DocumentFiles,
 	}

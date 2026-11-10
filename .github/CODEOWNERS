@@ -10,3 +10,11 @@
 /scripts/rollback-remote.sh @yungweng
 /environments/ @yungweng
 /backend/database/migrations/ @yungweng
+/.github/actions/ @yungweng
+/scripts/release-backup.sh @yungweng
+/scripts/restore-db.sh @yungweng
+/scripts/deploy-caddy-remote.sh @yungweng
+/scripts/demo-order-smoke.sh @yungweng
+/scripts/daily-backup.sh @yungweng
+/scripts/systemd/ @yungweng
+/deploy/caddy/ @yungweng

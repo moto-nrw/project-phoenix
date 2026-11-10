@@ -177,89 +177,6 @@ export interface TeacherWithCredentials extends Teacher {
 
 // Teacher service with API methods
 class TeacherService {
-  // Get all teachers with optional filters
-  async getTeachers(filters?: { search?: string }): Promise<Teacher[]> {
-    try {
-      let url = "/api/staff?teachers_only=true";
-
-      // Add query parameters if filters are provided
-      if (filters) {
-        const params = new URLSearchParams();
-        if (filters.search) {
-          params.append("search", filters.search);
-        }
-
-        if (params.toString()) {
-          url += `&${params.toString()}`;
-        }
-      }
-
-      const response = await sessionFetch(url, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw await apiErrorFromResponse(
-          response,
-          `teacher list failed (${response.status})`,
-        );
-      }
-
-      const data = (await response.json()) as Teacher[] | { data: Teacher[] };
-
-      // Handle different response formats
-      if (Array.isArray(data)) {
-        return data;
-      } else if (
-        data &&
-        typeof data === "object" &&
-        "data" in data &&
-        Array.isArray(data.data)
-      ) {
-        return data.data;
-      } else {
-        logger.error("unexpected response format for teachers");
-        return [];
-      }
-    } catch (error) {
-      logger.error("error fetching teachers", { error: String(error) });
-      throw error;
-    }
-  }
-
-  // Get a single teacher by ID
-  async getTeacher(id: string): Promise<Teacher> {
-    try {
-      const response = await sessionFetch(`/api/staff/${id}`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw apiErrorFromText(
-          `Failed to fetch teacher: ${response.statusText}`,
-          response.status,
-          await response.text().catch(() => ""),
-        );
-      }
-
-      const data = (await response.json()) as Teacher | { data: Teacher };
-      // Processing teacher API response
-
-      // Handle wrapped response from route handler
-      if (data && typeof data === "object" && "data" in data) {
-        // Response is wrapped (from route handler)
-        return data.data;
-      }
-
-      // Direct teacher object
-      return data;
-    } catch (error) {
-      logger.error("error fetching teacher", {
-        teacher_id: id,
-        error: String(error),
-      });
-      throw error;
-    }
-  }
-
   // Create a new teacher
   async createTeacher(
     teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & {
@@ -675,22 +592,6 @@ class TeacherService {
       }
     } catch (error) {
       logger.error("error deleting teacher", {
-        teacher_id: id,
-        error: String(error),
-      });
-      throw error;
-    }
-  }
-
-  // Get activities for a teacher
-  async getTeacherActivities(id: string): Promise<Activity[]> {
-    try {
-      // For now, activities endpoint is not implemented for staff
-      // Return empty array until implemented on the backend
-      logger.warn("activities endpoint not implemented for staff/teachers");
-      return [];
-    } catch (error) {
-      logger.error("error fetching activities for teacher", {
         teacher_id: id,
         error: String(error),
       });

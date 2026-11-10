@@ -575,6 +575,32 @@ describe("EnrollmentForm", () => {
     },
   );
 
+  it("requires a new captcha after the server rejects a submission", async () => {
+    captchaConfigFixture.mockResolvedValue({
+      enabled: true,
+      site_key: "test-site-key",
+    });
+    phaseOfferingsFixture.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    mockSubmitEnrollment.mockRejectedValueOnce(new ApiError("rejected", 400));
+    await renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
+    fireEvent.click(submit);
+    await screen.findByRole("alert");
+    expect(submit).toBeDisabled();
+    expect(document.querySelector('input[name="captcha_token"]')).toHaveValue(
+      "",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
+  });
+
   it("does not mount Turnstile or block submission when captcha is disabled with a site key", async () => {
     phaseOfferingsFixture.mockResolvedValue({
       offerings: [],
@@ -3480,6 +3506,29 @@ describe("EnrollmentForm", () => {
     expect(payload.children[0]?.offering_days).toEqual([
       { offering_id: 11, selected_days: ["mon"] },
     ]);
+  });
+
+  it("does not transfer a removed child's offering error to the next child", async () => {
+    const draft = editDraft([
+      { id: "c1", first_name: "Anton", last_name: "Muster" },
+      { id: "c2", first_name: "Berta", last_name: "Muster" },
+    ]);
+    draft.children[0]!.offering_ids = [];
+    phaseOfferingsFixture.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "exactly_one",
+    });
+    await renderForm({ initialDraft: draft, skipCaptcha: true });
+    await waitForLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      document.getElementById("children-0-offerings-error"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Entfernen" })[0]!);
+    expect(screen.getByDisplayValue("Berta")).toBeInTheDocument();
+    expect(
+      document.getElementById("children-0-offerings-error"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps each child's card state bound to that child when a sibling is removed", async () => {

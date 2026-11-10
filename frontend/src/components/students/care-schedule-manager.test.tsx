@@ -187,7 +187,9 @@ vi.mock("./care-plan-editor-modal", () => ({
               date: "2026-05-25",
               arrival: { kind: "time", time: "10:10", reason: "Arzt" },
               pickup: { kind: "time", time: "15:15", reason: "Training" },
-            }).catch(() => undefined)
+            })
+              .then(onClose)
+              .catch(() => undefined)
           }
         >
           Ausnahme im Test speichern
@@ -1207,6 +1209,23 @@ describe("CareScheduleManager", () => {
         },
       );
     });
+  });
+
+  it("reports a failed refresh as a load error after successfully saving an exception", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungszeiten");
+    mockFetchArrivalData.mockRejectedValueOnce(
+      new ApiError("refresh failed", 503),
+    );
+    fireEvent.click(screen.getAllByText("Ausnahme")[0]!);
+    fireEvent.click(screen.getByText("Ausnahme im Test speichern"));
+    const retry = await screen.findByRole("button", { name: "Wiederholen" });
+    expect(mockUpdateArrivalException).toHaveBeenCalledOnce();
+    expect(mockUpdateStudentPickupException).toHaveBeenCalledOnce();
+    fireEvent.click(retry);
+    await screen.findByText("Betreuungszeiten");
+    expect(mockUpdateArrivalException).toHaveBeenCalledOnce();
+    expect(mockUpdateStudentPickupException).toHaveBeenCalledOnce();
   });
 
   it("refreshes after a partially saved day exception", async () => {

@@ -115,7 +115,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/00_migrations.go:DetectVersionCollisions": 23,
 	// ADR 0087.
-	"database/migrations/00_migrations.go:ValidateMigrations": 43,
 	// ADR 0087.
 	"database/migrations/form_schema_validation_166.go:validateConvertedDepartureSchema": 21,
 	// ADR 0087.
