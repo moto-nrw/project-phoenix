@@ -438,6 +438,14 @@ export function SepaMandatesCard({
           </span>
           <span className="block text-sm text-gray-500">
             {MANDATE_KIND_LABELS[mandate.kind]}
+            {/* On a tablet the next debit stands beside the kind: the
+                table has no room for its own column there. */}
+            {mandate.revokedOn ? null : (
+              <span className="hidden md:inline xl:hidden">
+                {" "}
+                · {nextDebitLabel(mandate)}
+              </span>
+            )}
           </span>
         </span>
       ),
@@ -446,6 +454,9 @@ export function SepaMandatesCard({
       key: "account",
       header: "Konto",
       stacked: "field",
+      // On a phone the account takes the row's full width: the masked IBAN
+      // stays on one line, and „Kontoinhaber“ names the second line.
+      stackedLabel: false,
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
           {/* One line on every width: a split IBAN is misread. */}
@@ -461,32 +472,30 @@ export function SepaMandatesCard({
       ),
     },
     {
-      // The kind of the next debit is a second line under the signature
-      // date: the list keeps it without a column that pushes „Stand“ out of
-      // view on a tablet.
       key: "signed",
       header: "Unterschrieben",
       stacked: "field",
       sortValue: (mandate) => mandate.signedOn,
       render: (mandate) => (
-        <span className="block">
-          <span className="block whitespace-nowrap tabular-nums">
-            {formatDate(mandate.signedOn)}
-          </span>
-          {mandate.revokedOn ? null : (
-            <span className="block text-sm text-gray-500">
-              Nächste Abbuchung: {nextDebitLabel(mandate)}
-            </span>
-          )}
+        <span className="whitespace-nowrap tabular-nums">
+          {formatDate(mandate.signedOn)}
         </span>
       ),
+    },
+    {
+      // Its own column from the laptop on, so first and later debits
+      // compare down the list; on a phone its own field.
+      key: "next",
+      header: "Nächste Abbuchung",
+      stacked: "field",
+      className: "max-xl:hidden",
+      headerClassName: "max-xl:hidden",
+      render: (mandate) => nextDebitLabel(mandate),
     },
     {
       key: "state",
       header: "Stand",
       stacked: "meta",
-      // The pill keeps its word whole („Gültig“) beside the row menu.
-      className: "min-w-28",
       render: (mandate) => {
         const state = mandateState(mandate);
         return (
@@ -567,9 +576,9 @@ export function SepaMandatesCard({
           rows={mandates}
           getRowKey={(mandate) => mandate.id}
           rowHasInteractiveControls
+          // Seven columns on a laptop: narrower cells keep every one in view.
+          dense
           stackedOnMobile
-          // Label above value on a phone: the masked IBAN keeps one line.
-          stackedLayout="form"
         />
       ) : mandates ? (
         <EmptyState
