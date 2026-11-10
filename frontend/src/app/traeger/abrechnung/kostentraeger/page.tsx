@@ -84,7 +84,7 @@ function ShareStatus({ share }: Readonly<{ share: CareCostShare }>) {
 function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
   return (
     <div className="min-w-0">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900 max-sm:justify-end">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900">
         <span className="font-medium wrap-anywhere">
           {share.costBearerName}
         </span>
@@ -214,6 +214,10 @@ export default function TraegerKostentraegerPage() {
       key: "shares",
       header: "Anteile",
       stacked: "field",
+      // On a phone the shares take the row's full width: a cost bearer's
+      // name, amount, validity and reference read as lines, not as a
+      // squeezed value beside a label.
+      stackedLabel: false,
       className: "align-top",
       render: (contract) =>
         contract.shares.length === 0 ? (
