@@ -21,6 +21,9 @@ type Operator struct {
 	DeactivatedAt  *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// CredentialGeneration is the state of the operator's password; every
+	// password write moves it on (#6308).
+	CredentialGeneration int64
 }
 
 // OperatorDeletionDue is when the hourly cleanup deletes an account

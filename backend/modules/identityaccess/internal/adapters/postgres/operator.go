@@ -13,29 +13,37 @@ import (
 
 // operatorRow mirrors platform.operators. The default tags keep the insert
 // semantics of the retained model: a zero Active value stores the column
-// default and zero timestamps take the database clock.
+// default and zero timestamps take the database clock. The insert stores the
+// first password; every later write of it goes through
+// WriteOperatorCredential, which moves the credential generation on (#6308).
 type operatorRow struct {
-	PasswordAttempts    int        `bun:"password_attempts,scanonly"`
-	PasswordLockedUntil *time.Time `bun:"password_locked_until,scanonly"`
-	bun.BaseModel       `bun:"table:platform.operators,alias:operator"`
-	ID                  int64      `bun:"id,pk,autoincrement"`
-	Email               string     `bun:"email,notnull"`
-	DisplayName         string     `bun:"display_name,notnull"`
-	PasswordHash        string     `bun:"password_hash,notnull"`
-	Active              bool       `bun:"active,notnull,default:true"`
-	LastLogin           *time.Time `bun:"last_login"`
-	MFAAttempts         int        `bun:"mfa_attempts,default:0"`
-	MFALockedUntil      *time.Time `bun:"mfa_locked_until"`
-	DeactivatedAt       *time.Time `bun:"deactivated_at"`
-	CreatedAt           time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt           time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	PasswordAttempts     int        `bun:"password_attempts,scanonly"`
+	PasswordLockedUntil  *time.Time `bun:"password_locked_until,scanonly"`
+	CredentialGeneration int64      `bun:"credential_generation,scanonly"`
+	bun.BaseModel        `bun:"table:platform.operators,alias:operator"`
+	ID                   int64      `bun:"id,pk,autoincrement"`
+	Email                string     `bun:"email,notnull"`
+	DisplayName          string     `bun:"display_name,notnull"`
+	PasswordHash         string     `bun:"password_hash,notnull"`
+	Active               bool       `bun:"active,notnull,default:true"`
+	LastLogin            *time.Time `bun:"last_login"`
+	MFAAttempts          int        `bun:"mfa_attempts,default:0"`
+	MFALockedUntil       *time.Time `bun:"mfa_locked_until"`
+	DeactivatedAt        *time.Time `bun:"deactivated_at"`
+	CreatedAt            time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt            time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
+
+// operatorColumns selects the scan-only credential generation with the row:
+// a model select leaves scan-only columns out.
+const operatorColumns = `"operator".*`
 
 func (r operatorRow) toDomain() domain.Operator {
 	return domain.Operator{
 		ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, PasswordHash: r.PasswordHash, Active: r.Active,
 		LastLogin: r.LastLogin, MFAAttempts: r.MFAAttempts, MFALockedUntil: r.MFALockedUntil,
 		DeactivatedAt: r.DeactivatedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CredentialGeneration: r.CredentialGeneration,
 	}
 }
 
@@ -94,7 +102,7 @@ func (s *Store) FindOperator(ctx context.Context, id int64, forUpdate bool) (dom
 		return domain.Operator{}, false, domain.OperationStats{}, err
 	}
 	var row operatorRow
-	query := db.NewSelect().Model(&row).Where(`"operator".id = ?`, id)
+	query := db.NewSelect().Model(&row).ColumnExpr(operatorColumns).Where(`"operator".id = ?`, id)
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -117,7 +125,7 @@ func (s *Store) FindOperatorByEmail(ctx context.Context, email string) (domain.O
 	}
 	var row operatorRow
 	started := time.Now()
-	err = db.NewSelect().Model(&row).Where(`"operator".email = ?`, email).Scan(ctx)
+	err = db.NewSelect().Model(&row).ColumnExpr(operatorColumns).Where(`"operator".email = ?`, email).Scan(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Operator{}, false, stats, nil
@@ -135,7 +143,7 @@ func (s *Store) ListOperators(ctx context.Context) ([]domain.Operator, domain.Op
 	}
 	var rows []operatorRow
 	started := time.Now()
-	err = db.NewSelect().Model(&rows).OrderExpr(`"operator".display_name ASC`).Scan(ctx)
+	err = db.NewSelect().Model(&rows).ColumnExpr(operatorColumns).OrderExpr(`"operator".display_name ASC`).Scan(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: list operators: %w", err)
@@ -164,8 +172,9 @@ func (s *Store) InsertOperator(ctx context.Context, operator domain.Operator) (d
 	return row.toDomain(), stats, nil
 }
 
-// UpdateOperator overwrites every column except the identity, matching the
-// retained generic update that wrote the whole model back.
+// UpdateOperator overwrites every column except the identity and the
+// credential, matching the retained generic update that wrote the whole model
+// back. The password is WriteOperatorCredential's alone (#6308).
 func (s *Store) UpdateOperator(ctx context.Context, operator domain.Operator) (bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
@@ -173,7 +182,7 @@ func (s *Store) UpdateOperator(ctx context.Context, operator domain.Operator) (b
 	}
 	row := operatorRowFromDomain(operator)
 	started := time.Now()
-	result, err := db.NewUpdate().Model(&row).WherePK().Exec(ctx)
+	result, err := db.NewUpdate().Model(&row).ExcludeColumn("password_hash").WherePK().Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return false, stats, fmt.Errorf("identity access postgres: update operator: %w", err)
