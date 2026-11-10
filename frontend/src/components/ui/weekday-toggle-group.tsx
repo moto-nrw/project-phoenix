@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 
 export interface WeekdayToggleOption<T extends string | number> {
@@ -26,6 +27,8 @@ export function WeekdayToggleGroup<T extends string | number>({
   onToggle,
   disabled = false,
   hint,
+  name,
+  error,
 }: Readonly<{
   /** Name der Gruppe für Screenreader, z. B. „Wochentage“. */
   ariaLabel: string;
@@ -38,14 +41,20 @@ export function WeekdayToggleGroup<T extends string | number>({
    * vorgelesen wird. Aussehen und Platz wie der `hint` am Kit-`Input`.
    */
   hint?: string;
+  name?: string;
+  error?: string;
 }>) {
   const hintId = `${useId()}-hint`;
+  const errorId = `${useId()}-error`;
+  const describedBy =
+    [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") ||
+    undefined;
   const group = (
-    <div
-      role="group"
+    <fieldset
       aria-label={ariaLabel}
-      aria-describedby={hint ? hintId : undefined}
-      className="flex w-full flex-wrap gap-1.5"
+      aria-invalid={error ? true : undefined}
+      aria-describedby={describedBy}
+      className="flex w-full min-w-0 flex-wrap gap-1.5"
     >
       {days.map((day) => (
         <ToggleChip
@@ -59,17 +68,23 @@ export function WeekdayToggleGroup<T extends string | number>({
           {day.label}
         </ToggleChip>
       ))}
-    </div>
+    </fieldset>
   );
 
-  if (!hint) return group;
+  if (!hint && !error && !name) return group;
 
   return (
     <div>
+      {name ? (
+        <input type="hidden" name={name} value={value.join(",")} />
+      ) : null}
       {group}
-      <p id={hintId} className="mt-1 text-xs text-gray-600">
-        {hint}
-      </p>
+      {hint ? (
+        <p id={hintId} className="mt-1 text-xs text-gray-600">
+          {hint}
+        </p>
+      ) : null}
+      <FieldErrorHint id={errorId} message={error} />
     </div>
   );
 }

@@ -156,3 +156,35 @@ func TestDailyHolidayWeekNeedsASelectableWeekday(t *testing.T) {
 	week.StartsOn, week.BookingUnit = calendar.NewDate(2027, 1, 9), enrollment.HolidayBookingUnitWeek
 	assert.Empty(t, validateHolidayWeek(week), "whole-week offers keep their existing date contract")
 }
+
+func TestArchivedHolidayTimeModelKeepsOnlyPreviouslyBookedDays(t *testing.T) {
+	t.Parallel()
+	week := enrollment.HolidayWeek{ID: 1, StartsOn: firstFitMonday, EndsOn: firstFitWednesday,
+		BookingUnit: enrollment.HolidayBookingUnitDay, TimeModels: []enrollment.HolidayTimeModel{{ID: 2, Archived: true}}}
+	period := enrollment.HolidayPeriod{Weeks: []enrollment.HolidayWeek{week}}
+	kept := []enrollment.HolidayBookingInput{{WeekID: 1, TimeModelID: 2, Days: []calendar.Date{firstFitMonday, firstFitTuesday}}}
+	for _, tc := range []struct {
+		name    string
+		days    []calendar.Date
+		allowed bool
+	}{
+		{"unchanged", []calendar.Date{firstFitTuesday, firstFitMonday}, true},
+		{"fewer days", []calendar.Date{firstFitMonday}, true},
+		{"added day", []calendar.Date{firstFitMonday, firstFitTuesday, firstFitWednesday}, false},
+		{"replaced day", []calendar.Date{firstFitWednesday}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			booking := []enrollment.HolidayBookingInput{{WeekID: 1, TimeModelID: 2, Days: tc.days}}
+			err := validateHolidayBookings(booking, period, kept)
+			if tc.allowed {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+	assert.Error(t, validateHolidayBookings(kept, period, nil), "an archived model takes no new booking")
+	period.Weeks[0].TimeModels[0].Archived = false
+	assert.NoError(t, validateHolidayBookings([]enrollment.HolidayBookingInput{{WeekID: 1, TimeModelID: 2,
+		Days: []calendar.Date{firstFitWednesday}}}, period, kept), "an active model still accepts new days")
+}

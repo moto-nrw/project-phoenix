@@ -44,6 +44,7 @@ import type {
 import {
   type AddressDraft,
   bookedDayCount,
+  bookedWeeks,
   type ChildDraft,
   type ContactDraft,
   emptyContact,
@@ -100,6 +101,8 @@ function WeekChoice({
   prefix,
   value,
   days,
+  daysName,
+  daysError,
   invalid,
   onChange,
   onDaysChange,
@@ -109,6 +112,8 @@ function WeekChoice({
   value: string;
   /** The chosen days of the booked week, when it is booked by days. */
   days: readonly string[];
+  daysName?: string;
+  daysError?: string;
   invalid: boolean;
   onChange: (timeModelId: string) => void;
   onDaysChange: (weekId: string, days: readonly string[]) => void;
@@ -185,6 +190,8 @@ function WeekChoice({
           week={booked}
           label={labels.range(booked)}
           days={days}
+          name={daysName}
+          error={daysError}
           onChange={(next) => onDaysChange(booked.id, next)}
         />
       ) : null}
@@ -201,11 +208,15 @@ function DayChoice({
   week,
   label,
   days,
+  name,
+  error,
   onChange,
 }: Readonly<{
   week: HolidayRegistrationWeek;
   label: string;
   days: readonly string[];
+  name?: string;
+  error?: string;
   onChange: (days: readonly string[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
@@ -229,6 +240,8 @@ function DayChoice({
   return (
     <InsetPanel padding="sm" className="space-y-2 sm:ml-auto sm:w-1/2">
       <WeekdayToggleGroup
+        name={name}
+        error={error}
         ariaLabel={t("daysLabel", { week: label })}
         days={(week.careDays ?? []).map((day) => ({
           value: day,
@@ -289,6 +302,7 @@ export function ChildCard({
   const prefix = `children.${index}`;
   const guest = child.school === OTHER_SCHOOL;
   const set = (patch: Partial<ChildDraft>) => onChange({ ...child, ...patch });
+  const bookings = bookedWeeks(child, offer);
   // The server names a single booking ("children.0.bookings.1") when a week
   // or time model went away after the page loaded; every booking control of
   // the child carries that hint.
@@ -421,6 +435,13 @@ export function ChildCard({
             const bookedWeek = group.find((week) =>
               week.timeModels.some((model) => model.id === value),
             );
+            const bookingIndex = bookings.findIndex(
+              (booking) => booking.weekId === bookedWeek?.id,
+            );
+            const daysName =
+              bookingIndex >= 0
+                ? `${prefix}.bookings.${bookingIndex}.days`
+                : undefined;
             return (
               <WeekChoice
                 key={group[0]?.id}
@@ -428,6 +449,8 @@ export function ChildCard({
                 prefix={prefix}
                 value={value}
                 days={bookedWeek ? (child.days?.[bookedWeek.id] ?? []) : []}
+                daysName={daysName}
+                daysError={daysName ? fieldError(daysName) : undefined}
                 onDaysChange={(weekId, days) =>
                   set({ days: { ...child.days, [weekId]: days } })
                 }
