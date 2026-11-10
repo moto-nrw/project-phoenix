@@ -120,34 +120,10 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     owners.ParentGuardianChanges(),
-		DeparturePolicy:     owners.ParentDeparturePolicy(),
-		GuardianPolicy:      owners.NewParentGuardianPolicy(),
-		Fingerprints:        owners.SecurityFingerprints{},
-		Declarations:        owners.ParentDeclarationPolicy(),
-		Locales:             owners.ParentPortalLocales(),
-		Runtime:             owners.ParentPortalRuntime{},
-		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
-		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
-		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
-		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
-		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
-		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
-		Settings:            masterDataSettings(true, false, false),
-		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		Logger:              slog.Default(),
-
-		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
-
-		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-	})
+	deps := masterDataServiceDependencies(t, db, true)
+	deps.StudentAudit = nil
+	deps.Settings = masterDataSettings(true, false, false)
+	svc := parentportalcompose.New(deps)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 

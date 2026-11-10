@@ -3,6 +3,7 @@ package parentportal_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strconv"
 	"sync"
@@ -75,16 +76,25 @@ type relationshipChange struct {
 
 func revokePermission(permission string) func(*testing.T, context.Context, *bun.DB, peoplePorts.GuardianService, testpkg.ParentChain) error {
 	return func(t *testing.T, ctx context.Context, db *bun.DB, _ peoplePorts.GuardianService, chain testpkg.ParentChain) error {
-		store := owners.NewStudentGuardianRepository(testpkg.NewDatabase(t, db))
-		rel, err := testpkg.TenantQuery1(t, ctx, db, store.FindByID, any(relationshipID(t, db, chain)))
-		require.NoError(t, err)
-		var permissions map[string]any
-		require.NoError(t, json.Unmarshal(rel.Permissions, &permissions))
-		require.Equal(t, true, permissions[permission], "fixture must grant %s", permission)
-		permissions[permission] = false
-		rel.Permissions, err = json.Marshal(permissions)
-		require.NoError(t, err)
-		_, err = store.UpdateColumns(ctx, rel, "permissions")
+		return prepareRevocation(t, ctx, db, chain, permission)()
+	}
+}
+
+// prepareRevocation reads the relationship and returns the owner write that
+// sets permission to false. The returned write may run on another goroutine.
+func prepareRevocation(t *testing.T, ctx context.Context, db *bun.DB, chain testpkg.ParentChain, permission string) func() error {
+	t.Helper()
+	store := owners.NewStudentGuardianRepository(testpkg.NewDatabase(t, db))
+	rel, err := testpkg.TenantQuery1(t, ctx, db, store.FindByID, any(relationshipID(t, db, chain)))
+	require.NoError(t, err)
+	var permissions map[string]any
+	require.NoError(t, json.Unmarshal(rel.Permissions, &permissions))
+	require.Equal(t, true, permissions[permission], "fixture must grant %s", permission)
+	permissions[permission] = false
+	rel.Permissions, err = json.Marshal(permissions)
+	require.NoError(t, err)
+	return func() error {
+		_, err := store.UpdateColumns(ctx, rel, "permissions")
 		return err
 	}
 }
@@ -154,8 +164,8 @@ func TestUpdateMasterDataField_RevocationBeforeWriteRefusesStaleCheck(t *testing
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	services, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
-	people := services.Guardian
 	require.NoError(t, err)
+	people := services.Guardian
 
 	type scenario struct {
 		change relationshipChange
@@ -207,16 +217,22 @@ func TestUpdateMasterDataField_LockedEditCommitsBeforeWaitingRevocation(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
+	type lockHolder struct {
+		pid int
+		err error
+	}
 	var once sync.Once
-	editPID, release := make(chan int, 1), make(chan struct{})
+	holder, release := make(chan lockHolder, 1), make(chan struct{})
 	deps := masterDataServiceDependencies(t, db, true)
 	deps.StudentGuardianRepo = parentService.StudentGuardianReadsAfterLock(deps.StudentGuardianRepo, func(ctx context.Context) {
 		once.Do(func() {
-			tx, ok := tenant.TransactionFromContext(ctx)
-			require.True(t, ok, "the relationship lock runs in the school transaction")
-			var pid int
-			require.NoError(t, tx.(bun.IDB).NewRaw("SELECT pg_backend_pid()").Scan(ctx, &pid))
-			editPID <- pid
+			var held lockHolder
+			if tx, ok := tenant.TransactionFromContext(ctx); !ok {
+				held.err = errors.New("the relationship lock runs outside the school transaction")
+			} else {
+				held.err = tx.(bun.IDB).NewRaw("SELECT pg_backend_pid()").Scan(ctx, &held.pid)
+			}
+			holder <- held
 			<-release
 		})
 	})
@@ -228,13 +244,16 @@ func TestUpdateMasterDataField_LockedEditCommitsBeforeWaitingRevocation(t *testi
 	go func() { edited <- healthInfoEdit.run(ctx, svc, chain) }()
 	var pid int
 	select {
-	case pid = <-editPID:
+	case held := <-holder:
+		require.NoError(t, held.err)
+		pid = held.pid
 	case <-ctx.Done():
 		t.Fatal("the edit never locked its relationship")
 	}
 
+	revoke := prepareRevocation(t, testpkg.Ctx(t), db, chain, permMasterDataEdit)
 	revoked := make(chan error, 1)
-	go func() { revoked <- revokePermission(permMasterDataEdit)(t, testpkg.Ctx(t), db, nil, chain) }()
+	go func() { revoked <- revoke() }()
 	require.Eventually(t, func() bool {
 		var waiting bool
 		err := db.NewRaw("SELECT EXISTS (SELECT 1 FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)))", pid).
@@ -276,8 +295,8 @@ func TestUpdateMasterDataField_RightsStayPerRelationship(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	services, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
-	people := services.Guardian
 	require.NoError(t, err)
+	people := services.Guardian
 	svc := parentportalcompose.New(masterDataServiceDependencies(t, db, true))
 
 	first := testpkg.CreateTestParentGuardianChain(t, db)

@@ -20,16 +20,17 @@ func TrackBFieldStateFixture(target, field string, person *MasterDataPerson, stu
 // FindByStudentAndGuardianForUpdate holds the relationship row, so a test can
 // park the write while it holds that lock.
 func StudentGuardianReadsAfterLock(inner StudentGuardianReads, afterLock func(context.Context)) StudentGuardianReads {
-	return lockHookedStudentGuardianReads{StudentGuardianReads: inner, afterLock: afterLock}
+	return lockHookedStudentGuardianReads{StudentGuardianReads: inner, lock: inner.FindByStudentAndGuardianForUpdate, afterLock: afterLock}
 }
 
 type lockHookedStudentGuardianReads struct {
 	StudentGuardianReads
+	lock      func(ctx context.Context, studentID, guardianProfileID int64) (*care.GuardianRelationship, error)
 	afterLock func(context.Context)
 }
 
 func (r lockHookedStudentGuardianReads) FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*care.GuardianRelationship, error) {
-	link, err := r.StudentGuardianReads.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
+	link, err := r.lock(ctx, studentID, guardianProfileID)
 	if err == nil && r.afterLock != nil {
 		r.afterLock(ctx)
 	}

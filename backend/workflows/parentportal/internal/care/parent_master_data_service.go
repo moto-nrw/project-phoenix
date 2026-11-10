@@ -199,7 +199,7 @@ func (s *Service) applyTrackAInTx(ctx context.Context, child *Child, edit trackA
 	if err := s.RequireCareRunningForUpdate(ctx, edit.studentID); err != nil {
 		return nil, err
 	}
-	if err := s.holdMasterDataEditGrant(ctx, child.GuardianProfileID, edit); err != nil {
+	if err := s.recheckMasterDataEditUnderLock(ctx, child.GuardianProfileID, edit); err != nil {
 		return nil, err
 	}
 	oldRaw, newRaw, targetRef, changed, err := s.applyTrackAEdit(ctx, child.GuardianProfileID, edit.studentID, child.TenantID, edit.accountID, edit.target, edit.fieldKey, edit.value)
@@ -224,7 +224,7 @@ func (s *Service) applyTrackAInTx(ctx context.Context, child *Child, edit trackA
 	return data, nil
 }
 
-// holdMasterDataEditGrant repeats the relationship check of
+// recheckMasterDataEditUnderLock repeats the relationship check of
 // ResolvePermittedChild on the relationship row, locked until commit (#6496).
 // The check before the unit of work ends with its own transaction: a
 // revocation, role change or removal committed since then must refuse the
@@ -234,7 +234,7 @@ func (s *Service) applyTrackAInTx(ctx context.Context, child *Child, edit trackA
 // package: child, then for the guardian's own fields the profile, then the
 // relationship. The profile cannot change its account while a relationship
 // holds it, so the locked relationship also binds the account.
-func (s *Service) holdMasterDataEditGrant(ctx context.Context, guardianProfileID int64, edit trackAEdit) error {
+func (s *Service) recheckMasterDataEditUnderLock(ctx context.Context, guardianProfileID int64, edit trackAEdit) error {
 	if isTrackAGuardianTarget(edit.target) {
 		if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
 			if errors.Is(err, ErrGuardianProfileNotFound) {
