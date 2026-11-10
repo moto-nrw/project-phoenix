@@ -2,6 +2,8 @@ package importpkg
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -22,8 +24,7 @@ import (
 //   - The exact name ranks before a display-name alias: validateRole asks
 //     findRole for the alias only when the name itself has no candidate.
 //   - Several candidates of the same rank leave the choice to the single read
-//     itself, whose pick among them is not fixed today; #6234 decides a
-//     tie-break.
+//     itself, which chooses the smallest ID among them (#6234).
 //
 // Both reads stay inside the validation transaction; one snapshot per
 // validation transaction is what the addendum allows (point 6).
@@ -80,7 +81,7 @@ func (c *StaffImportConfig) findRole(ctx context.Context, name string) (*importM
 // row that checks its role (rolePermissionsOf): an update whose rows all
 // exist checks no role and reads nothing, as before #5887.
 func (c *StaffImportConfig) prepareRolePermissions(rows []importModels.StaffImportRow) {
-	c.rolePermissions, c.rolePermissionsRead, c.namedRoles = nil, false, nil
+	c.rolePermissions, c.rolePermissionsRead, c.namedRoles, c.rolePermissionsLost = nil, false, nil, nil
 	if c.roleIndex == nil || c.FindRolePermissionsByRoleIDs == nil {
 		return
 	}
@@ -90,7 +91,8 @@ func (c *StaffImportConfig) prepareRolePermissions(rows []importModels.StaffImpo
 // readRolePermissions reads the permissions of the noted roles in one
 // statement inside its own savepoint. When the read fails, the savepoint is
 // rolled back and each row reads its role's permissions itself, with the same
-// role_lookup_failed as before #5887.
+// role_lookup_failed as before #5887. When a statement of the savepoint
+// itself fails, nothing reads on: the validation ends the upload (E19).
 func (c *StaffImportConfig) readRolePermissions(ctx context.Context) {
 	c.rolePermissionsRead = true
 	if len(c.namedRoles) == 0 {
@@ -102,6 +104,9 @@ func (c *StaffImportConfig) readRolePermissions(ctx context.Context) {
 		read, err = c.FindRolePermissionsByRoleIDs(ctx, c.namedRoles)
 		return err
 	}); err != nil {
+		if errors.Is(err, importModels.ErrSavepointControl) {
+			c.rolePermissionsLost = fmt.Errorf("%w: read role permissions: %v", errSavepointLost, err)
+		}
 		return
 	}
 	c.rolePermissions = make(map[int64][]string, len(c.namedRoles))
@@ -139,11 +144,18 @@ func (c *StaffImportConfig) namedRoleIDs(rows []importModels.StaffImportRow) []i
 	return ids
 }
 
+// ValidationAbort is the failure that ends the upload after validation: a
+// failed savepoint statement of the role read (E19).
+func (c *StaffImportConfig) ValidationAbort() error { return c.rolePermissionsLost }
+
 // rolePermissionsOf returns the role's permissions from the one read of the
 // noted roles, or reads them for this row alone when that read has none.
 func (c *StaffImportConfig) rolePermissionsOf(ctx context.Context, roleID int64) ([]string, error) {
 	if !c.rolePermissionsRead {
 		c.readRolePermissions(ctx)
+	}
+	if c.rolePermissionsLost != nil {
+		return nil, c.rolePermissionsLost
 	}
 	if permissions, ok := c.rolePermissions[roleID]; ok {
 		return permissions, nil

@@ -158,6 +158,7 @@ func newRaceFixture(t *testing.T, name string) raceFixture {
 	clock := Clock{Now: time.Now}
 	contracts := NewContracts(store, raceRenderer{}, ContractPorts{
 		Letterheads: raceLetterhead{}, Post: &racePost{next: testpkg.UniqueTestTenantID(t) * 1_000}, Runtime: raceRuntime{}, Access: raceAccess{},
+		Holidays: schoolHolidays{},
 		// A send makes the one-time signing link of #4679; the conclusion at
 		// the acceptance makes none.
 		Ledger: struct{ carecontract.SignatureLedger }{},

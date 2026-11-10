@@ -6,14 +6,12 @@ import (
 type PortalAnnouncementDeclarationSettings struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 }
 type PortalAnnouncementFeedDeclaration struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 	Deadline          *time.Time

@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "In einem der Angebote ist kein Platz mehr frei. Bitte prüfen Sie die Belegung.",
   "offering_change_date_out_of_range": "Zu diesem Datum kann die Änderung nicht gelten. Bitte wählen Sie ein anderes Datum.",
   "offering_changes_no_enrollment": "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
-  "partial_absence_conflict": "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+  "partial_absence_conflict": "Das Kind ist an einem gewählten Tag schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst die Teilentschuldigung unter „Entschuldigen“ und „Ab Uhrzeit“.",
   "partial_absence_requires_dedicated_action": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
   "photo_consent_required": "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
   "photo_consent_withdrawn": "Die Eltern haben die Einwilligung für Fotos zurückgezogen. Bitte prüfen Sie die Einwilligung erneut.",

@@ -63,8 +63,7 @@ func TestCareContractConclusionIsGuardedByTheDatabase(t *testing.T) {
 		"the request role makes a requested version effective")
 	assert.ErrorContains(t, asTraeger(`UPDATE care_contract.contract_versions SET status = 'beantragt' WHERE id = ?`, version),
 		"cannot move from wirksam to beantragt", "an effective version never goes back")
-	assert.ErrorContains(t, asTraeger(`UPDATE care_contract.contract_versions SET child_first_name = 'Ben' WHERE id = ?`, version),
-		"permission denied", "the content of a version stays frozen")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(asTraeger(`UPDATE care_contract.contract_versions SET child_first_name = 'Ben' WHERE id = ?`, version)), "the content of a version stays frozen")
 
 	require.NoError(t, asTraeger(`INSERT INTO care_contract.contract_events (organization_id, contract_id, school_id, action)
 		VALUES (?, ?, ?, 'conclude')`, organization, contract, school), "the trail records the conclusion")

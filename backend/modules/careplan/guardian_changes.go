@@ -10,6 +10,10 @@ var (
 	// ErrManualPartialAbsenceConflict refuses a full-day guardian absence on a
 	// day that already carries a staff-entered partial absence.
 	ErrManualPartialAbsenceConflict = errors.New("care plan: a manual partial absence covers a requested day")
+	// ErrSchoolStatusDayConflict refuses a guardian absence on a day that
+	// carries a full-day status the school set (#5698): a family never
+	// overwrites a school entry, it asks the school instead.
+	ErrSchoolStatusDayConflict = errors.New("care plan: the school set a status on a requested day")
 	// ErrPickupExceptionStaffOwned refuses a guardian write to a staff-owned
 	// pickup exception; the staff row is neither overwritten nor deleted.
 	ErrPickupExceptionStaffOwned = errors.New("care plan: the pickup exception is owned by staff")

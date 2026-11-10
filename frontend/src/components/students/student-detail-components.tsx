@@ -433,14 +433,15 @@ export function StudentHeaderStats({
 }: Readonly<
   Omit<StudentHeaderProps, "myGroups" | "myGroupRooms" | "mySupervisedRooms">
 >) {
-  // Variant B: a sick/excused child without a completed pickup should not
-  // accrue overdue pickup urgency, even if they already checked in before the
-  // absence flag was set. Once pickup is recorded, the actual resolved times
-  // can render normally.
+  // A sick/excused child without a completed pickup accrues no overdue pickup
+  // urgency while it is not here. Once it is checked in, the status is only a
+  // hint at the location badge and the planned times apply (#6407); once
+  // pickup is recorded, the actual resolved times render normally.
   const absence = getStudentAbsence({
     sick: student.sick,
     classTrip: student.class_trip,
     excused: student.excused,
+    currentLocation: student.current_location,
   });
   const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
   const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
@@ -678,7 +679,7 @@ function TodayTimeStatusInlineRow({
         {note && <span className="ml-1 text-gray-500">({note})</span>}
         {isException && (
           <span className="ml-1.5 inline-flex align-middle">
-            <StatusBadge size="xs" tone="orange" label="Ausnahme" />
+            <StatusBadge size="xs" tone="warning" label="Ausnahme" />
           </span>
         )}
       </span>

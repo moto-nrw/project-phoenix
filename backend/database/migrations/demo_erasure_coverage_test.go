@@ -52,9 +52,11 @@ func (noImports) Import(path string) (*types.Package, error) {
 	return nil, fmt.Errorf("the register needs no import, not %s", path)
 }
 
-// readDemoErasureRegister evaluates the register with go/types, as the
-// ratchet does: its reasons are constant expressions of that file.
-func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
+// readDemoErasureRegister evaluates the registers with go/types, as the
+// ratchet does: their reasons are constant expressions of that file. It
+// returns the table register with its budget and the outbox kind register
+// of #6342 with its budget.
+func readDemoErasureRegister(t *testing.T) (demoErasureRegister, demoErasureRegister) {
 	t.Helper()
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, demoErasureRegisterFile, nil, 0)
@@ -62,8 +64,7 @@ func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
 	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}, Defs: map[*ast.Ident]types.Object{}}
 	config := types.Config{Importer: noImports{}, Error: func(error) {}}
 	_, _ = config.Check(file.Name.Name, fset, []*ast.File{file}, info)
-	exceptions := map[string]string{}
-	budget := -1
+	maps, budgets := map[string]map[string]string{}, map[string]int{}
 	for _, declaration := range file.Decls {
 		general, ok := declaration.(*ast.GenDecl)
 		if !ok {
@@ -74,27 +75,43 @@ func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
 			if !ok || len(value.Names) != 1 || len(value.Values) != 1 {
 				continue
 			}
-			switch value.Names[0].Name {
-			case "demoErasureExceptionBudget":
+			switch name := value.Names[0].Name; name {
+			case "demoErasureExceptionBudget", "demoErasureOutboxKindExceptionBudget":
 				number, exact := constant.Int64Val(info.Types[value.Values[0]].Value)
-				require.True(t, exact, "the budget is an integer constant")
-				budget = int(number)
-			case "demoErasureExceptions":
+				require.True(t, exact, "the budget %s is an integer constant", name)
+				budgets[name] = int(number)
+			case "demoErasureExceptions", "demoErasureOutboxKindExceptions":
 				literal, ok := value.Values[0].(*ast.CompositeLit)
-				require.True(t, ok, "the register is a map literal")
+				require.True(t, ok, "the register %s is a map literal", name)
+				entries := map[string]string{}
 				for _, element := range literal.Elts {
 					entry := element.(*ast.KeyValueExpr)
 					key, reason := info.Types[entry.Key].Value, info.Types[entry.Value].Value
-					require.NotNil(t, key, "a key of the register is a constant")
-					require.NotNil(t, reason, "a reason of the register is a constant")
-					exceptions[constant.StringVal(key)] = constant.StringVal(reason)
+					require.NotNil(t, key, "a key of %s is a constant", name)
+					require.NotNil(t, reason, "a reason of %s is a constant", name)
+					entries[constant.StringVal(key)] = constant.StringVal(reason)
 				}
+				maps[name] = entries
 			}
 		}
 	}
-	require.GreaterOrEqual(t, budget, 0, "%s declares demoErasureExceptionBudget", demoErasureRegisterFile)
-	require.NotEmpty(t, exceptions, "%s declares demoErasureExceptions", demoErasureRegisterFile)
-	return exceptions, budget
+	for _, name := range []string{"demoErasureExceptionBudget", "demoErasureOutboxKindExceptionBudget"} {
+		_, declared := budgets[name]
+		require.True(t, declared, "%s declares %s", demoErasureRegisterFile, name)
+	}
+	for _, name := range []string{"demoErasureExceptions", "demoErasureOutboxKindExceptions"} {
+		_, declared := maps[name]
+		require.True(t, declared, "%s declares %s", demoErasureRegisterFile, name)
+	}
+	require.NotEmpty(t, maps["demoErasureExceptions"], "%s declares demoErasureExceptions", demoErasureRegisterFile)
+	return demoErasureRegister{Exceptions: maps["demoErasureExceptions"], Budget: budgets["demoErasureExceptionBudget"]},
+		demoErasureRegister{Exceptions: maps["demoErasureOutboxKindExceptions"], Budget: budgets["demoErasureOutboxKindExceptionBudget"]}
+}
+
+// demoErasureRegister is one register of exceptions with its budget.
+type demoErasureRegister struct {
+	Exceptions map[string]string
+	Budget     int
 }
 
 type cascadeEdge struct{ Child, Parent string }
@@ -117,6 +134,14 @@ var sqlErasureStatement = regexp.MustCompile(`(?i)\b(DELETE\s+FROM|UPDATE)\s+(?:
 // there is never read as a statement. Dollar quotes stay: the function body
 // itself is one.
 func sqlWithoutCommentsAndStrings(sql string) string {
+	masked, _ := maskedSQL(sql)
+	return masked
+}
+
+// maskedSQL is sqlWithoutCommentsAndStrings that keeps the literals apart:
+// the n-th literal reads 'n' in the text and literals[n] holds its value.
+// A predicate can name a literal; text inside one is never a statement.
+func maskedSQL(sql string) (masked string, literals []string) {
 	var out strings.Builder
 	for i := 0; i < len(sql); i++ {
 		switch {
@@ -142,23 +167,29 @@ func sqlWithoutCommentsAndStrings(sql string) string {
 			out.WriteByte(' ')
 		case sql[i] == '\'':
 			escapes := i > 0 && (sql[i-1] == 'E' || sql[i-1] == 'e')
+			var value strings.Builder
 			for i++; i < len(sql); i++ {
-				if escapes && sql[i] == '\\' {
+				if escapes && sql[i] == '\\' && i+1 < len(sql) {
 					i++
+					value.WriteByte(sql[i])
 				} else if sql[i] == '\'' {
 					if i+1 < len(sql) && sql[i+1] == '\'' {
 						i++
+						value.WriteByte('\'')
 						continue
 					}
 					break
+				} else {
+					value.WriteByte(sql[i])
 				}
 			}
-			out.WriteString("''")
+			fmt.Fprintf(&out, "'%d'", len(literals))
+			literals = append(literals, value.String())
 		default:
 			out.WriteByte(sql[i])
 		}
 	}
-	return out.String()
+	return out.String(), literals
 }
 
 // demoErasureTargets returns the tables the function deletes from and the
@@ -266,10 +297,10 @@ func demoErasureCoverageOfSchema(t *testing.T) demoErasureCoverage {
 		JOIN pg_class AS pc ON pc.oid = f.confrelid JOIN pg_namespace AS pn ON pn.oid = pc.relnamespace
 		WHERE f.contype = 'f' AND f.confdeltype = 'c'`).Scan(ctx, &cascades))
 	sort.Strings(inScope)
-	exceptions, budget := readDemoErasureRegister(t)
+	register, _ := readDemoErasureRegister(t)
 	return demoErasureCoverage{
 		InScope: inScope, FunctionSQL: functionSQL, Cascades: cascades,
-		Exceptions: exceptions, Budget: budget,
+		Exceptions: register.Exceptions, Budget: register.Budget,
 	}
 }
 

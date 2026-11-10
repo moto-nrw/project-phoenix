@@ -224,6 +224,7 @@ func applyViperTestConfig() {
 func applyStaticViperTestConfig() {
 	viper.Set("auth_jwt_secret", TestJWTSecret)
 	viper.Set("health_data_keys", TestHealthDataKeys)
+	viper.Set("bank_data_keys", TestBankDataKeys)
 	viper.Set("auth_jwt_expiry", "15m")
 	viper.Set("auth_jwt_refresh_expiry", "1h")
 	viper.Set("frontend_url", "http://tenant.invalid")

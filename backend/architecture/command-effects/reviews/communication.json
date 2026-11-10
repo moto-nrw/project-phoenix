@@ -2441,7 +2441,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HistoricalDeclarationFeed",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed; modules/parentannouncementaudience/internal/adapters/postgres/declarations.go:398. Re-reviewed for #4800: the binding also maps the class-letter sender. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed; modules/parentannouncementaudience/internal/adapters/postgres/declarations.go:398. Re-reviewed for #4800: the binding also maps the class-letter sender. Re-reviewed for #6290: the binding also maps the read-only ended marker of an answered declaration. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed",
       "target_owner": "parent-announcement-audience"
@@ -2494,7 +2494,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.ListFeedForAccount",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount; modules/parentannouncementaudience/internal/adapters/postgres/feed.go:48. Re-reviewed for #4800: the binding also maps the class-letter sender. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount; modules/parentannouncementaudience/internal/adapters/postgres/feed.go:48. Re-reviewed for #4800: the binding also maps the class-letter sender. Re-reviewed for #6290: the binding also maps the read-only ended marker of an answered declaration. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount",
       "target_owner": "parent-announcement-audience"

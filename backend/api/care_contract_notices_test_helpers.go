@@ -38,5 +38,5 @@ func NewParentContractNoticesForTests(db transactionruntime.Database) (parentpor
 	if err != nil {
 		return nil, err
 	}
-	return owners.NewParentContractNotices(fixedNoticeTemplates{}, delivery.Module), nil
+	return owners.NewParentContractNotices(fixedNoticeTemplates{}, delivery.Module, owners.CareContractTestHolidays{}), nil
 }

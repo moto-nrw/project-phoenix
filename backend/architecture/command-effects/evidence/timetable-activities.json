@@ -30145,6 +30145,22 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "binding_digest": "b730da5cf95514c03f326c62c886d1b0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.RangeBlockingAbsenceStatuses",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "binding_digest": "9e5c46b6949a41bb3f173b56c4eb5e90",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "target_owner": "workforce"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.staffNoticeRecords.Acknowledge",
       "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.StaffNoticeRecords.Acknowledge",

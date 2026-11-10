@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.sepa_mandate_collections",
+  "max": 3,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/sepa-mandates/{id}/collections (#4697, ADR 0181):\nthe selects: the Träger binding of the Träger transaction, the mandate and its debits with the state of\ntheir invoices in one statement. Flat in the number of debits.",
+  "route": "GET /traeger/sepa-mandates/{id}/collections"
+}

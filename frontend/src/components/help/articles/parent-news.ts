@@ -46,6 +46,14 @@ export function parentNewsTopic(): HelpTopic {
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
+      {
+        title: "Eine Zustimmung widerrufen",
+        steps: [
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`. Hat die Schule den Text geändert und fragt neu, steht er unter `Offen`.",
+          "Tippen Sie beim Kind auf `Zustimmung widerrufen`.",
+          "Bestätigen Sie im Fenster mit `Widerrufen`.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
@@ -60,11 +68,16 @@ export function parentNewsTopic(): HelpTopic {
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
+      "Steht bei einem Einverständnis `Einverständnis beendet`? Dann fragt die Schule nicht mehr nach. Ihre Zustimmung können Sie dort weiter widerrufen.",
+      "Hat die Schule die Elternbriefe ausgeschaltet? Dann stehen unter `Erledigt` nur noch Ihre Zustimmungen. Sie können sie dort weiter widerrufen.",
+      "Hat die Schule den Text geändert, nachdem Sie zugestimmt haben? Dann fragt sie neu. Darunter steht Ihre Zustimmung zum alten Text mit diesem Text. Sie gilt, bis Sie sie mit `Zustimmung widerrufen` zurücknehmen.",
+      "Steht beim Kind, dass Sie nicht mehr neu antworten können? Dann hat die OGS das für Sie geändert. Ihre Zustimmung können Sie trotzdem widerrufen.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "Fehlt `Zustimmung widerrufen` oder das ganze Einverständnis? Dann haben Sie für das Kind vielleicht keinen Zugang mehr. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,

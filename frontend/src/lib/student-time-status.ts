@@ -1,4 +1,8 @@
-import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
+import {
+  countedDayStatus,
+  isNotCheckedInLocation,
+  LOCATION_COLORS,
+} from "./location-helper";
 import {
   berlinDateTimeISO,
   berlinTodayISO,
@@ -105,6 +109,11 @@ interface StudentTimeStatusInput {
   excused?: boolean;
   /** Student is on a class trip today — suppresses overdue urgency. */
   classTrip?: boolean;
+  /**
+   * The child's live location. With an open check-in the status above is only
+   * a hint and the planned time stays due (#6407).
+   */
+  currentLocation?: string | null;
 }
 
 /** Why a student is not expected today. Drives the neutral "absent" rendering. */
@@ -115,9 +124,11 @@ interface StudentAbsence {
 }
 
 interface StudentAbsenceInput {
-  sick?: boolean;
-  classTrip?: boolean;
-  excused?: boolean;
+  sick?: boolean | null;
+  classTrip?: boolean | null;
+  excused?: boolean | null;
+  /** The child's live location; an open check-in ends the absence (#6407). */
+  currentLocation?: string | null;
 }
 
 /**
@@ -129,6 +140,12 @@ interface StudentAbsenceInput {
  * The label is intentionally date-free: a "seit <weekday>" qualifier reads
  * wrong once an absence spans more than a week. We only state the status.
  *
+ * Place before status (#6371, #6407): a child with an open check-in is not
+ * absent. Its status stays a hint at the location badge, and its planned
+ * arrival and pickup apply like for every other child here. The rule is
+ * `countedDayStatus`; pass `currentLocation` wherever the live location is
+ * known.
+ *
  * Note: resolved actual times may still win at the row level. Callers that
  * collapse a whole day into one absence line should only do so while pickup is
  * unresolved, otherwise an already-arrived sick/excused child can still fall
@@ -138,20 +155,25 @@ export function getStudentAbsence({
   sick,
   classTrip,
   excused,
+  currentLocation,
 }: StudentAbsenceInput): StudentAbsence | null {
-  if (sick) {
-    return { reason: "sick", label: "krank gemeldet" };
+  switch (
+    countedDayStatus({
+      sick,
+      class_trip: classTrip,
+      excused,
+      current_location: currentLocation,
+    })
+  ) {
+    case "sick":
+      return { reason: "sick", label: "krank gemeldet" };
+    case "class_trip":
+      return { reason: "class_trip", label: "Klassenfahrt" };
+    case "excused":
+      return { reason: "excused", label: "entschuldigt" };
+    default:
+      return null;
   }
-
-  if (classTrip) {
-    return { reason: "class_trip", label: "Klassenfahrt" };
-  }
-
-  if (excused) {
-    return { reason: "excused", label: "entschuldigt" };
-  }
-
-  return null;
 }
 
 interface TimeParts {
@@ -274,6 +296,7 @@ export function getStudentTimeStatus({
   sick,
   classTrip,
   excused,
+  currentLocation,
 }: StudentTimeStatusInput): StudentTimeStatus {
   const displayActualTime = formatTimeDisplay(actualTime);
   const displayPlannedTime = formatTimeDisplay(plannedTime);
@@ -305,8 +328,14 @@ export function getStudentTimeStatus({
 
   // Absence wins over the temporal (overdue) path but never over a recorded
   // actual time above — a sick/excused child is not "overdue", they are simply
-  // not expected today. Neutral coloring, sorted out of the urgency band.
-  const absence = getStudentAbsence({ sick, classTrip, excused });
+  // not expected today. Neutral coloring, sorted out of the urgency band. A
+  // checked-in child is no absence: its planned time stays due (#6407).
+  const absence = getStudentAbsence({
+    sick,
+    classTrip,
+    excused,
+    currentLocation,
+  });
   if (absence) {
     return {
       state: "absent-excused",

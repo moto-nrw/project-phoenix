@@ -2,6 +2,7 @@ package parentbilling
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -148,13 +149,16 @@ type SEPAMandate struct {
 	CreditorID      string         `json:"creditor_id"`
 	CreditorCurrent bool           `json:"creditor_current"`
 	LastCollectedOn *calendar.Date `json:"last_collected_on"`
-	IBANMasked      string         `json:"iban_masked"`
-	BIC             string         `json:"bic"`
-	Source          string         `json:"source"`
-	RevokedOn       *calendar.Date `json:"revoked_on"`
-	RevokedAt       *time.Time     `json:"revoked_at"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	// ExpiresOn is the first day the mandate no longer holds without a
+	// further collection (#4697, 36 months).
+	ExpiresOn  calendar.Date  `json:"expires_on"`
+	IBANMasked string         `json:"iban_masked"`
+	BIC        string         `json:"bic"`
+	Source     string         `json:"source"`
+	RevokedOn  *calendar.Date `json:"revoked_on"`
+	RevokedAt  *time.Time     `json:"revoked_at"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 	// HolderSealed is the sealed account holder as the store reads it; the
 	// owner opens it into AccountHolder and never answers it.
 	HolderSealed []byte `json:"-"`
@@ -162,6 +166,16 @@ type SEPAMandate struct {
 
 // InForce tells whether the mandate is not revoked.
 func (m SEPAMandate) InForce() bool { return m.RevokedOn == nil }
+
+// ExpiryDay is the first day the mandate no longer holds: 36 months after
+// its signature or its last use (#4697, MandateUsedOn).
+func (m SEPAMandate) ExpiryDay() calendar.Date {
+	return MandateExpiresOn(m.SignedOn, MandateUsedOn(m.Sequence, m.LastCollectedOn, calendar.DateFromTime(m.CreatedAt)))
+}
+
+// Expired tells whether the mandate no longer holds on the day: 36 months
+// passed without a collection (#4697).
+func (m SEPAMandate) Expired(on calendar.Date) bool { return !m.ExpiryDay().After(on) }
 
 // SequenceType is the SEPA sequence type of the next collection.
 func (m SEPAMandate) SequenceType() string {
@@ -204,7 +218,7 @@ type SEPAMandateChange struct {
 
 // SEPAMandateEvent is one entry of the trail of a mandate: what happened,
 // from where, which fields a change touched, who and when. It holds no
-// value.
+// bank value. An imported creation also names its file and line.
 type SEPAMandateEvent struct {
 	ID         int64     `json:"id"`
 	Action     string    `json:"action"`
@@ -212,6 +226,8 @@ type SEPAMandateEvent struct {
 	Fields     []string  `json:"fields"`
 	AccountID  *int64    `json:"account_id"`
 	OccurredAt time.Time `json:"occurred_at"`
+	ImportFile string    `json:"import_file,omitempty"`
+	ImportLine int       `json:"import_line,omitempty"`
 }
 
 // SEPAMandateDebit is a mandate with its open IBAN for the debit file
@@ -264,17 +280,7 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 	if payment.Method != PaymentDirectDebit {
 		return payment
 	}
-	gap := ""
-	switch {
-	case creditor.CreditorID == "":
-		gap = DebitGapCreditor
-	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
-		gap = DebitGapMandate
-	case mandate.CreditorID != creditor.CreditorID:
-		// A mandate binds the creditor it was given to; after a change of
-		// the creditor identifier it is no proof for the new one.
-		gap = DebitGapCreditorChanged
-	}
+	gap := MandateCollectionGap(creditor, mandate, issuedOn)
 	if gap == "" {
 		payment.Mandate = &InvoiceMandate{MandateID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
 			CreditorID: mandate.CreditorID, IBANMasked: mandate.IBANMasked, SequenceType: mandate.SequenceType(),
@@ -298,10 +304,19 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 	return fallback
 }
 
+// SEPAExportFields opens the sealed IBAN and account holder of an exported
+// mandate or debit row for the return export of a Träger (#3838). Only the
+// administrative export CLI binds it, never an HTTP route.
+type SEPAExportFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
+}
+
 // BankDataCipher seals and opens single database values bound to their
-// context. The root binds Security Runtime's field cipher (#4722), the same
-// key ring that seals the health information (ADR 0171).
+// context. The root binds Security Runtime's independent bank ring
+// (BANK_DATA_KEYS, ADR 0183); legacy reading is an explicit transition only.
 type BankDataCipher interface {
+	// BankDataRing prevents health-only ciphers from satisfying this port.
+	BankDataRing()
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }
@@ -332,4 +347,36 @@ type SEPAMandates interface {
 	// SEPAMandateDebits opens the IBAN of mandates for the debit file
 	// (#4697) and records the reveal of each.
 	SEPAMandateDebits(ctx context.Context, reviewer HolidayReviewer, ids []int64) ([]SEPAMandateDebit, error)
+	// SEPAMandateCollections lists the debits of a mandate, newest first:
+	// the collection history per mandate and invoice (#4697). It names no
+	// bank data.
+	SEPAMandateCollections(ctx context.Context, reviewer HolidayReviewer, id int64) ([]SEPADebit, error)
+	// SEPAMandateImports takes over existing mandates from a file (#6198).
+	SEPAMandateImports
+}
+
+// MandateCollectionGap names why the mandate cannot authorize a collection
+// on the given day. An empty result means it is eligible, independently of
+// whether a particular contract or invoice selects direct debit.
+func MandateCollectionGap(creditor SEPACreditor, mandate *SEPAMandate, issuedOn calendar.Date) string {
+	gap := ""
+	switch {
+	case creditor.CreditorID == "":
+		gap = DebitGapCreditor
+	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
+		gap = DebitGapMandate
+	case mandate.Kind == MandateOneOff && mandate.LastCollectedOn != nil:
+		// A one-off mandate authorizes one collection; once collected it is
+		// no mandate for another invoice (#4697).
+		gap = DebitGapMandate
+	case mandate.CreditorID != creditor.CreditorID:
+		// A mandate binds the creditor it was given to; after a change of
+		// the creditor identifier it is no proof for the new one.
+		gap = DebitGapCreditorChanged
+	case mandate.Expired(issuedOn):
+		// 36 months without a collection end the mandate (#4697); the file
+		// checks the day of the collection again.
+		gap = DebitGapExpired
+	}
+	return gap
 }

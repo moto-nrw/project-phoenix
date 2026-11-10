@@ -428,6 +428,10 @@ export const ERROR_CATALOG = {
         "Ihre Auswahl passt nicht mehr zu diesem Kind. Bitte laden Sie die Seite neu.",
       "enrollment.export_too_large":
         "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
+      "enrollment.family_children_closed":
+        "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
+      "enrollment.family_children_invalid":
+        "Bitte geben Sie eine Zahl von 1 bis 20 an.",
       "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
       "enrollment.form_attachment_invalid":
         "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
@@ -661,6 +665,8 @@ export const ERROR_CATALOG = {
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.guardian_email_address_blocked":
         "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+      "identity.guardian_invitation_address_changed":
+        "Dieser Link gilt nicht mehr. Bitte fragen Sie die Schule nach einer neuen Einladung.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -813,6 +819,8 @@ export const ERROR_CATALOG = {
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "parent_billing.bank_account_missing":
         "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Abrechnungsvorgaben“ ein Konto ein.",
+      "parent_billing.beleg_retention_basis_cites_statute":
+        "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
       "parent_billing.benefits_exemption_unavailable":
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Abrechnungsvorgaben“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
@@ -968,16 +976,38 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
       "parent_billing.number_range_missing":
         "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnungsvorgaben“ fest.",
+      "parent_billing.online_mandate_disabled":
+        "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
       "parent_billing.parent_document_not_found":
         "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.payment_text_debtor_number_missing":
         "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "Die Lastschriftdatei braucht Kontonamen in lateinischer Schrift. Prüfen Sie die Kontonamen der Mandate und des Trägers.",
+      "parent_billing.sepa_creditor_account_missing":
+        "Es fehlt das Konto, auf das die Lastschriften gehen. Legen Sie unter Einstellungen → Abrechnung eine Bankverbindung als Standard fest. Das darf, wer das Recht „Einstellungen“ hat.",
       "parent_billing.sepa_creditor_invalid":
         "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
       "parent_billing.sepa_creditor_missing":
         "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein.",
+      "parent_billing.sepa_debit_run_not_found":
+        "Diesen Lauf gibt es nicht, oder er ist noch nicht freigegeben. Eine Lastschriftdatei gibt es erst nach der Freigabe.",
+      "parent_billing.sepa_debits_changed":
+        "Die Lastschriftdatei hat sich geändert. Laden Sie die Datei neu herunter und reichen Sie die neue Datei bei Ihrer Bank ein.",
+      "parent_billing.sepa_debits_empty":
+        "In diesem Lauf gibt es keine offene Lastschrift. Es gibt keine Datei zum Herunterladen oder Bestätigen.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Zwei Lastschriften hätten in der Datei dieselbe Kennung. Die Bank könnte sie nicht unterscheiden. Bitte wenden Sie sich an den moto-Support.",
+      "parent_billing.sepa_import_changed":
+        "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann.",
+      "parent_billing.sepa_import_file_invalid":
+        "Die Datei lässt sich nicht lesen. Bitte wählen Sie eine CSV-Datei mit Überschriften.",
+      "parent_billing.sepa_import_file_too_large":
+        "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
+      "parent_billing.sepa_import_mapping_invalid":
+        "Bitte ordnen Sie zuerst alle Pflichtspalten zu.",
       "parent_billing.sepa_mandate_in_force":
         "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
       "parent_billing.sepa_mandate_invalid":
@@ -988,6 +1018,8 @@ export const ERROR_CATALOG = {
         "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
       "parent_billing.sepa_mandate_revoked":
         "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal.",
       "parent_billing.sibling_group_invalid":
         "Bitte wählen Sie mindestens zwei Anmeldungen aus, die nicht storniert sind.",
       "parent_billing.sibling_group_invoiced":
@@ -1263,7 +1295,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
       "students.partial_absence_conflict":
-        "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+        "Das Kind ist an einem gewählten Tag schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst die Teilentschuldigung unter „Entschuldigen“ und „Ab Uhrzeit“.",
       "students.photo_consent_required":
         "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
       "students.photo_consent_withdrawn":
@@ -1735,6 +1767,10 @@ export const ERROR_CATALOG = {
         "Bitte buchen Sie höchstens {limit} Einträge auf einmal um.",
       "workforce.replacement_outside_origin":
         "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
+      "workforce.replacement_staff_absent":
+        "Die Vertretung ist an diesem Tag selbst abwesend. Bitte wählen Sie eine andere Person.",
+      "workforce.session_check_in_in_future":
+        "Der Beginn darf nicht in der Zukunft liegen. Bitte prüfen Sie den Beginn.",
       "workforce.session_not_found": "Eintrag nicht gefunden.",
       "workforce.session_not_owned":
         "Sie können nur eigene Einträge bearbeiten.",
@@ -2091,6 +2127,10 @@ export const ERROR_CATALOG = {
         "Online enrollment is not available at this school right now. Please contact the school.",
       "enrollment.edit_not_allowed":
         "This enrollment can no longer be changed. Please contact the school.",
+      "enrollment.family_children_closed":
+        "The number of children can no longer be changed here. You will find it in your care contract.",
+      "enrollment.family_children_invalid":
+        "Please enter a number from 1 to 20.",
       "enrollment.field_required": "Please fill in all required fields.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
@@ -2201,6 +2241,8 @@ export const ERROR_CATALOG = {
         "There is already an account for this email address. Please use a different address.",
       "identity.guardian_email_address_blocked":
         "The invitation could not be sent right now. Please try again.",
+      "identity.guardian_invitation_address_changed":
+        "This link is no longer valid. Please ask the school for a new invitation.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -2275,8 +2317,24 @@ export const ERROR_CATALOG = {
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.letter_mail_block_unreadable":
         "We cannot check right now whether this address is blocked. Please try again later.",
+      "parent_billing.online_mandate_disabled":
+        "Your provider does not accept the direct debit mandate in the app right now.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "The mandate text has changed. Please read and confirm it again.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2315,6 +2373,8 @@ export const ERROR_CATALOG = {
         "One of the offerings has no free places left. Please check the occupancy.",
       "students.offering_changes_no_enrollment":
         "The child no longer has a valid enrollment. Please decline {object}.",
+      "students.partial_absence_conflict":
+        "The child is already excused from a certain time on a chosen day. First remove that partial excusal under “Entschuldigen” and “Ab Uhrzeit”.",
       "students.pickup_permission_contact_gone":
         "{object} could not be changed. Please check the current state.",
       "students.pickup_proof_not_found":
@@ -2668,6 +2728,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запись в этой школе сейчас недоступна. Обратитесь в школу.",
       "enrollment.edit_not_allowed":
         "Эту запись больше нельзя изменить. Обратитесь в школу.",
+      "enrollment.family_children_closed":
+        "Количество детей здесь больше нельзя изменить. Вы найдёте его в договоре об уходе.",
+      "enrollment.family_children_invalid":
+        "Пожалуйста, укажите число от 1 до 20.",
       "enrollment.field_required": "Заполните все обязательные поля.",
       "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -2752,6 +2816,8 @@ export const ERROR_CATALOG = {
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
       "identity.guardian_email_address_blocked":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
+      "identity.guardian_invitation_address_changed":
+        "Эта ссылка больше не действует. Попросите школу прислать новое приглашение.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -2824,8 +2890,24 @@ export const ERROR_CATALOG = {
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.letter_mail_block_unreadable":
         "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
+      "parent_billing.online_mandate_disabled":
+        "Ваш попечитель сейчас не принимает мандат на прямое дебетование в приложении.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Текст мандата изменился. Пожалуйста, прочитайте и подтвердите его ещё раз.",
       "school.parent_conference_change_closed":
         "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
       "school.parent_conference_slot_taken":
@@ -2848,6 +2930,8 @@ export const ERROR_CATALOG = {
         "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
       "students.offering_changes_no_enrollment":
         "У ребёнка больше нет действующей записи. Отклоните: {object}.",
+      "students.partial_absence_conflict":
+        "В один из выбранных дней ребёнок уже освобождён с определённого времени. Сначала удалите это частичное освобождение в «Entschuldigen» и «Ab Uhrzeit».",
       "students.pickup_permission_contact_gone":
         "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
       "students.pickup_proof_not_found":
@@ -3165,6 +3249,10 @@ export const ERROR_CATALOG = {
         "Regjistrimi online nuk është i mundur tani në këtë shkollë. Ju lutemi kontaktoni shkollën.",
       "enrollment.edit_not_allowed":
         "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.family_children_closed":
+        "Numri i fëmijëve nuk mund të ndryshohet më këtu. Do ta gjeni në kontratën e kujdesit.",
+      "enrollment.family_children_invalid":
+        "Ju lutemi shkruani një numër nga 1 deri në 20.",
       "enrollment.field_required":
         "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
       "enrollment.form_attachment_invalid":
@@ -3256,6 +3344,8 @@ export const ERROR_CATALOG = {
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
       "identity.guardian_email_address_blocked":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+      "identity.guardian_invitation_address_changed":
+        "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -3329,8 +3419,24 @@ export const ERROR_CATALOG = {
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.letter_mail_block_unreadable":
         "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
+      "parent_billing.online_mandate_disabled":
+        "Ofruesi juaj nuk e pranon tani mandatin e debitimit direkt në aplikacion.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Teksti i mandatit ka ndryshuar. Ju lutemi lexojeni dhe konfirmojeni përsëri.",
       "school.parent_conference_change_closed":
         "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
       "school.parent_conference_slot_taken":
@@ -3353,6 +3459,8 @@ export const ERROR_CATALOG = {
         "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
       "students.offering_changes_no_enrollment":
         "Fëmija nuk ka më një regjistrim të vlefshëm. Refuzoni: {object}.",
+      "students.partial_absence_conflict":
+        "Fëmija është tashmë i justifikuar nga një orë e caktuar në një ditë të zgjedhur. Fillimisht hiqni justifikimin e pjesshëm te „Entschuldigen” dhe „Ab Uhrzeit”.",
       "students.pickup_permission_contact_gone":
         "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
       "students.pickup_proof_not_found":
@@ -3667,6 +3775,9 @@ export const ERROR_CATALOG = {
         "Zapis online w tej szkole jest teraz niedostępny. Skontaktuj się ze szkołą.",
       "enrollment.edit_not_allowed":
         "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.family_children_closed":
+        "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
+      "enrollment.family_children_invalid": "Proszę podać liczbę od 1 do 20.",
       "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
       "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
       "enrollment.form_field_file_options_invalid":
@@ -3750,6 +3861,8 @@ export const ERROR_CATALOG = {
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
       "identity.guardian_email_address_blocked":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+      "identity.guardian_invitation_address_changed":
+        "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -3823,8 +3936,24 @@ export const ERROR_CATALOG = {
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.letter_mail_block_unreadable":
         "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
+      "parent_billing.online_mandate_disabled":
+        "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie.",
       "school.parent_conference_change_closed":
         "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
       "school.parent_conference_slot_taken":
@@ -3847,6 +3976,8 @@ export const ERROR_CATALOG = {
         "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
       "students.offering_changes_no_enrollment":
         "Dziecko nie ma już ważnego zapisu. Odrzuć: {object}.",
+      "students.partial_absence_conflict":
+        "Dziecko jest już zwolnione od określonej godziny w jednym z wybranych dni. Najpierw usuń to częściowe zwolnienie w „Entschuldigen” i „Ab Uhrzeit”.",
       "students.pickup_permission_contact_gone":
         "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
       "students.pickup_proof_not_found":
@@ -4163,6 +4294,10 @@ export const ERROR_CATALOG = {
         "Bu okulda çevrim içi kayıt şu anda mümkün değil. Lütfen okulla iletişime geçin.",
       "enrollment.edit_not_allowed":
         "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.family_children_closed":
+        "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
+      "enrollment.family_children_invalid":
+        "Lütfen 1 ile 20 arasında bir sayı girin.",
       "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
       "enrollment.form_attachment_invalid":
         "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -4249,6 +4384,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
       "identity.guardian_email_address_blocked":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
+      "identity.guardian_invitation_address_changed":
+        "Bu bağlantı artık geçerli değil. Lütfen okuldan yeni bir davet isteyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -4321,8 +4458,24 @@ export const ERROR_CATALOG = {
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.letter_mail_block_unreadable":
         "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
+      "parent_billing.online_mandate_disabled":
+        "Kurumunuz şu anda otomatik ödeme talimatını uygulamada kabul etmiyor.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Talimat metni değişti. Lütfen tekrar okuyup onaylayın.",
       "school.parent_conference_change_closed":
         "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
       "school.parent_conference_slot_taken":
@@ -4345,6 +4498,8 @@ export const ERROR_CATALOG = {
         "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
       "students.offering_changes_no_enrollment":
         "Çocuğun artık geçerli bir kaydı yok. Lütfen şunu reddedin: {object}.",
+      "students.partial_absence_conflict":
+        "Çocuk seçilen bir günde belirli bir saatten itibaren zaten mazeretli. Önce bu kısmi mazereti „Entschuldigen” ve „Ab Uhrzeit” altında kaldırın.",
       "students.pickup_permission_contact_gone":
         "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
       "students.pickup_proof_not_found":
@@ -4656,6 +4811,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запис у цій школі зараз недоступний. Зверніться до школи.",
       "enrollment.edit_not_allowed":
         "Цей запис більше не можна змінити. Зверніться до школи.",
+      "enrollment.family_children_closed":
+        "Кількість дітей тут більше не можна змінити. Ви знайдете її у договорі про догляд.",
+      "enrollment.family_children_invalid":
+        "Будь ласка, вкажіть число від 1 до 20.",
       "enrollment.field_required": "Заповніть усі обов'язкові поля.",
       "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -4740,6 +4899,8 @@ export const ERROR_CATALOG = {
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
       "identity.guardian_email_address_blocked":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
+      "identity.guardian_invitation_address_changed":
+        "Це посилання більше не дійсне. Попросіть школу надіслати нове запрошення.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
@@ -4812,8 +4973,24 @@ export const ERROR_CATALOG = {
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.letter_mail_block_unreadable":
         "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
+      "parent_billing.online_mandate_disabled":
+        "Ваш засновник зараз не приймає мандат на пряме дебетування в застосунку.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+      "parent_billing.sepa_creditor_account_missing":
+        'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
+      "parent_billing.sepa_debit_run_not_found":
+        "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+      "parent_billing.sepa_debits_changed":
+        "The direct debit file has changed. Download it again and submit the new file to your bank.",
+      "parent_billing.sepa_debits_empty":
+        "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Текст мандата змінився. Будь ласка, прочитайте й підтвердьте його ще раз.",
       "school.parent_conference_change_closed":
         "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
       "school.parent_conference_slot_taken":
@@ -4836,6 +5013,8 @@ export const ERROR_CATALOG = {
         "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",
       "students.offering_changes_no_enrollment":
         "Дитина більше не має чинного запису. Відхиліть: {object}.",
+      "students.partial_absence_conflict":
+        "В один із вибраних днів дитину вже звільнено з певного часу. Спочатку видаліть це часткове звільнення в «Entschuldigen» і «Ab Uhrzeit».",
       "students.pickup_permission_contact_gone":
         "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
       "students.pickup_proof_not_found":

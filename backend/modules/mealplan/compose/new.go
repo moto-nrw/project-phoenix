@@ -13,10 +13,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type TransactionFunc func(context.Context, func(context.Context) error) error
+type transaction struct{}
 
-func (fn TransactionFunc) Run(ctx context.Context, callback func(context.Context) error) error {
-	return fn(ctx, callback)
+func (transaction) Run(ctx context.Context, callback func(context.Context) error) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 type Observation = ports.Observation
@@ -44,31 +44,12 @@ func New(dependencies Dependencies) (mealplan.Capability, error) {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
-	return application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames, dependencies.ParticipantDays), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now), nil
+	return application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames, dependencies.ParticipantDays), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, transaction{}, dependencies.Observe, dependencies.Now), nil
 }
 
-// Settings are the meal plan's settings resolvers, bound at construction.
-type Settings struct {
-	mealPlanEnabled         func(context.Context) (bool, error)
-	mealRegistrationEnabled func(context.Context) (bool, error)
-	orderingSettings        func(context.Context) (OrderingSettings, error)
-}
+// Settings are the application-owned bound resolvers.
+type Settings = application.Settings
 
-// NewBoundSettings binds the resolvers; a missing one is a construction
-// error.
 func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), orderingSettings func(context.Context) (OrderingSettings, error)) (*Settings, error) {
-	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || orderingSettings == nil {
-		return nil, errors.New("meal plan settings: resolvers are required")
-	}
-	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, orderingSettings: orderingSettings}, nil
-}
-
-func (s *Settings) MealPlanEnabled(ctx context.Context) (bool, error) { return s.mealPlanEnabled(ctx) }
-
-func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
-	return s.mealRegistrationEnabled(ctx)
-}
-
-func (s *Settings) MealOrderingSettings(ctx context.Context) (OrderingSettings, error) {
-	return s.orderingSettings(ctx)
+	return application.NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled, orderingSettings)
 }

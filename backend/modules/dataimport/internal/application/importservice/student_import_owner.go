@@ -45,7 +45,13 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	if err != nil {
 		return 0, err
 	}
-	student, err := c.createStudentFromRow(ctx, person.ID, row)
+	return c.createStudentEntities(ctx, person.ID, row)
+}
+
+// createStudentEntities creates everything of a row that follows its person:
+// the student, its guardians, the retention consent and the schedules.
+func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personID int64, row importModels.StudentImportRow) (int64, error) {
+	student, err := c.createStudentFromRow(ctx, personID, row)
 	if err != nil {
 		return 0, err
 	}
@@ -66,17 +72,22 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 }
 
 func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row importModels.StudentImportRow) (ports.Person, error) {
-	birthday, _ := parseOptionalDate(row.Birthday)
-	person, err := c.Persons.CreatePerson(ctx, ports.CreatePerson{
-		FirstName: strings.TrimSpace(row.FirstName),
-		LastName:  strings.TrimSpace(row.LastName),
-		Birthday:  calendarDateString(birthday),
-		TagID:     importModels.OptionalCell(row.TagID),
-	})
+	person, err := c.Persons.CreatePerson(ctx, personInputFromRow(row))
 	if err != nil {
 		return ports.Person{}, fmt.Errorf("create person: %w", err)
 	}
 	return person, nil
+}
+
+// personInputFromRow is the person a create row files.
+func personInputFromRow(row importModels.StudentImportRow) ports.CreatePerson {
+	birthday, _ := parseOptionalDate(row.Birthday)
+	return ports.CreatePerson{
+		FirstName: strings.TrimSpace(row.FirstName),
+		LastName:  strings.TrimSpace(row.LastName),
+		Birthday:  calendarDateString(birthday),
+		TagID:     importModels.OptionalCell(row.TagID),
+	}
 }
 
 // createStudentFromRow creates the student under the owner's class-write

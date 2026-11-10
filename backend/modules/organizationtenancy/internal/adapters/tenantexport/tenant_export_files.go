@@ -23,7 +23,7 @@ func (r *exportRun) allowedObject(key string, accountReference bool) bool {
 	}
 	school := strconv.FormatInt(r.options.SchoolID, 10)
 	for _, kind := range r.catalog.Files {
-		if kind.Export != "include" {
+		if kind.Export != "include" || r.options.OrganizationID > 0 && kind.Layout != "account" {
 			continue
 		}
 		if matchesExportObject(kind, key, school, accountReference) {
@@ -106,6 +106,10 @@ func (r *exportRun) objectKeys(root *os.Root, kind organizationtenancy.Lifecycle
 			}
 		}
 		sort.Strings(keys)
+		return keys, nil
+	}
+	if r.options.OrganizationID > 0 {
+		// School files go in the package of their school.
 		return keys, nil
 	}
 	base := kind.Kind

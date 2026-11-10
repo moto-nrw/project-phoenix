@@ -48,3 +48,29 @@ func TestTenantExportEmptyPersonCannotBecomeSchoolExport(t *testing.T) {
 	command.SetArgs([]string{"export", "--person", ""})
 	require.ErrorContains(t, command.Execute(), "--person must not be empty")
 }
+
+func TestTenantExportOrganizationExcludesSchoolAndPerson(t *testing.T) {
+	t.Parallel()
+	var got organizationtenancy.TenantExportOptions
+	command := tenantCommand(func(_ *cobra.Command, options organizationtenancy.TenantExportOptions) error {
+		got = options
+		return nil
+	})
+	organization := testpkg.UniqueTestTenantID(t)
+	command.SetArgs([]string{"export", "--organization", strconv.FormatInt(organization, 10), "--out", "out", "--uploads", "uploads"})
+	require.NoError(t, command.Execute())
+	require.Equal(t, organization, got.OrganizationID)
+	require.Zero(t, got.SchoolID)
+
+	for _, args := range [][]string{
+		{"export", "--organization", "7", "--school", "8", "--out", "out", "--uploads", "uploads"},
+		{"export", "--organization", "7", "--person", "kind:1", "--out", "out", "--uploads", "uploads"},
+	} {
+		command := tenantCommand(func(_ *cobra.Command, _ organizationtenancy.TenantExportOptions) error {
+			t.Fatal("a Träger package is never a school or person export")
+			return nil
+		})
+		command.SetArgs(args)
+		require.Error(t, command.Execute(), args)
+	}
+}

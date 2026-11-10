@@ -1,6 +1,7 @@
 {
   "commands": [
     "phoenix",
+    "phoenix bank-data-rekey",
     "phoenix cleanup",
     "phoenix cleanup attendance",
     "phoenix cleanup invitations",
@@ -72,7 +73,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        88
+        93
       ],
       "tables": []
     },
@@ -82,7 +83,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        80
+        85
       ],
       "tables": []
     },
@@ -92,8 +93,8 @@
       "declaration": "TestNewWorkerRejectsMissingSettings",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        241,
-        245
+        247,
+        251
       ],
       "tables": []
     },
@@ -103,7 +104,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        114
+        120
       ],
       "tables": []
     },
@@ -113,8 +114,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        130,
-        141
+        136,
+        147
       ],
       "tables": []
     }

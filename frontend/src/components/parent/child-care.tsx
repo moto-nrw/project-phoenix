@@ -18,6 +18,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Trash2 } from "lucide-react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
@@ -63,7 +64,10 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { formatLocalizedDate } from "~/lib/localized-date-format";
+import {
+  formatCalendarDate,
+  formatLocalizedDate,
+} from "~/lib/localized-date-format";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
@@ -94,7 +98,11 @@ class ChildCareRefreshError extends Error {
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
 
-export type AbsenceSubmissionOutcome = "applied" | "pending";
+/**
+ * How a report landed: written directly, sent as a request for every day, or
+ * written for the free days with a request for days the school holds (#5698).
+ */
+export type AbsenceSubmissionOutcome = "applied" | "pending" | "partly_pending";
 
 // Stable empty default for SickStatusSummary's optional excusedRequests prop —
 // a fresh [] literal per render would break referential equality (oxlint
@@ -577,7 +585,7 @@ export function useChildCare(studentId: string): ChildCare {
       status: StudentStatusKind,
       recipientGuardianProfileIds: string[] = [],
     ) => {
-      const { status_days } = await submitSickNote(
+      const { status_days, pending_request } = await submitSickNote(
         studentId,
         dates,
         reason,
@@ -617,7 +625,7 @@ export function useChildCare(studentId: string): ChildCare {
           setTodayAbsent(true);
           setWeekPlanDate(berlinTodayISO());
         }
-        return "applied" as const;
+        if (!pending_request) return "applied" as const;
       }
       // Empty status days means the school gated this absence: the backend
       // created a pending request instead. Reload authoritatively to surface
@@ -634,7 +642,9 @@ export function useChildCare(studentId: string): ChildCare {
         // idempotently, so it won't create a duplicate request (#1845 review).
         throw new ChildCareRefreshError();
       }
-      return "pending" as const;
+      return status_days.length > 0
+        ? ("partly_pending" as const)
+        : ("pending" as const);
     },
     [studentId, load],
   );
@@ -722,9 +732,10 @@ export function useChildCare(studentId: string): ChildCare {
 // --- sick-note modal ---
 
 /**
- * The two failures the absence dialog explains itself: the report went
- * through but the list did not reload, and the request overlaps an open one.
- * Every other failure goes through the shared error path.
+ * The failures the absence dialog explains itself: the report went through
+ * but the list did not reload, the request overlaps an open one, and the
+ * school already excused the child from a time on one of the days. Every
+ * other failure goes through the shared error path.
  */
 function knownSickErrorKey(err: unknown): string | null {
   if (err instanceof ChildCareRefreshError) {
@@ -733,8 +744,23 @@ function knownSickErrorKey(err: unknown): string | null {
   if (err instanceof ApiError && err.code === "care.excused_request_overlap") {
     return "sick.overlapError";
   }
+  if (err instanceof ApiError && err.code === "care.care_exception_conflict") {
+    return "sick.schoolPartialConflict";
+  }
   return null;
 }
+
+const NO_CARE_EXCEPTIONS: readonly CareException[] = [];
+const NO_STATUS_DAYS: readonly StatusDay[] = [];
+/** A day the school already holds: from a time, or (`time` null) sick. */
+type SchoolDay = { readonly date: string; readonly time: string | null };
+// "Mittwoch, 11.11.2026": parents plan absences by weekday.
+const SCHOOL_DAY_FORMAT = {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+} as const;
 
 const SICK_REASON_FIELD = "absence-reason";
 
@@ -747,6 +773,8 @@ export function SickNoteModal({
   sickEnabled = true,
   excusedEnabled = true,
   reasonRequired = true,
+  careExceptions = NO_CARE_EXCEPTIONS,
+  sickDays = NO_STATUS_DAYS,
 }: Readonly<{
   studentId?: string;
   onClose: () => void;
@@ -762,8 +790,19 @@ export function SickNoteModal({
   excusedRequiresApproval?: boolean;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
+  /**
+   * Die Tagesänderungen des Kindes. Für Tage mit einer Teil-Abwesenheit der
+   * OGS (`excused_from`) geht die Meldung als Anfrage an die OGS (#5698).
+   */
+  careExceptions?: readonly CareException[];
+  /**
+   * Die Abwesenheiten, die Eltern sehen. Eine Krankmeldung der OGS
+   * (`source` nicht `parent`) ist ein Schuleintrag wie eine Teil-Abwesenheit.
+   */
+  sickDays?: readonly StatusDay[];
 }>) {
   const t = useCareTermTranslations("parentChildCare");
+  const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
@@ -777,7 +816,9 @@ export function SickNoteModal({
         : selectedStatus;
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<
+    Exclude<AbsenceSubmissionOutcome, "applied"> | false
+  >(false);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
   // unsichtbar unter ihm.
@@ -786,6 +827,38 @@ export function SickNoteModal({
   const errorId = useId();
   const reasonError = form.fieldError(SICK_REASON_FIELD);
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
+  // Entries read for exactly the chosen days after the server refused one:
+  // the school may have entered it after the page loaded, or beyond the
+  // window the page reads.
+  const [reloadedExceptions, setReloadedExceptions] =
+    useState<readonly CareException[]>(NO_CARE_EXCEPTIONS);
+  // Only a manual partial absence is a school entry; the backend ignores
+  // automatic excusals from a pulled-forward pickup time, and so does the
+  // read that fills excused_from. Such days go to the school as a request.
+  const schoolExcusedFrom = useMemo(
+    () =>
+      new Map(
+        [...careExceptions, ...reloadedExceptions].flatMap((day) =>
+          day.excused_from ? [[day.date, day.excused_from] as const] : [],
+        ),
+      ),
+    [careExceptions, reloadedExceptions],
+  );
+  const schoolSickDates = useMemo(
+    () =>
+      new Set(
+        sickDays
+          .filter((day) => day.source !== "parent")
+          .map((day) => day.date),
+      ),
+    [sickDays],
+  );
+  const schoolDays = dates.flatMap((date): SchoolDay[] => {
+    const time = schoolExcusedFrom.get(date);
+    if (time) return [{ date, time }];
+    return schoolSickDates.has(date) ? [{ date, time: null }] : [];
+  });
+  const freeDayCount = dates.length - schoolDays.length;
   const noteMissing = reason.trim() === "";
   const requiresApproval =
     status === "sick" ? sickRequiresApproval : excusedRequiresApproval;
@@ -798,11 +871,18 @@ export function SickNoteModal({
         ? "sick.kindHintExcused"
         : "sick.kindHintExcusedUnknown";
   const dayCopy =
-    requiresApproval === undefined
-      ? t("sick.unknownDaysCount", { count: dates.length })
-      : requiresApproval
-        ? t("sick.requestDaysCount")
-        : t("sick.daysCount", { count: dates.length });
+    schoolDays.length > 0 && requiresApproval === false
+      ? freeDayCount === 0
+        ? null
+        : t("sick.freeDaysCount", {
+            count: freeDayCount,
+            total: dates.length,
+          })
+      : requiresApproval === undefined
+        ? t("sick.unknownDaysCount", { count: dates.length })
+        : requiresApproval
+          ? t("sick.requestDaysCount")
+          : t("sick.daysCount", { count: dates.length });
 
   const handleSubmit = async () => {
     if (!sickEnabled && !excusedEnabled) return;
@@ -820,11 +900,25 @@ export function SickNoteModal({
     form.clear();
     try {
       const outcome = await onSubmit(dates, reason, status, recipientIds);
-      if (outcome === "pending") setSubmitted(true);
+      if (outcome === "pending" || outcome === "partly_pending")
+        setSubmitted(outcome);
       else onClose();
     } catch (err) {
       const known = knownSickErrorKey(err);
-      if (known) {
+      if (known === "sick.schoolPartialConflict" && studentId) {
+        form.invalid(t(known));
+        // The school entered a day while the dialog was open. Once the
+        // notice names it, sending again turns that day into a request.
+        const reloaded = await listCareExceptions(studentId, {
+          from: dates[0]!,
+          to: dates[dates.length - 1]!,
+        }).catch(() => NO_CARE_EXCEPTIONS);
+        setReloadedExceptions(reloaded);
+        if (
+          reloaded.some((day) => day.excused_from && dates.includes(day.date))
+        )
+          form.clear();
+      } else if (known) {
         form.invalid(t(known));
       } else {
         // Wiederholen sendet die Angaben, die jetzt im Dialog stehen.
@@ -846,7 +940,13 @@ export function SickNoteModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={submitted ? t("sick.requestSentTitle") : t("sick.title")}
+      title={
+        submitted === "partly_pending"
+          ? t("sick.requestSentPartlyTitle")
+          : submitted
+            ? t("sick.requestSentTitle")
+            : t("sick.title")
+      }
       closeLabel={t("close")}
       mobileSheet
       footer={
@@ -880,7 +980,11 @@ export function SickNoteModal({
     >
       {submitted ? (
         <p role="status" className="text-sm leading-6 text-gray-700">
-          {t("sick.requestSentBody")}
+          {submitted === "partly_pending"
+            ? t("sick.requestSentPartlyBody")
+            : requiresApproval === false
+              ? t("sick.requestSentSchoolBody")
+              : t("sick.requestSentBody")}
         </p>
       ) : (
         <div className="space-y-4">
@@ -934,7 +1038,46 @@ export function SickNoteModal({
               />
             </div>
           </fieldset>
-          <p className="text-sm text-gray-600">{dayCopy}</p>
+          {schoolDays.length > 0 && requiresApproval !== true && (
+            <Alert
+              type="info"
+              title={t("sick.schoolPartialTitle", {
+                count: schoolDays.length,
+              })}
+              message={
+                <ul className="space-y-0.5 tabular-nums">
+                  {schoolDays.map((day) => (
+                    <li key={day.date}>
+                      {day.time
+                        ? t("sick.schoolPartialDay", {
+                            date: formatCalendarDate(
+                              day.date,
+                              locale,
+                              SCHOOL_DAY_FORMAT,
+                            ),
+                            time: day.time,
+                          })
+                        : t("sick.schoolSickDay", {
+                            date: formatCalendarDate(
+                              day.date,
+                              locale,
+                              SCHOOL_DAY_FORMAT,
+                            ),
+                          })}
+                    </li>
+                  ))}
+                </ul>
+              }
+              details={
+                <p className="mt-2">
+                  {t("sick.schoolPartialRequest", {
+                    count: schoolDays.length,
+                  })}
+                </p>
+              }
+            />
+          )}
+          {dayCopy && <p className="text-sm text-gray-600">{dayCopy}</p>}
           <Textarea
             label={t("sick.reasonLabelRequired")}
             value={reason}

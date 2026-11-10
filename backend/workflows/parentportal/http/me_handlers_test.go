@@ -26,6 +26,12 @@ import (
 // fakeParentService implements PortalService. Only the profile methods
 // carry behaviour; the rest satisfy the interface for the handler tests.
 type fakeParentService struct {
+	sepaView     parentService.SEPAMandateView
+	sepaText     parentService.SEPAMandateText
+	sepaErr      error
+	gotSEPAInput parentService.SEPAMandateInput
+	gotSEPACall  string
+
 	declarationProof *parentService.DeclarationProof
 
 	conferenceChild         *parentService.Child

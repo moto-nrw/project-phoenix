@@ -28,6 +28,19 @@ function expectPlainPill(pill: Element | null, label?: string) {
   expect(el.className).not.toMatch(/\bgap-|\bmr-/);
 }
 
+// #5617: the warning pill's only child is its warning icon, hidden from
+// screen readers; no dot element beside it.
+function expectWarningPill(pill: Element | null, label: string) {
+  expect(pill).not.toBeNull();
+  const el = pill as HTMLElement;
+  expect(Array.from(el.children).map((child) => child.tagName)).toEqual([
+    "svg",
+  ]);
+  expect(el.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  expect(el.textContent).toBe(label);
+  expect(el.className).not.toMatch(/\bmr-/);
+}
+
 // #4371: a fact next to the location is a neutral text line with a concept
 // icon, never a second tinted pill.
 function expectHintLine(hint: Element | null, label: string) {
@@ -201,7 +214,20 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
         size="xs"
       />,
     );
-    expectPlainPill(screen.getByText("Eingeladen"), "Eingeladen");
+    expectWarningPill(screen.getByText("Eingeladen"), "Eingeladen");
+  });
+
+  // #5617: the warning pill carries a warning icon as its second cue next to
+  // the Schulhof pill. A state icon, not the decorative dot #2476 removed.
+  it("StatusBadge renders the warning tone with its icon and no dot", () => {
+    for (const size of ["md", "xs"] as const) {
+      const label = `Ton warning ${size}`;
+      const view = render(
+        <StatusBadge label={label} tone="warning" size={size} />,
+      );
+      expectWarningPill(screen.getByText(label), label);
+      view.unmount();
+    }
   });
 
   it.each([

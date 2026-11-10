@@ -6,6 +6,8 @@
   "version": "Sürüm {version}",
   "deadline": "Son tarih {date}",
   "closed": "Süre doldu",
+  "ended": "Onay talebi sona erdi",
+  "endedNote": "Okul burada artık yanıt istemiyor. Artık yeni yanıt veremezsiniz.",
   "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
   "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
   "state": {
@@ -45,12 +47,14 @@
   "oneIsEnough": "Bir yanıt yeterlidir.",
   "ownAnyway": "Yine de kendiniz yanıtlayabilirsiniz.",
   "cannotSubmit": "{name} için burada yanıt veremezsiniz. Bunu velayet sahibi kişiler yapar.",
+  "cannotSubmitAnymore": "{name} için artık yeni yanıt veremezsiniz.",
   "myAction": "Yanıtınız: {action}, {date}",
   "myActionNoDate": "Yanıtınız: {action}",
   "proof": "Belgeyi görüntüle",
   "othersTitle": "Velayet sahibi diğer kişiler",
   "otherOpen": "henüz yanıt yok",
   "revokeHint": "Onayınızı geri alabilirsiniz. Okul bunu hemen görür.",
+  "revokeAnytime": "Onayınızı istediğiniz zaman geri alabilirsiniz.",
   "closedNoAction": "Süre doldu. Artık yanıt veremezsiniz.",
   "confirmTitle": "Yanıtınızı kontrol edin",
   "confirmBody": "{name} için cevabınız: {action}.",
@@ -86,5 +90,10 @@
     "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin.",
     "signatureRequired": "Lütfen imza atın ve “İmzayı onayla”ya dokunun."
   },
-  "errorObjectAnswer": "yanıt"
+  "errorObjectAnswer": "yanıt",
+  "earlierConsent": {
+    "title": "{version}. sürüme onay: {date}.",
+    "note": "Okul metni daha sonra değiştirdi. Bu metne verdiğiniz onay, siz geri alana kadar geçerlidir.",
+    "endsToo": "Bu, {version}. sürüme verdiğiniz onayı da sona erdirir."
+  }
 }

@@ -57,36 +57,60 @@
       "target_owner": "document-rendering"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "binding_digest": "f9ed55d97ea06c7ce2dd2e9041a5de6b",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
       "source_owner": "parent-billing",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "binding_digest": "4ab735e5309894f97cf5327b48785022",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
       "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "target_owner": "enrollment"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "binding_digest": "d4d924ed8d1ab6110adbd13e744575df",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
-      "source_owner": "parent-billing",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "binding_digest": "9b5ea30a5204439d4da13d9f13655df4",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
+      "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "binding_digest": "2b846846c1d86f0cd9de6c4d91d31331",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
       "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "target_owner": "enrollment"
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Seal",
+      "binding_digest": "2b846846c1d86f0cd9de6c4d91d31331",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "binding_digest": "04f9698ef5b3ba14cda74a9cee4912d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataRewrapper.Rewrap",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "target_owner": "security-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
@@ -282,7 +306,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
-      "binding_digest": "9e605a32c6b997d7004019ae14044b8a",
+      "binding_digest": "49e0a1be23c0880db29468e9c269e064",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
@@ -311,6 +335,30 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMandateParties.Recipients",
+      "binding_digest": "b83bf6aa9a2504b2a0fef19f2b645a28",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractParties.Recipients",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "binding_digest": "38216c913e8b341341e458017d4f9a91",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "binding_digest": "36c23941dcf612da853428597f972531",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
@@ -431,6 +479,38 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
       "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
+      "binding_digest": "1c729a97a6c1e2e4f37466d64f290c77",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
+      "binding_digest": "2add2000f7292a285681f7f2c650a4d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.retainedContracts.ContractRetentionFacts",
+      "binding_digest": "edba4b439d4a3690ef6d366e1595fbf0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.RetainedContracts.ContractRetentionFacts",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractRetention.RetentionFacts",
+      "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.retainedContracts.DeleteEndedContracts",
+      "binding_digest": "bd9af8e1271d04bf837c19b9244fce24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.RetainedContracts.DeleteEndedContracts",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractRetention.DeleteEndedContracts",
+      "target_owner": "care-contract"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",

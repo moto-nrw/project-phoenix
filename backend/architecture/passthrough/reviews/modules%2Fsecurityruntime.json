@@ -1,0 +1,9 @@
+{
+  "sites": [
+    {
+      "decision": "0183",
+      "id": "modules/securityruntime/internal/domain/fieldcipher/BankCipher.Rewrap",
+      "reason": "ADR 0183: owner-edge crypto validation, not a repository forward. Authenticates active or explicit legacy ciphertext under unchanged AAD; preserves active-key bytes for idempotency, otherwise seals with the bank key. Exact source evidence covers the native promoted Seal call; no selector or legacy owner-floor increase."
+    }
+  ]
+}

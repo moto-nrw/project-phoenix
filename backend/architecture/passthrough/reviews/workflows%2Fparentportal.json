@@ -337,11 +337,6 @@
     },
     {
       "decision": "0090",
-      "id": "workflows/parentportal/declarationPolicyBinding.ActionAllowed",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "workflows/parentportal/declarationPolicyBinding.AllowedActions",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -521,9 +516,29 @@
       "reason": "Workflow step (#5918): it resolves the children whose relationship grants parent_portal.enrollments.view, the Träger and the account's address, checks the contract in the inbox and reads the number in that Träger's transaction."
     },
     {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.GrantSEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract and its payer and stores the confirmed mandate in that Träger's transaction."
+    },
+    {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.PreviewSEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract and its payer and renders the mandate text in that Träger's transaction."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.RevokeSEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract and its payer and revokes the family's mandate in that Träger's transaction."
+    },
+    {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.SEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollments.view, the Träger and the account's address, checks the contract and its payer and reads the mandate in that Träger's transaction."
     },
     {
       "decision": "0090",
@@ -624,6 +639,11 @@
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/studentRecords[C, P].SetStudentPhotoConsent",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0161",
+      "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianAttachment",
+      "reason": "ADR 0161 step 3: the announcement download hands the row read into the school unit of the gate's switch, then the shared hand-out asks the audience again and opens the bytes; exact evidence, no ADR 0075 floor claimed."
     },
     {
       "decision": "0090",

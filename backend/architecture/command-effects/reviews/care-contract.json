@@ -22,6 +22,28 @@
       "target_owner": "delivery-platform"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractFamilyNumbers.FamilyChildren",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.FamilyNumbers.FamilyChildren",
+      "reason": "Guarded target record command (#6335); participates in the caller's Träger transaction after the Betreuungsvertrag checked the contract (open signing link or a contract just made from an accepted registration). Target modules/parentbilling ContractFamilyChildren keeps validation (1 to 20), LockCareBilling, the newer-statement guard and the read/statement trail with its channel; failures propagate to the caller unit. No separate commit, scope switch or combined protocol.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractFamilyChildren.ContractFamilyChildren",
+      "target_owner": "parent-billing"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractFamilyNumbers.StateFamilyChildren",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.FamilyNumbers.StateFamilyChildren",
+      "reason": "Guarded target record command (#6335); participates in the caller's Träger transaction after the Betreuungsvertrag checked the contract (open signing link or a contract just made from an accepted registration). Target modules/parentbilling ContractFamilyChildren keeps validation (1 to 20), LockCareBilling, the newer-statement guard and the read/statement trail with its channel; failures propagate to the caller unit. No separate commit, scope switch or combined protocol.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractFamilyChildren.StateContractFamilyChildren",
+      "target_owner": "parent-billing"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "classification": "query",
       "effect": "query",
@@ -299,7 +321,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction, with whether the form required each ticked block (#4682: an optional block records the early start wish, never the conditions). The root only maps values; no mutation or scope switch (#4678, #4680, #4682, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction, with whether the form required each ticked block (#4682: an optional block records the early start wish, never the conditions). The root only maps values, since #6335 also the number of children the parents stated on the registration with its time; no mutation or scope switch (#4678, #4680, #4682, #6335, ADR 0153).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
       "target_owner": "enrollment"
@@ -392,7 +414,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Reads the student’s pending request, comparison and recent decision inside the school transaction; the binding filters both outcomes to the contract enrollment before returning them (ADR 0163).",
+      "reason": "Reads the student’s pending request, comparison with the modules it keeps unchanged (#6334) and recent decision inside the school transaction; the binding filters both outcomes to the contract enrollment and lists each module once before returning them (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.GetForStudent",
       "target_owner": "care-plan"
@@ -402,7 +424,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Read-only materialization for the selected effective date, after matching the request to the contract enrollment. Reuses Care Plan’s validation and full dated comparison; no booking or decision is written (ADR 0163).",
+      "reason": "Read-only materialization for the selected effective date, after matching the request to the contract enrollment. Reuses Care Plan’s validation and full dated comparison, including the modules kept unchanged at that date (#6334); no booking or decision is written (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
       "target_owner": "care-plan"
@@ -412,7 +434,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Pure timestamp-to-version value mapping used to reject obsolete request forms; no mutation or locking read (ADR 0163).",
+      "reason": "Pure timestamp-to-version value mapping used to reject obsolete request forms; listing the kept modules (#6334) adds no mutation or locking read (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ParentRequestVersion",
       "target_owner": "care-plan"
@@ -422,7 +444,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Pure reason-policy value check, retaining the same staff-side policy for the school and the office (ADR 0163).",
+      "reason": "Pure reason-policy value check, retaining the same staff-side policy for the school and the office; listing the kept modules (#6334) leaves it unchanged (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests.ReasonRequired",
       "target_owner": "care-plan"
@@ -432,9 +454,69 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Reads the school’s parent-request reason policy in the existing school transaction, using tenant registry resolution without another write or scope switch (ADR 0163).",
+      "reason": "Reads the school’s parent-request reason policy in the existing school transaction, using tenant registry resolution without another write or scope switch; listing the kept modules (#6334) adds none (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
+      "reason": "Reads the federal state from the resolved settings snapshot in memory (#6350).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#6350).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.HolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#6350).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#6350).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayQuery.HolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#6350).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayQuery.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
+      "reason": "Reads each school's federal state for the withdrawal period (#6350) in an administrative unit detached from the caller's Träger transaction (ADR 0175, ADR 0105); no write or scope change of the caller.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
       "target_owner": "settings-platform"
     },
     {

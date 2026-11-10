@@ -128,14 +128,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2.3.0
         with:
           # Required since v2. Scopes the sticky-disk layer cache to this
           # Dockerfile; must differ from the frontend job to avoid cache thrash.
           cache-key: backend/Dockerfile
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -197,14 +197,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2.3.0
         with:
           # Required since v2. Scopes the sticky-disk layer cache to this
           # Dockerfile; must differ from the backend job to avoid cache thrash.
           cache-key: frontend/Dockerfile.prod
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -436,8 +436,12 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt staging environment
@@ -556,8 +560,12 @@ jobs:
           fi
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt production environment
@@ -676,8 +684,12 @@ jobs:
           fi
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt demo environment

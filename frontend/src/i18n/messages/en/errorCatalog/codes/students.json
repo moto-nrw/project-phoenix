@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "One of the offerings has no free places left. Please check the occupancy.",
   "offering_change_date_out_of_range": "{object} could not be saved. Please check your entries.",
   "offering_changes_no_enrollment": "The child no longer has a valid enrollment. Please decline {object}.",
-  "partial_absence_conflict": "{object} could not be changed. Please check its current status.",
+  "partial_absence_conflict": "The child is already excused from a certain time on a chosen day. First remove that partial excusal under “Entschuldigen” and “Ab Uhrzeit”.",
   "partial_absence_requires_dedicated_action": "{object} could not be changed. Please check its current status.",
   "photo_consent_required": "{object} could not be saved. Please check your entries.",
   "photo_consent_withdrawn": "{object} could not be changed. Please check its current status.",

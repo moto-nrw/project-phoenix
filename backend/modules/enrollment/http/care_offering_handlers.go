@@ -484,6 +484,14 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 		return rs.CareOfferingService.Delete(ctx, id)
 	})
 	if err != nil {
+		if ended := rs.Failures.requestEnded(r, err); ended != nil {
+			common.RenderError(w, r, ended)
+			return
+		}
+		if rs.Failures.savepointControlFailed(r, err) {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
 		// FK violation when a selection or care booking already references
 		// this offering — admin should soft-delete (is_active=false).
 		if rs.Failures.Constraint(err) {

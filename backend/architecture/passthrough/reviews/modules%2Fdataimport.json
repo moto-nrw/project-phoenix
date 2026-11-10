@@ -16,6 +16,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "modules/dataimport/ports/observedClassListEntryBatches.CreateClassListEntries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "modules/dataimport/ports/observedClassListMembership.CreateClassListEntry",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -48,6 +53,11 @@
     {
       "decision": "0090",
       "id": "modules/dataimport/ports/observedOpeningBalanceBookings.CreateOpeningBalance",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0177",
+      "id": "modules/dataimport/ports/observedPersonBatches.CreatePersons",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

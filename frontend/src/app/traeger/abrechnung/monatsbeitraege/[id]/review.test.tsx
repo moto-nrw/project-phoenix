@@ -147,15 +147,16 @@ describe("monthly run review", () => {
 
     fireEvent.click(
       excluded.getByRole("button", {
-        name: "Wieder aufnehmen: Rechnung von Mia Beispiel",
+        name: "Wieder aufnehmen: Betreuung von Mia Beispiel",
       }),
     );
     expect(
-      await screen.findByText(
-        "Die Rechnung von Mia Beispiel ist wieder im Lauf.",
-      ),
+      await screen.findByText("Betreuung von Mia Beispiel ist wieder im Lauf."),
     ).toBeInTheDocument();
-    expect(review.includeCareInvoice).toHaveBeenCalledWith("7", "22");
+    expect(review.includeCareInvoice).toHaveBeenCalledWith(
+      "7",
+      expect.objectContaining({ contractId: "22", service: "care" }),
+    );
     expect(
       screen.queryByRole("heading", { name: "Ausgeschlossen" }),
     ).toBeNull();

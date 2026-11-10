@@ -166,17 +166,27 @@ export function UnpublishAnnouncementDialog({
     >
       <div className="space-y-2 text-sm text-gray-700">
         <FormErrorAlert message={error} />
-        <p>
-          „{announcement.title}“ wird für die Eltern nicht mehr sichtbar und
-          kehrt in den Entwurfsstatus zurück.
-        </p>
+        {announcement.delivery_mode === "declaration" ? (
+          // Wer schon geantwortet hat, behält das Einverständnis, damit eine
+          // Zustimmung widerrufbar bleibt (#6290).
+          <p>
+            „{announcement.title}“ kehrt in den Entwurfsstatus zurück. Eltern
+            können nicht mehr neu antworten.
+          </p>
+        ) : (
+          <p>
+            „{announcement.title}“ wird für die Eltern nicht mehr sichtbar und
+            kehrt in den Entwurfsstatus zurück.
+          </p>
+        )}
         <p className="text-xs text-gray-500">
           Noch nicht versendete E-Mail-Benachrichtigungen werden abgebrochen.
         </p>
         {announcement.delivery_mode === "declaration" && (
           <p className="text-xs text-gray-500">
-            Bisherige Antworten bleiben gespeichert. Ändern Sie danach den Text,
-            müssen die Eltern noch einmal antworten.
+            Bisherige Antworten bleiben gespeichert. Wer schon geantwortet hat,
+            sieht das Einverständnis weiter und kann eine Zustimmung widerrufen.
+            Ändern Sie danach den Text, müssen die Eltern noch einmal antworten.
           </p>
         )}
       </div>

@@ -31,6 +31,7 @@ type Contracts struct {
 	links       carecontract.SigningLinks
 	versions    carecontract.ContractVersions
 	notices     carecontract.DocumentNotices
+	periods     withdrawalPeriods
 }
 
 // ContractPorts are the root-bound ports of the contracts. Ledger and
@@ -45,17 +46,20 @@ type ContractPorts struct {
 	// Notices puts the push of a first send on the outbox (#5941). The
 	// roots bind it; a composition without it sends no push.
 	Notices carecontract.DocumentNotices
+	// Holidays dates the withdrawal period of a signature at the school.
+	Holidays carecontract.SchoolHolidays
 }
 
 var _ carecontract.Contracts = (*Contracts)(nil)
 
 func NewContracts(store ContractStore, renderer LetterRenderer, ports ContractPorts, clock Clock, versions carecontract.ContractVersions) *Contracts {
 	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil ||
-		ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || versions == nil {
-		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log, the ledger, the link tokens and the versions are required")
+		ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || versions == nil || ports.Holidays == nil {
+		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log, the ledger, the link tokens, the versions and the school holidays are required")
 	}
 	return &Contracts{store: store, letterheads: ports.Letterheads, renderer: renderer, post: ports.Post, clock: clock,
-		runtime: ports.Runtime, access: ports.Access, ledger: ports.Ledger, links: ports.Links, versions: versions, notices: ports.Notices}
+		runtime: ports.Runtime, access: ports.Access, ledger: ports.Ledger, links: ports.Links, versions: versions, notices: ports.Notices,
+		periods: withdrawalPeriods{holidays: ports.Holidays}}
 }
 
 // ListContracts lists the contracts of the filter, records the read in the

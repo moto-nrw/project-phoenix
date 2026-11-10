@@ -78,67 +78,51 @@ func noticeDates(terms carecontract.TemplateInput, receivedOn calendar.Date, con
 // (§ 356 Abs. 3 BGB), and a late notice never reaches beyond that either. A
 // contract signed on paper before has none: it was signed at the office and
 // is no distance contract (§ 312c BGB). A last day on a Saturday, a Sunday or
-// a nationwide public holiday moves to the next working day (§ 193 BGB).
-func withdrawalUntil(concluded *carecontract.Concluded, informedAt *time.Time) *calendar.Date {
-	if concluded == nil {
+// a statutory holiday of the school's federal state moves to the next
+// working day (§ 193 BGB, #6350); holidays holds those of
+// withdrawalWindow.
+func withdrawalUntil(concluded *carecontract.Concluded, informedAt *time.Time, holidays map[calendar.Date]bool) *calendar.Date {
+	if !hasWithdrawalPeriod(concluded, informedAt) {
 		return nil
 	}
 	start := calendar.DateFromTime(concluded.At)
-	expiry := nextWorkingDay(addMonths(start, 12).AddDays(carecontract.WithdrawalDays))
+	expiry := nextWorkingDay(addMonths(start, 12).AddDays(carecontract.WithdrawalDays), holidays)
 	if informedAt == nil {
-		if concluded.Method == carecontract.MethodPaper {
-			return nil
-		}
 		return &expiry
 	}
 	if informed := calendar.DateFromTime(*informedAt); informed.After(start) {
 		start = informed
 	}
-	last := nextWorkingDay(start.AddDays(carecontract.WithdrawalDays))
+	last := nextWorkingDay(start.AddDays(carecontract.WithdrawalDays), holidays)
 	if last.After(expiry) {
 		last = expiry
 	}
 	return &last
 }
 
+// hasWithdrawalPeriod tells whether withdrawalUntil names a day, so that a
+// contract without a period reads no holidays.
+func hasWithdrawalPeriod(concluded *carecontract.Concluded, informedAt *time.Time) bool {
+	return concluded != nil && (informedAt != nil || concluded.Method != carecontract.MethodPaper)
+}
+
+// withdrawalWindow spans every day withdrawalUntil may move past for a
+// contract concluded at concludedAt: from the conclusion to a week after
+// the latest end, 12 months and 14 days later. No run of Saturday, Sunday
+// and statutory holidays is longer than four days; a later end of a late
+// notice is cut back to that latest end anyway.
+func withdrawalWindow(concludedAt time.Time) (calendar.Date, calendar.Date) {
+	start := calendar.DateFromTime(concludedAt)
+	return start, addMonths(start, 12).AddDays(carecontract.WithdrawalDays + 7)
+}
+
 // nextWorkingDay is day, or the next day that is neither a Saturday, a
-// Sunday nor a nationwide public holiday (§ 193 BGB).
-func nextWorkingDay(day calendar.Date) calendar.Date {
-	for day.Weekday() == time.Saturday || day.Weekday() == time.Sunday || nationwideHoliday(day) {
+// Sunday nor one of holidays, the statutory holidays at the school (§ 193
+// BGB). Only the end of a period to declare something moves: the end of a
+// contract after a termination is no such period and never moves.
+func nextWorkingDay(day calendar.Date, holidays map[calendar.Date]bool) calendar.Date {
+	for day.Weekday() == time.Saturday || day.Weekday() == time.Sunday || holidays[day] {
 		day = day.AddDays(1)
 	}
 	return day
-}
-
-// nationwideHoliday tells whether day is a public holiday in every federal
-// state. Regional holidays belong to School Calendar; the period ends a day
-// earlier there than it could (#4682 names the gap).
-func nationwideHoliday(day calendar.Date) bool {
-	easter := easterSunday(day.Year())
-	for _, holiday := range []calendar.Date{
-		calendar.NewDate(day.Year(), time.January, 1), easter.AddDays(-2), easter.AddDays(1),
-		calendar.NewDate(day.Year(), time.May, 1), easter.AddDays(39), easter.AddDays(50),
-		calendar.NewDate(day.Year(), time.October, 3), calendar.NewDate(day.Year(), time.December, 25),
-		calendar.NewDate(day.Year(), time.December, 26),
-	} {
-		if holiday == day {
-			return true
-		}
-	}
-	return false
-}
-
-// easterSunday is Easter Sunday of year in the Gregorian calendar
-// (anonymous Gregorian algorithm).
-func easterSunday(year int) calendar.Date {
-	a, b, c := year%19, year/100, year%100
-	d, e := b/4, b%4
-	f := (b + 8) / 25
-	g := (b - f + 1) / 3
-	h := (19*a + b - d - g + 15) % 30
-	i, k := c/4, c%4
-	l := (32 + 2*e + 2*i - h - k) % 7
-	m := (a + 11*h + 22*l) / 451
-	month := (h + l - 7*m + 114) / 31
-	return calendar.NewDate(year, time.Month(month), (h+l-7*m+114)%31+1)
 }

@@ -90,5 +90,18 @@
   "sepa_mandate_reference_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "sepa_mandate_revoked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "direct_debit_without_mandate": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "sepa_creditor_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "sepa_creditor_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "sepa_debit_run_not_found": "This run does not exist or is not released yet. A direct debit file exists only after the release.",
+  "sepa_debits_empty": "This run has no open direct debit. There is no file to download or confirm.",
+  "sepa_debits_changed": "The direct debit file has changed. Download it again and submit the new file to your bank.",
+  "sepa_creditor_account_missing": "The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right \"Settings\".",
+  "sepa_account_holder_unsupported": "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+  "sepa_end_to_end_duplicate": "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+  "sepa_import_file_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "sepa_import_file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "sepa_import_mapping_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "sepa_import_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "beleg_retention_basis_cites_statute": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "online_mandate_disabled": "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
+  "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie."
 }

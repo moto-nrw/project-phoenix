@@ -193,7 +193,7 @@ function CourseWaitlistBlock({
 }
 
 function placeLine(place: RequestWaitlistPlace): {
-  badge: { tone: "green" | "orange" | "gray"; label: string };
+  badge: { tone: "green" | "warning" | "gray"; label: string };
   text: string;
 } {
   const { waitlist, entry } = place;
@@ -205,7 +205,7 @@ function placeLine(place: RequestWaitlistPlace): {
   }
   if (waitlist.freeSlots === 0) {
     return {
-      badge: { tone: "orange", label: `Warteliste, Platz ${entry.rank}` },
+      badge: { tone: "warning", label: `Warteliste, Platz ${entry.rank}` },
       text: "Die AG ist voll. Wird ein Platz frei, steht es hier.",
     };
   }

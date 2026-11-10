@@ -32,6 +32,12 @@ import { NOTICE_TO_LABELS } from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractConditions" });
 
+// moto offers a special termination only to the half year (31 January,
+// 31 July), with the notice months of the terms (#4682). The text names the
+// cases; a date in it changes no termination date (#6349).
+const SPECIAL_TERMINATION_HINT =
+  "Der Vertrag endet dann zum 31. Januar oder 31. Juli. Es gilt dieselbe Frist in Monaten. Ein anderes Datum in diesem Text ändert den Termin nicht.";
+
 /** The suggestion for an offering without conditions: the usual OGS contract. */
 const DEFAULT_TERMS: ContractTerms = {
   termKind: "school_year",
@@ -315,18 +321,19 @@ function ConditionsForm({
                 set("specialTermination", !draft.specialTermination)
               }
             />
-            Eltern dürfen in besonderen Fällen früher kündigen
+            Eltern dürfen in besonderen Fällen zum Halbjahr kündigen
           </label>
           {draft.specialTermination ? (
             <Textarea
               name="special_termination_note"
-              label="Wann ist das möglich?"
+              label="In welchen Fällen?"
+              hint={SPECIAL_TERMINATION_HINT}
               required
               rows={3}
               maxLength={1000}
               value={draft.specialTerminationNote}
               error={formErrors.fieldError("special_termination_note")}
-              placeholder="Zum Beispiel bei Umzug oder Schulwechsel, zum Ende des Folgemonats."
+              placeholder="Zum Beispiel bei Umzug oder Schulwechsel."
               onChange={(event) =>
                 set("specialTerminationNote", event.target.value)
               }
@@ -423,10 +430,10 @@ function ConditionsForm({
 }
 
 function conditionBadge(offering: OfferingTemplate): {
-  tone: "green" | "gray" | "orange";
+  tone: "green" | "gray" | "warning";
   label: string;
 } {
   if (offering.template) return { tone: "green", label: "Festgelegt" };
   if (!offering.active) return { tone: "gray", label: "Nicht aktiv" };
-  return { tone: "orange", label: "Fehlt" };
+  return { tone: "warning", label: "Fehlt" };
 }

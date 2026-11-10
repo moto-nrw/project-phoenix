@@ -1,6 +1,7 @@
 package studentdirectoryview
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -62,4 +63,26 @@ func openStudentHealth(health HealthCipher, tenantID, membershipID int64, sealed
 	}
 	value := string(plaintext)
 	return &value, nil
+}
+
+var errStudentHealthExportField = errors.New("studentdirectoryview: not a sealed student health export field")
+
+// OpenExportField opens the sealed health field of a care row for the return
+// export of a school (#3838, #6328). It binds the value to the school and
+// care row of the exported row, as sealing did; a value copied into another
+// row does not open. The error never names the value.
+func (r Reader) OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error) {
+	if table != "users.student_care_profiles" || column != "health_data" {
+		return "", errStudentHealthExportField
+	}
+	var tenantID, membershipID int64
+	if json.Unmarshal(row["tenant_id"], &tenantID) != nil || tenantID <= 0 ||
+		json.Unmarshal(row["membership_id"], &membershipID) != nil || membershipID <= 0 {
+		return "", errStudentHealthExportField
+	}
+	value, err := openStudentHealth(r.health, tenantID, membershipID, sealed)
+	if err != nil || value == nil {
+		return "", ErrStudentHealthUnreadable
+	}
+	return *value, nil
 }

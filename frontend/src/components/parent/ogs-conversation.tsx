@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { XIcon } from "@phosphor-icons/react/ssr";
+import { EyeIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "~/lib/api-error";
 import { Button } from "~/components/ui/button";
@@ -101,10 +101,17 @@ export function OgsConversation({
   showChild = false,
   audience: audienceProp,
   onAudienceChange,
+  tourAnchor,
 }: {
   readonly studentId: string;
   readonly showBack?: boolean;
   readonly showChild?: boolean;
+  /**
+   * `data-parent-tour` value for the conversation head. The page passes its
+   * own tour anchor when it hides its intro on a small screen, so the tour
+   * still has a visible stop there.
+   */
+  readonly tourAnchor?: string;
   /**
    * The conversation shown (#5200). Given by the per-child route from
    * `?audience=`, which onAudienceChange updates; without it the component
@@ -486,7 +493,10 @@ export function OgsConversation({
         className="flex min-h-0 flex-1 flex-col"
         bodyClassName="flex min-h-0 flex-1 flex-col"
       >
-        <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+        <div
+          className="border-b border-gray-100 px-4 py-3 sm:px-5"
+          data-parent-tour={tourAnchor}
+        >
           {showBack ? <BackBar /> : null}
           {loading ? (
             <div
@@ -551,8 +561,10 @@ export function OgsConversation({
             />
           ) : null}
           {readersLine && !loading ? (
+            // Auf kleinen Bildschirmen steht die Zeile nur am Schreibfeld:
+            // zweimal derselbe Satz kostete dem Verlauf seinen Platz.
             <p
-              className="mt-2 text-sm text-gray-600"
+              className="mt-2 text-sm text-gray-600 in-data-chat-compact:hidden"
               data-testid="conversation-readers"
             >
               {readersLine}
@@ -562,6 +574,7 @@ export function OgsConversation({
 
         <div
           ref={scrollRef}
+          data-chat-scroll=""
           className="flex-1 space-y-2.5 overflow-y-auto bg-gray-50/60 px-3 py-3 sm:px-5 sm:py-4"
         >
           {/* Keep already-loaded messages on screen even if a later background
@@ -734,11 +747,22 @@ export function OgsConversation({
                   die Entscheidung, was man schreibt (#5200). Die volle Liste
                   steht im Kopf; hier bleibt es eine Zeile. */}
               {readersLine ? (
+                // Im kompakten Modus ist das die einzige Leserzeile: dann
+                // ganz, nicht abgeschnitten.
                 <p
-                  className="mb-2 truncate text-xs text-gray-500"
+                  className="mb-2 flex min-w-0 items-start gap-1.5 text-xs leading-4 text-gray-500"
                   title={readersLine}
+                  data-testid="composer-readers"
                 >
-                  {readersLine}
+                  <EyeIcon
+                    size={14}
+                    weight="bold"
+                    aria-hidden="true"
+                    className="mt-px shrink-0"
+                  />
+                  <span className="min-w-0 truncate in-data-chat-compact:whitespace-normal">
+                    {readersLine}
+                  </span>
                 </p>
               ) : null}
               <MessageComposer
@@ -784,6 +808,7 @@ export function OgsConversation({
             }
             sickRequiresApproval={care.features.sick_requires_approval}
             excusedRequiresApproval={care.features.excused_requires_approval}
+            careExceptions={care.careExceptions}
           />
         )}
       {activeModal === "pickup" && (
@@ -881,8 +906,12 @@ function QuickActions({
     );
   const actions = getOgsActions(features).filter((action) => action.enabled);
   if (actions.length === 0) return null;
+  // Auf dem Telefon in einer Zeile, die sich die Knöpfe teilen: zwei Pillen
+  // brachen auf 360 px sonst in zwei Zeilen um und nahmen dem Verlauf rund
+  // 50 px. Reicht die Breite nicht, bricht die Beschriftung um, nicht die
+  // Zeile.
   return (
-    <div className="mb-3 flex flex-wrap gap-2 in-data-chat-keyboard:hidden">
+    <div className="mb-3 flex gap-2 in-data-chat-keyboard:hidden sm:flex-wrap">
       {actions.map((action) => (
         <QuickActionPill
           key={action.key}
@@ -925,7 +954,7 @@ function QuickActionPill({
       size="md"
       onClick={() => onPick(action.key)}
       title={careT(`actions.${action.key}.hint`)}
-      className="shrink-0 gap-1.5"
+      className="min-w-0 grow gap-1.5 sm:grow-0"
     >
       {action.key === "sick" ? (
         <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
@@ -936,7 +965,7 @@ function QuickActionPill({
           aria-hidden="true"
         />
       )}
-      <span className="sm:hidden">
+      <span className="min-w-0 text-center leading-5 sm:hidden">
         {todayT(
           action.key === "sick"
             ? "actions.sickCompact"

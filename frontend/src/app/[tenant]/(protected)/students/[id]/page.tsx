@@ -33,6 +33,7 @@ import {
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
 import {
+  countedDayStatus,
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
@@ -92,7 +93,10 @@ import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
 import { StudentCareTimesSection } from "~/components/students/care-times-section";
 import { CareExitModal } from "~/components/students/care-exit-modal";
-import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
+import {
+  PlannedStatusDaysModal,
+  type PlannedStatusSubmitOptions,
+} from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { fetchArrivalData } from "~/lib/student-arrival-api";
@@ -836,6 +840,12 @@ function StudentDetailPageContent() {
     dialogErrors.clear();
     setPlannedStatusModal(status);
   };
+  // Ort vor Status (#6371, #6407): a checked-in child keeps today's planned
+  // arrival and pickup despite a sick or excused status, which then stays a
+  // hint at the location badge.
+  const todayCountedStatus = student ? countedDayStatus(student) : null;
+  const todaySick = todayCountedStatus === "sick";
+  const todayExcused = todayCountedStatus === "excused";
   // Today's pickup slot for the header. Mirrors todayArrival below: a failed
   // fetch (e.g. permission denied for non-full-access users) leaves pickupData
   // undefined, which renders the same empty header as "no pickup planned".
@@ -850,9 +860,9 @@ function StudentDetailPageContent() {
       parseISODate(berlinToday),
       pickupData.schedules,
       pickupData.exceptions,
-      student?.sick ?? false,
+      todaySick,
       pickupData.notes,
-      student?.excused ?? false,
+      todayExcused,
       null,
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
@@ -871,8 +881,8 @@ function StudentDetailPageContent() {
   }, [
     pickupData,
     hasFullAccess,
-    student?.sick,
-    student?.excused,
+    todaySick,
+    todayExcused,
     weekendFollowsFriday,
     berlinToday,
   ]);
@@ -885,8 +895,8 @@ function StudentDetailPageContent() {
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
-      student?.sick ?? false,
-      student?.excused ?? false,
+      todaySick,
+      todayExcused,
       null,
       weekendFollowsFriday,
       berlinToday,
@@ -911,8 +921,8 @@ function StudentDetailPageContent() {
   }, [
     arrivalData,
     hasFullAccess,
-    student?.excused,
-    student?.sick,
+    todayExcused,
+    todaySick,
     weekendFollowsFriday,
     berlinToday,
   ]);
@@ -1292,6 +1302,7 @@ function StudentDetailPageContent() {
   const handleCreatePlannedStatus = async (
     dates: string[],
     reason?: string,
+    options?: PlannedStatusSubmitOptions,
   ) => {
     if (!plannedStatusModal || !student) return;
 
@@ -1302,8 +1313,13 @@ function StudentDetailPageContent() {
         plannedStatusModal,
         dates,
         reason,
+        options?.replacePartialAbsenceDates,
       );
       refreshData();
+      // A replaced partial excusal is gone; reload the list that names it.
+      if (options?.replacePartialAbsenceDates.length) {
+        void mutatePartialAbsences();
+      }
       setStatusDayRange((current) => extendStatusDayRange(current, dates));
       await mutateStatusDays(
         (current) => mergeStatusDays(current, createdStatusDays),

@@ -6,6 +6,8 @@
   "version": "Versioni {version}",
   "deadline": "Afati deri më {date}",
   "closed": "Afati ka kaluar",
+  "ended": "Pëlqimi përfundoi",
+  "endedNote": "Shkolla nuk kërkon më përgjigje këtu. Nuk mund të jepni më përgjigje të re.",
   "passwordNote": "Para se të përgjigjeni, moto ju kërkon fjalëkalimin.",
   "signatureNote": "Për të dhënë pëlqimin, nënshkruani me gisht ose me mi.",
   "state": {
@@ -45,12 +47,14 @@
   "oneIsEnough": "Mjafton një përgjigje.",
   "ownAnyway": "Mund të përgjigjeni edhe vetë.",
   "cannotSubmit": "Këtu nuk mund të përgjigjeni për {name}. Këtë e bëjnë personat me kujdestari.",
+  "cannotSubmitAnymore": "Nuk mund të jepni më përgjigje të re për {name}.",
   "myAction": "Përgjigjja juaj: {action}, {date}",
   "myActionNoDate": "Përgjigjja juaj: {action}",
   "proof": "Shiko vërtetimin",
   "othersTitle": "Persona të tjerë me kujdestari",
   "otherOpen": "ende pa përgjigje",
   "revokeHint": "Mund ta tërhiqni pëlqimin tuaj. Shkolla e sheh menjëherë.",
+  "revokeAnytime": "Mund ta tërhiqni pëlqimin tuaj në çdo kohë.",
   "closedNoAction": "Afati ka kaluar. Nuk mund të përgjigjeni më.",
   "confirmTitle": "Kontrolloni përgjigjen tuaj",
   "confirmBody": "Përgjigjja juaj për {name}: {action}.",
@@ -86,5 +90,10 @@
     "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri.",
     "signatureRequired": "Ju lutemi nënshkruani dhe prekni „Konfirmo nënshkrimin”."
   },
-  "errorObjectAnswer": "përgjigjja"
+  "errorObjectAnswer": "përgjigjja",
+  "earlierConsent": {
+    "title": "Pëlqimi për versionin {version}: {date}.",
+    "note": "Më pas shkolla e ndryshoi tekstin. Pëlqimi juaj për këtë tekst vlen derisa ta tërhiqni.",
+    "endsToo": "Kështu përfundon edhe pëlqimi juaj për versionin {version}."
+  }
 }

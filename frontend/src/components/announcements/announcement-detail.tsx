@@ -596,9 +596,7 @@ export function AnnouncementDetail({
                   : "Keine Frist"}
               </DataField>
               <DataField label="Widerruf">
-                {announcement.declaration_revocable
-                  ? "Erlaubt, auch nach der Frist"
-                  : "Nicht erlaubt"}
+                Jederzeit möglich, auch nach der Frist
               </DataField>
               <DataField label="Unterschrift">
                 {announcement.declaration_requires_signature

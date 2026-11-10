@@ -61,7 +61,6 @@ function status(overrides: Partial<DeclarationStatus> = {}): DeclarationStatus {
   return {
     kind: "consent",
     signers: "all",
-    revocable: true,
     requires_password: false,
     requires_signature: false,
     deadline: null,

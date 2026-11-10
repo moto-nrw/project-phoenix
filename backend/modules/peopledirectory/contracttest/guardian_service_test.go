@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -2435,7 +2434,7 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 
 		// ASSERT
 		require.NoError(t, err)
-		stored, err := testpkg.TenantQuery1(t, ctx, db, peopleCompose.NewGuardianFinancialDataRepository(db).FindByGuardianProfileID, profile.ID)
+		stored, err := testpkg.TenantQuery3(t, ctx, db, service.RevealGuardianPayment, profile.ID, int64(1), "admin") // #6332: the store holds sealed values only
 		require.NoError(t, err)
 		require.NotNil(t, stored)
 		require.NotNil(t, stored.IBAN)
@@ -2464,7 +2463,7 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 
 		// ASSERT
 		require.NoError(t, err)
-		stored, err := testpkg.TenantQuery1(t, ctx, db, peopleCompose.NewGuardianFinancialDataRepository(db).FindByGuardianProfileID, profile.ID)
+		stored, err := testpkg.TenantQuery3(t, ctx, db, service.RevealGuardianPayment, profile.ID, int64(1), "admin") // #6332: the store holds sealed values only
 		require.NoError(t, err)
 		require.NotNil(t, stored)
 		require.NotNil(t, stored.AccountHolder)

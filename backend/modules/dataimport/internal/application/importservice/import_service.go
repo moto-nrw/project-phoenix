@@ -42,6 +42,16 @@ type ImportService[T any] struct {
 	observe      func(importModels.ImportObservation)
 	fingerprint  func([]byte) string
 	checkpoints  audit.ImportCheckpointReader
+	// boundStatements and batchLimit bound every batch write of the chunk
+	// executor (decision E13); without boundStatements chunks take the row path.
+	boundStatements func(context.Context, time.Duration, func(context.Context) error) error
+	batchLimit      time.Duration
+	// connectionLost classifies a broken connection, after which a batch
+	// attempt is neither replayed nor retried.
+	connectionLost func(error) bool
+	// savepointLost classifies a failed savepoint statement of an owner
+	// command; the write then ends the upload without retry or replay.
+	savepointLost func(error) bool
 	// config keeps request-specific reference data after PreloadReferenceData.
 	// Serialize processing while that mutable configuration is shared.
 	importMu sync.Mutex
@@ -53,8 +63,11 @@ type requestScopedConfig[T any] interface {
 
 type importConfigLocker interface{ ImportLock() *sync.Mutex }
 
+// previewConfig is a config with a bulk read model for the dry run. A failed
+// savepoint statement of its read is returned: the dry run's transaction can
+// no longer be trusted, so no row reads on it (E19).
 type previewConfig[T any] interface {
-	PreviewConfig(context.Context, []T) ports.ImportConfig[T]
+	PreviewConfig(context.Context, []T) (ports.ImportConfig[T], error)
 }
 
 // importModeAuthorizer lets a config veto an import mode for the current
@@ -77,6 +90,32 @@ func NewImportService[T any](config ports.ImportConfig[T], runtime ports.ImportR
 		observe:      runtime.Observe,
 		fingerprint:  runtime.Fingerprint,
 		checkpoints:  checkpoints,
+
+		boundStatements: runtime.BoundStatements,
+		batchLimit:      batchLimitOf(runtime),
+		connectionLost:  runtime.ConnectionLost,
+		savepointLost:   runtime.SavepointLost,
+	}
+}
+
+func batchLimitOf(runtime ports.ImportRuntime) time.Duration {
+	if runtime.BatchStatementLimit > 0 {
+		return runtime.BatchStatementLimit
+	}
+	return DefaultBatchStatementLimit
+}
+
+// renewed is the service over a new request-scoped config, for a replay
+// that must not see what the first preload left behind.
+func (s *ImportService[T]) renewed() *ImportService[T] {
+	config := s.config
+	if scoped, ok := config.(requestScopedConfig[T]); ok {
+		config = scoped.NewRequestScoped()
+	}
+	return &ImportService[T]{
+		config: config, transactions: s.transactions, batchSize: s.batchSize, audit: s.audit, observe: s.observe,
+		fingerprint: s.fingerprint, checkpoints: s.checkpoints,
+		boundStatements: s.boundStatements, batchLimit: s.batchLimit, connectionLost: s.connectionLost, savepointLost: s.savepointLost,
 	}
 }
 
@@ -157,7 +196,9 @@ func (s *ImportService[T]) importWithConfig(ctx context.Context, request importM
 	batchErrors := s.validateBatch(ctx, request.Rows)
 
 	// Process all rows (may terminate early if StopOnError is set)
-	_ = s.processAllRows(ctx, request, result, batchErrors)
+	if _, err := s.processAllRows(ctx, request, result, batchErrors); err != nil {
+		return nil, err
+	}
 
 	result.CompletedAt = time.Now()
 	result.BulkActions = s.generateBulkActions(result.Errors)
@@ -197,15 +238,19 @@ func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int]
 // stays correct; only a second, partial row for a record the same file just
 // created is now asked for the fields a create needs. Duplicates inside one
 // file are the batch validator's job (ports.BatchValidator), not the row scan's.
-func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
+func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) (bool, error) {
 	if request.DryRun {
 		if preview, ok := s.config.(previewConfig[T]); ok {
 			// The bulk read model belongs only to this preview. Actual imports
 			// must re-resolve rows after preceding writes and under owner locks.
-			s = &ImportService[T]{config: preview.PreviewConfig(ctx, request.Rows)}
+			config, err := preview.PreviewConfig(ctx, request.Rows)
+			if err != nil {
+				return true, err
+			}
+			s = &ImportService[T]{config: config}
 		}
 	}
-	return s.processPreparedRows(ctx, request, result, batchErrors)
+	return s.processPreparedRows(ctx, request, result, batchErrors), nil
 }
 
 func (s *ImportService[T]) processPreparedRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {

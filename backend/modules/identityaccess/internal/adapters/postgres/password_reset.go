@@ -25,15 +25,18 @@ type passwordResetTokenRow struct {
 	EmailSentAt     *time.Time `bun:"email_sent_at"`
 	EmailError      *string    `bun:"email_error"`
 	EmailRetryCount int        `bun:"email_retry_count,notnull"`
-	CreatedAt       time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt       time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	// CredentialGeneration is the account's credential generation the link
+	// was issued under; it redeems only while that is current (#6289).
+	CredentialGeneration int64     `bun:"credential_generation,notnull"`
+	CreatedAt            time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt            time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func (r passwordResetTokenRow) toDomain() domain.PasswordResetToken {
 	return domain.PasswordResetToken{
 		ID: r.ID, AccountID: r.AccountID, Expiry: r.Expiry, Used: r.Used,
 		Delivery:  domain.TokenDelivery{SentAt: r.EmailSentAt, Error: r.EmailError, RetryCount: r.EmailRetryCount},
-		CreatedAt: r.CreatedAt,
+		CreatedAt: r.CreatedAt, CredentialGeneration: r.CredentialGeneration,
 	}
 }
 
@@ -109,7 +112,9 @@ func (s *Store) InsertPasswordResetToken(ctx context.Context, token domain.Passw
 	}
 	row := passwordResetTokenRow{AccountID: token.AccountID, TokenHash: domain.HashToken(token.Token), Expiry: token.Expiry}
 	started := time.Now()
-	result, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx)
+	result, err := db.NewInsert().Model(&row).
+		Value("credential_generation", "(SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)", token.AccountID).
+		Returning("*").Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.PasswordResetToken{}, stats, fmt.Errorf("identity access postgres: insert password reset token: %w", err)
@@ -169,15 +174,4 @@ func (s *Store) DeleteSpentPasswordResetTokens(ctx context.Context, now time.Tim
 			})
 	})
 	return int(rows), stats, err
-}
-
-func (s *Store) SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error) {
-	rows, stats, err := s.exec(ctx, "set account password", func(db bun.IDB) executor {
-		return db.NewUpdate().TableExpr(`auth.accounts AS "account"`).
-			Set("password_hash = ?", hash).
-			Set("is_password_otp = FALSE").
-			Where(`"account".id = ?`, accountID).
-			Where(`"account".personal_data_erased_at IS NULL`)
-	})
-	return rows == 1, stats, err
 }

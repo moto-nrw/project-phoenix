@@ -85,6 +85,9 @@ func exportFixtureColumns(table organizationtenancy.LifecycleTable) map[string]s
 	if table.Name == "auth.accounts" {
 		columns["username"] = "text"
 	}
+	if table.Name == "platform.email_delivery_events" {
+		columns["outbox_id"] = "bigint"
+	}
 	if slices.Contains([]string{"documents.files", "documents.announcement_attachments", "users.student_documents", "users.staff_documents"}, table.Name) {
 		columns["filename_stored"], columns["file_deleted_at"] = "text", "timestamptz"
 	}
@@ -119,6 +122,9 @@ func insertExportFixtureRow(t *testing.T, db *bun.DB, table organizationtenancy.
 	}
 	if table.Name == "enrollment.requests" {
 		row["guardian_account_id"] = school
+	}
+	if table.Name == "platform.email_delivery_events" {
+		row["outbox_id"] = school
 	}
 	for name := range table.ExcludeSecretColumns {
 		row[name] = "excluded-" + table.Name + "-" + name
@@ -157,7 +163,7 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	_, err := db.NewRaw("UPDATE auth.accounts SET username = ? WHERE id = ?", "/uploads/avatars/global/"+strconv.FormatInt(b, 10)+".bin", a).Exec(t.Context())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
 	require.NoError(t, err)
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
@@ -225,6 +231,16 @@ func assertExportTables(t *testing.T, out string, catalog organizationtenancy.Da
 			require.NotContains(t, row, name, table.Name)
 			require.NotContains(t, string(data), "excluded-"+table.Name+"-"+name, table.Name)
 		}
+		for container, projection := range table.ProjectedColumns {
+			require.JSONEq(t, `"projected-`+table.Name+`-`+container+`"`, string(row[projection]), table.Name)
+		}
+		for sealed, plain := range table.OpenSealedColumns {
+			require.JSONEq(t, `"opened-`+table.Name+`-`+sealed+`"`, string(row[plain]), table.Name)
+			index := slices.IndexFunc(model, func(entry organizationtenancy.ExportModelTable) bool { return entry.Name == table.Name })
+			require.True(t, slices.ContainsFunc(model[index].Columns, func(column organizationtenancy.ExportColumn) bool {
+				return column.Name == plain && column.Type == "text"
+			}), table.Name+"."+plain)
+		}
 	}
 }
 
@@ -269,7 +285,7 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	b, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.CreateTestStudentForTenant(t, db, a, "Synthetic A", "Fixture", "A")
 	testpkg.CreateTestStudentForTenant(t, db, b, "Synthetic B", "Fixture", "B")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	counter := testpkg.CaptureQueriesForContext(t, db)

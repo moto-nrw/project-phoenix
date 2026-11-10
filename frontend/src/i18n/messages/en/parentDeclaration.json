@@ -6,6 +6,8 @@
   "version": "Version {version}",
   "deadline": "Deadline {date}",
   "closed": "Deadline passed",
+  "ended": "Consent request ended",
+  "endedNote": "The school no longer asks for answers here. You can no longer give a new answer.",
   "passwordNote": "moto asks for your password before you answer.",
   "signatureNote": "To agree, you sign with your finger or the mouse.",
   "state": {
@@ -45,12 +47,14 @@
   "oneIsEnough": "One answer is enough.",
   "ownAnyway": "You can still answer yourself.",
   "cannotSubmit": "You cannot answer here for {name}. The guardians with custody do this.",
+  "cannotSubmitAnymore": "You can no longer give a new answer for {name}.",
   "myAction": "Your answer: {action} on {date}",
   "myActionNoDate": "Your answer: {action}",
   "proof": "View proof",
   "othersTitle": "Other guardians with custody",
   "otherOpen": "no answer yet",
   "revokeHint": "You can withdraw your consent. The school sees this right away.",
+  "revokeAnytime": "You can withdraw your consent at any time.",
   "closedNoAction": "The deadline has passed. You can no longer answer.",
   "confirmTitle": "Check your answer",
   "confirmBody": "Your answer for {name}: {action}.",
@@ -86,5 +90,10 @@
     "uncertainReload": "The current status is being reloaded. Please check it before you reply again.",
     "signatureRequired": "Please sign and tap “Confirm signature”."
   },
-  "errorObjectAnswer": "the reply"
+  "errorObjectAnswer": "the reply",
+  "earlierConsent": {
+    "title": "You agreed to version {version} on {date}.",
+    "note": "The school changed the text afterwards. Your consent to this text stays valid until you withdraw it.",
+    "endsToo": "This also ends your consent to version {version}."
+  }
 }

@@ -3,6 +3,7 @@
  * auto-move notice #2386, unplanned add). Kept apart from page.test.tsx because
  * it replaces the student search and timetable operations APIs entirely.
  */
+import { setViewportWidth } from "~/test/helpers/viewport";
 import {
   render as rtlRender,
   screen,
@@ -420,7 +421,7 @@ describe("MeinRaumPage roster actions", () => {
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
     navigationMockState.permissions = [];
-    window.innerWidth = 800;
+    setViewportWidth(800);
     localStorage.clear();
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");

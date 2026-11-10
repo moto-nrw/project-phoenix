@@ -43,8 +43,10 @@ func NewConclusion(contracts ContractPorts, intake IntakePorts) carecontract.Con
 		application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), contracts, clock, NewContractVersions()), clock)
 }
 
-// NewInbox builds the parents' inbox in the parents portal's Träger unit.
-func NewInbox() *application.Inbox { return application.NewInbox(postgres.NewStore()) }
+// NewInbox builds the parents' inbox in the parents portal's Träger unit; h, its school holidays, may be nil where it lists nothing.
+func NewInbox(h carecontract.SchoolHolidays) *application.Inbox {
+	return application.NewInbox(postgres.NewStore(), h)
+}
 
 // NewContractMailRenderer renders a contract mail for Delivery's worker.
 func NewContractMailRenderer() carecontract.ContractMailRenderer {
@@ -68,3 +70,7 @@ type OverrunPorts struct {
 	Access    carecontract.SchoolAccessLog
 	Runtime   carecontract.Runtime
 }
+
+// NewContractRetention reads and deletes contracts for the retention of the
+// Belege of a Träger (#4720, ADR 0184) in the caller's administrative unit.
+func NewContractRetention() carecontract.ContractRetention { return postgres.NewContractRetention() }

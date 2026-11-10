@@ -699,6 +699,212 @@ describe("PlannedStatusDaysModal", () => {
     });
   });
 
+  // #5698: a manual partial excusal blocks a full-day status on its day.
+  // The check names that day and saves only the free ones.
+  it("names a day excused from a time and saves only the free days", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const loadPartialAbsences = vi.fn(() =>
+      Promise.resolve([existingPartialAbsence]),
+    );
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={loadPartialAbsences}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+
+    expect(
+      await screen.findByText(
+        /27\.05\.2026 ist bereits ab 13:30 Uhr entschuldigt/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("1 von 2 Tagen werden gespeichert"),
+    ).toBeInTheDocument();
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(["2026-05-26"]);
+    });
+  });
+
+  // #5698: staff with the right to change partial excusals may replace one
+  // with the full-day status, but only after choosing it explicitly.
+  it("replaces a partial excusal only after the explicit choice", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() => Promise.resolve([existingPartialAbsence])}
+        onSubmit={onSubmit}
+        onDeletePartialAbsence={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    const choice = await screen.findByRole("checkbox", {
+      name: /Durch Krankmeldung ersetzen/,
+    });
+    expect(choice).not.toBeChecked();
+    expect(
+      screen.getByText("1 von 2 Tagen werden gespeichert"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(choice);
+    expect(
+      screen.getByText(
+        /27\.05\.2026 ist bereits ab 13:30 Uhr entschuldigt\. Dieser Eintrag wird ersetzt\. 2 Tage werden gespeichert\./,
+      ),
+    ).toBeInTheDocument();
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        ["2026-05-26", "2026-05-27"],
+        undefined,
+        { replacePartialAbsenceDates: ["2026-05-27"] },
+      );
+    });
+  });
+
+  it("offers no replacement without the right to change partial excusals", async () => {
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() => Promise.resolve([existingPartialAbsence])}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    expect(
+      await screen.findByText(/Dieser Tag bleibt unverändert\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /ersetzen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores an automatic excusal from a pulled-forward pickup time", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() =>
+          Promise.resolve([{ ...existingPartialAbsence, auto: true }])
+        }
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(["2026-05-26", "2026-05-27"]);
+    });
+  });
+
+  it("still saves a full-day status when partial excusals cannot be read", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() =>
+          Promise.reject(new ApiError("forbidden", 403))
+        }
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Einzeltag auswählen"));
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(["2026-05-27"]);
+    });
+  });
+
+  it("removes a blocking partial excusal after confirmation", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onDeletePartialAbsence = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() => Promise.resolve([existingPartialAbsence])}
+        onSubmit={onSubmit}
+        onDeletePartialAbsence={onDeletePartialAbsence}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Einzeltag auswählen"));
+    expect(
+      await screen.findByText("Bereits ab Uhrzeit entschuldigt"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Aktionen für Teilentschuldigung vom/,
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Entfernen" }));
+    await clickEnabledButton("Entfernen bestätigen");
+    await clickEnabledButton("Teilentschuldigung entfernen");
+
+    await waitFor(() => {
+      expect(onDeletePartialAbsence).toHaveBeenCalledWith("9");
+    });
+    await clickEnabledButton("Krankmelden");
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(["2026-05-27"]);
+    });
+  });
+
   it("removes selected date chips before submitting", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
@@ -969,10 +1175,11 @@ describe("PlannedStatusDaysModal", () => {
 
     await clickEnabledButton("Krankmelden");
 
-    // Catalog text for students.partial_absence_conflict (ADR 0006).
+    // Catalog text for students.partial_absence_conflict (ADR 0006): it names
+    // the partial excusal and the next step (#5698).
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
-        /wurde inzwischen geändert/,
+        /schon ab einer Uhrzeit entschuldigt/,
       );
     });
   });

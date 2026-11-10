@@ -367,7 +367,12 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 	if err != nil {
 		return nil, err
 	}
-	history, err := r.HistoricalDeclarationFeed(ctx, accountID, scopeValue, declarationHistoryLinks(submissions))
+	// The own declaration history comes from every school of the guardian,
+	// also one with parent news off: a given consent stays revocable there
+	// (#6303). The parent flow keeps only the own given consents of such a
+	// school.
+	history, err := r.HistoricalDeclarationFeed(ctx, accountID,
+		communication.PortalAnnouncementFeedScope{TenantIDs: feedTenantIDs(scopeValue)}, declarationHistoryLinks(submissions))
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +387,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 			DeliveryMode: value.DeliveryMode, ResponseDeadline: value.ResponseDeadline, SystemKind: value.SystemKind,
 			ReminderSentAt: value.ReminderSentAt, ReminderText: value.ReminderText,
 			SenderName: value.SenderName, SenderSchoolClass: value.SenderSchoolClass,
-			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt,
+			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt, Ended: value.Ended,
 		})
 	}
 	return rows, nil

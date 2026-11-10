@@ -23,6 +23,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedClassListEntryBatches) CreateClassListEntries(ctx context.Context, inputs []CreateClassListEntry) (result []ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entries\", time.Now(), \u0026err)\n\treturn o.ClassListEntryBatches.CreateClassListEntries(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedClassListEntryBatches.CreateClassListEntries",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedClassListMembership) CreateClassListEntry(ctx context.Context, input CreateClassListEntry) (result ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entry\", time.Now(), \u0026err)\n\treturn o.ClassListMembership.CreateClassListEntry(ctx, input)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedClassListMembership.CreateClassListEntry",
@@ -68,6 +75,13 @@
       "evidence": "func (o observedOpeningBalanceBookings) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, date string, minutes int, note string) (result *StaffBalanceAdjustment, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"create_opening_balance\", time.Now(), \u0026err)\n\treturn o.OpeningBalanceBookings.CreateOpeningBalance(ctx, staffID, decidedBy, date, minutes, note)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedOpeningBalanceBookings.CreateOpeningBalance",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedPersonBatches) CreatePersons(ctx context.Context, inputs []CreatePerson) (result []Person, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_persons\", time.Now(), \u0026err)\n\treturn o.PersonBatches.CreatePersons(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedPersonBatches.CreatePersons",
       "owner": "modules/dataimport"
     },
     {

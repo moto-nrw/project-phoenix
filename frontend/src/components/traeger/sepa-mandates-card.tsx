@@ -31,6 +31,7 @@ import {
   formatBerlinTime,
   formatDate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type SepaMandate,
@@ -43,6 +44,7 @@ import { fetchTraegerBuero } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { SepaMandateModal } from "./sepa-mandate-modal";
 import {
+  mandateExpired,
   MANDATE_KIND_LABELS,
   mandateEventActor,
   mandateEventLabel,
@@ -224,7 +226,7 @@ function HistoryModal({
           {[...events].reverse().map((event) => (
             <li
               key={event.id}
-              className="flex items-baseline justify-between gap-4 py-2.5 text-sm"
+              className="flex flex-col gap-1 py-2.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
             >
               <span className="min-w-0">
                 <span className="block text-gray-900">
@@ -233,6 +235,11 @@ function HistoryModal({
                 <span className="block wrap-anywhere text-gray-500">
                   {mandateEventActor(event, emails)}
                 </span>
+                {event.importFile && event.importLine !== null ? (
+                  <span className="block wrap-anywhere text-gray-600">
+                    Datei: {event.importFile} · Zeile {event.importLine}
+                  </span>
+                ) : null}
               </span>
               <span className="shrink-0 text-gray-500 tabular-nums">
                 {formatBerlinDate(event.occurredAt)},{" "}
@@ -282,10 +289,13 @@ function MandateMenu({
  */
 function FamilyMandates({
   mandates,
+  today,
   onHistory,
   onRevoke,
 }: Readonly<{
   mandates: readonly SepaMandate[];
+  /** The school day, "YYYY-MM-DD". */
+  today: string;
   onHistory: (mandate: SepaMandate) => void;
   onRevoke: (mandate: SepaMandate) => void;
 }>) {
@@ -323,6 +333,30 @@ function FamilyMandates({
               <DataField label="Nächste Abbuchung">
                 {nextDebitLabel(inForce)}
               </DataField>
+              <DataField label="Zuletzt abgebucht">
+                <span className="tabular-nums">
+                  {inForce.lastCollectedOn
+                    ? formatDate(inForce.lastCollectedOn)
+                    : "Noch nicht mit moto"}
+                </span>
+              </DataField>
+              {inForce.expiresOn ? (
+                <DataField label="Gültig bis">
+                  <span className="tabular-nums">
+                    {formatDate(inForce.expiresOn)}
+                  </span>
+                  {mandateExpired(inForce, today) ? (
+                    <span className="text-moto-red-strong block">
+                      Verfallen: 36 Monate lang wurde nicht abgebucht.
+                      Widerrufen Sie dieses Mandat und erfassen Sie ein neues.
+                    </span>
+                  ) : (
+                    <span className="block text-gray-500">
+                      Jede Abbuchung verlängert das Mandat um 36 Monate.
+                    </span>
+                  )}
+                </DataField>
+              ) : null}
               <DataField label="Gläubiger-ID">
                 <span className="font-mono">{inForce.creditorId}</span>
                 {inForce.creditorCurrent ? null : (
@@ -390,6 +424,7 @@ export function SepaMandatesCard({
 }>) {
   const own = useSepaMandates(given === undefined, contractId);
   const mandates = given ?? own.mandates;
+  const today = useBerlinToday();
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<SepaMandate | null>(null);
   const [history, setHistory] = useState<SepaMandate | null>(null);
@@ -476,7 +511,7 @@ export function SepaMandatesCard({
       header: "Stand",
       stacked: "meta",
       render: (mandate) => {
-        const state = mandateState(mandate);
+        const state = mandateState(mandate, today);
         return (
           <span className="flex flex-col items-start gap-1">
             <StatusBadge label={state.label} tone={state.tone} />
@@ -524,11 +559,11 @@ export function SepaMandatesCard({
         forFamily && mandates !== null ? (
           inForce ? (
             <StatusBadge
-              tone={mandateState(inForce).tone}
-              label={mandateState(inForce).label}
+              tone={mandateState(inForce, today).tone}
+              label={mandateState(inForce, today).label}
             />
           ) : (
-            <StatusBadge tone="orange" label="Kein gültiges Mandat" />
+            <StatusBadge tone="warning" label="Kein gültiges Mandat" />
           )
         ) : null
       }
@@ -546,6 +581,7 @@ export function SepaMandatesCard({
       ) : forFamily && mandates && mandates.length > 0 ? (
         <FamilyMandates
           mandates={mandates}
+          today={today}
           onHistory={setHistory}
           onRevoke={setRevoking}
         />

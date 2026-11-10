@@ -36,6 +36,9 @@ const (
 	// ReadTraegerSettings is the operator's view of the settings of a
 	// Träger (#5748).
 	ReadTraegerSettings OperatorReadView = "traeger_settings"
+	// ReadBelegRetention is the operator's view of the instructions,
+	// suspensions and clarification list of the Belege of a Träger (#4720).
+	ReadBelegRetention OperatorReadView = "beleg_retention"
 	// ReadTraegerInvitations is the open invitations of a Träger-Büro (#5749).
 	ReadTraegerInvitations OperatorReadView = "traeger_invitations"
 	// ReadCaterers is the operator's list of caterer accounts and their

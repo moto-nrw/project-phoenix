@@ -56,6 +56,11 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	if err := s.ensureSelfEditJustified(ctx, session, updates); err != nil {
 		return nil, err
 	}
+	// Work cannot have started yet in the future. An open session with such a
+	// check-in could not be closed by the nightly cleanup (#6288).
+	if updates.CheckInTime != nil && !session.CheckInTime.Equal(*updates.CheckInTime) && updates.CheckInTime.After(s.now()) {
+		return nil, workforce.ErrSessionCheckInInFuture
+	}
 
 	return s.applySessionUpdate(ctx, staffID, session, updates)
 }
@@ -155,6 +160,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		notes:     updates.Notes,
 	}
 
+	recordedDay, recordedCheckIn := session.Date, session.CheckInTime
 	s.applyTimeFieldUpdates(uc, updates)
 	s.applySimpleFieldUpdates(uc, updates)
 
@@ -163,6 +169,9 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
+	}
+	if err := checkEditedSessionDay(session, recordedDay, recordedCheckIn); err != nil {
+		return nil, err
 	}
 
 	// Edited times must not slide into a sibling block.
@@ -270,6 +279,29 @@ func validateAdminCreateSession(targetStaffID int64, req *AdminCreateSessionRequ
 	if req.BreakMinutes < 0 {
 		return workforce.ErrAdminBreakMinutesNegative
 	}
+	return checkInWithinSessionDay(calendar.DateFromTime(req.Date), req.CheckInTime)
+}
+
+// checkEditedSessionDay applies checkInWithinSessionDay only when an edit
+// changed the day or the check-in, so a row an earlier edit already broke can
+// still get its notes and be repaired.
+func checkEditedSessionDay(session *WorkSession, recordedDay calendar.Date, recordedCheckIn time.Time) error {
+	if session.Date == recordedDay && session.CheckInTime.Equal(recordedCheckIn) {
+		return nil
+	}
+	return checkInWithinSessionDay(session.Date, session.CheckInTime)
+}
+
+// checkInWithinSessionDay rejects a session filed on a day before its
+// check-in. The nightly cleanup closes a forgotten session at the end of its
+// day; that close must lie after the check-in (#6288).
+func checkInWithinSessionDay(day calendar.Date, checkIn time.Time) error {
+	// The day ends at the next Berlin midnight, not at 23:59:59: a check-in in
+	// the last second's fractions still belongs to it, on 23- and 25-hour days
+	// as well.
+	if !checkIn.Before(day.AddDays(1).BerlinMidnight()) {
+		return workforce.ErrSessionCheckInAfterDate
+	}
 	return nil
 }
 
@@ -340,7 +372,13 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 // clock entirely (#2402); an admin IS the person who repairs it, so there a
 // Nachtrag keeps being refused while an open block is unresolved.
 func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *WorkSession, at time.Time) error {
-	if err := s.endActiveBreakIfExists(ctx, session.ID, at); err != nil {
+	usable, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		return s.endActiveBreakIfExists(ctx, session.ID, at)
+	})
+	if !usable {
+		return fmt.Errorf("failed to end active break of stale work session %d: %w", session.ID, err)
+	}
+	if err != nil {
 		// Mirrors CleanupOpenSessions: a break that cannot be ended must not
 		// keep the block open — that would leave the staff member unable to
 		// stamp, which is the very lockout this repair exists to prevent.
@@ -348,7 +386,7 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *W
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()))
 	}
-	_, err := s.repo.CloseWorkSession(ctx, session.ID, at, true)
+	_, err = s.repo.CloseWorkSession(ctx, session.ID, at, true)
 	if err = workSessionWriteError("close session", err); err != nil {
 		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
 	}

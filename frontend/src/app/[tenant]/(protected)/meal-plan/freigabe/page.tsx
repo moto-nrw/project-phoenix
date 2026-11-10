@@ -4,7 +4,10 @@
 // Mensa gegessen hat, und gibt den Monat frei. Ein Essen zählt, wenn das
 // Kind an einem Schultag angemeldet und da war. Abgemeldete Tage, Ferien,
 // Feiertage und Schließtage zählen nicht. Erst ein freigegebener Monat geht
-// in die Abrechnung des Trägers; danach ändert er sich nicht mehr.
+// in die Abrechnung des Trägers; danach ändert er sich nicht mehr. Eine
+// Freigabe lässt sich nicht zurücknehmen (#6346, Entscheidung B): Die Seite
+// zeigt bei einem freigegebenen Monat den Weg zur Korrektur, erneute Freigabe
+// mit Grund und beim Träger Storno und Neuausstellung.
 
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
@@ -71,9 +74,9 @@ const STATUS_LABELS: Record<MealBillingStatus, string> = {
   expired: "Nicht mehr abrechenbar",
 };
 
-const STATUS_TONES: Record<MealBillingStatus, "gray" | "orange" | "green"> = {
+const STATUS_TONES: Record<MealBillingStatus, "gray" | "warning" | "green"> = {
   running: "gray",
-  open: "orange",
+  open: "warning",
   released: "green",
   expired: "gray",
 };
@@ -351,8 +354,8 @@ export default function MealBillingReleasePage() {
             <p className="text-sm text-gray-600">
               {month.childCount} {month.childCount === 1 ? "Kind" : "Kinder"}{" "}
               mit {month.mealCount} Essen. Danach rechnet der Träger den Monat
-              ab. Ändert sich später eine Anwesenheit, geben Sie den Monat
-              erneut frei.
+              ab. Zurücknehmen lässt sich die Freigabe nicht. Ändert sich später
+              eine Anwesenheit, geben Sie den Monat erneut frei.
             </p>
           ) : null}
         </ConfirmationModal>
@@ -383,7 +386,7 @@ export default function MealBillingReleasePage() {
           {showsRelease && month.releasedAt ? (
             <Alert
               type="success"
-              message={`Freigegeben am ${formatDate(month.releasedAt)}. Der Träger rechnet diesen Monat ab. Ändert sich eine Anwesenheit, geben Sie den Monat erneut frei.`}
+              message={`Freigegeben am ${formatDate(month.releasedAt)}. Der Träger rechnet diesen Monat ab.`}
             />
           ) : null}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -414,6 +417,28 @@ export default function MealBillingReleasePage() {
               hint="Angemeldet, aber nicht da. Zählt nicht."
             />
           </div>
+          {month.status === "released" ? (
+            <SectionCard
+              title="Zahlen korrigieren"
+              description="Eine Freigabe lässt sich nicht zurücknehmen. So korrigieren Sie einen freigegebenen Monat:"
+            >
+              <ol
+                aria-label="Schritte zur Korrektur"
+                className="list-decimal space-y-2 pl-5 text-sm text-gray-700 marker:font-semibold marker:text-gray-500"
+              >
+                <li>Tragen Sie die fehlende oder falsche Anwesenheit nach.</li>
+                <li>
+                  Oben steht dann „Seit der Freigabe hat sich die Anwesenheit
+                  geändert“. Wählen Sie „Erneut freigeben“ und nennen Sie den
+                  Grund.
+                </li>
+                <li>
+                  Hat der Träger den Monat schon abgerechnet, sieht er die neue
+                  Zahl. Er storniert die Rechnung und stellt sie neu aus.
+                </li>
+              </ol>
+            </SectionCard>
+          ) : null}
           <SectionCard
             title="Kinder"
             titleBadge={

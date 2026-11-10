@@ -343,9 +343,31 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 				return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 			}
 		}
+		if approvalStatus == domain.GuardianInvitationApprovalNotRequired {
+			return l.reissueStudentInvitationLink(ctx, openInvitation, profile)
+		}
 		return openInvitation, nil
 	}
 	return l.insertStudentInvitation(ctx, req, profile, tenantID, approvalStatus, profileCreated, roleUpgrade)
+}
+
+// reissueStudentInvitationLink gives a reused invitation that the caller is
+// about to mail a new link for the address on file and restarts its window.
+// The store keeps only the hash of the old token (#4902), so without a new
+// one the mail would carry no usable link.
+func (l *AccountLifecycle) reissueStudentInvitationLink(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) (domain.GuardianInvitation, error) {
+	expiry, err := l.delivery.InvitationExpiry(ctx)
+	if err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+	}
+	issueGuardianInvitationLink(&invitation, profile)
+	invitation.ExpiresAt = time.Now().Add(expiry)
+	invitation.EmailSentAt = nil
+	invitation.EmailError = nil
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus); err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+	}
+	return invitation, nil
 }
 
 // closeSupersededApprovalRequests resolves parent-initiated requests for this

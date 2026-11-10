@@ -95,9 +95,13 @@ export function billingTabs(
   };
 }
 
-/** What an invoice still asks for, as a pill. */
+/**
+ * What an invoice still asks for, as a pill. „Forderung offen“ says that
+ * the invoice still asks for money; whether the family paid is checked in
+ * the bookkeeping, not in moto (#6348).
+ */
 export const INVOICE_STATUS_LABELS: Record<BillingInvoiceStatus, string> = {
-  open: "Offen",
+  open: "Forderung offen",
   partly_credited: "Teilgutschrift",
   credited: "Gutgeschrieben",
   cancelled: "Storniert",
@@ -108,7 +112,7 @@ export const INVOICE_STATUS_TONES: Record<
   BillingInvoiceStatus,
   StatusBadgeTone
 > = {
-  open: "orange",
+  open: "warning",
   partly_credited: "blue",
   credited: "gray",
   cancelled: "red",

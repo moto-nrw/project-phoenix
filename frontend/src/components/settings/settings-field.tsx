@@ -1831,7 +1831,7 @@ function renderEnrollmentLegalTextEditor(
             )}
             {sourceLabel}
             {!hasContent && (
-              <StatusBadge tone="orange" size="xs" label="Fehlt" />
+              <StatusBadge tone="warning" size="xs" label="Fehlt" />
             )}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">{status}</p>

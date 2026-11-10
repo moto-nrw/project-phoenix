@@ -193,6 +193,7 @@ jobs:
               - '.github/workflows/e2e.yml'
               - '.github/workflows/lint.yml'
             backend-test-infra:
+              - 'scripts/backend-source-ratchets.mjs'
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
@@ -250,6 +251,8 @@ jobs:
               - 'scripts/daily-backup*'
               - 'scripts/*erasure-ledger*'
               - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
+              - 'monitoring/grafana/provisioning/alerting/nightly-cleanup.yml'
+              - 'scripts/nightly-cleanup-alerts*'
               - 'scripts/daily_backup.py'
               - 'scripts/restore-daily-backup.sh'
               - 'scripts/systemd/moto-*backup*'
@@ -274,6 +277,8 @@ jobs:
             # script or suite changes; the runner guard reruns when a test
             # file or a Playwright config appears or moves.
             script-tests:
+              - 'scripts/backend-source-ratchets.mjs'
+              - 'backend/test/*_test.go'
               - 'frontend/package.json'
               - 'docs/agents/operations.md'
               - 'monitoring/student-contract/**'
@@ -290,6 +295,7 @@ jobs:
               - '{backend,frontend}/.claude/**'
               - 'docs/agents/**'
               - 'docs/adr/**'
+              - 'scripts/check-migration-versions*'
               - 'scripts/check-test-runners*'
               - 'scripts/check-pr-body*'
               - 'scripts/check-caddyfile*'
@@ -432,7 +438,7 @@ jobs:
         if: matrix.suite == 'unit'
         run: |
           node scripts/check-agent-context.mjs
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
+          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py scripts/check_runtime_env_test.py
 
@@ -452,7 +458,7 @@ jobs:
       - name: Verify encrypted daily backup and isolated restore
         if: matrix.suite == 'restore'
         run: |
-          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs
           sudo install -d /usr/local/lib/moto-backup
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service

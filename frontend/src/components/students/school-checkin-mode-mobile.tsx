@@ -1,5 +1,6 @@
 "use client";
 
+import { BELOW_MD } from "~/lib/hooks/use-media-query";
 import { useEffect } from "react";
 import { CheckSquare, LogIn, LogOut, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -85,7 +86,7 @@ export function SchoolCheckinModeMobile({
   useEffect(() => {
     if (!attendanceWebEnabled || !isActive) return;
     const root = document.documentElement;
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const mediaQuery = window.matchMedia(BELOW_MD);
     const publishOffset = () => {
       if (mediaQuery.matches) {
         root.style.setProperty(

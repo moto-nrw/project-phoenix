@@ -9,26 +9,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/application"
 )
 
-// The signature of a contract (#4679).
-
-type SignaturePorts struct {
-	Ledger  carecontract.SignatureLedger
-	Links   carecontract.SigningLinks
-	Sender  carecontract.TraegerSigningSender
-	Post    carecontract.Post
-	Runtime carecontract.Runtime
-}
+// SignaturePorts bind the signature of a contract (#4679).
+type SignaturePorts = application.SignaturePorts
 
 // NewSigning builds the one-time mail link; it opens its own Träger
 // transaction.
 func NewSigning(ports SignaturePorts) carecontract.Signing {
-	return application.NewSignatures(postgres.NewStore(), application.SignaturePorts(ports), application.Clock{Now: time.Now}, nil)
+	return application.NewSignatures(postgres.NewStore(), ports, application.Clock{Now: time.Now}, nil)
 }
 
 // NewInboxSigning builds the signature in the parents portal, in the
 // Träger transaction the parents portal opens.
 func NewInboxSigning(ports SignaturePorts) carecontract.InboxSigning {
-	return application.NewSignatures(postgres.NewStore(), application.SignaturePorts(ports), application.Clock{Now: time.Now}, nil)
+	return application.NewSignatures(postgres.NewStore(), ports, application.Clock{Now: time.Now}, nil)
 }
 
 // NewPaperSignatures builds the Träger-Büro's paper contracts. Writes use the
@@ -37,7 +30,7 @@ func NewPaperSignatures(contractPorts ContractPorts, ports SignaturePorts) carec
 	clock := application.Clock{Now: time.Now}
 	store := postgres.NewStore()
 	contracts := application.NewContracts(store, rendering.NewRenderer(), application.ContractPorts(contractPorts), clock, NewContractVersions())
-	return application.NewSignatures(store, application.SignaturePorts(ports), clock, contracts)
+	return application.NewSignatures(store, ports, clock, contracts)
 }
 
 type ReminderPorts struct {

@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
@@ -23,6 +24,7 @@ import (
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // EnrollmentNotices are Enrollment's mail branding and decision notices over
@@ -108,6 +110,7 @@ func BuildEnrollmentDecisions(
 		ParentsURL:             EnrollmentDecisionParentsURL(env.Links.ParentsURL, env.Links.FrontendURL),
 		Settings:               EnrollmentDecisionSettingValues(settings),
 		IsTransient:            transactionFailures.IsTransientDatabaseError,
+		IsSavepointRollback:    func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) },
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		Pickups:                weeklyPickupHooks(schedules.AutoExcusal, carePlanRows.PickupStudentLocks),
 		Logger:                 env.Logger.With("service", "enrollment-decision"), Today: env.Today,
@@ -166,6 +169,7 @@ func BuildEnrollmentFlows(
 			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),
+			FamilyChildrenPurpose: NewEnrollmentFamilyChildrenPurpose(organizations),
 		}),
 		Reports: NewEnrollmentReports(EnrollmentReportSources{
 			Owner: records, Offerings: notices.CareOfferings, AccessLog: audit.Persistence.DataAccessLog,
@@ -178,7 +182,7 @@ func BuildEnrollmentFlows(
 			Bookings: enrollment.CareBookings, Requests: records, Children: records, Guardians: records,
 			LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings, Capacity: capacity,
 			Catalog: records, Notifications: notices.Notifications, GuardianProfileRepo: people.GuardianProfiles,
-			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity},
+			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity, profiles: people.GuardianProfiles},
 			PersonRepo: people.Persons, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
 			Decisions: decisions, BookingGates: offerings.Bookings,
 			CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: carePlanRows.Companions, strandings: people.Students},

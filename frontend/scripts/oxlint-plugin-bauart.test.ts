@@ -1313,23 +1313,27 @@ describe.concurrent("bauart rules", () => {
     });
 
     it("rejects a radius class on Skeleton, in the other portals too", async () => {
-      for (const path of [
-        "src/components/probe.tsx",
-        "src/components/parent/probe.tsx",
-        "src/app/operator/probe.tsx",
-      ]) {
-        for (const className of ["rounded", "rounded-full", "sm:rounded-xl"]) {
-          const { status, output } = await lintSource(
-            `import { Skeleton } from "~/components/ui/skeleton";
+      const results = await Promise.all(
+        [
+          "src/components/probe.tsx",
+          "src/components/parent/probe.tsx",
+          "src/app/operator/probe.tsx",
+        ].flatMap((path) =>
+          ["rounded", "rounded-full", "sm:rounded-xl"].map((className) =>
+            lintSource(
+              `import { Skeleton } from "~/components/ui/skeleton";
             export function Probe() {
               return <Skeleton className="h-4 ${className}" />;
             }`,
-            path,
-          );
+              path,
+            ),
+          ),
+        ),
+      );
 
-          expect(status).toBe(1);
-          expect(output).toContain("bauart(no-own-skeleton)");
-        }
+      for (const { status, output } of results) {
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-own-skeleton)");
       }
     });
 

@@ -80,6 +80,7 @@ describe("SearchStudentCard", () => {
       renderCard({
         student: {
           ...student,
+          current_location: "Zuhause",
           sick: true,
           pickup_notes: "Heute beim Arzt",
         },
@@ -90,6 +91,16 @@ describe("SearchStudentCard", () => {
       screen.getByText("Kommt heute nicht (krank gemeldet)"),
     ).toBeInTheDocument();
     expect(screen.getByText("Notiz: Heute beim Arzt")).toBeInTheDocument();
+  });
+
+  // Ort vor Status (#6407): eingecheckt trotz Krankmeldung zählt die geplante
+  // Gehzeit weiter; die Meldung steht nur als Hinweis am Ortsbadge.
+  it("keeps both planned times for a child checked in despite a sick note", () => {
+    render(renderCard({ student: { ...student, sick: true } }));
+
+    expect(screen.getByText(/Gehzeit: 16:00 Uhr/)).toBeInTheDocument();
+    expect(screen.getByText(/Ankunftszeit: 08:00 Uhr/)).toBeInTheDocument();
+    expect(screen.queryByText(/Kommt heute nicht/)).not.toBeInTheDocument();
   });
 
   it("says whether the Lehrkraft handed the child over da or nicht da (#4794)", () => {
@@ -170,6 +181,7 @@ describe("SearchStudentCard", () => {
       renderCard({
         student: {
           ...student,
+          current_location: "Zuhause",
           pickup_is_exception: true,
           sick: true,
         } as Student,

@@ -127,10 +127,15 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/billing-run-due-dates/holiday/{id}"}: notCaptured,
 	// The SEPA creditor and the mandates of the families (#4695) belong to
 	// the Träger, no school to count them for.
-	{http.MethodPut, "/traeger/sepa-creditor/"}:             notCaptured,
-	{http.MethodPost, "/traeger/sepa-mandates/"}:            notCaptured,
-	{http.MethodPut, "/traeger/sepa-mandates/{id}"}:         notCaptured,
-	{http.MethodPost, "/traeger/sepa-mandates/{id}/revoke"}: notCaptured,
+	{http.MethodPut, "/traeger/sepa-creditor/"}:                      notCaptured,
+	{http.MethodPost, "/traeger/sepa-mandates/"}:                     notCaptured,
+	{http.MethodPut, "/traeger/sepa-mandates/{id}"}:                  notCaptured,
+	{http.MethodPost, "/traeger/sepa-mandates/{id}/revoke"}:          notCaptured,
+	{http.MethodPost, "/traeger/sepa-debits/{kind}/{id}/submission"}: notCaptured,
+	// The import of existing mandates (#6198) belongs to the Träger, not to
+	// a school; the preview stores nothing.
+	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,
+	{http.MethodPost, "/traeger/sepa-mandates/imports/preview"}: notCaptured,
 	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,
@@ -138,9 +143,9 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail"}:         notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation"}: notCaptured,
 	// The review of a monthly run before its release (#5916).
-	{http.MethodPut, "/traeger/care-billing-runs/{id}/invoice-date"}:               notCaptured,
-	{http.MethodPost, "/traeger/care-billing-runs/{id}/exclusions"}:                notCaptured,
-	{http.MethodDelete, "/traeger/care-billing-runs/{id}/exclusions/{contractID}"}: notCaptured,
+	{http.MethodPut, "/traeger/care-billing-runs/{id}/invoice-date"}: notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/exclusions"}:  notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/inclusions"}:  notCaptured,
 	// The changes of a single invoice in the review (#6197).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/amendments"}: notCaptured,
 	// The children of a family (#5918): the Abrechnung confirms or removes.
@@ -163,6 +168,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
 	// The parents state the children of their family on a contract (#5918).
 	{http.MethodPut, "/parent/me/documents/{organizationId}/contracts/{contractId}/family-children"}: notCaptured,
+	// The parents give and revoke the SEPA mandate of their family (#4696);
+	// reading the text before the confirmation writes nothing.
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate"}:         event("sepa_mandate_granted"),
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate/revoke"}:  event("sepa_mandate_revoked"),
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate/preview"}: notCaptured,
 }
 
 func init() {

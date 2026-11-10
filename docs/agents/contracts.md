@@ -465,7 +465,8 @@ time (one indexed statement in its own administrative transaction, budget
 revocation holds on every instance at once.
 
 Logout, the session cap, revocations and a tenant switch's retirement (after
-its grace) therefore end the access tokens of that family immediately; a
+its grace) therefore end the access tokens of that family immediately (the cap
+deletes every row of an evicted family, rotated predecessors included, #6289); a
 cookie a late response writes back opens nothing. Logout takes the account
 lock refresh takes first, so a rotation committing during logout is revoked
 with its family, and a switch mints nothing out of a family that is gone.
@@ -888,14 +889,51 @@ unverified; their next refresh refuses privileged access and requires login.
 Completed email/passkey exchanges and valid school-bound trusted devices
 produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
 preserve it. MFA reset clears proof across existing sessions. Password reset
-issues no session.
+issues no session. An account's own password change (`POST /auth/password`,
+#6289) commits with the new hash: every other session family of the account
+at every school and portal ends, its reset links are spent and its remembered
+devices revoked; only the family of the access token the change is made with
+stays signed in. The caterer's own change ends its current session too.
+An operator's password change revokes the operator's remembered devices as
+well. The account's credential generation
+(`auth.accounts.mfa_reset_generation`) binds every artifact a password check
+hands out. Exactly one function writes the account credential
+(`Store.WriteAccountCredential`: password hash, one-time flag, generation;
+`TestAccountCredentialHasOneWriter` rejects a second writer): every password
+write (own change, caterer change, reset, restore by invitation) and every MFA
+reset moves the generation on, only the first credential of a new account
+keeps it. The database enforces it for every writer: the trigger
+`auth.account_credential_moves_generation` refuses a change of `password_hash`
+or `is_password_otp` that does not raise the generation in the same
+statement, except the first password of an account without one; clearing the
+credential (the erasures) raises it itself, and it never moves back. Reset
+links and remembered devices record their generation
+(`credential_generation`, migration 1.15.831) and count only while it is the
+account's current one, at every school, so no write needs to revoke them; a
+reset writes by compare-and-swap on its link's generation. A sign-in records the generation
+its password check read; the session mint, the code a sign-in or an
+enrollment start mails (the enrollment token carries `credential_generation`),
+a resend (the challenge token carries it too) and the remembered device of an
+MFA exchange are issued only while it still holds, compared under the account
+lock, and a code redeems only at its own generation. A refused resend or
+enrollment start answers 401 `identity.invalid_credentials`; tokens issued
+before this claim existed read as generation 0. The own change writes by
+compare-and-swap on the hash the current password was checked against, so of
+two changes on one proof only the first wins. Operators have no credential
+generation yet: their direct sign-in compares the checked hash under the
+operator lock, their MFA artifacts are not bound (#6289 follow-up).
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
 CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
 A refresh successor is HMAC-derived from the presented token, so hand-off
 recovery recomputes it. A resend or guardian approval mails a new link and
-voids the previous one; listings return no token. Do not run an old backend
+voids the previous one; listings return no token. A guardian link also
+stores the normalized address it was issued for (migration 1.15.865, #6294):
+validate and accept answer 410 `identity.guardian_invitation_address_changed`
+without profile data once the profile address differs, and accept holds the
+profile row lock the contact edits take. Every new guardian token sets the
+address on file. Do not run an old backend
 against the migrated schema; migration rollback requires a forward fix. Tenant switching preserves proof only from the presented
 account's live same-portal session family, read under the account lock shared with
 MFA reset. Missing, expired, revoked, unverified or foreign-portal families

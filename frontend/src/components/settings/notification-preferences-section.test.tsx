@@ -273,12 +273,14 @@ describe("NotificationPreferencesSection", () => {
     });
     renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
+    // Die Beschreibung steht schon im Ladezustand da, der Knopf erst nach dem
+    // Laden. Deshalb auf den Knopf selbst warten (#6320).
     expect(
       await screen.findByText(
         "Bleiben Sie über Nachrichten und wichtige Änderungen zu Ihrem Kind informiert.",
       ),
     ).toBeVisible();
-    const enableAllButton = screen.getByRole("button", {
+    const enableAllButton = await screen.findByRole("button", {
       name: "Alle aktivieren",
     });
     expect(enableAllButton).toHaveClass(

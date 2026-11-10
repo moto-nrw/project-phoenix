@@ -356,6 +356,10 @@ export interface CareException {
   // Die Abholart, die die OGS für diesen Tag eingetragen oder bestätigt hat
   // (#3945). Fehlt sie, gilt die Abholart aus dem Wochenplan.
   readonly departure_mode?: DayDepartureMode;
+  // „HH:MM“, ab der die OGS das Kind an diesem Tag entschuldigt hat (eine
+  // Teil-Abwesenheit). Eine Abmeldung für den ganzen Tag lehnt der Server an
+  // diesem Tag ab; der Dialog nennt ihn deshalb vorher (#5698).
+  readonly excused_from?: string;
 }
 
 // Abholarten, die Eltern für einen einzelnen Tag anfragen können (#3945).
@@ -1225,17 +1229,41 @@ export interface ParentDeclarationChild {
     readonly action: ParentDeclarationAction | null;
     readonly submitted_at: string | null;
   }[];
+  /**
+   * This guardian's consent to an older wording that still stands after the
+   * school changed the text (#6303). It stays revocable; null without one.
+   */
+  readonly earlier_consent?: ParentDeclarationEarlierConsent | null;
+}
+
+/** A standing consent to an older wording of an Einverständnis. */
+interface ParentDeclarationEarlierConsent {
+  readonly version: {
+    readonly id: string;
+    readonly version_no: number;
+    readonly content_hash: string;
+    readonly title: string;
+    readonly body: string;
+  };
+  readonly submitted_at: string;
+  readonly allowed_actions: readonly ParentDeclarationAction[];
 }
 
 export interface ParentDeclaration {
   readonly kind: "consent";
   readonly signers: "any" | "all";
-  readonly revocable: boolean;
   readonly requires_password: boolean;
   /** Agreeing needs a signature with finger, pen or mouse (#4785). */
   readonly requires_signature: boolean;
   readonly deadline: string | null;
   readonly closed: boolean;
+  /**
+   * The school no longer shows this Einverständnis (withdrawn, deactivated
+   * or expired).
+   * It stays in the feed because this guardian answered it; only revoking an
+   * own consent remains (#6290).
+   */
+  readonly ended: boolean;
   readonly version: {
     readonly id: string;
     readonly version_no: number;
@@ -1946,11 +1974,19 @@ export async function inviteRelatedAccount(
  * Fetches the child's pickup/arrival overrides (today .. +2 months by default),
  * staff- and parent-set alike, so the modal can show what is already in place.
  */
+/**
+ * Without a range the server answers today to two months ahead; the absence
+ * dialog passes its chosen days, which may lie further out (#5698).
+ */
 export async function listCareExceptions(
   studentId: string,
+  range?: { readonly from: string; readonly to: string },
 ): Promise<CareException[]> {
+  const query = range
+    ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+    : "";
   return getJson<CareException[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception${query}`,
   );
 }
 
@@ -2505,6 +2541,10 @@ export interface ParentDocument {
    * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
    */
   readonly can_withdraw_contract?: boolean;
+  readonly sepa_mandate?: {
+    readonly enabled: boolean;
+    readonly collection_eligible: boolean;
+  };
 }
 
 /**

@@ -58,7 +58,7 @@ const DECLARATION_STATE_META: Record<
   DeclarationChildState,
   { label: string; tone: StatusBadgeTone; title?: string }
 > = {
-  open: { label: "Offen", tone: "orange" },
+  open: { label: "Offen", tone: "warning" },
   partial: {
     label: "Teilweise beantwortet",
     tone: "blue",
@@ -327,11 +327,9 @@ export function DeclarationStatusPanel({
             <DataField label="Abgelehnt">
               <span className="tabular-nums">{s.declined}</span>
             </DataField>
-            {(status.revocable || s.revoked > 0) && (
-              <DataField label="Widerrufen">
-                <span className="tabular-nums">{s.revoked}</span>
-              </DataField>
-            )}
+            <DataField label="Widerrufen">
+              <span className="tabular-nums">{s.revoked}</span>
+            </DataField>
             <DataField label="Offen">
               <span className="tabular-nums">{s.open}</span>
             </DataField>

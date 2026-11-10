@@ -112,7 +112,7 @@ type seriesDeviationSnapshot struct {
 	occurrences map[groupDay]int
 }
 
-func (s seriesDeviationSnapshot) Count() int { return len(s.snapshots) }
+func (s seriesDeviationSnapshot) Count() int { return overriddenCount(s.snapshots) }
 
 func (s seriesDeviationSnapshot) Reapply(ctx context.Context, templateID int64, actorAccountID *int64) (int, error) {
 	id := templateID

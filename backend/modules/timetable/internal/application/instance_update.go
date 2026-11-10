@@ -55,7 +55,8 @@ func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID
 	if err := s.consumeMovedSlot(ctx, origSlot, req); err != nil {
 		return nil, err
 	}
-	if err := s.replaceInstanceAssignments(ctx, instance, req.StaffIDs, req.StudentIDs, actorAccountID); err != nil {
+	moved := origSlot.Date != calendar.Date(instance.Date)
+	if err := s.replaceInstanceAssignments(ctx, instance, moved, req.StaffIDs, req.StudentIDs, actorAccountID); err != nil {
 		return nil, err
 	}
 	// A lingering acknowledgement is cleared only when the edit left the
@@ -184,7 +185,14 @@ func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ct
 //     re-plans the base roster, so the old deviations no longer describe
 //     it and every row is recreated as plain planned staff; the dropped
 //     deviations are recorded in the Änderungsprotokoll (#1886).
-func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, staffIDs, studentIDs []int64, actorAccountID *int64) error {
+//   - a sick report's absence (sick_absence_id set) is no planner deviation:
+//     it describes the person, so it follows a staff member who stays even
+//     when the membership changes, always with its provenance stamp. Only
+//     the stamp lets a shortened or deleted report release the row (#6292).
+//     A staff member the edit adds, and every row of a block moved to
+//     another date, takes the sick report of the block's date instead; the
+//     day locks the edit holds serialize that read with the sick cascade.
+func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, moved bool, staffIDs, studentIDs []int64, actorAccountID *int64) error {
 	prior, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update instance: load existing staff", Err: err}
@@ -196,9 +204,13 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	newStaffIDs := domain.UniquePositiveIDs(staffIDs)
 	rosterUnchanged := sameStaffMembership(newStaffIDs, priorByStaff)
 	if !rosterUnchanged {
-		if err := s.logDroppedDeviations(ctx, instance, prior, actorAccountID); err != nil {
+		if err := s.logDroppedDeviations(ctx, instance, droppedDeviations(prior, newStaffIDs), actorAccountID); err != nil {
 			return err
 		}
+	}
+	sickDays, err := sickDaysIn(ctx, s.deps.SickReports, calendar.Date(instance.Date))
+	if err != nil {
+		return err
 	}
 	if err := s.lockRosterCareDays(ctx, instance, studentIDs); err != nil {
 		return err
@@ -213,7 +225,8 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	for _, staffID := range newStaffIDs {
 		row := recreatedStaffRow(instance.ID, staffID, priorByStaff[staffID], rosterUnchanged)
 		row.SetTenantID(tenantID)
-		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+		carried := priorByStaff[staffID] != nil && !moved
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, calendar.Date(instance.Date), sickDays, carried); err != nil {
 			return &ports.ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}
@@ -243,10 +256,29 @@ func recreatedStaffRow(instanceID, staffID int64, prior *scheduleModel.InstanceS
 	row.RoomID = prior.RoomID
 	if keepDeviation {
 		row.IsSubstitute = prior.IsSubstitute
-		row.IsAbsent = prior.IsAbsent
-		row.AbsenceReason = prior.AbsenceReason
+	}
+	if keepDeviation || prior.SickAbsenceID != nil {
+		copyAbsenceState(row, prior)
 	}
 	return row
+}
+
+// droppedDeviations are the prior rows whose deviation a membership change
+// discards: a staying planned row keeps its sick-report absence, so only the
+// rest is recorded as dropped.
+func droppedDeviations(prior []*scheduleModel.InstanceStaff, staffIDs []int64) []*scheduleModel.InstanceStaff {
+	staying := make(map[int64]bool, len(staffIDs))
+	for _, staffID := range staffIDs {
+		staying[staffID] = true
+	}
+	dropped := make([]*scheduleModel.InstanceStaff, 0, len(prior))
+	for _, row := range prior {
+		if staying[row.StaffID] && !row.IsSubstitute && row.SickAbsenceID != nil {
+			continue
+		}
+		dropped = append(dropped, row)
+	}
+	return dropped
 }
 
 // logDroppedDeviations records one protocol entry per prior row that

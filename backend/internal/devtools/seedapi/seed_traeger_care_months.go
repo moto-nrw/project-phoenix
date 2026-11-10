@@ -57,7 +57,10 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/number-ranges/care", map[string]any{"pattern": seedCareNumberPattern}); err != nil {
 		return fmt.Errorf("keep the number range of the monthly care: %w", err)
 	}
-	current := calendar.TodayDate()
+	current, err := rt.historyToday()
+	if err != nil {
+		return err
+	}
 	current = calendar.NewDate(current.Year(), current.Month(), 1)
 	// The Worker concludes the contracts of Weg b on its own tick (#4680);
 	// a contract already active bills its first month, the others bill once
@@ -101,6 +104,14 @@ func seedCareRuns(client *Client, auth AuthRef, first, current calendar.Date) (i
 		if released, err = seedCareRun(client, auth, first, true); err != nil {
 			return 0, err
 		}
+	}
+	previous := calendar.NewDate(current.Year(), current.Month()-1, 1)
+	if !first.IsZero() && first.Before(previous) {
+		count, err := seedCareRun(client, auth, previous, true)
+		if err != nil {
+			return released, err
+		}
+		released += count
 	}
 	if first != current {
 		if _, err := seedCareRun(client, auth, current, false); err != nil {
@@ -373,7 +384,8 @@ func seedCareReview(client *Client, auth AuthRef, month calendar.Date, run seedC
 	}
 	if run.ExcludedCount == 0 && len(run.Invoices) >= 2 {
 		if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/exclusions", run.ID), map[string]any{
-			"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "reason": "Kündigung zum Monatsende wird noch geprüft",
+			"contract_id": run.Invoices[len(run.Invoices)-1].ContractID, "service": run.Invoices[len(run.Invoices)-1].Service,
+			"reason": "Kündigung zum Monatsende wird noch geprüft",
 		}); err != nil {
 			return fmt.Errorf("exclude an invoice of the monthly run: %w", err)
 		}

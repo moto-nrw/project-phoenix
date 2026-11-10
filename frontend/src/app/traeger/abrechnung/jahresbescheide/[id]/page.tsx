@@ -43,7 +43,6 @@ import {
   releaseCareNoticeRun,
 } from "~/lib/traeger-care-notices-api";
 import { traegerPath } from "~/lib/traeger-url";
-
 const logger = createLogger({ component: "TraegerCareNoticeRunPage" });
 
 const noticeColumns: DataTableColumn<CareNotice>[] = [
@@ -233,6 +232,17 @@ export default function TraegerCareNoticeRunPage() {
               ? "Jahreslauf abschließen"
               : "Bescheide ausstellen"}
           </Button>
+        ) : run?.status === "released" && run.previewCount > 0 ? (
+          // The PAIN.008 file of the installments has its own page (#4697).
+          <ButtonLink
+            href={traegerPath(
+              `/traeger/abrechnung/jahresbescheide/${run.id}/lastschrift`,
+            )}
+            variant="outline"
+            size="md"
+          >
+            Lastschrift der Raten
+          </ButtonLink>
         ) : undefined
       }
       error={pageLoad.error}
@@ -330,6 +340,13 @@ export default function TraegerCareNoticeRunPage() {
             <StatCard
               label="Gesamtbetrag aller Bescheide"
               value={formatEuro(run.previewCents)}
+              // A released notice is a claim before any payment: moto sees
+              // no incoming money, the bookkeeping does (#6348).
+              hint={
+                preview
+                  ? undefined
+                  : "Forderung vor Zahlungseingang. Zahlungen sieht moto nicht."
+              }
             />
             <StatCard
               label="Zu-/Abgang gegenüber bisher"

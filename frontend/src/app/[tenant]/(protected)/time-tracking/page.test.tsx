@@ -1,4 +1,5 @@
 import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { setViewportWidth } from "~/test/helpers/viewport";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
@@ -11,7 +12,7 @@ import {
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { releaseFakeTimers } from "~/test/clock";
+import { releaseFakeTimers, setTestClock } from "~/test/clock";
 
 // ─── Mocks (must come before component imports) ─────────────────────────────
 
@@ -32,6 +33,8 @@ const mockTimeTrackingService = vi.hoisted(() => ({
   requestVacation: vi.fn(),
   cancelAbsence: vi.fn(),
   getVacationQuota: vi.fn(),
+  getQuestionedAbsences: vi.fn(),
+  getOwnAbsenceAllowances: vi.fn(),
   exportSessions: vi.fn(),
 }));
 
@@ -842,6 +845,8 @@ function setupDefaultMocks(overrides?: {
     remaining_days: 30,
   });
   vi.mocked(timeTrackingService.getAbsences).mockResolvedValue(absences);
+  vi.mocked(timeTrackingService.getQuestionedAbsences).mockResolvedValue([]);
+  vi.mocked(timeTrackingService.getOwnAbsenceAllowances).mockResolvedValue([]);
   vi.mocked(timeTrackingService.requestVacation).mockResolvedValue(
     mockVacationAbsence,
   );
@@ -854,11 +859,7 @@ describe("TimeTrackingPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset window.innerWidth to desktop by default
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 1024,
-    });
+    setViewportWidth(1024);
   });
 
   // ── Loading / Auth ──────────────────────────────────────────────────────
@@ -1308,11 +1309,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("uses a bottom sheet for break duration on mobile", async () => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 390,
-      });
+      setViewportWidth(390);
       setupDefaultMocks({ currentSession: mockActiveSession });
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Pause starten"));
@@ -1753,7 +1750,7 @@ describe("TimeTrackingPage", () => {
 
     it("shows Kein Eintrag for past days without session", () => {
       // Mobile mode to see "Kein Eintrag" text
-      Object.defineProperty(window, "innerWidth", { value: 500 });
+      setViewportWidth(500);
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       // There should be at least one day with no session
@@ -2554,11 +2551,7 @@ describe("TimeTrackingPage", () => {
 
   describe("mobile layout", () => {
     beforeEach(() => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      setViewportWidth(375);
     });
 
     it("renders mobile card layout on small screens", () => {
@@ -2992,6 +2985,253 @@ describe("TimeTrackingPage", () => {
           });
         }
       }
+    });
+  });
+
+  // ── Zeitumstellung beim Bearbeiten (#6293) ──────────────────────────────
+
+  describe("edit across a daylight saving switch (#6293)", () => {
+    // 20.10.2026 is summer time (CEST, +02:00): 08:00 Berlin = 06:00 UTC.
+    const summerSession = (): WorkSessionHistory => ({
+      ...mockHistorySession,
+      id: "100",
+      date: "2026-10-20",
+      checkInTime: "2026-10-20T06:00:00Z",
+      checkOutTime: "2026-10-20T14:30:00Z",
+      breakMinutes: 30,
+      breaks: [],
+    });
+    // 20.03.2026 is winter time (CET, +01:00): 08:00 Berlin = 07:00 UTC.
+    const winterSession = (): WorkSessionHistory => ({
+      ...mockHistorySession,
+      id: "100",
+      date: "2026-03-20",
+      checkInTime: "2026-03-20T07:00:00Z",
+      checkOutTime: "2026-03-20T15:30:00Z",
+      breakMinutes: 30,
+      breaks: [],
+    });
+
+    async function openEdit(session: WorkSessionHistory) {
+      setupDefaultMocks({ currentSession: null, history: [session] });
+      vi.mocked(timeTrackingService.updateSession).mockClear();
+      vi.mocked(timeTrackingService.updateSession).mockResolvedValue(
+        mockCheckedOutSession,
+      );
+      vi.mocked(timeTrackingService.getSessionEdits).mockResolvedValue([]);
+      render(<TimeTrackingPage />);
+      fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+      await waitFor(() => {
+        expect(screen.getByLabelText("Start")).toHaveValue("08:00");
+      });
+    }
+
+    async function saveAndGetUpdates() {
+      clickQuickEditReason("Zeitkorrektur");
+      const saveBtn = await waitForLastSaveButtonEnabled();
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+      await waitFor(() => {
+        expect(timeTrackingService.updateSession).toHaveBeenCalledTimes(1);
+      });
+      return vi.mocked(timeTrackingService.updateSession).mock.calls[0]![1];
+    }
+
+    it("sends no times when only the reason changes (winter today, summer session)", async () => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      await openEdit(summerSession());
+      expect(screen.getByLabelText("Ende")).toHaveValue("16:30");
+
+      const updates = await saveAndGetUpdates();
+
+      expect(updates.notes).toBe("Zeitkorrektur");
+      expect(updates.checkInTime).toBeUndefined();
+      expect(updates.checkOutTime).toBeUndefined();
+    });
+
+    it("uses the session day's summer offset for a changed start in winter", async () => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      await openEdit(summerSession());
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "07:30" },
+      });
+
+      const updates = await saveAndGetUpdates();
+
+      expect(updates.checkInTime).toBe("2026-10-20T05:30:00.000Z");
+      expect(updates.checkOutTime).toBeUndefined();
+    });
+
+    it("uses the session day's winter offset for a changed end in summer", async () => {
+      setTestClock("2026-04-08T12:00:00+02:00");
+      await openEdit(winterSession());
+      fireEvent.change(screen.getByLabelText("Ende"), {
+        target: { value: "17:00" },
+      });
+
+      const updates = await saveAndGetUpdates();
+
+      expect(updates.checkOutTime).toBe("2026-03-20T16:00:00.000Z");
+      expect(updates.checkInTime).toBeUndefined();
+    });
+
+    it("shows and saves Berlin times from a browser in another timezone", async () => {
+      zoneVi.stubEnv("TZ", "UTC");
+      setTestClock("2026-11-09T12:00:00+01:00");
+      expect(new Date("2026-10-20T06:00:00Z").getHours()).toBe(6);
+      await openEdit(summerSession());
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "07:30" },
+      });
+
+      const updates = await saveAndGetUpdates();
+
+      expect(updates.checkInTime).toBe("2026-10-20T05:30:00.000Z");
+    });
+
+    it.each([
+      [
+        "2026-03-29",
+        "2026-03-29T06:00:00Z",
+        "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.",
+      ],
+      [
+        "2026-10-25",
+        "2026-10-25T07:00:00Z",
+        "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen.",
+      ],
+    ])(
+      "blocks a start time the switch day %s cannot resolve",
+      async (date, checkIn, message) => {
+        setTestClock("2026-11-09T12:00:00+01:00");
+        await openEdit({
+          ...summerSession(),
+          date,
+          checkInTime: checkIn,
+          checkOutTime: null,
+        });
+        clickQuickEditReason("Zeitkorrektur");
+        fireEvent.change(screen.getByLabelText("Start"), {
+          target: { value: "02:30" },
+        });
+
+        expect(screen.getByText(message)).toBeInTheDocument();
+        expect(screen.getByLabelText("Start")).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        );
+        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = saveButtons[saveButtons.length - 1]!;
+        expect(saveBtn).toBeDisabled();
+        await act(async () => {
+          fireEvent.click(saveBtn);
+        });
+        expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
+      },
+    );
+
+    it("explains an empty start instead of a silently blocked save", async () => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      await openEdit(summerSession());
+      clickQuickEditReason("Zeitkorrektur");
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "" },
+      });
+
+      expect(
+        screen.getByText("Bitte eine Uhrzeit eintragen."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Start")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      const saveButtons = screen.getAllByText("Speichern");
+      expect(saveButtons[saveButtons.length - 1]!).toBeDisabled();
+    });
+
+    it("explains instead of silently keeping a cleared end", async () => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      await openEdit(summerSession());
+      clickQuickEditReason("Zeitkorrektur");
+      fireEvent.change(screen.getByLabelText("Ende"), {
+        target: { value: "" },
+      });
+
+      expect(
+        screen.getByText(
+          "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Ende")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = saveButtons[saveButtons.length - 1]!;
+      expect(saveBtn).toBeDisabled();
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+      expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
+    });
+
+    it("shows break starts in Berlin time from a browser in another timezone", async () => {
+      zoneVi.stubEnv("TZ", "UTC");
+      setTestClock("2026-11-09T12:00:00+01:00");
+      expect(new Date("2026-10-20T08:00:00Z").getHours()).toBe(8);
+      await openEdit({
+        ...summerSession(),
+        breaks: [
+          {
+            id: "b1",
+            sessionId: "100",
+            // 10:00 Berlin summer time
+            startedAt: "2026-10-20T08:00:00Z",
+            endedAt: "2026-10-20T08:30:00Z",
+            durationMinutes: 30,
+            plannedEndTime: null,
+          },
+        ],
+      });
+
+      const modal = screen.getByTestId("modal");
+      expect(within(modal).getByText("10:00")).toBeInTheDocument();
+      expect(
+        within(modal).getByRole("combobox", { name: "Pausendauer ab 10:00" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows today's break start in Berlin time from a browser in another timezone", async () => {
+      zoneVi.stubEnv("TZ", "UTC");
+      setTestClock("2026-11-09T12:00:00+01:00");
+      expect(new Date("2026-11-09T09:15:00Z").getHours()).toBe(9);
+      setupDefaultMocks({
+        currentSession: {
+          ...mockActiveSession,
+          date: "2026-11-09",
+          // 08:00 Berlin winter time
+          checkInTime: "2026-11-09T07:00:00Z",
+          checkOutTime: null,
+        },
+      });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "51",
+          sessionId: "100",
+          // 10:15–10:45 Berlin
+          startedAt: "2026-11-09T09:15:00Z",
+          endedAt: "2026-11-09T09:45:00Z",
+          durationMinutes: 30,
+          plannedEndTime: null,
+        },
+      ]);
+      render(<TimeTrackingPage />);
+
+      // Work 08:00–10:15, break 10:15–10:45, work from 10:45.
+      expect(await screen.findAllByText("10:15")).toHaveLength(2);
+      expect(screen.getAllByText("10:45")).toHaveLength(2);
+      expect(screen.queryByText("09:15")).not.toBeInTheDocument();
     });
   });
 
@@ -4771,11 +5011,7 @@ describe("TimeTrackingPage", () => {
 
   describe("mobile layout - detailed branches", () => {
     beforeEach(() => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      setViewportWidth(375);
     });
 
     it("shows mobile card view with session data on small screens", () => {
@@ -5149,11 +5385,7 @@ describe("TimeTrackingPage", () => {
 
   describe("session + absence combination in mobile", () => {
     beforeEach(() => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      setViewportWidth(375);
     });
 
     it("shows absence badge alongside session data on mobile", () => {

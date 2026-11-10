@@ -1108,6 +1108,224 @@ describe("SickNoteModal — Abmeldegrund", () => {
   });
 });
 
+// #5698: families never overwrite a school entry. A day the school already
+// excused from a time goes to the school as a request; free days in the same
+// report are written directly.
+describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
+  const schoolPartial = (
+    date: string,
+    excusedFrom = "13:00",
+  ): CareException => ({
+    date,
+    pickup_time: excusedFrom,
+    excused_from: excusedFrom,
+    source: "staff",
+    pickup_source: "staff",
+    updated_at: "2026-09-08T10:00:00Z",
+  });
+
+  function chooseRange(from: string, to: string) {
+    fireEvent.change(screen.getByLabelText("Erster Tag"), {
+      target: { value: from },
+    });
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: to },
+    });
+  }
+
+  function fillReason() {
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+  }
+
+  function send() {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+  }
+
+  it("nennt den Tag, für den eine Anfrage an die OGS geht, und sendet alle Tage", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("partly_pending");
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+        careExceptions={[schoolPartial("2026-09-10")]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "Für einen Tag geht eine Anfrage an die OGS",
+    );
+    expect(notice).toHaveTextContent(/10\.09\.2026.*ab 13:00 Uhr/);
+    expect(notice).toHaveTextContent("Bis dahin gilt ihr Eintrag.");
+    // The test translator skips ICU plurals; the interpolated total is enough.
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
+
+    fillReason();
+    send();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      ["2026-09-10", "2026-09-11"],
+      "Fieber",
+      "sick",
+      [],
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Gemeldet und angefragt" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die freien Tage sind gemeldet. Für die anderen Tage prüft die OGS Ihre Meldung. Bis dahin gilt ihr Eintrag.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("sendet auch, wenn jeder Tag schon eingetragen ist, und sagt, wer entscheidet", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("pending");
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+        careExceptions={[schoolPartial("2026-09-09", "11:30")]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    ).toBeEnabled();
+    fillReason();
+    send();
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        ["2026-09-09"],
+        "Fieber",
+        "sick",
+        [],
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Die OGS hat für diese Tage schon etwas eingetragen. Sie prüft Ihre Meldung. Bis dahin gilt ihr Eintrag.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("zählt eine Krankmeldung der OGS als Schuleintrag", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        sickDays={[
+          {
+            id: "1",
+            student_id: "7",
+            date: "2026-09-10",
+            status: "sick",
+            reported_at: "2026-09-08T10:00:00Z",
+            source: "planned",
+          },
+        ]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "Für einen Tag geht eine Anfrage an die OGS",
+    );
+    expect(notice).toHaveTextContent(
+      /10\.09\.2026: von der OGS krank gemeldet/,
+    );
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
+  });
+
+  it("übersieht Abholzeiten ohne Teil-Abwesenheit", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        careExceptions={[
+          {
+            date: "2026-09-09",
+            pickup_time: "14:00",
+            source: "staff",
+            pickup_source: "staff",
+            updated_at: "2026-09-08T10:00:00Z",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Ihr Kind wird für diesen Tag abgemeldet\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Anfrage an die OGS/)).not.toBeInTheDocument();
+  });
+
+  it("nennt den Tag nach dem Nachladen, wenn die OGS ihn gerade eingetragen hat", async () => {
+    // The school entered the day after the dialog opened: the dialog reads
+    // the school's entries for exactly the chosen days.
+    const listSpy = vi
+      .spyOn(parentApi, "listCareExceptions")
+      .mockResolvedValue([schoolPartial("2026-09-10")]);
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "care.care_exception_conflict",
+      }),
+    );
+    render(
+      <SickNoteModal
+        studentId="7"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+    fillReason();
+    send();
+
+    expect(
+      await screen.findByText(/10\.09\.2026: entschuldigt ab 13:00 Uhr/),
+    ).toBeInTheDocument();
+    expect(listSpy).toHaveBeenCalledWith("7", {
+      from: "2026-09-10",
+      to: "2026-09-11",
+    });
+  });
+
+  it("bittet um erneutes Senden, wenn das Nachladen nichts findet", async () => {
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "care.care_exception_conflict",
+      }),
+    );
+    render(
+      <SickNoteModal studentId="7" onClose={vi.fn()} onSubmit={onSubmit} />,
+    );
+    fillReason();
+    send();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die OGS hat gerade etwas für einen der Tage eingetragen. Bitte senden Sie die Meldung noch einmal.",
+    );
+  });
+});
+
 // #1845 review: the parent summary must not misrepresent request dates.
 describe("SickStatusSummary — date rendering", () => {
   it("lists non-contiguous dates instead of a false continuous range", () => {

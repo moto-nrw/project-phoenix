@@ -78,7 +78,7 @@ func TestRetireDirectPermissionsDownRestoresTenantIsolationAndFences(t *testing.
 		_, err := tx.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted) VALUES (?, ?, ?, FALSE)`, account.ID, foreignPermission.ID, other)
 		return err
 	})
-	require.ErrorContains(t, err, "row-level security", "a tenant cannot write another school's grant")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err), "a tenant cannot write another school's grant")
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id) VALUES (?, ?, ?)`, account.ID, permission.ID, home)
 	require.ErrorContains(t, err, "idx_account_permissions_tenant")
 	_, err = db.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID)
@@ -97,7 +97,7 @@ func TestRetireDirectPermissionsRefusesUnknownDependenciesAtomically(t *testing.
 	_, err := db.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id) VALUES (?, ?, ?);
   CREATE VIEW auth.direct_permission_dependency_probe AS SELECT id FROM auth.account_permissions`, account.ID, permission.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
-	require.ErrorContains(t, retireDirectPermissionsUp(ctx, db), "depend", "unknown dependencies must not be removed by CASCADE")
+	require.Equal(t, "2BP01", testpkg.PostgresSQLState(retireDirectPermissionsUp(ctx, db)), "unknown dependencies must not be removed by CASCADE")
 	var rows int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_permissions WHERE account_id = ?`, account.ID).Scan(ctx, &rows))
 	assert.Equal(t, 1, rows, "failed migration preserves stored grants")

@@ -28,7 +28,7 @@ func (transactions) WithinRetry(ctx context.Context, fn func(context.Context) er
 }
 
 func (transactions) Savepoint(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithSavepoint(ctx, fn)
+	return app.ImportSavepoint(ctx, fn, tenant.WithSavepoint)
 }
 
 func (transactions) AcquireLock(ctx context.Context, key string) error {
