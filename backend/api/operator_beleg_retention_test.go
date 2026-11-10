@@ -345,9 +345,9 @@ func TestBelegRetentionRoutesRefuseASchoolSession(t *testing.T) {
 	assert.Empty(t, provisioningService.reads, "no audit and no read for a school session")
 }
 
-func belegRetentionAuditOf(t *testing.T, provisioning organizationtenancy.Provisioning) organizationtenancy.BelegRetentionChangeAudit {
+func belegRetentionAuditOf(t *testing.T, provisioning organizationtenancy.OperatorProvisioning) organizationtenancy.BelegRetentionChangeAudit {
 	t.Helper()
-	audit, err := organizationCompose.BelegRetentionAudit(provisioning)
+	audit, err := organizationCompose.BelegRetentionAudit(provisioning.Provisioning)
 	require.NoError(t, err)
 	return audit
 }

@@ -60,12 +60,21 @@ var retentionControlTables = map[string]string{
 //     Weisung, without an active suspension, after locking the Träger and
 //     the rows, and only when every Beleg its cascade would take passed the
 //     same check. It is never reached from operative data: only the hourly
-//     job calls it, in the administrative transaction.
+//     job calls it, in the administrative transaction;
+//   - the stored PAIN.008 files of parent_billing.sepa_debit_files (#6314,
+//     ADR 0187), which follow their members: a submitted file goes only with
+//     the last of its debits and installment notices (so after their Beleg
+//     retention), an unsubmitted download with any member, when a later
+//     download supersedes it and 30 days after the download. No Beleg
+//     besides the file itself is deleted by them.
 //
 // The erasure of a whole Träger after its export (#4657) deletes the
 // organization and reaches the Belege through its cascade.
 var belegErasureFunctions = []string{
 	"parent_billing.delete_due_belege",
+	"parent_billing.delete_expired_sepa_debit_downloads",
+	"parent_billing.drop_sepa_debit_files_with_their_members",
+	"parent_billing.drop_superseded_sepa_debit_files",
 	"platform.erase_closed_demo_visitors",
 }
 

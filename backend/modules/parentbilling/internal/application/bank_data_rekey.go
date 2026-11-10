@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
@@ -23,8 +24,11 @@ func NewBankDataRekey(store BankDataRekeyStore, cipher parentbilling.BankDataRew
 	return &BankDataRekey{store: store, cipher: cipher}
 }
 
+// bankDataSources are the tables of sealed bank data a batch rewraps.
+var bankDataSources = []string{"mandates", "debits", "consents", "debit_files"}
+
 func (r *BankDataRekey) Batch(ctx context.Context, organizationID int64, source string, afterID int64, limit int) (parentbilling.BankDataRekeyResult, error) {
-	if (source != "mandates" && source != "debits" && source != "consents" && source != "debit_files") || organizationID <= 0 || afterID < 0 || limit < 1 || limit > 1000 {
+	if !slices.Contains(bankDataSources, source) || organizationID <= 0 || afterID < 0 || limit < 1 || limit > 1000 {
 		return parentbilling.BankDataRekeyResult{}, errors.New("bank data rekey requires organization, nonnegative cursor and batch size 1..1000")
 	}
 	if source == "debit_files" {
