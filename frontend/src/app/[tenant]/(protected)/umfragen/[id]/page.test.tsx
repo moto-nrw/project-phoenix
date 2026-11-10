@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { Survey, SurveyResults } from "~/lib/surveys-api";
 
 import SurveyDetailPage from "./page";
@@ -12,6 +13,12 @@ const state = vi.hoisted(() => ({
   survey: undefined as unknown,
   results: undefined as unknown,
   respondents: undefined as unknown,
+}));
+
+const { updateSurvey } = vi.hoisted(() => ({ updateSurvey: vi.fn() }));
+vi.mock("~/lib/surveys-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/surveys-api")>()),
+  updateSurvey,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -185,5 +192,37 @@ describe("Umfrage, Objektseite (#4781)", () => {
       await screen.findByText(/Umfragen anlegen und auswerten darf nur/),
     ).toBeInTheDocument();
     expect(screen.queryByText("Elternzufriedenheit")).not.toBeInTheDocument();
+  });
+
+  it("„Wiederholen“ nach einem Speicherfehler speichert den jetzt sichtbaren Entwurf (#6503)", async () => {
+    state.search = "bearbeiten=1";
+    state.survey = survey({ status: "draft", published_at: undefined });
+    updateSurvey
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(survey({ status: "draft", title: "NEU" }));
+
+    renderPage();
+
+    const title = await screen.findByLabelText("Titel");
+    fireEvent.change(title, { target: { value: "ALT" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const retry = await screen.findByRole("button", { name: "Wiederholen" });
+    expect(updateSurvey).toHaveBeenLastCalledWith(
+      "21",
+      expect.objectContaining({ title: "ALT" }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "NEU" },
+    });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(updateSurvey).toHaveBeenCalledTimes(2));
+    expect(updateSurvey).toHaveBeenLastCalledWith(
+      "21",
+      expect.objectContaining({ title: "NEU" }),
+    );
   });
 });

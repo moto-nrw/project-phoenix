@@ -20,6 +20,7 @@ import {
 } from "~/components/ui/slide-over";
 import { useParentTargetLookups } from "~/components/announcements/parent-target-picker";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import {
   emptySurveyDraft,
@@ -77,12 +78,15 @@ export function SurveyCreateSlideOver({
       });
       void formErrors.show(err, {
         object: "die Umfrage",
-        retry: () => void saveDraft(),
+        // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den
+        // vom Fehlversuch (#6503).
+        retry: () => void latestSaveDraft.current(),
       });
     } finally {
       setSaving(false);
     }
   };
+  const latestSaveDraft = useLatest(saveDraft);
 
   return (
     <SlideOver

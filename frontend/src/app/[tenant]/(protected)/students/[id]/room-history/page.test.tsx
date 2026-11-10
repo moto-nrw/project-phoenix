@@ -10,13 +10,14 @@ import { catalogText } from "~/test/error-catalog-text";
 import StudentRoomHistoryPage from "./page";
 
 const mockPush = vi.fn();
+const routeParams = vi.hoisted(() => ({ id: "42" }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
   }),
   useParams: () => ({
-    id: "42",
+    id: routeParams.id,
   }),
   useSearchParams: () => ({
     get: vi.fn((key: string) => (key === "from" ? "/students/search" : null)),
@@ -82,6 +83,30 @@ vi.mock("./history-charts", () => ({
       <p>Tägliche Aufenthaltsdauer in Stunden</p>
       <h2>Aktivität</h2>
       <p>Raumwechsel pro Tag</p>
+    </div>
+  ),
+}));
+
+// Der Korrektur-Dialog selbst ist nicht Gegenstand: Sein Speichern meldet
+// sich wie der echte über onCorrected und schließt dann (#6503).
+vi.mock("~/components/students/attendance-correction-modal", () => ({
+  AttendanceCorrectionModal: ({
+    onCorrected,
+    onClose,
+  }: {
+    onCorrected: () => void;
+    onClose: () => void;
+  }) => (
+    <div role="dialog" aria-label="Korrektur">
+      <button
+        type="button"
+        onClick={() => {
+          onCorrected();
+          onClose();
+        }}
+      >
+        Korrektur speichern
+      </button>
     </div>
   ),
 }));
@@ -1052,4 +1077,158 @@ describe("StudentRoomHistoryPage", () => {
       expect(row.className).not.toContain("bg-moto-blue-soft/60");
     },
   );
+
+  // #6503: Nach zwei Korrekturen zählt nur der jüngste Abruf.
+  describe("Abruf nach Korrekturen", () => {
+    const correctableDay = {
+      ...fullDay,
+      slots: [
+        {
+          instance_id: "501",
+          instance_status: "completed",
+          title: "Fußball-AG",
+          start_time: "14:00",
+          end_time: "15:00",
+          status: "present",
+          is_unplanned: false,
+        },
+      ],
+    };
+    type HistoryResponse = ReturnType<typeof mockAttendanceHistoryResponse>;
+
+    function deferredHistory() {
+      let resolve!: (value: HistoryResponse) => void;
+      const promise = new Promise<HistoryResponse>((res) => {
+        resolve = res;
+      });
+      return { promise, resolve };
+    }
+
+    /** Antworten des Protokolls in Aufrufreihenfolge. */
+    function queueHistory(responses: Array<Promise<HistoryResponse>>) {
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/attendance-history")) {
+          return responses.shift() ?? Promise.reject(new Error("unerwartet"));
+        }
+        return Promise.resolve(mockStudentResponse());
+      });
+    }
+
+    /** Ein Stand mit `days` Tagen; die Zahl steht in der Statuszeile. */
+    function snapshot(days: number) {
+      return mockAttendanceHistoryResponse(
+        [correctableDay, noVisitsDay, expiredDay].slice(0, days),
+      );
+    }
+
+    async function correct() {
+      fireEvent.click(screen.getAllByText("Korrigieren")[0]!);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Korrektur speichern" }),
+      );
+    }
+
+    beforeEach(() => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["schedules:manage"] },
+        },
+      } as unknown as ReturnType<typeof useSession>);
+    });
+
+    afterEach(() => {
+      routeParams.id = "42";
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { token: "test-token" } },
+      } as unknown as ReturnType<typeof useSession>);
+    });
+
+    async function openFirstDay() {
+      render(<StudentRoomHistoryPage />);
+      expect(await screen.findByText(/1 Tag erfasst/)).toBeInTheDocument();
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+      expect(
+        (await screen.findAllByText("Korrigieren")).length,
+      ).toBeGreaterThan(0);
+    }
+
+    function historyCalls() {
+      return mockFetch.mock.calls.filter(([url]) =>
+        String(url).includes("/attendance-history"),
+      ).length;
+    }
+
+    it("lets an older refresh not overwrite the second correction", async () => {
+      const first = deferredHistory();
+      const second = deferredHistory();
+      queueHistory([
+        Promise.resolve(snapshot(1)),
+        first.promise,
+        second.promise,
+      ]);
+      await openFirstDay();
+
+      await correct();
+      await correct();
+      await waitFor(() => expect(historyCalls()).toBe(3));
+
+      second.resolve(snapshot(3));
+      expect(await screen.findByText(/3 Tage erfasst/)).toBeInTheDocument();
+      first.resolve(snapshot(2));
+      await first.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Anker: der Stand nach der zweiten Korrektur steht weiter da.
+      expect(screen.getByText(/3 Tage erfasst/)).toBeInTheDocument();
+      expect(screen.queryByText(/2 Tage erfasst/)).not.toBeInTheDocument();
+    });
+
+    it("keeps the confirmed protocol and shows a failed refresh above it", async () => {
+      queueHistory([
+        Promise.resolve(snapshot(1)),
+        Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({ error: "internal" }),
+        } as unknown as HistoryResponse),
+      ]);
+      await openFirstDay();
+
+      await correct();
+
+      expect(
+        await screen.findByText(
+          "Das Anwesenheitsprotokoll konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+        ),
+      ).toBeInTheDocument();
+      // Die bestätigten Tage bleiben unter dem Hinweis stehen.
+      expect(screen.getByText(/1 Tag erfasst/)).toBeInTheDocument();
+      expect(screen.getAllByText(/Montag, 06/).length).toBeGreaterThan(0);
+    });
+
+    it("shows no late protocol of the child shown before", async () => {
+      const previousChild = deferredHistory();
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/attendance-history")) {
+          return url.includes("/42/")
+            ? previousChild.promise
+            : Promise.resolve(snapshot(3));
+        }
+        return Promise.resolve(mockStudentResponse());
+      });
+      const { rerender } = render(<StudentRoomHistoryPage />);
+      await waitFor(() => expect(historyCalls()).toBe(1));
+
+      routeParams.id = "43";
+      rerender(<StudentRoomHistoryPage />);
+      expect(await screen.findByText(/3 Tage erfasst/)).toBeInTheDocument();
+      previousChild.resolve(snapshot(1));
+      await previousChild.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Anker: das Protokoll des jetzt gezeigten Kindes steht weiter da.
+      expect(screen.getByText(/3 Tage erfasst/)).toBeInTheDocument();
+      expect(screen.queryByText(/1 Tag erfasst/)).not.toBeInTheDocument();
+    });
+  });
 });

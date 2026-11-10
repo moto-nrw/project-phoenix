@@ -43,6 +43,7 @@ import {
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
+import { useLatest } from "~/lib/hooks/use-latest";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -455,12 +456,15 @@ function SurveyEditSection({
       });
       void formErrors.show(err, {
         object: "die Umfrage",
-        retry: () => void save(),
+        // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den
+        // vom Fehlversuch (#6503).
+        retry: () => void latestSave.current(),
       });
     } finally {
       setSaving(false);
     }
   };
+  const latestSave = useLatest(save);
 
   return (
     <SectionCard title="Entwurf bearbeiten">
