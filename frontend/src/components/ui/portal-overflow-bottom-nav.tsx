@@ -68,9 +68,10 @@ export function PortalOverflowBottomNav({
   readonly moreLabel?: string;
   readonly moreDescription?: string;
   /**
-   * Opt-in: ist eine Seite hinter „Mehr“ offen, zeigt das Feld „Mehr“ ihr
-   * Konzept-Icon und ihren Namen; der zugängliche Name lautet „Mehr: …“.
-   * Sonst stünde auf jeder dieser Seiten nur ein graues „Mehr“ markiert.
+   * Opt-in: ist eine Seite hinter „Mehr“ offen, zeigt das Feld „Mehr“ neben
+   * seinen Punkten ihren Namen; der zugängliche Name lautet „Mehr: …“. Sonst
+   * stünde auf jeder dieser Seiten nur ein graues „Mehr“ markiert, und ohne
+   * die Punkte sähe das Feld nicht mehr nach den übrigen Bereichen aus.
    */
   readonly activeInMore?: boolean;
 }) {
@@ -119,7 +120,9 @@ export function PortalOverflowBottomNav({
                 ? (shownInMore.shortLabel ?? shownInMore.label)
                 : undefined
             }
-            concept={shownInMore ? shownInMore.concept : moreConcept}
+            // The dots stay: beside the open page's name they keep saying
+            // that this field opens the other areas.
+            concept={moreConcept}
             active={moreActive}
             onClick={() => setMoreOpen(true)}
             {...{ [navItemAttribute]: "more" }}
