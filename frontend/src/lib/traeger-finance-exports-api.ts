@@ -32,7 +32,17 @@ export type SollField =
   | "mandate_reference"
   | "document_kind"
   | "file_number"
+  | "revenue_account"
+  | "cost_center"
+  | "cost_center_2"
   | "constant";
+
+/** Fields that write one row per revenue account and cost centers (#4821). */
+export const SOLL_BOOKING_FIELDS: readonly SollField[] = [
+  "revenue_account",
+  "cost_center",
+  "cost_center_2",
+];
 
 export type SollDelimiter = ";" | "," | "\t" | "|";
 export type SollDecimal = "," | ".";
@@ -69,7 +79,13 @@ export interface DatevReadiness {
 export interface DatevBookingProblem {
   readonly documentNumber: string;
   readonly field:
-    "debtor_number" | "document_date" | "document_number" | "amount";
+    | "debtor_number"
+    | "document_date"
+    | "document_number"
+    | "amount"
+    | "revenue_account"
+    | "cost_center"
+    | "cost_center_2";
   readonly reason: "missing" | "invalid" | "out_of_period";
 }
 
@@ -101,6 +117,11 @@ export interface ExportProtocolEntry {
   readonly repeatOf: number | null;
   /** A DATEV file of "all bookings again" (#6433). */
   readonly datevAll: boolean;
+  /**
+   * Positions without values of their release: the file booked them on the
+   * accounts of the day of the export (#4821).
+   */
+  readonly resolvedPositions: number;
   readonly exportedByYou: boolean;
   readonly exportedByAccount: boolean;
   readonly exportedAt: string;
@@ -183,6 +204,7 @@ interface BackendEntry {
   reference?: string;
   repeat_of?: number;
   datev_all?: boolean;
+  resolved_positions?: number;
   exported_by_account_id: number | null;
   exported_by_you: boolean;
   exported_at: string;
@@ -285,6 +307,7 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     reference: entry.reference ?? "",
     repeatOf: entry.repeat_of ?? null,
     datevAll: entry.datev_all ?? false,
+    resolvedPositions: entry.resolved_positions ?? 0,
     exportedByYou: entry.exported_by_you,
     exportedByAccount: entry.exported_by_account_id !== null,
     exportedAt: entry.exported_at,
@@ -526,6 +549,9 @@ const DATEV_PROBLEM_FIELDS = new Set<string>([
   "document_date",
   "document_number",
   "amount",
+  "revenue_account",
+  "cost_center",
+  "cost_center_2",
 ]);
 const DATEV_PROBLEM_REASONS = new Set<string>([
   "missing",
@@ -584,4 +610,155 @@ export async function fetchInvoiceHistory(
       file: entry.file ? entryFromBackend(entry.file) : null,
     })),
   };
+}
+
+/** Where a Leistung or an Angebot books (#4821). */
+export type RevenueScope = "care" | "meals" | "holiday" | "offering";
+/** Whose cost center: a school (KOST1), the holiday care (KOST1), an Angebot (KOST2). */
+export type CostCenterScope = "school" | "holiday" | "offering";
+
+export interface RevenueAccount {
+  readonly scope: RevenueScope;
+  /** The Angebot; "0" for a Leistung. */
+  readonly scopeId: string;
+  readonly account: string;
+}
+
+export interface CostCenter {
+  readonly id: string;
+  readonly scope: CostCenterScope;
+  /** The school or Angebot; "0" for the holiday care. */
+  readonly scopeId: string;
+  /** "YYYY-MM-DD", the first day it holds. */
+  readonly validFrom: string;
+  /** Empty: the cost center ends on this day. */
+  readonly code: string;
+}
+
+export interface BookingOffering {
+  readonly schoolId: string;
+  readonly offeringId: string;
+  readonly moduleNames: readonly string[];
+}
+
+export interface BookingAccounts {
+  /** The standard revenue account of the DATEV values, "" while unset. */
+  readonly standardAccount: string;
+  /** Every booking needs a KOST1 (DATEV values). */
+  readonly costCenterRequired: boolean;
+  readonly schools: readonly { readonly id: string; readonly name: string }[];
+  readonly offerings: readonly BookingOffering[];
+  readonly revenueAccounts: readonly RevenueAccount[];
+  readonly costCenters: readonly CostCenter[];
+}
+
+interface BackendBookingAccounts {
+  standard_account: string;
+  cost_center_required: boolean;
+  schools: { id: number; name: string }[] | null;
+  offerings:
+    | {
+        school_id: number;
+        care_offering_id: number;
+        module_names: string[] | null;
+      }[]
+    | null;
+  revenue_accounts:
+    { scope: RevenueScope; scope_id: number; account: string }[] | null;
+  cost_centers:
+    | {
+        id: number;
+        scope: CostCenterScope;
+        scope_id: number;
+        valid_from: string;
+        code: string;
+      }[]
+    | null;
+}
+
+function bookingAccountsFromBackend(
+  body: BackendBookingAccounts,
+): BookingAccounts {
+  return {
+    standardAccount: body.standard_account,
+    costCenterRequired: body.cost_center_required,
+    schools: (body.schools ?? []).map((school) => ({
+      id: String(school.id),
+      name: school.name,
+    })),
+    offerings: (body.offerings ?? []).map((offering) => ({
+      schoolId: String(offering.school_id),
+      offeringId: String(offering.care_offering_id),
+      moduleNames: offering.module_names ?? [],
+    })),
+    revenueAccounts: (body.revenue_accounts ?? []).map((account) => ({
+      scope: account.scope,
+      scopeId: String(account.scope_id),
+      account: account.account,
+    })),
+    costCenters: (body.cost_centers ?? []).map((center) => ({
+      id: String(center.id),
+      scope: center.scope,
+      scopeId: String(center.scope_id),
+      validFrom: center.valid_from,
+      code: center.code,
+    })),
+  };
+}
+
+/** The revenue accounts and cost centers of the Träger (#4821). */
+export async function fetchBookingAccounts(): Promise<BookingAccounts> {
+  return bookingAccountsFromBackend(
+    await traegerRequest<BackendBookingAccounts>(`${BASE}/booking-accounts`),
+  );
+}
+
+/** Sets the revenue account of a scope; "" removes it. */
+export async function saveRevenueAccount(
+  scope: RevenueScope,
+  scopeId: string,
+  account: string,
+): Promise<BookingAccounts> {
+  return bookingAccountsFromBackend(
+    await traegerRequest<BackendBookingAccounts>(
+      `${BASE}/booking-accounts/revenue-accounts`,
+      {
+        method: "PUT",
+        body: { scope, scope_id: Number(scopeId), account },
+      },
+    ),
+  );
+}
+
+/** Adds a cost center from its first day; "" ends the scope's cost center. */
+export async function addCostCenter(center: {
+  scope: CostCenterScope;
+  scopeId: string;
+  validFrom: string;
+  code: string;
+}): Promise<BookingAccounts> {
+  return bookingAccountsFromBackend(
+    await traegerRequest<BackendBookingAccounts>(
+      `${BASE}/booking-accounts/cost-centers`,
+      {
+        method: "POST",
+        body: {
+          scope: center.scope,
+          scope_id: Number(center.scopeId),
+          valid_from: center.validFrom,
+          code: center.code,
+        },
+      },
+    ),
+  );
+}
+
+/** Deletes a cost center; issued invoices keep it. */
+export async function deleteCostCenter(id: string): Promise<BookingAccounts> {
+  return bookingAccountsFromBackend(
+    await traegerRequest<BackendBookingAccounts>(
+      `${BASE}/booking-accounts/cost-centers/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  );
 }

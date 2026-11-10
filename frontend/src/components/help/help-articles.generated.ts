@@ -11382,7 +11382,19 @@ export const traegerDatevExportTopic =
             "Wählen Sie oben rechts `DATEV-Werte`. Die Einstellungen öffnen sich im Bereich `DATEV`.",
             "Tragen Sie `Beraternummer` und `Mandantennummer` ein.",
             "Wählen Sie die `Länge der Sachkonten`, den `Kontenrahmen` und den `Beginn des Wirtschaftsjahres`.",
-            "Tragen Sie das `Erlöskonto für Elternbeiträge` ein.",
+            "Tragen Sie das `Standard-Erlöskonto` ein. Darauf bucht moto alles ohne eigenes Konto.",
+          ],
+        },
+        {
+          title: "Erlöskonten und Kostenstellen festlegen",
+          description:
+            "Nur nötig, wenn Ihr Steuerbüro Leistungen, Schulen oder Angebote getrennt bucht.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `Konten und Kostenstellen`.",
+            "Unter `Erlöskonten` wählen Sie bei `Monatsbeiträge`, `Mensa` oder `Ferienbetreuung` `Ändern`. Tragen Sie das Konto ein und wählen Sie `Speichern`. Ein Angebot kann ein eigenes Konto haben.",
+            "Unter `Kostenstellen (KOST1)` wählen Sie bei der Schule `Neue Kostenstelle`. Wählen Sie den Tag bei `Gilt ab` und tragen Sie die `Kostenstelle` ein.",
+            "Eine `Zweite Kostenstelle (KOST2)` je Angebot tragen Sie nur ein, wenn Ihr Steuerbüro sie braucht.",
           ],
         },
         {
@@ -11416,17 +11428,23 @@ export const traegerDatevExportTopic =
         "Hat ein Lauf keine neuen Buchungen, lässt sich `DATEV` nicht wählen. Dann entsteht keine Datei und keine Nummer.",
         "Die DATEV-Datei und die Sollstellung zählen in derselben Reihe von Dateinummern.",
         "Eine Rechnung über 0 € steht nicht in der DATEV-Datei. Sie bewegt kein Geld.",
+        "Eine Rechnung hält Erlöskonto und Kostenstellen beim Ausstellen fest. Ändern Sie später ein Konto, gilt das nur für neue Rechnungen. Ein Storno bucht auf dieselben Konten wie seine Rechnung.",
+        "Hat eine Rechnung Positionen auf verschiedenen Konten, steht sie mit einer Zeile je Konto in der DATEV-Datei. Ermäßigungen verteilen sich anteilig auf diese Zeilen.",
+        "Eine Kostenstelle gilt ab ihrem Tag bis zur nächsten. Maßgeblich ist der erste Tag der Leistung, also der Monat oder die Ferienwoche.",
       ],
       differences: [
         "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",
         "Beim Lauf steht `Alles exportiert`? Alle Buchungen sind schon in einer DATEV-Datei. Darunter steht ihre Nummer.",
         "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
+        "Im `Exportprotokoll` steht `… mit Konten vom Exporttag`? Diese Rechnungen wurden ausgestellt, bevor moto die Konten festgehalten hat. Die Datei nutzt dann die Werte vom Tag des Exports.",
       ],
       troubleshootingDetails: [
         "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Eine ausgestellte Rechnung behält ihre Debitorennummer. Bei Monatsbeiträgen tragen Sie bei der Familie die richtige Nummer ein. Stornieren Sie dann die genannte Rechnung und stellen Sie sie neu aus. Bei Ferienbeiträgen ohne Gutschrift stornieren Sie zuerst die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Waren Rechnung und Storno in keiner DATEV-Datei, heben sie sich auf. Danach lässt sich `DATEV` für den Lauf wieder wählen. Die neue Rechnung kommt mit ihrem Lauf in DATEV.",
         "Hat eine Ferienrechnung mit ungültiger Debitorennummer schon eine Gutschrift? Dann ist kein Storno möglich. Laden Sie die Sollstellung des Laufs für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt.",
         "Es erscheint `Keine neuen Buchungen für …`? Jemand hat die Buchungen gerade heruntergeladen. Die Datei steht im `Exportprotokoll`.",
         "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
+        "Es erscheint `Erlöskonto ist länger als Ihre Sachkonten` oder `Kostenstelle fehlt`? Wählen Sie im Hinweis `Konten und Kostenstellen`. Korrigieren Sie dort das Konto oder tragen Sie die Kostenstelle ein. Eine schon ausgestellte Rechnung behält ihre Werte: Stornieren Sie sie und stellen Sie sie neu aus.",
+        "Ist in den DATEV-Werten `Kostenstelle ist Pflicht` an? Dann braucht jede Schule eine Kostenstelle. Sonst gibt es keine DATEV-Datei.",
       ],
       related: [
         HELP_TOPICS.traegerFinanceExports,
@@ -11626,6 +11644,7 @@ export const traegerFinanceExportsTopic =
         "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
         "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
         "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
+        "Wählen Sie als Inhalt `Erlöskonto`, `Kostenstelle (KOST1)` oder `Zweite Kostenstelle (KOST2)`, hat die Datei eine Zeile je Konto einer Rechnung. Der `Betrag` ist dann der Teil der Rechnung auf diesem Konto. Die Konten legen Sie unter `Konten und Kostenstellen` fest.",
       ],
       differences: [
         "Der Reiter `Exporte` fehlt? Ihnen fehlt das Recht `Finanz-Export`.",
