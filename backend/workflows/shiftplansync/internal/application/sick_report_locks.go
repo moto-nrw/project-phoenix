@@ -1,6 +1,7 @@
 package application
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -71,15 +72,21 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 // and the staff-shift gates one write of the subject may need.
 func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
 	days := make(map[calendar.Date]bool)
-	addDateRange(days, dateStart, dateEnd)
 	var reportIDs []int64
 	if absenceID > 0 {
 		stored, err := s.absences.FindStaffAbsence(ctx, absenceID)
-		if err == nil && stored.StaffID == subject {
+		switch {
+		case errors.Is(err, workforce.ErrStaffAbsenceNotFound):
+		case err != nil:
+			return nil, nil, fmt.Errorf("sick report lock: load absence: %w", err)
+		case stored.StaffID == subject:
 			addDateRange(days, stored.DateStart, stored.DateEnd)
 			reportIDs = append(reportIDs, stored.ID)
+			// An edit may move one bound only; the other keeps its stored day.
+			dateStart, dateEnd = cmp.Or(dateStart, stored.DateStart), cmp.Or(dateEnd, stored.DateEnd)
 		}
 	}
+	addDateRange(days, dateStart, dateEnd)
 	overlapping, err := s.overlappingSickReports(ctx, subject, days)
 	if err != nil {
 		return nil, nil, err

@@ -424,3 +424,23 @@ func TestSickReport_ConcurrentRangeExtensionMergesWithoutLockOrderFailure(t *tes
 		assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, day), firstID, "block of the merged range "+day.String())
 	}
 }
+
+// R4 for an edit that moves one bound only: Workforce keeps the stored other
+// bound, and the write locks the days of the resulting range before the
+// cascade marks the new first day.
+func TestSickReport_EditMovingOnlyTheStartLocksItsNewDays(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	e.materialize(t, stampWeekOne, stampWeekTwo)
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	start := stampWeekOne.String()
+	e.inTx(t, func(ctx context.Context) error {
+		_, err := e.absences.SickReports.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, workforce.UpdateAbsenceRequest{DateStart: &start})
+		return err
+	})
+
+	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, stampWeekOne), absenceID, "the new first day")
+	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, stampWeekTwo), absenceID, "the kept day")
+}

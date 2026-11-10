@@ -11,8 +11,9 @@ import (
 
 // The advisory locks of the cross-owner lock order (#6232) are taken in one
 // place each, and that place admits the lock through tenant.OrderLock before
-// it waits: Timetable's day locks, its recurrence and grade-transition gates
-// and Workforce's staff-shift gate. A second place that hashes one of these
+// it waits: Timetable's day locks and recurrence gate, the grade-transition
+// gate (taken by Timetable and by School Structure) and Workforce's
+// staff-shift gate. A second place that hashes one of these
 // keys would wait outside the order check, and a sick report, a
 // materialization or a series write could close a 40P01 cycle again; review
 // found such cycles three times in #6300. So the key builders may appear only
@@ -27,6 +28,14 @@ var orderedLockKeyBuilders = map[string]struct {
 	definition string
 	acquirers  []string
 }{
+	// School Structure's adapter builds the key; the application admits the
+	// gate in lockTransitionGate, the only caller of the store method.
+	"tenantTransitionsLockKey(": {
+		definition: "modules/schoolstructure/internal/adapters/postgres/transition_store.go",
+	},
+	"store.LockTransitions(": {
+		acquirers: []string{"modules/schoolstructure/internal/application/transition.go"},
+	},
 	"SubstituteDayLockKey(": {
 		definition: "modules/timetable/lifecycle.go",
 		acquirers:  []string{"modules/timetable/internal/application/day_locks.go"},
