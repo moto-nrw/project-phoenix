@@ -160,12 +160,8 @@ func (s *HolidayRegistrationStore) WriteHolidayCriteria(ctx context.Context, org
 	if err != nil {
 		return err
 	}
-	for i, criterion := range criteria {
-		for _, previous := range current {
-			if previous.ID == criterion.ID && previous.Answered && previous.Scope != criterion.Scope {
-				return validation.Errors{fmt.Sprintf("criteria.%d.scope", i): errors.New("scope cannot change after an answer")}
-			}
-		}
+	if err := checkHolidayCriteriaScopes(current, criteria); err != nil {
+		return err
 	}
 	kept := []int64{}
 	for _, criterion := range criteria {
@@ -187,6 +183,22 @@ func (s *HolidayRegistrationStore) WriteHolidayCriteria(ctx context.Context, org
 		}
 		if err != nil {
 			return fmt.Errorf("enrollment postgres: write holiday criterion: %w", err)
+		}
+	}
+	return nil
+}
+
+// checkHolidayCriteriaScopes keeps answered criteria attached to the same
+// family or child, including when an editor submits an older catalog.
+func checkHolidayCriteriaScopes(current []enrollment.HolidayCriterion, input []enrollment.HolidayCriterionInput) error {
+	byID := make(map[int64]enrollment.HolidayCriterion, len(current))
+	for _, criterion := range current {
+		byID[criterion.ID] = criterion
+	}
+	for i, criterion := range input {
+		previous := byID[criterion.ID]
+		if previous.Answered && previous.Scope != criterion.Scope {
+			return validation.Errors{fmt.Sprintf("criteria.%d.scope", i): errors.New("scope cannot change after an answer")}
 		}
 	}
 	return nil
