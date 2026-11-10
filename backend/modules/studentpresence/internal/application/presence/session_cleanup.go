@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -50,8 +51,15 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		// Without an ambient unit each timeout still commits independently, as
 		// before. An ended or resumed session is an expected skip after
 		// discovery.
-		if _, err := s.processSessionTimeout(ctx, id, s.stillAbandoned(cutoffTime)); err == nil {
+		_, err := s.processSessionTimeout(ctx, id, s.stillAbandoned(cutoffTime))
+		switch {
+		case err == nil:
 			cleanedCount++
+		case !errors.Is(err, ErrActiveGroupAlreadyEnded) && !errors.Is(err, errSessionResumed):
+			s.getLogger().WarnContext(ctx, "abandoned session cleanup skipped a session",
+				slog.Int64("active_group_id", id),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 
@@ -64,22 +72,23 @@ var errSessionResumed = errors.New("session is no longer abandoned")
 
 // stillAbandoned re-judges a sweep candidate under its session lock (#6502).
 // The selection ran without one: a scan or heartbeat may have refreshed the
-// session's activity since, or the device may have come back online. The
-// lock serializes against activity writes, which update the same row; device
-// contact committed before this read is seen, later contact orders after the
-// sweep. The predicate matches FindActiveSessionsOlderThan's.
+// session's activity since, or its device may have come back online. The
+// check repeats the selection itself, so both use one predicate. Activity
+// writes update the locked row and are ordered before or after this read;
+// device contact committed before it is seen, later contact orders after the
+// sweep. The sweep rarely has more than a few candidates per school.
 func (s *service) stillAbandoned(cutoff time.Time) sessionTimeoutCheck {
 	return func(ctx context.Context, session *ports.ActiveGroup) error {
-		if session.DeviceID == nil || !session.LastActivity.Before(cutoff) {
-			return errSessionResumed
-		}
-		if err := s.GroupRepo.AttachSessionDevice(ctx, session); err != nil {
+		candidates, err := s.GroupRepo.FindActiveSessionsOlderThan(ctx, cutoff)
+		if err != nil {
 			return err
 		}
-		if s.isDeviceOnline(ctx, session.Device, time.Now()) {
-			return errSessionResumed
+		for _, candidate := range candidates {
+			if candidate.ID == session.ID && !s.isDeviceOnline(ctx, candidate.Device, time.Now()) {
+				return nil
+			}
 		}
-		return nil
+		return errSessionResumed
 	}
 }
 

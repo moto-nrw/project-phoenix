@@ -1713,46 +1713,41 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 	})
 }
 
-// The sweep re-judges each candidate under its session lock with the same
-// predicate as the unlocked selection (#6502): still idle before the cutoff,
-// still device-managed, and its device still offline.
+// The sweep re-judges each candidate under its session lock with the
+// selection itself (#6502): it ends the session only while the selection
+// still returns it and its device is still offline.
 func TestStillAbandonedRejudgesTheLockedSession(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	cutoff := time.Now().Add(-time.Hour)
-	deviceID := int64(41)
+	session := &ports.ActiveGroup{ID: 100}
 	recent, stale := time.Now(), time.Now().Add(-2*time.Hour)
-	attachErr := errors.New("device directory down")
+	lookupErr := errors.New("selection failed")
+	candidate := func(id int64, lastSeen *time.Time) *ports.ActiveGroup {
+		return &ports.ActiveGroup{ID: id, Device: &ports.SessionDevice{LastSeen: lastSeen}}
+	}
 
 	for _, tc := range []struct {
-		name      string
-		activity  time.Time
-		deviceID  *int64
-		lastSeen  *time.Time
-		attachErr error
-		want      error
+		name       string
+		candidates []*ports.ActiveGroup
+		lookupErr  error
+		want       error
 	}{
-		{name: "idle with offline device ends", activity: stale, deviceID: &deviceID, lastSeen: &stale},
-		{name: "idle with never seen device ends", activity: stale, deviceID: &deviceID},
-		{name: "fresh activity is spared", activity: recent, deviceID: &deviceID, lastSeen: &stale, want: errSessionResumed},
-		{name: "activity at the cutoff is spared", activity: cutoff, deviceID: &deviceID, lastSeen: &stale, want: errSessionResumed},
-		{name: "device back online is spared", activity: stale, deviceID: &deviceID, lastSeen: &recent, want: errSessionResumed},
-		{name: "device-less session is spared", activity: stale, want: errSessionResumed},
-		{name: "device lookup failure skips", activity: stale, deviceID: &deviceID, attachErr: attachErr, want: attachErr},
+		{name: "still selected with offline device ends", candidates: []*ports.ActiveGroup{candidate(99, nil), candidate(100, &stale)}},
+		{name: "still selected with never seen device ends", candidates: []*ports.ActiveGroup{candidate(100, nil)}},
+		{name: "no longer selected is spared", candidates: []*ports.ActiveGroup{candidate(99, &stale)}, want: errSessionResumed},
+		{name: "device back online is spared", candidates: []*ports.ActiveGroup{candidate(100, &recent)}, want: errSessionResumed},
+		{name: "selection failure skips", lookupErr: lookupErr, want: lookupErr},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-				attachSessionDeviceFunc: func(_ context.Context, group *ports.ActiveGroup) error {
-					if tc.attachErr != nil {
-						return tc.attachErr
-					}
-					group.Device = &ports.SessionDevice{ID: *group.DeviceID, LastSeen: tc.lastSeen}
-					return nil
+				findActiveSessionsOlderThanFunc: func(_ context.Context, got time.Time) ([]*ports.ActiveGroup, error) {
+					assert.Equal(t, cutoff, got, "the recheck uses the sweep's cutoff")
+					return tc.candidates, tc.lookupErr
 				},
 			}}}
-			session := &ports.ActiveGroup{LastActivity: tc.activity, DeviceID: tc.deviceID}
 
 			err := svc.stillAbandoned(cutoff)(ctx, session)
 
