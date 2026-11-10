@@ -86,6 +86,27 @@ describe("DateRangePicker", () => {
     expect(trigger).not.toHaveTextContent("6.–6.");
   });
 
+  it("closes the calendar with Escape on a page and restores trigger focus", async () => {
+    // Wie `DatePicker`: Escape schließt den Kalender auch außerhalb von Dialogen.
+    const parentKeyDown = vi.fn();
+    render(
+      <div role="group" aria-label="Filter" onKeyDown={parentKeyDown}>
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+      </div>,
+    );
+    const trigger = screen.getByRole("button", { name: "Zeitraum wählen" });
+    fireEvent.click(trigger);
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+
+    expect(document.querySelector("[data-range-panel]")).toBeNull();
+    expect(trigger).toHaveFocus();
+    expect(parentKeyDown).not.toHaveBeenCalled();
+  });
+
   it("keeps its own panel open when another range picker is also open", async () => {
     render(
       <>
