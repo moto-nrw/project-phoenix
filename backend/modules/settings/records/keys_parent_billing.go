@@ -58,6 +58,10 @@ const (
 	KeyParentBillingDatevRevenueAccount   = "parent_billing.datev_revenue_account"
 	KeyParentBillingDatevFiscalYearStart  = "parent_billing.datev_fiscal_year_start"
 	KeyParentBillingDatevLocked           = "parent_billing.datev_locked"
+	// KeyParentBillingDatevCostCenterRequired says every booking needs a
+	// KOST1 (#4821). Whether the tax office of the SJR books by cost
+	// center is open ("wartet auf Ute"), so it is off by default.
+	KeyParentBillingDatevCostCenterRequired = "parent_billing.datev_cost_center_required"
 )
 
 // KeyParentBillingOnlineMandate lets the parents give the SEPA mandate of

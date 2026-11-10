@@ -90,13 +90,17 @@ var parentBillingDatevDefinitions = func() []config.Definition {
 		"In diesem Monat beginnt Ihr Wirtschaftsjahr. Bei den meisten Vereinen ist das der Januar.")
 	fiscal.Type, fiscal.Options, fiscal.Default = config.FieldSelect, datevMonthOptions, "1"
 
-	revenue := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevRevenueAccount, 60, "Erlöskonto für Elternbeiträge",
-		"Auf dieses Sachkonto bucht moto die Elternbeiträge. Es hat höchstens so viele Ziffern wie Ihre Sachkonten.")
+	revenue := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevRevenueAccount, 60, "Standard-Erlöskonto",
+		"Auf dieses Sachkonto bucht moto, wenn eine Leistung oder ein Angebot kein eigenes Erlöskonto hat. Es hat höchstens so viele Ziffern wie Ihre Sachkonten.")
 	revenue.Validation = &config.ValidationRules{Pattern: &datevAccountPattern, AllowEmpty: true, MaxLength: &datevAccountMaxLength}
 
 	locked := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevLocked, 70, "Buchungen festschreiben",
 		"Ist das an, sind die Buchungen nach dem Einlesen in DATEV festgeschrieben. Ihr Steuerbüro kann sie dann nicht mehr ändern.")
 	locked.Type, locked.Default = config.FieldBoolean, false
 
-	return []config.Definition{consultant, client, length, chart, fiscal, revenue, locked}
+	costCenter := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevCostCenterRequired, 80, "Kostenstelle ist Pflicht",
+		"Ist das an, braucht jede Buchung eine Kostenstelle der Schule. Die Kostenstellen tragen Sie unter Abrechnung bei Exporte ein.")
+	costCenter.Type, costCenter.Default = config.FieldBoolean, false
+
+	return []config.Definition{consultant, client, length, chart, fiscal, revenue, locked, costCenter}
 }()

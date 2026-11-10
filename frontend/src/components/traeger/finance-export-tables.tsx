@@ -315,6 +315,18 @@ function entryNotes(entry: ExportProtocolEntry) {
       <StatusBadge key="all" label="Alle erneut: Wiederholung" tone="orange" />,
     );
   }
+  if (entry.resolvedPositions > 0) {
+    // Positions issued before the accounts were kept on them (#4821).
+    notes.push(
+      <StatusBadge
+        key="resolved"
+        wrap
+        label={`${entry.resolvedPositions} ${entry.resolvedPositions === 1 ? "Position" : "Positionen"} mit Konten vom Exporttag`}
+        title="Diese Positionen wurden ausgestellt, bevor moto Konten und Kostenstellen festgehalten hat. Die Datei nutzt die Werte vom Tag des Exports."
+        tone="gray"
+      />,
+    );
+  }
   if (entry.repeatOf !== null) {
     notes.push(
       <StatusBadge
