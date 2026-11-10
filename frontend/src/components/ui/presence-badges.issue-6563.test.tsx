@@ -80,15 +80,23 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
     expect(screen.getByText("seit 10:15 Uhr")).toBeInTheDocument();
   });
 
-  it("shows no „seit“ line for an unreadable time", () => {
+  it.each([
+    ["2026-09-09T08:15:00Z", "seit 10:15 Uhr"],
+    ["kein Zeitpunkt", null],
+  ])("shows „seit“ only for a readable time (%s)", (since, expected) => {
     render(
       renderBadge(
-        { current_location: "Anwesend", location_since: "kein Zeitpunkt" },
+        { current_location: "Anwesend", location_since: since },
         true,
       ),
     );
 
+    // Anker: the badge rendered its pill.
     expect(screen.getByText("Anwesend")).toBeInTheDocument();
-    expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
+    if (expected) {
+      expect(screen.getByText(/^seit /)).toHaveTextContent(expected);
+    } else {
+      expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
+    }
   });
 });
