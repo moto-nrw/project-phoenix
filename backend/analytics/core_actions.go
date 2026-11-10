@@ -169,6 +169,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/enrollment/requests/{statusToken}/change-requests"}:                            notCaptured,
 	{http.MethodPost, "/api/enrollment/requests/{statusToken}/change-requests/{changeRequestId}/messages"}: notCaptured,
 	{http.MethodPost, "/api/enrollment/requests/{statusToken}/confirm-renewal"}:                            notCaptured,
+	{http.MethodPut, "/api/enrollment/requests/{statusToken}/family-children"}:                             notCaptured,
 	{http.MethodPost, "/api/enrollment/requests/{statusToken}/withdraw"}:                                   notCaptured,
 	{http.MethodPost, "/api/enrollment/schema/"}:                                                           notCaptured,
 	{http.MethodDelete, "/api/enrollment/schema/{id}"}:                                                     notCaptured,

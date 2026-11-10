@@ -47,13 +47,21 @@ func (b *BillingReads) BillingRecipients(ctx context.Context, organizationID int
 		return nil, fmt.Errorf("care contract: read contract parties: %w", err)
 	}
 	for contractID, list := range parties {
-		recipients[contractID] = list[0]
-		for _, party := range list {
-			if party.Email != "" {
-				recipients[contractID] = party
-				break
-			}
-		}
+		recipients[contractID] = billingRecipient(list)
 	}
 	return recipients, nil
+}
+
+// billingRecipient is the first party with an e-mail address, else the
+// first party; none for no party.
+func billingRecipient(parties []carecontract.Party) carecontract.Party {
+	if len(parties) == 0 {
+		return carecontract.Party{}
+	}
+	for _, party := range parties {
+		if party.Email != "" {
+			return party
+		}
+	}
+	return parties[0]
 }

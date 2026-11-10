@@ -40,6 +40,9 @@ type SignaturePorts struct {
 	Runtime carecontract.Runtime
 	// Holidays dates the withdrawal period the signature names (#6350).
 	Holidays carecontract.SchoolHolidays
+	// Families keeps the number of children the parents state on the link
+	// (#6335).
+	Families carecontract.FamilyNumbers
 }
 
 // Signatures serves carecontract.Signing, carecontract.InboxSigning and
@@ -61,8 +64,8 @@ var (
 
 func NewSignatures(store ContractStore, ports SignaturePorts, clock Clock, contracts *Contracts) *Signatures {
 	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil ||
-		ports.Holidays == nil {
-		panic("care contract: the store, the ledger, the tokens, the sender, the post, the runtime and the school holidays are required")
+		ports.Holidays == nil || ports.Families == nil {
+		panic("care contract: the store, the ledger, the tokens, the sender, the post, the runtime, the school holidays and the family numbers are required")
 	}
 	return &Signatures{store: store, ports: ports, clock: clock, contracts: contracts}
 }
@@ -88,7 +91,14 @@ type linkTarget struct {
 // unused and unexpired, its contract must wait for a signature, and the
 // PDF it was sent with must still be the contract's PDF. Only failed link
 // validation answers ErrSigningLinkInvalid; operational errors stay retryable.
+// The contract's row stays locked until the transaction ends.
 func (s *Signatures) openLink(ctx context.Context, organizationID int64, token string, now time.Time) (linkTarget, error) {
+	return s.openLinkContract(ctx, organizationID, token, now, true)
+}
+
+// openLinkContract is openLink; lockContract false reads the contract
+// without its row lock, for a caller that does not change the contract.
+func (s *Signatures) openLinkContract(ctx context.Context, organizationID int64, token string, now time.Time, lockContract bool) (linkTarget, error) {
 	link, err := s.store.SigningLink(ctx, organizationID, s.ports.Links.Tokens.Fingerprint(token))
 	if err != nil {
 		return linkTarget{}, err
@@ -96,7 +106,7 @@ func (s *Signatures) openLink(ctx context.Context, organizationID int64, token s
 	if link.UsedAt != nil || !link.ExpiresAt.After(now) {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}
-	record, err := s.store.Contract(ctx, organizationID, link.ContractID, true)
+	record, err := s.store.Contract(ctx, organizationID, link.ContractID, lockContract)
 	if errors.Is(err, carecontract.ErrContractNotFound) {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}

@@ -1,3 +1,5 @@
 GET /public/care-contract-signing/{link} -> basis
 GET /public/care-contract-signing/{link}/document -> basis
+GET /public/care-contract-signing/{link}/family-children -> basis
 POST /public/care-contract-signing/{link}/sign -> basis
+PUT /public/care-contract-signing/{link}/family-children -> basis

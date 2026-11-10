@@ -14,7 +14,7 @@ func init() {
 		Version:     parentBillingExportFilesVersion,
 		Description: "Elternabrechnung: Exportprotokoll, Dateinummer je Träger, Sollstellung mit Feldzuordnung, Debitorennummer der Familie (#4693)",
 		DependsOn: []string{
-			guardianInvitationAddressBindingVersion,   // the newest migration on development (1.15.865)
+			familyChildrenLinkAndEnrollmentVersion,    // the newest migration on development (1.15.866)
 			parentBillingBelegRetentionVersion,        // its Beleg deletion cascades to export_file_invoices
 			parentBillingCareInvoiceExclusionsVersion, // its demo erasure keeps removing these export files
 			demoVisitorErasureOutboxKindsVersion,      // its erasure already removes these export files

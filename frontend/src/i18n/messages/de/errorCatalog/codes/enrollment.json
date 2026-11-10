@@ -145,5 +145,7 @@
   "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
   "holiday_form_field_not_allowed": "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
   "holiday_registration_form_changed": "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal.",
-  "holiday_proof_limit": "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht."
+  "holiday_proof_limit": "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
+  "family_children_closed": "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
+  "family_children_invalid": "Bitte geben Sie eine Zahl von 1 bis 20 an."
 }

@@ -130,6 +130,8 @@ func (rs *SigningResource) PublicRouter() chi.Router {
 	r.Get("/{link}", rs.view)
 	r.Get("/{link}/document", rs.document)
 	r.Post("/{link}/sign", rs.sign)
+	r.Get("/{link}/family-children", rs.familyChildren)
+	r.Put("/{link}/family-children", rs.stateFamilyChildren)
 	return r
 }
 
@@ -180,4 +182,41 @@ func (rs *SigningResource) sign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, view, "Vertrag unterschrieben")
+}
+
+// FamilyChildrenRequest is the number of children the parents state on the
+// link (#6335).
+type FamilyChildrenRequest struct {
+	Children int `json:"children"`
+}
+
+func (req *FamilyChildrenRequest) Bind(*http.Request) error { return nil }
+
+// familyChildren reads the number of the family of the link's contract;
+// like the contract it leaves the link open.
+func (rs *SigningResource) familyChildren(w http.ResponseWriter, r *http.Request) {
+	noStore(w)
+	children, err := rs.signing.LinkFamilyChildren(r.Context(), chi.URLParam(r, "link"))
+	if err != nil {
+		renderSignatureError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, children, "Kinderzahl geladen")
+}
+
+// stateFamilyChildren stores the number the parents state on the link.
+func (rs *SigningResource) stateFamilyChildren(w http.ResponseWriter, r *http.Request) {
+	noStore(w)
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<10)
+	req := &FamilyChildrenRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	children, err := rs.signing.StateLinkFamilyChildren(r.Context(), chi.URLParam(r, "link"), req.Children)
+	if err != nil {
+		renderSignatureError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, children, "Kinderzahl gespeichert")
 }

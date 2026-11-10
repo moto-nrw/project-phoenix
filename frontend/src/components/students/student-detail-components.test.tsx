@@ -40,7 +40,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { ApiError } from "~/lib/api-error";
 import { fetchStudentCompanions } from "~/lib/student-companion-api";
 import type { Student } from "~/lib/student-helpers";
-import { getLocationBadgeTone } from "~/lib/location-helper";
+import { getLocationBadgeTone, LOCATION_COLORS } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import type { AttendanceActor } from "~/lib/attendance-actor";
 
@@ -518,7 +518,9 @@ describe("Kopf der Kindakte", () => {
       expect(arrival.getByText("(Krank)")).toBeInTheDocument();
     });
 
-    it("keeps a sick checked-in student out of the overdue pickup row", () => {
+    // Ohne offenen Check-in („Klassenraum“ ist kein Ort im Haus) bleibt die
+    // Krankmeldung die Zeile des Tages, auch nach einer Ankunft (#6407).
+    it("keeps a sick student without an open check-in out of the overdue pickup row", () => {
       renderHeaderWithTimes({
         student: { ...mockStudent, sick: true },
         todayArrivalPlannedTime: "08:00",
@@ -531,6 +533,28 @@ describe("Kopf der Kindakte", () => {
         "Kommt heute nicht (krank gemeldet)",
       );
       expect(screen.queryByTestId("today-time-row-pickup")).toBeNull();
+    });
+
+    // Ort vor Status (#6407): Eingecheckt trotz Krankmeldung gilt die
+    // geplante Abholung weiter, überfällig markiert wie bei jedem Kind.
+    it("keeps the overdue planned pickup of a sick child who is checked in", () => {
+      renderHeaderWithTimes({
+        student: {
+          ...mockStudent,
+          sick: true,
+          current_location: "Anwesend - Bibliothek",
+        },
+        todayArrivalPlannedTime: "08:00",
+        todayArrivalActualTime: "08:05",
+        todayPickupPlannedTime: "11:00",
+        todayPickupActualTime: undefined,
+      });
+
+      const pickup = within(screen.getByTestId("today-time-row-pickup"));
+      expect(pickup.getByText("11:00")).toHaveStyle({
+        color: LOCATION_COLORS.DANGER,
+      });
+      expect(screen.queryByTestId("today-absence-row")).toBeNull();
     });
 
     it("uses day planning status for the detail header absence row", () => {

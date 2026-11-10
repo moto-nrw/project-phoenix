@@ -77,7 +77,7 @@ func (careContractTestSender) WithdrawalReach(context.Context, int64) (carecontr
 func NewParentContractSigningForTests(mails *CareContractTestMails) carecontract.InboxSigning {
 	return careContractCompose.NewInboxSigning(careContractCompose.SignaturePorts{
 		Ledger: NewCareContractSignatures(), Links: CareContractLinks("http://parents.localhost:3000"),
-		Sender: careContractTestSender{}, Post: mails, Runtime: CareContractRuntime{}, Holidays: CareContractTestHolidays{},
+		Sender: careContractTestSender{}, Post: mails, Runtime: CareContractRuntime{}, Holidays: CareContractTestHolidays{}, Families: NewCareContractFamilyNumbers(),
 	})
 }
 

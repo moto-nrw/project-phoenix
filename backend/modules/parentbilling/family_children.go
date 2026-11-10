@@ -190,8 +190,11 @@ const (
 // FamilyChildEvent is one action of the trail: who did what, with the
 // value and validity of a change.
 type FamilyChildEvent struct {
-	Action     string
-	Actor      string
+	Action string
+	Actor  string
+	// Channel tells where a parents' read or statement came from
+	// (FamilyChannel*); the Abrechnung has none.
+	Channel    string
 	AccountID  int64
 	Children   *int
 	ValidFrom  *calendar.Date
@@ -231,4 +234,43 @@ type ParentFamilyChildren struct {
 type ParentFamilyChildrenStatement interface {
 	ParentFamilyChildren(ctx context.Context, organizationID int64, reader ParentFamilyReader) (ParentFamilyChildren, error)
 	StateFamilyChildren(ctx context.Context, organizationID int64, reader ParentFamilyReader, children int) (ParentFamilyChildren, error)
+}
+
+// Channels of a parents' read or statement (#6335).
+const (
+	// FamilyChannelPortal: the contract in the parents portal (#5918).
+	FamilyChannelPortal = "portal"
+	// FamilyChannelLink: the one-time link of a contract mail, without an
+	// account.
+	FamilyChannelLink = "link"
+	// FamilyChannelEnrollment: the status page of the registration, taken
+	// over when the contract of an accepted child is made.
+	FamilyChannelEnrollment = "enrollment"
+)
+
+// ContractFamily is the family of a contract the Betreuungsvertrag checked
+// (#6335): the contract of an open one-time link, or a contract it just
+// made from an accepted registration. Email is the contract's billing
+// recipient, the key of the family. AccountID is the parents' account if
+// one is known, else 0.
+type ContractFamily struct {
+	ContractID int64
+	Email      string
+	AccountID  int64
+	Channel    string
+}
+
+// ContractFamilyChildren serves the Betreuungsvertrag's link and the
+// takeover of a registration's number (#6335). Both operations run in the
+// Träger transaction the caller opens, which already checked the contract,
+// and record the read or the statement with its channel.
+type ContractFamilyChildren interface {
+	ContractFamilyChildren(ctx context.Context, organizationID int64, family ContractFamily) (ParentFamilyChildren, error)
+	// StateContractFamilyChildren stores the parents' number. A statedAt
+	// before the family's newest statement changes nothing; nil is now.
+	StateContractFamilyChildren(ctx context.Context, organizationID int64, family ContractFamily, children int, statedAt *time.Time) (ParentFamilyChildren, error)
+	// CountsFamilyChildrenAt tells whether a care sibling rule of the Träger
+	// that applies to the school and has not ended by day counts the
+	// family's children, so a registration there asks for them.
+	CountsFamilyChildrenAt(ctx context.Context, organizationID, schoolID int64, day calendar.Date) (bool, error)
 }

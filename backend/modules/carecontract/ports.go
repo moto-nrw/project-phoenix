@@ -47,6 +47,9 @@ type Application struct {
 	ServiceStartDate  *calendar.Date
 	ActivateOn        *calendar.Date
 	Bookings          []Booking
+	// FamilyChildren is the number of children the parents stated on the
+	// registration (#6335); nil when they stated none.
+	FamilyChildren *FamilyStatement
 }
 
 // Offering is a care offering of one school. A contract books it as a
