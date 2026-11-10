@@ -263,7 +263,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // directory of modules/identityaccess/compose (+11), the PAIN.008 files of
 // the Träger package (+7) and the expiry of the unsubmitted PAIN.008
 // downloads (+5) of modules/parentbilling/compose.
-const moduleComposeBudgetTotal = 13239
+const moduleComposeBudgetTotal = 13232
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -369,7 +369,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schedulerruntime/compose":   45,
 	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
 	// ADR 0144: the school vacation constructor (+11).
-	"modules/schoolcalendar/compose":        166,
+	"modules/schoolcalendar/compose":        159,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).

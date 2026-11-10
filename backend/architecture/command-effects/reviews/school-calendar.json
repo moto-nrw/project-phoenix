@@ -1999,6 +1999,26 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListCareCalendarRanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.ClosingDayReads.ListCareCalendarRanges",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListCareCalendarRanges",
+      "target_owner": "school-closing-days-view"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListClosingDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.ClosingDayReads.ListClosingDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListClosingDays",
+      "target_owner": "school-closing-days-view"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CareCalendarDays",
       "classification": "platform",
@@ -4807,6 +4827,46 @@
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.SynchronousService.NotifySynchronously",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "reason": "Reads the federal state from the resolved settings snapshot in memory (#4702).",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "reason": "Lists the Träger's schools for its calendar (#4702); read only.",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "reason": "Pure value check on a read school row (#4702).",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "reason": "Reads each school's federal state (#4702) in an administrative unit detached from the caller's Träger transaction (ADR 0175, ADR 0105); no write or scope change of the caller.",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
     }
   ]
 }

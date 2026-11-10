@@ -27,6 +27,24 @@
       "legacy": "traeger.bank_account_not_found"
     },
     {
+      "code": "traeger.closing_day_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.closing_day_invalid"
+    },
+    {
+      "code": "traeger.closing_day_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.closing_day_not_found"
+    },
+    {
+      "code": "traeger.closing_day_school_outside",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.closing_day_school_outside"
+    },
+    {
       "code": "traeger.document_already_released",
       "class": "business_rejection",
       "parameters": [],

@@ -41,12 +41,39 @@ func (h careContractSchoolHolidays) SchoolHolidayDates(ctx context.Context, scho
 	if len(schoolIDs) == 0 {
 		return result, nil
 	}
-	snapshots, err := h.settings.ResolveManyForTenants(tenant.ContextWithoutTransaction(ctx), schoolIDs,
+	states, err := schoolFederalStates(ctx, h.settings, schoolIDs)
+	if err != nil {
+		return nil, err
+	}
+	byRegion := map[string]map[calendar.Date]bool{}
+	for _, schoolID := range schoolIDs {
+		region := states[schoolID]
+		if byRegion[region] == nil {
+			if byRegion[region], err = h.regionHolidays(ctx, region, from, to); err != nil {
+				return nil, err
+			}
+		}
+		result[schoolID] = byRegion[region]
+	}
+	return result, nil
+}
+
+// schoolFederalStates reads the federal state (operations.federal_state) of
+// each school in an administrative unit of its own, outside the caller's
+// Träger transaction, whose row security hides the schools' settings
+// (ADR 0105). The Betreuungsvertrag (#6350), the Träger calendar and the
+// holiday weeks (#4702) share it, so every Träger-side read of a school's
+// holidays goes through the same state.
+func schoolFederalStates(ctx context.Context, settings CareContractHolidaySettings, schoolIDs []int64) (map[int64]string, error) {
+	states := make(map[int64]string, len(schoolIDs))
+	if len(schoolIDs) == 0 {
+		return states, nil
+	}
+	snapshots, err := settings.ResolveManyForTenants(tenant.ContextWithoutTransaction(ctx), schoolIDs,
 		[]string{configModels.KeyFederalState})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", schoolcalendar.ErrFederalStateUnavailable, err)
 	}
-	byRegion := map[string]map[calendar.Date]bool{}
 	for _, schoolID := range schoolIDs {
 		snapshot := snapshots[schoolID]
 		if snapshot == nil {
@@ -56,14 +83,9 @@ func (h careContractSchoolHolidays) SchoolHolidayDates(ctx context.Context, scho
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", schoolcalendar.ErrFederalStateUnavailable, err)
 		}
-		if byRegion[region] == nil {
-			if byRegion[region], err = h.regionHolidays(ctx, region, from, to); err != nil {
-				return nil, err
-			}
-		}
-		result[schoolID] = byRegion[region]
+		states[schoolID] = region
 	}
-	return result, nil
+	return states, nil
 }
 
 // regionHolidays asks School Calendar for the holidays of one region.

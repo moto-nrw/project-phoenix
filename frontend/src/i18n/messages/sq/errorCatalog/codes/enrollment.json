@@ -80,6 +80,7 @@
   "guardian_email_required": "Ju lutemi shkruani një adresë emaili.",
   "guardian_name_required": "Ju lutemi shkruani emrin dhe mbiemrin.",
   "guardian_phone_required": "Ju lutemi shkruani një numër telefoni.",
+  "holiday_week_no_care_day": "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
   "invalid_email": "Ju lutemi shkruani një adresë emaili të vlefshme.",
   "invalid_phone": "Ju lutemi shkruani një numër telefoni të vlefshëm.",
   "late_invite_invalid": "Kjo lidhje nuk është e vlefshme, ka skaduar ose është përdorur. Ju lutemi kontaktoni shkollën.",

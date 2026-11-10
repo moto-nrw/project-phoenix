@@ -483,6 +483,17 @@ export interface HolidayTimeModel {
   readonly protected?: boolean;
 }
 
+/**
+ * A day of a week on which the host school gives no care (#4702): a
+ * statutory holiday of its federal state or one of its closing days.
+ */
+export interface HolidayNoCareDay {
+  /** Calendar date "YYYY-MM-DD". */
+  readonly date: string;
+  readonly kind: "holiday" | "closing_day";
+  readonly name: string;
+}
+
 /** A bookable week of a holiday period with the school that hosts it. */
 export interface HolidayWeek {
   readonly id?: string;
@@ -491,6 +502,8 @@ export interface HolidayWeek {
   readonly endsOn: string;
   readonly hostSchoolId: string;
   readonly timeModels: readonly HolidayTimeModel[];
+  /** Days without care of the stored week; such a week takes no new booking. Read only. */
+  readonly noCareDays?: readonly HolidayNoCareDay[];
 }
 
 /** What the Träger-Büro writes: the whole period with its weeks. */
@@ -529,6 +542,7 @@ interface BackendWeek {
   ends_on: string;
   host_school_id: number;
   time_models?: BackendTimeModel[] | null;
+  no_care_days?: HolidayNoCareDay[] | null;
 }
 
 interface BackendHolidayPeriod {
@@ -562,6 +576,7 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
       startsOn: week.starts_on,
       endsOn: week.ends_on,
       hostSchoolId: String(week.host_school_id),
+      noCareDays: week.no_care_days ?? [],
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,

@@ -262,7 +262,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0182: the effective notice dues read of modules/parentbilling (+1).
 // Raised by ADR 0184: the suspensions of the Beleg retention of
 // modules/parentbilling, which validate and evaluate the Träger again (+2).
-const modulePassthroughOwnerBudgetTotal = 1406
+const modulePassthroughOwnerBudgetTotal = 1405
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -291,7 +291,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0105: the holiday period reads of the Träger-Portal; by
 	// ADR 0110: the retention of the public holiday registrations; by
 	// ADR 0116: the weeks the hosting school sees.
-	"modules/enrollment":     27,
+	"modules/enrollment":     26,
 	"modules/exporttransfer": 1,
 	"modules/facilities":     13,
 	"modules/feedback":       2,
