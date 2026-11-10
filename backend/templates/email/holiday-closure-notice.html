@@ -2,16 +2,29 @@
 {{template "header" .}}
 
 <div class="email-body">
+    {{if and .Children .ReopenedChildren}}
+    <h1>Die Schließtage in Ihrer Ferienbetreuung haben sich geändert</h1>
+    {{else if .ReopenedChildren}}
+    <h1>Die Ferienbetreuung findet doch statt</h1>
+    {{else}}
     <h1>An einem gebuchten Ferientag ist geschlossen</h1>
+    {{end}}
 
     <p>Guten Tag {{.GuardianName}},</p>
 
+    {{if and .Children .ReopenedChildren}}
+    <p>Sie haben Ferienbetreuung gebucht. Die Schließtage haben sich geändert. Unten sehen Sie, welche Tage geschlossen sind und welche Tage doch geöffnet sind.</p>
+    {{else if .ReopenedChildren}}
+    <p>Sie haben Ferienbetreuung gebucht. Wir hatten Ihnen geschrieben, dass an diesen Tagen geschlossen ist. Das hat sich geändert: An den Tagen unten gibt es doch Betreuung.</p>
+    {{else}}
     <p>Sie haben Ferienbetreuung gebucht. An den Tagen unten ist die OGS geschlossen. An diesen Tagen gibt es keine Betreuung.</p>
+    {{end}}
 
+    {{if .Children}}
+    {{if .ReopenedChildren}}<h2 style="font-size: 16px; margin: 24px 0 8px 0;">Diese Tage sind geschlossen</h2>{{end}}
     {{if .Reasons}}
     <p style="font-size: 14px;"><strong>Grund:</strong> {{range $i, $reason := .Reasons}}{{if $i}}, {{end}}{{$reason}}{{end}}</p>
     {{end}}
-
     {{range .Children}}
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
@@ -25,12 +38,31 @@
         {{end}}
     </div>
     {{end}}
+    {{end}}
+
+    {{if .ReopenedChildren}}
+    {{if .Children}}<h2 style="font-size: 16px; margin: 24px 0 8px 0;">Diese Tage sind doch geöffnet</h2>{{end}}
+    {{range .ReopenedChildren}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
+        {{range .Weeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">{{.Week}}{{if .Waitlisted}} (Warteliste){{end}}</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .ClosedDays}}
+            <li>Geöffnet: {{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+    </div>
+    {{end}}
+    {{end}}
 
     <div class="highlight-box" style="margin-top: 24px;">
         <p style="margin: 0; font-size: 14px;"><strong>Was heißt das für Sie?</strong></p>
-        <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für diese Tage eine andere Betreuung.</p>
-        <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre anderen gebuchten Tage bleiben. Sie müssen nichts ändern.</p>
-        {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Steht Ihr Kind auf der Warteliste, bleibt es dort.</p>{{end}}
+        {{if .Children}}<p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für die geschlossenen Tage eine andere Betreuung.</p>{{end}}
+        {{if .ReopenedChildren}}<p style="margin: 8px 0 0 0; font-size: 14px;">An den geöffneten Tagen können Sie Ihr Kind wie gebucht bringen.</p>{{end}}
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre Buchung bleibt. Sie müssen nichts ändern.</p>
+        {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Steht Ihr Kind auf der Warteliste, bleibt es dort. Es hat damit noch keinen Platz.</p>{{end}}
         {{if .KeepsContribution}}<p style="margin: 8px 0 0 0; font-size: 14px;">Der Beitrag bleibt gleich.</p>{{end}}
     </div>
 

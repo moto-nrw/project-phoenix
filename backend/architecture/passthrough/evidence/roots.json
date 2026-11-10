@@ -2711,6 +2711,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m HolidayClosureMail) EnqueueTraegerMail(ctx context.Context, mail enrollment.TraegerMail) error {\n\t_, err := m.Delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{OrganizationID: mail.OrganizationID, Template: mail.Kind, Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient}, Payload: mail.Payload, IdempotencyKey: mail.IdempotencyKey, Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID}})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/HolidayClosureMail.EnqueueTraegerMail",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d IdentityAccountDirectory) AccountEmail(ctx context.Context, accountID int64) (string, error) {\n\taccount, err := d.Accounts.FindAccount(ctx, accountID)\n\tif errors.Is(err, identityaccess.ErrAccountNotFound) {\n\t\treturn \"\", nil\n\t}\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn account.Email, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/IdentityAccountDirectory.AccountEmail",

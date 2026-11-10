@@ -120,7 +120,9 @@ func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessa
 }
 
 // renderHolidayClosureNotice renders the mail that a booked holiday week has
-// a day without care (#6434). The Träger is the sender.
+// days without care (#6434) or days that open again (#6457), in two
+// sections when a closing day moved: one mail, not two (ADR 0196). The
+// Träger is the sender.
 func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
 	var payload enrollment.HolidayClosureMail
 	if err := json.Unmarshal(raw, &payload); err != nil {
@@ -129,9 +131,38 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
-	children := make([]map[string]any, 0, len(payload.Children))
+	closed, closedWaitlisted := holidayClosureMailChildren(payload.Children)
+	reopened, reopenedWaitlisted := holidayClosureMailChildren(payload.ReopenedChildren)
+	subject := "Ferienbetreuung: An einem gebuchten Tag ist geschlossen"
+	switch {
+	case len(closed) > 0 && len(reopened) > 0:
+		subject = "Ferienbetreuung: Die Schließtage haben sich geändert"
+	case len(reopened) > 0:
+		subject = "Ferienbetreuung: Die Betreuung findet doch statt"
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    subject,
+		Template:   "holiday-closure-notice.html",
+		Content: map[string]any{
+			"GuardianName":      payload.GuardianName,
+			"SchoolName":        payload.TraegerName,
+			"Reasons":           payload.Reasons,
+			"Children":          closed,
+			"ReopenedChildren":  reopened,
+			"Waitlisted":        closedWaitlisted || reopenedWaitlisted,
+			"KeepsContribution": payload.KeepsContribution,
+		},
+	}, nil
+}
+
+// holidayClosureMailChildren lays the children of one section of the
+// closing day mail out for the template.
+func holidayClosureMailChildren(mailChildren []enrollment.HolidayClosureMailChild) ([]map[string]any, bool) {
+	children := make([]map[string]any, 0, len(mailChildren))
 	waitlisted := false
-	for _, child := range payload.Children {
+	for _, child := range mailChildren {
 		weeks := make([]map[string]any, 0, len(child.Weeks))
 		for _, week := range child.Weeks {
 			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted})
@@ -139,20 +170,7 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 		}
 		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": weeks})
 	}
-	return &enrollment.RenderedMail{
-		SenderName: schoolSender(payload.TraegerName),
-		Recipient:  payload.Recipient,
-		Subject:    "Ferienbetreuung: An einem gebuchten Tag ist geschlossen",
-		Template:   "holiday-closure-notice.html",
-		Content: map[string]any{
-			"GuardianName":      payload.GuardianName,
-			"SchoolName":        payload.TraegerName,
-			"Reasons":           payload.Reasons,
-			"Children":          children,
-			"Waitlisted":        waitlisted,
-			"KeepsContribution": payload.KeepsContribution,
-		},
-	}, nil
+	return children, waitlisted
 }
 
 // holidayDeclarationContent is the section "Ihre Erklärung" of the receipt

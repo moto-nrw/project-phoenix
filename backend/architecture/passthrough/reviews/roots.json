@@ -1936,6 +1936,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0196",
+      "id": "roots/owners/HolidayClosureMail.EnqueueTraegerMail",
+      "reason": "ADR 0196 (#6442): Consumer-port adapter of Enrollment's Träger mail outbox for the closing day notices; it translates a notice into a Delivery e-mail intent of the Träger, enqueued in the caller's Träger transaction."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/IdentityAccountDirectory.AccountEmail",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
