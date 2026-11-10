@@ -19,7 +19,7 @@ func (s *sickCascade) reactivateStampedShift(ctx context.Context, report sickRep
 	if !shift.Cancelled || len(covers) > 0 {
 		return s.releaseStampedShift(ctx, shift, len(covers))
 	}
-	if shift.SeriesID != nil {
+	if shift.SeriesID != nil && !shift.SeriesOverride {
 		outside, err := s.outsideSeriesValidity(ctx, shift)
 		if err != nil {
 			return err
@@ -34,7 +34,8 @@ func (s *sickCascade) reactivateStampedShift(ctx context.Context, report sickRep
 	// Reactivation clears sick_absence_id and change_reason via the ordinary
 	// update path and re-checks overlap against the freed window.
 	if _, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-		ShiftID: shift.ID, Cancelled: false, ActorStaffID: report.actorStaffID,
+		PreserveSeriesOverride: true,
+		ShiftID:                shift.ID, Cancelled: false, ActorStaffID: report.actorStaffID,
 	}); err != nil {
 		return fmt.Errorf("sick clear: reactivate shift %d: %w", shift.ID, err)
 	}
@@ -42,8 +43,8 @@ func (s *sickCascade) reactivateStampedShift(ctx context.Context, report sickRep
 }
 
 // A sick cancellation is detached and survives series end/split. The report
-// must not restore an occurrence that its current segment no longer plans.
-// Use the occurrence date so an intentional move keeps its original validity.
+// must not restore a sickness-only detachment after its segment has ended.
+// Use the immutable occurrence date, not the possibly moved shift date.
 func (s *sickCascade) outsideSeriesValidity(ctx context.Context, shift workforce.StaffShift) (bool, error) {
 	series, err := s.shifts.FindStaffShiftSeries(ctx, *shift.SeriesID)
 	if err != nil {
@@ -57,16 +58,15 @@ func (s *sickCascade) outsideSeriesValidity(ctx context.Context, shift workforce
 	if err != nil {
 		return false, fmt.Errorf("sick clear: invalid occurrence date for shift %d: %w", shift.ID, err)
 	}
-	from, err := calendar.ParseDate(series.ValidFrom)
-	if err != nil {
-		return false, fmt.Errorf("sick clear: invalid series start for shift %d: %w", shift.ID, err)
-	}
+	// Splitting today reparents today's retained occurrence to a successor
+	// starting tomorrow, including when sickness had already cancelled it.
+	// Such pre-start occurrences are intentional, not obsolete.
 	if series.ValidUntil == "" {
-		return date.Before(from), nil
+		return false, nil
 	}
 	until, err := calendar.ParseDate(series.ValidUntil)
 	if err != nil {
 		return false, fmt.Errorf("sick clear: invalid series end for shift %d: %w", shift.ID, err)
 	}
-	return date.Before(from) || !date.Before(until), nil
+	return !date.Before(until), nil
 }

@@ -196,10 +196,11 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 			continue
 		}
 		result, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-			ShiftID:      shift.ID,
-			Cancelled:    true,
-			ChangeReason: &reason,
-			ActorStaffID: report.actorStaffID,
+			PreserveSeriesOverride: true,
+			ShiftID:                shift.ID,
+			Cancelled:              true,
+			ChangeReason:           &reason,
+			ActorStaffID:           report.actorStaffID,
 		})
 		if err != nil {
 			return fmt.Errorf("sick cascade: cancel shift %d: %w", shift.ID, err)
