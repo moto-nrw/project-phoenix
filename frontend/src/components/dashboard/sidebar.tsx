@@ -538,14 +538,46 @@ const TENANT_SCOPED_HREFS = new Set<string>([
 // Vorlesetext des Anmeldungen-Zählers (#3778).
 const ENROLLMENTS_UNREAD_NOUN = "ungelesene Anmeldungen";
 
-const ROW_BADGE_LABELS: Readonly<
-  Record<string, { readonly tone: "staff" | "parents"; readonly noun: string }>
-> = {
-  "/anfragen": { tone: "staff", noun: "offene Anfragen" },
-  "/messages": { tone: "parents", noun: "ungelesene Nachrichten" },
-  "/team-chat": { tone: "staff", noun: "ungelesene Nachrichten" },
-  "/tagesinformationen": { tone: "staff", noun: "offene Tagesinformationen" },
+// `one` ist die Einzahl („1 offene Anfrage“), `noun` die Mehrzahl.
+interface CounterNoun {
+  readonly one: string;
+  readonly noun: string;
+}
+
+const ENROLLMENTS_COUNTER: CounterNoun = {
+  one: "ungelesene Anmeldung",
+  noun: ENROLLMENTS_UNREAD_NOUN,
 };
+
+const ROW_BADGE_LABELS: Readonly<
+  Record<string, CounterNoun & { readonly tone: "staff" | "parents" }>
+> = {
+  "/anfragen": {
+    tone: "staff",
+    one: "offene Anfrage",
+    noun: "offene Anfragen",
+  },
+  "/messages": {
+    tone: "parents",
+    one: "ungelesene Nachricht",
+    noun: "ungelesene Nachrichten",
+  },
+  "/team-chat": {
+    tone: "staff",
+    one: "ungelesene Nachricht",
+    noun: "ungelesene Nachrichten",
+  },
+  "/tagesinformationen": {
+    tone: "staff",
+    one: "offene Tagesinformation",
+    noun: "offene Tagesinformationen",
+  },
+};
+
+/** Der Vorlesetext eines Zählers, „1 offene Anfrage“ / „3 offene Anfragen“. */
+function counterAriaLabel(count: number, noun: CounterNoun): string {
+  return `${count} ${count === 1 ? noun.one : noun.noun}`;
+}
 
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
@@ -1128,11 +1160,11 @@ function SidebarContent({
     const count = rowBadgeCounts[href] ?? 0;
     const badge = ROW_BADGE_LABELS[href];
     if (count <= 0 || !badge) return null;
-    const ariaLabel =
-      href === "/anfragen" && count === 1
-        ? "1 offene Anfrage"
-        : `${count} ${badge.noun}`;
-    return { count, tone: badge.tone, ariaLabel };
+    return {
+      count,
+      tone: badge.tone,
+      ariaLabel: counterAriaLabel(count, badge),
+    };
   };
 
   const collapseState = { collapsed, labelsMounted, labelsVisible };
@@ -1755,7 +1787,10 @@ function SidebarContent({
       ? {
           count: enrollmentsUnreadCount,
           tone: "staff",
-          ariaLabel: `${enrollmentsUnreadCount} ${ENROLLMENTS_UNREAD_NOUN}`,
+          ariaLabel: counterAriaLabel(
+            enrollmentsUnreadCount,
+            ENROLLMENTS_COUNTER,
+          ),
         }
       : null;
   };

@@ -3805,6 +3805,33 @@ describe("Sidebar", () => {
       );
     });
 
+    it("nennt an der Gruppe einen einzelnen Teil in der Einzahl", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage" ||
+          permission === "config:read" ||
+          permission === "users:update" ||
+          permission === "users:read",
+      );
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const header = screen.getByRole("button", { name: /^Eltern/ });
+      expect(within(header).getByText("2")).toHaveAccessibleName(
+        "1 ungelesene Nachricht und 1 ungelesene Anmeldung",
+      );
+    });
+
     it("zeigt ohne config:manage keinen Zähler", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) => permission === "users:read",
