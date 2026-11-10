@@ -48,9 +48,10 @@ const stableContext = {
 export default defineConfig({
   globalSetup: [
     SECURE_CHROME_SETUP,
-    "./e2e/kit-pixel/browser-version.setup.ts",
+    "./scripts/kit-pixel-browser-version.setup.ts",
   ],
-  testDir: "./e2e/kit-pixel",
+  testDir: "./scripts",
+  testMatch: "kit-pixel-stories.pw.ts",
   outputDir: `${workDir}/results`,
   snapshotPathTemplate: `${baselineDir}/{projectName}/{arg}{ext}`,
   fullyParallel: true,

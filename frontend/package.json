@@ -136,6 +136,8 @@
       "scripts/generate-guides.ts",
       "scripts/secure-chrome.setup.ts",
       "scripts/product-screenshots/*.pw.ts",
+      "scripts/kit-pixel-browser-version.setup.ts",
+      "scripts/kit-pixel-stories.pw.ts",
       "playwright*.config.ts",
       "e2e/**/*.ts",
       "scripts/*.node-test.mjs"

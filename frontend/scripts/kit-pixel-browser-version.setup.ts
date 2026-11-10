@@ -2,8 +2,8 @@ import { chromium } from "@playwright/test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { secureLaunchOptions } from "../../scripts/secure-chrome";
-import { browserMismatch } from "../../scripts/kit-pixel-lib.mjs";
+import { secureLaunchOptions } from "./secure-chrome";
+import { browserMismatch } from "./kit-pixel-lib.mjs";
 
 /**
  * Chrome aktualisiert sich selbst. Ein anderer Build rendert Kanten und Schrift

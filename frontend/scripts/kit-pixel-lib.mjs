@@ -1,6 +1,6 @@
 // Reine Logik des Kit-Pixel-Vergleichs (#6562): Story-Auswahl, Argumente,
 // Browser-Abgleich. Der Befehl steht in scripts/kit-pixel.mjs, der Lauf in
-// e2e/kit-pixel/stories.spec.ts.
+// kit-pixel-stories.pw.ts.
 import { parseArgs } from "node:util";
 
 /** Stories unter diesem Pfad gehören zum Kit; alles andere nur mit `--all-stories`. */

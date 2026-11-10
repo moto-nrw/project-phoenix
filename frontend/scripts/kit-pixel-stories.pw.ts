@@ -2,8 +2,8 @@ import { expect, test, type Route } from "@playwright/test";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-import { TEST_CLOCK_INSTANT } from "../../src/test/clock-instant";
-import { selectStories } from "../../scripts/kit-pixel-lib.mjs";
+import { TEST_CLOCK_INSTANT } from "../src/test/clock-instant";
+import { selectStories } from "./kit-pixel-lib.mjs";
 
 // Ein Test je Story und Breite: Story im Storybook-Build öffnen, warten, bis
 // Render und `play` fertig sind, ganze Seite gegen die Baseline vergleichen.
