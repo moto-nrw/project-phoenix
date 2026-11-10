@@ -82,7 +82,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-test", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
 	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.22"))
@@ -175,7 +175,7 @@ func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
 
 	acc, tenantID := tenantMappedAccount(t, db, "tenant-force-on-keeps-device")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-keep", net.ParseIP("203.0.113.30"))
 	require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.41"))
 	require.NoError(t, err)
 	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.42"))

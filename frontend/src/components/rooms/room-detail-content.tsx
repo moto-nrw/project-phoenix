@@ -31,6 +31,7 @@ import { roomKeys } from "~/lib/swr/rooms-keys";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
+  berlinTodayISO,
   formatDate,
   formatTime,
   calculateDuration,
@@ -106,12 +107,8 @@ function groupByDate(entries: readonly RoomHistoryEntry[]): DateGroup[] {
   const groups: Record<string, RoomHistoryEntry[]> = {};
 
   entries.forEach((entry) => {
-    const started = new Date(entry.startedAt);
-    const date = [
-      started.getFullYear(),
-      String(started.getMonth() + 1).padStart(2, "0"),
-      String(started.getDate()).padStart(2, "0"),
-    ].join("-");
+    // School day in Berlin, the same day the group heading shows (#6471).
+    const date = berlinTodayISO(new Date(entry.startedAt));
     groups[date] ??= [];
     groups[date].push(entry);
   });

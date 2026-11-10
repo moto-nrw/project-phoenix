@@ -102,6 +102,24 @@ type BreakDurationUpdate struct {
 	DurationMinutes int   `json:"duration_minutes"`
 }
 
+// UnmarshalJSON accepts exact decimal strings and legacy numeric break IDs.
+// Browsers must not round int64 IDs while correcting recorded intervals.
+func (b *BreakDurationUpdate) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		ID              json.Number `json:"id"`
+		DurationMinutes int         `json:"duration_minutes"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	id, err := strconv.ParseInt(wire.ID.String(), 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid break ID: %w", err)
+	}
+	b.ID, b.DurationMinutes = id, wire.DurationMinutes
+	return nil
+}
+
 // SessionUpdateRequest is the body of a session edit; nil leaves a field
 // untouched.
 type SessionUpdateRequest struct {

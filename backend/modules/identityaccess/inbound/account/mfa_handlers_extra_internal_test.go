@@ -341,7 +341,9 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	svc.VerifyMFAChallengeForOwnerFn = func(context.Context, string, string, string, int64, int64) (identityaccess.VerifiedMFAChallenge, error) {
 		return identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: 70010001, Scope: identityaccess.MFAChallengeScopeTenant}, nil
 	}
-	svc.EnrollMFAFn = func(context.Context, int64) error { return identityaccess.ErrMFAAlreadyEnrolled }
+	svc.EnrollMFAFn = func(context.Context, identityaccess.VerifiedMFAChallenge) error {
+		return identityaccess.ErrMFAAlreadyEnrolled
+	}
 	rs := &Resource{
 		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService:          svc,
@@ -360,6 +362,43 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	assert.Equal(t, "refresh-tok", body.RefreshToken)
 }
 
+// TestMFAEnrollConfirm_StaleCredentialRecordsAndMintsNothing: the confirm
+// hands the redeemed code's proof, with its credential generation, to the
+// enrollment (#6518). When a password change or MFA reset moved the
+// generation on since, the enrollment refuses it; the confirm answers the
+// sign-in's refusal and mints no session and remembers no device.
+func TestMFAEnrollConfirm_StaleCredentialRecordsAndMintsNothing(t *testing.T) {
+	t.Parallel()
+
+	proof := identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: 70010001, Scope: identityaccess.MFAChallengeScopeTenant, MFAResetGeneration: 7}
+	svc := newStubMFAService()
+	svc.VerifyMFAChallengeForOwnerFn = func(context.Context, string, string, string, int64, int64) (identityaccess.VerifiedMFAChallenge, error) {
+		return proof, nil
+	}
+	var enrolled []identityaccess.VerifiedMFAChallenge
+	svc.EnrollMFAFn = func(_ context.Context, got identityaccess.VerifiedMFAChallenge) error {
+		enrolled = append(enrolled, got)
+		return identityaccess.ErrInvalidCredentials
+	}
+	sessions := &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		MFAService:          svc,
+		Sessions:            sessions,
+	}
+
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "123456", RememberDevice: true}), 42, 70010001)
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollConfirm(rr, r)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Equal(t, "identity.invalid_credentials", decodeWireError(t, rr).Code)
+	assert.Equal(t, []identityaccess.VerifiedMFAChallenge{proof}, enrolled, "the enrollment holds the redeemed code's generation")
+	assert.Zero(t, sessions.issueCalls, "a refused enrollment mints no session")
+	assert.Empty(t, rr.Result().Cookies(), "and remembers no device")
+}
+
 func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 	t.Parallel()
 
@@ -367,7 +406,7 @@ func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 	svc.VerifyMFAChallengeForOwnerFn = func(context.Context, string, string, string, int64, int64) (identityaccess.VerifiedMFAChallenge, error) {
 		return identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: 70010001, Scope: identityaccess.MFAChallengeScopeTenant}, nil
 	}
-	svc.EnrollMFAFn = func(context.Context, int64) error { return errors.New("db down") }
+	svc.EnrollMFAFn = func(context.Context, identityaccess.VerifiedMFAChallenge) error { return errors.New("db down") }
 	rs := &Resource{
 		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
@@ -396,7 +435,7 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 		verifyTenant = tenant.FromContext(ctx)
 		return identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: tenantID, Scope: identityaccess.MFAChallengeScopeTenant}, nil
 	}
-	svc.EnrollMFAFn = func(ctx context.Context, _ int64) error {
+	svc.EnrollMFAFn = func(ctx context.Context, _ identityaccess.VerifiedMFAChallenge) error {
 		enrollTenant = tenant.FromContext(ctx)
 		return nil
 	}

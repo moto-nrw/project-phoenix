@@ -12153,6 +12153,22 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.ValidateProfileStatusChange",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.ValidateProfileStatusChange",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.ValidateProfileStatusChange",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.ValidateProfileStatusChange",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetSlotAttendanceByStudentAndDateRange",
       "binding_digest": "983aa2a9f1515d86cd14fa0f449636df",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StudentHistory.GetSlotAttendanceByStudentAndDateRange",

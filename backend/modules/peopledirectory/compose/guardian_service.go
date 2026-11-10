@@ -35,3 +35,8 @@ func (guardianTransactions) TenantID(ctx context.Context) int64 { return tenant.
 func NewGuardianBankDataRekey(cipher peopledirectory.BankDataRekeyCipher) peopledirectory.GuardianBankDataRekey {
 	return application.NewGuardianBankDataRekey(boundaryBinding.NewGuardianBankRekeyStore(), cipher)
 }
+
+// NewGuardianBankExportFields opens the sealed guardian bank values for the return export of a school (#6412); only the administrative export CLI binds it, never HTTP.
+func NewGuardianBankExportFields(cipher peopledirectory.BankDataCipher) peopledirectory.GuardianBankExportFields {
+	return application.NewGuardianBankExportFields(cipher)
+}

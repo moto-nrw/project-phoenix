@@ -206,18 +206,35 @@ func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) err
 
 // ===== Enrollment =====
 
-// Enroll records the account's e-mail enrollment once.
-func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
-	existing, found, _ := f.records.FindCredential(ctx, accountID)
-	if found && existing.ID > 0 {
-		return identityaccess.ErrMFAAlreadyEnrolled
-	}
-	if err := f.records.CreateCredential(ctx, domain.AccountMFACredential{
-		AccountID: accountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
-	}); err != nil {
-		return fmt.Errorf("persist mfa credential: %w", err)
-	}
-	return nil
+// Enroll records the account's e-mail enrollment once, from the code the
+// enrollment confirm redeemed (#6518). The account row is locked first, the
+// lock every password write and MFA reset takes; under it the proof's
+// credential generation must still be the account's, so a password change
+// or reset committed since the code was redeemed leaves no enrollment
+// behind (ErrInvalidCredentials, as a refused enrollment start). Check and
+// write share one transaction. No school or profile row is locked here.
+func (f *AccountMFAFlows) Enroll(ctx context.Context, proof domain.VerifiedMFAChallenge) error {
+	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if err := f.records.LockAccountForOverrideWrite(txCtx, proof.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireCredentialGeneration(txCtx, proof.AccountID, &proof.MFAResetGeneration); err != nil {
+			return err
+		}
+		existing, found, err := f.records.FindCredential(txCtx, proof.AccountID)
+		if err != nil {
+			return fmt.Errorf("load mfa credential: %w", err)
+		}
+		if found && existing.ID > 0 {
+			return identityaccess.ErrMFAAlreadyEnrolled
+		}
+		if err := f.records.CreateCredential(txCtx, domain.AccountMFACredential{
+			AccountID: proof.AccountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
+		}); err != nil {
+			return fmt.Errorf("persist mfa credential: %w", err)
+		}
+		return nil
+	})
 }
 
 // Disable cascades: the credential goes, every trusted device is revoked and

@@ -5,15 +5,18 @@
 /** Matches a date-only string ("YYYY-MM-DD") as emitted for DATE columns. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** The timezone moments of school operation are shown in (moto runs in NRW). */
+const SCHOOL_TIME_ZONE = "Europe/Berlin";
+
 const BERLIN_DATE_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Europe/Berlin",
+  timeZone: SCHOOL_TIME_ZONE,
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
 });
 
 const BERLIN_DATE_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Europe/Berlin",
+  timeZone: SCHOOL_TIME_ZONE,
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -28,7 +31,7 @@ function berlinDateFormatter(locale: string): Intl.DateTimeFormat {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: "Europe/Berlin",
+    timeZone: SCHOOL_TIME_ZONE,
   });
 }
 
@@ -36,7 +39,7 @@ function chatDayMonthFormatter(locale: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
-    timeZone: "Europe/Berlin",
+    timeZone: SCHOOL_TIME_ZONE,
   });
 }
 
@@ -44,7 +47,7 @@ function berlinTimeFormatter(locale: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Europe/Berlin",
+    timeZone: SCHOOL_TIME_ZONE,
   });
 }
 
@@ -378,7 +381,16 @@ export function berlinClockFromISO(value: string): string {
 
 /**
  * Format a date string for the requested locale.
- * @param dateString ISO date string
+ *
+ * Two kinds of input, two rules (#6471):
+ * - A calendar date ("YYYY-MM-DD") has no timezone; it renders as that very
+ *   day in every browser.
+ * - An instant (RFC 3339 timestamp) is a moment of school operation and
+ *   renders as its calendar day in the school's timezone (Europe/Berlin),
+ *   whatever the browser's zone, so it agrees with `formatTime`, time
+ *   tracking and `formatBerlinDate`.
+ *
+ * @param dateString "YYYY-MM-DD" or ISO timestamp
  * @param includeWeekday Whether to include the weekday in the format
  * @returns Formatted date string (e.g., "15.12.2023" or "Freitag, 15. Dezember 2023")
  */
@@ -387,9 +399,24 @@ export function formatDate(
   includeWeekday = false,
   locale = "de-DE",
 ): string {
-  const date = ISO_DATE_RE.test(dateString)
-    ? parseISODate(dateString)
-    : new Date(dateString);
+  if (ISO_DATE_RE.test(dateString)) {
+    // Local midnight of the day: its local fields are the calendar day itself.
+    return formatDateFields(parseISODate(dateString), includeWeekday, locale);
+  }
+  return formatDateFields(
+    new Date(dateString),
+    includeWeekday,
+    locale,
+    SCHOOL_TIME_ZONE,
+  );
+}
+
+function formatDateFields(
+  date: Date,
+  includeWeekday: boolean,
+  locale: string,
+  timeZone?: string,
+): string {
   const dateLocale = locale === "en" ? "en-GB" : locale;
   if (includeWeekday) {
     return date.toLocaleDateString(dateLocale, {
@@ -397,12 +424,14 @@ export function formatDate(
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone,
     });
   }
   return date.toLocaleDateString(dateLocale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone,
   });
 }
 
@@ -410,12 +439,10 @@ export function formatDate(
  * Format an instant as the German calendar date of the school's timezone
  * ("20.07.2026"), regardless of where the viewer sits.
  *
- * Use this — not `formatDate` — for a cut-off that was written with
- * `endOfBerlinDayISO` (Antwortfrist, Ablaufdatum). Such a value is a calendar
- * day carried as 23:59:59 Berlin; rendering it in the viewer's local timezone
- * shows the FOLLOWING day east of Berlin, so a guardian in Moscow would read a
- * deadline that has in fact already passed. Plain instants (published_at,
- * created_at) keep using `formatDate`.
+ * Shows the same day as `formatDate` for an instant. Use it for a cut-off
+ * written with `endOfBerlinDayISO` (Antwortfrist, Ablaufdatum): such a value
+ * is a calendar day carried as 23:59:59 Berlin, and in the viewer's local
+ * timezone it would show the FOLLOWING day east of Berlin.
  *
  * Falls back to the raw input for an unparseable value, matching the chat
  * formatters — a malformed timestamp must not blank the surrounding line.
@@ -437,15 +464,12 @@ export function formatBerlinTime(iso: string, locale = "de-DE"): string {
 }
 
 /**
- * Format a time string to German locale format
- * @param dateString ISO date string
- * @returns Formatted time string (e.g., "14:30")
+ * Format an instant as the school's wall-clock time ("14:30") in
+ * Europe/Berlin, whatever the browser's zone — the same clock time tracking
+ * shows (#6293, #6471). Falls back to the raw input for an unparseable value.
  */
 export function formatTime(dateString: string): string {
-  return new Date(dateString).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatBerlinTime(dateString);
 }
 
 /**

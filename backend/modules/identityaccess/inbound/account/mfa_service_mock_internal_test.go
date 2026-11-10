@@ -27,7 +27,7 @@ type MFAServiceMock struct {
 	ResendMFAChallengeFn           func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	ResendMFAChallengeForScopeFn   func(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 	VerifyMFACodeForAccountFn      func(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
-	EnrollMFAFn                    func(ctx context.Context, accountID int64) error
+	EnrollMFAFn                    func(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error
 	DisableMFAFn                   func(ctx context.Context, accountID int64) error
 	IssueTrustedDeviceFn           func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error)
 	VerifyTrustedDeviceFn          func(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
@@ -160,9 +160,9 @@ func (m *MFAServiceMock) VerifyMFACodeForAccount(ctx context.Context, accountID,
 	return identityaccess.VerifiedMFAChallenge{AccountID: accountID, TenantID: tenantID, Scope: expectedScope}, err
 }
 
-func (m *MFAServiceMock) EnrollMFA(ctx context.Context, accountID int64) error {
+func (m *MFAServiceMock) EnrollMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error {
 	if m.EnrollMFAFn != nil {
-		return m.EnrollMFAFn(ctx, accountID)
+		return m.EnrollMFAFn(ctx, proof)
 	}
 	return nil
 }
