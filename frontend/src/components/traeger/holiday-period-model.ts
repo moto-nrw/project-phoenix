@@ -52,7 +52,7 @@ export interface HolidayPeriodDraft {
 
 const MAX_WEEK_DAYS = 7;
 /** The backend's bound of care days per child (holiday_days.go). */
-export const MAX_DAYS_PER_CHILD = 366;
+const MAX_DAYS_PER_CHILD = 366;
 /** The backend's limits of one period (holiday_periods.go). */
 export const MAX_HOLIDAY_WEEKS = 26;
 export const MAX_TIME_MODELS_PER_WEEK = 10;
