@@ -6,8 +6,8 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 )
 
 // Proposals is School Calendar's proposal side.
@@ -32,6 +32,9 @@ type Units interface {
 	WithinAdmin(ctx context.Context, fn func(context.Context) error) error
 }
 
-// Schools names the current, undeleted schools of a Träger with their
-// names, read like the Träger calendar does (ADR 0196 section 3.1).
-type Schools = traegercalendar.Schools
+// Schools lists the schools of a Träger in the caller's Träger transaction
+// (ADR 0196 section 3.1): Organisation & Tenancy's read, the same the
+// Träger calendar binds. The workflow keeps the current, undeleted ones.
+type Schools interface {
+	ListSchoolsByOrganization(ctx context.Context, organizationID int64) ([]organizationtenancy.School, error)
+}

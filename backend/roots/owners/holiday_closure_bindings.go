@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -118,9 +117,9 @@ func (d holidayOfficeTraeger) HolidayTraeger(ctx context.Context, organizationID
 // closing day notices (ADR 0196). The Worker's context carries no unit of
 // work; the job attaches unit, as the HTTP middleware does for a request.
 func HolidayClosureNotificationsJob(unit tenant.UnitOfWork, holidayCalendar enrollment.HolidaySchoolCalendar, holidays HolidayClosureHolidays,
-	organizations HolidayOfficeOrganizations, schools traegercalendar.Schools, mail HolidayClosureMail, logger *slog.Logger,
+	organizations HolidayOfficeOrganizations, mail HolidayClosureMail, logger *slog.Logger,
 ) schedulerPorts.HolidayClosureNotifications {
-	notices := NewHolidayClosureNotifications(NewHolidayClosures(holidayCalendar, holidays, NewHolidayOfficeTraeger(organizations), mail), schools,
+	notices := NewHolidayClosureNotifications(NewHolidayClosures(holidayCalendar, holidays, NewHolidayOfficeTraeger(organizations), mail), organizations,
 		logger.With("workflow", "holiday-closure-notification"))
 	return func(ctx context.Context) error {
 		return notices.ProcessDue(tenant.WithUnitOfWork(ctx, unit))

@@ -42,18 +42,21 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/closing-days/{id}"}: notCaptured,
 	// The preview and the notices of closing days in booked holiday weeks
 	// (#6434) belong to the Träger as well.
-	{http.MethodPost, "/traeger/holiday-closures/preview"}:         notCaptured,
-	{http.MethodPost, "/traeger/holiday-closures/pending/notify"}:  notCaptured,
-	{http.MethodPost, "/traeger/school-sessions/"}:                 notCaptured,
-	{http.MethodDelete, "/traeger/settings/values/{key}"}:          notCaptured,
-	{http.MethodPut, "/traeger/settings/values/{key}"}:             notCaptured,
-	{http.MethodPut, "/traeger/master-data/contact"}:               notCaptured,
-	{http.MethodPut, "/traeger/master-data/withdrawal-contact"}:    notCaptured,
-	{http.MethodPut, "/traeger/master-data/logo"}:                  notCaptured,
-	{http.MethodDelete, "/traeger/master-data/logo"}:               notCaptured,
-	{http.MethodPost, "/traeger/master-data/bank-accounts"}:        notCaptured,
-	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:    notCaptured,
-	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}: notCaptured,
+	{http.MethodPost, "/traeger/holiday-closures/preview"}:        notCaptured,
+	{http.MethodPost, "/traeger/holiday-closures/pending/notify"}: notCaptured,
+	// The Büro's click that tells the parents of a changed school closing
+	// day (ADR 0196); the school's click counts the same event.
+	{http.MethodPost, "/traeger/holiday-closures/pending/{id}/notify"}: event("holiday_closure_parents_notified"),
+	{http.MethodPost, "/traeger/school-sessions/"}:                     notCaptured,
+	{http.MethodDelete, "/traeger/settings/values/{key}"}:              notCaptured,
+	{http.MethodPut, "/traeger/settings/values/{key}"}:                 notCaptured,
+	{http.MethodPut, "/traeger/master-data/contact"}:                   notCaptured,
+	{http.MethodPut, "/traeger/master-data/withdrawal-contact"}:        notCaptured,
+	{http.MethodPut, "/traeger/master-data/logo"}:                      notCaptured,
+	{http.MethodDelete, "/traeger/master-data/logo"}:                   notCaptured,
+	{http.MethodPost, "/traeger/master-data/bank-accounts"}:            notCaptured,
+	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:        notCaptured,
+	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:     notCaptured,
 	// The document templates (#4677) belong to the Träger: no school to
 	// count them for. The preview stores nothing.
 	{http.MethodPost, "/traeger/master-data/document-templates/{kind}/versions"}: notCaptured,

@@ -1,0 +1,434 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
+)
+
+// The notices after a school closing day changed (#6442, #6457, ADR 0196).
+// The booked week of bookHolidayWeek runs from Monday 2030-07-08 to Friday
+// 2030-07-12, so every day of these tests is in the future.
+
+// closureWorld is a Träger with one school, two families who booked its
+// holiday week, the school's calendar and the workflow over real owners.
+type closureWorld struct {
+	db           *bun.DB
+	ctx          context.Context
+	organization int64
+	school       int64
+	records      schoolcalendar.Days
+	notices      notification.Notifications
+	closures     enrollment.HolidayClosures
+	mail         owners.HolidayClosureMail
+}
+
+func newClosureWorld(t *testing.T, name string) closureWorld {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	database, unit := testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db)
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: name, Slug: fmt.Sprintf("schliesstag-hinweis-%d", testpkg.UniqueTestTenantID(t)), Active: true,
+	}).ID
+	testpkg.OwnTraegerHolidayPeriods(t, db, organization)
+	testpkg.OwnTraegerClosingDays(t, db, organization)
+	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, name+" OGS")
+	bookHolidayWeek(t, organization, school, "familie.eins@example.org")
+	bookHolidayWeek(t, organization, school, "familie.zwei@example.org")
+	settings, err := owners.NewSettingsTestModule(database, unit)
+	require.NoError(t, err)
+	records, err := owners.BuildSchoolCalendarRecords(database, func(schoolCalendarCompose.Observation) {}, settings.Settings)
+	require.NoError(t, err)
+	organizations, err := owners.NewOrganizationTenancy(database)
+	require.NoError(t, err)
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
+	mail := owners.HolidayClosureMail{Delivery: delivery.Module, TraegerMails: delivery.TraegerMails}
+	closures := owners.NewHolidayClosures(owners.NewHolidaySchoolCalendar(settings.Settings, records, organizations), records,
+		owners.NewHolidayOfficeTraeger(organizations), mail)
+	return closureWorld{
+		db: db, ctx: tenant.WithUnitOfWork(context.Background(), unit), organization: organization, school: school, records: records,
+		notices: owners.NewHolidayClosureNotifications(closures, organizations, slog.Default()), closures: closures, mail: mail,
+	}
+}
+
+func (w closureWorld) schoolCtx() context.Context { return tenant.WithTenantID(w.ctx, w.school) }
+
+func (w closureWorld) createClosingDay(t *testing.T, start, end string) schoolcalendar.ClosingDay {
+	t.Helper()
+	day, err := w.records.CreateClosingDay(w.schoolCtx(), schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{
+		StartDate: start, EndDate: end, Reason: "Pädagogischer Tag",
+	}})
+	require.NoError(t, err)
+	return day
+}
+
+func (w closureWorld) schoolNotices(t *testing.T) []notification.Notice {
+	t.Helper()
+	notices, err := w.notices.SchoolNotices(w.ctx, w.school)
+	require.NoError(t, err)
+	return notices
+}
+
+// mails reads the closing day mails of the Träger with the days of each
+// section, ordered by recipient.
+type closureMailRow struct {
+	Recipient string          `bun:"recipient"`
+	Status    string          `bun:"status"`
+	Payload   json.RawMessage `bun:"payload"`
+}
+
+func (w closureWorld) mails(t *testing.T) []closureMailRow {
+	t.Helper()
+	var rows []closureMailRow
+	require.NoError(t, w.db.NewRaw(`SELECT payload->>'recipient_email' AS recipient, status, payload FROM platform.email_outbox
+		WHERE organization_id = ? AND kind = 'holiday_closure_notice' ORDER BY payload->>'recipient_email', id`, w.organization).Scan(context.Background(), &rows))
+	return rows
+}
+
+func (w closureWorld) events(t *testing.T) []string {
+	t.Helper()
+	var states []string
+	require.NoError(t, w.db.NewRaw(`SELECT state FROM calendar.holiday_closure_events WHERE organization_id = ? ORDER BY id`, w.organization).
+		Scan(context.Background(), &states))
+	return states
+}
+
+// Invariants 1 to 3 of ADR 0196: saving a school closing day sends nothing,
+// neither does the worker; the school sees the proposal with the number of
+// families a click tells, and nothing else of them; one click tells each
+// family once, a click of the Büro afterwards finds the same command.
+func TestSchoolClosingDayTellsParentsOnlyAfterOneClick(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis Klick")
+	w.createClosingDay(t, "2030-08-20", "2030-08-20")
+	assert.Empty(t, w.schoolNotices(t), "no booked week, no family: no proposal")
+	w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	assert.Empty(t, w.mails(t), "neither the save nor the worker sends without a click")
+	assert.Empty(t, w.events(t), "a proposal is no command")
+
+	notices := w.schoolNotices(t)
+	require.Len(t, notices, 1)
+	notice := notices[0]
+	assert.Equal(t, string(schoolcalendar.HolidayClosureSuggested), notice.Status)
+	assert.True(t, notice.CanNotify)
+	assert.Equal(t, 2, notice.Families, "the school sees how many families a click tells")
+	raw, err := json.Marshal(notice)
+	require.NoError(t, err)
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	assert.ElementsMatch(t, []string{"id", "school_id", "closing_day_id", "reason", "previous", "current", "revision", "status", "changed",
+		"can_notify", "families", "confirmed_at", "updated_at"}, keysOf(fields), "the school gets no contact, name or child of the Träger")
+	assert.NotContains(t, string(raw), "example.org")
+
+	confirmed, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, notice.ID, notice.Revision)
+	require.NoError(t, err)
+	assert.NotEqual(t, string(schoolcalendar.HolidayClosureSuggested), confirmed.Status)
+	mails := w.mails(t)
+	require.Len(t, mails, 2, "one mail per family")
+	assert.Equal(t, notice.Families, len(mails), "the count the school saw is the number of mails")
+
+	_, err = w.notices.NotifyFromTraeger(w.ctx, w.organization, 0, notice.ID, notice.Revision)
+	require.NoError(t, err)
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	assert.Len(t, w.mails(t), 2, "a second click of the other place sends nothing twice")
+	assert.Len(t, w.events(t), 1, "both clicks share one command")
+
+	// An overlapping closing day tells only the day nobody told yet.
+	w.createClosingDay(t, "2030-07-10", "2030-07-11")
+	var overlap notification.Notice
+	for _, notice := range w.schoolNotices(t) {
+		if notice.Status == string(schoolcalendar.HolidayClosureSuggested) {
+			overlap = notice
+		}
+	}
+	require.NotZero(t, overlap.ID)
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, overlap.ID, overlap.Revision)
+	require.NoError(t, err)
+	mails = w.mails(t)
+	require.Len(t, mails, 4)
+	var payload enrollment.HolidayClosureMail
+	require.NoError(t, json.Unmarshal(mails[1].Payload, &payload))
+	require.Len(t, payload.Children, 1)
+	assert.Equal(t, []string{"Donnerstag, 11.07.2030"}, payload.Children[0].Weeks[0].ClosedDays, "a day told before is not told again")
+}
+
+// Invariant 1 under load: the school's and the Büro's click at the same
+// time write one command and one mail per family.
+func TestConcurrentClicksOfSchoolAndBueroSendOneMailPerFamily(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis gleichzeitig")
+	w.createClosingDay(t, "2030-07-09", "2030-07-10")
+	notice := w.schoolNotices(t)[0]
+	var wg sync.WaitGroup
+	errs := make([]error, 4)
+	for i := range 4 {
+		wg.Go(func() {
+			if i%2 == 0 {
+				_, errs[i] = w.notices.NotifyFromSchool(w.ctx, w.school, 0, notice.ID, notice.Revision)
+			} else {
+				_, errs[i] = w.notices.NotifyFromTraeger(w.ctx, w.organization, 0, notice.ID, notice.Revision)
+			}
+		})
+	}
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	assert.Len(t, w.events(t), 1, "one command")
+	assert.Len(t, w.mails(t), 2, "one mail per family, however many clicks")
+}
+
+// Invariant 4: a known transport failure shows as failed at both places; a
+// click takes the same mail up again and leaves the family that got its
+// mail alone. An unknown outcome is not repeated blindly.
+func TestFailedNoticeIsTakenUpAgainWithoutASecondMail(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis nachholen")
+	w.createClosingDay(t, "2030-07-11", "2030-07-11")
+	notice := w.schoolNotices(t)[0]
+	_, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, notice.ID, notice.Revision)
+	require.NoError(t, err)
+	mails := w.mails(t)
+	require.Len(t, mails, 2)
+	_, err = w.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW()
+		WHERE organization_id = ? AND kind = 'holiday_closure_notice' AND payload->>'recipient_email' = ?`, w.organization, mails[0].Recipient)
+	require.NoError(t, err)
+	_, err = w.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter', dead_letter_at = NOW(),
+			last_error = 'mailbox unavailable'
+		WHERE organization_id = ? AND kind = 'holiday_closure_notice' AND payload->>'recipient_email' = ?`, w.organization, mails[1].Recipient)
+	require.NoError(t, err)
+
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	failed := w.schoolNotices(t)
+	require.Len(t, failed, 1)
+	assert.Equal(t, string(schoolcalendar.HolidayClosureFailed), failed[0].Status, "the school sees the failure")
+	assert.True(t, failed[0].CanNotify, "and can take it up again")
+	pending, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	require.Len(t, pending.Notices, 1)
+	assert.Equal(t, string(schoolcalendar.HolidayClosureFailed), pending.Notices[0].Status, "so does the Büro")
+
+	_, err = w.notices.NotifyFromTraeger(w.ctx, w.organization, 0, notice.ID, notice.Revision)
+	require.NoError(t, err)
+	after := w.mails(t)
+	require.Len(t, after, 2, "the repetition is the same mail, not a new one")
+	assert.Equal(t, "sent", after[0].Status, "the family that got its mail is left alone")
+	assert.Equal(t, "pending", after[1].Status, "the failed mail is due again")
+
+	// An unknown outcome stays: no blind repetition.
+	_, err = w.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter', dead_letter_at = NOW(), last_error = ?
+		WHERE organization_id = ? AND kind = 'holiday_closure_notice' AND payload->>'recipient_email' = ?`,
+		deliveryContract.DispatchOutcomeUnknown, w.organization, mails[1].Recipient)
+	require.NoError(t, err)
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	unknown := w.schoolNotices(t)
+	require.Len(t, unknown, 1)
+	assert.Equal(t, string(schoolcalendar.HolidayClosureUnknown), unknown[0].Status)
+	assert.False(t, unknown[0].CanNotify, "an unknown outcome is checked first")
+}
+
+// #6457 and invariant 5: moving a told closing day proposes one mail per
+// family with the days closed now and the days open again; deleting it
+// proposes the days open again. Only the click sends.
+func TestMovedAndDeletedClosingDayTellOnceWithBothSections(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis verschoben")
+	day := w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	first := w.schoolNotices(t)[0]
+	_, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, first.ID, first.Revision)
+	require.NoError(t, err)
+	require.Len(t, w.mails(t), 2)
+
+	_, err = w.records.UpdateClosingDay(w.schoolCtx(), schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{
+		StartDate: "2030-07-11", EndDate: "2030-07-11", Reason: "Pädagogischer Tag",
+	}})
+	require.NoError(t, err)
+	assert.Len(t, w.mails(t), 2, "the change itself sends nothing")
+	var moved notification.Notice
+	for _, notice := range w.schoolNotices(t) {
+		if notice.Status == string(schoolcalendar.HolidayClosureSuggested) {
+			moved = notice
+		}
+	}
+	require.NotZero(t, moved.ID)
+	require.NotNil(t, moved.Previous)
+	require.NotNil(t, moved.Current)
+	assert.Equal(t, "2030-07-10", moved.Previous.StartDate.String())
+	assert.Equal(t, "2030-07-11", moved.Current.StartDate.String())
+	assert.Equal(t, 2, moved.Families)
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, moved.ID, moved.Revision)
+	require.NoError(t, err)
+	mails := w.mails(t)
+	require.Len(t, mails, 4, "one more mail per family, not two")
+	var payload enrollment.HolidayClosureMail
+	require.NoError(t, json.Unmarshal(mails[1].Payload, &payload))
+	require.Len(t, payload.Children, 1)
+	require.Len(t, payload.ReopenedChildren, 1)
+	assert.Equal(t, []string{"Donnerstag, 11.07.2030"}, payload.Children[0].Weeks[0].ClosedDays, "Diese Tage sind geschlossen")
+	assert.Equal(t, []string{"Mittwoch, 10.07.2030"}, payload.ReopenedChildren[0].Weeks[0].ClosedDays, "Diese Tage sind doch geöffnet")
+
+	require.NoError(t, w.records.DeleteClosingDay(w.schoolCtx(), day.ID))
+	var deleted notification.Notice
+	for _, notice := range w.schoolNotices(t) {
+		if notice.Status == string(schoolcalendar.HolidayClosureSuggested) {
+			deleted = notice
+		}
+	}
+	require.NotZero(t, deleted.ID, "a deleted closing day keeps its proposal")
+	assert.Nil(t, deleted.Current)
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, deleted.ID, deleted.Revision)
+	require.NoError(t, err)
+	mails = w.mails(t)
+	require.Len(t, mails, 6)
+	require.NoError(t, json.Unmarshal(mails[2].Payload, &payload))
+	assert.Empty(t, payload.Children)
+	require.Len(t, payload.ReopenedChildren, 1)
+	assert.Equal(t, []string{"Donnerstag, 11.07.2030"}, payload.ReopenedChildren[0].Weeks[0].ClosedDays)
+
+	// Closing the day once more after it opened again is a new notice.
+	w.createClosingDay(t, "2030-07-11", "2030-07-11")
+	again := w.schoolNotices(t)
+	var reclosed notification.Notice
+	for _, notice := range again {
+		if notice.Status == string(schoolcalendar.HolidayClosureSuggested) {
+			reclosed = notice
+		}
+	}
+	assert.Equal(t, 2, reclosed.Families, "the old notice does not stop a new one")
+}
+
+// A click on a proposal whose closing day changed since the caller saw it
+// confirms nothing; the caller reloads.
+func TestStaleClickConfirmsNothing(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis veraltet")
+	day := w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	seen := w.schoolNotices(t)[0]
+	_, err := w.records.UpdateClosingDay(w.schoolCtx(), schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{
+		StartDate: "2030-07-09", EndDate: "2030-07-10", Reason: "Pädagogische Tage",
+	}})
+	require.NoError(t, err)
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, seen.ID, seen.Revision)
+	require.ErrorIs(t, err, notification.ErrNoticeChanged)
+	assert.Empty(t, w.events(t))
+	assert.Empty(t, w.mails(t))
+}
+
+// A Büro of another Träger neither sees nor confirms the school's notice.
+func TestForeignBueroCannotConfirmANotice(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis eigen")
+	other := newClosureWorld(t, "Träger Hinweis fremd")
+	w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	notice := w.schoolNotices(t)[0]
+	pending, err := other.notices.PendingHolidayClosures(other.ctx, other.organization)
+	require.NoError(t, err)
+	assert.Empty(t, pending.Notices)
+	_, err = w.notices.NotifyFromTraeger(w.ctx, other.organization, 0, notice.ID, notice.Revision)
+	require.ErrorIs(t, err, notification.ErrNoticeNotFound)
+	assert.Empty(t, w.events(t))
+}
+
+// Point 25 of the brief rules: every Träger and school filter of the
+// notices holds beneath row security. In the units of A, as the owner of the
+// tables, each statement is asked for B's rows; each assertion goes red when
+// its explicit filter is dropped.
+func TestHolidayClosureNoticesKeepTheirFiltersBeneathRLS(t *testing.T) {
+	t.Parallel()
+	own := newClosureWorld(t, "Träger Hinweis RLS A")
+	foreign := newClosureWorld(t, "Träger Hinweis RLS B")
+	own.createClosingDay(t, "2030-07-10", "2030-07-10")
+	foreign.createClosingDay(t, "2030-07-10", "2030-07-10")
+	foreignNotice := foreign.schoolNotices(t)[0]
+	_, err := foreign.notices.NotifyFromSchool(foreign.ctx, foreign.school, 0, foreignNotice.ID, foreignNotice.Revision)
+	require.NoError(t, err)
+	require.NotEmpty(t, foreign.mails(t))
+	_, err = foreign.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter', dead_letter_at = NOW(),
+			last_error = 'mailbox unavailable' WHERE organization_id = ? AND kind = 'holiday_closure_notice'`, foreign.organization)
+	require.NoError(t, err)
+	_, err = foreign.db.ExecContext(context.Background(), `UPDATE calendar.holiday_closure_events SET state = 'pending', next_attempt_at = NOW()
+		WHERE organization_id = ?`, foreign.organization)
+	require.NoError(t, err)
+	var foreignOperation string
+	var foreignKeys []string
+	require.NoError(t, foreign.db.NewRaw(`SELECT operation_id::text FROM calendar.holiday_closure_events WHERE organization_id = ?`, foreign.organization).
+		Scan(context.Background(), &foreignOperation))
+	require.NoError(t, foreign.db.NewRaw(`SELECT idempotency_key FROM enrollment.holiday_closure_sends WHERE organization_id = ?`, foreign.organization).
+		Scan(context.Background(), &foreignKeys))
+	events := schoolCalendarCompose.NewHolidayClosureEvents()
+
+	ownSchool, err := tenant.NewTenantID(own.school)
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithinTenant(own.ctx, ownSchool, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		notices, err := events.SchoolHolidayClosureNotices(ctx)
+		require.NoError(t, err)
+		for _, notice := range notices {
+			assert.Equal(t, own.school, notice.SchoolID, "the school reads no notice of another school")
+		}
+		_, err = events.ConfirmHolidayClosureNotice(ctx, foreignNotice.ID, foreignNotice.Revision,
+			schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool})
+		require.ErrorIs(t, err, schoolcalendar.ErrHolidayClosureNoticeNotFound, "nor confirms one")
+		return nil
+	}))
+	require.NoError(t, testpkg.WithinTraeger(own.ctx, own.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		notices, err := events.TraegerHolidayClosureNotices(ctx, own.organization)
+		require.NoError(t, err)
+		require.NotEmpty(t, notices)
+		for _, notice := range notices {
+			assert.Equal(t, own.organization, notice.OrganizationID, "A reads no notice of B")
+		}
+		_, leased, err := events.LeaseHolidayClosureEvent(ctx, own.organization, time.Minute)
+		require.NoError(t, err)
+		assert.False(t, leased, "A leases no command of B")
+		_, err = events.HolidayClosureCalendar(ctx, own.organization, foreign.school, calendar.NewDate(2030, 7, 8), calendar.NewDate(2030, 7, 12))
+		require.ErrorIs(t, err, schoolcalendar.ErrHolidayClosureNoticeNotFound, "A reads no calendar of B's school")
+		retired, err := events.RetireHolidayClosureEvents(ctx, own.organization)
+		require.NoError(t, err)
+		assert.Zero(t, retired)
+		delivery, err := own.closures.HolidayClosureOperationDelivery(ctx, own.organization, foreignOperation)
+		require.NoError(t, err)
+		assert.Zero(t, delivery, "A reads no send record of B")
+		retried, err := own.mail.RetryFailedTraegerEmails(ctx, own.organization, foreignKeys)
+		require.NoError(t, err)
+		assert.Zero(t, retried, "A takes up no mail of B")
+		statuses, err := own.mail.TraegerEmailStatusesByKey(ctx, own.organization, foreignKeys)
+		require.NoError(t, err)
+		assert.Empty(t, statuses, "A reads no mail of B")
+		return nil
+	}))
+	var states []string
+	require.NoError(t, foreign.db.NewRaw(`SELECT state FROM calendar.holiday_closure_events WHERE organization_id = ?`, foreign.organization).
+		Scan(context.Background(), &states))
+	assert.Equal(t, []string{"pending"}, states, "B's command stays untouched")
+	var dead int
+	require.NoError(t, foreign.db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE organization_id = ? AND status = 'dead_letter'`, foreign.organization).
+		Scan(context.Background(), &dead))
+	assert.Equal(t, len(foreignKeys), dead, "B's failed mails stay as they are")
+	require.NotEmpty(t, foreignOperation)
+}

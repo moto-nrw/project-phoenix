@@ -138,15 +138,15 @@
       "target_package": "api/common"
     },
     {
-      "id": "holiday-closure-notification.port.school-calendar-contract",
-      "description": "ADR 0196: the Träger-Büro's notices are checked against the Träger's current schools of School Calendar's Träger contract.",
+      "id": "holiday-closure-notification.port.organization-tenancy",
+      "description": "ADR 0196 section 3.1: the Träger-Büro's notices are checked against Organisation & Tenancy's current schools of the Träger.",
       "scopes": [
         "production"
       ],
       "source_owner": "holiday-closure-notification",
       "source_role": "port",
-      "target_owner": "school-calendar",
-      "target_role": "contract"
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
     }
   ]
 }

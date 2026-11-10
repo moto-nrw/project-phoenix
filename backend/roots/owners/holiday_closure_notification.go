@@ -8,12 +8,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
 	notificationCompose "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/compose"
+	notificationPorts "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/ports"
 )
 
 // HolidayClosureHolidays is what the worker reads of School Calendar's
@@ -27,7 +27,7 @@ type HolidayClosureHolidays interface {
 // (ADR 0196) to School Calendar's proposals and commands, Enrollment's
 // closures and the units of work. The root builds it where it mounts a
 // route or the Worker's job.
-func NewHolidayClosureNotifications(closures enrollment.HolidayClosures, schools traegercalendar.Schools, logger *slog.Logger) notification.Notifications {
+func NewHolidayClosureNotifications(closures enrollment.HolidayClosures, schools notificationPorts.Schools, logger *slog.Logger) notification.Notifications {
 	if closures == nil || schools == nil {
 		panic("holiday closure notification: Enrollment's closures and the Träger's schools are required")
 	}

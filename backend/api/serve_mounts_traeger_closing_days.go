@@ -47,10 +47,10 @@ func newHolidayClosures(organizations HolidayOrganizations, mail owners.HolidayC
 // click at /api/holiday-closure-notices behind the rights that change
 // closing days, and the Träger-Büro's list "Eltern noch nicht informiert"
 // at /traeger/holiday-closures/pending behind "Einstellungen verwalten".
-func mountHolidayClosureNotificationRoutes(root, tenant chi.Router, organizations HolidayOrganizations, schools traegercalendar.Schools,
+func mountHolidayClosureNotificationRoutes(root, tenant chi.Router, organizations HolidayOrganizations,
 	mail owners.HolidayClosureMail, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, holidays owners.HolidayClosureHolidays, logger *slog.Logger,
 ) {
-	notices := owners.NewHolidayClosureNotifications(newHolidayClosures(organizations, mail, holidayCalendar, holidays), schools,
+	notices := owners.NewHolidayClosureNotifications(newHolidayClosures(organizations, mail, holidayCalendar, holidays), organizations,
 		logger.With("workflow", "holiday-closure-notification"))
 	resource := holidayClosureHTTP.NewResource(notices, common.RequiresPermission(permissions.SchedulesUpdate),
 		common.RequiresPermission(permissions.SchedulesUpdate), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))

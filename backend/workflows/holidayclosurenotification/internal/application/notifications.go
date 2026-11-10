@@ -192,21 +192,28 @@ func (s *Service) traegerNotices(ctx context.Context, organizationID int64) ([]s
 	if err != nil {
 		return nil, err
 	}
+	return currentNotices(notices, organizationID, schools), nil
+}
+
+// currentNotices keeps the notices of the Träger's current schools.
+func currentNotices(notices []schoolcalendar.HolidayClosureNotice, organizationID int64, schools map[int64]string) []schoolcalendar.HolidayClosureNotice {
 	return slices.DeleteFunc(notices, func(notice schoolcalendar.HolidayClosureNotice) bool {
 		_, current := schools[notice.SchoolID]
 		return !current || notice.OrganizationID != organizationID
-	}), nil
+	})
 }
 
 // currentSchools names the Träger's undeleted schools by ID.
 func (s *Service) currentSchools(ctx context.Context, organizationID int64) (map[int64]string, error) {
-	schools, err := s.Schools.TraegerSchools(ctx, organizationID)
+	schools, err := s.Schools.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	names := make(map[int64]string, len(schools))
 	for _, school := range schools {
-		names[school.ID] = school.Name
+		if school.OrganizationID == organizationID && !school.IsDeleted() {
+			names[school.ID] = school.Name
+		}
 	}
 	return names, nil
 }
@@ -279,14 +286,15 @@ func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int
 		Notices:              []notification.TraegerNotice{},
 	}
 	err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
-		notices, err := s.traegerNotices(ctx, organizationID)
-		if err != nil {
-			return err
-		}
 		schools, err := s.currentSchools(ctx, organizationID)
 		if err != nil {
 			return err
 		}
+		notices, err := s.Proposals.TraegerHolidayClosureNotices(ctx, organizationID)
+		if err != nil {
+			return err
+		}
+		notices = currentNotices(notices, organizationID, schools)
 		var tokens []string
 		families := map[int64]int{}
 		for _, notice := range notices {
