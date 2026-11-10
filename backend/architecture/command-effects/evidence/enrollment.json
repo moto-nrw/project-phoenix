@@ -5361,27 +5361,35 @@
       "target_owner": "timetable-activities"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
-      "binding_digest": "2986ee28f8a7982af6dc34085156bc78",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CollectGradeLevel",
+      "binding_digest": "f25f3905dd24d0984fb04a15138de7d1",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CollectGradeLevel",
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
-      "binding_digest": "763179e38fda00ab66caf3d4b50e13c9",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.GradeLevelMax",
+      "binding_digest": "e375f6f70a10926186ba80f4532875c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.GradeLevelMax",
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.StatusTokenTTLDays",
-      "binding_digest": "5d87b8c580f934359c760560f309e021",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.LegalSettings",
+      "binding_digest": "966e23dee22a36ba0cc5b14721ef5dce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.LegalSettings",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.Legal",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.StatusTokenTTLDays",
+      "binding_digest": "f00ca645aba20b54bde634a376331a7f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.StatusTokenTTLDays",
       "target_owner": "settings-platform"
     },
     {
