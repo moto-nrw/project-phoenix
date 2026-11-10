@@ -47,8 +47,12 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
             <span className="block truncate font-medium text-gray-900">
               {document.title}
             </span>
-            <span className="block truncate text-sm text-gray-500">
-              {document.fileName} · {documentFileFacts(document)}
+            {/* Only the file name shortens; type and size stay whole. */}
+            <span className="flex min-w-0 text-sm text-gray-500">
+              <span className="truncate">{document.fileName}</span>
+              <span className="shrink-0 whitespace-nowrap">
+                &nbsp;· {documentFileFacts(document)}
+              </span>
             </span>
           </span>
         </span>
