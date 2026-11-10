@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -443,7 +444,27 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		}
 		statements = append(statements, statement)
 	}
+	// The representatives stand in the order of their positions, so the
+	// first and the last of a class are its smallest and largest index in
+	// the recording, not its first key and its last overwrite.
+	sort.Slice(statements, func(i, j int) bool { return statements[i].index < statements[j].index })
 	return statements
+}
+
+// classExtremes are, per class, the smallest and the largest recording index
+// among the class's statements: the first and last representatives part 2
+// crosses fully.
+func classExtremes(statements []matrixStatement) map[matrixClass][2]int {
+	extremes := map[matrixClass][2]int{}
+	for _, statement := range statements {
+		current, seen := extremes[statement.class]
+		if !seen {
+			extremes[statement.class] = [2]int{statement.index, statement.index}
+			continue
+		}
+		extremes[statement.class] = [2]int{min(current[0], statement.index), max(current[1], statement.index)}
+	}
+	return extremes
 }
 
 // controlClass is the class of a savepoint statement by the savepoint it
@@ -685,6 +706,12 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 			classOrder = append(classOrder, class)
 		}
 		members[class] = append(members[class], i)
+	}
+	extremes := classExtremes(statements)
+	for _, class := range classOrder {
+		indices := members[class]
+		first, last := statements[indices[0]], statements[indices[len(indices)-1]]
+		require.Equal(t, extremes[first.class], [2]int{first.index, last.index}, "the whole cross takes the first and the last statement of %s by position", class)
 	}
 	t.Run("cleanup", func(t *testing.T) {
 		for _, class := range classOrder {

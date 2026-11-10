@@ -97,6 +97,15 @@ func TestStudentGuardianBatchMatchesTheRowPath(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT count(*) FILTER (WHERE childless_since IS NULL), (SELECT count(*) FROM users.guardian_phone_numbers WHERE tenant_id = ? AND phone_type = 'other')
 			FROM users.guardian_profiles WHERE tenant_id = ?`, testpkg.Tenant(t), testpkg.Tenant(t)).Scan(context.Background(), &unmarked, &other))
 		require.Equal(t, 14, unmarked, "every linked guardian's retention mark is cleared")
+		// The outcome comparison drops every *_id column, account_id
+		// included; a new guardian has no account, on the profile and on the
+		// portal access (#6514 review).
+		var withoutAccount, accessWithoutAccount int
+		require.NoError(t, db.NewRaw(`SELECT count(*) FILTER (WHERE account_id IS NULL AND NOT has_account),
+			(SELECT count(*) FILTER (WHERE account_id IS NULL) FROM auth.guardian_student_access WHERE tenant_id = ?)
+			FROM users.guardian_profiles WHERE tenant_id = ?`, testpkg.Tenant(t), testpkg.Tenant(t)).Scan(context.Background(), &withoutAccount, &accessWithoutAccount))
+		require.Equal(t, 14, withoutAccount, "no new guardian profile names an account")
+		require.Equal(t, 14, accessWithoutAccount, "no portal access of a new guardian names an account")
 		require.Equal(t, 14, other, "an empty and an unknown phone type are stored as other")
 	})
 	t.Run("row path", func(t *testing.T) {
@@ -182,6 +191,60 @@ func TestStudentGuardianBatchAddsNoWait(t *testing.T) {
 	}
 }
 
+// TestStudentGuardianBatchWaitsAddUpNowhere (Befundklasse 1, negative
+// control): three holders each lock an existing guardian of the school the
+// file never names and release one after another, 0.6 s apart; the uploads
+// read with a 1 s timeout and no bound. Neither the batch nor the row path
+// waits for those guardians, so both end with 200. A bundled statement that
+// locked them, as a batch over existing guardians would, waits for all three
+// in one read, 1.8 s without a byte, and fails with an i/o timeout: the
+// mutation in the PR turns this test red.
+func TestStudentGuardianBatchWaitsAddUpNowhere(t *testing.T) {
+	t.Parallel()
+	const readTimeout, gap = time.Second, 600 * time.Millisecond
+	db := testpkg.SetupTestDB(t)
+	for _, run := range []struct {
+		name    string
+		options api.ImportTestOptions
+	}{
+		{"batch path", api.ImportTestOptions{UnboundedBatches: true}},
+		{"row path", api.ImportTestOptions{RowPathOnly: true}},
+	} {
+		t.Run(run.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			pool, _ := namedImportPool(t, testpkg.PackageTestDSN(t), readTimeout)
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), run.options)
+			require.NoError(t, err)
+			actor := newImporter(t, db)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			holders := make([]bun.Tx, 3)
+			for i := range holders {
+				held := testpkg.CreateTestGuardianProfileWithExactEmail(t, db, testpkg.Tenant(t), testpkg.GuardianProfileWithEmail{
+					FirstName: "Eltern", LastName: fmt.Sprintf("Gehalten%d", i), Email: fmt.Sprintf("gehalten%d.%d@example.test", i, testpkg.Tenant(t))})
+				tx, err := db.BeginTx(ctx, nil)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = tx.Rollback() })
+				var id int64
+				require.NoError(t, tx.NewRaw(`SELECT id FROM users.guardian_profiles WHERE id = ? FOR UPDATE`, held.ID).Scan(ctx, &id))
+				holders[i] = tx
+			}
+			done := uploadStudents(t, module, pool, actor, guardianBatchFile("Kette"), "chain.csv")
+			// The staggered hold times are the subject of the test.
+			for _, holder := range holders {
+				time.Sleep(gap)
+				require.NoError(t, holder.Rollback())
+			}
+			upload := awaitStudents(t, done)
+			require.NoError(t, upload.err)
+			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
+			observation := (*module.Observations)[0]
+			require.Zero(t, observation.BatchFallbacks)
+			require.Zero(t, observation.BatchesRetried)
+		})
+	}
+}
+
 // guardianBatchFile is namedStudentBatch without guardian e-mails.
 func guardianBatchFile(prefix string) []importModels.StudentImportRow {
 	rows := namedStudentBatch(prefix, studentChunkRows)
@@ -192,30 +255,66 @@ func guardianBatchFile(prefix string) []importModels.StudentImportRow {
 }
 
 // TestStudentGuardianBatchParallelUploadsFormNoDeadlock (Befundklasse 6):
-// two uploads of one school whose guardians are bundled run at once; both
-// commit, no deadlock, no retry.
+// two uploads of one school, each through a module and pool of its own (one
+// module would serialize them on its import lock), whose guardians are
+// bundled, overlap for real: a holder of the importing staff member's
+// membership stops upload A at its first schedule while A holds the child
+// quota; upload B then waits for A's quota lock while it holds what its
+// person statement took. Released, both commit: no deadlock, no retry, no
+// replay. A guardian batch that took a lock B holds would deadlock here.
 func TestStudentGuardianBatchParallelUploadsFormNoDeadlock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.OwnTenant(t)
-	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	require.NoError(t, err)
 	actor := newImporter(t, db)
-	first := uploadStudents(t, module, db, actor, guardianBatchFile("Erster"), "first.csv")
-	second := uploadStudents(t, module, db, actor, guardianBatchFile("Zweiter"), "second.csv")
+	type side struct {
+		module api.ImportTestModule
+		pool   *bun.DB
+		name   string
+	}
+	sides := make([]side, 2)
+	for i := range sides {
+		pool, name := namedImportPool(t, testpkg.PackageTestDSN(t), 0)
+		module, err := api.NewImportTestModule(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool))
+		require.NoError(t, err)
+		sides[i] = side{module, pool, name}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	holder, holderPID := holdStaffMembership(t, ctx, db, actor.staffID)
+	first := uploadStudents(t, sides[0].module, sides[0].pool, actor, guardianBatchFile("Erster"), "first.csv")
+	waitBlockedBy(t, db, sides[0].name, holderPID)
+	second := uploadStudents(t, sides[1].module, sides[1].pool, actor, guardianBatchFile("Zweiter"), "second.csv")
+	waitUploadBlockedByUpload(t, db, sides[1].name, sides[0].name)
+	require.NoError(t, holder.Rollback())
 	for _, done := range []<-chan studentUpload{first, second} {
 		upload := awaitStudents(t, done)
 		require.NoError(t, upload.err)
 		require.Equal(t, studentChunkRows, upload.result.CreatedCount)
 	}
-	require.Len(t, *module.Observations, 2)
-	for _, observation := range *module.Observations {
+	for _, s := range sides {
+		require.Len(t, *s.module.Observations, 1)
+		observation := (*s.module.Observations)[0]
 		require.Zero(t, observation.Deadlocks)
 		require.Zero(t, observation.BatchesRetried)
 		require.Zero(t, observation.BatchFallbacks)
 		require.Equal(t, 1, commandCount(observation, guardianBatchCommand))
 	}
 	require.Equal(t, 2*studentChunkRows, countIn(t, db, `SELECT count(*) FROM auth.guardian_student_access WHERE tenant_id = ?`))
+}
+
+// waitUploadBlockedByUpload waits, within a hard deadline, until a session
+// of upload waiter waits for a lock a session of upload holder holds; both
+// are named pools of the test (Befundklasse 13).
+func waitUploadBlockedByUpload(t *testing.T, db *bun.DB, waiter, holder string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var blocked int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity w WHERE w.application_name = ?
+			AND EXISTS (SELECT 1 FROM pg_stat_activity h WHERE h.application_name = ? AND h.pid = ANY(pg_blocking_pids(w.pid)))`, waiter, holder).
+			Scan(context.Background(), &blocked)
+		return err == nil && blocked > 0
+	}, 10*time.Second, 5*time.Millisecond, "the second upload waits for the first")
 }
 
 // TestStudentGuardianBatchCommitOutcomeUnknown (Befundklasse 16, U): the
@@ -267,26 +366,39 @@ func TestStudentGuardianBatchCommitOutcomeUnknown(t *testing.T) {
 func TestStudentGuardianBatchRealCancelReplaysInNewTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// One slow row trigger on the profile insert (statement 1) and one on the
+	// relationship insert of the retention-and-link statement (statement 3).
 	_, err := db.ExecContext(context.Background(), `CREATE FUNCTION public.slow_marked_guardian() RETURNS trigger LANGUAGE plpgsql AS $$
 		BEGIN
-			IF NEW.last_name = 'Langsam' THEN PERFORM pg_sleep(0.4); END IF;
+			IF to_jsonb(NEW) ->> TG_ARGV[0] = TG_ARGV[1] THEN PERFORM pg_sleep(0.4); END IF;
 			RETURN NULL;
 		END $$;
-		CREATE TRIGGER slow_marked_guardian AFTER INSERT ON users.guardian_profiles FOR EACH ROW EXECUTE FUNCTION public.slow_marked_guardian()`)
+		CREATE TRIGGER slow_marked_guardian AFTER INSERT ON users.guardian_profiles FOR EACH ROW EXECUTE FUNCTION public.slow_marked_guardian('last_name', 'Langsam');
+		CREATE TRIGGER slow_marked_link AFTER INSERT ON users.student_guardian_relationships FOR EACH ROW EXECUTE FUNCTION public.slow_marked_guardian('emergency_priority', '9')`)
 	require.NoError(t, err)
-	testpkg.OwnTenant(t)
-	module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{
-		BatchStatementLimit: 250 * time.Millisecond,
-	})
-	require.NoError(t, err)
-	actor := newImporter(t, db)
-	rows := guardianBatchFile("Abbruch")
-	rows[3].Guardians[0].LastName = "Langsam"
-	upload := awaitStudents(t, uploadStudents(t, module, db, actor, rows, "cancel.csv"))
-	require.NoError(t, upload.err)
-	require.Equal(t, studentChunkRows, upload.result.CreatedCount)
-	observation := (*module.Observations)[0]
-	require.Equal(t, 1, observation.BatchFallbacks, "the cancelled batch replayed")
-	require.Zero(t, observation.BatchesRetried)
-	require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(*) FROM auth.guardian_student_access WHERE tenant_id = ?`))
+	for _, c := range []struct {
+		name string
+		mark func(*importModels.GuardianImportData)
+	}{
+		{"profile statement", func(g *importModels.GuardianImportData) { g.LastName = "Langsam" }},
+		{"retention and link statement", func(g *importModels.GuardianImportData) { g.EmergencyPriority = 9 }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{
+				BatchStatementLimit: 250 * time.Millisecond,
+			})
+			require.NoError(t, err)
+			actor := newImporter(t, db)
+			rows := guardianBatchFile("Abbruch")
+			c.mark(&rows[3].Guardians[0])
+			upload := awaitStudents(t, uploadStudents(t, module, db, actor, rows, "cancel.csv"))
+			require.NoError(t, upload.err)
+			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
+			observation := (*module.Observations)[0]
+			require.Equal(t, 1, observation.BatchFallbacks, "the cancelled batch replayed")
+			require.Zero(t, observation.BatchesRetried)
+			require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(*) FROM auth.guardian_student_access WHERE tenant_id = ?`))
+		})
+	}
 }
