@@ -34,6 +34,7 @@ import {
 import {
   type CareNoticeRun,
   type CareNoticeRunList,
+  type CareNoticeRunStartInput,
   fetchCareNoticeRuns,
   startCareNoticeRun,
 } from "~/lib/traeger-care-notices-api";
@@ -198,7 +199,7 @@ export default function TraegerJahresbescheidePage() {
             initialMonth={data.list.suggestedMonth}
             suggestedYear={data.list.suggestedYear}
             onClose={() => setStarting(false)}
-            onStart={async (input) => {
+            onStart={async (input: CareNoticeRunStartInput) => {
               const run = await startCareNoticeRun(input);
               setStarting(false);
               openRun(run);

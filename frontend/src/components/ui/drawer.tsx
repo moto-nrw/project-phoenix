@@ -79,7 +79,9 @@ const DrawerContent = React.forwardRef<
     <DrawerPortal>
       <DrawerOverlay />
       <DrawerPrimitive.Content
-        ref={(node) => {
+        ref={(
+          node: React.ComponentRef<typeof DrawerPrimitive.Content> | null,
+        ) => {
           sheetRef.current = node;
           if (typeof ref === "function") ref(node);
           else if (ref) ref.current = node;
