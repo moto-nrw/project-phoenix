@@ -37,8 +37,11 @@ func init() {
 // marks those bookings with the earliest such file. A monthly Storno shares
 // the link of its invoice, so the file's recorded booking count says how
 // many of its Stornos it held: the bookings beyond its nonzero invoices.
-// Those are the Stornos issued first (an export reads what committed before
-// it); a transaction timestamp alone cannot prove that. The backfill never
+// Those are the Stornos inserted first: a Storno takes its ID under the
+// billing lock of its run and commits before the next one, and an export
+// reads what committed before it. issued_at is the start of the Storno's
+// transaction and can precede an earlier committed Storno, so it orders
+// nothing here. The backfill never
 // stops the migration: a file whose count leaves no room marks none of its
 // Stornos, and the next standard file books them.
 const parentBillingDatevBookedDocumentsUpSQL = `
@@ -84,7 +87,7 @@ INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_
 SELECT DISTINCT ON (ranked.cancellation_id) ranked.organization_id, ranked.file_id, ranked.cancellation_id
 FROM (
 	SELECT file.organization_id, file.id AS file_id, file.file_number, cancellation.id AS cancellation_id,
-		ROW_NUMBER() OVER (PARTITION BY file.id ORDER BY cancellation.issued_at, cancellation.id) AS position,
+		ROW_NUMBER() OVER (PARTITION BY file.id ORDER BY cancellation.id) AS position,
 		file.invoice_count - (
 			SELECT COUNT(*) FROM parent_billing.export_file_invoices AS held
 			JOIN parent_billing.care_invoices AS invoice

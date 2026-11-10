@@ -35,6 +35,10 @@ func TestDatevBackfillCountsTheStornosALegacyFileHeld(t *testing.T) {
 	// Two Stornos, the file counts one: the one issued first.
 	partial := seedLegacyCareDatev(t, db, []int64{3700, 2500}, "2029-10-30 09:00:00+00", "2029-10-30 12:00:00+00")
 	partialFile := partial.export(t, db, 1, 3)
+	// The Storno inserted first started its transaction later (it waited
+	// for the billing lock): the insertion order, not issued_at, decides.
+	reversed := seedLegacyCareDatev(t, db, []int64{3700, 2500}, "2029-10-30 09:30:00+00", "2029-10-30 09:00:00+00")
+	reversedFile := reversed.export(t, db, 1, 3)
 	// A zero-value invoice is no booking and leaves no room for a Storno.
 	zero := seedLegacyCareDatev(t, db, []int64{0}, "2029-10-30 09:00:00+00")
 	zero.export(t, db, 1, 0)
@@ -53,6 +57,9 @@ func TestDatevBackfillCountsTheStornosALegacyFileHeld(t *testing.T) {
 	assert.Equal(t, []int64{heldFile}, fileOf(held, "care_cancellation_id", held.cancellations[0]))
 	assert.Equal(t, []int64{partialFile}, fileOf(partial, "care_cancellation_id", partial.cancellations[0]))
 	assert.Empty(t, fileOf(partial, "care_cancellation_id", partial.cancellations[1]))
+	assert.Equal(t, []int64{reversedFile}, fileOf(reversed, "care_cancellation_id", reversed.cancellations[0]),
+		"the Storno that committed first")
+	assert.Empty(t, fileOf(reversed, "care_cancellation_id", reversed.cancellations[1]))
 	assert.Empty(t, fileOf(zero, "care_invoice_id", zero.invoices[0]))
 	assert.Empty(t, fileOf(zero, "care_cancellation_id", zero.cancellations[0]))
 }
