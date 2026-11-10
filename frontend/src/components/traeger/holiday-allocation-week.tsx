@@ -35,7 +35,7 @@ import { HOLIDAY_PENDING_TONE } from "./holiday-placement";
 import { formatHolidayWeek } from "./holiday-registration-format";
 
 /** The criteria of one entry: met in its priority colour, open as „ungeklärt“. */
-export function AllocationCriteriaChips({
+function AllocationCriteriaChips({
   entry,
   criteria,
 }: Readonly<{

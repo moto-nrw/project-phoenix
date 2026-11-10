@@ -22,7 +22,7 @@ import { deviatesFromProposal } from "./holiday-allocation-model";
 import { formatHolidayWeek } from "./holiday-registration-format";
 
 /** Refusals after which the list is read again instead of shown here. */
-export const STALE_ALLOCATION_CODES: ReadonlySet<string> = new Set([
+const STALE_ALLOCATION_CODES: ReadonlySet<string> = new Set([
   "enrollment.holiday_allocation_changed",
   "enrollment.holiday_allocation_full",
 ]);

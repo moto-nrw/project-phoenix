@@ -8,9 +8,6 @@
 
 import { traegerRequest } from "./traeger-api";
 
-/** How the places of a holiday period are given out. */
-export type HolidayAllocationMode = "arrival" | "criteria";
-
 /** Whether a criterion is asked once per family or for every child. */
 export type HolidayCriterionScope = "family" | "child";
 
@@ -111,7 +108,7 @@ export async function saveHolidayCriteria(
 export type HolidayCriterionValue = "yes" | "no" | "unknown";
 
 /** The value of one criterion for an open booking. */
-export interface HolidayAllocationCriterionValue {
+interface HolidayAllocationCriterionValue {
   readonly criterionId: string;
   readonly value: HolidayCriterionValue;
   /** "office": the Träger-Büro checked it; "parent": the parents said so. */

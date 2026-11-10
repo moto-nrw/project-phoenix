@@ -74,7 +74,7 @@ interface HolidayRegistrationSchool {
  * asked once for the family or for every child. Parents see the question
  * only, never the answers of other families.
  */
-export interface HolidayRegistrationCriterion {
+interface HolidayRegistrationCriterion {
   readonly id: string;
   readonly question: string;
   readonly scope: "family" | "child";

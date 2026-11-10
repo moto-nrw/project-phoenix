@@ -73,7 +73,7 @@ export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
  * period by criteria a booking stays "pending" until the office decides
  * (#4700); it is neither billed nor reported to the OGS.
  */
-export type HolidayPlacement = "placed" | "waitlisted" | "pending";
+type HolidayPlacement = "placed" | "waitlisted" | "pending";
 
 interface HolidayRegistrationBooking {
   readonly weekId: string;
