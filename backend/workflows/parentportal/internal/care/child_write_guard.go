@@ -19,8 +19,9 @@ import (
 // write's school transaction before the first owner write and locks in the
 // order Konto → Schule → Kind → Profil → Beziehung:
 //
-//  1. the account's active mapping at the school, FOR SHARE through Identity
-//     & Access: a deactivation or deletion waits for the write;
+//  1. the live account FOR KEY SHARE, then its active mapping at the school
+//     FOR SHARE through Identity & Access: a deactivation or deletion waits
+//     for the write, without cycling with a later audit account FK check;
 //  2. the child row, the lock every parent write and care exit of the child
 //     takes first;
 //  3. for writes of the guardian's own contact rows the guardian profile,

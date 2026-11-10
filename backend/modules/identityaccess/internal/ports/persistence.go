@@ -333,8 +333,9 @@ type AccountAccessStore interface {
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
 }
 
-// SchoolMembershipLockStore pins an active mapping FOR SHARE in the caller's
-// transaction (#6529).
+// SchoolMembershipLockStore locks the account before pinning its active
+// mapping FOR SHARE in the caller's transaction (#6529).
 type SchoolMembershipLockStore interface {
+	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
 	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
 }

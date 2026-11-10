@@ -26,6 +26,15 @@ func NewSchoolMembershipLock(store ports.SchoolMembershipLockStore, tenantOf fun
 		if _, open := transaction(ctx); !open {
 			return false, failed("lock school membership", errMembershipLockOutsideTransaction)
 		}
+		// Operator revocation locks account before mapping. Take KEY SHARE
+		// first so a later audit FK check cannot deadlock with that revocation.
+		live, err := store.LockLiveGuardianAccount(ctx, accountID)
+		if err != nil {
+			return false, failed("lock school membership", MapError(err))
+		}
+		if !live {
+			return false, nil
+		}
 		active, _, err := store.LockActiveTenantMappingShared(ctx, accountID, tenantID)
 		if err != nil {
 			return false, failed("lock school membership", MapError(err))
