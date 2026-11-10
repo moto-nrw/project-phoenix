@@ -12,6 +12,7 @@ import {
 } from "~/components/holiday-registration/holiday-guardian-address-fields";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -230,7 +231,8 @@ export function CareInvoiceAmendmentModal({
   onSaved: (run: CareRunDetail) => void;
 }>) {
   const [fields, setFields] = useState<Fields>(() => initialFields(invoice));
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(draft !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear } = formErrors;
@@ -252,32 +254,31 @@ export function CareInvoiceAmendmentModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", result.errors);
       return;
     }
-    setSaving(true);
-    try {
-      onSaved(
-        await amendCareInvoice(run.id, {
+    await save.run(async (op) => {
+      try {
+        const amended = await amendCareInvoice(run.id, {
           ...result.input,
           contractId: invoice.contractId,
           service: invoice.service,
           fingerprint: run.fingerprint,
           reason: fields.reason.trim(),
-        }),
-      );
-    } catch (err) {
-      logger.error("traeger_care_invoice_amend_failed", {
-        kind: draft.kind,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (err instanceof ApiError && err.errors) {
-        err.errors = err.errors.map((entry) => ({
-          ...entry,
-          field: SERVER_FIELDS[entry.field] ?? entry.field,
-        }));
+        });
+        if (op.isCurrent()) onSaved(amended);
+      } catch (err) {
+        logger.error("traeger_care_invoice_amend_failed", {
+          kind: draft.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        if (err instanceof ApiError && err.errors) {
+          err.errors = err.errors.map((entry) => ({
+            ...entry,
+            field: SERVER_FIELDS[entry.field] ?? entry.field,
+          }));
+        }
+        void formErrors.show(err, { object: "die Rechnung" });
       }
-      void formErrors.show(err, { object: "die Rechnung" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const fieldError = (key: string) => formErrors.fieldError(key);
@@ -285,7 +286,7 @@ export function CareInvoiceAmendmentModal({
     <FormModal
       isOpen={draft !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={draft ? TITLES[draft.kind] : ""}
       size="md"

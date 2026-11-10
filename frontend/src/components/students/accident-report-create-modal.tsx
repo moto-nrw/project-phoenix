@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -47,7 +48,8 @@ export function AccidentReportCreateModal({
   const [draft, setDraft] = useState<AccidentReportDraft>(
     () => initialDraft ?? emptyAccidentReportDraft(),
   );
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending(isOpen);
+  const saving = submission.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formError = useApiFormError(formRef);
 
@@ -64,31 +66,33 @@ export function AccidentReportCreateModal({
       formError.invalid("Bitte füllen Sie die markierten Felder aus.", errors);
       return;
     }
-    setSaving(true);
-    formError.clear();
-    try {
-      const fields = fieldsFromDraft(draft);
-      const id = correctsReportId
-        ? await studentAccidentReportsService.correct(
-            studentId,
-            correctsReportId,
-            fields,
-          )
-        : await studentAccidentReportsService.create(studentId, fields);
-      setDraft(emptyAccidentReportDraft());
-      onCreated(id);
-      if (openCreated) {
-        router.push(accidentReportPath(studentId, id));
+    await submission.run(async (op) => {
+      formError.clear();
+      try {
+        const fields = fieldsFromDraft(draft);
+        const id = correctsReportId
+          ? await studentAccidentReportsService.correct(
+              studentId,
+              correctsReportId,
+              fields,
+            )
+          : await studentAccidentReportsService.create(studentId, fields);
+        // Eine späte Antwort ändert keinen inzwischen neuen Dialog (#6533).
+        if (!op.isCurrent()) return;
+        setDraft(emptyAccidentReportDraft());
+        onCreated(id);
+        if (openCreated) {
+          router.push(accidentReportPath(studentId, id));
+        }
+      } catch (err) {
+        logger.error("accident_report_create_failed", {
+          student_id: studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formError.show(err, { object: "die Unfallanzeige" });
       }
-    } catch (err) {
-      logger.error("accident_report_create_failed", {
-        student_id: studentId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formError.show(err, { object: "die Unfallanzeige" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -97,7 +101,7 @@ export function AccidentReportCreateModal({
       onClose={close}
       title={correctsReportId ? "Korrektur anlegen" : "Unfall erfassen"}
       error={formError.error}
-      closeDisabled={saving}
+      pending={submission}
       isBackdropDismissDisabled
       footer={
         <EditActions

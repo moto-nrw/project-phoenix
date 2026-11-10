@@ -16,6 +16,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -74,8 +75,8 @@ export function RecordNoticeModal({
   const [receivedOn, setReceivedOn] = useState<string>(today);
   const [dispatchedOn, setDispatchedOn] = useState("");
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const form = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(form);
   const { success } = useToast();
@@ -132,48 +133,45 @@ export function RecordNoticeModal({
 
   const submit = async () => {
     if (
-      savingRef.current ||
       !choices ||
       optionsError ||
       (kind === "widerruf" && !dispatchedOn) ||
       (extraordinary && !reason.trim())
     )
       return;
-    savingRef.current = true;
     formErrors.clear();
-    setSaving(true);
-    try {
-      const next = await recordContractNotice(contractId, {
-        kind,
-        terminationKind,
-        receivedOn,
-        ...(kind === "widerruf"
-          ? { dispatchedOn }
-          : extraordinary
-            ? { reason: reason.trim() }
-            : {
-                // The end date the office saw: the backend refuses a changed one.
-                expectedEndsOn:
-                  (terminationKind === "sonderkuendigung"
-                    ? choices?.specialEndsOn
-                    : choices?.ordinaryEndsOn) ?? undefined,
-              }),
-      });
-      success(
-        kind === "widerruf"
-          ? "Der Widerruf ist eingetragen. Die Eltern haben eine Bestätigung bekommen."
-          : "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
-      );
-      onRecorded(next);
-    } catch (err) {
-      logger.error("traeger_care_contract_notice_record_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Erklärung" });
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const next = await recordContractNotice(contractId, {
+          kind,
+          terminationKind,
+          receivedOn,
+          ...(kind === "widerruf"
+            ? { dispatchedOn }
+            : extraordinary
+              ? { reason: reason.trim() }
+              : {
+                  // The end date the office saw: the backend refuses a changed one.
+                  expectedEndsOn:
+                    (terminationKind === "sonderkuendigung"
+                      ? choices?.specialEndsOn
+                      : choices?.ordinaryEndsOn) ?? undefined,
+                }),
+        });
+        success(
+          kind === "widerruf"
+            ? "Der Widerruf ist eingetragen. Die Eltern haben eine Bestätigung bekommen."
+            : "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
+        );
+        if (op.isCurrent()) onRecorded(next);
+      } catch (err) {
+        logger.error("traeger_care_contract_notice_record_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Erklärung" });
+      }
+    });
   };
 
   const verb = kind === "widerruf" ? "Widerruf" : "Kündigung";
@@ -184,7 +182,7 @@ export function RecordNoticeModal({
       onClose={onClose}
       title="Kündigung oder Widerruf eintragen"
       size="md"
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       error={formErrors.error}
       footer={
@@ -429,30 +427,28 @@ export function SetNoticeEndModal({
   onSet: (next: ContractNoticeOptions) => void;
 }>) {
   const [endsOn, setEndsOn] = useState("");
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const form = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(form);
   const { success } = useToast();
 
   const submit = async () => {
-    if (savingRef.current || !endsOn) return;
-    savingRef.current = true;
+    if (!endsOn) return;
     formErrors.clear();
-    setSaving(true);
-    try {
-      const next = await setContractNoticeEnd(contractId, endsOn);
-      success(`Das Vertragsende ist eingetragen: ${formatDate(endsOn)}.`);
-      onSet(next);
-    } catch (err) {
-      logger.error("traeger_care_contract_notice_end_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Vertragsende" });
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const next = await setContractNoticeEnd(contractId, endsOn);
+        success(`Das Vertragsende ist eingetragen: ${formatDate(endsOn)}.`);
+        if (op.isCurrent()) onSet(next);
+      } catch (err) {
+        logger.error("traeger_care_contract_notice_end_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Vertragsende" });
+      }
+    });
   };
 
   return (
@@ -461,7 +457,7 @@ export function SetNoticeEndModal({
       onClose={onClose}
       title="Vertragsende festlegen"
       size="sm"
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       error={formErrors.error}
       footer={
@@ -546,31 +542,28 @@ export function RejectReasonModal({
   endsOn: string;
   onRejected: (next: ContractNoticeOptions) => void;
 }>) {
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formErrors = useApiFormError();
   const { success } = useToast();
 
   const submit = async () => {
-    if (savingRef.current) return;
-    savingRef.current = true;
     formErrors.clear();
-    setSaving(true);
-    try {
-      const next = await rejectContractNoticeReason(contractId, endsOn);
-      success(
-        `Die Kündigung gilt jetzt als ordentliche Kündigung zum ${formatDate(endsOn)}.`,
-      );
-      onRejected(next);
-    } catch (err) {
-      logger.error("traeger_care_contract_notice_reason_rejection_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Entscheidung" });
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const next = await rejectContractNoticeReason(contractId, endsOn);
+        success(
+          `Die Kündigung gilt jetzt als ordentliche Kündigung zum ${formatDate(endsOn)}.`,
+        );
+        if (op.isCurrent()) onRejected(next);
+      } catch (err) {
+        logger.error("traeger_care_contract_notice_reason_rejection_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Entscheidung" });
+      }
+    });
   };
 
   return (

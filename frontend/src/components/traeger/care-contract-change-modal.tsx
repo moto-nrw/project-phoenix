@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type {
@@ -70,8 +71,8 @@ export function DecideChangeModal({
     request.effectiveFrom < today ? today : request.effectiveFrom,
   );
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const form = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(form);
   const { success } = useToast();
@@ -124,33 +125,33 @@ export function DecideChangeModal({
     (!approve || (effectiveFrom && preview?.date === effectiveFrom));
 
   const submit = async () => {
-    if (savingRef.current || !ready) return;
-    savingRef.current = true;
+    // Ein zweiter Klick während des Speicherns ändert nichts: run läuft nur
+    // einmal je Dialog.
+    if (!ready) return;
     formErrors.clear();
-    setSaving(true);
-    try {
-      const next = await decideContractChange(contractId, request.id, {
-        approve,
-        reason,
-        effectiveFrom: approve ? effectiveFrom : undefined,
-        expectedVersion: request.version,
-      });
-      success(
-        approve
-          ? `Die Änderung ist freigegeben. Sie gilt ab ${formatDate(effectiveFrom)}. Der Vertrag bekommt in wenigen Minuten eine neue Version.`
-          : "Der Änderungswunsch ist abgelehnt. Die Eltern bekommen Ihre Begründung.",
-      );
-      onDecided(next);
-    } catch (err) {
-      logger.error("traeger_care_contract_change_decide_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (isChangedRequest(err)) onConflict();
-      else void formErrors.show(err, { object: "der Änderungswunsch" });
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const next = await decideContractChange(contractId, request.id, {
+          approve,
+          reason,
+          effectiveFrom: approve ? effectiveFrom : undefined,
+          expectedVersion: request.version,
+        });
+        success(
+          approve
+            ? `Die Änderung ist freigegeben. Sie gilt ab ${formatDate(effectiveFrom)}. Der Vertrag bekommt in wenigen Minuten eine neue Version.`
+            : "Der Änderungswunsch ist abgelehnt. Die Eltern bekommen Ihre Begründung.",
+        );
+        if (op.isCurrent()) onDecided(next);
+      } catch (err) {
+        logger.error("traeger_care_contract_change_decide_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        if (isChangedRequest(err)) onConflict();
+        else void formErrors.show(err, { object: "der Änderungswunsch" });
+      }
+    });
   };
 
   return (
@@ -159,7 +160,7 @@ export function DecideChangeModal({
       onClose={onClose}
       title={approve ? "Änderungswunsch freigeben" : "Änderungswunsch ablehnen"}
       size="sm"
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       error={formErrors.error}
       footer={

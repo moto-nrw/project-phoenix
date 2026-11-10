@@ -842,6 +842,7 @@ export default function StudentGuardianManager({
       {/* Existing-guardian picker (sibling case): eine Kopf-Aktion mit
           Dialog, kein Formular über der Liste (#3112). Der Dialog schließt,
           sobald die Person gewählt ist; die Verknüpfung läuft dahinter. */}
+      {/* oxlint-disable-next-line ui-kit/form-modal-pending -- schließt mit der Auswahl synchron; die Verknüpfung läuft danach außerhalb des Dialogs. */}
       <FormModal
         isOpen={isPickerOpen}
         onClose={() => setIsPickerOpen(false)}

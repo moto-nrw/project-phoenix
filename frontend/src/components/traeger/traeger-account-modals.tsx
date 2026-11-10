@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -52,7 +53,8 @@ export function InviteTraegerAccountModal({
 }>) {
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<TraegerRole[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -74,27 +76,27 @@ export function InviteTraegerAccountModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      await invite({ email: email.trim(), roles });
-      onClose();
-      success(successText);
-      await onInvited();
-    } catch (err) {
-      logger.error("traeger_invitation_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Einladung" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await invite({ email: email.trim(), roles });
+        if (op.isCurrent()) onClose();
+        success(successText);
+        await onInvited();
+      } catch (err) {
+        logger.error("traeger_invitation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Einladung" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={title}
       size="md"
@@ -170,7 +172,8 @@ export function ChangeTraegerRolesModal({
     member?.roles.includes("leadership") === true &&
     members.filter((other) => other.roles.includes("leadership")).length <= 1;
   const [roles, setRoles] = useState<TraegerRole[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(member !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -189,27 +192,27 @@ export function ChangeTraegerRolesModal({
       formErrors.invalid(ROLES_REQUIRED, { roles: ROLES_REQUIRED });
       return;
     }
-    setSaving(true);
-    try {
-      await changeTraegerRoles(member.accountId, roles);
-      onClose();
-      success("Die Rollen sind geändert.");
-      await onChanged();
-    } catch (err) {
-      logger.error("traeger_roles_change_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Rollen" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await changeTraegerRoles(member.accountId, roles);
+        if (op.isCurrent()) onClose();
+        success("Die Rollen sind geändert.");
+        await onChanged();
+      } catch (err) {
+        logger.error("traeger_roles_change_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Rollen" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={member !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       title="Rollen ändern"
       size="md"
       error={formErrors.error}

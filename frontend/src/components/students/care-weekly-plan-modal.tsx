@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type {
   CareDaysSource,
@@ -68,7 +69,8 @@ function CareWeeklyPlanModalForm({
     initialArrivalSchedules,
     initialPickupSchedules,
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const save = useFormModalPending();
+  const isSubmitting = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
 
@@ -86,19 +88,19 @@ function CareWeeklyPlanModalForm({
       draft.rows,
       careDaysSource === "bookings",
     );
-    setIsSubmitting(true);
-    try {
-      await onSubmit({
-        arrivalSchedules,
-        pickupData: { schedules: pickupSchedules },
-      });
-      toast.success(successMessage);
-      onClose();
-    } catch (err) {
-      await errors.show(err, { object: "die Übernahme des Wochenplans" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onSubmit({
+          arrivalSchedules,
+          pickupData: { schedules: pickupSchedules },
+        });
+        toast.success(successMessage);
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        await errors.show(err, { object: "die Übernahme des Wochenplans" });
+      }
+    });
   };
 
   const footer = (
@@ -128,6 +130,7 @@ function CareWeeklyPlanModalForm({
     <FormModal
       isOpen
       onClose={onClose}
+      pending={save}
       title="Wochenplan festlegen"
       footer={footer}
       size="xl"

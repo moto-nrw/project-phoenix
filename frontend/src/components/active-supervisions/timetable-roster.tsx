@@ -23,6 +23,7 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { EditActions } from "~/components/ui/edit-actions";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -1229,7 +1230,11 @@ export function TimetableRosterContent({
   const [homeworkStatus, setHomeworkStatus] =
     useState<TimetableHomeworkFeedbackStatus | null>(null);
   const [homeworkNote, setHomeworkNote] = useState("");
-  const [savingHomework, setSavingHomework] = useState(false);
+  const homeworkSave = useFormModalPending(
+    homeworkRow !== null,
+    homeworkRow?.studentId,
+  );
+  const savingHomework = homeworkSave.pending;
   const homeworkErrors = useApiFormError();
   const openHomework = (row: TimetableRosterRow) => {
     homeworkErrors.clear();
@@ -1249,21 +1254,23 @@ export function TimetableRosterContent({
       return;
     }
     homeworkErrors.clear();
-    setSavingHomework(true);
-    try {
-      await onSaveHomeworkFeedback(homeworkRow, {
-        status: homeworkStatus,
-        note: homeworkNote.trim() === "" ? null : homeworkNote.trim(),
-      });
-      setHomeworkRow(null);
-    } catch (cause) {
-      void homeworkErrors.show(cause, {
-        object: "die Rückmeldung",
-        retry: () => void retrySaveRef.current(),
-      });
-    } finally {
-      setSavingHomework(false);
-    }
+    await homeworkSave.run(async (op) => {
+      try {
+        await onSaveHomeworkFeedback(homeworkRow, {
+          status: homeworkStatus,
+          note: homeworkNote.trim() === "" ? null : homeworkNote.trim(),
+        });
+        // Eine späte Antwort schließt nicht die Rückmeldung eines anderen
+        // Kindes (#6533).
+        if (op.isCurrent()) setHomeworkRow(null);
+      } catch (cause) {
+        if (!op.isCurrent()) return;
+        void homeworkErrors.show(cause, {
+          object: "die Rückmeldung",
+          retry: () => void retrySaveRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     retrySaveRef.current = saveHomework;
@@ -1394,7 +1401,7 @@ export function TimetableRosterContent({
           title={`Hausaufgaben von ${homeworkRow?.studentName ?? ""}`}
           size="md"
           mobilePosition="bottom"
-          closeDisabled={savingHomework}
+          pending={homeworkSave}
           error={homeworkErrors.error}
           footer={
             <EditActions
