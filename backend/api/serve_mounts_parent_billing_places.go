@@ -47,12 +47,14 @@ func (b parentBillingHolidayRegistrations) SetHolidayWeekCapacity(ctx context.Co
 // Elternabrechnung's vocabulary (#4699).
 func parentBillingPlacesError(err error) error {
 	var fields validation.Errors
+	var noCareDay *enrollmentOwner.HolidayWeekNoCareDayRefusal
 	switch {
+	case errors.As(err, &noCareDay):
+		return &parentbilling.HolidayWeekNoCareDayRefusal{
+			Week: noCareDay.Week, WeekID: noCareDay.WeekID,
+			Date: noCareDay.Day.Date, Kind: noCareDay.Day.Kind, Name: noCareDay.Day.Name,
+		}
 	case errors.As(err, &fields):
-		return fmt.Errorf("%w: %w", parentbilling.ErrInvalidHolidayPlaces, err)
-	case errors.Is(err, enrollmentOwner.ErrHolidayWeekNoCareDay):
-		// A week with a day without care at its host school takes no new
-		// booking (#4702).
 		return fmt.Errorf("%w: %w", parentbilling.ErrInvalidHolidayPlaces, err)
 	case errors.Is(err, enrollmentOwner.ErrHolidayWeekNotFound):
 		return fmt.Errorf("%w: %w", parentbilling.ErrHolidayWeekNotFound, err)

@@ -398,7 +398,13 @@ func (rs *HolidayResource) resolveLink(ctx context.Context, token string) (capab
 // refusals keep the codes of the registration review (ADR 0114).
 func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var noCareDay *capability.HolidayWeekNoCareDayRefusal
 	switch {
+	case errors.As(err, &noCareDay):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentHolidayWeekNoCareDay, map[string]any{
+			"week": noCareDay.Week, "week_id": noCareDay.WeekID, "date": noCareDay.Date.Format("02.01.2006"),
+			"iso_date": noCareDay.Date.String(), "kind": noCareDay.Kind, "name": noCareDay.Name,
+		}))
 	case errors.Is(err, capability.ErrInvalidHolidayPlaces):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayWeekNotFound):
