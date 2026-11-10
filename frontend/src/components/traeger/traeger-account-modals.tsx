@@ -25,7 +25,7 @@ export interface TraegerInvitationInput {
 }
 
 const TRAEGER_INVITATION_HINT =
-  "Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal. Bis wann der Link gilt, steht danach bei den offenen Einladungen.";
+  "Die Person bekommt einen Link per E-Mail. Bis wann er gilt, steht danach bei den offenen Einladungen.";
 
 /**
  * Invites a person into the Träger-Büro by e-mail (#4650). The person gets a

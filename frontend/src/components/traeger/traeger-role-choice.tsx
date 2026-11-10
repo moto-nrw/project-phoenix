@@ -58,8 +58,10 @@ export function TraegerRoleChoice({
         Rolle (mindestens eine)
       </legend>
       {/* Two columns from sm on: all seven roles stay in view of the
-          dialog on a laptop or tablet; a phone lists them one below the other. */}
-      <div className="grid gap-2 sm:grid-cols-2">
+          dialog on a laptop or tablet. A phone lists them one below the
+          other, a little tighter, so the last role still shows above the
+          dialog's buttons. */}
+      <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
         {TRAEGER_ROLES.map((role) => (
           <CheckboxCard
             key={role}
@@ -68,6 +70,7 @@ export function TraegerRoleChoice({
             onChange={() => toggle(role)}
             label={TRAEGER_ROLE_LABELS[role]}
             hint={locked[role] ?? ROLE_DESCRIPTIONS[role]}
+            className="max-sm:py-2"
           />
         ))}
       </div>
