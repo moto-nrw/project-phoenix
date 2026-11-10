@@ -28,10 +28,10 @@ import { formatEuro } from "./contribution-format";
 import type { CareAmendmentDraft } from "./care-invoice-amendment-modal";
 import { InvoiceLine } from "./invoice-line";
 
-/** "08.11.2026, 16:20" in Berlin time. */
+/** "08.11.2026, 16:20" in Berlin time; date and time never part at a line end. */
 function formatInstant(value: string): string {
   if (!value) return "";
-  return `${formatBerlinDate(value)}, ${formatBerlinTime(value)}`;
+  return `${formatBerlinDate(value)},\u00A0${formatBerlinTime(value)}`;
 }
 
 /** The positions an applied change took off. */
