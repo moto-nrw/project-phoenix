@@ -401,10 +401,16 @@ func (rs *HolidayResource) resolveLink(ctx context.Context, token string) (capab
 func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	var dayLimit *capability.HolidayChildDayLimitRefusal
+	var noCareDay *capability.HolidayWeekNoCareDayRefusal
 	switch {
 	case errors.As(err, &dayLimit):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,
 			map[string]any{"limit": dayLimit.Limit, "days": dayLimit.Days, "child": 1}))
+	case errors.As(err, &noCareDay):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentHolidayWeekNoCareDay, map[string]any{
+			"week": noCareDay.Week, "week_id": noCareDay.WeekID, "date": noCareDay.Date.Format("02.01.2006"),
+			"iso_date": noCareDay.Date.String(), "kind": noCareDay.Kind, "name": noCareDay.Name,
+		}))
 	case errors.Is(err, capability.ErrInvalidHolidayPlaces):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayWeekNotFound):
