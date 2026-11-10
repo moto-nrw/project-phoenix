@@ -29,6 +29,8 @@ type ShiftRecord struct {
 	// a series row edited via "Nur diese Woche", which re-plans keep.
 	SeriesID *int64 `json:"series_id,omitempty"`
 	Detached bool   `json:"detached"`
+	// SeriesOverride distinguishes administrator edits from sickness-only detachments.
+	SeriesOverride bool `json:"-"`
 	// SeriesOccurrenceDate is the recurrence slot the row materialized for.
 	// It does not follow Date when an occurrence is moved, so exceptions,
 	// re-plans and splits keep addressing the source slot.

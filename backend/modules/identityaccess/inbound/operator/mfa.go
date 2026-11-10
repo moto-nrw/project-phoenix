@@ -173,7 +173,11 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
-	if err := rs.mfaService.EnrollOperatorMFA(r.Context(), operatorID); err != nil {
+	// The enrollment is recorded only while the operator still holds the
+	// generation the enrollment token names: a password change committed
+	// since the code was redeemed records nothing (#6459).
+	proof := identityaccess.OperatorMFAProof{OperatorID: operatorID, CredentialGeneration: claims.CredentialGeneration}
+	if err := rs.mfaService.EnrollOperatorMFA(r.Context(), proof); err != nil {
 		// Already-enrolled is not fatal — a retried request must still mint
 		// a real session (no longer the pre-enrollment token).
 		if !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
@@ -182,7 +186,7 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rs.completeMFAExchange(w, r, identityaccess.OperatorMFAProof{OperatorID: operatorID, CredentialGeneration: claims.CredentialGeneration}, req.RememberDevice)
+	rs.completeMFAExchange(w, r, proof, req.RememberDevice)
 }
 
 // ----- /auth/mfa/trusted-devices -----

@@ -21,9 +21,6 @@ func NewStaffBankRekeyStore() *StaffBankRekeyStore { return &StaffBankRekeyStore
 type staffBankRekeyRow struct {
 	ID                         int64   `bun:"id"`
 	StaffID                    int64   `bun:"staff_id"`
-	IBAN                       *string `bun:"iban"`
-	TaxID                      *string `bun:"tax_id"`
-	SocialSecurityNumber       *string `bun:"social_security_number"`
 	IBANSealed                 []byte  `bun:"iban_sealed"`
 	IBANMasked                 *string `bun:"iban_masked"`
 	TaxIDSealed                []byte  `bun:"tax_id_sealed"`
@@ -54,8 +51,7 @@ func rewriteStaffBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID int
 ) (workforce.BankDataRekeyResult, error) {
 	var rows []staffBankRekeyRow
 	// The school filter stays explicit: the maintenance login bypasses RLS.
-	if err := tx.NewRaw(`SELECT id, staff_id, iban, tax_id, social_security_number,
-       iban_sealed, iban_masked, tax_id_sealed, social_security_number_sealed
+	if err := tx.NewRaw(`SELECT id, staff_id, iban_sealed, iban_masked, tax_id_sealed, social_security_number_sealed
    FROM users.staff_financial_data WHERE tenant_id = ? AND id > ? ORDER BY id LIMIT ? FOR UPDATE`,
 		schoolID, afterID, limit).Scan(ctx, &rows); err != nil {
 		return workforce.BankDataRekeyResult{}, err
@@ -63,7 +59,6 @@ func rewriteStaffBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID int
 	result := workforce.BankDataRekeyResult{}
 	for _, row := range rows {
 		value := &domain.StaffFinancialData{ID: row.ID, TenantID: schoolID, StaffID: row.StaffID,
-			IBAN: row.IBAN, TaxID: row.TaxID, SocialSecurityNumber: row.SocialSecurityNumber,
 			IBANSealed: row.IBANSealed, IBANMasked: row.IBANMasked, TaxIDSealed: row.TaxIDSealed,
 			SocialSecurityNumberSealed: row.SocialSecurityNumberSealed}
 		changed, err := rewrite(value)
@@ -76,8 +71,7 @@ func rewriteStaffBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID int
 			continue
 		}
 		if _, err := tx.NewRaw(`UPDATE users.staff_financial_data
-   SET iban_sealed = ?, iban_masked = ?, tax_id_sealed = ?, social_security_number_sealed = ?,
-       iban = NULL, tax_id = NULL, social_security_number = NULL
+   SET iban_sealed = ?, iban_masked = ?, tax_id_sealed = ?, social_security_number_sealed = ?
    WHERE tenant_id = ? AND id = ?`, value.IBANSealed, value.IBANMasked, value.TaxIDSealed, value.SocialSecurityNumberSealed,
 			schoolID, row.ID).Exec(ctx); err != nil {
 			return result, err

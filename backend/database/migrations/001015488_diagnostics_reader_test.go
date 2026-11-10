@@ -50,12 +50,8 @@ func TestDiagnosticsReaderDeniesSensitiveColumnsAndWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// LIMIT 0 checks authorization without reading or printing any values.
 	queries := []string{
-		`SELECT iban FROM users.staff_financial_data LIMIT 0`,
-		`SELECT tax_id FROM users.staff_financial_data LIMIT 0`,
-		`SELECT social_security_number FROM users.staff_financial_data LIMIT 0`,
-		`SELECT iban FROM users.guardian_financial_data LIMIT 0`,
-		`SELECT account_holder FROM users.guardian_financial_data LIMIT 0`,
-		// The sealed and masked bank columns of #6332.
+		// The sealed and masked bank columns of #6332; 1.15.900 dropped the
+		// plaintext ones.
 		`SELECT iban_sealed FROM users.guardian_financial_data LIMIT 0`,
 		`SELECT iban_masked FROM users.guardian_financial_data LIMIT 0`,
 		`SELECT account_holder_sealed FROM users.guardian_financial_data LIMIT 0`,

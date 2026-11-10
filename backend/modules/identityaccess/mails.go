@@ -412,6 +412,7 @@ func DemoLeadMail(access DemoAccessMessage, origin string) Mail {
 			"Email":        access.Email,
 			"Source":       access.Source,
 			"ContactOptIn": access.ContactOptIn,
+			"Phone":        access.Phone,
 			"AccessID":     access.AccessID,
 			"LogoURL":      trimmedLogoURL(origin),
 		},

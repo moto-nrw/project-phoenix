@@ -28441,6 +28441,16 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.HasRetainedTraegerMembership",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.HasRetainedTraegerMembership",
+      "reason": "#5974: Boolean retention read through Organisation \u0026 Tenancy AccountRetention. Joins the caller transaction, reads pending/active memberships independent of organization state, and uses the locally mapped account guard for phoenix_tenant; no writes, locks or scope changes.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.AccountRetention.HasRetainedTraegerMembership",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
       "classification": "query",
       "effect": "query",

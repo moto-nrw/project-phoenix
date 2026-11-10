@@ -81,9 +81,7 @@ type StaffFinancialData struct {
 	TenantID int64
 	StaffID  int64
 	// IBAN, TaxID and SocialSecurityNumber are opened values (#6332): the
-	// store keeps them only sealed with the bank ring, plus the IBAN mask,
-	// and fills them from the plaintext columns only for rows the
-	// maintenance backfill has not sealed yet.
+	// store keeps them only sealed with the bank ring, plus the IBAN mask.
 	IBAN                       *string
 	TaxID                      *string
 	SocialSecurityNumber       *string

@@ -20,6 +20,10 @@ type SchoolDirectory interface {
 // account: the active, undeleted Träger where its membership is active, in a
 // stable order. It joins the caller's transaction.
 type TraegerMemberships interface {
+	// HasRetainedTraegerMembership counts pending and active memberships, even
+	// at an inactive or deleted Träger. A tenant caller can query only an
+	// account mapped to its own school; it receives no membership details.
+	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error)
 	ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error)
 }
 

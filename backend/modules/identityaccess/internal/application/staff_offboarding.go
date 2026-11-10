@@ -115,7 +115,11 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 	if err != nil {
 		return preview, err
 	}
-	preview.DeactivateAccount = !preview.PreserveGuardian && len(activeTenants) == 1 && activeTenants[0] == tenantID
+	retained, err := l.auth.hasRetainedTraegerMembership(ctx, accountID)
+	if err != nil {
+		return preview, err
+	}
+	preview.DeactivateAccount = !preview.PreserveGuardian && !retained && len(activeTenants) == 1 && activeTenants[0] == tenantID
 	preview.Revision, err = staffOffboardingRevision(accountID, tenantID, account.UpdatedAt, preview, tokenIDs, activeTenants)
 	return preview, err
 }
@@ -138,7 +142,8 @@ func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, pr
 		AccountUpdatedAt             time.Time
 		Roles, Tokens, ActiveTenants []int64
 		Guardian                     bool
-	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: updatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian}
+		DeactivateAccount            bool
+	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: updatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian, DeactivateAccount: preview.DeactivateAccount}
 	versions.Tokens = append(versions.Tokens, tokenIDs...)
 	versions.ActiveTenants = append(versions.ActiveTenants, activeTenants...)
 	slices.Sort(versions.Tokens)

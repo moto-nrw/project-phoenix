@@ -336,9 +336,17 @@ func (f *OperatorMFAFlows) handleFailedAttempt(ctx context.Context, operator dom
 
 // ===== Enrollment =====
 
-// Enroll records the operator's e-mail enrollment once.
-func (f *OperatorMFAFlows) Enroll(ctx context.Context, operatorID int64) error {
+// Enroll records the operator's e-mail enrollment once. It holds the
+// operator lock a password write takes and records nothing unless the
+// operator still holds the credential generation of the proof: a password
+// change that committed after the code was redeemed leaves no enrollment and
+// no enrollment audit behind (#6459). Check and write commit together.
+func (f *OperatorMFAFlows) Enroll(ctx context.Context, proof identityaccess.OperatorMFAProof) error {
+	operatorID := proof.OperatorID
 	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if err := f.holdProof(txCtx, proof); err != nil {
+			return err
+		}
 		existing, found, _ := f.findCredential(txCtx, operatorID)
 		if found && existing.ID > 0 {
 			return identityaccess.ErrMFAAlreadyEnrolled
@@ -352,6 +360,20 @@ func (f *OperatorMFAFlows) Enroll(ctx context.Context, operatorID int64) error {
 		}
 		return f.recordAudit(txCtx, operatorID, domain.OperatorAuditActionMFAEnrolled, nil, nil, nil)
 	})
+}
+
+// holdProof takes the operator lock a password write takes and refuses a
+// proof whose credential generation the operator no longer holds. The caller
+// writes in the same transaction, so check and write commit together.
+func (f *OperatorMFAFlows) holdProof(txCtx context.Context, proof identityaccess.OperatorMFAProof) error {
+	operator, err := f.operators.findOperatorForUpdate(txCtx, proof.OperatorID)
+	if err != nil {
+		return err
+	}
+	if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
+		return identityaccess.ErrOperatorInvalidCredentials
+	}
+	return nil
 }
 
 // Disable wipes the enrollment, revokes every trusted device and resets the
@@ -405,12 +427,8 @@ func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, proof identit
 		device.UserAgent = &label
 	}
 	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		operator, err := f.operators.findOperatorForUpdate(txCtx, operatorID)
-		if err != nil {
+		if err := f.holdProof(txCtx, proof); err != nil {
 			return err
-		}
-		if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
-			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		stored, err := f.records.CreateTrustedDevice(txCtx, device)
 		if err != nil {
@@ -564,11 +582,11 @@ func (f *OperatorMFAFlows) ResendOperatorMFAChallenge(ctx context.Context, chall
 	return token, operatorError(err)
 }
 
-func (f *OperatorMFAFlows) EnrollOperatorMFA(ctx context.Context, operatorID int64) error {
+func (f *OperatorMFAFlows) EnrollOperatorMFA(ctx context.Context, proof identityaccess.OperatorMFAProof) error {
 	if f == nil {
 		return identityaccess.ErrOperatorMFAUnavailable
 	}
-	return operatorError(f.Enroll(ctx, operatorID))
+	return operatorError(f.Enroll(ctx, proof))
 }
 
 func (f *OperatorMFAFlows) DisableOperatorMFA(ctx context.Context, operatorID int64) error {

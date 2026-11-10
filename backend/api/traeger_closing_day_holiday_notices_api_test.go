@@ -118,6 +118,10 @@ func TestTraegerClosingDayTellsTheParentsOfBookedHolidayWeeksOnce(t *testing.T) 
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, 2, created.NotifiedFamilies)
 	assert.Equal(t, 2, closureMails(t, db, office.organization), "one mail per family")
+	var senders []string
+	require.NoError(t, db.NewRaw(`SELECT payload->>'traeger_name' FROM platform.email_outbox
+		WHERE organization_id = ? AND kind = 'holiday_closure_notice'`, office.organization).Scan(context.Background(), &senders))
+	assert.Equal(t, []string{"Träger Ferienschluss", "Träger Ferienschluss"}, senders, "the notice names its Träger (#6437)")
 
 	day.HolidayBookingsToken = ""
 	rec = traegerJSON(t, router, office.token, http.MethodPut, traegerClosingDayPath(created.ID), day)

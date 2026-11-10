@@ -86,6 +86,9 @@ func WithStaffShiftBroadcaster(broadcaster realtime.Broadcaster) StaffShiftOptio
 }
 
 type StaffShiftUpdateOptions struct {
+	// PreserveSeriesOverride keeps sick-state changes separate from deliberate
+	// one-occurrence edits, even though both detach the row from replanning.
+	PreserveSeriesOverride bool
 	// SuppressTimeTrackingBroadcast lets a larger operation send one shared
 	// invalidation after all of its shift writes have completed.
 	SuppressTimeTrackingBroadcast bool
@@ -629,9 +632,11 @@ func mergeStoredShiftState(shift, existing *workforce.ShiftRecord, opts StaffShi
 	// alone (#1889). Standalone rows stay untouched by this.
 	shift.SeriesID = existing.SeriesID
 	shift.Detached = existing.Detached
+	shift.SeriesOverride = existing.SeriesOverride
 	shift.SeriesOccurrenceDate = existing.SeriesOccurrenceDate
 	if existing.SeriesID != nil {
 		shift.Detached = true
+		shift.SeriesOverride = existing.SeriesOverride || !opts.PreserveSeriesOverride
 	}
 }
 

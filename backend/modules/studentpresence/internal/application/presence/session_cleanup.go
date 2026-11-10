@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -48,13 +49,47 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	cleanedCount := 0
 	for _, id := range ids {
 		// Without an ambient unit each timeout still commits independently, as
-		// before. An ended session remains an expected skip after discovery.
-		if _, err := s.ProcessSessionTimeoutByID(ctx, id); err == nil {
+		// before. An ended or resumed session is an expected skip after
+		// discovery.
+		_, err := s.ProcessSessionTimeoutByID(ctx, id, s.stillAbandoned(cutoffTime))
+		switch {
+		case err == nil:
 			cleanedCount++
+		case !errors.Is(err, ErrActiveGroupAlreadyEnded) && !errors.Is(err, errSessionResumed):
+			s.getLogger().WarnContext(ctx, "abandoned session cleanup skipped a session",
+				slog.Int64("active_group_id", id),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 
 	return cleanedCount, nil
+}
+
+// errSessionResumed skips a sweep candidate that became active again between
+// the unlocked selection and the session lock.
+var errSessionResumed = errors.New("session is no longer abandoned")
+
+// stillAbandoned re-judges a sweep candidate under its session lock (#6502).
+// The selection ran without one: a scan or heartbeat may have refreshed the
+// session's activity since, or its device may have come back online. The
+// check repeats the selection itself, so both use one predicate. Activity
+// writes update the locked row and are ordered before or after this read;
+// device contact committed before it is seen, later contact orders after the
+// sweep. The sweep rarely has more than a few candidates per school.
+func (s *service) stillAbandoned(cutoff time.Time) sessionTimeoutCheck {
+	return func(ctx context.Context, session *ports.ActiveGroup) error {
+		candidates, err := s.GroupRepo.FindActiveSessionsOlderThan(ctx, cutoff)
+		if err != nil {
+			return err
+		}
+		for _, candidate := range candidates {
+			if candidate.ID == session.ID && !s.isDeviceOnline(ctx, candidate.Device, time.Now()) {
+				return nil
+			}
+		}
+		return errSessionResumed
+	}
 }
 
 // isDeviceOnline reports whether the device was online at the supplied

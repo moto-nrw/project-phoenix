@@ -3,6 +3,7 @@ package account_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,45 @@ func TestDemoAccessRequestMailsTheLinkAndTheLead(t *testing.T) {
 	assert.Equal(t, "messe", content["Source"])
 	assert.Equal(t, true, content["ContactOptIn"])
 	assert.Equal(t, accessID, content["AccessID"])
+}
+
+// The website sends a callback number with the contact consent. It reaches
+// the team's lead mail with its whitespace runs collapsed; no table keeps it.
+func TestDemoAccessRequestHandsThePhoneToTheLead(t *testing.T) {
+	t.Parallel()
+	env := newDemoEnv(t)
+	body := env.requestBody(t)
+	body["phone"] = "  +49 211\t  123 456 "
+	env.requestTokenWith(t, body)
+	require.True(t, env.mails.WaitForMessages(2, 2*time.Second), env.mails.Templates())
+
+	lead, ok := env.mails.MessageWithTemplate(demoLeadTemplate)
+	require.True(t, ok, env.mails.Templates())
+	content, ok := lead.Content.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "+49 211 123 456", content["Phone"])
+	link, ok := env.mails.MessageWithTemplate(demoAccessTemplate)
+	require.True(t, ok, env.mails.Templates())
+	assert.NotContains(t, link.Content, "Phone", "nothing the form carried reaches the prospect's inbox")
+}
+
+// Without the contact consent the number is dropped, however long it is:
+// the request still succeeds and the team gets no number to call.
+func TestDemoAccessRequestDropsThePhoneWithoutConsent(t *testing.T) {
+	t.Parallel()
+	env := newDemoEnv(t)
+	body := env.requestBody(t)
+	body["contact_opt_in"] = false
+	body["phone"] = strings.Repeat("1", 60)
+	env.requestTokenWith(t, body)
+	require.True(t, env.mails.WaitForMessages(2, 2*time.Second), env.mails.Templates())
+
+	lead, ok := env.mails.MessageWithTemplate(demoLeadTemplate)
+	require.True(t, ok, env.mails.Templates())
+	content, ok := lead.Content.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, content["ContactOptIn"])
+	assert.Empty(t, content["Phone"])
 }
 
 func (e demoEnv) accessCount(t *testing.T) int {

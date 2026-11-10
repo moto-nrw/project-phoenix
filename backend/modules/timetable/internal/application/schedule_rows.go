@@ -57,21 +57,6 @@ func createLegacySchedule(ctx context.Context, schedules timetable.ScheduleComma
 	return nil
 }
 
-func updateLegacySchedule(ctx context.Context, schedules timetable.ScheduleCommand, schedule *activityContract.Schedule) error {
-	if schedule == nil {
-		return errors.New("schedule cannot be nil")
-	}
-	if err := schedule.Validate(); err != nil {
-		return err
-	}
-	updated, err := schedules.UpdateSchedule(ctx, schedule.ID, publicScheduleInput(schedule))
-	if err != nil {
-		return legacyActivityScheduleError("update", err)
-	}
-	*schedule = *legacySchedule(updated)
-	return nil
-}
-
 func deleteLegacySchedule(ctx context.Context, schedules timetable.ScheduleCommand, id int64) error {
 	if err := schedules.DeleteSchedule(ctx, id); err != nil {
 		return legacyDatabaseError("delete", err)

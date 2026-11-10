@@ -172,7 +172,7 @@ Quellen `guardian_financial` und `staff_financial`. Sie gilt neben
 Rollout kommt nach Schritt 4 je Umgebung der Schulblock aus ADR 0188 hinzu,
 zweimal vollständig und mit `changed_total=0`. Schritt 5 (Legacy-Ring leeren,
 Abschlusslauf ohne Legacy) umfasst dann beide Blöcke. Die Klartextspalten
-entfernt erst ein späteres Release (Migration 1.15.839).
+entfernt erst ein späteres Release (Migration 1.15.900).
 
 ## Ergänzung: bestätigte Mandatstexte (#4696)
 
@@ -183,3 +183,24 @@ widerrufener Mandate. Er sperrt und filtert die Nachweiszeilen nach Träger,
 behält das AAD aus Feld, Träger und Mandatsreferenz bei und ändert ausschließlich
 das Chiffrat. Text, Prüfsumme und übrige Nachweisfelder bleiben gleich.
 Die Rotationsprüfung verlangt `changed_total=0` für alle drei Quellen des Trägers (`mandates`, `debits`, `consents`).
+
+## Ergänzung 10.11.2026: Legacy-Ring geleert (#6508)
+
+Schritt 5 ist in allen drei SOPS-Dateien umgesetzt: `BANK_DATA_LEGACY_KEYS`
+ist leer, `HEALTH_DATA_KEYS` unverändert. Vorher liefen beide Blöcke (Träger
+und Schulen) je Umgebung fehlerfrei mit `changed_total=0` für jede Quelle.
+Der Schlüssel bleibt als explizit leerer Wert in SOPS und Compose; er wird
+für Restore und künftige Rotation wieder gesetzt, nicht neu eingeführt.
+
+Wirksam wird der leere Ring mit dem jeweiligen Deploy: Staging mit dem Merge
+nach `development`, Demo mit einem manuellen Deploy, Produktion mit dem
+nächsten Release über `main`. Nach dem Deploy jeder Umgebung folgt der
+Abschlusslauf: beide Blöcke vollständig ohne Legacy-Ring, keine Fehler,
+`changed_total=0`. Schlägt er fehl, den bisherigen Wert per SOPS wieder
+einsetzen und ausrollen. Stand und Nachweise je Umgebung stehen in #6508.
+
+Die entfernten Legacy-Schlüssel sind identisch mit `HEALTH_DATA_KEYS`
+derselben Umgebung und bleiben dort sowie in den Release-Backups erhalten.
+Ein Restore eines Backups von vor diesem Schritt bringt dessen `.env` mit dem
+damaligen Legacy-Ring mit; danach gelten Rekey und Abschlusskontrolle wie unter
+„Rotation, Abbruch und Rollback“.

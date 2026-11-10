@@ -84,7 +84,7 @@ actual code and production use before choosing a minimum rollback duration;
 at the time of this observation no duration or waiver had been agreed. The user
 subsequently chose at least 24 hours plus a complete regular school day and
 relevant jobs. The 48-hour test fixture remains synthetic input, not the
-production policy. See [the agreed rule](student-owner-storage-contract.md#operating-evidence).
+production policy. See [the agreed rule](student-owner-storage-contract.md#verification-and-historical-evidence).
 
 Before execution, Contract still needs the agreed operational acceptance,
 current caller/query evidence, a fresh restorable pre-Contract backup, and

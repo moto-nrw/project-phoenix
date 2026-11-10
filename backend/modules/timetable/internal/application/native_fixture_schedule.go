@@ -4,6 +4,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
@@ -28,6 +29,21 @@ func (r nativeFixtureSchedule) Create(ctx context.Context, value *timetable.Sche
 
 func (r nativeFixtureSchedule) Update(ctx context.Context, value *timetable.Schedule) error {
 	return r.write(ctx, value, updateLegacySchedule)
+}
+
+func updateLegacySchedule(ctx context.Context, schedules timetable.ScheduleCommand, schedule *activityContract.Schedule) error {
+	if schedule == nil {
+		return errors.New("schedule cannot be nil")
+	}
+	if err := schedule.Validate(); err != nil {
+		return err
+	}
+	updated, err := schedules.UpdateSchedule(ctx, schedule.ID, publicScheduleInput(schedule))
+	if err != nil {
+		return legacyActivityScheduleError("update", err)
+	}
+	*schedule = *legacySchedule(updated)
+	return nil
 }
 
 func (r nativeFixtureSchedule) write(ctx context.Context, value *timetable.Schedule, write func(context.Context, timetable.ScheduleCommand, *activityContract.Schedule) error) error {
