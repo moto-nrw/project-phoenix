@@ -2,7 +2,6 @@ package fileformat
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"io"
 
@@ -44,7 +43,10 @@ func missingOpeningBalanceColumns(mapping map[string]int) []string {
 
 // ParseOpeningBalanceCSV parses a CSV file into opening balance import rows.
 func ParseOpeningBalanceCSV(reader io.Reader) ([]importModels.OpeningBalanceImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	csvReader, err := newCSVReader(reader)
+	if err != nil {
+		return nil, err
+	}
 	csvReader.FieldsPerRecord = -1
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true
