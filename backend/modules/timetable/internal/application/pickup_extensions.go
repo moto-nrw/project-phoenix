@@ -1,9 +1,9 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"slices"
+	"sort"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
@@ -311,7 +311,7 @@ func (s *Service) lockPickupWeekdayPlans(ctx context.Context, task domain.Pickup
 			locks = append(locks, pickupInstanceLock{instance: instance, templateID: plan.block.ID})
 		}
 	}
-	slices.SortFunc(locks, func(a, b pickupInstanceLock) int { return cmp.Compare(a.instance.ID, b.instance.ID) })
+	sort.Slice(locks, func(i, j int) bool { return locks[i].instance.ID < locks[j].instance.ID })
 	for _, lock := range locks {
 		if err := s.lockPickupExtensionInstance(ctx, task, lock.instance, lock.templateID, stats); err != nil {
 			return err
@@ -343,7 +343,8 @@ func (s *Service) planPickupWeekdayBlock(ctx context.Context, task domain.Pickup
 // before the next one, by ascending id; the instances come back in the
 // chosen order.
 func (s *Service) assignPickupExtensionDayBlocks(ctx context.Context, task domain.PickupExtensionTask, chosen []domain.PickupExtensionBlock, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
-	ordered := slices.SortedFunc(slices.Values(chosen), func(a, b domain.PickupExtensionBlock) int { return cmp.Compare(a.ID, b.ID) })
+	ordered := slices.Clone(chosen)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
 	for _, block := range ordered {
 		instance := domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}
 		if err := s.lockPickupExtensionInstance(ctx, task, instance, 0, stats); err != nil {

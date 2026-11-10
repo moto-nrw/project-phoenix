@@ -370,8 +370,9 @@ const activityInstanceNoDeviations = `NOT EXISTS (
 
 // lockedActivityInstanceIDs selects the given blocks of the tenant and locks
 // them by ascending id, the canonical order every multi-block writer shares
-// (#6232). A statement that writes the rows in the same statement through it
-// takes its row locks in that order, whatever plan the write itself gets.
+// (#6232). A write that selects its rows through it as a subquery takes its
+// row locks in that order, whatever plan the write itself gets: PostgreSQL
+// runs a locking subquery as a whole before the outer statement.
 func lockedActivityInstanceIDs(db bun.IDB, tenantID int64, ids []int64, strength string) *bun.SelectQuery {
 	return db.NewSelect().TableExpr("schedule.activity_instances").Column("id").
 		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)).
@@ -389,9 +390,8 @@ func (s *Store) DeleteActivityInstancesByID(ctx context.Context, ids []int64) (i
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	stats, err := execMeasuredWrite(ctx, db.NewDelete().With("locked", lockedActivityInstanceIDs(db, tenantID, ids, "UPDATE")).
-		Table("schedule.activity_instances").
-		Where("tenant_id = ?", tenantID).Where(`id IN (SELECT id FROM "locked")`), "delete activity instances by id")
+	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.activity_instances").
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", lockedActivityInstanceIDs(db, tenantID, ids, "UPDATE")), "delete activity instances by id")
 	return stats.Rows, stats, err
 }
 
@@ -445,10 +445,9 @@ func (s *Store) SetActivityInstanceListKind(ctx context.Context, ids []int64, ne
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	query := db.NewUpdate().With("locked", lockedActivityInstanceIDs(db, tenantID, ids, "NO KEY UPDATE")).
-		Table("schedule.activity_instances").
+	query := db.NewUpdate().Table("schedule.activity_instances").
 		Set("list_kind = ?", newKind).Set("updated_at = ?", updatedAt).
-		Where("tenant_id = ?", tenantID).Where(`id IN (SELECT id FROM "locked")`)
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", lockedActivityInstanceIDs(db, tenantID, ids, "NO KEY UPDATE"))
 	stats, err := execMeasuredWrite(ctx, query, "set activity instance list kind")
 	return stats.Rows, stats, err
 }

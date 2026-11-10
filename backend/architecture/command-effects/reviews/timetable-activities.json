@@ -28045,7 +28045,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Binding changed by #6232: the split takes the grade-transition gate together with the recurrence gate, before its day locks; the target still only derives the key.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
@@ -28363,7 +28363,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Binding changed by #6232: the split takes the grade-transition gate together with the recurrence gate, before its day locks; the target still only derives the key.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
@@ -34654,7 +34654,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Binding changed by #6232: the split takes the grade-transition gate together with the recurrence gate, before its day locks; the target still only derives the key.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
