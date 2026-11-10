@@ -79,25 +79,34 @@ export function TenantPageHeaderSkeleton({
   /** Zweite Zeile für Suche, Filter oder Zeitnavigation. */
   controls?: boolean;
 }> = {}) {
+  // Maße wie im Kopf von `TenantPage`: dieselben Ränder je Bildschirm, eine
+  // Titelzeile in der Höhe der Überschrift (Schriftgrad mal `leading-tight`),
+  // eine 20-px-Statuszeile 4 px darunter und Bedienelemente mit 40 px, auf
+  // dem Telefon 44 px. Der Layouttest `page-header-skeleton.spec.ts` misst
+  // beide Köpfe nach.
   return (
-    <header className="moto-content-surface rounded-2xl border p-5">
+    <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4">
       {back}
       <div className="flex min-w-0 items-center gap-3">
         {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <Skeleton shape="round" className="h-7 w-52 max-w-3/4" />
+            <div className="compact:text-xl flex h-lh w-52 max-w-3/4 items-center text-2xl leading-tight max-sm:text-xl">
+              <Skeleton shape="round" className="h-[1em] w-full" />
+            </div>
             {info && <Skeleton className="h-8 w-8 shrink-0" />}
           </div>
           {stats && (
-            <Skeleton shape="round" className="mt-2 h-4 w-64 max-w-full" />
+            <div className="mt-1 flex h-5 items-center">
+              <Skeleton shape="round" className="h-4 w-64 max-w-full" />
+            </div>
           )}
         </div>
       </div>
       {controls && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Skeleton shape="control" className="h-9 w-48" />
-          <Skeleton shape="control" className="h-9 w-32" />
+        <div className="compact:mt-3 mt-4 flex items-center gap-3 max-sm:mt-3">
+          <Skeleton shape="control" className="h-10 w-48 min-w-0 max-sm:h-11" />
+          <Skeleton shape="control" className="h-10 w-32 min-w-0 max-sm:h-11" />
         </div>
       )}
     </header>
