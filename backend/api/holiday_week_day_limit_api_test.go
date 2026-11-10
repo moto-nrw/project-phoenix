@@ -137,6 +137,19 @@ func TestHolidayWeekChangeKeepsBookingsAboveALoweredLimit(t *testing.T) {
 	assert.Equal(t, "enrollment.holiday_week_day_limit", code)
 	status, _, _ = w.write(t, limitTuesday, 1, 4500)
 	assert.Equal(t, http.StatusOK, status, "a shorter week lowers the days")
+	period := w.stored(t)
+	week := period["weeks"].([]any)[0].(map[string]any)
+	week["starts_on"], week["ends_on"] = limitTuesday, limitWednesday
+	rec := traegerJSON(t, w.traeger, w.office.token, http.MethodPut, holidayPeriodPath(w.period.ID), period)
+	require.Equal(t, http.StatusOK, rec.Code, "a week moved by a day keeps its two days: %s", rec.Body.String())
+	week["starts_on"] = limitMonday
+	rec = traegerJSON(t, w.traeger, w.office.token, http.MethodPut, holidayPeriodPath(w.period.ID), period)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	_, fields := registrationRefusalOf(t, rec)
+	assert.Equal(t, []string{"weeks.0.starts_on"}, fields, "an earlier start names the start")
+	week["starts_on"], week["ends_on"] = limitMonday, limitTuesday
+	rec = traegerJSON(t, w.traeger, w.office.token, http.MethodPut, holidayPeriodPath(w.period.ID), period)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	status, _, _ = w.write(t, limitWednesday, 1, 4500)
 	assert.Equal(t, http.StatusConflict, status, "the days lost stay lost under the lower bound")
 	assert.Equal(t, limitTuesday, w.storedEnd(t))
