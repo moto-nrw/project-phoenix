@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The register of the return package (Art. 26 Data Act, ADR 0200) describes
+// The register of the return package (Art. 26 Data Act, ADR 0201) describes
 // every table, field, type, nullability and relation a package can carry.
 // It reads the schema the way an export does, under the export's read role,
 // and describes each table with exportTableModel, the function model.json

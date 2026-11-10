@@ -15,7 +15,7 @@ import (
 var updateReturnRegister = flag.Bool("update-return-register", false, "rewrite modules/organizationtenancy/return_register.json from the migrated schema")
 
 // TestReturnRegisterMatchesMigratedSchema keeps the register of the return
-// package (Art. 26 Data Act, ADR 0200) equal to what the code that writes
+// package (Art. 26 Data Act, ADR 0201) equal to what the code that writes
 // model.json reads from the migrated schema. A migration or catalog change
 // that alters the package fails here until the register is regenerated:
 //

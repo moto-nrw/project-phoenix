@@ -51,7 +51,7 @@ var moduleRouteRules = []moduleRouteRule{
 	// contract lives at the Träger, not at a booked school module.
 	{"/public/care-contract-signing", moduleRouteBasis},
 	// The return of a school's or Träger's data on a change of provider
-	// (Data Act, ADR 0200) belongs to every contract, whatever its modules.
+	// (Data Act, ADR 0201) belongs to every contract, whatever its modules.
 	{"/public/data-return", moduleRouteBasis},
 	{"/public/enrollment-legal-documents", settings.ModuleOnlineAnmeldung},
 	{"/public/enrollment-form-legal-documents", settings.ModuleOnlineAnmeldung},

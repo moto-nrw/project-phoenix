@@ -13,7 +13,7 @@ const ExportFormatVersion = 1
 const ReturnRegisterVersion = 1
 
 // ReturnRegisterSource embeds the register of the return package (Art. 26
-// Data Act, ADR 0200): what the package of this build holds, without any
+// Data Act, ADR 0201): what the package of this build holds, without any
 // customer data. It is generated from the catalog and the migrated schema by
 // the same code that writes model.json; a guard test regenerates it, so it
 // cannot drift from the package.

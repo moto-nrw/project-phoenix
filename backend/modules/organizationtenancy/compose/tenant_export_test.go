@@ -313,7 +313,7 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	require.Len(t, metadata, 2, "columns and relationships each have one catalogue-wide metadata read")
 	person := model[slices.IndexFunc(model, func(table organizationtenancy.ExportModelTable) bool { return table.Name == "users.persons" })]
 	require.Contains(t, person.Relationships, organizationtenancy.ExportRelationship{Column: "account_id", TargetTable: "auth.accounts", TargetColumn: "id"})
-	// The register (ADR 0200) describes every table of a school package
+	// The register (ADR 0201) describes every table of a school package
 	// exactly as its model.json does.
 	register := registerModels(t)
 	require.Len(t, model, len(register))

@@ -229,7 +229,7 @@ offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht
    `TestSchoolErasure*`-Verhaltenstests.
 5. Ändert sich eine zurückgegebene Tabelle, Spalte, Beziehung oder ein
    Ausschluss, das Register des Rückgabepakets (Art. 26 Data Act,
-   [ADR 0200](../adr/0200-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md))
+   [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md))
    im selben PR neu erzeugen:
    `../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/organizationtenancy/internal/adapters/tenantexport -run TestReturnRegisterMatchesMigratedSchema -update-return-register`.
    Der Test schlägt sonst fehl. Die API liefert die eingebettete Datei unter

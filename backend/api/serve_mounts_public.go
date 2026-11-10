@@ -53,7 +53,7 @@ func mountPublicRoutes(root chi.Router, metricsToken string, ping func(context.C
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400", nativeUploads.UploadFiles{})
 	})
 
-	// The register of the return package (Art. 26 Data Act, ADR 0200): no
+	// The register of the return package (Art. 26 Data Act, ADR 0201): no
 	// customer data, so customers and target providers read it without a session.
 	root.Mount("/public/data-return", dataReturnHTTP.NewResource().Router())
 

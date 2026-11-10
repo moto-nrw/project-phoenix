@@ -1,5 +1,5 @@
 // Package datareturn serves the return package of a school or Träger to its
-// customer and to a target provider the customer names (Data Act, ADR 0200):
+// customer and to a target provider the customer names (Data Act, ADR 0201):
 // the register that describes the package.
 package datareturn
 

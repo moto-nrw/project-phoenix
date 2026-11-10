@@ -26,7 +26,7 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 }
 
 // exportTableModel describes one included table as model.json and the
-// register (ADR 0200) describe it: its columns without the excluded ones,
+// register (ADR 0201) describe it: its columns without the excluded ones,
 // the columns its owners write in their place, and its relations.
 func exportTableModel(table organizationtenancy.LifecycleTable, schema *exportSchema) (organizationtenancy.ExportModelTable, error) {
 	model := organizationtenancy.ExportModelTable{Name: table.Name}

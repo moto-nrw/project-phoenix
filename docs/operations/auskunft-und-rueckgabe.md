@@ -31,7 +31,7 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
-**Register (Art. 26 Data Act, [ADR 0200](../adr/0200-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md)):**
+**Register (Art. 26 Data Act, [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md)):**
 `GET /public/data-return/register` der API liefert ohne Anmeldung die
 Schemabeschreibung des Pakets: jede Tabelle mit Feldern, Typen, Nullbarkeit,
 Beziehungen und den Paketen, die sie tragen, die ausgeschlossenen Tabellen,
