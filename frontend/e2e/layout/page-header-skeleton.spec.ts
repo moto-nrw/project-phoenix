@@ -1,17 +1,23 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createElement, type ComponentType } from "react";
+import { createElement, type ComponentProps, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { TenantPageHeaderSkeleton } from "../../src/components/ui/page-skeletons";
+import type { TenantPage } from "../../src/components/ui/tenant-page";
 import { compileGlobalsCss, loadSourceModules, render } from "./harness";
 
 // Der Skeleton-Kopf steht während des Ladens dort, wo danach der Kopf von
 // `TenantPage` steht (#6568). Ist er niedriger oder höher, springt die Seite
 // beim Wechsel. Beide Köpfe kommen aus dem Produktionscode.
 
-type Props = Record<string, unknown>;
+// Nur die Typen kommen über `import type`; zur Laufzeit lädt Vite die Module.
+type HeadProps = ComponentProps<typeof TenantPage>;
+type SkeletonProps = NonNullable<
+  ComponentProps<typeof TenantPageHeaderSkeleton>
+>;
 
 let compiledCss = "";
-let LoadedHead: ComponentType<Props>;
-let SkeletonHead: ComponentType<Props>;
+let LoadedHead: ComponentType<HeadProps>;
+let SkeletonHead: ComponentType<SkeletonProps>;
 
 test.beforeAll(async () => {
   compiledCss = await compileGlobalsCss();
@@ -20,8 +26,9 @@ test.beforeAll(async () => {
     const skeletons = await importSource(
       "/src/components/ui/page-skeletons.tsx",
     );
-    LoadedHead = page.TenantPage as ComponentType<Props>;
-    SkeletonHead = skeletons.TenantPageHeaderSkeleton as ComponentType<Props>;
+    LoadedHead = page.TenantPage as ComponentType<HeadProps>;
+    SkeletonHead =
+      skeletons.TenantPageHeaderSkeleton as ComponentType<SkeletonProps>;
   });
 });
 
@@ -36,8 +43,8 @@ const search = { value: "", onChange: () => undefined, placeholder: "Suchen" };
 
 const CASES: readonly {
   name: string;
-  skeleton: Props;
-  page: Props;
+  skeleton: SkeletonProps;
+  page: Omit<HeadProps, "title">;
 }[] = [
   {
     name: "title and status line",

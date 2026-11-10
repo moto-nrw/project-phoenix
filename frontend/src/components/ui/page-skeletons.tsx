@@ -83,7 +83,8 @@ export function TenantPageHeaderSkeleton({
   // Titelzeile in der Höhe der Überschrift (Schriftgrad mal `leading-tight`),
   // eine 20-px-Statuszeile 4 px darunter und Bedienelemente mit 40 px, auf
   // dem Telefon 44 px. Der Layouttest `page-header-skeleton.spec.ts` misst
-  // beide Köpfe nach.
+  // beide Köpfe mit Statuszeile, Info-Knopf und Suchzeile nach; `leading`
+  // hängt an der Größe, die die Seite für Avatar oder Symbol wählt.
   return (
     <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4">
       {back}
