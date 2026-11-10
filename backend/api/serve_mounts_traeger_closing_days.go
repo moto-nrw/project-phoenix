@@ -11,6 +11,8 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	schoolCalendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
@@ -25,7 +27,7 @@ import (
 func mountTraegerClosingDayRoutes(root chi.Router, schools traegercalendar.Schools, organizations HolidayOrganizations,
 	delivery deliveryRuntime.Capability, holidayCalendar enrollmentOwner.HolidaySchoolCalendar,
 ) {
-	closures := enrollmentCompose.NewHolidayClosures(holidayCalendar, holidayClosureTraeger{organizations: organizations}, holidayTraegerMail{delivery: delivery}, nil)
+	closures := enrollmentCompose.NewHolidayClosures(holidayCalendar, newHolidayOfficeTraeger(organizations), holidayTraegerMail{delivery: delivery}, nil)
 	requireManage := common.RequiresPermission(identityaccess.TraegerRightSettingsManage)
 	resource := schoolCalendarHTTP.NewTraegerClosingDayResource(
 		schoolCalendarCompose.NewTraegerClosingDays(schools, owners.NewTraegerClosingDayHolidayNotices(closures)),
@@ -34,21 +36,32 @@ func mountTraegerClosingDayRoutes(root chi.Router, schools traegercalendar.Schoo
 	root.Mount("/traeger/holiday-closures", enrollmentAPI.NewHolidayClosureResource(closures, requireManage).TraegerRouter(ProtectedTraegerRoutes))
 }
 
-// holidayClosureTraeger names the host schools in the closure notice
-// (#6434), read in the caller's Träger transaction like the host-school check
-// of the holiday calendar. That transaction hides the organization itself, so
-// the notice names no Träger, like the mail that a booking moved up after a
-// change in the Büro (#4699).
-type holidayClosureTraeger struct {
+// holidayOfficeTraeger names the Träger and its host schools in a mail the
+// Träger-Büro triggers: the notice of a closing day (#6434) and the mail that
+// a booking moved up the waiting list after a cancellation, a rebooking or a
+// higher capacity (#4699, #6437). It reads both in the caller's Träger
+// transaction: the schools like the host-school check of the holiday
+// calendar, the name through Organisation & Tenancy's read of it, because that
+// transaction reads no row of the organization itself.
+type holidayOfficeTraeger struct {
 	organizations HolidayOrganizations
+	names         organizationtenancy.TraegerNames
 }
 
-func (d holidayClosureTraeger) HolidayTraeger(ctx context.Context, organizationID int64) (enrollmentOwner.HolidayTraeger, error) {
+func newHolidayOfficeTraeger(organizations HolidayOrganizations) holidayOfficeTraeger {
+	return holidayOfficeTraeger{organizations: organizations, names: organizationTenancyCompose.NewTraegerNames()}
+}
+
+func (d holidayOfficeTraeger) HolidayTraeger(ctx context.Context, organizationID int64) (enrollmentOwner.HolidayTraeger, error) {
+	name, err := d.names.TraegerName(ctx, organizationID)
+	if err != nil {
+		return enrollmentOwner.HolidayTraeger{}, err
+	}
 	schools, err := d.organizations.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {
 		return enrollmentOwner.HolidayTraeger{}, err
 	}
-	traeger := enrollmentOwner.HolidayTraeger{Schools: []enrollmentOwner.HolidaySchool{}}
+	traeger := enrollmentOwner.HolidayTraeger{Name: name, Schools: []enrollmentOwner.HolidaySchool{}}
 	for _, school := range schools {
 		if !school.IsDeleted() {
 			traeger.Schools = append(traeger.Schools, enrollmentOwner.HolidaySchool{ID: school.ID, Name: school.Name})

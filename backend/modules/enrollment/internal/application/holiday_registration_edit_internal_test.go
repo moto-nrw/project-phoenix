@@ -84,7 +84,7 @@ func (editCipher) Open(sealed, _ []byte) ([]byte, error)    { return sealed, nil
 
 func newEditReview(store *editReviewStore) *HolidayRegistrationReview {
 	review, _ := NewHolidayRegistrationReview(store, editPeriodStore{}, editFormStore{}, editCipher{},
-		func() calendar.Date { return calendar.NewDate(2026, 11, 3) }, nil, nil)
+		func() calendar.Date { return calendar.NewDate(2026, 11, 3) }, nil, nil, nil)
 	return review
 }
 

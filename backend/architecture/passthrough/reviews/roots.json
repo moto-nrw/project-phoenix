@@ -676,11 +676,6 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0110",
-      "id": "api/holidayClosureTraeger.HolidayTraeger",
-      "reason": "#6434: Consumer-port adapter of Enrollment's Träger directory for the closure notice; it translates Organisation \u0026 Tenancy's undeleted schools of the Träger into the host school names the mail prints, read in the caller's Träger transaction."
-    },
-    {
       "decision": "0090",
       "id": "api/holidayProofUnits.UploadHolidayProof",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
