@@ -15,17 +15,3 @@ func withoutReviewedTenantExportTransaction(current map[string]string) map[strin
 	delete(remaining, tenantExportTransactionSite)
 	return remaining
 }
-
-const returnRegisterTransactionSite = "modules/organizationtenancy/internal/adapters/tenantexport/tenant_export_register.go:*returnRegisterBuilder.BuildReturnRegister:b.db.BeginTx#1"
-const returnRegisterTransactionReason = "ADR 0201: the register of the return package reads only the schema, in one READ ONLY transaction under the NOLOGIN export reader, the way the export reads it; it reads no row."
-
-// ADR 0201 admits the schema read of the return register beside the export
-// snapshot, and nothing else.
-func withoutReviewedReturnRegisterTransaction(current map[string]string) map[string]string {
-	if current[returnRegisterTransactionSite] != returnRegisterTransactionReason {
-		return current
-	}
-	remaining := maps.Clone(current)
-	delete(remaining, returnRegisterTransactionSite)
-	return remaining
-}

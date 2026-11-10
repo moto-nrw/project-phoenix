@@ -22,7 +22,7 @@ var updateReturnRegister = flag.Bool("update-return-register", false, "rewrite m
 //	go test -tags=testhooks ./modules/organizationtenancy/internal/adapters/tenantexport -run TestReturnRegisterMatchesMigratedSchema -update-return-register
 func TestReturnRegisterMatchesMigratedSchema(t *testing.T) {
 	t.Parallel()
-	builder := NewReturnRegisterBuilder(testpkg.SetupTestDB(t), organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint})
+	builder := newReturnRegisterBuilder(testpkg.SetupTestDB(t), organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint})
 	register, err := builder.BuildReturnRegister(t.Context())
 	require.NoError(t, err)
 	got, err := json.MarshalIndent(register, "", "  ")

@@ -1,9 +1,6 @@
 package organizationtenancy
 
-import (
-	"context"
-	"embed"
-)
+import "embed"
 
 // ExportFormatVersion is the format of the return package: its manifest
 // names it, and the register describes it (#3838).
@@ -14,21 +11,15 @@ const ReturnRegisterVersion = 1
 
 // ReturnRegisterSource embeds the register of the return package (Art. 26
 // Data Act, ADR 0201): what the package of this build holds, without any
-// customer data. It is generated from the catalog and the migrated schema by
-// the same code that writes model.json; a guard test regenerates it, so it
-// cannot drift from the package.
+// customer data. The guard test of the export adapter generates it from the
+// catalog and the migrated schema with the code that writes model.json and
+// compares, so it cannot drift from the package.
 //
 //go:embed return_register.json
 var ReturnRegisterSource embed.FS
 
 // ReturnRegisterFile is the name of the embedded register.
 const ReturnRegisterFile = "return_register.json"
-
-// ReturnRegisterBuilder builds the register from the catalog and the schema
-// of a migrated database, the way an export describes its tables.
-type ReturnRegisterBuilder interface {
-	BuildReturnRegister(context.Context) (ReturnRegister, error)
-}
 
 // ReturnRegister describes the structure and format of the return package:
 // the tables with their fields, types, nullability and relations, the

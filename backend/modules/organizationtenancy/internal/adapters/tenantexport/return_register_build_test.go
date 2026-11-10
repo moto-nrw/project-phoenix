@@ -14,15 +14,16 @@ import (
 // every table, field, type, nullability and relation a package can carry.
 // It reads the schema the way an export does, under the export's read role,
 // and describes each table with exportTableModel, the function model.json
-// uses. It never reads a row.
+// uses. It never reads a row. It runs only in the guard test against the
+// migrated schema; production serves the generated, embedded file.
 
 type returnRegisterBuilder struct {
 	db           *bun.DB
 	fingerprints organizationtenancy.ExportFingerprints
 }
 
-// NewReturnRegisterBuilder builds the register from a migrated database.
-func NewReturnRegisterBuilder(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints) organizationtenancy.ReturnRegisterBuilder {
+// newReturnRegisterBuilder builds the register from a migrated database.
+func newReturnRegisterBuilder(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints) *returnRegisterBuilder {
 	return &returnRegisterBuilder{db: db, fingerprints: fingerprints}
 }
 
