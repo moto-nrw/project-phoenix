@@ -131,23 +131,31 @@ func (s *service) syncAttendanceForVisitRevision(
 		}
 		row.Date = calendar.DateFromTime(updated.EntryTime).String()
 		row.CheckInTime = updated.EntryTime
-		if sameVisitBoundary(row.CheckOutTime, previous.ExitTime) {
-			row.CheckOutTime = updated.ExitTime
-			if updated.ExitTime == nil {
-				row.CheckedOutBy = nil
-				row.CheckedOutDeviceID = nil
-				row.CheckOutReason = nil
-			} else if row.CheckedOutBy == nil && row.CheckedOutDeviceID == nil {
-				_, staffID := s.extractContextIDs(ctx)
-				if staffID > 0 {
-					row.CheckedOutBy = &staffID
-				}
-			}
-		}
+		s.reviseMatchingCheckout(ctx, &row, previous.ExitTime, updated.ExitTime)
 		_, err := s.SchoolPresence.ReviseAttendance(ctx, row)
 		return err
 	}
 	return nil
+}
+
+// reviseMatchingCheckout leaves a checkout belonging to another visit intact.
+func (s *service) reviseMatchingCheckout(ctx context.Context, row *studentpresence.Attendance, previousExit, updatedExit *time.Time) {
+	if !sameVisitBoundary(row.CheckOutTime, previousExit) {
+		return
+	}
+	row.CheckOutTime = updatedExit
+	if updatedExit == nil {
+		row.CheckedOutBy = nil
+		row.CheckedOutDeviceID = nil
+		row.CheckOutReason = nil
+		return
+	}
+	if row.CheckedOutBy == nil && row.CheckedOutDeviceID == nil {
+		_, staffID := s.extractContextIDs(ctx)
+		if staffID > 0 {
+			row.CheckedOutBy = &staffID
+		}
+	}
 }
 
 func sameVisitBoundary(a, b *time.Time) bool {
