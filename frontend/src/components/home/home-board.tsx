@@ -14,12 +14,7 @@ import { unavailableApiError } from "~/lib/api-error";
 import {
   HOME_BOARD_COLUMNS,
   computeBoardCells,
-  type HomeBlockDefinition,
-  type HomeBlockKey,
   type HomeBlockPlacement,
-  type HomeBlockSpan,
-  type HomeMoveDirection,
-  type HomeMoveTarget,
 } from "~/lib/home-blocks";
 
 import {
@@ -30,6 +25,7 @@ import {
   cellVariables,
 } from "./home-board-cells";
 import type { HomeBoardEditorProps } from "./home-board-editor";
+import type { HomeBoardProps } from "./home-board-types";
 
 /**
  * Das Brett der Startseite (#2180): die Bausteine an ihren Plätzen.
@@ -51,32 +47,6 @@ import type { HomeBoardEditorProps } from "./home-board-editor";
  * und wird erst geladen, wenn jemand auf „Anpassen“ zeigt oder es öffnet
  * (#6469).
  */
-
-export interface HomeBoardProps {
-  readonly placements: readonly HomeBlockPlacement[];
-  readonly addable: readonly HomeBlockDefinition[];
-  /** Bausteine, die die Schule für alle Personen verlangt. */
-  readonly requiredKeys: ReadonlySet<HomeBlockKey>;
-  readonly editing: boolean;
-  /**
-   * Legt einen Baustein in eine Zelle. `base` ist die Anordnung, von der aus
-   * gerechnet wird: beim Ziehen die vom Anfassen, sonst die aktuelle.
-   */
-  readonly onMove: (
-    key: HomeBlockKey,
-    target: HomeMoveTarget,
-    base: readonly HomeBlockPlacement[],
-  ) => void;
-  /** Rückt einen Baustein ohne Maus in der Reihenfolge (Pfeiltasten). */
-  readonly onMoveBy: (key: HomeBlockKey, direction: HomeMoveDirection) => void;
-  readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
-  readonly onRemove: (key: HomeBlockKey) => void;
-  readonly onAdd: (key: HomeBlockKey) => void;
-  /** Zurück zur Rollenansicht. Steht in der Leiste, weil sie immer sichtbar ist. */
-  readonly onRestoreDefault: () => void;
-  readonly restoring: boolean;
-  readonly children: (placement: HomeBlockPlacement) => ReactNode;
-}
 
 type EditorModule = { default: ComponentType<HomeBoardEditorProps> };
 

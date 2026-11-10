@@ -42,7 +42,7 @@ import {
 import { AT_LEAST_XL, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
-import type { HomeBoardProps } from "./home-board";
+import type { HomeBoardProps } from "./home-board-types";
 import {
   BOARD_GRID_CLASSES,
   CELL_CLASSES,
