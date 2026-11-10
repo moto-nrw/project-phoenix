@@ -126,6 +126,11 @@ func (s *InstanceLifecycleService) lockCancellationState(ctx context.Context, in
 // stay protected. A materialized occurrence first gets a cancelled
 // exception, so the materialization cannot resurrect it.
 func (s *InstanceLifecycleService) DeleteCancelled(ctx context.Context, instanceID int64) error {
+	if !s.hasTx(ctx) {
+		return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			return s.DeleteCancelled(txCtx, instanceID)
+		})
+	}
 	return s.deleteInstance(ctx, instanceID, deletedSlotReason, true)
 }
 
@@ -134,15 +139,9 @@ func (s *InstanceLifecycleService) DeleteCancelled(ctx context.Context, instance
 // same-day slots; a bulk cancellation removes all of them and skips that
 // check.
 func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceID int64, slotReason string, rejectAmbiguous bool) error {
-	instance, err := s.loadForTransition(ctx, instanceID)
+	instance, err := s.deletableInstance(ctx, instanceID)
 	if err != nil {
 		return err
-	}
-	switch instance.Status {
-	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusCancelled:
-		// allowed
-	default:
-		return fmt.Errorf("%w: cannot delete instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
 	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
 		if rejectAmbiguous {
@@ -165,6 +164,41 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 	)
 	s.broadcastPlannedInstanceChanged(ctx, "instance_delete")
 	return nil
+}
+
+// deletableInstance loads a planned or cancelled block, takes its day lock
+// and decides on the block re-read under it (#6499), the protocol Start,
+// Cancel and UpdatePlanned share. A start that committed after the first
+// read made the block history: deleting it would cascade into its session
+// and attendance. A move that committed meanwhile vacated the slot whose
+// exception the delete writes, so the delete is refused with
+// ErrInstanceMoved. A start or move still running holds the day lock, and
+// the delete decides after it committed.
+func (s *InstanceLifecycleService) deletableInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDeletable(instance); err != nil {
+		return nil, err
+	}
+	instance, err = s.lockDayAndReload(ctx, instance, "delete instance")
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDeletable(instance); err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
+func checkDeletable(instance *scheduleModel.ActivityInstance) error {
+	switch instance.Status {
+	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusCancelled:
+		return nil
+	default:
+		return fmt.Errorf("%w: cannot delete instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
+	}
 }
 
 // rejectAmbiguousTemplateDelete refuses the delete when the template has
