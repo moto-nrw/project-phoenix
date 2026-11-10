@@ -43,9 +43,16 @@ func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled b
 func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	return parentportalcompose.New(masterDataServiceDependencies(t, db, editEnabled)), db
+}
+
+// masterDataServiceDependencies is the wiring of buildMasterDataService, for
+// tests that replace a port before composing.
+func masterDataServiceDependencies(t *testing.T, db *bun.DB, editEnabled bool) parentportalcompose.Dependencies {
+	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+	return parentportalcompose.Dependencies{
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -61,6 +68,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
 		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
 		StudentAudit:        owners.NewParentStudentAudit(api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db)))),
 		Settings:            masterDataSettings(editEnabled, false, true),
@@ -70,8 +78,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
 		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-	})
-	return svc, db
+	}
 }
 
 func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
@@ -131,6 +138,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
 		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            masterDataSettings(true, false, false),
 		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
