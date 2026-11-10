@@ -13,9 +13,7 @@ export function emptySearchText(
   ]
     .filter(Boolean)
     .join(" ");
-  return {
-    description,
-    actionLabel:
-      filterLabels.length > 0 ? "Filter zurücksetzen" : "Suche zurücksetzen",
-  };
+  // The kit's one name for the step back to the full list, for a search
+  // and for a filter alike (#5034).
+  return { description, actionLabel: "Filter zurücksetzen" };
 }

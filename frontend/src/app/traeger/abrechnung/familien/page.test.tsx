@@ -67,17 +67,16 @@ describe("TraegerBillingFamiliesPage", () => {
     api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER, BERGER]);
   });
 
-  it("lists every family with its sums and names a payer other than the family", async () => {
+  it("lists every family with who pays and its sums", async () => {
     renderPage();
 
     expect(
       (await screen.findAllByText("Sabine Schneider"))[0],
     ).toBeInTheDocument();
+    expect(screen.getAllByText("Familie zahlt selbst")[0]).toBeInTheDocument();
     expect(
       screen.getAllByText("Kostenübernahme: Jugendamt Enzkreis")[0],
     ).toBeInTheDocument();
-    // The family paying itself is the normal case and gets no badge.
-    expect(screen.queryByText("Familie zahlt selbst")).not.toBeInTheDocument();
     const tab = screen
       .getAllByText("Familien")
       .map((element) => element.closest("a"))
@@ -91,7 +90,7 @@ describe("TraegerBillingFamiliesPage", () => {
     await screen.findAllByText("Tom Berger");
 
     fireEvent.change(
-      screen.getAllByPlaceholderText("Name, E-Mail oder Nummer")[0]!,
+      screen.getAllByPlaceholderText("Name, E-Mail oder Debitorennummer")[0]!,
       { target: { value: "4711" } },
     );
 

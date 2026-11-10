@@ -10,7 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
-  BillingAmountsSection,
+  BillingAmountCards,
   sumAmounts,
 } from "~/components/traeger/billing-amount-cards";
 import {
@@ -54,67 +54,38 @@ const OPEN_FILTER_LABELS: Record<Exclude<OpenFilter, "">, string> = {
   ausgeglichen: "Nichts berechnet",
 };
 
-/**
- * The parts behind the charged sum, only when storno or credit changed it:
- * „120,00 € ausgestellt · 5,00 € gutgeschrieben“.
- */
-function amountBreakdown(family: BillingFamily): string | null {
-  if (family.cancelledCents === 0 && family.creditedCents === 0) return null;
-  return [
-    `${formatEuro(family.issuedCents)} ausgestellt`,
-    family.cancelledCents > 0
-      ? `${formatEuro(family.cancelledCents)} storniert`
-      : null,
-    family.creditedCents > 0
-      ? `${formatEuro(family.creditedCents)} gutgeschrieben`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+function euroCell(cents: number) {
+  return cents === 0 ? (
+    <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
+  ) : (
+    <span className="tabular-nums">{formatEuro(cents)}</span>
+  );
 }
 
-// Four columns, so the charged sum stands next to the family on a laptop and
-// a tablet without scrolling sideways. Who pays shows only where it is not
-// the family itself; the parts of the sum stand under it when they differ.
+// Each sum has its own column, so families can be sorted and compared by
+// every part of their invoices; who pays stands in its own column too.
 const COLUMNS: DataTableColumn<BillingFamily>[] = [
   {
     key: "family",
     header: "Familie",
     sortValue: familySortName,
-    render: (family) => {
-      const otherPayers = family.payments.filter(
-        (payment) => payment.kind !== "family",
-      );
-      return (
-        <span className="flex min-w-0 items-start gap-3">
-          <MotoConceptIcon
-            concept={parentsConcept}
-            size={18}
-            className="mt-0.5 hidden shrink-0 sm:block"
-          />
-          <span className="min-w-0">
-            <span className="block font-medium text-gray-900">
-              {familyName(family)}
-            </span>
-            <span className="block truncate text-sm text-gray-500">
-              {family.recipientEmail}
-            </span>
-            {otherPayers.length > 0 ? (
-              <span className="mt-1 flex max-w-64 min-w-0 flex-wrap gap-1.5">
-                {otherPayers.map((payment) => (
-                  <StatusBadge
-                    key={`${payment.kind}-${payment.costBearerName}`}
-                    label={paymentLabel(payment)}
-                    tone={PAYMENT_TONES[payment.kind]}
-                    truncate
-                  />
-                ))}
-              </span>
-            ) : null}
+    render: (family) => (
+      <span className="flex min-w-0 items-center gap-3">
+        <MotoConceptIcon
+          concept={parentsConcept}
+          size={18}
+          className="hidden shrink-0 sm:block"
+        />
+        <span className="min-w-0">
+          <span className="block font-medium text-gray-900">
+            {familyName(family)}
+          </span>
+          <span className="block truncate text-sm text-gray-500">
+            {family.recipientEmail}
           </span>
         </span>
-      );
-    },
+      </span>
+    ),
     stacked: "title",
   },
   {
@@ -131,44 +102,66 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
       ),
   },
   {
+    key: "payment",
+    header: "Wer zahlt",
+    render: (family) =>
+      family.payments.length > 0 ? (
+        <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
+          {family.payments.map((payment) => (
+            <StatusBadge
+              key={`${payment.kind}-${payment.costBearerName}`}
+              label={paymentLabel(payment)}
+              tone={PAYMENT_TONES[payment.kind]}
+              truncate
+            />
+          ))}
+        </span>
+      ) : (
+        "–"
+      ),
+  },
+  {
     key: "method",
     header: "Zahlungsweg",
     render: (family) => paymentMethodsText(family.paymentMethods) ?? "–",
+  },
+  {
+    key: "issued",
+    header: "Ausgestellt",
+    align: "right",
+    sortValue: (family) => family.issuedCents,
+    render: (family) => euroCell(family.issuedCents),
+    stacked: "hidden",
+  },
+  {
+    key: "cancelled",
+    header: "Storniert",
+    align: "right",
+    sortValue: (family) => family.cancelledCents,
+    render: (family) => euroCell(family.cancelledCents),
+    stacked: "hidden",
+  },
+  {
+    key: "credited",
+    header: "Gutgeschrieben",
+    align: "right",
+    sortValue: (family) => family.creditedCents,
+    render: (family) => euroCell(family.creditedCents),
+    stacked: "hidden",
   },
   {
     key: "open",
     header: "Berechnet",
     align: "right",
     sortValue: (family) => family.openCents,
-    render: (family) => {
-      const breakdown = amountBreakdown(family);
-      return (
-        <span className="block text-right">
-          <span
-            className={`block tabular-nums ${family.openCents > 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
-          >
-            {formatEuro(family.openCents)}
-          </span>
-          {breakdown ? (
-            <span className="block text-sm text-gray-500 tabular-nums">
-              {breakdown}
-            </span>
-          ) : null}
-        </span>
-      );
-    },
-    // On a phone the amount stands beside the name without its column
-    // header, so it names itself; the parts are on the family's page.
-    stackedRender: (family) => (
-      <span className="block text-right">
-        <span
-          className={`block tabular-nums ${family.openCents > 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
-        >
+    render: (family) =>
+      family.openCents > 0 ? (
+        <span className="font-semibold text-gray-900 tabular-nums">
           {formatEuro(family.openCents)}
         </span>
-        <span className="block text-sm text-gray-500">berechnet</span>
-      </span>
-    ),
+      ) : (
+        <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
+      ),
     stacked: "meta",
   },
 ];
@@ -268,7 +261,7 @@ export default function TraegerBillingFamiliesPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Name, E-Mail oder Nummer",
+        placeholder: "Name, E-Mail oder Debitorennummer",
       }}
       filters={filters}
       activeFilters={activeFilters}
@@ -285,15 +278,16 @@ export default function TraegerBillingFamiliesPage() {
     >
       {families ? (
         <>
-          {/* Die Summen folgen Suche und Filter; die Zeile sagt, für wen. */}
+          {/* Die Summen folgen Suche und Filter; die erste Kachel sagt, für
+              wen. Ohne Treffer steht die Meldung direkt unter der Suche. */}
           {filtered && shown.length === 0 ? null : (
-            <BillingAmountsSection
-              title={
-                filtered
-                  ? `Summen der ${shown.length} gefundenen ${shown.length === 1 ? "Familie" : "Familien"}`
-                  : "Summen aller Familien"
-              }
+            <BillingAmountCards
               amounts={sumAmounts(shown)}
+              scope={
+                filtered
+                  ? `Rechnungen der ${shown.length} gefundenen ${shown.length === 1 ? "Familie" : "Familien"}.`
+                  : undefined
+              }
             />
           )}
           <DataTable
@@ -303,6 +297,8 @@ export default function TraegerBillingFamiliesPage() {
             defaultSortKey="family"
             stackedOnMobile
             stackedLayout="row"
+            // On a phone who pays stands under the name.
+            stackedDetailKey="payment"
             onRowClick={(family) =>
               router.push(
                 traegerPath(
