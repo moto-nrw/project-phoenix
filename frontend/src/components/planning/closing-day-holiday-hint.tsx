@@ -8,12 +8,10 @@
  * und informiert sie. Die Zahlen kommen aus den Teilnehmerlisten (ADR 0116).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ClosingDayDraft } from "~/components/planning/closing-day-modal";
-import { Alert } from "~/components/ui/alert";
 import { ApiError } from "~/lib/api-error";
-import { formatDate } from "~/lib/date-helpers";
 import {
   fetchHostedHolidayWeeks,
   type HostedHolidayWeek,
@@ -66,39 +64,4 @@ export function useHostedHolidayWeeks(open: boolean) {
     };
   }, [open]);
   return weeks;
-}
-
-export function ClosingDayHolidayHint({
-  weeks,
-  draft,
-}: Readonly<{
-  weeks: readonly HostedHolidayWeek[];
-  draft: ClosingDayDraft | null;
-}>) {
-  const affected = useMemo(
-    () => hostedWeeksInRange(weeks, draft),
-    [weeks, draft],
-  );
-  if (affected.length === 0) return null;
-  return (
-    <Alert
-      type="warning"
-      title="In dieser Zeit sind Ferienwochen bei Ihnen gebucht"
-      message="Der Träger sieht den Schließtag und informiert die Eltern. Die Buchungen bleiben bestehen."
-      details={
-        <ul className="mt-2 space-y-1 text-sm">
-          {affected.map((week) => (
-            <li key={week.id} className="tabular-nums">
-              {week.periodName}: {formatDate(week.startsOn)} bis{" "}
-              {formatDate(week.endsOn)} ·{" "}
-              {week.participants === 1
-                ? "1 Kind"
-                : `${week.participants} Kinder`}
-            </li>
-          ))}
-        </ul>
-      }
-      announce="off"
-    />
-  );
 }

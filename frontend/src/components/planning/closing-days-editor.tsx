@@ -20,7 +20,7 @@ import { CalendarX, Pencil, Plus, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import {
-  ClosingDayHolidayHint,
+  hostedWeeksInRange,
   useHostedHolidayWeeks,
 } from "~/components/planning/closing-day-holiday-hint";
 import {
@@ -28,6 +28,7 @@ import {
   ClosingDayModal,
 } from "~/components/planning/closing-day-modal";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -50,6 +51,7 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
+import { formatDate } from "~/lib/date-helpers";
 import { closingDaysConcept } from "~/lib/concepts/closingDays";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
@@ -74,6 +76,10 @@ export function ClosingDaysEditor({
   // Ferienwochen, die die Schule in dem Zeitraum ausrichtet (#6434).
   const hostedWeeks = useHostedHolidayWeeks(modalOpen);
   const [draft, setDraft] = useState<ClosingDayDraft | null>(null);
+  const affectedHostedWeeks = useMemo(
+    () => hostedWeeksInRange(hostedWeeks, draft),
+    [hostedWeeks, draft],
+  );
   const [editing, setEditing] = useState<ClosingDay | null>(null);
   const [deleting, setDeleting] = useState<ClosingDay | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -346,7 +352,27 @@ export function ClosingDaysEditor({
         initial={editing}
         onDraftChange={setDraft}
         consequences={
-          <ClosingDayHolidayHint weeks={hostedWeeks} draft={draft} />
+          affectedHostedWeeks.length > 0 ? (
+            <Alert
+              type="warning"
+              title="In dieser Zeit sind Ferienwochen bei Ihnen gebucht"
+              message="Der Träger sieht den Schließtag und informiert die Eltern. Die Buchungen bleiben bestehen."
+              details={
+                <ul className="mt-2 space-y-1 text-sm">
+                  {affectedHostedWeeks.map((week) => (
+                    <li key={week.id} className="tabular-nums">
+                      {week.periodName}: {formatDate(week.startsOn)} bis{" "}
+                      {formatDate(week.endsOn)} ·{" "}
+                      {week.participants === 1
+                        ? "1 Kind"
+                        : `${week.participants} Kinder`}
+                    </li>
+                  ))}
+                </ul>
+              }
+              announce="off"
+            />
+          ) : null
         }
         onOfferCancel={
           canManageSchedules

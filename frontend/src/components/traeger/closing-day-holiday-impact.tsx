@@ -9,7 +9,7 @@
  * bekommen die Einzelheiten per E-Mail.
  */
 
-import { CalendarX, CircleCheck, Mail } from "lucide-react";
+import { CalendarX, Mail } from "lucide-react";
 
 import { formatDayWithWeekday } from "~/components/traeger/closing-day-format";
 import { Alert } from "~/components/ui/alert";
@@ -145,15 +145,12 @@ export function ClosingDayHolidayImpact({
         </InsetPanel>
       ) : null}
       {impact && impact.weeks.length === 0 ? (
-        <InsetPanel padding="sm" className="flex items-center gap-2 text-sm">
-          <CircleCheck
-            className="text-moto-green-strong h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-          <span className="text-gray-700">
-            Keine gebuchte Ferienbetreuung betroffen.
-          </span>
-        </InsetPanel>
+        <Alert
+          type="success"
+          size="compact"
+          message="Keine gebuchte Ferienbetreuung betroffen."
+          announce="off"
+        />
       ) : null}
       {impact && impact.weeks.length > 0 ? (
         <div className={loading ? "space-y-3 opacity-60" : "space-y-3"}>
