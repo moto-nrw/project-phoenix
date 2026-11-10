@@ -23,7 +23,8 @@ var seedDatevValues = []struct {
 // released monthly run of month once (#6433), so the export page shows a
 // run whose bookings went to DATEV next to one with new bookings, and the
 // protocol a DATEV file. Another seed of the same Träger may have taken the
-// bookings a moment earlier.
+// bookings a moment earlier. Legacy runs may lack debtor numbers in their
+// immutable invoice snapshots; skip this demonstration download in that case.
 func seedDatevFile(client *Client, auth AuthRef, month calendar.Date) error {
 	for _, setting := range seedDatevValues {
 		if _, err := client.PutWithAuth(auth, "/traeger/settings/values/"+setting.key, map[string]any{"value": setting.value}); err != nil {
@@ -36,6 +37,10 @@ func seedDatevFile(client *Client, auth AuthRef, month calendar.Date) error {
 	}
 	file, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/finance-exports/runs/care-runs/%d/datev", runID))
 	if seedConflictCode(err, seedDatevNoNewBookings) || seedConflictCode(err, seedDatevBookingsTaken) {
+		return nil
+	}
+	if seedConflictCode(err, seedDatevBookingsInvalid) {
+		fmt.Println("  Exporte: DATEV demo download skipped: existing invoice snapshots are not DATEV-ready")
 		return nil
 	}
 	if err != nil {
@@ -74,10 +79,12 @@ func seedReleasedCareRun(client *Client, auth AuthRef, month calendar.Date) (int
 	return 0, nil
 }
 
-// The registered codes of a DATEV download another seed of the Träger made.
+// The registered conflicts that make the demonstration download unnecessary
+// or unavailable for existing invoice snapshots.
 const (
-	seedDatevNoNewBookings = "parent_billing.datev_no_new_bookings"
-	seedDatevBookingsTaken = "parent_billing.datev_bookings_taken"
+	seedDatevNoNewBookings   = "parent_billing.datev_no_new_bookings"
+	seedDatevBookingsTaken   = "parent_billing.datev_bookings_taken"
+	seedDatevBookingsInvalid = "parent_billing.datev_bookings_invalid"
 )
 
 // seedDebtorNumber is the invented debtor number of the i-th family of a

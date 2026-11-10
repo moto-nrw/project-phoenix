@@ -146,15 +146,15 @@ export function DatevRefusedNotice({
   const debtor = problems.some((problem) => problem.field === "debtor_number");
   const correction =
     runKind === "holiday"
-      ? "Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus."
-      : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus.";
+      ? "Bei Rechnungen ohne Gutschrift: Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Danach ist der Lauf wieder frei. Hat die Rechnung schon eine Gutschrift, ist kein Storno möglich. Laden Sie dann die Sollstellung für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt."
+      : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.";
   return (
     <Alert
       type="warning"
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
         debtor
-          ? `DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: ${correction} Danach ist der Lauf wieder frei.`
+          ? `DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: ${correction}`
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
       }
       details={<BulletList lines={datevProblemLines(problems)} />}

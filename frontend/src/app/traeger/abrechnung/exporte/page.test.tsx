@@ -319,10 +319,10 @@ it.each(["care", "holiday"] as const)(
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     const correction =
       runKind === "holiday"
-        ? "Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus."
-        : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus.";
+        ? "Bei Rechnungen ohne Gutschrift: Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Danach ist der Lauf wieder frei. Hat die Rechnung schon eine Gutschrift, ist kein Storno möglich. Laden Sie dann die Sollstellung für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt."
+        : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.";
     expect(screen.getByText(/So geht es weiter:/)).toHaveTextContent(
-      `${correction} Danach ist der Lauf wieder frei.`,
+      correction,
     );
     expect(files.downloadBlob).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Hinweis schließen" }));
