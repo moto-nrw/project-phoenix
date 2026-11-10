@@ -132,11 +132,11 @@ export function HolidayFormEditor({
     JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []) ||
     address !== form.addressRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
-  // On a phone or tablet a question folds to its head, so the long form
-  // stays walkable; on a wide screen every question starts open. A new
-  // question opens, and so does one the check marks.
+  // On a phone a question folds to its head, so the long form stays
+  // walkable; from tablet width on every question starts open, all fields
+  // in view. A new question opens, and so does one the check marks.
   const isPhone = useMediaQuery("(max-width: 639px)");
-  const foldByDefault = useMediaQuery("(max-width: 1279px)");
+  const foldByDefault = isPhone;
   const [foldChoice, setFoldChoice] = useState<ReadonlyMap<string, boolean>>(
     () => new Map(),
   );
