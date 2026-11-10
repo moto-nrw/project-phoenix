@@ -70,7 +70,10 @@ const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
  * steps clear 4.5:1 on white; amber.base (1.9:1) is never a text color
  * (#5576, Entscheidung 3), so Überdeckung takes amber.strong (7.1:1).
  */
-const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
+export const COVERAGE_DELTA_TEXT_COLOR: Record<
+  Exclude<CoverageTone, "neutral">,
+  string
+> = {
   under: MOTO_COLOR_PALETTE.red.base,
   over: MOTO_COLOR_PALETTE.amber.strong,
 };
@@ -117,7 +120,8 @@ export function CoverageIndicator({
 
   let numberContent: React.ReactNode = null;
   if (label !== undefined) {
-    const toneColor = tone === "neutral" ? undefined : TONE_TEXT_COLOR[tone];
+    const toneColor =
+      tone === "neutral" ? undefined : COVERAGE_DELTA_TEXT_COLOR[tone];
     numberContent = (
       <span
         className={`${numberSizeClass} tabular-nums ${numberColorClass}`}
