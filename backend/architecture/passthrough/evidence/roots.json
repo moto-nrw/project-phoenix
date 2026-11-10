@@ -975,6 +975,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m holidayWishModes) HolidayWishMode(ctx context.Context, organizationID int64) (string, error) {\n\tif m.settings == nil {\n\t\treturn \"\", errors.New(\"holiday registration: the Träger settings are not configured\")\n\t}\n\ttexts, err := m.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyHolidayRegistrationWishMode})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyHolidayRegistrationWishMode], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayWishModes.HolidayWishMode",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (w *iotStatusWriter) Write(body []byte) (int, error) {\n\tif !w.wroteHeader {\n\t\tw.WriteHeader(http.StatusOK)\n\t}\n\treturn w.ResponseWriter.Write(body)\n}",
       "form": "unclassified-evidence",
       "id": "api/iotStatusWriter.Write",
@@ -1279,13 +1286,6 @@
       "evidence": "func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingPaymentText], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.PaymentText",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {\n\tlink, err := l.registrations.ResolveHolidayRegistrationLink(ctx, token)\n\tif errors.Is(err, enrollmentOwner.ErrHolidayRegistrationNotFound) {\n\t\treturn 0, nil, parentAPI.ErrHolidayRegistrationLinkNotFound\n\t}\n\tif err != nil {\n\t\treturn 0, nil, err\n\t}\n\tschoolIDs := make([]int64, 0, len(link.Traeger.Schools))\n\tfor _, school := range link.Traeger.Schools {\n\t\tschoolIDs = append(schoolIDs, school.ID)\n\t}\n\treturn link.OrganizationID, schoolIDs, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentHolidayRegistrationLinks.ResolveHolidayRegistrationSchools",
       "owner": "roots"
     },
     {
@@ -6379,7 +6379,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a parentChildDataAccess) RecordHolidayRegistrationPrefill(ctx context.Context, access parentportal.ChildDataAccess) error {\n\tstudentID := access.StudentID\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: \"guardian\", ResourceType: auditModels.ResourceTypeHolidayPrefill, StudentID: \u0026studentID, RangeStart: access.AccessedAt, RangeEnd: access.AccessedAt, AccessedAt: access.AccessedAt, Metadata: map[string]any{\"organization_id\": access.OrganizationID}})\n}",
+      "evidence": "func (a parentChildDataAccess) RecordHolidayRegistrationPrefill(ctx context.Context, access parentportal.ChildDataAccess) error {\n\tstudentID := access.StudentID\n\tmetadata := map[string]any{\"organization_id\": access.OrganizationID}\n\tif access.HolidayWish {\n\t\tmetadata[\"holiday_wish\"] = true\n\t}\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: \"guardian\", ResourceType: auditModels.ResourceTypeHolidayPrefill, StudentID: \u0026studentID, RangeStart: access.AccessedAt, RangeEnd: access.AccessedAt, AccessedAt: access.AccessedAt, Metadata: metadata})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentChildDataAccess.RecordHolidayRegistrationPrefill",
       "owner": "roots"
@@ -6508,6 +6508,13 @@
       "evidence": "func (a parentGuardianAccess) RevokeAccess(ctx context.Context, revocation parentportal.GuardianAccessRevocation) error {\n\treturn parentGuardianAccessError(a.access.RevokeAccess(ctx, identityaccess.ParentRevokeAccessRequest(revocation.StudentID, revocation.GuardianProfileID, revocation.ActorAccountID)))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentGuardianAccess.RevokeAccess",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w parentHolidayWishes) HolidayWishStatement(ctx context.Context, claim parentportal.HolidayWishClaim) (string, string, error) {\n\tstatement, err := w.proofs.HolidayWishProof(ctx, enrollmentOwner.HolidayWishClaim(claim))\n\treturn statement.Wish, statement.Proof, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentHolidayWishes.HolidayWishStatement",
       "owner": "roots"
     },
     {

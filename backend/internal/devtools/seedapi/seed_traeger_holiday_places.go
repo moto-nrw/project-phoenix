@@ -61,7 +61,7 @@ func seedHolidayWaitlist(rt *Runtime, auth AuthRef, token string, periodID int64
 		return fmt.Errorf("register a child for the full holiday week: %w", err)
 	}
 	fmt.Println("  Ferienanmeldung: one more child on the waiting list of the full week")
-	return nil
+	return seedHolidayWishes(rt, auth, token, periodID, late)
 }
 
 func seedFirstBookedWeek(registration map[string]any) (int64, bool) {

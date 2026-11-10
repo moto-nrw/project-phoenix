@@ -408,7 +408,7 @@ func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides 
 	}
 	return &enrollmentNative.RequestChild{
 		RequestID: requestID, FirstName: textnorm.Name(child.FirstName), LastName: textnorm.Name(child.LastName),
-		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass,
+		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, HolidayCareWish: child.HolidayCareWish,
 		CustomData: formValues(child.CustomData), Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
 	}
 }

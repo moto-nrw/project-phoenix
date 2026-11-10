@@ -204,6 +204,7 @@ describe("traeger-holiday-registrations-api", () => {
         debtorNumber: null,
         fields: [],
         siblings: [],
+        wish: "",
       },
       {
         action: "confirm",
@@ -215,6 +216,7 @@ describe("traeger-holiday-registrations-api", () => {
         debtorNumber: null,
         fields: [],
         siblings: [],
+        wish: "",
       },
     ]);
   });

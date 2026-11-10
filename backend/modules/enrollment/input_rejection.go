@@ -97,12 +97,15 @@ const (
 	CodeGuardianNameRequired  = "enrollment.guardian_name_required"
 	CodeGuardianEmailRequired = "enrollment.guardian_email_required"
 	CodeGuardianPhoneRequired = "enrollment.guardian_phone_required"
-	CodeInvalidEmail          = "enrollment.invalid_email"
-	CodeInvalidPhone          = "enrollment.invalid_phone"
-	CodeFieldRequired         = "enrollment.field_required"
-	CodeCompanionNoteRequired = "enrollment.companion_note_required"
-	CodePickupTimeNotAllowed  = "enrollment.pickup_time_not_allowed"
-	CodeDepartureModeLimit    = "enrollment.departure_mode_limit"
+	// CodeHolidayCareWishRequired refuses a child without an answer to the
+	// holiday care question of a form that asks it (#4703).
+	CodeHolidayCareWishRequired = "enrollment.holiday_care_wish_required"
+	CodeInvalidEmail            = "enrollment.invalid_email"
+	CodeInvalidPhone            = "enrollment.invalid_phone"
+	CodeFieldRequired           = "enrollment.field_required"
+	CodeCompanionNoteRequired   = "enrollment.companion_note_required"
+	CodePickupTimeNotAllowed    = "enrollment.pickup_time_not_allowed"
+	CodeDepartureModeLimit      = "enrollment.departure_mode_limit"
 
 	CodeMessageRequired               = "enrollment.message_required"
 	CodeChangeRequestNoteRequired     = "enrollment.change_request_note_required"

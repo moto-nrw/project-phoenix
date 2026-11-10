@@ -27,6 +27,8 @@ export interface ChildDraft {
   target_grade_level: string;
   /** Concrete future class (#1833); "" = none chosen or "Klasse offen". */
   target_school_class: string;
+  /** Holiday care wanted (#4703); undefined until the parent answers. */
+  holiday_care_wish?: boolean;
   offering_ids: Set<string>;
   /** Picked days of parent_choice offerings, keyed by offering id. */
   offering_days: Record<string, Set<string>>;

@@ -46,7 +46,9 @@
     "schoolClass": "Sınıf",
     "schoolClassOpen": "Sınıf henüz belli değil",
     "choose": "Lütfen seçin",
-    "grade": "{grade}. sınıf"
+    "grade": "{grade}. sınıf",
+    "holidayCareWish": "Çocuğun tatilde bakıma ihtiyacı var mı?",
+    "holidayCareWishHint": "Kurum tatil bakımını bununla planlar. Bir tatil haftası doluysa, tatil bakımına ihtiyacı olan çocuklar öncelik alabilir."
   },
   "errors": {
     "firstName": "Lütfen adı girin.",

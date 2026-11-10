@@ -192,6 +192,10 @@ func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, 
 	existing.DateOfBirth = next.DateOfBirth
 	existing.TargetGradeLevel = next.TargetGradeLevel
 	existing.TargetSchoolClass = next.TargetSchoolClass
+	// A form that no longer asks keeps the answer given before (#4703).
+	if next.HolidayCareWish != nil {
+		existing.HolidayCareWish = next.HolidayCareWish
+	}
 	existing.CustomData = formValues(next.CustomData)
 	existing.SortOrder = i
 	if err := s.deps.Children.UpdateChildData(ctx, existing); err != nil {

@@ -265,7 +265,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // downloads (+5) of modules/parentbilling/compose.
 // ADR 0191: the constructor of the stored originals of the Jahresbescheide
 // of modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13237
+const moduleComposeBudgetTotal = 13235
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -314,7 +314,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0153: the contract applications constructor (+5).
 	// ADR 0154: the booked children constructor (+6).
 	// ADR 0193: the export opener of the holiday health information (+5).
-	"modules/enrollment/compose":                   606,
+	// #4703 added the holiday care wish constructor and shortened comments
+	// of the package by more than it added (-2).
+	"modules/enrollment/compose":                   604,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

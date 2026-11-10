@@ -192,8 +192,8 @@ func (f *fakeParentService) SharedDocumentFile(_ context.Context, accountID, org
 	return f.documentFile, f.documentsErr
 }
 
-func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
-	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
+func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID int64, scope parentService.HolidayRegistrationScope) (*parentService.HolidayRegistrationFamily, error) {
+	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, scope.OrganizationID, scope.SchoolIDs
 	if f.holidayFamily != nil {
 		return f.holidayFamily, nil
 	}

@@ -1407,6 +1407,7 @@ function ChangeRequestsPanel({
         custom_data: t("diff.child.custom_data"),
         date_of_birth: t("diff.child.date_of_birth"),
         first_name: t("diff.child.first_name"),
+        holiday_care_wish: t("diff.child.holiday_care_wish"),
         last_name: t("diff.child.last_name"),
         offering_days: t("diff.child.offering_days"),
         offering_ids: t("diff.child.offering_ids"),

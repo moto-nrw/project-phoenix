@@ -469,6 +469,8 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie eine Telefonnummer ein.",
       "enrollment.holiday_booking_unit_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
+      "enrollment.holiday_care_wish_required":
+        "Bitte wählen Sie, ob Ihr Kind in den Ferien Betreuung braucht.",
       "enrollment.holiday_child_day_limit":
         "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Gewählt sind {days}. Bitte wählen Sie weniger Tage.",
       "enrollment.holiday_form_field_not_allowed":
@@ -509,6 +511,8 @@ export const ERROR_CATALOG = {
         "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
         "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
+      "enrollment.holiday_wish_missing":
+        "Für diese Ferien können Sie nur Kinder anmelden, für die Sie in der OGS-Anmeldung Ferienbetreuung gewählt haben. Bei Fragen hilft Ihnen der Träger.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.invalid_email":
@@ -2180,6 +2184,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Please enter a phone number.",
       "enrollment.holiday_booking_unit_booked":
         "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
+      "enrollment.holiday_care_wish_required":
+        "Please choose whether your child needs care during the holidays.",
       "enrollment.holiday_child_day_limit":
         "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
       "enrollment.holiday_guest_group_invalid":
@@ -2215,6 +2221,8 @@ export const ERROR_CATALOG = {
         "This week is not part of this holiday period. Please reload the page.",
       "enrollment.holiday_weeks_booked_together":
         "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
+      "enrollment.holiday_wish_missing":
+        "For these holidays you can only register children for whom you chose holiday care in the OGS registration. Please contact the provider if you have questions.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.invalid_email": "Please enter a valid email address.",
@@ -2809,6 +2817,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
       "enrollment.holiday_booking_unit_booked":
         "На эту неделю уже есть заявки. Поэтому способ бронирования, а для отдельных дней и даты недели, остаются без изменений.",
+      "enrollment.holiday_care_wish_required":
+        "Пожалуйста, укажите, нужен ли вашему ребёнку присмотр во время каникул.",
       "enrollment.holiday_child_day_limit":
         "В эти каникулы ребёнок может прийти не больше {limit} дней. Выбрано: {days}. Выберите меньше дней.",
       "enrollment.holiday_registration_closed":
@@ -2821,6 +2831,8 @@ export const ERROR_CATALOG = {
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
       "enrollment.holiday_week_no_care_day":
         "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
+      "enrollment.holiday_wish_missing":
+        "На эти каникулы можно записать только детей, для которых при записи в OGS вы выбрали присмотр на каникулах. По вопросам обращайтесь к организатору.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
@@ -3355,6 +3367,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani një numër telefoni.",
       "enrollment.holiday_booking_unit_booked":
         "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
+      "enrollment.holiday_care_wish_required":
+        "Ju lutemi zgjidhni nëse fëmija juaj ka nevojë për kujdes gjatë pushimeve.",
       "enrollment.holiday_child_day_limit":
         "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Janë zgjedhur {days}. Ju lutemi zgjidhni më pak ditë.",
       "enrollment.holiday_registration_closed":
@@ -3367,6 +3381,8 @@ export const ERROR_CATALOG = {
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
       "enrollment.holiday_week_no_care_day":
         "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
+      "enrollment.holiday_wish_missing":
+        "Për këto pushime mund të regjistroni vetëm fëmijët për të cilët keni zgjedhur kujdes gjatë pushimeve në regjistrimin e OGS. Për pyetje kontaktoni organizatorin.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
       "enrollment.invalid_phone":
@@ -3895,6 +3911,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
       "enrollment.holiday_booking_unit_booked":
         "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
+      "enrollment.holiday_care_wish_required":
+        "Proszę wybrać, czy Państwa dziecko potrzebuje opieki w czasie ferii.",
       "enrollment.holiday_child_day_limit":
         "W te ferie dziecko może przyjść najwyżej {limit} dni. Wybrano {days}. Wybierz mniej dni.",
       "enrollment.holiday_registration_closed":
@@ -3906,6 +3924,8 @@ export const ERROR_CATALOG = {
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
       "enrollment.holiday_week_no_care_day":
         "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
+      "enrollment.holiday_wish_missing":
+        "Na te ferie można zapisać tylko dzieci, dla których przy zapisie do OGS wybrano opiekę w czasie ferii. W razie pytań prosimy o kontakt z organizatorem.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
@@ -4437,6 +4457,8 @@ export const ERROR_CATALOG = {
         "Lütfen bir telefon numarası girin.",
       "enrollment.holiday_booking_unit_booked":
         "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
+      "enrollment.holiday_care_wish_required":
+        "Lütfen çocuğunuzun tatilde bakıma ihtiyacı olup olmadığını seçin.",
       "enrollment.holiday_child_day_limit":
         "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
       "enrollment.holiday_registration_closed":
@@ -4449,6 +4471,8 @@ export const ERROR_CATALOG = {
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
       "enrollment.holiday_week_no_care_day":
         "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
+      "enrollment.holiday_wish_missing":
+        "Bu tatil için yalnızca OGS kaydında tatil bakımı seçtiğiniz çocukları kaydedebilirsiniz. Sorularınız için kurumla iletişime geçin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
@@ -4972,6 +4996,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
       "enrollment.holiday_booking_unit_booked":
         "На цей тиждень уже є заявки. Тому спосіб бронювання, а для окремих днів і дати тижня, залишаються без змін.",
+      "enrollment.holiday_care_wish_required":
+        "Будь ласка, вкажіть, чи потрібен вашій дитині догляд під час канікул.",
       "enrollment.holiday_child_day_limit":
         "У ці канікули дитина може прийти не більше {limit} днів. Обрано: {days}. Оберіть менше днів.",
       "enrollment.holiday_registration_closed":
@@ -4984,6 +5010,8 @@ export const ERROR_CATALOG = {
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
       "enrollment.holiday_week_no_care_day":
         "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
+      "enrollment.holiday_wish_missing":
+        "На ці канікули можна записати лише дітей, для яких під час запису до OGS ви обрали догляд на канікулах. З питаннями звертайтеся до організатора.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":

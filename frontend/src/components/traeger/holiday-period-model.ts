@@ -45,6 +45,7 @@ export interface HolidayPeriodDraft {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  readonly holidayWishRule: boolean;
   /** Care days per child as typed; empty is no bound (#4701). */
   readonly maxDaysPerChild: string;
   readonly weeks: readonly WeekDraft[];
@@ -99,6 +100,7 @@ export function emptyHolidayPeriod(): HolidayPeriodDraft {
     registrationClosesOn: "",
     binding: true,
     notes: "",
+    holidayWishRule: false,
     maxDaysPerChild: "",
     weeks: [emptyWeek()],
   };
@@ -150,6 +152,7 @@ export function draftFromPeriod(period: HolidayPeriod): HolidayPeriodDraft {
     registrationClosesOn: period.registrationClosesOn,
     binding: period.binding,
     notes: period.notes,
+    holidayWishRule: period.holidayWishRule,
     maxDaysPerChild:
       period.maxDaysPerChild == null ? "" : String(period.maxDaysPerChild),
     weeks: period.weeks.map(weekDraft),
@@ -164,6 +167,7 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
     registrationClosesOn: draft.registrationClosesOn,
     binding: draft.binding,
     notes: draft.notes.trim(),
+    holidayWishRule: draft.holidayWishRule,
     maxDaysPerChild: draft.maxDaysPerChild.trim()
       ? Number(draft.maxDaysPerChild.trim())
       : null,

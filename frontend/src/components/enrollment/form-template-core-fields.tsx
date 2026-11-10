@@ -22,6 +22,12 @@ export interface CoreField {
   readonly requirementKey?: CoreRequirementKey;
   readonly requirementLabel?: string;
   readonly requirementHint?: string;
+  /**
+   * "ask": the switch decides whether the form asks the field at all; an
+   * asked field is always required (#4703). Default: the switch only makes
+   * an always-shown field required.
+   */
+  readonly requirementMode?: "ask";
 }
 
 export const CORE_FIELDS: ReadonlyArray<CoreField> = [
@@ -92,6 +98,19 @@ export const CORE_FIELDS: ReadonlyArray<CoreField> = [
     required: true,
     group: "child",
   },
+  {
+    key: "holiday_care_wish",
+    label: "Ferienwunsch (Kind)",
+    previewLabel: "Braucht das Kind in den Ferien Betreuung?",
+    type: "boolean",
+    required: false,
+    group: "child",
+    requirementKey: "holiday_care_wish",
+    requirementMode: "ask",
+    requirementLabel: "Ferienwunsch abfragen",
+    requirementHint:
+      "Eltern wählen für jedes Kind Ja oder Nein. Der Träger nutzt das für die Ferienanmeldung.",
+  },
 ];
 
 export function CoreFieldsSection({
@@ -119,7 +138,7 @@ export function CoreFieldsSection({
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             Fest gesetzte Felder bleiben immer Pflicht. Optionale Basisfelder
-            können Sie hier verpflichtend machen.
+            können Sie hier verpflichtend machen oder einschalten.
           </p>
         </div>
         <span className="w-fit">
@@ -204,17 +223,13 @@ function CoreFieldRow({
           </span>
         </div>
         <p className="mt-0.5 text-xs leading-5 text-gray-500">
-          {field.requirementKey
-            ? required
-              ? (field.requirementHint ?? "Diese Angabe ist verpflichtend.")
-              : "Kann verpflichtend gemacht werden."
-            : "Immer erforderlich und deshalb nicht änderbar."}
+          {coreFieldHint(field, required)}
         </p>
       </div>
       {field.requirementKey ? (
         <div className="flex items-center justify-between gap-3 sm:justify-end">
           <span className="text-xs font-medium text-gray-600">
-            {required ? "Pflicht" : "Optional"}
+            {coreFieldState(field, required)}
           </span>
           <Switch
             checked={required}
@@ -232,4 +247,21 @@ function CoreFieldRow({
       )}
     </li>
   );
+}
+
+function coreFieldHint(field: CoreField, required: boolean): string {
+  if (!field.requirementKey) {
+    return "Immer erforderlich und deshalb nicht änderbar.";
+  }
+  if (required)
+    return field.requirementHint ?? "Diese Angabe ist verpflichtend.";
+  return field.requirementMode === "ask"
+    ? "Wird nicht abgefragt. Sie können die Frage einschalten."
+    : "Kann verpflichtend gemacht werden.";
+}
+
+function coreFieldState(field: CoreField, required: boolean): string {
+  if (field.requirementMode === "ask")
+    return required ? "Wird abgefragt" : "Aus";
+  return required ? "Pflicht" : "Optional";
 }

@@ -55,6 +55,7 @@ type SubmitChild struct {
 	DateOfBirth              calendar.Date
 	TargetGradeLevel         *int16
 	TargetSchoolClass        *string
+	HolidayCareWish          *bool
 	CustomData               map[string]any
 	OfferingIDs              []int64
 	OfferingDays             []SubmitOfferingDays
@@ -78,7 +79,7 @@ func decodeSubmitRequest(in enrollment.SubmitRequest) SubmitRequest {
 	for _, child := range in.Children {
 		out.Children = append(out.Children, SubmitChild{
 			ID: child.ID, FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
-			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, CustomData: submittedMap(child.CustomData),
+			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, HolidayCareWish: child.HolidayCareWish, CustomData: submittedMap(child.CustomData),
 			OfferingIDs: child.OfferingIDs, OfferingDays: child.OfferingDays, ExcludedAutoAddTargetIDs: child.ExcludedAutoAddTargetIDs,
 		})
 	}

@@ -75,6 +75,11 @@ type HolidayRegistrationLink struct {
 	OrganizationID int64
 	PeriodID       int64
 	Traeger        HolidayTraeger
+	// HolidayWishRule says that the period takes the holiday care wish into
+	// account (#4703); FirstDay is the first day of its first week, the day
+	// whose school year the wish counts for. Zero without weeks.
+	HolidayWishRule bool
+	FirstDay        calendar.Date
 }
 
 // HolidayRegistrationOffer is the published period behind a link. Open
@@ -98,6 +103,10 @@ type HolidayRegistrationOffer struct {
 	// ConsentTexts are the German texts of the fixed declarations the form
 	// shows, in HolidayConsentVersionCurrent (#5626).
 	ConsentTexts HolidayConsentTexts
+	// HolidayWishMode is HolidayWishModeOff, or the Träger's
+	// holiday_registration.wish_mode when the period takes the holiday care
+	// wish into account (#4703).
+	HolidayWishMode string
 }
 
 // HolidayGuardianInput holds the registering or optional second guardian’s contact details.
@@ -141,6 +150,14 @@ type HolidayChildInput struct {
 	// CustomData are the answers to the questions of the form per child
 	// (#5198), by field key.
 	CustomData HolidayAnswers
+	// WishProof is the sealed statement of the child's holiday care wish
+	// the prefill gave a parent with an account (#4703); empty otherwise.
+	WishProof string
+	// HolidayWish and HolidayWishSource are what the registration knows of
+	// the wish. Only the registration sets them, from a WishProof it
+	// opened; whatever a caller puts in is dropped.
+	HolidayWish       string
+	HolidayWishSource string
 }
 
 // HolidayContactInput is an emergency contact or a person allowed to

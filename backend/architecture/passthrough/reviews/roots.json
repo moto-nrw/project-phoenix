@@ -696,6 +696,11 @@
       "reason": "ADR 0110 (#4661): Consumer-port adapter of Enrollment's Träger mail outbox; it translates the receipt of a public holiday registration into a Delivery e-mail intent of the Träger, enqueued in the caller's Träger transaction."
     },
     {
+      "decision": "0110",
+      "id": "api/holidayWishModes.HolidayWishMode",
+      "reason": "ADR 0110 (#4703): Consumer-port adapter of Enrollment's holiday wish mode port; it reads the Träger's holiday_registration.wish_mode through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
+    },
+    {
       "decision": "0090",
       "id": "api/iotStatusWriter.Write",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -914,11 +919,6 @@
       "decision": "0121",
       "id": "api/parentBillingSettings.PaymentText",
       "reason": "ADR 0121 addendum (#5622): Consumer-port adapter of the Elternabrechnung's settings port; it reads the payment text of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
-    },
-    {
-      "decision": "0113",
-      "id": "api/parentHolidayRegistrationLinks.ResolveHolidayRegistrationSchools",
-      "reason": "ADR 0113 (#4662): Consumer-port adapter of the parents portal's holiday registration link port; it translates Enrollment's resolved link into the Träger and its school IDs and maps the unknown link onto the portal's sentinel."
     },
     {
       "decision": "0090",
@@ -4649,6 +4649,11 @@
       "decision": "0090",
       "id": "roots/owners/parentGuardianAccess.RevokeAccess",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0113",
+      "id": "roots/owners/parentHolidayWishes.HolidayWishStatement",
+      "reason": "ADR 0113 addendum (#4703): Consumer-port adapter of the parents portal's holiday wish statement port; it translates the workflow's claim into Enrollment's claim and the sealed statement into the wish and its proof, in the caller's tenant transaction."
     },
     {
       "decision": "0171",

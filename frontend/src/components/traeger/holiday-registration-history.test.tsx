@@ -30,6 +30,7 @@ it("distinguishes a change of days within the same week and time model", () => {
             ],
             siblings: [],
             fields: [],
+            wish: "",
           },
         ],
       }}

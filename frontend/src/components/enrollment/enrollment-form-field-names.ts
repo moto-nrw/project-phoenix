@@ -8,7 +8,8 @@ type ChildField =
   | "last_name"
   | "date_of_birth"
   | "target_grade_level"
-  | "target_school_class";
+  | "target_school_class"
+  | "holiday_care_wish";
 
 export const formFieldName = {
   guardian: (field: GuardianField) => `guardian_${field}`,

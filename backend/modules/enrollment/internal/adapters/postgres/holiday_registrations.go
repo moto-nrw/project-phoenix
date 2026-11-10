@@ -29,30 +29,40 @@ type HolidayRegistrationStore struct{}
 // NewHolidayRegistrationStore builds the store.
 func NewHolidayRegistrationStore() *HolidayRegistrationStore { return &HolidayRegistrationStore{} }
 
-const findHolidayRegistrationLinkQuery = `SELECT organization_id, id FROM enrollment.holiday_periods
+const findHolidayRegistrationLinkQuery = `SELECT organization_id, id, holiday_wish_rule,
+		(SELECT min(week.starts_on) FROM enrollment.holiday_period_weeks AS week
+			WHERE week.organization_id = period.organization_id AND week.holiday_period_id = period.id) AS first_day
+	FROM enrollment.holiday_periods AS period
 	WHERE public_token = ? AND status = 'published'`
 
 // FindHolidayRegistrationLink reads the Träger and the published period of a
-// link. Only the administrative transaction may read across Träger.
-func (s *HolidayRegistrationStore) FindHolidayRegistrationLink(ctx context.Context, token string) (int64, int64, bool, error) {
+// link with the period's holiday care wish rule and first day (#4703). Only
+// the administrative transaction may read across Träger.
+func (s *HolidayRegistrationStore) FindHolidayRegistrationLink(ctx context.Context, token string) (enrollment.HolidayRegistrationLink, bool, error) {
 	if !tenant.IsAdminTx(ctx) {
-		return 0, 0, false, errors.New("enrollment postgres: the link lookup requires the administrative transaction")
+		return enrollment.HolidayRegistrationLink{}, false, errors.New("enrollment postgres: the link lookup requires the administrative transaction")
 	}
 	db, err := NewDatabase()(ctx)
 	if err != nil {
-		return 0, 0, false, err
+		return enrollment.HolidayRegistrationLink{}, false, err
 	}
 	var rows []struct {
-		OrganizationID int64 `bun:"organization_id"`
-		ID             int64 `bun:"id"`
+		OrganizationID  int64          `bun:"organization_id"`
+		ID              int64          `bun:"id"`
+		HolidayWishRule bool           `bun:"holiday_wish_rule"`
+		FirstDay        *calendar.Date `bun:"first_day"`
 	}
 	if err := db.NewRaw(findHolidayRegistrationLinkQuery, token).Scan(ctx, &rows); err != nil {
-		return 0, 0, false, fmt.Errorf("enrollment postgres: read holiday registration link: %w", err)
+		return enrollment.HolidayRegistrationLink{}, false, fmt.Errorf("enrollment postgres: read holiday registration link: %w", err)
 	}
 	if len(rows) == 0 {
-		return 0, 0, false, nil
+		return enrollment.HolidayRegistrationLink{}, false, nil
 	}
-	return rows[0].OrganizationID, rows[0].ID, true, nil
+	link := enrollment.HolidayRegistrationLink{OrganizationID: rows[0].OrganizationID, PeriodID: rows[0].ID, HolidayWishRule: rows[0].HolidayWishRule}
+	if rows[0].FirstDay != nil {
+		link.FirstDay = *rows[0].FirstDay
+	}
+	return link, true, nil
 }
 
 const (
@@ -146,6 +156,8 @@ type holidayChildRow struct {
 	GuestSchoolName       string                    `bun:"guest_school_name"`
 	HealthData            []byte                    `bun:"health_data"`
 	CustomData            enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	HolidayWish           *string                   `bun:"holiday_wish"`
+	HolidayWishSource     *string                   `bun:"holiday_wish_source"`
 }
 
 // answersOrEmpty keeps a JSONB object column an object.
@@ -246,6 +258,9 @@ func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, peri
 		}
 		if child.HomeSchoolID > 0 {
 			row.HomeSchoolID = &child.HomeSchoolID
+			if child.HolidayWish != "" {
+				row.HolidayWish, row.HolidayWishSource = &child.HolidayWish, &child.HolidayWishSource
+			}
 		}
 		if _, err := db.NewInsert().Model(&row).ExcludeColumn("id").Returning("id").Exec(ctx); err != nil {
 			return fmt.Errorf("enrollment postgres: insert holiday registration child: %w", err)

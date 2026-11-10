@@ -1849,6 +1849,14 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayWishModes.HolidayWishMode",
+      "binding_digest": "bff79049fac72bf057d1878939189504",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayWishModes.HolidayWishMode",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.LatestEnrollmentSignatures",
       "binding_digest": "f9aa78e90e086f7e856f286400496385",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSignatureLedger.LatestEnrollmentSignatures",
