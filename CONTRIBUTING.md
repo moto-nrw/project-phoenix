@@ -98,9 +98,6 @@ footer (optional)
 - Include steps to reproduce for bugs
 - Check existing issues before creating duplicates
 
-## Code of Conduct
-
-This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code. Please report unacceptable behavior through the channels described in the Code of Conduct.
 
 ## Questions?
 
