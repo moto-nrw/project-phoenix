@@ -436,7 +436,7 @@ export default function TraegerKeyDateCountsPage() {
                     onChange={setSearch}
                     placeholder="Schule oder Ort suchen…"
                     inputProps={{ "aria-label": "Schule oder Ort suchen" }}
-                    className="min-w-0 md:w-64"
+                    className="min-w-0 md:w-72"
                   />
                 </SearchBarDraftProvider>
               ) : undefined

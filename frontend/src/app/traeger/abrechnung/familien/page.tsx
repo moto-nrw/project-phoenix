@@ -80,7 +80,9 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
           <span className="block font-medium text-gray-900">
             {familyName(family)}
           </span>
-          <span className="block max-w-56 truncate text-sm text-gray-500">
+          {/* The address gives way first: on a tablet all four sums stay
+              in view beside it. */}
+          <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-40">
             {family.recipientEmail}
           </span>
         </span>
@@ -287,7 +289,7 @@ export default function TraegerBillingFamiliesPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Name, E-Mail oder Debitorennummer",
+        placeholder: "Name, E-Mail, Debitorennummer",
       }}
       filters={filters}
       activeFilters={activeFilters}

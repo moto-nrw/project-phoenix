@@ -109,7 +109,7 @@ export default function TraegerLastschriftPage() {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Familie, Kontoinhaber oder Referenz",
+        placeholder: "Familie, Kontoinhaber, Referenz",
       }}
       filters={filters}
       // Every choice that hides mandates shows as active, the default
