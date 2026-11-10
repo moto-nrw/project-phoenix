@@ -532,6 +532,16 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
       </>
     ),
   },
+  CalendarSlashIcon: {
+    description: "der Kalender wird durchgestrichen",
+    render: () => (
+      <>
+        <rect x="40" y="40" width="176" height="176" rx="8" />
+        <path d="M40,88H216M80,24V56M176,24V56" />
+        <path className="ns-draw" pathLength="1" d="M40,40L216,216" />
+      </>
+    ),
+  },
   CalendarCheckIcon: {
     description: "Ringe hüpfen, der Haken wird gesetzt",
     render: () => (
