@@ -321,4 +321,16 @@ func TestPasswordResetRateLimitPreservesLegacyWindow(t *testing.T) {
 	require.NoError(t, err)
 	_, err = resets.InitiatePasswordReset(testpkg.Ctx(t), email, identityaccess.PasswordResetScopeStaff)
 	require.ErrorIs(t, err, identityaccess.ErrPasswordResetRateLimited, "deploying hashed counters must not grant another three requests")
+	var limited *identityaccess.PasswordResetRateLimitError
+	require.ErrorAs(t, err, &limited)
+	var windows []struct {
+		Email       string    `bun:"email"`
+		Attempts    int       `bun:"attempts"`
+		WindowStart time.Time `bun:"window_start"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT email, attempts, window_start FROM auth.password_reset_rate_limits WHERE email IN (?, ?)`, email, resetLimitKey(email)).Scan(testpkg.Ctx(t), &windows))
+	require.Len(t, windows, 1, "a refused request must still replace the plaintext counter")
+	assert.Equal(t, resetLimitKey(email), windows[0].Email)
+	assert.Equal(t, 3, windows[0].Attempts)
+	assert.True(t, windows[0].WindowStart.Add(time.Hour).Equal(limited.RetryAt), "migration must preserve the retry window")
 }

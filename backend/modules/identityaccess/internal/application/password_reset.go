@@ -183,12 +183,23 @@ func (r *PasswordReset) checkRateLimit(ctx context.Context, email string) error 
 	mac := hmac.New(sha256.New, r.rateLimitSecret)
 	mac.Write([]byte("password-reset-rate-limit-v1\x00" + email))
 	key := hex.EncodeToString(mac.Sum(nil))
-	return globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+	var refusal error
+	err := globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
 		if err := r.store.MigratePasswordResetWindow(txCtx, email, key); err != nil {
 			return failed("migrate password reset rate limit", err)
 		}
-		return r.checkRateLimitInTransaction(txCtx, key)
+		err := r.checkRateLimitInTransaction(txCtx, key)
+		if errors.Is(err, domain.ErrPasswordResetRateLimited) {
+			// Commit the migration and counter even when the quota refuses the request.
+			refusal = err
+			return nil
+		}
+		return err
 	})
+	if err != nil {
+		return err
+	}
+	return refusal
 }
 func (r *PasswordReset) checkRateLimitInTransaction(ctx context.Context, email string) error {
 	if !r.rateLimitEnabled {
