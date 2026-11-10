@@ -18,6 +18,8 @@ export const codes = [
   "parent_billing.billing_run_open",
   "parent_billing.billing_run_released",
   "parent_billing.billing_terms_invalid",
+  "parent_billing.booking_account_invalid",
+  "parent_billing.booking_scope_not_found",
   "parent_billing.care_amendment_conflict",
   "parent_billing.care_amendment_disabled",
   "parent_billing.care_amendment_invalid",
@@ -56,6 +58,8 @@ export const codes = [
   "parent_billing.cost_bearer_inactive",
   "parent_billing.cost_bearer_invalid",
   "parent_billing.cost_bearer_not_found",
+  "parent_billing.cost_center_date_taken",
+  "parent_billing.cost_center_not_found",
   "parent_billing.cost_takeover_with_exemption",
   "parent_billing.datev_bookings_invalid",
   "parent_billing.datev_bookings_taken",
@@ -115,6 +119,7 @@ export const codes = [
   "parent_billing.sibling_group_invalid",
   "parent_billing.sibling_group_invoiced",
   "parent_billing.sibling_group_not_found",
+  "parent_billing.sollstellung_revenue_account_missing",
 ] as const;
 
 export const classes = {
@@ -136,6 +141,8 @@ export const classes = {
   "parent_billing.billing_run_open": "business_rejection",
   "parent_billing.billing_run_released": "business_rejection",
   "parent_billing.billing_terms_invalid": "input",
+  "parent_billing.booking_account_invalid": "input",
+  "parent_billing.booking_scope_not_found": "input",
   "parent_billing.care_amendment_conflict": "business_rejection",
   "parent_billing.care_amendment_disabled": "permission",
   "parent_billing.care_amendment_invalid": "input",
@@ -174,6 +181,8 @@ export const classes = {
   "parent_billing.cost_bearer_inactive": "business_rejection",
   "parent_billing.cost_bearer_invalid": "input",
   "parent_billing.cost_bearer_not_found": "business_rejection",
+  "parent_billing.cost_center_date_taken": "business_rejection",
+  "parent_billing.cost_center_not_found": "input",
   "parent_billing.cost_takeover_with_exemption": "business_rejection",
   "parent_billing.datev_bookings_invalid": "business_rejection",
   "parent_billing.datev_bookings_taken": "business_rejection",
@@ -233,6 +242,7 @@ export const classes = {
   "parent_billing.sibling_group_invalid": "input",
   "parent_billing.sibling_group_invoiced": "business_rejection",
   "parent_billing.sibling_group_not_found": "business_rejection",
+  "parent_billing.sollstellung_revenue_account_missing": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -254,6 +264,8 @@ export const parameters = {
   "parent_billing.billing_run_open": [],
   "parent_billing.billing_run_released": [],
   "parent_billing.billing_terms_invalid": [],
+  "parent_billing.booking_account_invalid": [],
+  "parent_billing.booking_scope_not_found": [],
   "parent_billing.care_amendment_conflict": [],
   "parent_billing.care_amendment_disabled": [],
   "parent_billing.care_amendment_invalid": [],
@@ -292,6 +304,8 @@ export const parameters = {
   "parent_billing.cost_bearer_inactive": [],
   "parent_billing.cost_bearer_invalid": [],
   "parent_billing.cost_bearer_not_found": [],
+  "parent_billing.cost_center_date_taken": [],
+  "parent_billing.cost_center_not_found": [],
   "parent_billing.cost_takeover_with_exemption": [],
   "parent_billing.datev_bookings_invalid": [],
   "parent_billing.datev_bookings_taken": [],
@@ -351,4 +365,5 @@ export const parameters = {
   "parent_billing.sibling_group_invalid": [],
   "parent_billing.sibling_group_invoiced": [],
   "parent_billing.sibling_group_not_found": [],
+  "parent_billing.sollstellung_revenue_account_missing": ["count"],
 } as const;

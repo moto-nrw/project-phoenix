@@ -39,7 +39,8 @@ var (
 // spreadsheet would read as a formula gets a leading apostrophe there.
 var sollTextFields = []string{parentbilling.SollFieldInvoiceNumber, parentbilling.SollFieldRecipientName, parentbilling.SollFieldRecipientStreet,
 	parentbilling.SollFieldRecipientCity, parentbilling.SollFieldChildName, parentbilling.SollFieldSchoolName,
-	parentbilling.SollFieldMandateReference, parentbilling.SollFieldDebtorNumber, parentbilling.SollFieldConstant}
+	parentbilling.SollFieldMandateReference, parentbilling.SollFieldDebtorNumber, parentbilling.SollFieldConstant,
+	parentbilling.SollFieldCostCenter, parentbilling.SollFieldCostCenter2}
 
 // normalizeSollMapping trims a mapping and checks it; every problem is a
 // validation error on its field ("columns.2.header", "delimiter", …).
@@ -102,8 +103,66 @@ func sollFileName(pattern string, fileNumber int64) string {
 	return strings.Replace(pattern, parentbilling.SollFileNumberToken, strconv.FormatInt(fileNumber, 10), 1)
 }
 
-// renderSollstellung writes the file of the invoices with the mapping.
+// sollRow is one row of the file: a document, or one line of it when the
+// mapping names where it books (#4821).
+type sollRow struct {
+	invoice parentbilling.ExportInvoice
+	line    *bookingLine
+}
+
+// sollSplitsLines says whether the mapping names where a row books; the
+// file then writes one row per line of a document.
+func sollSplitsLines(mapping parentbilling.SollstellungMapping) bool {
+	return slices.ContainsFunc(mapping.Columns, func(column parentbilling.SollstellungColumn) bool {
+		return slices.Contains(parentbilling.SollBookingFields, column.Field)
+	})
+}
+
+// sollRows are the rows of the invoices: one per document, or one per line
+// of where it books (booking_lines.go) when the mapping names an account
+// field, with the positions resolved at export and the documents a line of
+// which has no revenue account although the mapping writes it.
+func sollRows(mapping parentbilling.SollstellungMapping, invoices []parentbilling.ExportInvoice, resolver bookingResolver,
+) (rows []sollRow, resolved int, missing []string) {
+	if !sollSplitsLines(mapping) {
+		return invoiceSollRows(invoices), 0, nil
+	}
+	writesAccount := slices.ContainsFunc(mapping.Columns, func(column parentbilling.SollstellungColumn) bool {
+		return column.Field == parentbilling.SollFieldRevenueAccount
+	})
+	for _, invoice := range invoices {
+		lines, fromToday := resolver.documentLines(invoice)
+		resolved += fromToday
+		if len(lines) == 0 {
+			rows = append(rows, sollRow{invoice: invoice})
+			continue
+		}
+		for i := range lines {
+			if writesAccount && lines[i].accounts.RevenueAccount == "" && !slices.Contains(missing, invoice.Number) {
+				missing = append(missing, invoice.Number)
+			}
+			rows = append(rows, sollRow{invoice: invoice, line: &lines[i]})
+		}
+	}
+	return rows, resolved, missing
+}
+
+func invoiceSollRows(invoices []parentbilling.ExportInvoice) []sollRow {
+	rows := make([]sollRow, len(invoices))
+	for i, invoice := range invoices {
+		rows[i] = sollRow{invoice: invoice}
+	}
+	return rows
+}
+
+// renderSollstellung writes the file of the invoices with the mapping, one
+// row per document.
 func renderSollstellung(mapping parentbilling.SollstellungMapping, invoices []parentbilling.ExportInvoice, fileNumber int64) ([]byte, error) {
+	return renderSollRows(mapping, invoiceSollRows(invoices), fileNumber)
+}
+
+// renderSollRows writes the file of the rows with the mapping.
+func renderSollRows(mapping parentbilling.SollstellungMapping, rows []sollRow, fileNumber int64) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
 	writer.Comma, _ = utf8.DecodeRuneInString(mapping.Delimiter)
@@ -117,10 +176,10 @@ func renderSollstellung(mapping parentbilling.SollstellungMapping, invoices []pa
 			return nil, err
 		}
 	}
-	for _, invoice := range invoices {
+	for _, row := range rows {
 		record := make([]string, len(mapping.Columns))
 		for i, column := range mapping.Columns {
-			record[i] = sollCell(mapping, column, invoice, fileNumber)
+			record[i] = sollCell(mapping, column, row, fileNumber)
 		}
 		if err := writer.Write(record); err != nil {
 			return nil, err
@@ -134,8 +193,8 @@ func renderSollstellung(mapping parentbilling.SollstellungMapping, invoices []pa
 }
 
 // sollCell is the value of one column for one invoice.
-func sollCell(mapping parentbilling.SollstellungMapping, column parentbilling.SollstellungColumn, invoice parentbilling.ExportInvoice, fileNumber int64) string {
-	value := sollValue(mapping, column, invoice, fileNumber)
+func sollCell(mapping parentbilling.SollstellungMapping, column parentbilling.SollstellungColumn, row sollRow, fileNumber int64) string {
+	value := sollRowValue(mapping, column, row, fileNumber)
 	if slices.Contains(sollTextFields, column.Field) {
 		return sollFormulaSafe(value)
 	}
@@ -151,6 +210,35 @@ func sollFormulaSafe(value string) string {
 		return "'" + value
 	}
 	return value
+}
+
+// sollRowValue is the value of a column in a row: where its line books and
+// the line's amount, the document's values otherwise.
+func sollRowValue(mapping parentbilling.SollstellungMapping, column parentbilling.SollstellungColumn, row sollRow, fileNumber int64) string {
+	switch {
+	case slices.Contains(parentbilling.SollBookingFields, column.Field):
+		return sollLineValue(column, row)
+	case column.Field == parentbilling.SollFieldAmount && row.line != nil:
+		return sollAmount(row.line.amountCents, mapping.DecimalSeparator)
+	}
+	return sollValue(mapping, column, row.invoice, fileNumber)
+}
+
+// sollLineValue is where the line of a row books; a row of a whole
+// document has no line.
+func sollLineValue(column parentbilling.SollstellungColumn, row sollRow) string {
+	if row.line == nil {
+		return ""
+	}
+	switch column.Field {
+	case parentbilling.SollFieldRevenueAccount:
+		return row.line.accounts.RevenueAccount
+	case parentbilling.SollFieldCostCenter:
+		return row.line.accounts.CostCenter
+	case parentbilling.SollFieldCostCenter2:
+		return row.line.accounts.CostCenter2
+	}
+	return ""
 }
 
 func sollValue(mapping parentbilling.SollstellungMapping, column parentbilling.SollstellungColumn, invoice parentbilling.ExportInvoice, fileNumber int64) string {

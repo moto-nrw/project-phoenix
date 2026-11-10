@@ -84,6 +84,8 @@ type RunStore interface {
 	paymentTermsReader
 	// DocumentKindStore keeps the kind of document of each service (#4688).
 	DocumentKindStore
+	// BookingAssignmentReader names where the positions book (#4821).
+	BookingAssignmentReader
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
@@ -305,6 +307,11 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		documents[i].IssuedOn = &issuedOn
 		documents[i].DocumentKind = documentKind
 	}
+	resolver, err := bookingResolverOf(ctx, b.store, b.settings, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
+	freezeHolidayAccounts(resolver, documents)
 	if err := b.store.IssueDocuments(ctx, reviewer.OrganizationID, run, year, first, documents); err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}

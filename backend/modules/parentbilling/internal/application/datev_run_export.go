@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -13,12 +14,14 @@ import (
 )
 
 // The DATEV booking batch of a released run (#4694) through the frame of the
-// finance exports (#4693). The file holds one booking per document of the
-// run with an amount, the same documents a Sollstellung of the run writes:
-// an invoice charges the debtor of the family (Soll), its Storno and a
-// credit relieve it (Haben), each against the revenue account of the
-// settings. The debtor is the number the release copied onto the invoice;
-// the Belegfeld 1 is the document number.
+// finance exports (#4693). The file holds the documents of the run with an
+// amount, the same documents a Sollstellung of the run writes, each with one
+// line per revenue account and cost centers of its positions (#4821,
+// booking_lines.go): an invoice charges the debtor of the family (Soll), its
+// Storno and a credit relieve it (Haben), against the revenue account, KOST1
+// and KOST2 its release copied onto the positions. The debtor is the number
+// the release copied onto the invoice; the Belegfeld 1 is the document
+// number.
 //
 // Invariants:
 //  1. No file while the check of the settings names a setting
@@ -37,6 +40,9 @@ import (
 //     on purpose and the protocol marks the file.
 //  6. A run without a new booking makes no file and takes no number
 //     (ErrDatevNoNewBookings).
+//  7. Every line has a valid revenue account (#4821); a missing or too long
+//     one, and a missing KOST1 while the Träger requires one, refuse the
+//     file like a refused debtor (invariant 2).
 
 // datevContentType is the character set of the batch (Windows-1252).
 const datevContentType = "text/csv; charset=windows-1252"
@@ -65,19 +71,23 @@ func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.H
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
-	batch, err := datevRunBatch(content.Invoices, settings, options)
+	assignments, err := f.store.BookingAssignments(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportedFile{}, err
+	}
+	batch, err := datevRunBatch(content.Invoices, settings, options, assignments)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	header := batch.header(settings, runKind, f.datev.now())
-	bookingContent, err := datevBookingsContent(header, batch)
+	bookingContent, err := datevBookingsContent(header, batch, settings.CostCenterRequired)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	file := exportFile{format: parentbilling.ExportFormatDatev, runKind: runKind, runID: runID,
 		totalCents: batch.totalCents, careInvoices: batch.careInvoices, documents: batch.documents,
-		documentCount: len(batch.bookings), bookingContent: bookingContent,
-		datevAll: options.All, datevBookings: batch.refs,
+		documentCount: len(batch.refs), bookingContent: bookingContent,
+		datevAll: options.All, datevBookings: batch.refs, resolvedPositions: batch.resolved,
 		fileName: datevFileName,
 		render: func(number int64) ([]byte, error) {
 			numbered := header
@@ -121,6 +131,9 @@ type datevBatch struct {
 	documents    []int64
 	totalCents   int64
 	first, last  calendar.Date
+	// resolved counts the positions booked on the values of the day of the
+	// export (#4821).
+	resolved int
 }
 
 // datevRunBatch books the documents the selection of the options takes
@@ -128,6 +141,7 @@ type datevBatch struct {
 // a standard file whose bookings all went to DATEV before is
 // ErrDatevNoNewBookings, as is a chosen fiscal year without a booking.
 func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbilling.DatevSettings, options parentbilling.DatevFileOptions,
+	assignments parentbilling.BookingAssignments,
 ) (datevBatch, error) {
 	validDebtor, month := datevSelectionRules(settings)
 	selection := selectDatevDocuments(invoices, validDebtor, month, options.All)
@@ -138,24 +152,29 @@ func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbillin
 	if len(chosen) == 0 {
 		return datevBatch{}, parentbilling.ErrDatevNoNewBookings
 	}
+	resolver := newBookingResolver(assignments, strings.TrimSpace(settings.RevenueAccount.Value))
 	batch := datevBatch{}
 	for _, invoice := range chosen {
-		batch.add(invoice, settings.RevenueAccount.Value)
+		batch.add(invoice, resolver)
 	}
 	return batch, nil
 }
 
-// add books one document: an invoice charges the debtor, a negative
-// document (Storno, credit) relieves it.
-func (b *datevBatch) add(invoice parentbilling.ExportInvoice, revenueAccount string) {
-	booking := DatevBooking{AmountCents: invoice.TotalCents, Side: DatevDebit, Account: invoice.DebtorNumber,
-		CounterAccount: revenueAccount, DocumentDate: invoice.IssuedOn, DocumentNumber: invoice.Number,
-		Text: datevBookingText(invoice)}
-	if invoice.TotalCents < 0 {
-		booking.AmountCents, booking.Side = -invoice.TotalCents, DatevCredit
+// add books one document, one line per where its positions book: a charge
+// of the debtor, a negative line (Storno, credit) relieves it.
+func (b *datevBatch) add(invoice parentbilling.ExportInvoice, resolver bookingResolver) {
+	lines, resolved := resolver.documentLines(invoice)
+	b.resolved += resolved
+	for _, line := range lines {
+		booking := DatevBooking{AmountCents: line.amountCents, Side: DatevDebit, Account: invoice.DebtorNumber,
+			CounterAccount: line.accounts.RevenueAccount, CostCenter1: line.accounts.CostCenter, CostCenter2: line.accounts.CostCenter2,
+			DocumentDate: invoice.IssuedOn, DocumentNumber: invoice.Number, Text: datevBookingText(invoice)}
+		if line.amountCents < 0 {
+			booking.AmountCents, booking.Side = -line.amountCents, DatevCredit
+		}
+		b.bookings = append(b.bookings, booking)
+		b.numbers = append(b.numbers, invoice.Number)
 	}
-	b.bookings = append(b.bookings, booking)
-	b.numbers = append(b.numbers, invoice.Number)
 	ref := parentbilling.DatevBookingRef{DocumentID: invoice.DocumentID, CareCancellationID: invoice.CareCancellationID}
 	if invoice.CareCancellationID == 0 {
 		ref.CareInvoiceID = invoice.CareInvoiceID
@@ -220,33 +239,44 @@ func (b datevBatch) header(settings parentbilling.DatevSettings, runKind string,
 // datevBookingsContent validates before a number is taken and renders the
 // bookings with their accounting settings. File metadata is fixed for the
 // comparison hash; the store also hashes the actual downloaded file.
-func datevBookingsContent(header DatevBatchHeader, batch datevBatch) ([]byte, error) {
+func datevBookingsContent(header DatevBatchHeader, batch datevBatch, costCenterRequired bool) ([]byte, error) {
 	header.CreatedAt = time.Date(2000, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
 	header.FileNumber, header.Label = 1, ""
+	refused := &parentbilling.DatevBookingsError{}
+	if costCenterRequired {
+		for i, booking := range batch.bookings {
+			if booking.CostCenter1 == "" {
+				refused.Add(batch.numbers[i], parentbilling.DatevBookingCostCenter, parentbilling.DatevProblemMissing)
+			}
+		}
+	}
 	out, err := FormatDatevBookingBatch(header, batch.bookings)
-	if err == nil {
+	if err == nil && len(refused.Problems) == 0 {
 		return out.Content, nil
 	}
 	var formatErr *DatevFormatError
-	if !errors.As(err, &formatErr) {
+	if err != nil && !errors.As(err, &formatErr) {
 		return nil, err
+	}
+	if formatErr == nil {
+		return nil, refused
 	}
 	fields := map[string]string{
 		DatevFieldAccount: parentbilling.DatevBookingAccount, DatevFieldDocumentDate: parentbilling.DatevBookingDate,
 		DatevFieldDocumentNumber: parentbilling.DatevBookingNumber, DatevFieldAmount: parentbilling.DatevBookingAmount,
+		DatevFieldCounterAccount: parentbilling.DatevBookingRevenueAccount, DatevFieldCostCenter1: parentbilling.DatevBookingCostCenter,
+		DatevFieldCostCenter2: parentbilling.DatevBookingCostCenter2,
 	}
 	reasons := map[string]string{
 		DatevMissing: parentbilling.DatevProblemMissing, DatevInvalid: parentbilling.DatevProblemInvalid,
 		DatevOutOfPeriod: parentbilling.DatevProblemOutOfPeriod,
 	}
-	refused := &parentbilling.DatevBookingsError{}
 	for _, problem := range formatErr.Problems {
 		field, known := fields[problem.Field]
 		if problem.Line < 1 || problem.Line > len(batch.numbers) || !known {
 			return nil, fmt.Errorf("parent billing: the DATEV batch of a ready Träger: %w", err)
 		}
-		refused.Problems = append(refused.Problems, parentbilling.DatevBookingProblem{
-			DocumentNumber: batch.numbers[problem.Line-1], Field: field, Reason: reasons[problem.Reason]})
+		refused.Add(batch.numbers[problem.Line-1], field, reasons[problem.Reason])
 	}
 	return nil, refused
 }

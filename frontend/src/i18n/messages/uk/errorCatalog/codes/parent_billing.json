@@ -113,5 +113,10 @@
   "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",
   "beleg_retention_basis_cites_statute": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "online_mandate_disabled": "Ваш засновник зараз не приймає мандат на пряме дебетування в застосунку.",
-  "sepa_mandate_text_changed": "Текст мандата змінився. Будь ласка, прочитайте й підтвердьте його ще раз."
+  "sepa_mandate_text_changed": "Текст мандата змінився. Будь ласка, прочитайте й підтвердьте його ще раз.",
+  "booking_scope_not_found": "This school or offering does not exist for you. Please reload the page.",
+  "cost_center_not_found": "This cost center no longer exists. Please reload the page.",
+  "cost_center_date_taken": "There is already a cost center from this day. Choose another day or delete the old one.",
+  "booking_account_invalid": "Please check the marked fields.",
+  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings."
 }

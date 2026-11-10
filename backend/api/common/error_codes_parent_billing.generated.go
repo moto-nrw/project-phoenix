@@ -19,6 +19,8 @@ const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_r
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
 const CodeParentBillingBillingTermsInvalid = "parent_billing.billing_terms_invalid"
+const CodeParentBillingBookingAccountInvalid = "parent_billing.booking_account_invalid"
+const CodeParentBillingBookingScopeNotFound = "parent_billing.booking_scope_not_found"
 const CodeParentBillingCareAmendmentConflict = "parent_billing.care_amendment_conflict"
 const CodeParentBillingCareAmendmentDisabled = "parent_billing.care_amendment_disabled"
 const CodeParentBillingCareAmendmentInvalid = "parent_billing.care_amendment_invalid"
@@ -57,6 +59,8 @@ const CodeParentBillingCostBearerInUse = "parent_billing.cost_bearer_in_use"
 const CodeParentBillingCostBearerInactive = "parent_billing.cost_bearer_inactive"
 const CodeParentBillingCostBearerInvalid = "parent_billing.cost_bearer_invalid"
 const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_found"
+const CodeParentBillingCostCenterDateTaken = "parent_billing.cost_center_date_taken"
+const CodeParentBillingCostCenterNotFound = "parent_billing.cost_center_not_found"
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDatevBookingsInvalid = "parent_billing.datev_bookings_invalid"
 const CodeParentBillingDatevBookingsTaken = "parent_billing.datev_bookings_taken"
@@ -116,6 +120,7 @@ const CodeParentBillingSepaMandateTextChanged = "parent_billing.sepa_mandate_tex
 const CodeParentBillingSiblingGroupInvalid = "parent_billing.sibling_group_invalid"
 const CodeParentBillingSiblingGroupInvoiced = "parent_billing.sibling_group_invoiced"
 const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_found"
+const CodeParentBillingSollstellungRevenueAccountMissing = "parent_billing.sollstellung_revenue_account_missing"
 
 var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
@@ -136,6 +141,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
 	{CodeParentBillingBillingTermsInvalid, "input"},
+	{CodeParentBillingBookingAccountInvalid, "input"},
+	{CodeParentBillingBookingScopeNotFound, "input"},
 	{CodeParentBillingCareAmendmentConflict, "business_rejection"},
 	{CodeParentBillingCareAmendmentDisabled, "permission"},
 	{CodeParentBillingCareAmendmentInvalid, "input"},
@@ -174,6 +181,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostBearerInactive, "business_rejection"},
 	{CodeParentBillingCostBearerInvalid, "input"},
 	{CodeParentBillingCostBearerNotFound, "business_rejection"},
+	{CodeParentBillingCostCenterDateTaken, "business_rejection"},
+	{CodeParentBillingCostCenterNotFound, "input"},
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDatevBookingsInvalid, "business_rejection"},
 	{CodeParentBillingDatevBookingsTaken, "business_rejection"},
@@ -233,6 +242,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingSiblingGroupInvalid, "input"},
 	{CodeParentBillingSiblingGroupInvoiced, "business_rejection"},
 	{CodeParentBillingSiblingGroupNotFound, "business_rejection"},
+	{CodeParentBillingSollstellungRevenueAccountMissing, "business_rejection"},
 }
 
 func init() {

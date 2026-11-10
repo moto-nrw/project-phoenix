@@ -51,6 +51,13 @@ const (
 	SollFieldMandateReference = "mandate_reference"
 	SollFieldDocumentKind     = "document_kind"
 	SollFieldFileNumber       = "file_number"
+	// SollFieldRevenueAccount, SollFieldCostCenter and SollFieldCostCenter2
+	// are where a line books (#4821). A mapping with one of them writes one
+	// row per revenue account and cost centers of a document, the same
+	// lines as the DATEV file; without them one row per document.
+	SollFieldRevenueAccount = "revenue_account"
+	SollFieldCostCenter     = "cost_center"
+	SollFieldCostCenter2    = "cost_center_2"
 	// SollFieldConstant writes the column's fixed value into every row, for
 	// example an account or a booking key the Kämmerei asks for.
 	SollFieldConstant = "constant"
@@ -61,8 +68,12 @@ var SollstellungFields = []string{
 	SollFieldInvoiceNumber, SollFieldInvoiceDate, SollFieldDueOn, SollFieldAmount, SollFieldDebtorNumber,
 	SollFieldRecipientName, SollFieldRecipientStreet, SollFieldRecipientPostal, SollFieldRecipientCity,
 	SollFieldChildName, SollFieldSchoolName, SollFieldServiceFrom, SollFieldServiceUntil, SollFieldPaymentMethod,
-	SollFieldMandateReference, SollFieldDocumentKind, SollFieldFileNumber, SollFieldConstant,
+	SollFieldMandateReference, SollFieldDocumentKind, SollFieldFileNumber,
+	SollFieldRevenueAccount, SollFieldCostCenter, SollFieldCostCenter2, SollFieldConstant,
 }
+
+// SollBookingFields are the fields that split a row by where it books.
+var SollBookingFields = []string{SollFieldRevenueAccount, SollFieldCostCenter, SollFieldCostCenter2}
 
 // Options of the Sollstellung file.
 const (
@@ -147,6 +158,13 @@ const (
 	DatevBookingNumber = "document_number"
 	// DatevBookingAmount is the amount of the document.
 	DatevBookingAmount = "amount"
+	// DatevBookingRevenueAccount is the revenue account of a line (#4821):
+	// missing, or longer than the Sachkonten.
+	DatevBookingRevenueAccount = "revenue_account"
+	// DatevBookingCostCenter is the KOST1 of a line, missing while the
+	// Träger requires one; DatevBookingCostCenter2 its KOST2.
+	DatevBookingCostCenter  = "cost_center"
+	DatevBookingCostCenter2 = "cost_center_2"
 )
 
 // Reasons of a DatevBookingProblem.
@@ -162,8 +180,30 @@ type DatevBookingsError struct {
 	Problems []DatevBookingProblem
 }
 
+// Add names a problem of a document once, however many of its lines have it.
+func (e *DatevBookingsError) Add(number, field, reason string) {
+	problem := DatevBookingProblem{DocumentNumber: number, Field: field, Reason: reason}
+	for _, known := range e.Problems {
+		if known == problem {
+			return
+		}
+	}
+	e.Problems = append(e.Problems, problem)
+}
+
 func (e *DatevBookingsError) Error() string {
 	return fmt.Sprintf("%d documents of the run make no valid DATEV booking", len(e.Problems))
+}
+
+// SollRevenueAccountError refuses a Sollstellung whose mapping writes the
+// revenue account while a line of the documents has none (#4821): the
+// standard of the DATEV settings is empty. No file number is taken.
+type SollRevenueAccountError struct {
+	DocumentNumbers []string
+}
+
+func (e *SollRevenueAccountError) Error() string {
+	return fmt.Sprintf("%d documents of the run have no revenue account", len(e.DocumentNumbers))
 }
 
 // SollstellungColumn is one column of the file: the field it takes, its
@@ -251,6 +291,10 @@ type ExportProtocolEntry struct {
 	RepeatOf int64 `json:"repeat_of,omitempty"`
 	// DatevAll marks a DATEV file of "all bookings again" (#6433).
 	DatevAll bool `json:"datev_all,omitempty"`
+	// ResolvedPositions counts the positions of the file that had no
+	// revenue account or cost center of their release: the file booked
+	// them on the values of the day of the export (#4821).
+	ResolvedPositions int `json:"resolved_positions,omitempty"`
 	// ExportedBy is the account that downloaded the file, nil after its
 	// erasure; ExportedByYou marks the reader's own downloads.
 	ExportedBy    *int64     `json:"exported_by_account_id"`
@@ -355,6 +399,29 @@ type ExportInvoice struct {
 	ServiceUntil     calendar.Date
 	PaymentMethod    string
 	MandateReference string
+	// Parts are the positions of the document with where each books
+	// (#4821); a monthly Storno has the parts of its invoice.
+	Parts []ExportBookingPart
+}
+
+// Kinds of an ExportBookingPart.
+const (
+	BookingPartCare    = "care"
+	BookingPartMeal    = "meal"
+	BookingPartHoliday = "holiday"
+)
+
+// ExportBookingPart is one position of an exported document: its amount and
+// where its release booked it. A position issued before #4821 has no
+// frozen accounts; its kind, school, Angebot and day let the export resolve
+// them.
+type ExportBookingPart struct {
+	Kind           string
+	SchoolID       int64
+	CareOfferingID int64
+	Day            calendar.Date
+	AmountCents    int64
+	Accounts       PositionAccounts
 }
 
 // ExportRunContent is a released run with its invoices.
@@ -400,6 +467,9 @@ type ExportFileRecord struct {
 	// booking is already recorded.
 	DatevAll      bool
 	DatevBookings []DatevBookingRef
+	// ResolvedPositions counts the positions booked on the values of the
+	// day of the export (#4821).
+	ResolvedPositions int
 }
 
 // ExportRunRef names a run of the export page.

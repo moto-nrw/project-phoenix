@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -319,13 +320,86 @@ func (s *Store) ExportRunContent(ctx context.Context, organizationID int64, runK
 	if err != nil {
 		return parentbilling.ExportRunContent{}, fmt.Errorf("read the run to export: %w", err)
 	}
+	parts, err := exportBookingParts(ctx, db, organizationID, runKind, runID)
+	if err != nil {
+		return parentbilling.ExportRunContent{}, err
+	}
 	content := parentbilling.ExportRunContent{Run: head.run(), Invoices: make([]parentbilling.ExportInvoice, len(rows))}
 	content.Run.InvoiceCount, content.Run.TotalCents = len(rows), 0
 	for i, row := range rows {
 		content.Invoices[i] = row.invoice()
+		if runKind == parentbilling.DebitRunCare {
+			// A Storno relieves the positions of its invoice.
+			content.Invoices[i].Parts = parts[row.invoice().CareInvoiceID]
+		} else {
+			content.Invoices[i].Parts = parts[row.invoice().DocumentID]
+		}
 		content.Run.TotalCents += row.TotalCents
 	}
 	return content, nil
+}
+
+// Where the positions of the documents of a run book (#4821): care and Mensa
+// positions by invoice, holiday positions by document. The Träger filter
+// stands on every table, also below row level security.
+const (
+	careBookingPartsQuery = `SELECT part.document_id, part.kind, part.school_id, part.care_offering_id, part.day, part.amount_cents,
+	part.revenue_account, part.cost_center, part.cost_center_2, part.accounts_frozen
+FROM (
+	SELECT position.invoice_id AS document_id, 'care' AS kind, invoice.school_id, position.care_offering_id,
+		position.service_from AS day, position.amount_cents, position.revenue_account, position.cost_center,
+		position.cost_center_2, position.accounts_frozen, 1 AS part_order, position.position
+	FROM parent_billing.care_invoice_positions AS position
+	JOIN parent_billing.care_invoices AS invoice
+		ON invoice.organization_id = position.organization_id AND invoice.id = position.invoice_id
+	WHERE position.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ?1
+	UNION ALL
+	SELECT meal.invoice_id, 'meal', meal.school_id, 0, meal.meal_month, meal.amount_cents, meal.revenue_account,
+		meal.cost_center, meal.cost_center_2, meal.accounts_frozen, 2, meal.position
+	FROM parent_billing.care_meal_positions AS meal
+	JOIN parent_billing.care_invoices AS invoice
+		ON invoice.organization_id = meal.organization_id AND invoice.id = meal.invoice_id
+	WHERE meal.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ?1
+) AS part
+ORDER BY part.document_id, part.part_order, part.position`
+	holidayBookingPartsQuery = `SELECT position.document_id, 'holiday' AS kind, 0 AS school_id, 0 AS care_offering_id,
+	document.service_from AS day, position.amount_cents, position.revenue_account, position.cost_center,
+	position.cost_center_2, position.accounts_frozen
+FROM parent_billing.document_positions AS position
+JOIN parent_billing.documents AS document
+	ON document.organization_id = position.organization_id AND document.id = position.document_id
+WHERE position.organization_id = ?0 AND document.organization_id = ?0 AND document.run_id = ?1
+ORDER BY position.document_id, position.position`
+)
+
+type exportBookingPartRow struct {
+	DocumentID              int64         `bun:"document_id"`
+	Kind                    string        `bun:"kind"`
+	SchoolID                int64         `bun:"school_id"`
+	CareOfferingID          int64         `bun:"care_offering_id"`
+	Day                     calendar.Date `bun:"day,type:date"`
+	AmountCents             int64         `bun:"amount_cents"`
+	positionAccountsColumns `bun:",extend"`
+}
+
+// exportBookingParts reads the positions of the documents of a run by
+// document: a monthly invoice by its ID, a holiday document by its own.
+func exportBookingParts(ctx context.Context, db bun.IDB, organizationID int64, runKind string, runID int64,
+) (map[int64][]parentbilling.ExportBookingPart, error) {
+	query := careBookingPartsQuery
+	if runKind == parentbilling.DebitRunHoliday {
+		query = holidayBookingPartsQuery
+	}
+	var rows []exportBookingPartRow
+	if err := db.NewRaw(query, organizationID, runID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("read where the positions of the run book: %w", err)
+	}
+	parts := map[int64][]parentbilling.ExportBookingPart{}
+	for _, row := range rows {
+		parts[row.DocumentID] = append(parts[row.DocumentID], parentbilling.ExportBookingPart{Kind: row.Kind, SchoolID: row.SchoolID,
+			CareOfferingID: row.CareOfferingID, Day: row.Day, AmountCents: row.AmountCents, Accounts: row.accounts()})
+	}
+	return parts, nil
 }
 
 // datevRunBookingsQuery reads the documents of monthly runs ?1 and holiday

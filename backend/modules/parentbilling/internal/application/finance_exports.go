@@ -49,6 +49,9 @@ type FinanceExportStore interface {
 	// selection needs, in one statement.
 	DatevRunBookings(ctx context.Context, organizationID int64, runs []parentbilling.ExportRunRef) (map[parentbilling.ExportRunRef][]parentbilling.ExportInvoice, error)
 	InvoiceHistory(ctx context.Context, organizationID int64, kind string, id int64) (string, []parentbilling.InvoiceHistoryEntry, []parentbilling.ExportProtocolEntry, error)
+	// BookingAssignmentReader names where positions without their release's
+	// values book (#4821).
+	BookingAssignmentReader
 	// InsertRunEvents records an action in the trail of holiday and monthly
 	// runs, here the read of an invoice's history.
 	InsertRunEvents(ctx context.Context, organizationID, accountID int64, action string, holiday, care map[int64]map[string]any) error
@@ -99,6 +102,9 @@ type exportFile struct {
 	// datevAll and datevBookings are what a DATEV file records (#6433).
 	datevAll      bool
 	datevBookings []parentbilling.DatevBookingRef
+	// resolvedPositions counts the positions booked on the values of the
+	// day of the export (#4821).
+	resolvedPositions int
 }
 
 // recordExportFile takes the next file number of the Träger, renders the
@@ -121,6 +127,7 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 		Content: data, TotalCents: file.totalCents, Reference: file.reference, BookingContent: file.bookingContent,
 		CareInvoiceIDs: file.careInvoices, DocumentIDs: file.documents, CareNoticeIDs: file.notices, SEPADebitIDs: file.debits,
 		DocumentCount: file.documentCount, DatevAll: file.datevAll, DatevBookings: file.datevBookings,
+		ResolvedPositions: file.resolvedPositions,
 	})
 	if err != nil {
 		return parentbilling.ExportProtocolEntry{}, nil, fmt.Errorf("parent billing: record the export file: %w", err)
@@ -355,10 +362,14 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 	if len(content.Invoices) == 0 {
 		return parentbilling.ExportedFile{}, parentbilling.ErrExportRunEmpty
 	}
-	file := exportFile{format: parentbilling.ExportFormatSollstellung, runKind: runKind, runID: runID,
+	rows, resolved, err := f.sollstellungRows(ctx, reviewer, soll.Mapping, content.Invoices)
+	if err != nil {
+		return parentbilling.ExportedFile{}, err
+	}
+	file := exportFile{format: parentbilling.ExportFormatSollstellung, runKind: runKind, runID: runID, resolvedPositions: resolved,
 		fileName: func(number int64) string { return sollFileName(soll.Mapping.FileNamePattern, number) },
 		render: func(number int64) ([]byte, error) {
-			return renderSollstellung(soll.Mapping, content.Invoices, number)
+			return renderSollRows(soll.Mapping, rows, number)
 		}}
 	for _, invoice := range content.Invoices {
 		file.totalCents += invoice.TotalCents
@@ -376,6 +387,26 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 	}
 	entry.RunLabel = content.Run.Label
 	return parentbilling.ExportedFile{Entry: entry, ContentType: sollContentType(soll.Mapping.Encoding), Data: data}, nil
+}
+
+// sollstellungRows are the rows of the file. A mapping that names where a
+// row books reads the revenue accounts and cost centers (#4821); a line
+// without a revenue account refuses the file before a number is taken.
+func (f *FinanceExports) sollstellungRows(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+	mapping parentbilling.SollstellungMapping, invoices []parentbilling.ExportInvoice,
+) ([]sollRow, int, error) {
+	if !sollSplitsLines(mapping) {
+		return invoiceSollRows(invoices), 0, nil
+	}
+	resolver, err := bookingResolverOf(ctx, f.store, f.datev.settings, reviewer.OrganizationID)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, resolved, missing := sollRows(mapping, invoices, resolver)
+	if len(missing) > 0 {
+		return nil, 0, &parentbilling.SollRevenueAccountError{DocumentNumbers: missing}
+	}
+	return rows, resolved, nil
 }
 
 func sollContentType(encoding string) string {
