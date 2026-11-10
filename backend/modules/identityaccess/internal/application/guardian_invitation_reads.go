@@ -99,6 +99,6 @@ func NewGuardianInvitationInvalidation(invitations ports.GuardianInvitationStore
 		}
 		// The store refuses a missing school or transaction. This leaf command
 		// never starts an independent unit or switches the caller's scope.
-		return invitationError(invitations.InvalidateGuardianInvitations(ctx, profileID, time.Now()))
+		return invitationError(invitations.InvalidateGuardianInvitations(ctx, profileID, time.Now(), true))
 	}
 }

@@ -33,9 +33,9 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 			RoleUpgrade:                 roleUpgrade,
 		}
 		// A queued approval has no usable mailed link yet. Issuing one does
-		// supersede the profile's previous open invitations.
+		// supersede previous links, but not unrelated approval requests.
 		if approvalStatus != domain.GuardianInvitationApprovalPending {
-			if err := l.invitations.InvalidateGuardianInvitations(txCtx, profile.ID, time.Now()); err != nil {
+			if err := l.invitations.InvalidateGuardianInvitations(txCtx, profile.ID, time.Now(), false); err != nil {
 				return failed(opGuardianInviteToStudent, err)
 			}
 		}

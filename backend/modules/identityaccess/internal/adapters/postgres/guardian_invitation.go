@@ -255,10 +255,10 @@ func (s *Store) InsertGuardianInvitation(ctx context.Context, invitation domain.
 //
 // Callers read the invitation without a lock, so the write is conditional on
 // the state they read: the row must still be unaccepted and still carry
-// expectedApprovalStatus. Otherwise an acceptance, approval or rejection
-// committed meanwhile would be overwritten; the write then matches no row
-// and reports ErrGuardianInvitationNotFound.
-func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error {
+// expectedApprovalStatus and expectedExpiresAt. Otherwise an acceptance,
+// approval, rejection or invalidation committed meanwhile would be overwritten;
+// the write then matches no row and reports ErrGuardianInvitationNotFound.
+func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string, expectedExpiresAt time.Time) error {
 	row := guardianInvitationRowOf(invitation)
 	columns := []string{"guardian_profile_id", "expires_at", "accepted_at", "email_sent_at", "email_error",
 		"student_id", "requested_by_account_id", "approval_status", "approved_by", "approved_at",
@@ -277,6 +277,7 @@ func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.
 			Set("updated_at = NOW()").
 			Where(`"guardian_invitation".id = ?`, invitation.ID).
 			Where(`"guardian_invitation".accepted_at IS NULL`).
+			Where(`"guardian_invitation".expires_at = ?`, expectedExpiresAt).
 			Where(`"guardian_invitation".approval_status = ?`, expectedApprovalStatus))
 	})
 	if err != nil {
@@ -305,9 +306,10 @@ func (s *Store) AcceptGuardianInvitation(ctx context.Context, id int64, accepted
 }
 
 // InvalidateGuardianInvitations ends every unspent link for this school's
-// profile. Pending approvals are rejected so they cannot refresh an ended
-// link. Accepted invitations and their account bindings remain untouched.
-func (s *Store) InvalidateGuardianInvitations(ctx context.Context, profileID int64, now time.Time) error {
+// profile. Contact changes include pending approvals, rejecting them so they
+// cannot refresh an ended link. Link replacement preserves those requests,
+// which grant no access yet. Accepted invitations remain untouched.
+func (s *Store) InvalidateGuardianInvitations(ctx context.Context, profileID int64, now time.Time, includePendingApprovals bool) error {
 	if s.scope(ctx).TenantID <= 0 {
 		return domain.ErrTenantRequired
 	}
@@ -320,6 +322,7 @@ func (s *Store) InvalidateGuardianInvitations(ctx context.Context, profileID int
 		Set("email = NULL").
 		Set("approval_status = CASE WHEN approval_status = ? THEN ? ELSE approval_status END", domain.GuardianInvitationApprovalPending, domain.GuardianInvitationApprovalRejected).
 		Set("updated_at = ?", now).
+		Where("(? OR approval_status <> ?)", includePendingApprovals, domain.GuardianInvitationApprovalPending).
 		Where("guardian_profile_id = ?", profileID).Where("accepted_at IS NULL").Where("expires_at > ?", now)).Exec(ctx)
 	return err
 }
