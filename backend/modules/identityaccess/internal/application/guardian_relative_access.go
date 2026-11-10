@@ -72,6 +72,13 @@ func (l *AccountLifecycle) inviteToStudent(ctx context.Context, req domain.Invit
 	}
 
 	tenantID := l.runtime.TenantID(ctx)
+	// Lock order account, school, profile before anything is written: the
+	// student link, a new profile and the account's school mapping all come
+	// after (#6305). Taking them later would hold the link or the profile
+	// while waiting for the account or the school.
+	if err := l.lockInviteeInOrder(ctx, email); err != nil {
+		return nil, failed(opGuardianInviteToStudent, err)
+	}
 
 	// An existing restrictive contact link would survive the link-if-absent
 	// untouched, leaving the invited account without parent_portal.access
@@ -105,6 +112,26 @@ func (l *AccountLifecycle) inviteToStudent(ctx context.Context, req domain.Invit
 		return nil, err
 	}
 	return l.resolveInviteNow(ctx, req, profile, tenantID, resolved.created, roleUpgrade)
+}
+
+// lockInviteeInOrder takes the locks of an invitation to a child in the one
+// order (#6305): the account of the address, the school, then the guardian
+// profile of the address when it exists.
+func (l *AccountLifecycle) lockInviteeInOrder(ctx context.Context, email string) error {
+	if _, _, _, err := l.logins.LockLoginAccountByEmail(ctx, email); err != nil {
+		return err
+	}
+	if err := l.lockInvitingSchool(ctx); err != nil {
+		return err
+	}
+	existing, found, err := l.guardians.FindGuardianProfileByEmail(ctx, email)
+	if err != nil || !found {
+		return err
+	}
+	if _, _, err := l.guardians.LockGuardianProfile(ctx, existing.ID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // detectRestrictedContact checks whether the invited email already belongs to

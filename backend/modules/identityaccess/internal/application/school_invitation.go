@@ -343,13 +343,15 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 		if fetchErr != nil {
 			return fetchErr
 		}
-		if err := s.requireInvitationSchool(txCtx, invitation); err != nil {
-			return err
-		}
 		invitationCtx := s.runtime.WithTenantID(txCtx, invitation.TenantID)
-		account, hasAccount, _, accountErr := findLoginAccountByEmail(invitationCtx, s.runtime, s.logins, invitation.Email)
+		// Match session revocation: lock the account before the school so
+		// restoring a dormant account cannot deadlock with school deletion.
+		account, hasAccount, _, accountErr := s.logins.LockLoginAccountByEmail(invitationCtx, invitation.Email)
 		if accountErr != nil {
 			return failed(opAcceptInvitation, accountErr)
+		}
+		if err := s.requireInvitationSchool(txCtx, invitation); err != nil {
+			return err
 		}
 		passwordHash, restore, passwordErr := s.invitationPassword(txCtx, account, hasAccount, registration)
 		if passwordErr != nil {

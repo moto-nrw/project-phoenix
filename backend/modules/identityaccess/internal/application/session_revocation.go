@@ -368,8 +368,11 @@ func (s *AccountAuthentication) RevokeAllTokensWithReason(ctx context.Context, a
 	return nil
 }
 
-// RevokeTokensByTenantID deletes every refresh session of a school, so a
-// soft delete cuts session refresh for all of its users.
+// RevokeTokensByTenantID ends every session of a school, so its soft
+// delete or demo restart ends them for all of its users. It joins the
+// caller's administrative transaction, which deletes the school afterwards
+// (#6305): ending a school's sessions locks accounts and the school across
+// schools, which only the administrative role may.
 func (s *AccountAuthentication) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (_ int, err error) {
 	if s == nil {
 		return 0, errAccountAuthenticationUnavailable
