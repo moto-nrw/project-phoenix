@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -121,4 +124,132 @@ func TestStudentEnrollmentBatchTakesEachStatusWhereTheRowPathDoes(t *testing.T) 
 			}
 		})
 	}
+}
+
+// variedEnrollmentFile has eight children with values that differ per
+// child in every column the profile and the care profile take: address,
+// extra info, health information, consent dates, departure plan, class and
+// enrollment window (one starting in thirty days: pending).
+func variedEnrollmentFile(prefix string) []importModels.StudentImportRow {
+	rows := namedStudentBatch(prefix, studentChunkRows)
+	plans := []map[string]string{{"mon": "bus"}, {"tue": "pickup"}, {"wed": "alone"}, {"thu": "bus", "fri": "pickup"}}
+	for i := range rows {
+		row := &rows[i]
+		row.AddressStreet = fmt.Sprintf("Weg %d", i+1)
+		row.AddressCity = fmt.Sprintf("Stadt%d", i)
+		row.AddressPostalCode = fmt.Sprintf("5066%d", i)
+		row.ExtraInfo = fmt.Sprintf("Info %d", i)
+		row.HealthInfo = fmt.Sprintf("Allergie %d", i)
+		row.AGBAcceptedAt = fmt.Sprintf("2026-09-%02d", i+1)
+		row.DataProcessingAcceptedAt = fmt.Sprintf("2026-08-%02d", i+1)
+		row.EmailContactAcceptedAt = fmt.Sprintf("2026-07-%02d", i+1)
+		row.PhotoConsentGivenAt = fmt.Sprintf("2026-06-%02d", i+1)
+		row.DepartureDays = plans[i%len(plans)]
+		row.SchoolClass = []string{"4A", "4B", "3C"}[i%3]
+		row.EnrolledFrom = fmt.Sprintf("2026-0%d-01", 1+i%8)
+		row.EnrolledUntil = fmt.Sprintf("2031-07-%02d", 10+i)
+	}
+	rows[5].EnrolledFrom = calendar.TodayDate().AddDays(30).String()
+	return rows
+}
+
+// openedHealth reads every child's health information through People
+// Directory, which opens it with the child's membership as the associated
+// data: a care profile written for another membership does not open.
+func openedHealth(t *testing.T, db *bun.DB, persons peopledirectory.Capability) map[string]string {
+	t.Helper()
+	var students []struct {
+		ID   int64  `bun:"id"`
+		Name string `bun:"first_name"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT s.id, p.first_name FROM users.student_profiles s JOIN users.persons p ON p.id = s.person_id
+		WHERE s.tenant_id = ?`, testpkg.Tenant(t)).Scan(context.Background(), &students))
+	opened := make(map[string]string, len(students))
+	for _, student := range students {
+		record, err := persons.ReadEnrollmentStudent(testpkg.Ctx(t), student.ID, "")
+		require.NoError(t, err, "the health field of %s opens with its membership", student.Name)
+		if record.HealthInfo != nil {
+			opened[student.Name] = *record.HealthInfo
+		}
+	}
+	return opened
+}
+
+// TestStudentEnrollmentBatchMatchesTheRowPath (table C, Befundklasse 17): the
+// three enrollment tables hold exactly what the row path writes, with values
+// fixed per child by the file; the health information opens per child with
+// its own membership and reads as the file has it.
+func TestStudentEnrollmentBatchMatchesTheRowPath(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	run := func(t *testing.T, options api.ImportTestOptions) (studentOutcome, importModels.ImportObservation, map[string]string) {
+		testpkg.OwnTenant(t)
+		module, persons, _, err := api.NewImportTestModuleWithOwners(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
+		require.NoError(t, err)
+		actor := newImporter(t, db)
+		upload := awaitStudents(t, uploadStudents(t, module, db, actor, variedEnrollmentFile("Werte"), "values.csv"))
+		require.NoError(t, upload.err)
+		require.Len(t, *module.Observations, 1)
+		return studentOutcomeOf(t, db, upload.result), (*module.Observations)[0], openedHealth(t, db, persons)
+	}
+	var batch, rowPath studentOutcome
+	var batchHealth, rowHealth map[string]string
+	t.Run("batch path", func(t *testing.T) {
+		var observation importModels.ImportObservation
+		batch, observation, batchHealth = run(t, api.ImportTestOptions{})
+		require.Zero(t, observation.BatchFallbacks)
+		require.Equal(t, 1, commandCount(observation, enrollmentProfilesCommand))
+		require.Equal(t, studentChunkRows, commandCount(observation, "enroll_created_student"), "each membership where the row path writes it")
+		require.Equal(t, 1, commandCount(observation, enrollmentCaresCommand))
+		require.Zero(t, commandCount(observation, "create_enrollment_student"))
+		statuses := membershipStatuses(t, db)
+		require.Equal(t, "pending", statuses["Werte5"], "a start in thirty days is pending")
+		require.Equal(t, "active", statuses["Werte4"])
+		require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(DISTINCT person_id) FROM users.student_profiles WHERE tenant_id = ?`))
+		require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(DISTINCT membership_id) FROM users.student_care_profiles WHERE tenant_id = ?`))
+	})
+	t.Run("row path", func(t *testing.T) {
+		var observation importModels.ImportObservation
+		rowPath, observation, rowHealth = run(t, api.ImportTestOptions{RowPathOnly: true})
+		require.Zero(t, commandCount(observation, enrollmentProfilesCommand))
+	})
+	require.Equal(t, rowPath, batch)
+	want := make(map[string]string, studentChunkRows)
+	for i := range studentChunkRows {
+		want[fmt.Sprintf("Werte%d", i)] = fmt.Sprintf("Allergie %d", i)
+	}
+	require.Equal(t, want, batchHealth, "each child's own health information, opened with its own membership")
+	require.Equal(t, want, rowHealth)
+}
+
+// TestStudentEnrollmentBatchKeepsGroupAndHintRowsInPlace: a child with a
+// group and one with a permanent hint are created in place with
+// CreateEnrollmentStudent; the other six go into the batch. The result is the
+// row path's.
+func TestStudentEnrollmentBatchKeepsGroupAndHintRowsInPlace(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	run := func(t *testing.T, options api.ImportTestOptions) (studentOutcome, importModels.ImportObservation) {
+		testpkg.OwnTenant(t)
+		group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Gruppe %d", testpkg.Tenant(t)))
+		module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
+		require.NoError(t, err)
+		actor := newImporter(t, db)
+		rows := variedEnrollmentFile("Ort")
+		rows[2].GroupName = group.Name
+		rows[6].SupervisorNotes = "Dauerhinweis"
+		upload := awaitStudents(t, uploadStudents(t, module, db, actor, rows, "inplace.csv"))
+		require.NoError(t, upload.err)
+		return studentOutcomeOf(t, db, upload.result), (*module.Observations)[0]
+	}
+	var batch, rowPath studentOutcome
+	t.Run("batch path", func(t *testing.T) {
+		var observation importModels.ImportObservation
+		batch, observation = run(t, api.ImportTestOptions{})
+		require.Zero(t, observation.BatchFallbacks)
+		require.Equal(t, 2, commandCount(observation, "create_enrollment_student"), "the group row and the hint row are created in place")
+		require.Equal(t, studentChunkRows-2, commandCount(observation, "enroll_created_student"))
+	})
+	t.Run("row path", func(t *testing.T) { rowPath, _ = run(t, api.ImportTestOptions{RowPathOnly: true}) })
+	require.Equal(t, rowPath, batch)
 }
