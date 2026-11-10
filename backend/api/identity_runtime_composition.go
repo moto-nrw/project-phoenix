@@ -58,7 +58,9 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 		StartChallenge: func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error) {
 			return mfa.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, ip, credentialGeneration)
 		},
-		Enroll:               mfa.EnrollMFA,
+		Enroll: func(ctx context.Context, proof schoolPortal.VerifiedChallenge) error {
+			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, TenantID: proof.TenantID, Scope: identityaccess.MFAChallengeScopeSchool, MFAResetGeneration: proof.MFAResetGeneration})
+		},
 		PrepareTrustedDevice: mfa.PrepareTrustedDevice,
 	}
 }

@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "665be4072330040c5019c03f88a605d8efcd4b4f064f39f161890d6196b29aee",
+  "catalogSHA256": "946e82b8e4daad94623be732faaeb9b63876a62dd0b69bcab9e5b2004a727c2c",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -23573,6 +23573,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -23607,7 +23613,7 @@
         "organization"
       ],
       "excludedColumns": {
-        "text_sealed": "Confirmed mandate text sealed with the bank ring of the deployment (#4696); ciphertext without its key is no customer export content. The export carries its version and SHA-256; the opened text is not yet returned."
+        "text_sealed": "Confirmed mandate text sealed with the bank ring of the deployment (#4696); its ciphertext is no customer export content, the export opens it into text (#6412). The text is bound to the reference of its mandate."
       }
     },
     {
@@ -29492,6 +29498,18 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "account_holder_opened",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "iban_opened",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -29515,8 +29533,8 @@
         "school"
       ],
       "excludedColumns": {
-        "account_holder_sealed": "Account holder sealed with the bank ring of the deployment (#6332); ciphertext without its key is no customer export content.",
-        "iban_sealed": "IBAN sealed with the bank ring of the deployment (#6332); ciphertext without its key is no customer export content, the export carries the masked IBAN."
+        "account_holder_sealed": "Account holder sealed with the bank ring of the deployment (#6332); its ciphertext is no customer export content, the export opens it into account_holder_opened (#6412).",
+        "iban_sealed": "IBAN sealed with the bank ring of the deployment (#6332); its ciphertext is no customer export content, the export opens it into iban_opened (#6412)."
       }
     },
     {
@@ -32019,6 +32037,24 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "iban_opened",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "social_security_number_opened",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "tax_id_opened",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -32042,9 +32078,9 @@
         "school"
       ],
       "excludedColumns": {
-        "iban_sealed": "IBAN sealed with the bank ring of the deployment (#6332); ciphertext without its key is no customer export content, the export carries the masked IBAN.",
-        "social_security_number_sealed": "Social security number sealed with the bank ring of the deployment (#6332); ciphertext without its key is no customer export content.",
-        "tax_id_sealed": "Tax ID sealed with the bank ring of the deployment (#6332); ciphertext without its key is no customer export content."
+        "iban_sealed": "IBAN sealed with the bank ring of the deployment (#6332); its ciphertext is no customer export content, the export opens it into iban_opened (#6412).",
+        "social_security_number_sealed": "Social security number sealed with the bank ring of the deployment (#6332); its ciphertext is no customer export content, the export opens it into social_security_number_opened (#6412).",
+        "tax_id_sealed": "Tax ID sealed with the bank ring of the deployment (#6332); its ciphertext is no customer export content, the export opens it into tax_id_opened (#6412)."
       }
     },
     {

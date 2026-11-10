@@ -56,8 +56,9 @@ func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.
 func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInvalid(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
-	require.NoError(t, svc.EnrollMFA(context.Background(), accID))
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
+	require.NoError(t, enrollMFA(context.Background(), t, scenario.DB, svc, accID))
 
 	// Seed an active challenge via the public StartChallenge path so we
 	// have a real CodeHash to mismatch against.
@@ -88,8 +89,9 @@ func TestMFAService_ResendChallenge_InvalidToken_ReturnsTokenInvalid(t *testing.
 func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
-	require.NoError(t, svc.EnrollMFA(context.Background(), accID))
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
+	require.NoError(t, enrollMFA(context.Background(), t, scenario.DB, svc, accID))
 
 	// Mint a real challenge token via StartChallenge so ResendChallenge
 	// can parse it back out.
@@ -131,8 +133,9 @@ func TestMFAService_TrustedDeviceDays_DefaultsWhenSettingsMissing(t *testing.T) 
 func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
-	require.NoError(t, svc.EnrollMFA(context.Background(), accID))
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
+	require.NoError(t, enrollMFA(context.Background(), t, scenario.DB, svc, accID))
 
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)

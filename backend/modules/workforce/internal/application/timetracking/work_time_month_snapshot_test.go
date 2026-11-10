@@ -2,6 +2,7 @@ package timetracking_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -398,4 +399,59 @@ func TestMonthClose_ReopenUnclosedMonthIsNotFound(t *testing.T) {
 
 	err := f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotMonth, "Korrektur")
 	require.ErrorIs(t, err, timetracking.ErrMonthNotClosed)
+}
+
+// Corrections retain one persisted pause total across the session, its audit
+// trail and the month calculation, for both callers of the shared command.
+func TestSessionCorrections_PersistConsistentState(t *testing.T) {
+	t.Parallel()
+	for _, admin := range []bool{false, true} {
+		t.Run(fmt.Sprintf("admin=%t", admin), func(t *testing.T) {
+			t.Parallel()
+			f := newSnapshotFixture(t)
+			svc := f.newAdminSessionService()
+			end := f.session.CheckInTime.Add(4*time.Hour + 30*time.Minute)
+			brk, err := f.workforce.CreateWorkSessionBreak(f.ctx, workforce.WorkSessionBreak{TenantID: f.tenantID, SessionID: f.session.ID, StartedAt: f.session.CheckInTime.Add(4 * time.Hour), EndedAt: &end, DurationMinutes: 30})
+			require.NoError(t, err)
+			_, err = f.workforce.SetWorkSessionBreakMinutes(f.ctx, f.session.ID, 99)
+			require.NoError(t, err)
+			correct := func(ctx context.Context, update timetracking.SessionUpdateRequest) error {
+				if admin {
+					_, err := svc.UpdateSessionAsAdmin(ctx, f.admin, f.staff, f.session.ID, update)
+					return err
+				}
+				_, err := svc.UpdateSession(ctx, f.staff, f.session.ID, update)
+				return err
+			}
+			notes := "Pausen abgleichen"
+			require.NoError(t, testpkg.RunInTenantTransaction(f.ctx, func(ctx context.Context) error { return correct(ctx, timetracking.SessionUpdateRequest{Notes: &notes}) }))
+			stored, err := f.workforce.FindWorkSession(f.ctx, f.session.ID)
+			require.NoError(t, err)
+			assert.Equal(t, 30, stored.BreakMinutes, "a successful correction reconciles a stale cache")
+			before, err := svc.GetSessionEdits(f.ctx, f.staff, f.session.ID)
+			require.NoError(t, err)
+			wrong := 60
+			require.Error(t, testpkg.RunInTenantTransaction(f.ctx, func(ctx context.Context) error {
+				return correct(ctx, timetracking.SessionUpdateRequest{Notes: &notes, BreakMinutes: &wrong})
+			}))
+			after, err := svc.GetSessionEdits(f.ctx, f.staff, f.session.ID)
+			require.NoError(t, err)
+			assert.Equal(t, before, after, "rejected scalar correction leaves audit unchanged")
+			minutes := 45
+			require.NoError(t, testpkg.RunInTenantTransaction(f.ctx, func(ctx context.Context) error {
+				return correct(ctx, timetracking.SessionUpdateRequest{Notes: &notes, BreakMinutes: &minutes, Breaks: []timetracking.BreakDurationUpdate{{ID: brk.ID, DurationMinutes: minutes}}})
+			}))
+			stored, err = f.workforce.FindWorkSession(f.ctx, f.session.ID)
+			require.NoError(t, err)
+			pauses, err := f.workforce.ListWorkSessionBreaks(f.ctx, workforce.WorkSessionBreakFilter{SessionID: f.session.ID})
+			require.NoError(t, err)
+			require.Len(t, pauses, 1)
+			assert.Equal(t, 45, stored.BreakMinutes)
+			assert.Equal(t, stored.BreakMinutes, pauses[0].DurationMinutes)
+			assert.Equal(t, pauses[0].StartedAt.Add(45*time.Minute), *pauses[0].EndedAt)
+			month, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
+			require.NoError(t, err)
+			assert.Equal(t, 435, month.ActualMinutes)
+		})
+	}
 }

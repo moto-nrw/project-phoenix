@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 
@@ -179,9 +178,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		return nil, err
 	}
 
-	// Individual break edits write their rows immediately. Do that only after
-	// validation and the sibling-block check, so callers without an enclosing
-	// transaction cannot retain a partial break update after a rejected edit.
+	// Validate the proposed session and all pauses together before any write.
 	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
 		return nil, err
 	}
@@ -502,90 +499,6 @@ func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, upd
 		}
 		uc.session.CheckOutTime = updates.CheckOutTime
 	}
-}
-
-func (s *workSessionService) applyBreakUpdates(ctx context.Context, uc *sessionUpdateContext, updates SessionUpdateRequest) error {
-	strPtr := func(str string) *string { return &str }
-
-	if len(updates.Breaks) > 0 {
-		return s.processIndividualBreakUpdates(ctx, uc, updates.Breaks, strPtr)
-	}
-
-	if updates.BreakMinutes != nil {
-		oldVal := strconv.Itoa(uc.session.BreakMinutes)
-		newVal := strconv.Itoa(*updates.BreakMinutes)
-		if oldVal != newVal {
-			uc.addAuditEdit("break_minutes", strPtr(oldVal), strPtr(newVal))
-		}
-		uc.session.BreakMinutes = *updates.BreakMinutes
-	}
-	return nil
-}
-
-func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, uc *sessionUpdateContext, breaks []BreakDurationUpdate, strPtr func(string) *string) error {
-	sessionBreaksRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: uc.sessionID})
-	sessionBreaks := workSessionBreaksToRecords(sessionBreaksRecords)
-	err = rowReadError("get breaks by session ID", err, nil)
-	if err != nil {
-		return fmt.Errorf("failed to load session breaks: %w", err)
-	}
-
-	breakMap := make(map[int64]*WorkSessionBreak, len(sessionBreaks))
-	for _, b := range sessionBreaks {
-		breakMap[b.ID] = b
-	}
-
-	for _, bu := range breaks {
-		if err := s.updateSingleBreak(ctx, uc, breakMap, bu, strPtr); err != nil {
-			return err
-		}
-	}
-
-	if err := s.recalcBreakMinutes(ctx, uc.sessionID); err != nil {
-		return fmt.Errorf("failed to recalculate break minutes: %w", err)
-	}
-
-	// Keep the in-memory session consistent without reloading it. Reloading
-	// would discard time and status edits already validated above.
-	uc.session.BreakMinutes = 0
-	for _, brk := range sessionBreaks {
-		if brk.EndedAt != nil {
-			uc.session.BreakMinutes += brk.DurationMinutes
-		}
-	}
-	return nil
-}
-
-func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionUpdateContext, breakMap map[int64]*WorkSessionBreak, bu BreakDurationUpdate, strPtr func(string) *string) error {
-	brk, ok := breakMap[bu.ID]
-	if !ok {
-		return &workforce.TimeTrackingError{Kind: workforce.ErrBreakNotOwned, Cause: fmt.Errorf("break %d does not belong to this session", bu.ID)}
-	}
-	if brk.EndedAt == nil {
-		return workforce.ErrActiveBreakDurationEdit
-	}
-
-	if bu.DurationMinutes < 0 {
-		return workforce.ErrBreakDurationNegative
-	}
-
-	if brk.DurationMinutes == bu.DurationMinutes {
-		return nil
-	}
-
-	oldVal := strconv.Itoa(brk.DurationMinutes)
-	newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
-	_, err := s.breakRepo.SetWorkSessionBreakDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt)
-	err = workSessionWriteError("update columns WorkSessionBreak", err)
-	if err != nil {
-		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
-	}
-	brk.DurationMinutes = bu.DurationMinutes
-	brk.EndedAt = &newEndedAt
-
-	newVal := strconv.Itoa(bu.DurationMinutes)
-	uc.addAuditEdit("break_duration", strPtr(oldVal), strPtr(newVal))
-	return nil
 }
 
 func (s *workSessionService) applySimpleFieldUpdates(uc *sessionUpdateContext, updates SessionUpdateRequest) {

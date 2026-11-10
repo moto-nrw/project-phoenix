@@ -938,8 +938,11 @@ its password check read; the session mint, the code a sign-in or an
 enrollment start mails (the enrollment token carries `credential_generation`),
 a resend (the challenge token carries it too) and the remembered device of an
 MFA exchange are issued only while it still holds, compared under the account
-lock, and a code redeems only at its own generation. A refused resend or
-enrollment start answers 401 `identity.invalid_credentials`; tokens issued
+lock, and a code redeems only at its own generation. The enrollment confirm of
+every account portal (tenant, school, Träger, caterer) records the factor
+with the redeemed code's generation, compared under the account lock in the
+enrollment write's transaction (#6518). A refused resend, enrollment start or
+enrollment confirm answers 401 `identity.invalid_credentials`; tokens issued
 before this claim existed read as generation 0. The own change writes by
 compare-and-swap on the hash the current password was checked against, so of
 two changes on one proof only the first wins. Operators hold their own

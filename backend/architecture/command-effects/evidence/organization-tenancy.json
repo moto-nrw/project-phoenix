@@ -225,12 +225,28 @@
       "target_owner": "parent-billing"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianBankExportFields.OpenExportField",
+      "binding_digest": "3a1247075c12c6a9461818d9d3b0f627",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianBankExportFields.OpenExportField",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
       "binding_digest": "cbcc6121bd9c1ba3b7f4cc07d2e9d050",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
       "target_owner": "student-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffBankExportFields.OpenExportField",
+      "binding_digest": "0b80e7b39ad41a049cb5aab45bf84154",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffBankExportFields.OpenExportField",
+      "target_owner": "workforce"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",

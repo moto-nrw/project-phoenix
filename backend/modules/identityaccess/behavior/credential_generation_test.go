@@ -3,7 +3,6 @@ package behavior_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -50,14 +49,9 @@ type credentialFixture struct {
 
 func newCredentialFixture(t *testing.T, prefix string) credentialFixture {
 	t.Helper()
-	db := lockRacePool(t)
-	module := newMFATestModule(t, db, withDeliveringMailer(nil)...)
-	tenantID := testpkg.Tenant(t)
-	email := fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
-	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	require.NoError(t, module.MFA.EnrollMFA(context.Background(), account.ID))
-	return credentialFixture{db: db, module: module, tokenAuth: challengeTokenAuth(t, module), accountID: account.ID, tenantID: tenantID, email: email}
+	f := newEnrollmentFixture(t, prefix)
+	require.NoError(t, enrollMFA(context.Background(), t, f.db, f.module.MFA, f.accountID))
+	return f
 }
 
 func (f credentialFixture) generation(t *testing.T) int64 {

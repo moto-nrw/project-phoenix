@@ -155,7 +155,7 @@ func TestInvitationRestoreEndsTheOldCredentialsArtifacts(t *testing.T) {
 		require.NoError(t, cleanupErr)
 	})
 	mfa, _, _ := newTestMFAService(t)
-	require.NoError(t, mfa.EnrollMFA(ctx, account.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, mfa, account.ID))
 	device, _, err := mfa.IssueTrustedDevice(ctx, account.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, device)

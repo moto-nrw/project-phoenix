@@ -806,12 +806,12 @@ func (s *lifecycleInvitations) ListRedeemableGuardianInvitations(_ context.Conte
 	}), nil
 }
 
-func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id int64, acceptedAt time.Time) (bool, error) {
+func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id int64, token string, acceptedAt time.Time) (bool, error) {
 	if s.updateErr != nil {
 		return false, s.updateErr
 	}
 	invitation, ok := s.rows[id]
-	if !ok || invitation.AcceptedAt != nil || invitation.Redeemable(acceptedAt) != nil {
+	if !ok || invitation.Token != token || invitation.AcceptedAt != nil || invitation.Redeemable(acceptedAt) != nil {
 		return false, nil
 	}
 	invitation.AcceptedAt = &acceptedAt

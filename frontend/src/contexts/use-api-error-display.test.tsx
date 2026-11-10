@@ -138,6 +138,46 @@ describe("useApiErrorDisplay", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("answers a retry that fails again at once with a new error toast (#6454)", async () => {
+    const error = new ApiError("backend", 503, {
+      code: "general.unavailable",
+    });
+    let display: ReturnType<typeof useApiErrorDisplay> | undefined;
+    const retry = vi.fn(() => {
+      void display!.show(error, { object: "Die Gruppe", retry });
+    });
+    function TestAction() {
+      display = useApiErrorDisplay();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            void display!.show(error, { object: "Die Gruppe", retry })
+          }
+        >
+          Anzeigen
+        </button>
+      );
+    }
+    render(
+      <ToastProvider>
+        <TestAction />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anzeigen" }));
+    const first = await screen.findByRole("alert", { name: /Die Gruppe/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(retry).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.getByRole("alert", { name: /Die Gruppe/ })).not.toBe(first),
+    );
+    expect(screen.getAllByRole("alert", { name: /Die Gruppe/ })).toHaveLength(
+      1,
+    );
+  });
+
   it("shows module booking refusals as informational feedback", async () => {
     function TestAction() {
       const display = useApiErrorDisplay();

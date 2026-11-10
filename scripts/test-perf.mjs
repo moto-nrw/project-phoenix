@@ -40,6 +40,16 @@ export function inventory(report, frontend) {
   return { files, entries };
 }
 
+// The test binary writes stdout and stderr into one pipe. A write longer than
+// POSIX's minimum PIPE_BUF (512 bytes, the macOS value) is not atomic, so a
+// concurrent stderr write that bypasses testing's lock (the log/slog default
+// logger, a subprocess) can split a framing line; test2json then drops its
+// event (#6488). "^V--- PASS: <name> (1.23s)" is a test's longest framing line.
+// Reject such names on every run instead of only on an unlucky one.
+export const goFramingLineLimit = 512;
+const goFramingLineBytes = event =>
+  Buffer.byteLength(`\x16--- ${event.Action.toUpperCase()}: ${event.Test} (${(event.Elapsed ?? 0).toFixed(2)}s)\n`);
+
 // Both adapters share validation and retain duplicate internal/external names.
 function goInventoryCollector() {
   const packages = new Map();
@@ -58,6 +68,9 @@ function goInventoryCollector() {
     if (event.Test) {
       if (event.Action === 'run') runs.set(key, (runs.get(key) ?? 0) + 1);
       if (event.Action === 'pass' || event.Action === 'skip') {
+        const framing = goFramingLineBytes(event);
+        assert.ok(framing <= goFramingLineLimit, `Test framing line of ${framing} bytes exceeds ${goFramingLineLimit} `
+          + `(PIPE_BUF), shorten the test name: ${event.Package} ${event.Test.slice(0, 160)}`);
         assert.ok((runs.get(key) ?? 0) > 0, 'Terminal test without run');
         runs.set(key, runs.get(key) - 1);
         tests.push([event.Package, event.Test, event.Action]);

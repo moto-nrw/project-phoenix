@@ -15,6 +15,7 @@ type transactionFingerprint func(key string, before bool) (string, error)
 func transactionScopeSubset(current, previous map[string]string, moves map[string]string, fingerprint transactionFingerprint, receiverRemoved func(string, string, string) (bool, error)) error {
 	current = withoutReviewedSessionMintTransactions(withoutReviewedEmailDeliveryEventTransactions(withoutReviewedRealtimeNotificationTransactions(current)))
 	current = withoutReviewedEnrollmentDecisionCommandTransaction(current)
+	current = withoutReviewedAccountMFAEnrollmentTransaction(current)
 	current = withoutReviewedTransactionFrameBundles(current)
 	current = withoutReviewedBelegRetentionTransactions(current)
 	current = withoutReviewedEnrollmentFamilyChildrenTransactions(withoutReviewedEnrollmentFormLabelsTransactions(withoutReviewedSchoolVacationTransactions(withoutReviewedPayrollDispatchTransactions(withoutReviewedParentDocumentInboxTransactions(withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedReturnRegisterTransaction(withoutReviewedCaregiverDisableTransaction(withoutReviewedBillingKeyDateTransactions(current))))))))))))))
