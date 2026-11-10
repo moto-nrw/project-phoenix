@@ -89,17 +89,39 @@ type matrixUpload struct {
 
 func (u matrixUpload) persisted() map[string][]string { return u.outcome.Rows }
 
-// matrixFile is the fixture: six children in one segment, each with consent
-// dates (consent history), arrival and pickup plans, departure days, a
-// privacy consent and a guardian with two phones. The first child's guardian
-// exists already and is reused by e-mail; the third and the fifth share a
-// new guardian, which the fifth finds as the row path does.
+// matrixFile is the fixture: thirteen children in two batch segments of one
+// chunk, split by a child with a card, which takes the row path as a segment
+// of its own. Each child has consent dates (consent history), arrival and
+// pickup plans, departure days, a privacy consent and a guardian with two
+// phones. The six rows M0…M5 carry guardians with e-mail, written in place:
+// M0's guardian exists already and is reused by e-mail; M2 and M4 share a new
+// guardian, which M4 finds as the row path does. The seven rows O0…O6 and the
+// card row carry a guardian without e-mail; in the batch segments the O rows'
+// guardians go into the bundled guardian statements (#5552 step 5c), the
+// card row writes its own in place. Order: M0 M1 M2 M3 O0 O1 O2 | card | M4
+// M5 O3 O4 O5 O6, so both batch segments reach ChunkMinRows.
 func matrixFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 	t.Helper()
 	testpkg.CreateTestGuardianProfileWithExactEmail(t, db, testpkg.Tenant(t), testpkg.GuardianProfileWithEmail{
 		FirstName: "Eltern", LastName: "Vorhanden", Email: "matrix.vorhanden@example.test"})
-	rows := make([]importModels.StudentImportRow, matrixRows)
-	for i := range rows {
+	card := testpkg.CreateTestRFIDCard(t, db, "MATRIX")
+	row := func(name, email, secondType string, i int) importModels.StudentImportRow {
+		return importModels.StudentImportRow{
+			FirstName: name, LastName: "Matrix", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
+			PrivacyAccepted: true, AGBAcceptedAt: "2026-09-01", DataProcessingAcceptedAt: "2026-09-02",
+			DepartureDays: map[string]string{"mon": "bus", "tue": "pickup"},
+			Guardians: []importModels.GuardianImportData{{
+				FirstName: "Eltern", LastName: name, Email: email, RelationshipType: "Mutter",
+				PhoneNumbers: []importModels.PhoneImportData{
+					{PhoneNumber: fmt.Sprintf("0151 70%04d", i), PhoneType: "mobile"},
+					{PhoneNumber: fmt.Sprintf("0221 80%04d", i), PhoneType: secondType},
+				},
+			}},
+			PickupSchedules:  []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
+			ArrivalSchedules: []importModels.ArrivalScheduleImportData{{Weekday: 1, ExpectedArrival: "07:45"}},
+		}
+	}
+	withEmail := func(i int) importModels.StudentImportRow {
 		name := fmt.Sprintf("Matrix%d", i)
 		email := strings.ToLower(name) + "@example.test"
 		switch i {
@@ -108,22 +130,19 @@ func matrixFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 		case 2, 4:
 			email = "matrix.familie@example.test"
 		}
-		rows[i] = importModels.StudentImportRow{
-			FirstName: name, LastName: "Matrix", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
-			PrivacyAccepted: true, AGBAcceptedAt: "2026-09-01", DataProcessingAcceptedAt: "2026-09-02",
-			DepartureDays: map[string]string{"mon": "bus", "tue": "pickup"},
-			Guardians: []importModels.GuardianImportData{{
-				FirstName: "Eltern", LastName: name, Email: email, RelationshipType: "Mutter",
-				PhoneNumbers: []importModels.PhoneImportData{
-					{PhoneNumber: fmt.Sprintf("0151 70%04d", i), PhoneType: "mobile"},
-					{PhoneNumber: fmt.Sprintf("0221 80%04d", i), PhoneType: "home"},
-				},
-			}},
-			PickupSchedules:  []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
-			ArrivalSchedules: []importModels.ArrivalScheduleImportData{{Weekday: 1, ExpectedArrival: "07:45"}},
-		}
+		return row(name, email, "home", i)
 	}
-	return rows
+	// An empty phone type is stored as "other" (mapPhoneType), on both paths.
+	withoutEmail := func(i int) importModels.StudentImportRow {
+		return row(fmt.Sprintf("Ohne%d", i), "", "", 100+i)
+	}
+	cardRow := row("Karte", "", "", 200)
+	cardRow.TagID = card.ID
+	return []importModels.StudentImportRow{
+		withEmail(0), withEmail(1), withEmail(2), withEmail(3), withoutEmail(0), withoutEmail(1), withoutEmail(2),
+		cardRow,
+		withEmail(4), withEmail(5), withoutEmail(3), withoutEmail(4), withoutEmail(5), withoutEmail(6),
+	}
 }
 
 // runMatrixUpload imports the matrix file on its own tenant of the package
@@ -213,31 +232,37 @@ func uploadStatus(err error) string {
 type matrixClass string
 
 const (
-	classBounded         matrixClass = "K1 bounded"
-	classChunk           matrixClass = "K2 in the chunk savepoint"
-	classOwner           matrixClass = "K3 in an owner savepoint"
-	classOwnerControl    matrixClass = "K4 owner savepoint statement"
-	classResolverRead    matrixClass = "K5 resolver read"
-	classResolverControl matrixClass = "K5 resolver savepoint statement"
+	classBounded matrixClass = "K1 bounded"
+	classChunk   matrixClass = "K2 in the chunk savepoint"
+	// The owner savepoints of the enrollment and of a guardian link enclose
+	// different statements; each is a class of its own (#5552 step 5c, table
+	// review R1 point 4).
+	classOwnerEnroll        matrixClass = "K3a in the enrollment savepoint"
+	classOwnerLink          matrixClass = "K3b in a guardian link savepoint"
+	classOwnerEnrollControl matrixClass = "K4a enrollment savepoint statement"
+	classOwnerLinkControl   matrixClass = "K4b guardian link savepoint statement"
+	classResolverRead       matrixClass = "K5 resolver read"
+	classResolverControl    matrixClass = "K5 resolver savepoint statement"
 	// classBoundControl sets or resets a bound: not the batch command, so a
 	// failure behaves as the row path's first write (table A: R for 40P01
 	// and 40001, otherwise 500) and a failed cleanup after it ends the upload
-	// (E19). The recording keeps the last statement of each kind, so the
-	// second bound (consents and consent history, #5552 step 5b) stands for
-	// both.
+	// (E19). Each set and reset of each bound of each segment is a statement
+	// of its own in the recording.
 	classBoundControl matrixClass = "bound set or reset"
 )
 
 // cleanupPoints are the savepoint cleanup statements a failure of the class
 // runs through, numbered in order, and the chunk transaction's ROLLBACK.
 var cleanupPoints = map[matrixClass][]int{
-	classBounded:         {1, 2, outerRollback}, // chunk ROLLBACK TO, RELEASE
-	classChunk:           {1, 2, outerRollback},
-	classOwner:           {1, 2, 3, 4, outerRollback}, // inner ROLLBACK TO, RELEASE, then the chunk's
-	classOwnerControl:    {1, 2, outerRollback},       // the chunk's
-	classResolverRead:    {1, 2, outerRollback},       // the read's
-	classResolverControl: {1, 2, outerRollback},       // the chunk's
-	classBoundControl:    {1, 2, outerRollback},       // the chunk's
+	classBounded:            {1, 2, outerRollback}, // chunk ROLLBACK TO, RELEASE
+	classChunk:              {1, 2, outerRollback},
+	classOwnerEnroll:        {1, 2, 3, 4, outerRollback}, // inner ROLLBACK TO, RELEASE, then the chunk's
+	classOwnerLink:          {1, 2, 3, 4, outerRollback},
+	classOwnerEnrollControl: {1, 2, outerRollback}, // the chunk's
+	classOwnerLinkControl:   {1, 2, outerRollback},
+	classResolverRead:       {1, 2, outerRollback}, // the read's
+	classResolverControl:    {1, 2, outerRollback}, // the chunk's
+	classBoundControl:       {1, 2, outerRollback}, // the chunk's
 }
 
 // matrixStatement is one statement of the chunk in the recording.
@@ -246,14 +271,35 @@ type matrixStatement struct {
 	index int // in the batch-path recording
 	row   int // index of the same statement in the row-path recording, -1 for none
 	class matrixClass
-	// group splits a class by the owner savepoint around the statement.
-	group string
+	// segment and phase place the statement: the batch segment (1, 2) and
+	// where in it (resolve, bound 1, loop, bound 2, after it).
+	segment int
+	phase   string
 }
 
-// chunkStatements lists the statements of the chunk in the batch recording,
-// classified, with the last occurrence of each kind per class; every one but
-// the resolver's is mapped to the same statement on the row path: the
-// person statement to the first person insert, every other statement to its
+// savepointOwner names the savepoint a SAVEPOINT opens from the statement
+// after it: the resolver's name read, the enrollment or a guardian link.
+func savepointOwner(next string) string {
+	switch {
+	case strings.HasPrefix(next, `SELECT "person"`):
+		return "resolver"
+	case strings.HasPrefix(next, enrollmentWrite):
+		return "enroll"
+	case strings.HasPrefix(next, "WITH linked_guardian"):
+		return "link"
+	default:
+		return "other"
+	}
+}
+
+// chunkStatements lists the statements of the chunk in the batch recording
+// by position: one per kind for each place (segment, phase, class), so the
+// two segments, both bounds and each set and reset stay apart while the
+// same statement of the next row in the same place, which the executor
+// cannot tell apart, is represented once (the last). Every one but the
+// resolver's and the bounds' is mapped to the same statement on the row
+// path: the person statement to the first person insert, a bundled statement
+// to the first single statement of its table, every other one to its
 // occurrence after that insert. Bound statements are not the batch command.
 func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 	t.Helper()
@@ -266,82 +312,82 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 	}
 	require.Positive(t, firstPerson, "the row path recording creates a person")
 	type key struct {
-		class matrixClass
-		kind  string
+		segment     int
+		phase, kind string
+		class       matrixClass
 	}
 	last := map[key]matrixStatement{}
 	occurrence := map[string]int{}
 	var order []key
-	recordStatement := func(k key, statement matrixStatement) {
+	record := func(k key, statement matrixStatement) {
 		if _, seen := last[k]; !seen {
 			order = append(order, k)
 		}
 		last[k] = statement
 	}
-	depth, phase, group := 0, "", ""
-	for i, query := range batch {
-		query = strings.TrimSpace(query)
+	var owners []string // the open savepoints inside the chunk's
+	segment, phase, started, done := 0, "", false, false
+	for i := 0; i < len(batch) && !done; i++ {
+		query := strings.TrimSpace(batch[i])
 		kind := statementKind(query)
-		if strings.HasPrefix(kind, "RELEASE SAVEPOINT ") || strings.HasPrefix(kind, "ROLLBACK TO SAVEPOINT ") {
-			depth--
-		}
-		at := depth
-		if strings.HasPrefix(kind, "SAVEPOINT ") || strings.HasPrefix(kind, "ROLLBACK TO SAVEPOINT ") {
-			depth++
-		}
-		switch {
-		case phase == "" && at == 0 && strings.HasPrefix(kind, "SAVEPOINT "):
-			phase = "resolve" // the chunk savepoint opened
-			continue
-		case phase == "":
-			continue
-		case at == 0:
-			phase = "done" // the chunk's own release ends it
-		case strings.HasPrefix(query, boundSet):
-			phase = "bound"
-			recordStatement(key{classBoundControl, kind}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1})
-			continue
-		case strings.HasPrefix(query, boundReset):
-			phase = "command"
-			recordStatement(key{classBoundControl, kind}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1})
-			continue
-		}
-		if phase == "done" {
-			break
-		}
-		if at == 1 && strings.HasPrefix(kind, "SAVEPOINT ") && phase == "command" {
-			group = ""
-		} else if at == 2 && group == "" {
-			group = kind
-			if len(group) > 40 {
-				group = group[:40]
+		if !started {
+			if strings.HasPrefix(kind, "SAVEPOINT ") {
+				started = true // the chunk savepoint opened
 			}
+			continue
 		}
 		var class matrixClass
 		switch {
-		case phase == "resolve" && isSavepointControl(kind):
-			class = classResolverControl
-		case phase == "resolve":
+		case strings.HasPrefix(kind, "SAVEPOINT "):
+			next := ""
+			if i+1 < len(batch) {
+				next = strings.TrimSpace(batch[i+1])
+			}
+			owner := savepointOwner(next)
+			if owner == "resolver" && len(owners) == 0 {
+				segment, phase = segment+1, "resolve"
+			}
+			owners = append(owners, owner)
+			class = controlClass(t, owner, kind)
+		case strings.HasPrefix(kind, "RELEASE SAVEPOINT ") || strings.HasPrefix(kind, "ROLLBACK TO SAVEPOINT "):
+			if len(owners) == 0 {
+				done = true // the chunk's own release ends it
+				continue
+			}
+			owner := owners[len(owners)-1]
+			owners = owners[:len(owners)-1]
+			class = controlClass(t, owner, kind)
+			if owner == "resolver" {
+				phase = "resolved"
+			}
+		case strings.HasPrefix(query, boundSet):
+			phase = map[string]string{"resolved": "bound 1", "loop": "bound 2"}[phase]
+			require.NotEmpty(t, phase, "a bound is set after the resolver or the loop (statement %d)", i)
+			record(key{segment, phase + " set", kind, classBoundControl}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1, segment: segment, phase: phase + " set"})
+			continue
+		case strings.HasPrefix(query, boundReset):
+			record(key{segment, phase + " reset", kind, classBoundControl}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1, segment: segment, phase: phase + " reset"})
+			phase = map[string]string{"bound 1": "loop", "bound 2": "after"}[phase]
+			continue
+		case len(owners) > 0 && owners[len(owners)-1] == "resolver":
 			class = classResolverRead
-		case phase == "bound":
+		case phase == "bound 1" || phase == "bound 2":
 			class = classBounded
-		case isSavepointControl(kind):
-			class = classOwnerControl
-		case at >= 2:
-			class = classOwner
+		case len(owners) > 0 && owners[len(owners)-1] == "enroll":
+			class = classOwnerEnroll
+		case len(owners) > 0 && owners[len(owners)-1] == "link":
+			class = classOwnerLink
+		case len(owners) > 0:
+			t.Fatalf("statement %d runs in a savepoint the matrix does not know: %s", i, kind)
 		default:
 			class = classChunk
 		}
-		if phase != "resolve" {
+		if class != classResolverRead && class != classResolverControl {
 			occurrence[kind]++
 		}
-		statement := matrixStatement{kind: kind, index: i, class: class, row: occurrence[kind]}
-		if class == classOwner {
-			statement.group = group
-		}
-		recordStatement(key{class, kind}, statement)
+		record(key{segment, phase, kind, class}, matrixStatement{kind: kind, index: i, class: class, row: occurrence[kind], segment: segment, phase: phase})
 	}
-	require.Equal(t, "done", phase, "the recording holds a whole batch attempt")
+	require.True(t, done, "the recording holds a whole batch attempt")
 	statements := make([]matrixStatement, 0, len(order))
 	for _, k := range order {
 		statement := last[k]
@@ -356,20 +402,36 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 	return statements
 }
 
+// controlClass is the class of a savepoint statement by the savepoint it
+// belongs to.
+func controlClass(t *testing.T, owner, kind string) matrixClass {
+	t.Helper()
+	switch owner {
+	case "resolver":
+		return classResolverControl
+	case "enroll":
+		return classOwnerEnrollControl
+	case "link":
+		return classOwnerLinkControl
+	}
+	t.Fatalf("savepoint statement of an unknown savepoint: %s", kind)
+	return ""
+}
+
 func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, occurrence int) int {
 	t.Helper()
 	if strings.HasPrefix(kind, personBatch) {
 		return firstPerson
 	}
 	if table, bundled := bundledLeafTable(kind); bundled {
-		// A bundled leaf statement stands for the first single insert of its
-		// table on the row path (#5552, step 5b).
+		// A bundled statement stands for the first single statement of its
+		// table on the row path (#5552, steps 5b and 5c).
 		for i := firstPerson; i < len(rowPath); i++ {
 			if strings.HasPrefix(statementKind(rowPath[i]), table) {
 				return i
 			}
 		}
-		t.Fatalf("the row path issues no insert into %q", table)
+		t.Fatalf("the row path issues no statement %q", table)
 	}
 	seen := 0
 	for i := firstPerson; i < len(rowPath); i++ {
@@ -384,27 +446,51 @@ func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, 
 	return -1
 }
 
-// bundledLeafTables are the leaf inserts the batch command bundles after the
-// rows (#5552, step 5b).
-var bundledLeafTables = []string{"INSERT INTO users.privacy_consents ", "INSERT INTO audit.student_consent_changes "}
+// bundledStatement is one statement the batch command bundles after the
+// rows (#5552, steps 5b and 5c): how to recognize it in the batch recording
+// and the single statement of its table on the row path.
+type bundledStatement struct {
+	matches func(kind string) bool
+	rowPath string
+}
 
-// bundledLeafTable names the table of a bundled leaf insert: one of
-// bundledLeafTables with more than one VALUES row.
+func multiRow(prefix string) func(string) bool {
+	return func(kind string) bool { return strings.HasPrefix(kind, prefix) && strings.Contains(kind, "), (") }
+}
+
+func bundledPrefix(prefix, contains string) func(string) bool {
+	return func(kind string) bool { return strings.HasPrefix(kind, prefix) && strings.Contains(kind, contains) }
+}
+
+var bundledStatements = []bundledStatement{
+	{multiRow("INSERT INTO users.privacy_consents "), "INSERT INTO users.privacy_consents "},
+	{multiRow("INSERT INTO audit.student_consent_changes "), "INSERT INTO audit.student_consent_changes "},
+	{bundledPrefix("MERGE INTO users.guardian_profiles ", ""), "INSERT INTO users.guardian_profiles "},
+	{multiRow("INSERT INTO users.guardian_phone_numbers ("), "INSERT INTO users.guardian_phone_numbers "},
+	{bundledPrefix("WITH linked_guardian AS ", "= ANY("), "WITH linked_guardian AS "},
+	{bundledPrefix("INSERT INTO users.student_guardian_pickup_permissions ", " SELECT "), "INSERT INTO users.student_guardian_pickup_permissions "},
+	{bundledPrefix("INSERT INTO auth.guardian_student_access ", " SELECT "), "INSERT INTO auth.guardian_student_access "},
+}
+
+// bundledLeafTable names the row-path statement a bundled statement stands
+// for.
 func bundledLeafTable(kind string) (string, bool) {
-	for _, table := range bundledLeafTables {
-		if strings.HasPrefix(kind, table) && strings.Contains(kind, "), (") {
-			return table, true
+	for _, statement := range bundledStatements {
+		if statement.matches(kind) {
+			return statement.rowPath, true
 		}
 	}
 	return "", false
 }
 
 // replays says whether a failure of the statement makes the batch command
-// replay the chunk (table A: P, or N for the bound): a write that fails with
-// anything but a broken connection. A failed savepoint statement ends the
-// upload (500, no retry, no replay).
+// replay the chunk (table A: P, or N for the bound): a write of the batch
+// command that fails with anything but a broken connection. A failed
+// savepoint statement ends the upload (500, no retry, no replay). A row that
+// forms a segment of its own between the batch segments (the card row,
+// phase "after") is written on the row path: its failure is the row path's.
 func replays(statement matrixStatement, err error) bool {
-	return !errors.Is(err, driver.ErrBadConn) && !isSavepointControl(statement.kind)
+	return statement.phase != "after" && !errors.Is(err, driver.ErrBadConn) && !isSavepointControl(statement.kind)
 }
 
 func requireSameEnd(t *testing.T, want, got matrixUpload) {
@@ -443,7 +529,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	t.Run("recording", func(t *testing.T) {
 		batchRecording = runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, nil)
 		require.Equal(t, "200", batchRecording.status)
-		require.Equal(t, 1, countKind(batchRecording.statements, personBatch), "the batch path ran")
+		require.Equal(t, 2, countKind(batchRecording.statements, personBatch), "both batch segments ran")
 		require.Zero(t, batchRecording.replays)
 	})
 	t.Run("row path recording", func(t *testing.T) {
@@ -452,17 +538,27 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	})
 	require.Equal(t, "200", clean.status)
 	requireSameEnd(t, clean, batchRecording)
+	// The O rows' guardians went into the bundled statements; the M rows and
+	// the card row wrote theirs in place (#5552 step 5c): five new profiles
+	// in place (M0 and M4 reuse one) against twelve on the row path.
+	require.Equal(t, 5, countKind(batchRecording.statements, "INSERT INTO users.guardian_profiles AS"), "only the in-place guardians are single inserts")
+	require.Equal(t, 12, countKind(rowRecording.statements, "INSERT INTO users.guardian_profiles AS"))
 	statements := chunkStatements(t, batchRecording.statements, rowRecording.statements)
 	classes := map[matrixClass]bool{}
-	bundled := 0
+	bundled := map[int]int{}
+	bounds := 0
 	for _, statement := range statements {
 		classes[statement.class] = true
 		if _, ok := bundledLeafTable(statement.kind); ok {
-			bundled++
-			require.Equal(t, classBounded, statement.class, "a bundled leaf statement runs under the bound (E13): %s", statement.kind)
+			bundled[statement.segment]++
+			require.Equal(t, classBounded, statement.class, "a bundled statement runs under the bound (E13): %s", statement.kind)
+		}
+		if statement.class == classBoundControl {
+			bounds++
 		}
 	}
-	require.Equal(t, len(bundledLeafTables), bundled, "the consents and the consent history are bundled")
+	require.Equal(t, map[int]int{1: len(bundledStatements), 2: len(bundledStatements)}, bundled, "each segment bundles consents, consent history and the five guardian statements")
+	require.Equal(t, 8, bounds, "two segments × two bounds × set and reset")
 	require.Len(t, classes, len(cleanupPoints), "every class is in the recording")
 
 	// Part 1: every statement × every main error, cleanups succeed.
@@ -470,7 +566,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	t.Run("main error", func(t *testing.T) {
 		for _, statement := range statements {
 			for _, err := range matrixFailures {
-				t.Run(fmt.Sprintf("%s %s × %v", statement.class, statement.kind, err), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%d %s %s %s × %v", statement.segment, statement.phase, statement.class, statement.kind, err), func(t *testing.T) {
 					t.Parallel()
 					// Each upload runs in a subtest of its own: OwnTenant gives it a
 					// tenant of its own.
@@ -530,7 +626,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	members := map[string][]int{}
 	var classOrder []string
 	for i, statement := range statements {
-		class := string(statement.class) + " " + statement.group
+		class := string(statement.class)
 		if _, seen := members[class]; !seen {
 			classOrder = append(classOrder, class)
 		}
@@ -542,14 +638,16 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 			for position, at := range indices {
 				statement := statements[at]
 				mains := minimumCleanupFailures
-				if position == 0 || position == len(indices)-1 {
+				if position == 0 || position == len(indices)-1 || statement.class == classBoundControl {
+					// First and last of each class, and every set and reset of
+					// every bound, get the whole cross.
 					mains = matrixFailures
 				}
 				for _, err := range mains {
 					for _, point := range cleanupPoints[statement.class] {
 						for _, err2 := range matrixFailures {
 							cases++
-							t.Run(fmt.Sprintf("%s %s × %v, cleanup %d × %v", statement.class, statement.kind, err, point, err2), func(t *testing.T) {
+							t.Run(fmt.Sprintf("%d %s %s %s × %v, cleanup %d × %v", statement.segment, statement.phase, statement.class, statement.kind, err, point, err2), func(t *testing.T) {
 								t.Parallel()
 								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2)
 							})

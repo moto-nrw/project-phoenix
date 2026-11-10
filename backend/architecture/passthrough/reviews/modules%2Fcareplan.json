@@ -132,6 +132,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/GuardianPickupPermissions.CreateGuardianPickupPermissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "modules/careplan/internal/adapters/postgres/parentChildQueries.FindForAccount",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

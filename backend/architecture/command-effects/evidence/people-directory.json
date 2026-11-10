@@ -5577,6 +5577,14 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreateNewStudentGuardians",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.NewGuardianBatches.CreateNewStudentGuardians",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.AddGuardianPhone",
       "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.AddGuardianPhone",
@@ -12105,11 +12113,27 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.CreateGuardianPickupPermissions",
+      "binding_digest": "342e596328a4c4266b071da593ad5428",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.CreateGuardianPickupPermissions",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.GuardianPickupPermissionBatches.CreateGuardianPickupPermissions",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.GrantGuardianStudentAccess",
       "binding_digest": "c659bb8724db4eb1ed3bbf9d786bf8b9",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.GrantGuardianStudentAccess",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianStudentAccess.GrantGuardianStudentAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.GrantGuardianStudentAccesses",
+      "binding_digest": "bd5fd2863f8b1611ef00734b61795cd9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.GrantGuardianStudentAccesses",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianStudentAccessBatches.GrantGuardianStudentAccesses",
       "target_owner": "identity-access"
     },
     {

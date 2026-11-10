@@ -321,3 +321,20 @@ func (o observedPersonBatches) CreatePersons(ctx context.Context, inputs []Creat
 	defer observeCommand(ctx, "people-directory", "create_persons", time.Now(), &err)
 	return o.PersonBatches.CreatePersons(ctx, inputs)
 }
+
+type observedNewGuardianBatches struct{ NewGuardianBatches }
+
+func ObserveNewGuardianBatches(source NewGuardianBatches) NewGuardianBatches {
+	if source == nil {
+		return nil
+	}
+	if _, observed := source.(observedNewGuardianBatches); observed {
+		return source
+	}
+	return observedNewGuardianBatches{source}
+}
+
+func (o observedNewGuardianBatches) CreateNewStudentGuardians(ctx context.Context, links []NewStudentGuardianLink) (err error) {
+	defer observeCommand(ctx, "people-directory", "create_new_student_guardians", time.Now(), &err)
+	return o.NewGuardianBatches.CreateNewStudentGuardians(ctx, links)
+}

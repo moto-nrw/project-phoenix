@@ -47,6 +47,7 @@ type requestScopedResolver interface {
 func NewStudentImportConfig(deps ports.StudentImportDeps) *StudentImportConfig {
 	deps.Persons = ports.ObservePersonDirectory(deps.Persons)
 	deps.PersonBatches = ports.ObservePersonBatches(deps.PersonBatches)
+	deps.GuardianBatches = ports.ObserveNewGuardianBatches(deps.GuardianBatches)
 	deps.Students = ports.ObserveStudentDirectory(deps.Students)
 	deps.Guardians = ports.ObserveGuardianDirectory(deps.Guardians)
 	deps.Schedules = ports.ObserveStudentSchedules(deps.Schedules)
