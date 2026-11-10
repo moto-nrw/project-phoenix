@@ -2,13 +2,17 @@ package integration
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -252,4 +256,136 @@ func TestStudentEnrollmentBatchKeepsGroupAndHintRowsInPlace(t *testing.T) {
 	})
 	t.Run("row path", func(t *testing.T) { rowPath, _ = run(t, api.ImportTestOptions{RowPathOnly: true}) })
 	require.Equal(t, rowPath, batch)
+}
+
+// TestStudentEnrollmentBatchGateHolder (Befundklasse 1 and table review R1
+// finding 6, a deviation E13/E13′ cover): the class-writes gate sits in the
+// bounded profile statement. With a 1 s read timeout and a 0.4 s bound, a
+// holder of the gate for h: below the bound the statement waits, 200; above
+// it the bound cancels, the chunk replays row by row in a new transaction and
+// waits for the rest, 200 with one replay; at 1.2 s, beyond the read timeout,
+// the row path (and #6514) fails with an i/o timeout while the replay only
+// waits the remaining 0.8 s, 200.
+func TestStudentEnrollmentBatchGateHolder(t *testing.T) {
+	t.Parallel()
+	const readTimeout, limit = time.Second, 400 * time.Millisecond
+	db := testpkg.SetupIsolatedTestDB(t)
+	pool, name := namedImportPool(t, testpkg.IsolatedTestDSN(t), readTimeout)
+	for _, c := range []struct {
+		hold     time.Duration
+		replayed int
+	}{
+		{200 * time.Millisecond, 0},
+		{700 * time.Millisecond, 1},
+		{1200 * time.Millisecond, 1},
+	} {
+		t.Run(c.hold.String(), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), api.ImportTestOptions{BatchStatementLimit: limit})
+			require.NoError(t, err)
+			actor := newImporter(t, db)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			holder, pid := holdClassWriteGate(t, ctx, db)
+			done := uploadStudents(t, module, pool, actor, namedStudentBatch("Tor", studentChunkRows), "gate.csv")
+			waitBlockedBy(t, db, name, pid)
+			// The hold time is the subject of the test.
+			time.Sleep(c.hold)
+			require.NoError(t, holder.Rollback())
+
+			upload := awaitStudents(t, done)
+			require.NoError(t, upload.err)
+			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
+			observation := (*module.Observations)[0]
+			require.Equal(t, c.replayed, observation.BatchFallbacks)
+			require.Zero(t, observation.BatchesRetried)
+			require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(*) FROM users.student_care_profiles WHERE tenant_id = ?`))
+		})
+	}
+}
+
+// TestStudentEnrollmentBatchCommitOutcomeUnknown (Befundklasse 16, U): the
+// COMMIT of a chunk whose profiles and care profiles were bundled fails
+// after the server committed: 500, no retry, outcome unknown, the chunk with
+// all three enrollment tables durable.
+func TestStudentEnrollmentBatchCommitOutcomeUnknown(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	dsn := testpkg.PackageTestDSN(t)
+	testpkg.OwnTenant(t)
+	var bundled, failed atomic.Bool
+	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(faultConnector{
+		Connector: pgdriver.NewConnector(pgdriver.WithDSN(dsn)),
+		decide: func(query string) error {
+			if strings.HasPrefix(statementKind(query), "INSERT INTO users.student_care_profiles (") {
+				bundled.Store(true)
+			}
+			return nil
+		},
+		commit: func() error {
+			if bundled.Load() && failed.CompareAndSwap(false, true) {
+				return driver.ErrBadConn
+			}
+			return nil
+		},
+	})))
+	t.Cleanup(func() { _ = pool.Close() })
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	upload := awaitStudents(t, uploadStudents(t, module, pool, actor, namedStudentBatch("Zusage", studentChunkRows), "commit.csv"))
+	require.True(t, failed.Load(), "the COMMIT fault fired")
+	require.Equal(t, "500", uploadStatus(upload.err))
+	var unknown interface{ CommitOutcomeUnknown() }
+	require.ErrorAs(t, upload.err, &unknown, "the outcome of the COMMIT is unknown")
+	observation := (*module.Observations)[0]
+	require.Zero(t, observation.BatchesRetried, "no retry after an unknown COMMIT")
+	require.Zero(t, observation.BatchFallbacks)
+	for _, table := range []string{"users.student_profiles", "users.student_school_memberships", "users.student_care_profiles"} {
+		// The tables come from the fixed list above, never input.
+		require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(*) FROM `+table+` WHERE tenant_id = ?`), "the server committed %s", table)
+	}
+}
+
+// TestStudentEnrollmentBatchRealCancelReplaysInNewTransaction (table A, 57014
+// echt): a slow row trigger makes the profile statement, or the care
+// statement, outlast the bound for real; PostgreSQL cancels it, pgdriver
+// closes the connection, the chunk replays row by row in a new transaction
+// without the bound (E13′, N): 200, one replay, no retry.
+func TestStudentEnrollmentBatchRealCancelReplaysInNewTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	_, err := db.ExecContext(context.Background(), `CREATE FUNCTION public.slow_marked_enrollment() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN
+			IF to_jsonb(NEW) ->> TG_ARGV[0] = TG_ARGV[1] THEN PERFORM pg_sleep(0.4); END IF;
+			RETURN NULL;
+		END $$;
+		CREATE TRIGGER slow_marked_profile AFTER INSERT ON users.student_profiles FOR EACH ROW EXECUTE FUNCTION public.slow_marked_enrollment('address_street', 'Langsamweg 1');
+		CREATE TRIGGER slow_marked_care AFTER INSERT ON users.student_care_profiles FOR EACH ROW EXECUTE FUNCTION public.slow_marked_enrollment('departure_days', '{"fri": "bus"}')`)
+	require.NoError(t, err)
+	for _, c := range []struct {
+		name string
+		mark func(*importModels.StudentImportRow)
+	}{
+		{"profile statement", func(row *importModels.StudentImportRow) { row.AddressStreet = "Langsamweg 1" }},
+		{"care statement", func(row *importModels.StudentImportRow) { row.DepartureDays = map[string]string{"fri": "bus"} }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{
+				BatchStatementLimit: 250 * time.Millisecond,
+			})
+			require.NoError(t, err)
+			actor := newImporter(t, db)
+			rows := namedStudentBatch("Abbruch", studentChunkRows)
+			c.mark(&rows[3])
+			upload := awaitStudents(t, uploadStudents(t, module, db, actor, rows, "cancel.csv"))
+			require.NoError(t, upload.err)
+			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
+			observation := (*module.Observations)[0]
+			require.Equal(t, 1, observation.BatchFallbacks, "the cancelled batch replayed")
+			require.Zero(t, observation.BatchesRetried)
+			require.Equal(t, studentChunkRows, countIn(t, db, `SELECT count(*) FROM users.student_care_profiles WHERE tenant_id = ?`))
+		})
+	}
 }
