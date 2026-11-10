@@ -61,7 +61,7 @@ func (b *recordingGuardianBroadcaster) BroadcastToTenant(int64, realtime.Event) 
 func (b *recordingGuardianBroadcaster) BroadcastToTenantAdmins(int64, realtime.Event) error {
 	return nil
 }
-func (b *recordingGuardianBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
+
 func (b *recordingGuardianBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
 	return nil
 }

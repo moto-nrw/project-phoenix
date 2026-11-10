@@ -129,13 +129,19 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
 ## 3. Ausführen und prüfen
 
 Aus dem Repository-Root im vorbereiteten lokalen Dev-Loop, Variablen vorab
-auf die autorisierte Schul-ID und lokale Verzeichnisse setzen:
+auf die autorisierte Schul-ID, die eigene Operator-ID und lokale
+Verzeichnisse setzen:
 
 ```bash
 umask 077
 scripts/dev-native.sh backend go run . tenant export \
-  --school "$SCHOOL_ID" --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
+  --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+  --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
 ```
+
+Jeder Lauf verlangt `--operator` und steht im Operator-Protokoll, beim
+Schulpaket mit Ressource `school` statt `organization` (#6326, siehe
+**Operator-Protokoll** unten).
 
 Für das Trägerpaket statt `--school "$SCHOOL_ID"` den Parameter
 `--organization "$ORGANIZATION_ID"` setzen. Es enthält die Trägertabellen
@@ -147,8 +153,8 @@ Trägerbestand; bei einer Trägerrückgabe ist das Trägerpaket desselben Auftra
 für diese Tabellen maßgeblich. Wechselt nur eine Schule, enthält ihr Schulpaket
 die Trägerdaten aller Schulen des Trägers: Umfang mit dem Träger abstimmen.
 
-Das Trägerpaket verlangt zusätzlich `--operator "$OPERATOR_ID"` und legt die
-gespeicherten Dokumente und die PAIN.008-Dateien als Dateien bei (ADR 0187):
+Das Trägerpaket legt zusätzlich die gespeicherten Dokumente und die
+PAIN.008-Dateien als Dateien bei (ADR 0187):
 
 ```bash
 umask 077
@@ -163,20 +169,26 @@ scripts/dev-native.sh backend go run . tenant export \
   einer eigenen Transaktion **nach** dem Katalog-Snapshot; nur ohne Schreiber
   passen Tabellen-Dateien und Dateien zusammen. Der deaktivierte Träger allein
   reicht nicht.
-- **Operator-Protokoll:** `--operator` muss ein bestehender, **aktiver**
-  Operator sein (wie beim Löschverfahren); sonst liest und schreibt der Lauf
-  nichts. Jeder Lauf steht zweimal in `platform.operator_audit_log` (Aktion
-  `export`, Ressource `organization`), ohne Personendaten und ohne lokalen
-  Pfad: vor dem ersten Lesen der Versuch (`outcome: started`), danach das
-  Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`, die Anzahlen, die
-  Dokumente je Spalte und die Herkunft jeder PAIN.008-Datei; erst danach
-  entsteht `COMPLETE`.
+- **Operator-Protokoll (Schul- und Trägerpaket):** `--operator` muss ein
+  bestehender, **aktiver** Operator sein (wie beim Löschverfahren); sonst
+  liest und schreibt der Lauf nichts. Jeder Lauf steht zweimal in
+  `platform.operator_audit_log` (Aktion `export`, Ressource `school` mit der
+  Schul-ID bzw. `organization` mit der Träger-ID), ohne Personendaten und
+  ohne lokalen Pfad: vor dem ersten Lesen der Versuch (`outcome: started`,
+  `operator_id`, `school_id` bzw. `organization_id`, `started_at`), danach
+  das Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`
+  (`manifest_sha256`), `exported_at`, die Anzahl der Tabellen und Dateien,
+  beim Trägerpaket zusätzlich die Dokumente je Spalte und die Herkunft jeder
+  PAIN.008-Datei, beim internen Prüfpaket `person_review: true` ohne die
+  Person; erst danach entsteht `COMPLETE`. Schlägt dieser Eintrag fehl,
+  entsteht kein `COMPLETE`.
   `failed` nennt die Fehlerklasse (`snapshot`, `filesystem`,
   `document_files`, `sepa_debit_files`, `manifest`, `audit`,
-  `complete_marker`) und
-  `partial_files_removed`: Der Lauf löscht sein unvollständiges Verzeichnis.
-  Steht dort `false`, das Verzeichnis von Hand löschen. Ein Schulpaket
-  schreibt (noch) keinen Eintrag (#6326).
+  `complete_marker`). Das Trägerpaket löscht sein unvollständiges
+  Verzeichnis und meldet das in `partial_files_removed`; steht dort `false`,
+  das Verzeichnis von Hand löschen. Ein fehlgeschlagenes Schulpaket lässt
+  seine Teilstände liegen (kein `partial_files_removed`): sperren und nach
+  Abschnitt 4 entfernen.
 - **Dokumente:** `DOKUMENTE/<Tabelle>/<Zeilen-ID>-<Spalte>.<Endung>` je
   gespeichertem Dokument der Trägertabellen: Schreiben und Bestätigungen,
   Bescheide, alle Vertragsfassungen, Papierverträge, Unterschriftsbilder,
@@ -320,7 +332,8 @@ Es gibt keinen Modus zum stillen Überspringen.
 Im zugriffsbeschränkten Auftrag festhalten: Auftragsreferenz, geprüfte
 Berechtigung, interne Schulreferenz, verantwortliche Person/Vertretung,
 Commit, Verfahrens-/Katalogversion, Zeitpunkte, Prüfschritte mit Anzahlen,
-Manifest-Prüfsumme, Fehler/Wiederholungen, begründete Ausschlüsse und offene
+Manifest-Prüfsumme, Fehler/Wiederholungen, Verweis auf die Einträge im
+Operator-Protokoll (Aktion `export`, Ressource `school` bzw. `organization`), begründete Ausschlüsse und offene
 Ergänzungen, bestätigten Übergabekanal/Empfang sowie Entfernung lokaler Kopien.
 Keine Namen aus dem Export, Inhalte, Originaldateinamen, Passwörter, Tokens
 oder Schlüssel aufnehmen. Nachweisfristen und Zugriff organisatorisch
@@ -358,7 +371,8 @@ Gesamterfolg erhalten.
 ```bash
 umask 077
 scripts/dev-native.sh backend go run . tenant export \
-  --school "$SCHOOL_ID" --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
+  --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+  --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
   --uploads "$UPLOADS_SNAPSHOT" --out "$PERSON_REVIEW_DIR"
 ```
 

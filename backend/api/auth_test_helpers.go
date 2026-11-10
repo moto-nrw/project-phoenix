@@ -326,7 +326,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL, TraegerURL: strings.TrimRight(cfg.TraegerURL, "/"),
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
-		}, logger),
+		}, logger, cfg.JWTSecret),
 		Invitations: invitationDependencies, Traeger: authTestTraegerAccounts(dispatcher, defaultFrom, deliveryModule.Runtime, frontendURL, inviteHours, settingsOverrides.resetBackoff, logger),
 	}, sessionRepos, codec, settings.Settings, command, logger)
 	if err != nil {
@@ -393,7 +393,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 		Resets: owners.PasswordResetDependencies(&owners.PasswordResetWiring{
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		}, logger),
+		}, logger, CurrentServiceConfig().JWTSecret),
 	}, sessionRepos, codec, settings.Settings, audit, logger)
 	if err != nil {
 		return nil, err

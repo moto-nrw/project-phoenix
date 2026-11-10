@@ -29,15 +29,6 @@
   "allDay": "Cały dzień",
   "moreEvents": "+ {count} więcej",
   "responseRequired": "Wymagana odpowiedź",
-  "weekdayShort": {
-    "1": "Pn",
-    "2": "Wt",
-    "3": "Śr",
-    "4": "Cz",
-    "5": "Pt",
-    "6": "So",
-    "7": "Nd"
-  },
   "errorObjectList": "lista terminów",
   "errorObjectResponse": "odpowiedź"
 }

@@ -128,13 +128,3 @@ export function mapOfferingSuggestion(
     ambiguous: suggestion.ambiguous ?? false,
   };
 }
-
-export function suggestionSelection(
-  suggestion: OfferingSuggestion,
-): OfferingSelection {
-  return {
-    offeringIds: suggestion.offerings.map((offering) => offering.id),
-    gradeLevels: suggestion.gradeLevels,
-    schoolClasses: suggestion.schoolClasses,
-  };
-}

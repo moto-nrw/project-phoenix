@@ -45,6 +45,9 @@ type FinanceExportStore interface {
 	ExportFiles(ctx context.Context, organizationID int64, runKind string, runID int64, offset, limit int) (parentbilling.ExportProtocolPage, error)
 	ExportRuns(ctx context.Context, organizationID int64, offset, limit int) (parentbilling.ExportRunPage, error)
 	ExportRunContent(ctx context.Context, organizationID int64, runKind string, runID int64) (parentbilling.ExportRunContent, error)
+	// DatevRunBookings reads the documents of the runs with what the DATEV
+	// selection needs, in one statement.
+	DatevRunBookings(ctx context.Context, organizationID int64, runs []parentbilling.ExportRunRef) (map[parentbilling.ExportRunRef][]parentbilling.ExportInvoice, error)
 	InvoiceHistory(ctx context.Context, organizationID int64, kind string, id int64) (string, []parentbilling.InvoiceHistoryEntry, []parentbilling.ExportProtocolEntry, error)
 	// InsertRunEvents records an action in the trail of holiday and monthly
 	// runs, here the read of an invoice's history.
@@ -93,6 +96,9 @@ type exportFile struct {
 	// render renders the content with the reserved number, nil when the
 	// content does not carry it.
 	render func(number int64) ([]byte, error)
+	// datevAll and datevBookings are what a DATEV file records (#6433).
+	datevAll      bool
+	datevBookings []parentbilling.DatevBookingRef
 }
 
 // recordExportFile takes the next file number of the Träger, renders the
@@ -114,7 +120,7 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 		Format: file.format, RunKind: file.runKind, RunID: file.runID, FileNumber: number, FileName: file.fileName(number),
 		Content: data, TotalCents: file.totalCents, Reference: file.reference, BookingContent: file.bookingContent,
 		CareInvoiceIDs: file.careInvoices, DocumentIDs: file.documents, CareNoticeIDs: file.notices, SEPADebitIDs: file.debits,
-		DocumentCount: file.documentCount,
+		DocumentCount: file.documentCount, DatevAll: file.datevAll, DatevBookings: file.datevBookings,
 	})
 	if err != nil {
 		return parentbilling.ExportProtocolEntry{}, nil, fmt.Errorf("parent billing: record the export file: %w", err)
@@ -257,6 +263,42 @@ func (f *FinanceExports) ExportRuns(ctx context.Context, reviewer parentbilling.
 	}
 	runs.NextOffset = nextOffset(offset, len(runs.Runs), runs.Total)
 	return runs, nil
+}
+
+// DatevRunOverviews counts the new DATEV bookings of the runs of a page of
+// the export page and names their fiscal years (#6433), by the rules of the
+// file, once the DATEV settings make a valid file. Runs of other kinds and
+// of other Träger are no part of the answer.
+func (f *FinanceExports) DatevRunOverviews(ctx context.Context, reviewer parentbilling.HolidayReviewer, runs []parentbilling.ExportRunRef,
+) (parentbilling.DatevRunOverviews, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.DatevRunOverviews{}, err
+	}
+	settings, readiness, err := f.datev.settingsAndReadiness(ctx, reviewer)
+	if err != nil || !readiness.Ready {
+		return parentbilling.DatevRunOverviews{Runs: []parentbilling.DatevRunOverview{}}, err
+	}
+	refs := make([]parentbilling.ExportRunRef, 0, len(runs))
+	for _, run := range runs {
+		if (run.RunKind == parentbilling.DebitRunCare || run.RunKind == parentbilling.DebitRunHoliday) && run.RunID > 0 &&
+			!slices.Contains(refs, run) {
+			refs = append(refs, run)
+		}
+	}
+	overviews := parentbilling.DatevRunOverviews{Ready: true, Runs: []parentbilling.DatevRunOverview{}}
+	if len(refs) == 0 {
+		return overviews, nil
+	}
+	bookings, err := f.store.DatevRunBookings(ctx, reviewer.OrganizationID, refs)
+	if err != nil {
+		return parentbilling.DatevRunOverviews{}, err
+	}
+	for _, ref := range refs {
+		if invoices, found := bookings[ref]; found {
+			overviews.Runs = append(overviews.Runs, datevRunOverview(ref, invoices, settings))
+		}
+	}
+	return overviews, nil
 }
 
 // ExportProtocol reads one page of the protocol, newest first; of one run

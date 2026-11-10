@@ -433,3 +433,34 @@ func TestInviteToStudentLocksSchoolBeforeProfileAndLink(t *testing.T) {
 		return err
 	})
 }
+
+// An acceptance may have read the link before a contact edit or replacement
+// invitation invalidated it. The final write must not spend that stale read.
+func TestGuardianInvitationAcceptanceCannotOutrunInvalidation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{Outbox: api.NewCapturingOutbox()})
+	require.NoError(t, err)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "invalidation-fence")
+	creator := testpkg.CreateTestAccount(t, db, "invalidation-creator")
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{GuardianProfileID: profile.ID, CreatedBy: creator.ID})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	writer, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = writer.Rollback() }()
+	_, err = writer.ExecContext(ctx, `SELECT id FROM users.guardian_profiles WHERE id = ? FOR UPDATE`, profile.ID)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{Password: strongTestPassword, ConfirmPassword: strongTestPassword})
+		done <- err
+	}()
+	waitForLockWaiters(t, db, 1)
+	_, err = writer.ExecContext(ctx, `UPDATE auth.guardian_invitations SET expires_at = NOW() - INTERVAL '1 minute' WHERE id = ?`, invitation.ID)
+	require.NoError(t, err)
+	require.NoError(t, writer.Commit())
+	require.Error(t, awaitResult(t, done), "an invalidated link cannot commit an account from its earlier snapshot")
+	require.Zero(t, accountCountByEmail(t, db, *profile.Email), "the provisional account rolls back too")
+}

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -52,16 +51,19 @@ func requireNoCiphertext(t *testing.T, out string, sealed ...[]byte) {
 	}))
 }
 
+// exportSchool runs the school return as the root binds it, with the
+// operator audit #6326 requires.
 func exportSchool(t *testing.T, db *bun.DB, school int64) (string, error) {
 	t.Helper()
 	sealed, err := tenantExportSealedFields()
 	require.NoError(t, err)
-	exporter, err := organizationCompose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
-		Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
-	}, sealed, tenantExportProjectedFields())
+	database := testpkg.NewDatabase(t, db)
+	exporter, err := newTenantExporter(database, sealed, tenantExportProjectedFields(), false)
 	require.NoError(t, err)
+	operator := testpkg.CreateTestOperator(t, db)
 	out := filepath.Join(t.TempDir(), "export")
-	return out, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: t.TempDir()})
+	return out, exporter.Export(tenant.WithUnitOfWork(t.Context(), database.UnitOfWork()),
+		organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: operator.ID, Output: out, Uploads: t.TempDir()})
 }
 
 func openedValues(t *testing.T, path string, columns ...string) []string {

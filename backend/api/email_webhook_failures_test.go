@@ -152,7 +152,7 @@ func TestEmailWebhookRouteAnswersAnInterruptedBodyWithARetry(t *testing.T) {
 			t.Parallel()
 			calls := 0
 			router := chi.NewRouter()
-			mountEmailWebhooks(router, noWebhookIngest{calls: &calls})
+			mountEmailWebhooks(router, noWebhookIngest{calls: &calls}, false)
 			capture := apiCommon.NewServerErrorCapture()
 			request := httptest.NewRequest(http.MethodPost, emailWebhookPath+"/email/delivery/lettermint", test.body)
 			recorder := httptest.NewRecorder()

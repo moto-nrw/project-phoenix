@@ -463,6 +463,124 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("keeps typed pickup fields when a focus refetch replaces records with equal values", () => {
+    const entry: CareException = {
+      date: todayISO(),
+      pickup_time: "14:30",
+      reason: "original",
+      source: "guardian",
+      pickup_source: "guardian",
+      updated_at: "2026-09-09T08:00:00Z",
+    };
+    const props = {
+      careExceptionsLoaded: true,
+      pickupChangeEnabled: true,
+      onClose: vi.fn(),
+      onSubmit: vi.fn(),
+      onRemove: vi.fn(),
+    };
+    const { rerender } = render(
+      <PickupTimeModal {...props} careExceptions={[entry]} />,
+    );
+    const reason = screen.getByRole("textbox", { name: /Grund/ });
+    fireEvent.change(reason, { target: { value: "typed draft" } });
+    rerender(<PickupTimeModal {...props} careExceptions={[{ ...entry }]} />);
+    expect(reason).toHaveValue("typed draft");
+  });
+
+  it.each(["exception", "request"] as const)(
+    "refills pickup fields when switching dates with equal saved %s values",
+    (source) => {
+      const nextDay = parseISODate(todayISO());
+      nextDay.setDate(nextDay.getDate() + 1);
+      const tomorrow = toISODate(nextDay);
+      const entries = [todayISO(), tomorrow].map((date) => ({
+        date,
+        pickup_time: "14:30",
+        reason: "appointment",
+      }));
+      const { dateInput, pickupInput, reasonInput } = renderModal({
+        careExceptions:
+          source === "exception"
+            ? entries.map((entry) => ({
+                ...entry,
+                source: "guardian",
+                pickup_source: "guardian",
+                updated_at: "2026-09-09T08:00:00Z",
+              }))
+            : [],
+        pickupChangeRequests:
+          source === "request"
+            ? entries.map((entry) => ({
+                ...entry,
+                id: entry.date,
+                status: "approved",
+                created_at: "2026-09-09T08:00:00Z",
+              }))
+            : [],
+      });
+
+      expect(pickupInput).toHaveValue("14:30");
+      expect(reasonInput).toHaveValue("appointment");
+      fireEvent.change(pickupInput, { target: { value: "15:00" } });
+      fireEvent.change(reasonInput!, { target: { value: "unsaved draft" } });
+      fireEvent.change(dateInput, { target: { value: tomorrow } });
+
+      expect(pickupInput).toHaveValue("14:30");
+      expect(reasonInput).toHaveValue("appointment");
+    },
+  );
+
+  it("keeps the edited pickup request identity after changing its date", async () => {
+    const update = vi
+      .spyOn(parentApi, "updatePickupChangeRequest")
+      .mockResolvedValue({
+        id: "request-edit",
+        date: "2026-09-10",
+        pickup_time: "14:30",
+        reason: "appointment",
+        status: "pending",
+        created_at: "2026-09-09T08:00:00Z",
+      });
+    render(
+      <PickupTimeModal
+        studentId="1"
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+        pickupChangeRequests={[
+          {
+            id: "request-edit",
+            date: todayISO(),
+            pickup_time: "14:30",
+            reason: "appointment",
+            status: "pending",
+            created_at: "2026-09-09T08:00:00Z",
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
+    const date =
+      document.querySelector<HTMLInputElement>('input[type="date"]')!;
+    fireEvent.change(date, { target: { value: "2026-09-10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        "1",
+        "request-edit",
+        expect.objectContaining({
+          date: "2026-09-10",
+          pickupTime: "14:30",
+          reason: "appointment",
+        }),
+      ),
+    );
+  });
+
   it("shows a pending request and lets the guardian edit it", () => {
     const onRemove = vi.fn().mockResolvedValue(undefined);
     render(

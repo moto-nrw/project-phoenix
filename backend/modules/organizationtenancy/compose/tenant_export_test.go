@@ -180,9 +180,9 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	_, err := db.NewRaw("UPDATE auth.accounts SET username = ? WHERE id = ?", "/uploads/avatars/global/"+strconv.FormatInt(b, 10)+".bin", a).Exec(t.Context())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
 	require.Len(t, manifest.Tables, len(catalog.Tables))
 	assertExportTables(t, out, catalog, manifest, a, b)
@@ -190,10 +190,10 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	assertExportObjects(t, out, catalog, a, b)
 	// Repeating into a fresh directory yields the same table/file bytes.
 	second := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: second, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: second, Uploads: uploads}))
 	require.Equal(t, manifest.Artifacts, readExportManifest(t, second).Artifacts)
 	// Existing completed attempts are never overwritten or mixed with a retry.
-	require.Error(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
+	require.Error(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: uploads}))
 	assertExportArtifacts(t, out, manifest)
 }
 
@@ -302,11 +302,11 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	b, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.CreateTestStudentForTenant(t, db, a, "Synthetic A", "Fixture", "A")
 	testpkg.CreateTestStudentForTenant(t, db, b, "Synthetic B", "Fixture", "B")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	exportErr := exporter.Export(counter.Context(context.Background()), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()})
+	exportErr := exporter.Export(counter.Context(context.Background()), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: t.TempDir()})
 	counter.Stop()
 	t.Logf("tenant export error=%v SQL=%q", exportErr, counter.Queries())
 	require.NoError(t, exportErr)

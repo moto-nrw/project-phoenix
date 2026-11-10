@@ -367,6 +367,25 @@ out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
 
+### Password-reset address limits
+
+Every normalized address receives the same password-reset response sequence,
+regardless of account existence or eligibility for the requested portal. With
+rate limiting enabled, three requests per hour receive the neutral success
+response; the fourth receives `429 / identity.password_reset_rate_limited`
+and `Retry-After` for the remaining window. Portal choice does not create a
+separate address quota. Only eligible accounts receive a reset link.
+
+Identity & Access checks this quota before account lookup. Counter keys are
+purpose-separated HMAC-SHA256 values of the trimmed, lowercase address using
+the existing installation signing secret. Unknown addresses are never stored
+in plaintext or added to the account directory. Counters persist across
+processes and are removed by the existing stale-window cleanup after one day.
+Legacy plaintext counters are moved to hashed keys on their next request,
+without resetting the active quota. Rotating the signing secret starts new
+hashed windows, as it invalidates existing authentication material.
+The public routes retain their separate IP-based abuse limit.
+
 ## Mail provider webhook
 
 `POST /webhooks/email/delivery/{provider}` has no session: the HMAC over the raw

@@ -25,16 +25,20 @@ import (
 // ADR 0192/0193 (ADR 0187): the PAIN.008 files Parent Billing opens with the
 // bank key in a Träger transaction of its own, the creditor account from the
 // Träger's master data for reconstructed files, and the operator audit of
-// each run.
+// each run, which a school package gets as well (#6326).
 
-// newTenantExporter builds the export. A Träger package also gets its
-// PAIN.008 files and its operator audit; a school export uses neither.
+// newTenantExporter builds the export with the operator audit of each run
+// (#6326). A Träger package also gets its PAIN.008 files.
 func newTenantExporter(db transactionCompose.Database, sealed organizationtenancy.TenantExportSealedFields,
 	projected organizationtenancy.TenantExportProjectedFields, traeger bool,
 ) (organizationtenancy.TenantExporter, error) {
-	fingerprints := organizationtenancy.ExportFingerprints{Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint}
 	if !traeger {
-		return organizationCompose.NewTenantExporter(db.Pool(), fingerprints, sealed, projected)
+		audit, err := newTenantExportAudit(db)
+		if err != nil {
+			return nil, err
+		}
+		fingerprints := organizationtenancy.ExportFingerprints{Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint}
+		return organizationCompose.NewTenantExporter(db.Pool(), fingerprints, sealed, projected, audit)
 	}
 	cipher, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
 	if err != nil {
@@ -47,7 +51,7 @@ func newTraegerTenantExporter(db transactionCompose.Database, sealed organizatio
 	projected organizationtenancy.TenantExportProjectedFields, cipher owners.BankDataCipher,
 ) (organizationtenancy.TenantExporter, error) {
 	billing := parentBillingCompose.NewSEPAReturn(traegerCreditorAccounts{masterData: organizationCompose.NewTraegerMasterData()}, cipher, securityruntime.Fingerprint)
-	operators, err := identityaccessCompose.NewOperatorDirectory(db.Pool())
+	audit, err := newTenantExportAudit(db)
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +59,16 @@ func newTraegerTenantExporter(db transactionCompose.Database, sealed organizatio
 		Fingerprints: organizationtenancy.ExportFingerprints{Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint},
 		Sealed:       sealed, Projected: projected,
 		SEPADebitFiles: traegerSEPADebitFiles{billing: billing},
-		Audit:          tenantExportAudit{log: owners.NewOperatorAuditLog(db), operators: operators},
+		Audit:          audit,
 	})
+}
+
+func newTenantExportAudit(db transactionCompose.Database) (tenantExportAudit, error) {
+	operators, err := identityaccessCompose.NewOperatorDirectory(db.Pool())
+	if err != nil {
+		return tenantExportAudit{}, err
+	}
+	return tenantExportAudit{log: owners.NewOperatorAuditLog(db), operators: operators}, nil
 }
 
 // traegerSEPADebitFiles hands the PAIN.008 files to the export one at a
@@ -93,18 +105,19 @@ func (c traegerCreditorAccounts) CreditorAccount(ctx context.Context, organizati
 	return nil, nil
 }
 
-// tenantExportAudit writes each Träger package run into the operator audit:
-// action export on the organization, first the attempt of an existing,
-// active operator (like the erasure), then the outcome with the counts and
-// the manifest checksum or the error class.
+// tenantExportAudit writes each package run into the operator audit:
+// action export on the school or the organization, first the attempt of an
+// existing, active operator (like the erasure), then the outcome with the
+// counts and the manifest checksum or the error class (#6326).
 type tenantExportAudit struct {
 	log       owners.OperatorAuditEntries
 	operators identityaccess.OperatorDirectory
 }
 
 func (a tenantExportAudit) BeginTenantExport(ctx context.Context, attempt organizationtenancy.TenantExportAttempt) error {
-	if attempt.OperatorID <= 0 || attempt.OrganizationID <= 0 {
-		return errors.New("tenant export audit: operator and organization are required")
+	resourceType, resourceID, err := tenantExportResource(attempt.OperatorID, attempt.SchoolID, attempt.OrganizationID)
+	if err != nil {
+		return err
 	}
 	operator, err := a.operators.FindOperator(ctx, attempt.OperatorID)
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
@@ -116,24 +129,38 @@ func (a tenantExportAudit) BeginTenantExport(ctx context.Context, attempt organi
 	if !operator.Active {
 		return errors.New("tenant export audit: operator is not active")
 	}
-	return a.write(ctx, attempt.OperatorID, attempt.OrganizationID, struct {
+	return a.write(ctx, attempt.OperatorID, resourceType, resourceID, struct {
 		organizationtenancy.TenantExportAttempt
 		Outcome string `json:"outcome"`
 	}{attempt, "started"})
 }
 
 func (a tenantExportAudit) RecordTenantExport(ctx context.Context, record organizationtenancy.TenantExportRecord) error {
-	if record.OperatorID <= 0 || record.OrganizationID <= 0 {
-		return errors.New("tenant export audit: operator and organization are required")
+	resourceType, resourceID, err := tenantExportResource(record.OperatorID, record.SchoolID, record.OrganizationID)
+	if err != nil {
+		return err
 	}
-	return a.write(ctx, record.OperatorID, record.OrganizationID, record)
+	return a.write(ctx, record.OperatorID, resourceType, resourceID, record)
 }
 
-func (a tenantExportAudit) write(ctx context.Context, operatorID, organizationID int64, record any) error {
+// tenantExportResource names the audited package: exactly one school or
+// one organization, by an operator.
+func tenantExportResource(operatorID, schoolID, organizationID int64) (string, int64, error) {
+	switch {
+	case operatorID <= 0 || (schoolID > 0) == (organizationID > 0) || schoolID < 0 || organizationID < 0:
+		return "", 0, errors.New("tenant export audit: operator and exactly one school or organization are required")
+	case schoolID > 0:
+		return "school", schoolID, nil
+	default:
+		return "organization", organizationID, nil
+	}
+}
+
+func (a tenantExportAudit) write(ctx context.Context, operatorID int64, resourceType string, resourceID int64, record any) error {
 	changes, err := json.Marshal(record)
 	if err != nil {
 		return err
 	}
 	return a.log.Create(ctx, &auditModels.OperatorAuditEntry{OperatorID: operatorID, Action: "export",
-		ResourceType: "organization", ResourceID: &organizationID, Changes: changes})
+		ResourceType: resourceType, ResourceID: &resourceID, Changes: changes})
 }

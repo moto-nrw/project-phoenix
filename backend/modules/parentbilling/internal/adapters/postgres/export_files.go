@@ -141,6 +141,7 @@ type exportFileRow struct {
 	ExportedAt           time.Time  `bun:"exported_at,nullzero,default:current_timestamp"`
 	SubmittedAt          *time.Time `bun:"submitted_at"`
 	SubmittedByAccountID *int64     `bun:"submitted_by_account_id"`
+	DatevAll             bool       `bun:"datev_all"`
 }
 
 // exportFileListRow is a protocol entry with what the list shows besides:
@@ -157,7 +158,8 @@ type exportFileListRow struct {
 func (r exportFileRow) entry() parentbilling.ExportProtocolEntry {
 	return parentbilling.ExportProtocolEntry{ID: r.ID, FileNumber: r.FileNumber, Format: r.Format, RunKind: r.RunKind, RunID: r.RunID,
 		FileName: r.FileName, Fingerprint: r.ContentSHA256, InvoiceCount: r.InvoiceCount, TotalCents: r.TotalCents,
-		Reference: textOf(r.Reference), ExportedBy: r.ExportedByAccountID, ExportedAt: r.ExportedAt, SubmittedAt: r.SubmittedAt}
+		Reference: textOf(r.Reference), ExportedBy: r.ExportedByAccountID, ExportedAt: r.ExportedAt, SubmittedAt: r.SubmittedAt,
+		DatevAll: r.DatevAll}
 }
 
 func (r exportFileListRow) entry() parentbilling.ExportProtocolEntry {
@@ -179,17 +181,74 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	}
 	var row exportFileRow
 	if err := db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
-		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id)
-		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?)
+		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id, datev_all)
+		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?)
 		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
 		record.BookingContent, exportDocumentCount(record), record.TotalCents,
-		textRef(record.Reference), accountRef(accountID)).Scan(ctx, &row); err != nil {
+		textRef(record.Reference), accountRef(accountID), record.DatevAll).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
 	if err := insertExportFileInvoices(ctx, db, organizationID, row.ID, record); err != nil {
 		return parentbilling.ExportProtocolEntry{}, err
 	}
+	if err := insertDatevBookings(ctx, db, organizationID, row.ID, record); err != nil {
+		return parentbilling.ExportProtocolEntry{}, err
+	}
 	return row.entry(), nil
+}
+
+// insertDatevBookedDocuments records the bookings of a DATEV file, one
+// array per kind of booking, in one statement.
+const insertDatevBookedDocuments = `INSERT INTO parent_billing.datev_booked_documents
+		(organization_id, export_file_id, care_invoice_id, care_cancellation_id, document_id)
+	SELECT ?0, ?1, booking.care_invoice_id, booking.care_cancellation_id, booking.document_id
+	FROM (
+		SELECT unnest(?2::bigint[]) AS care_invoice_id, NULL::bigint AS care_cancellation_id, NULL::bigint AS document_id
+		UNION ALL SELECT NULL::bigint, unnest(?3::bigint[]), NULL::bigint
+		UNION ALL SELECT NULL::bigint, NULL::bigint, unnest(?4::bigint[])
+	) AS booking
+	ON CONFLICT DO NOTHING`
+
+// insertDatevBookings records the first DATEV file of each booking of a
+// DATEV file (#6433). A booking an earlier or a concurrent file recorded
+// keeps its row: the unique index makes the insert wait for the other
+// transaction and then skip the row. A standard file must record every one
+// of its bookings, else another download took them and the file is
+// ErrDatevBookingsTaken; "all again" records only the new ones.
+func insertDatevBookings(ctx context.Context, db bun.IDB, organizationID, fileID int64, record parentbilling.ExportFileRecord) error {
+	if record.Format != parentbilling.ExportFormatDatev || len(record.DatevBookings) == 0 {
+		return nil
+	}
+	invoices, cancellations, documents := datevBookingIDs(record.DatevBookings)
+	result, err := db.ExecContext(ctx, insertDatevBookedDocuments, organizationID, fileID,
+		pgdialect.Array(invoices), pgdialect.Array(cancellations), pgdialect.Array(documents))
+	if err != nil {
+		return fmt.Errorf("record the DATEV bookings of the file: %w", err)
+	}
+	recorded, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count the DATEV bookings of the file: %w", err)
+	}
+	if !record.DatevAll && recorded != int64(len(record.DatevBookings)) {
+		return parentbilling.ErrDatevBookingsTaken
+	}
+	return nil
+}
+
+// datevBookingIDs splits the bookings by kind.
+func datevBookingIDs(bookings []parentbilling.DatevBookingRef) (invoices, cancellations, documents []int64) {
+	invoices, cancellations, documents = []int64{}, []int64{}, []int64{}
+	for _, booking := range bookings {
+		switch {
+		case booking.CareCancellationID > 0:
+			cancellations = append(cancellations, booking.CareCancellationID)
+		case booking.CareInvoiceID > 0:
+			invoices = append(invoices, booking.CareInvoiceID)
+		case booking.DocumentID > 0:
+			documents = append(documents, booking.DocumentID)
+		}
+	}
+	return invoices, cancellations, documents
 }
 
 // insertExportFileInvoices links the invoices, holiday documents,

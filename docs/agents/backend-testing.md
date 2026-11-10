@@ -175,5 +175,12 @@ PHX_TEST_RUNTIME_EVIDENCE=1 ../scripts/run-go-toolchain.sh go test -tags=testhoo
 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./api/auth -run TestLogin # Specific test
 ```
 
+For a focused fresh result, select the relevant package and test with
+`-run '^TestName$' -count=1`. Repeat with `-count=2` in the same binary to
+expose leaked test state, retaining the compiled-package cache. Follow the
+fixture and tenant rules above; use the per-test leftover mode to identify
+the leaking test rather than resetting shared state. App servers and a manual
+schema reset are not test prerequisites.
+
 The Go result cache can replay an earlier green result after the calendar day
 changes. Add `-count=1` for date- or clock-dependent diagnosis.

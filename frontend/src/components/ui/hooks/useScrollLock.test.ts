@@ -157,6 +157,36 @@ describe("useScrollLock", () => {
       });
     });
 
+    it.each([
+      "<button><span>Save</span></button>",
+      '<a href="/test"><span>Link</span></a>',
+      "<input />",
+      "<textarea></textarea>",
+      "<select></select>",
+      '<div contenteditable="true"><span>Edit</span></div>',
+      '<div role="button"><span>Action</span></div>',
+    ])("preserves scroll keys on interactive targets: %s", (markup) => {
+      renderHook(() => useScrollLock(true));
+      const container = document.createElement("div");
+      container.innerHTML = markup;
+      document.body.appendChild(container);
+      try {
+        const target =
+          container.querySelector("span") ?? container.firstElementChild!;
+        for (const key of scrollKeys) {
+          const event = new KeyboardEvent("keydown", {
+            key,
+            bubbles: true,
+            cancelable: true,
+          });
+          target.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(false);
+        }
+      } finally {
+        container.remove();
+      }
+    });
+
     it("should not prevent non-scroll keys", () => {
       renderHook(() => useScrollLock(true));
 

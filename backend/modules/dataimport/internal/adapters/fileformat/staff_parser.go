@@ -2,7 +2,6 @@ package fileformat
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"io"
 
@@ -61,7 +60,10 @@ func missingStaffColumns(mapping map[string]int) []string {
 
 // ParseStaffCSV parses a CSV file into staff import rows.
 func ParseStaffCSV(reader io.Reader) ([]importModels.StaffImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	csvReader, err := newCSVReader(reader)
+	if err != nil {
+		return nil, err
+	}
 	csvReader.FieldsPerRecord = -1
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true

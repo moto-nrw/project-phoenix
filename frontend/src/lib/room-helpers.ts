@@ -182,10 +182,6 @@ export function mapRoomsResponse(
   return backendRooms.map(mapRoomResponse);
 }
 
-export function mapSingleRoomResponse(response: { data: BackendRoom }): Room {
-  return mapRoomResponse(response.data);
-}
-
 // Prepare frontend room for backend
 export function prepareRoomForBackend(
   room: Partial<Room>,

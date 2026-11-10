@@ -13,6 +13,8 @@ import (
 var (
 	goDirectivePattern = regexp.MustCompile(`(?m)^go ([0-9]+\.[0-9]+\.[0-9]+)$`)
 	goImagePattern     = regexp.MustCompile(`(?m)^FROM golang:([^[:space:]]+)`)
+	alpineImagePattern = regexp.MustCompile(`(?m)^FROM alpine:([^[:space:]]+)`)
+	pnpmInstallPattern = regexp.MustCompile(`corepack prepare pnpm@([^[:space:]]+) --activate`)
 	airInstallPattern  = regexp.MustCompile(`go install github\.com/air-verse/air@v([0-9]+\.[0-9]+\.[0-9]+)`)
 	linterCIPattern    = regexp.MustCompile(`(?m)^\s+version: v([0-9]+\.[0-9]+\.[0-9]+)\s*(?:#.*)?$`)
 	// A release reaches nixpkgs days before nixhub indexes it, and devbox
@@ -62,6 +64,9 @@ func TestToolchainPinsRatchet(t *testing.T) {
 	pnpmVersion := requireDevboxPackageVersion(t, packages, "pnpm_10")
 	for _, manifestPath := range []string{"package.json", "frontend/package.json"} {
 		assertPnpmPackageManagerVersion(t, filepath.Join(repoRoot, manifestPath), pnpmVersion)
+	}
+	for _, dockerfile := range []string{"frontend/Dockerfile", "frontend/Dockerfile.prod"} {
+		assertDockerPnpmVersion(t, filepath.Join(repoRoot, dockerfile), pnpmVersion)
 	}
 	airVersion := requireDevboxPackageVersion(t, packages, "air")
 	requireDevboxPackageVersion(t, packages, "govulncheck")
@@ -200,6 +205,9 @@ func readDevboxPackages(t *testing.T, path string) map[string]string {
 	for _, packageSpec := range config.Packages {
 		name, version, ok := strings.Cut(packageSpec, "@")
 		if ok {
+			if _, exists := packages[name]; exists {
+				t.Fatalf("%s declares %s more than once", path, name)
+			}
 			packages[name] = version
 		}
 	}
@@ -283,13 +291,40 @@ func assertDevboxLock(t *testing.T, path string, declared map[string]string, nam
 
 func assertDockerGoImage(t *testing.T, path, label, goVersion string) {
 	t.Helper()
-	match := goImagePattern.FindStringSubmatch(string(readToolchainFile(t, path)))
+	content := string(readToolchainFile(t, path))
+	match := goImagePattern.FindStringSubmatch(content)
 	if match == nil {
 		t.Fatalf("%s has no pinned Go builder image", label)
 	}
 	want := goVersion + "-alpine3.24"
 	if match[1] != want {
 		t.Errorf("%s uses golang:%s; want golang:%s", label, match[1], want)
+	}
+	_, alpineVersion, ok := strings.Cut(match[1], "-alpine")
+	if !ok {
+		t.Fatalf("%s Go builder has no Alpine version", label)
+	}
+	runtimes := alpineImagePattern.FindAllStringSubmatch(content, -1)
+	if label == "backend/Dockerfile" && len(runtimes) != 1 {
+		t.Fatalf("%s must have exactly one pinned Alpine runtime base", label)
+	}
+	for _, runtime := range runtimes {
+		if runtime[1] != alpineVersion {
+			t.Errorf("%s uses runtime alpine:%s; want alpine:%s from builder", label, runtime[1], alpineVersion)
+		}
+	}
+}
+
+func assertDockerPnpmVersion(t *testing.T, path, want string) {
+	t.Helper()
+	matches := pnpmInstallPattern.FindAllStringSubmatch(string(readToolchainFile(t, path)), -1)
+	if len(matches) == 0 {
+		t.Fatalf("%s has no pinned pnpm install", path)
+	}
+	for _, match := range matches {
+		if match[1] != want {
+			t.Errorf("%s installs pnpm %s; want %s from packageManager and devbox.json", path, match[1], want)
+		}
 	}
 }
 

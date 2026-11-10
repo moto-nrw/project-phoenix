@@ -98,7 +98,7 @@ vi.mock("~/lib/substitution-api", () => ({
   },
 }));
 
-// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Nur den Netzwerk-Fetcher mocken; die übrigen Schema-Helfer bleiben die echten
 // Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
 vi.mock("~/lib/settings-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/settings-api")>()),

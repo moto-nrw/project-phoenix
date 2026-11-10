@@ -142,8 +142,29 @@ func newTestAuthenticator(directory DeviceDirectory, options ...func(*Dependenci
 	return NewAuthenticator(deps)
 }
 
+type schoolCheckingDirectory struct {
+	DeviceDirectory
+	schools SchoolLookup
+}
+
+func (d schoolCheckingDirectory) FindByAPIKey(ctx context.Context, key string) (*AuthenticatedDevice, error) {
+	device, err := d.DeviceDirectory.FindByAPIKey(ctx, key)
+	if err != nil || device == nil || !device.IsActive() || device.TenantID <= 0 {
+		return device, err
+	}
+	closed, schoolErr := d.schools.IsSchoolClosed(ctx, device.TenantID)
+	if closed || schoolErr != nil {
+		return device, &SchoolCheckResult{Closed: closed, Err: schoolErr}
+	}
+	return device, nil
+}
+
 func withSchools(schools SchoolLookup) func(*Dependencies) {
-	return func(deps *Dependencies) { deps.Schools = schools }
+	return func(deps *Dependencies) {
+		if schools != nil {
+			deps.Devices = schoolCheckingDirectory{DeviceDirectory: deps.Devices, schools: schools}
+		}
+	}
 }
 
 func withPIN(resolver func(context.Context, int64) string) func(*Dependencies) {
@@ -564,7 +585,7 @@ func TestDevice_PINResolverWrongPIN(t *testing.T) {
 // School guard
 // =============================================================================
 
-func TestRejectClosedSchool(t *testing.T) {
+func TestResolveDeviceRejectsClosedSchool(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -585,10 +606,12 @@ func TestRejectClosedSchool(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			device := &AuthenticatedDevice{DeviceID: "device-001", TenantID: 100}
-			authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(tc.schools))
-
-			result := authenticator.rejectClosedSchool(context.Background(), device)
+			device := activeDevice("device-001")
+			device.TenantID = 100
+			directory := newMockDeviceDirectory()
+			directory.addDevice("school-check-key", device)
+			authenticator := newTestAuthenticator(directory, withSchools(tc.schools))
+			_, result := authenticator.resolveDevice(context.Background(), "Bearer school-check-key")
 			if !tc.wantReject {
 				assert.Nil(t, result)
 				return
@@ -600,13 +623,17 @@ func TestRejectClosedSchool(t *testing.T) {
 	}
 }
 
-func TestRejectClosedSchool_SkipsLookupWithoutTenant(t *testing.T) {
+func TestResolveDevice_SkipsSchoolLookupWithoutTenant(t *testing.T) {
 	t.Parallel()
 
 	schools := &stubSchoolLookup{closed: true}
-	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(schools))
-
-	assert.Nil(t, authenticator.rejectClosedSchool(context.Background(), &AuthenticatedDevice{DeviceID: "device-001"}))
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-001")
+	device.TenantID = 0
+	directory.devices["without-tenant-key"] = device
+	authenticator := newTestAuthenticator(directory, withSchools(schools))
+	_, rejection := authenticator.resolveDevice(context.Background(), "Bearer without-tenant-key")
+	assert.Nil(t, rejection)
 	assert.Zero(t, schools.calls)
 }
 

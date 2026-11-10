@@ -106,6 +106,8 @@
   "export_run_empty": "This run has no invoice. There is no file to download.",
   "datev_not_ready": "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
   "datev_bookings_invalid": "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+  "datev_no_new_bookings": "Every booking of this run is already in a DATEV file. No file was created.",
+  "datev_bookings_taken": "Someone just downloaded the new bookings. No file was created. Please reload the page.",
   "export_file_number_start_locked": "The file numbers have already started. The first number can no longer be changed.",
   "export_invoice_not_found": "This invoice does not exist. Please reload the page.",
   "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",

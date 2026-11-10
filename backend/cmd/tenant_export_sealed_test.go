@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -32,12 +31,13 @@ func TestTenantExportOpensHealthAndProjectsSettingsWithTheRootBindings(t *testin
 
 	sealed, err := tenantExportSealedFields()
 	require.NoError(t, err)
-	exporter, err := organizationCompose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
-		Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
-	}, sealed, tenantExportProjectedFields())
+	database := testpkg.NewDatabase(t, db)
+	exporter, err := newTenantExporter(database, sealed, tenantExportProjectedFields(), false)
 	require.NoError(t, err)
+	operator := testpkg.CreateTestOperator(t, db)
 	out := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: t.TempDir()}))
+	require.NoError(t, exporter.Export(tenant.WithUnitOfWork(t.Context(), database.UnitOfWork()),
+		organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: operator.ID, Output: out, Uploads: t.TempDir()}))
 	require.FileExists(t, filepath.Join(out, "COMPLETE"))
 	settings := map[string]string{}
 	for _, row := range readExportRows(t, filepath.Join(out, "config.setting_values.jsonl")) {

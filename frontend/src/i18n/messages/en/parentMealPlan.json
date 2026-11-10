@@ -76,7 +76,5 @@
   "registerWeekDone": "The week is registered.",
   "registerWeekLocked": "The registration deadline for these days has passed; they stay unregistered: {days}.",
   "errorObjectWeekCancel": "the cancellation for the week",
-  "errorObjectWeekRegister": "the registration for the week",
-  "participationCutoffLead": "You can change the registration until {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}}.",
-  "participationSicknessLead": "A confirmed sick note by {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}} cancels lunch. After that, the registration remains unchanged."
+  "errorObjectWeekRegister": "the registration for the week"
 }

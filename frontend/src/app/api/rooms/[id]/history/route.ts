@@ -59,17 +59,9 @@ export const GET = tenant.get(async (request, token, params) => {
     return problemResponse(400, "Invalid id parameter", request);
   }
 
-  // Backend expects RFC3339 start/end (not start_date/end_date — that was a
-  // long-standing mismatch fixed alongside issue #1425). Accept both query
-  // param names from the client for a release of overlap; forward only the
-  // backend-canonical names.
   const queryParams = new URLSearchParams();
-  const start =
-    request.nextUrl.searchParams.get("start") ??
-    request.nextUrl.searchParams.get("start_date");
-  const end =
-    request.nextUrl.searchParams.get("end") ??
-    request.nextUrl.searchParams.get("end_date");
+  const start = request.nextUrl.searchParams.get("start");
+  const end = request.nextUrl.searchParams.get("end");
 
   if (start) queryParams.append("start", normalizeRangeParam(start, "start"));
   if (end) queryParams.append("end", normalizeRangeParam(end, "end"));

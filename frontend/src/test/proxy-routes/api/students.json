@@ -132,9 +132,6 @@
   "api/students/arrival-settings": [
     "GET tenant /api/students/arrival-settings"
   ],
-  "api/students/arrival-times/bulk": [
-    "POST tenant /api/students/arrival-times/bulk"
-  ],
   "api/students/care-end": ["POST tenant /api/students/care-end"],
   "api/students/care-end/cancel": ["POST tenant /api/students/care-end/cancel"],
   "api/students/care-end/preview": [
@@ -213,9 +210,6 @@
   ],
   "api/students/pickup-schedules/bulk": [
     "POST tenant /api/students/pickup-schedules/bulk"
-  ],
-  "api/students/pickup-times/bulk": [
-    "POST tenant /api/students/pickup-times/bulk"
   ],
   "api/students/privacy-consent/defaults": [
     "GET tenant /api/students/privacy-consent/defaults"

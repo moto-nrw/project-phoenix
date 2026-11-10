@@ -256,7 +256,7 @@ vi.mock("~/lib/calendar-period-api", () => ({
   },
 }));
 
-// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Nur den Netzwerk-Fetcher mocken; die übrigen Schema-Helfer bleiben die echten
 // Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
 vi.mock("~/lib/settings-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/settings-api")>()),
@@ -2732,6 +2732,26 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("detail-repeat"));
     expect(screen.getByText("event-save-series")).toBeInTheDocument();
     fireEvent.click(screen.getByText("event-save-series"));
+    await stateChange.waitFor(() =>
+      expect(mockTenantMutate).toHaveBeenCalled(),
+    );
+  });
+
+  it("ignores a second materialize click while the first request is in flight", async () => {
+    let finish!: (value: { instancesCreated: number; warnings: [] }) => void;
+    mockMaterialize.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    setUrl("view=serien");
+    render(<BetreuungsplanView />);
+    const apply = screen.getByText("apply-template");
+    fireEvent.click(apply);
+    fireEvent.click(apply);
+    expect(mockMaterialize).toHaveBeenCalledOnce();
+    finish({ instancesCreated: 1, warnings: [] });
     await stateChange.waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalled(),
     );

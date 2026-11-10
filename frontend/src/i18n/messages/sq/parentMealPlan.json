@@ -76,7 +76,5 @@
   "registerWeekDone": "Java është regjistruar.",
   "registerWeekLocked": "Afati i regjistrimit për këto ditë ka kaluar, ato mbeten të paregjistruara: {days}.",
   "errorObjectWeekCancel": "anulimin për javën",
-  "errorObjectWeekRegister": "regjistrimin për javën",
-  "participationCutoffLead": "Mund ta ndryshoni regjistrimin deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}}.",
-  "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar."
+  "errorObjectWeekRegister": "regjistrimin për javën"
 }

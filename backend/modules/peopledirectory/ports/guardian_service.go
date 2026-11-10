@@ -37,6 +37,7 @@ type GuardianInvitationRecord struct {
 // The composition root binds it; auth.guardian_invitations belongs to the
 // owner module.
 type GuardianInvitations interface {
+
 	// ListOpen returns the invitations of those contacts that are still
 	// going somewhere: redeemable, or awaiting a staff decision. Legacy links
 	// without a recorded recipient come along, also after they ran out, so
@@ -54,8 +55,10 @@ type GuardianServiceDependencies struct {
 	GuardianPhoneNumberRepo GuardianPhoneNumberRepository
 	StudentGuardianRepo     StudentGuardianRepository
 	GuardianInvitations     GuardianInvitations
-	StudentRepo             StudentRepository
-	PersonRepo              PersonRepository
+	// InvalidateInvites joins the contact edit transaction.
+	InvalidateInvites func(context.Context, int64) error
+	StudentRepo       StudentRepository
+	PersonRepo        PersonRepository
 
 	// Payment data (#2608). Kept as separate, narrow dependencies so the
 	// guardians:financial code path is the only one holding a reference to

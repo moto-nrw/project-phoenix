@@ -24,13 +24,6 @@
     "procedure": "Çizilmiş imzalı basit bir elektronik imza ile imzalıyorsunuz.",
     "missing": "Lütfen imzalayın ve „İmzayı onayla“ ya dokunun."
   },
-  "statement": {
-    "permissionAll": "{person} kişisinin çocuğu her gün {careTerm}'den almasına izin veriyorum.",
-    "permissionSome": "{person} kişisinin çocuğu şu günlerde {careTerm}'den almasına izin veriyorum: {days}.",
-    "day": "{person} kişisinin çocuğu {date} tarihinde {careTerm}'den almasına izin veriyorum.",
-    "aloneDay": "Çocuğun {date} tarihinde eve yalnız gitmesine izin veriyorum.",
-    "aloneWeekly": "Çocuğun şu günlerde eve yalnız gitmesine izin veriyorum: {days}."
-  },
   "waitsForOgs": "{careTerm} izni onaylar. O zamana kadar izin geçerli değildir.",
   "pendingBadge": "{careTerm} onayı bekleniyor",
   "pending": "{careTerm} onayı bekleniyor: {days}",

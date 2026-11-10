@@ -437,14 +437,14 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || changeRequests != nil || acceptance != nil {
 			continue
 		}
-		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db.Pool(), db, checkpointOutbox, api.db.UnitOfWork(), counter, func() string { return checkpointMetrics(t) })
+		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db.Pool(), db, checkpointOutbox, api.db.UnitOfWork(), counter, func() string { return checkpointMetrics(t) }, true)
 		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db.Pool(), db, api.db.UnitOfWork(), counter, templateID, func(ctx context.Context) (int, int, error) {
 			result, materializeErr := checkpointMaterialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
 			if materializeErr != nil {
 				return 0, 0, materializeErr
 			}
 			return result.InstancesCreated, result.CandidatesSkippedExisting, nil
-		}, func() string { return checkpointMetrics(t) })...)
+		}, func() string { return checkpointMetrics(t) }, true)...)
 		workerRuns = append(workerRuns, workers)
 	}
 	// The contention runs follow all serial runs, so the serial samples see

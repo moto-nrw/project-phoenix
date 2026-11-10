@@ -11,12 +11,12 @@ import {
 } from "~/components/auth/guardian-invitation-accept-form";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import {
-  validateGuardianInvitation,
+  mapValidation,
+  type BackendGuardianInvitationValidation,
   type GuardianInvitationValidation,
 } from "~/lib/guardian-invitation-api";
 import { loginImageSrc } from "~/lib/tenant-api";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AcceptGuardianInvitePage" });
@@ -63,34 +63,19 @@ async function loadFailure(
 async function fetchInvitationServer(
   token: string,
 ): Promise<ValidationOutcome> {
-  // Server-side fetch bypasses the route handler because this page runs on the server.
   try {
-    const response = await fetch(
-      `${getServerApiUrl()}/auth/guardian-invitations/${encodeURIComponent(token)}`,
-      { headers: await incomingClientForwardHeaders(), cache: "no-store" },
+    const response = await sendBackend(
+      `/auth/guardian-invitations/${encodeURIComponent(token)}`,
+      null,
     );
     if (!response.ok) {
       return { invitation: null, failure: await loadFailure(response) };
     }
 
-    const raw = (await response.json()) as {
-      data?: {
-        email: string;
-        first_name?: string;
-        last_name?: string;
-        expires_at: string;
-        school_name?: string;
-        tenant_slug?: string;
-        school_logo_url?: string;
+    const raw =
+      (await response.json()) as BackendGuardianInvitationValidation & {
+        data?: BackendGuardianInvitationValidation;
       };
-      email?: string;
-      first_name?: string;
-      last_name?: string;
-      expires_at?: string;
-      school_name?: string;
-      tenant_slug?: string;
-      school_logo_url?: string;
-    };
 
     const payload = raw.data ?? raw;
     if (!payload?.email || !payload?.expires_at) {
@@ -105,15 +90,7 @@ async function fetchInvitationServer(
     }
 
     return {
-      invitation: {
-        email: payload.email,
-        firstName: payload.first_name,
-        lastName: payload.last_name,
-        expiresAt: payload.expires_at,
-        schoolName: payload.school_name,
-        tenantSlug: payload.tenant_slug,
-        schoolLogoUrl: payload.school_logo_url,
-      },
+      invitation: mapValidation(payload),
       failure: null,
     };
   } catch (error) {
@@ -126,8 +103,6 @@ async function fetchInvitationServer(
     };
   }
 }
-
-void validateGuardianInvitation;
 
 export default async function AcceptGuardianInvitePage({ params }: PageProps) {
   const t = await getTranslations("guardianInvite");

@@ -283,10 +283,3 @@ export function getStaffNavGroupForPathname(
   }
   return null;
 }
-
-/** Alle Seiten-Einträge des Baums, für Tests und das Mehr-Menü. */
-export function listStaffNavPageHrefs(): readonly string[] {
-  return [...STAFF_NAV_TOP, ...STAFF_NAV_GROUPS.flatMap((g) => g.entries)]
-    .concat(STAFF_NAV_BOTTOM)
-    .flatMap((entry) => (entry.kind === "page" ? [entry.href] : []));
-}

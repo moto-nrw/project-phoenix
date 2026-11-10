@@ -963,6 +963,7 @@ export function CareOfferingsEditor({
               Liste: das Formular ist zu breit für eine aufgeklappte
               Tabellenzeile, und der Katalog darf dabei nicht verschwinden. */}
           <SlideOver
+            isDismissDisabled={saving}
             open={panelOpen}
             onOpenChange={(open) => {
               if (!open) cancelFocusMode();

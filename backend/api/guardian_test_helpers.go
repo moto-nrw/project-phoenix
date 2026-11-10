@@ -9,6 +9,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -57,9 +58,14 @@ func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
+	invalidate, err := identityaccessCompose.NewGuardianInvitationInvalidation(db.Pool())
+	if err != nil {
+		return GuardianTestModule{}, err
+	}
 	guardian := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
 		GuardianInvitations: owners.NewGuardianInvitationReads(auth.AccountAuthentication),
+		InvalidateInvites:   invalidate,
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: owners.NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: owners.NewGuardianDataAccessLog(audits.DataAccessLog),

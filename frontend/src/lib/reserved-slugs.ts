@@ -24,6 +24,11 @@ export const RESERVED_SLUGS = new Set([
   "help", // public /help docs — top-level app route shadows [tenant]
   "lohnbuero", // public /lohnbuero/{link} payroll download (#4805) — top-level app route shadows [tenant]
   "ingest", // /ingest PostHog reverse proxy (next.config.js rewrites)
+  "start",
+  "invite",
+  "onboarding",
+  "reset-password",
+  "monitoring", // Sentry tunnel (next.config.js)
   // Defensive reservations (common infrastructure subdomains)
   "admin",
   "app",

@@ -22,11 +22,12 @@ import (
 // unreadable override, mode or enrollment refuses this one login with
 // ErrMFAStatusUnavailable instead of silently dropping the second factor.
 type AccountMFAFlows struct {
-	records  ports.AccountMFARecords
-	settings ports.MFASettings
-	codec    ports.MFAChallengeCodec
-	codes    ports.ShortCodeHasher
-	mail     ports.MFAMail
+	permissionGranted func(string, []string) bool
+	records           ports.AccountMFARecords
+	settings          ports.MFASettings
+	codec             ports.MFAChallengeCodec
+	codes             ports.ShortCodeHasher
+	mail              ports.MFAMail
 	// resetNotice mails the caterer the operator's reset (#4497).
 	resetNotice ports.CatererMFAResetNotice
 	audit       ports.MFAAuditTrail
@@ -38,11 +39,12 @@ type AccountMFAFlows struct {
 
 // AccountMFAFlowDependencies are the ports the account MFA flows consume.
 type AccountMFAFlowDependencies struct {
-	Records  ports.AccountMFARecords
-	Settings ports.MFASettings
-	Codec    ports.MFAChallengeCodec
-	Codes    ports.ShortCodeHasher
-	Mail     ports.MFAMail
+	PermissionGranted func(string, []string) bool
+	Records           ports.AccountMFARecords
+	Settings          ports.MFASettings
+	Codec             ports.MFAChallengeCodec
+	Codes             ports.ShortCodeHasher
+	Mail              ports.MFAMail
 	// ResetNotice mails the caterer the operator's reset (#4497); nil
 	// leaves that reset unavailable.
 	ResetNotice ports.CatererMFAResetNotice
@@ -57,7 +59,7 @@ type AccountMFAFlowDependencies struct {
 func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, error) {
 	switch {
 	case deps.Records == nil, deps.Settings == nil, deps.Codec == nil, deps.Codes == nil,
-		deps.Mail == nil, deps.Audit == nil, deps.Runtime == nil, len(deps.Secret) == 0:
+		deps.Mail == nil, deps.Audit == nil, deps.Runtime == nil, deps.PermissionGranted == nil, len(deps.Secret) == 0:
 		return nil, errors.New("identity access account mfa: all dependencies are required")
 	}
 	logger := deps.Logger
@@ -65,7 +67,7 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 		logger = slog.Default()
 	}
 	return &AccountMFAFlows{
-		records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
+		permissionGranted: deps.PermissionGranted, records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
 		mail: deps.Mail, resetNotice: deps.ResetNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
 		logger: logger.With("component", "account-mfa"), now: time.Now,
 	}, nil
