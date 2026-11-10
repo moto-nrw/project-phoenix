@@ -85,3 +85,11 @@ func TestSessionDayRejectionsAreInputErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminBreakOwnershipPrecedesGenericValidation(t *testing.T) {
+	t.Parallel()
+	failure := &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: workforce.ErrBreakNotOwned}
+	w := httptest.NewRecorder()
+	require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPut, "/", nil), classifyAdminEditError(failure)))
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}

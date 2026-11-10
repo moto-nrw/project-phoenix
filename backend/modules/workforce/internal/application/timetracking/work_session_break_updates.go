@@ -30,6 +30,15 @@ func (s *workSessionService) applyBreakUpdates(ctx context.Context, uc *sessionU
 	if err != nil {
 		return err
 	}
+	// Reconciliation can change recorded time even for an otherwise empty edit.
+	// Preserve the existing justification gate before any pause write.
+	if minutes != uc.session.BreakMinutes {
+		resulting := updates
+		resulting.BreakMinutes = &minutes
+		if err := s.ensureSelfEditJustified(ctx, uc.session, resulting); err != nil {
+			return err
+		}
+	}
 	for _, edit := range changed {
 		_, err := s.breakRepo.SetWorkSessionBreakDuration(ctx, edit.brk.ID, edit.brk.DurationMinutes, *edit.brk.EndedAt)
 		if err != nil {

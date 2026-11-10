@@ -146,7 +146,7 @@ func TestCheckInWithinSessionDay_IsExactAtTheDayBoundary(t *testing.T) {
 func TestSessionCorrections_RejectInvalidCombinedState(t *testing.T) {
 	t.Parallel()
 	for _, admin := range []bool{false, true} {
-		for _, scenario := range []string{"active_pause", "pause_after_checkout", "overlap", "checkin_after_pause", "checkout_before_pause_end", "scalar_mismatch", "second_edit_invalid", "negative_legacy_scalar", "duplicate_edit", "duration_overflow"} {
+		for _, scenario := range []string{"active_pause", "pause_after_checkout", "overlap", "checkin_after_pause", "checkout_before_pause_end", "scalar_mismatch", "second_edit_invalid", "negative_legacy_scalar", "implicit_reason_required", "duplicate_edit", "duration_overflow"} {
 			t.Run(fmt.Sprintf("admin=%t/%s", admin, scenario), func(t *testing.T) {
 				t.Parallel()
 				svc, sessions, pauses, audit, _ := wsCreateTestService()
@@ -180,6 +180,10 @@ func TestSessionCorrections_RejectInvalidCombinedState(t *testing.T) {
 					updates.BreakMinutes = &minutes
 				case "second_edit_invalid":
 					updates.Breaks = []BreakDurationUpdate{{ID: rows[0].ID, DurationMinutes: 20}, {ID: rows[1].ID, DurationMinutes: -1}}
+				case "implicit_reason_required":
+					updates = SessionUpdateRequest{}
+					stored.BreakMinutes = 99
+					svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(context.Context, string) (bool, error) { return true, nil }}
 				case "duplicate_edit":
 					updates.Breaks = []BreakDurationUpdate{{ID: rows[0].ID, DurationMinutes: 20}, {ID: rows[0].ID, DurationMinutes: 25}}
 				case "duration_overflow":
@@ -219,8 +223,8 @@ func TestSessionCorrections_ConsistentTotals(t *testing.T) {
 				start := day.BerlinMidnight().Add(-time.Hour)
 				end := day.BerlinMidnight().Add(4 * time.Hour)
 				stored := &WorkSession{Model: Model{ID: 7}, StaffID: 100, CreatedBy: 100, Date: calendar.DateFromTime(start), Status: WorkSessionStatusPresent, CheckInTime: start, CheckOutTime: &end, BreakMinutes: 99}
-				breakEnd := start.Add(75 * time.Minute)
-				rows := []*WorkSessionBreak{{Model: Model{ID: 8}, SessionID: stored.ID, StartedAt: start.Add(45 * time.Minute), EndedAt: &breakEnd, DurationMinutes: 30}}
+				breakEnd := start.Add(75*time.Minute + 30*time.Second)
+				rows := []*WorkSessionBreak{{Model: Model{ID: 8}, SessionID: stored.ID, StartedAt: start.Add(45*time.Minute + 30*time.Second), EndedAt: &breakEnd, DurationMinutes: 30}}
 				zeroEnd := start.Add(time.Hour)
 				rows = append(rows, &WorkSessionBreak{Model: Model{ID: 9}, SessionID: stored.ID, StartedAt: start.Add(time.Hour), EndedAt: &zeroEnd})
 				updates := SessionUpdateRequest{Notes: wsStrPtr("Korrektur")}
@@ -260,5 +264,42 @@ func TestSessionCorrections_ConsistentTotals(t *testing.T) {
 				assert.True(t, found, "cache reconciliation is audited")
 			})
 		}
+	}
+}
+
+func TestSessionCorrections_FractionalDayAllocation(t *testing.T) {
+	t.Parallel()
+	day := calendar.NewDate(2026, 10, 25)
+	midnight := day.BerlinMidnight()
+	for _, mode := range []string{"none", "ended", "running", "break_starts_with_session"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			start := midnight.Add(-2*time.Hour + 30*time.Second)
+			end := midnight.Add(4*time.Hour + 30*time.Second)
+			breakStart := midnight.Add(-15*time.Minute + 30*time.Second)
+			breakEnd := midnight.Add(15*time.Minute + 10*time.Second)
+			brk := &WorkSessionBreak{StartedAt: breakStart, EndedAt: &breakEnd, DurationMinutes: 30}
+			block := &WorkSession{CheckInTime: start, CheckOutTime: &end, BreakMinutes: 30}
+			if mode == "running" {
+				block.CheckOutTime = nil
+				block.BreakMinutes = 0
+				brk.EndedAt = nil
+			}
+			if mode == "break_starts_with_session" {
+				block.CheckInTime = breakStart
+				end = midnight.Add(16*time.Minute + 10*time.Second)
+			}
+			breaks := []*WorkSessionBreak{brk}
+			if mode == "none" {
+				breaks = nil
+				block.BreakMinutes = 0
+			}
+			split := netMinutesByDate(block, breaks, end, day.AddDays(-1), day)
+			sum := 0
+			for _, minutes := range split {
+				sum += minutes
+			}
+			assert.Equal(t, netMinutesWithBreaks(block, breaks, end), sum)
+		})
 	}
 }

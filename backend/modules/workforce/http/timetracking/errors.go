@@ -26,21 +26,19 @@ func classifyAbsenceError(err error) render.Renderer {
 // problems (notes missing, range invalid) land as 400; ownership mismatches
 // and "not found" as 404 to avoid leaking session existence.
 func classifyAdminEditError(err error) render.Renderer {
-	switch {
-	case isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired,
+	return common.RenderWithRules(err, adminEditErrorRules, common.ErrorInternalServer)
+}
+
+var adminEditErrorRules = []common.ErrorRule{
+	{Match: isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired,
 		workforce.ErrAdminSessionNoteRequired, workforce.ErrAdminSessionCreateNoteRequired,
 		workforce.ErrTargetStaffRequired, workforce.ErrSessionCheckinRequired, workforce.ErrSessionStaffRequired,
 		workforce.ErrSessionCreatorRequired, workforce.ErrSessionStatusInvalid, workforce.ErrSessionTimeOrder,
 		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative, workforce.ErrSessionCheckInAfterDate,
-		workforce.ErrTimeTrackingInvalid, workforce.ErrBreakMinutesNegative, workforce.ErrBreakDurationNegative, workforce.ErrActiveBreakDurationEdit)(err):
-		return common.ErrorInvalidRequest(err)
-	case isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned)(err):
-		return common.ErrorNotFound(err)
-	case errors.Is(err, workforce.ErrWorkSessionOverlap):
-		return common.ErrorConflictWithCode(err, common.CodeWorkforceWorkSessionOverlap)
-	default:
-		return common.ErrorInternalServer(err)
-	}
+		workforce.ErrBreakMinutesNegative, workforce.ErrBreakDurationNegative, workforce.ErrActiveBreakDurationEdit), Render: common.ErrorInvalidRequest},
+	{Match: isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned), Render: common.ErrorNotFound},
+	{Target: workforce.ErrWorkSessionOverlap, Render: conflictWithCode(common.CodeWorkforceWorkSessionOverlap)},
+	{Target: workforce.ErrTimeTrackingInvalid, Render: common.ErrorInvalidRequest},
 }
 
 var serviceErrorRules = []common.ErrorRule{
