@@ -3617,6 +3617,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.Service.FindOperator",
+      "binding_digest": "d3fa15a59e9c45f6eb7169e4071506c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.Service.ListOperators",
+      "binding_digest": "d3fa15a59e9c45f6eb7169e4071506c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.ListOperators",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.OperatorTokens.RecordOperatorEmailChangeDelivery",
       "binding_digest": "d3fa15a59e9c45f6eb7169e4071506c7",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorLinkDeliveryRecorder.RecordOperatorEmailChangeDelivery",

@@ -298,8 +298,9 @@ func TestATestTraegerWithSampleChildrenIsErasedCompletely(t *testing.T) {
 	// due erasure order, through the erasure CLI's service.
 	_, err := f.db.ExecContext(f.ctx, `UPDATE platform.organizations SET active = false WHERE id = ?`, organizationID)
 	require.NoError(t, err)
-	_, err = f.db.ExecContext(f.ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by)
-		VALUES (?, 'TEST-TRAEGER', '2026-01-02', '2026-01-03', ?)`, organizationID, f.operatorID)
+	_, err = f.db.ExecContext(f.ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by,
+		records_notice_shown_at, records_choice)
+		VALUES (?, 'TEST-TRAEGER', '2026-01-02', '2026-01-03', ?, clock_timestamp(), 'erasure_chosen')`, organizationID, f.operatorID)
 	require.NoError(t, err)
 	erasure, err := tenancyCompose.NewErasure(f.db, objects.NewLocal(t.TempDir()), erasureledger.New(testErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)

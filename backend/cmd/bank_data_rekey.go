@@ -56,7 +56,7 @@ type bankDataBatch func(ctx context.Context, cursor int64) (scanned, changed int
 
 // The production CLI and its integration test use the same complete source traversal.
 func runBankDataRekeyJob(ctx context.Context, job parentbilling.BankDataRekey, organizationID int64, batchSize int, output io.Writer) error {
-	for _, source := range []string{"mandates", "debits", "consents"} {
+	for _, source := range []string{"mandates", "debits", "consents", "debit_files"} {
 		batch := func(ctx context.Context, cursor int64) (int, int, int64, error) {
 			result, err := bankDataRekeyBatch(ctx, job, organizationID, source, cursor, batchSize)
 			return result.Scanned, result.Changed, result.LastID, err

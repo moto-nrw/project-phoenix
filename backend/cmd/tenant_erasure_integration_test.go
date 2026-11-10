@@ -284,8 +284,11 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	request.DryRun = false
 	_, err = service.Run(ctx, request)
 	require.ErrorContains(t, err, "missing", "without the recorded written confirmation nothing is erased")
-	_, err = db.ExecContext(ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by)
-		VALUES (?, 'ORDER-ORGANIZATION', '2026-01-02', '2099-12-31', ?)`, organizationID, operator.ID)
+	// The order as the operator portal records it since #4720: with the hint
+	// on the records and the customer's choice.
+	_, err = db.ExecContext(ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by,
+		records_notice_shown_at, records_choice)
+		VALUES (?, 'ORDER-ORGANIZATION', '2026-01-02', '2099-12-31', ?, clock_timestamp(), 'erasure_chosen')`, organizationID, operator.ID)
 	require.NoError(t, err)
 	_, err = service.Run(ctx, request)
 	require.ErrorContains(t, err, "active", "an active Träger is not erased")
