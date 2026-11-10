@@ -371,7 +371,16 @@ var withdrawMembership = withdrawal{name: "Schulmitgliedschaft deaktiviert", run
 }}
 
 // deleteMembership removes the mapping physically, as an account erasure does.
+// The cleanup keeps the account with the test's school as an inactive mapping,
+// so the fixture account is not left behind in shared state.
 var deleteMembership = withdrawal{name: "Schulmitgliedschaft gelöscht", run: func(t *testing.T, r *guardRig, f childReadFamily) func() error {
+	t.Cleanup(func() {
+		_, err := r.db.NewRaw(`INSERT INTO auth.account_tenants (account_id, tenant_id, status, deactivated_at, created_at, updated_at)
+			VALUES (?, ?, 'inactive', NOW(), NOW(), NOW()) ON CONFLICT DO NOTHING`, f.AccountID, f.TenantID).Exec(context.Background())
+		if err != nil {
+			t.Errorf("keep the account with its school: %v", err)
+		}
+	})
 	return func() error {
 		_, err := r.db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?`, f.AccountID, f.TenantID).Exec(context.Background())
 		return err
