@@ -110,6 +110,8 @@ func runMonitoredBatch(ctx context.Context, db *bun.DB, txOptions *sql.TxOptions
 	if err != nil {
 		return monitor.failed(&batchStepError{err: err})
 	}
+	// A panic must release the transaction before the deferred conn.Close.
+	defer func() { _ = tx.Rollback() }()
 	if err := body(ctx, tx, monitor.observe); err != nil {
 		return monitor.failed(&batchStepError{err: err, rollbackErr: rollbackDiagnostic(tx)})
 	}
