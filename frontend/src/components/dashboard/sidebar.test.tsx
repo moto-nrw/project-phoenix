@@ -114,6 +114,14 @@ vi.mock("~/lib/hooks/use-messages-unread", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-staff-messages-unread", () => ({
+  useStaffMessagesUnread: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
 vi.mock("~/lib/hooks/use-enrollment-requests-pending", () => ({
   useEnrollmentRequestsPending: vi.fn(() => ({
     unreadCount: 0,
@@ -158,6 +166,7 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { MODULE_KEYS } from "~/lib/modules";
 import {
   bindPersonalStorage,
@@ -643,6 +652,29 @@ describe("Sidebar", () => {
       expect(screen.getByText("Team-Chat").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/team-chat",
+      );
+    });
+
+    // Team-Chat und Eltern-Chat heißen beide „Nachrichten“; die Ansage nennt
+    // den Team-Chat wie seine Zeile (#6566).
+    it("nennt den Team-Chat-Zähler nach seiner Zeile", () => {
+      mockUseStaffMessagingEnabled.mockReturnValue(true);
+      vi.mocked(useStaffMessagesUnread).mockReturnValue({
+        unreadCount: 3,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const row = screen.getByText("Team-Chat").closest("a")!;
+      expect(within(row).getByText("3")).toHaveAccessibleName(
+        "3 ungelesene Nachrichten im Team-Chat",
+      );
+      const group = screen.getByRole("button", { name: /^Team/ });
+      expect(group).toHaveAttribute("aria-expanded", "false");
+      expect(within(group).getByText("3")).toHaveAccessibleName(
+        "3 ungelesene Nachrichten im Team-Chat",
       );
     });
 

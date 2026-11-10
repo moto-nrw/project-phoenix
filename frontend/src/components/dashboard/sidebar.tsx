@@ -562,10 +562,11 @@ const ROW_BADGE_LABELS: Readonly<
     one: "ungelesene Nachricht",
     noun: "ungelesene Nachrichten",
   },
+  // Wie die Zeile benannt, sonst klingt er wie der Eltern-Chat (#6566).
   "/team-chat": {
     tone: "staff",
-    one: "ungelesene Nachricht",
-    noun: "ungelesene Nachrichten",
+    one: "ungelesene Nachricht im Team-Chat",
+    noun: "ungelesene Nachrichten im Team-Chat",
   },
   "/tagesinformationen": {
     tone: "staff",
