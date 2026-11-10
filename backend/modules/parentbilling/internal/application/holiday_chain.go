@@ -195,10 +195,15 @@ func holidayBaseLines(child parentbilling.HolidayChild) parentbilling.HolidayChi
 	}
 	for _, booking := range bookings {
 		startsOn, endsOn := booking.WeekStartsOn, booking.WeekEndsOn
-		contribution.Lines = append(contribution.Lines, parentbilling.HolidayContributionLine{
+		line := parentbilling.HolidayContributionLine{
 			Kind: parentbilling.LineBase, AmountCents: booking.PriceCents,
 			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, TimeModelName: booking.TimeModelName, WeekID: booking.WeekID,
-		})
+		}
+		if booking.BookedDays > 0 {
+			days := booking.BookedDays
+			line.BookedDays = &days
+		}
+		contribution.Lines = append(contribution.Lines, line)
 		contribution.TotalCents += booking.PriceCents
 	}
 	return contribution

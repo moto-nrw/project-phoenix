@@ -12,6 +12,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Places of the holiday weeks (#4699, decision E-e); the rules are on
@@ -25,11 +26,14 @@ type HolidayPlaceStore interface {
 	// LockHolidayWeeks holds the weeks of the period in ascending ID until
 	// the transaction ends and returns those it locked.
 	LockHolidayWeeks(ctx context.Context, organizationID, periodID int64, weekIDs []int64) ([]int64, error)
-	// PlaceHolidayWaitlist gives the free places of a locked week to its
-	// waiting list in its order and returns the bookings that got one;
-	// those of submittedID are initial placements, restricted to initialChildID
-	// when nonzero (a direct rebooking).
-	PlaceHolidayWaitlist(ctx context.Context, organizationID, weekID, submittedID, initialChildID int64) ([]enrollment.HolidayPromotion, error)
+	// ReadHolidayWeekQueue reads a locked week with the bookings that take
+	// or wait for its places, in the order of the waiting list; found is
+	// false for a week of another Träger.
+	ReadHolidayWeekQueue(ctx context.Context, organizationID, weekID int64) (enrollment.HolidayWeekQueue, bool, error)
+	// PlaceHolidayBookings gives the named waiting bookings of a locked week
+	// their place and returns them; those of initialIDs are initial
+	// placements, every other one moved up.
+	PlaceHolidayBookings(ctx context.Context, organizationID, weekID int64, bookingIDs, initialIDs []int64) ([]enrollment.HolidayPromotion, error)
 	SetHolidayWeekCapacity(ctx context.Context, organizationID, periodID, weekID int64, capacity *int) error
 	ReadHolidayWeekPlaces(ctx context.Context, organizationID, periodID int64) ([]enrollment.HolidayWeekPlaces, error)
 	ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error)
@@ -76,7 +80,7 @@ func (p holidayPlacement) place(ctx context.Context, organizationID int64, perio
 		return nil, nil, fmt.Errorf("enrollment: lock holiday weeks: %w", err)
 	}
 	for _, weekID := range locked {
-		placed, err := p.store.PlaceHolidayWaitlist(ctx, organizationID, weekID, submittedID, p.initialChildID)
+		placed, err := p.placeWeek(ctx, organizationID, weekID, submittedID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("enrollment: place holiday waiting list: %w", err)
 		}
@@ -92,6 +96,65 @@ func (p holidayPlacement) place(ctx context.Context, organizationID int64, perio
 		return nil, nil, err
 	}
 	return own, promoted, nil
+}
+
+// placeWeek gives the free places of a locked week to its waiting list
+// (#4699): those of submittedID, restricted to initialChildID when nonzero,
+// are initial placements.
+func (p holidayPlacement) placeWeek(ctx context.Context, organizationID, weekID, submittedID int64) ([]enrollment.HolidayPromotion, error) {
+	queue, found, err := p.store.ReadHolidayWeekQueue(ctx, organizationID, weekID)
+	if err != nil || !found {
+		return nil, err
+	}
+	var place, initial []int64
+	for _, booking := range holidayFirstFit(queue) {
+		place = append(place, booking.ID)
+		if booking.RegistrationID == submittedID && (p.initialChildID == 0 || booking.ChildID == p.initialChildID) {
+			initial = append(initial, booking.ID)
+		}
+	}
+	return p.store.PlaceHolidayBookings(ctx, organizationID, weekID, place, initial)
+}
+
+// holidayFirstFit chooses the waiting bookings of a week that get a place,
+// in the order of the waiting list (#4699, #4701). The capacity holds for
+// each care day: a booking gets its place only when every one of its days,
+// all care days of the week for a whole week, has a free place after the
+// placed bookings and those chosen before it; otherwise it keeps waiting and
+// a later booking of other days may pass it. Without a capacity every
+// booking gets its place. For a week booked as a whole every booking needs
+// every day, so this is the first free places in order, as before.
+func holidayFirstFit(queue enrollment.HolidayWeekQueue) []enrollment.HolidayQueuedBooking {
+	var chosen []enrollment.HolidayQueuedBooking
+	careDays := enrollment.HolidayWeekCareDays(queue.StartsOn, queue.EndsOn)
+	daysOf := func(booking enrollment.HolidayQueuedBooking) []calendar.Date {
+		if len(booking.Days) > 0 {
+			return booking.Days
+		}
+		return careDays
+	}
+	taken := map[calendar.Date]int{}
+	for _, booking := range queue.Bookings {
+		if booking.Placed {
+			for _, day := range daysOf(booking) {
+				taken[day]++
+			}
+		}
+	}
+	for _, booking := range queue.Bookings {
+		if booking.Placed {
+			continue
+		}
+		days := daysOf(booking)
+		if queue.Capacity != nil && (*queue.Capacity <= 0 || slices.ContainsFunc(days, func(day calendar.Date) bool { return taken[day] >= *queue.Capacity })) {
+			continue
+		}
+		for _, day := range days {
+			taken[day]++
+		}
+		chosen = append(chosen, booking)
+	}
+	return chosen
 }
 
 // announce records each registration's moves up in its trail and enqueues
@@ -158,7 +221,7 @@ func (p holidayPlacement) announceRegistration(ctx context.Context, organization
 		mailChild := enrollment.HolidayRegistrationMailChild{Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == nil}
 		for _, booking := range child.Bookings {
 			if slices.Contains(moved, booking.WeekID) {
-				mailChild.Weeks = append(mailChild.Weeks, lines(booking.WeekID, booking.TimeModelID))
+				mailChild.Weeks = append(mailChild.Weeks, lines(booking.WeekID, booking.TimeModelID, booking.Days))
 			}
 		}
 		children = append(children, mailChild)
@@ -183,8 +246,8 @@ func (p holidayPlacement) announceRegistration(ctx context.Context, organization
 }
 
 // holidayWeekLines names a booked week of the period in a mail: dates, host
-// school and time model.
-func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.HolidayPeriod) func(weekID, timeModelID int64) string {
+// school and time model, and the booked days of a booking of days (#4701).
+func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.HolidayPeriod) func(weekID, timeModelID int64, days []calendar.Date) string {
 	schools := map[int64]string{}
 	for _, school := range traeger.Schools {
 		schools[school.ID] = school.Name
@@ -197,14 +260,18 @@ func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.Holid
 			models[model.ID] = model
 		}
 	}
-	return func(weekID, timeModelID int64) string {
+	return func(weekID, timeModelID int64, days []calendar.Date) string {
 		week, model := weeks[weekID], models[timeModelID]
 		place := model.Name
 		if school := schools[week.HostSchoolID]; school != "" {
 			place = school + ", " + model.Name
 		}
-		return fmt.Sprintf("%s bis %s: %s (%s bis %s Uhr)", week.StartsOn.Format("02.01.2006"),
+		line := fmt.Sprintf("%s bis %s: %s (%s bis %s Uhr)", week.StartsOn.Format("02.01.2006"),
 			week.EndsOn.Format("02.01.2006"), place, model.StartsAt, model.EndsAt)
+		if len(days) > 0 {
+			line += ", Tage: " + enrollment.HolidayDayNames(days)
+		}
+		return line
 	}
 }
 

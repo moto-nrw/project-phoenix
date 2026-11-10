@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayStore persists the rules and the frozen contributions and knows
@@ -351,13 +352,39 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 				return nil, fmt.Errorf("%w: child %d books a time model the period does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
 			}
 			booked[booking.WeekID] = true
+			days, ok := quotedDays(known.week, booking.Days)
+			if !ok {
+				return nil, fmt.Errorf("%w: child %d books days the week does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
+			}
+			price := known.model.PriceCents
+			if days > 0 {
+				// A time model of a week by days prices one day (#4701).
+				price *= int64(days)
+			}
 			priced[i].Bookings = append(priced[i].Bookings, parentbilling.HolidayBooking{
 				WeekID: known.week.ID, WeekStartsOn: known.week.StartsOn, WeekEndsOn: known.week.EndsOn,
-				TimeModelID: known.model.ID, TimeModelName: known.model.Name, PriceCents: known.model.PriceCents,
+				TimeModelID: known.model.ID, TimeModelName: known.model.Name, PriceCents: price, BookedDays: days,
 			})
 		}
 	}
 	return priced, nil
+}
+
+// quotedDays counts the distinct chosen days of a quoted booking (#4701):
+// a week by days needs at least one of its care days and only those, a week
+// booked as a whole none; zero is a whole week.
+func quotedDays(week parentbilling.HolidayWeek, days []calendar.Date) (int, bool) {
+	if len(week.CareDays) == 0 {
+		return 0, len(days) == 0
+	}
+	chosen := map[calendar.Date]bool{}
+	for _, day := range days {
+		if !slices.Contains(week.CareDays, day) {
+			return 0, false
+		}
+		chosen[day] = true
+	}
+	return len(chosen), len(chosen) > 0
 }
 
 // billedBy is what a contribution bills the family and the cost bearer. A

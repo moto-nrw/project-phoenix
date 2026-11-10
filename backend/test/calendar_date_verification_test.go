@@ -39,6 +39,10 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// #4701: the booked days of a holiday booking are a DATE[] written from
+	// calendar.Date text as an array literal and read back as ::text into
+	// calendar.Date values; no time.Time ever reaches the column.
+	"enrollment.holiday_registration_bookings.days": "#4701: Enrollment binds and reads calendar.Date text of a DATE[], never time.Time",
 	// The Beleg retention (#4720, ADR 0184) writes its records in one
 	// INSERT ... SELECT FROM unnest with calendar.Date text cast to DATE and
 	// reads them back with calendar.Date fields of ad-hoc scan structs; no

@@ -76,9 +76,13 @@ func (m siblingMember) chainMember() holidayMember {
 			if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
 				continue
 			}
-			children[i].Bookings = append(children[i].Bookings, parentbilling.HolidayBooking{
+			booking := parentbilling.HolidayBooking{
 				WeekID: line.WeekID, WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
-			})
+			}
+			if line.BookedDays != nil {
+				booking.BookedDays = *line.BookedDays
+			}
+			children[i].Bookings = append(children[i].Bookings, booking)
 		}
 	}
 	if m.movedUp {

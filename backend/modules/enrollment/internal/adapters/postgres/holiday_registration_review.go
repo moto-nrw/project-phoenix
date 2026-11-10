@@ -66,6 +66,7 @@ type holidayReviewBookingRow struct {
 	Placement        string     `bun:"placement"`
 	WaitlistPosition *int       `bun:"waitlist_position"`
 	PromotedAt       *time.Time `bun:"promoted_at"`
+	Days             *string    `bun:"days"`
 }
 
 const (
@@ -105,7 +106,7 @@ const (
 	// waitlisted one of a registration that counts, its place in the waiting
 	// list of the week (#4699): the order of the placement.
 	reviewBookingsQuery = `SELECT booking.holiday_registration_child_id, booking.holiday_period_week_id,
-			booking.holiday_week_time_model_id, booking.placement, booking.promoted_at,
+			booking.holiday_week_time_model_id, booking.placement, booking.promoted_at, booking.days::text AS days,
 			waiting.position AS waitlist_position
 		FROM enrollment.holiday_registration_bookings AS booking
 		JOIN enrollment.holiday_registration_children AS child
@@ -153,15 +154,23 @@ func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organi
 		Scan(ctx, &bookings); err != nil {
 		return nil, nil, fmt.Errorf("enrollment postgres: read holiday registration bookings: %w", err)
 	}
-	return holidayReviewDetails(registrations, children, bookings), holidayFreezeOverrides(registrations), nil
+	details, err := holidayReviewDetails(registrations, children, bookings)
+	if err != nil {
+		return nil, nil, err
+	}
+	return details, holidayFreezeOverrides(registrations), nil
 }
 
-func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children []holidayReviewChildRow, bookings []holidayReviewBookingRow) []enrollment.HolidayRegistrationDetail {
+func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children []holidayReviewChildRow, bookings []holidayReviewBookingRow) ([]enrollment.HolidayRegistrationDetail, error) {
 	childBookings := map[int64][]enrollment.HolidayRegistrationBooking{}
 	for _, booking := range bookings {
+		days, err := holidayDaysOf(booking.Days)
+		if err != nil {
+			return nil, err
+		}
 		childBookings[booking.ChildID] = append(childBookings[booking.ChildID], enrollment.HolidayRegistrationBooking{
 			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Placement: booking.Placement,
-			WaitlistPosition: booking.WaitlistPosition, PromotedAt: booking.PromotedAt,
+			WaitlistPosition: booking.WaitlistPosition, PromotedAt: booking.PromotedAt, Days: days,
 		})
 	}
 	byRegistration := map[int64][]enrollment.HolidayRegistrationChild{}
@@ -209,7 +218,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			}
 		}
 	}
-	return details
+	return details, nil
 }
 
 const (
@@ -407,14 +416,32 @@ const (
 		RETURNING holiday_period_week_id`
 	// insertHolidayChildBookingsQuery keeps a week the child already books
 	// with its placement and changes only its time model; a new week waits
-	// for its placement (#4699).
-	insertHolidayChildBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings AS booking
-			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement)
-		SELECT ?, ?, ?, wanted.week_id, wanted.time_model_id, 'waitlisted'
-		FROM unnest(?::bigint[], ?::bigint[]) AS wanted(week_id, time_model_id)
+	// for its placement (#4699). A booking of days that keeps or drops days
+	// keeps its placement; one that adds a day waits for its placement
+	// again, under the lock of its week (#4701). The week counts as changed
+	// whenever its days changed: a dropped day frees a place.
+	insertHolidayChildBookingsQuery = `WITH wanted AS (
+			SELECT wanted.week_id, wanted.time_model_id, NULLIF(wanted.days, '')::date[] AS days
+			FROM unnest(?::bigint[], ?::bigint[], ?::text[]) AS wanted(week_id, time_model_id, days)
+		), before AS (
+			SELECT existing.holiday_period_week_id, existing.days
+			FROM enrollment.holiday_registration_bookings AS existing
+			WHERE existing.organization_id = ? AND existing.holiday_registration_child_id = ?
+		)
+		INSERT INTO enrollment.holiday_registration_bookings AS booking
+			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days)
+		SELECT ?, ?, ?, wanted.week_id, wanted.time_model_id, 'waitlisted', wanted.days
+		FROM wanted
 		ON CONFLICT (holiday_registration_child_id, holiday_period_week_id)
-			DO UPDATE SET holiday_week_time_model_id = EXCLUDED.holiday_week_time_model_id
-		RETURNING booking.holiday_period_week_id, (xmax = 0) AS inserted`
+			DO UPDATE SET holiday_week_time_model_id = EXCLUDED.holiday_week_time_model_id,
+				days = EXCLUDED.days,
+				placement = CASE WHEN booking.days IS NULL OR EXCLUDED.days IS NULL OR EXCLUDED.days <@ booking.days
+					THEN booking.placement ELSE 'waitlisted' END,
+				promoted_at = CASE WHEN booking.days IS NULL OR EXCLUDED.days IS NULL OR EXCLUDED.days <@ booking.days
+					THEN booking.promoted_at ELSE NULL END
+		RETURNING booking.holiday_period_week_id,
+			(xmax = 0 OR booking.days IS DISTINCT FROM (
+				SELECT before.days FROM before WHERE before.holiday_period_week_id = booking.holiday_period_week_id)) AS inserted`
 )
 
 // ReplaceHolidayChildBookings makes bookings the bookings of the child and
@@ -430,8 +457,9 @@ func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Conte
 	}
 	weekIDs := make([]int64, len(bookings))
 	modelIDs := make([]int64, len(bookings))
+	days := make([]string, len(bookings))
 	for i, booking := range bookings {
-		weekIDs[i], modelIDs[i] = booking.WeekID, booking.TimeModelID
+		weekIDs[i], modelIDs[i], days[i] = booking.WeekID, booking.TimeModelID, holidayDaysLiteral(booking.Days)
 	}
 	var left []int64
 	if err := db.NewRaw(deleteHolidayChildBookingsQuery, organizationID, childID, pgdialect.Array(weekIDs)).Scan(ctx, &left); err != nil {
@@ -441,8 +469,8 @@ func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Conte
 		WeekID   int64 `bun:"holiday_period_week_id"`
 		Inserted bool  `bun:"inserted"`
 	}
-	if err := db.NewRaw(insertHolidayChildBookingsQuery, organizationID, periodID, childID,
-		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs)).Scan(ctx, &written); err != nil {
+	if err := db.NewRaw(insertHolidayChildBookingsQuery, pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days),
+		organizationID, childID, organizationID, periodID, childID).Scan(ctx, &written); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: insert holiday child bookings: %w", err)
 	}
 	for _, week := range written {

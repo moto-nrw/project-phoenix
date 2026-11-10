@@ -333,13 +333,17 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			frozen = "Ja"
 		}
 		secondName, secondPhone := holidaySecondGuardianContact(row.SecondGuardian)
+		week := row.Booking.WeekStartsOn.Format("02.01.") + " bis " + row.Booking.WeekEndsOn.Format("02.01.2006")
+		if len(row.Booking.Days) > 0 {
+			week += " (" + capability.HolidayDayNames(row.Booking.Days) + ")"
+		}
 		values := map[lists.ColumnID]string{
 			"status": holidayRegistrationStatusLabels[row.Registration.Status], "frozen": frozen,
 			"registration": strconv.FormatInt(row.Registration.ID, 10),
 			"submitted_at": row.Registration.SubmittedAt.In(calendar.Berlin).Format("02.01.2006 15:04"),
 			"last_name":    row.Child.LastName, "first_name": row.Child.FirstName,
 			"birth_date": row.Child.BirthDate.Format("02.01.2006"), "school": school,
-			"week":        row.Booking.WeekStartsOn.Format("02.01.") + " bis " + row.Booking.WeekEndsOn.Format("02.01.2006"),
+			"week":        week,
 			"host_school": schoolName(row.Booking.HostSchoolID), "time_model": row.Booking.TimeModelName,
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
