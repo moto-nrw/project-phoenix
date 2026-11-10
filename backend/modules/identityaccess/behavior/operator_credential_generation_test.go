@@ -113,7 +113,7 @@ func TestOperatorChallengeBeforeAPasswordChangeIsNotRedeemable(t *testing.T) {
 	_, err := f.module.OperatorMFA.VerifyOperatorMFAChallenge(ctx, stale, "246810")
 	require.Error(t, err, "the code mailed for the old password redeems nothing")
 	_, err = f.module.OperatorMFA.ResendOperatorMFAChallenge(ctx, stale, net.ParseIP(operatorCredentialIP))
-	require.ErrorIs(t, err, identityaccess.ErrMFAChallengeTokenInvalid, "nor does it renew into a fresh code")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials, "nor does it renew into a fresh code")
 
 	fresh := f.challengeWithCode(t, changed, "112233")
 	proof, err := f.module.OperatorMFA.VerifyOperatorMFAChallenge(ctx, fresh, "112233")
@@ -189,7 +189,7 @@ func TestOperatorExchangeRacingAPasswordChangeMintsNothing(t *testing.T) {
 // TestOperatorChallengeIssuedOnAStaleCredentialIsRefused: the code of a
 // sign-in is issued under the operator lock only while the operator still
 // holds the generation the password check read. An issuance that waits for a
-// password change committing first is refused, and so is a resend.
+// password change committing first is refused.
 func TestOperatorChallengeIssuedOnAStaleCredentialIsRefused(t *testing.T) {
 	t.Parallel()
 	f := newOperatorCredentialFixture(t, "operator-challenge-issue-race", true)
@@ -208,7 +208,7 @@ func TestOperatorChallengeIssuedOnAStaleCredentialIsRefused(t *testing.T) {
 	require.NoError(t, holder.Commit())
 
 	require.NoError(t, awaitDone(t, changed, "the password change"))
-	require.ErrorIs(t, awaitDone(t, started, "the challenge"), identityaccess.ErrMFAChallengeTokenInvalid,
+	require.ErrorIs(t, awaitDone(t, started, "the challenge"), identityaccess.ErrOperatorInvalidCredentials,
 		"no code goes out for a password the change replaced")
 	assert.Nil(t, activeOperatorChallenge(t, f.db, f.operatorID), "no redeemable code was stored")
 }
@@ -243,7 +243,7 @@ func TestOperatorEnrollmentTokenBeforeAPasswordChangeStartsNoEnrollment(t *testi
 	waitForBlockedBackend(t, f.db, []int{holderPID, changePID}, "the enrollment start must queue behind the password change")
 	require.NoError(t, holder.Commit())
 	require.NoError(t, awaitDone(t, changed, "the password change"))
-	require.ErrorIs(t, awaitDone(t, started, "the enrollment start"), identityaccess.ErrMFAChallengeTokenInvalid,
+	require.ErrorIs(t, awaitDone(t, started, "the enrollment start"), identityaccess.ErrOperatorInvalidCredentials,
 		"the token of the old password starts no enrollment")
 
 	// A code the operator gets under the new password stays theirs: the old
@@ -258,4 +258,55 @@ func TestOperatorEnrollmentTokenBeforeAPasswordChangeStartsNoEnrollment(t *testi
 	current := f.generation(t)
 	require.NoError(t, f.module.OperatorMFA.VerifyOperatorMFACode(ctx, f.operatorID, "864200", &current),
 		"the code is still redeemable under the new password")
+}
+
+// raceAgainstPasswordChange holds the operator row, lets a password change
+// queue on it and then the action, releases the row and returns the action's
+// result once the change committed first.
+func (f operatorCredentialFixture) raceAgainstPasswordChange(t *testing.T, what string, action func() error) error {
+	t.Helper()
+	holder, holderPID := f.lockOperator(t)
+	changed := make(chan error, 1)
+	go func() { changed <- f.changePassword(testPassword, testNewPassword) }()
+	changePID := waitForBlockedBackend(t, f.db, []int{holderPID}, "the password change must wait for the operator row")
+	done := make(chan error, 1)
+	go func() { done <- action() }()
+	waitForBlockedBackend(t, f.db, []int{holderPID, changePID}, what+" must queue behind the password change")
+	require.NoError(t, holder.Commit())
+	require.NoError(t, awaitDone(t, changed, "the password change"))
+	return awaitDone(t, done, what)
+}
+
+// TestOperatorResendRacingAPasswordChangeIsRefused: a resend renews the code
+// under the generation of the challenge it names. One that queues behind a
+// password change mails nothing.
+func TestOperatorResendRacingAPasswordChangeIsRefused(t *testing.T) {
+	t.Parallel()
+	f := newOperatorCredentialFixture(t, "operator-resend-race", true)
+	stale := f.challengeWithCode(t, testPassword, "314159")
+	err := f.raceAgainstPasswordChange(t, "the resend", func() error {
+		_, resendErr := f.module.OperatorMFA.ResendOperatorMFAChallenge(context.Background(), stale, net.ParseIP(operatorCredentialIP))
+		return resendErr
+	})
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials, "the code of the old password renews into nothing")
+	codes, countErr := f.db.NewSelect().TableExpr("platform.operator_mfa_email_challenges").Where("operator_id = ?", f.operatorID).Count(context.Background())
+	require.NoError(t, countErr)
+	assert.EqualValues(t, 1, codes, "no code beyond the sign-in's was stored")
+}
+
+// TestOperatorCodeRedeemedRacingAPasswordChangeProvesNothing: the code was
+// mailed before the change, its redemption queues behind the change on the
+// operator row and finds no code of the current password.
+func TestOperatorCodeRedeemedRacingAPasswordChangeProvesNothing(t *testing.T) {
+	t.Parallel()
+	f := newOperatorCredentialFixture(t, "operator-redeem-race", true)
+	stale := f.challengeWithCode(t, testPassword, "271828")
+	var proof identityaccess.OperatorMFAProof
+	err := f.raceAgainstPasswordChange(t, "the redemption", func() error {
+		var verifyErr error
+		proof, verifyErr = f.module.OperatorMFA.VerifyOperatorMFAChallenge(context.Background(), stale, "271828")
+		return verifyErr
+	})
+	require.Error(t, err, "the code of the old password redeems nothing")
+	assert.Zero(t, proof, "and hands the exchange no proof")
 }

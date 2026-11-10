@@ -45,6 +45,8 @@ func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 // let the shared code form name the reason (#2517).
 var mfaRules = []common.ErrorRule{
 	{Target: identityaccess.ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
+	// A resend or enrollment start of a password changed since (#6308).
+	{Target: identityaccess.ErrOperatorInvalidCredentials, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
 	{Target: identityaccess.ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
 	{Target: identityaccess.ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA temporarily locked")},
 	{Target: identityaccess.ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many MFA emails — try again later")},

@@ -410,7 +410,7 @@ func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, proof identit
 			return err
 		}
 		if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
-			return identityaccess.ErrMFAChallengeTokenInvalid
+			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		stored, err := f.records.CreateTrustedDevice(txCtx, device)
 		if err != nil {
@@ -508,8 +508,10 @@ func (f *OperatorMFAFlows) enqueueChallenge(ctx context.Context, input domain.Op
 		if err != nil {
 			return err
 		}
+		// A password written since the check refuses like a wrong password,
+		// as on the account portals.
 		if !domain.CredentialStillHolds(credentialGeneration, operator.CredentialGeneration) {
-			return identityaccess.ErrMFAChallengeTokenInvalid
+			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		input.CredentialGeneration = operator.CredentialGeneration
 		if err := f.requireChallengeRateLimit(txCtx, input.OperatorID); err != nil {

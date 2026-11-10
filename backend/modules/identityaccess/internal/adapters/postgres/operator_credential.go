@@ -22,6 +22,12 @@ const operatorCurrentCredential = `credential_generation = (SELECT credential_op
 // writer; the operator's first password arrives with its insert, at the
 // generation a new row starts with.
 //
+// Raw SQL on purpose: a BUN Set naming password_hash is a finding of
+// TestAccountCredentialHasOneWriter whatever its table. The statement is not
+// shared with WriteAccountCredential because the tables differ in more than
+// their name: operators have no one-time password, no first-credential write
+// and no erasure that clears the hash.
+//
 // The expectations make a write a compare-and-swap: written=false when the
 // row is gone or holds another hash or generation by now. An operator has no
 // first-credential write and no write without a password (domain.CredentialWrite
