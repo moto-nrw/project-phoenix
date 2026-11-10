@@ -177,7 +177,7 @@ func TestOperatorPasswordChangeRevokesRememberedDevices(t *testing.T) {
 	mfa, _, db := newTestOperatorMFAService(t)
 	identity := buildOperatorIdentity(t, db)
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-password-devices"), testPassword)
-	require.NoError(t, mfa.EnrollOperatorMFA(ctx, operator.ID))
+	require.NoError(t, mfa.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	device, _, err := mfa.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, operator.ID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, device)

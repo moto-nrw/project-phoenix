@@ -88,9 +88,6 @@ import * as activityApi from "./activity-api";
 
 const mockedGetSession = vi.mocked(getCachedSession);
 const mockedApiGet = vi.mocked(api.get);
-const mockedApiPost = vi.mocked(api.post);
-const mockedApiPut = vi.mocked(api.put);
-const mockedApiDelete = vi.mocked(api.delete);
 
 // Sample test data
 const sampleBackendActivity = buildBackendActivity({
@@ -507,63 +504,6 @@ describe("activity-api", () => {
     });
   });
 
-  describe("createActivitySchedule", () => {
-    it("creates schedule in server context", async () => {
-      mockedApiPost.mockResolvedValueOnce({
-        data: { data: sampleBackendSchedule },
-      });
-
-      const result = await activityApi.createActivitySchedule("1", {
-        weekday: "1",
-        timeframe_id: "1",
-      });
-
-      expect(result.weekday).toBe("1");
-    });
-  });
-
-  describe("updateActivitySchedule", () => {
-    it("updates schedule in server context", async () => {
-      mockedApiPut.mockResolvedValueOnce({
-        data: { data: sampleBackendSchedule },
-      });
-
-      const result = await activityApi.updateActivitySchedule("1", "1", {
-        weekday: "2",
-      });
-
-      expect(result?.weekday).toBe("1");
-    });
-
-    it("returns null on error", async () => {
-      mockedApiPut.mockRejectedValueOnce(new Error("Update failed"));
-
-      const result = await activityApi.updateActivitySchedule("1", "1", {
-        weekday: "2",
-      });
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("deleteActivitySchedule", () => {
-    it("deletes schedule in server context", async () => {
-      mockedApiDelete.mockResolvedValueOnce({});
-
-      const result = await activityApi.deleteActivitySchedule("1", "1");
-
-      expect(result).toBe(true);
-    });
-
-    it("returns false on error", async () => {
-      mockedApiDelete.mockRejectedValueOnce(new Error("Delete failed"));
-
-      const result = await activityApi.deleteActivitySchedule("1", "1");
-
-      expect(result).toBe(false);
-    });
-  });
-
   describe("getTimeframes", () => {
     it("fetches timeframes in server context", async () => {
       mockedApiGet.mockResolvedValueOnce({
@@ -628,39 +568,6 @@ describe("activity-api", () => {
       });
 
       const result = await activityApi.getTimeframes();
-
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe("getAvailableTimeSlots", () => {
-    it("fetches available time slots in server context", async () => {
-      const slots = [{ weekday: "1", timeframe_id: "1" }];
-      mockedApiGet.mockResolvedValueOnce({
-        data: { data: slots },
-      });
-
-      const result = await activityApi.getAvailableTimeSlots("1");
-
-      expect(result).toHaveLength(1);
-    });
-
-    it("fetches with date parameter", async () => {
-      mockedApiGet.mockResolvedValueOnce({
-        data: { data: [] },
-      });
-
-      await activityApi.getAvailableTimeSlots("1", "2024-01-15");
-
-      expect(mockedApiGet).toHaveBeenCalledWith(
-        expect.stringContaining("date=2024-01-15"),
-      );
-    });
-
-    it("returns empty array on error", async () => {
-      mockedApiGet.mockRejectedValueOnce(new Error("Network error"));
-
-      const result = await activityApi.getAvailableTimeSlots("1");
 
       expect(result).toEqual([]);
     });

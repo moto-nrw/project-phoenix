@@ -27,7 +27,7 @@ func init() {
 // plus the IBAN mask. Tax ID and social security number need no mask: the
 // default read shows only that a value exists. The maintenance command
 // bank-data-rekey --school seals the existing plaintext and clears it;
-// migration 1.15.839 drops the plaintext columns once no row keeps one.
+// migration 1.15.900 drops the plaintext columns once no row keeps one.
 const staffFinancialDataSealedUpSQL = `
 ALTER TABLE users.staff_financial_data
 	ADD COLUMN IF NOT EXISTS iban_sealed BYTEA,
@@ -62,6 +62,11 @@ func staffFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 // before the check like guardianFinancialDataSealedDown.
 func staffFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Bounded like bankDataLockTimeout of 1.15.900: a rollback must not
+		// queue an exclusive lock behind a foreign transaction without end.
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '30s'`); err != nil {
+			return fmt.Errorf("bound the staff bank data lock wait: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.staff_financial_data IN ACCESS EXCLUSIVE MODE`); err != nil {
 			return fmt.Errorf("lock the staff bank data: %w", err)
 		}

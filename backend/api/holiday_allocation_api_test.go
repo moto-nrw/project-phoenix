@@ -450,3 +450,26 @@ func TestHolidayAllocationTakesTheHolidayWishAsTheFirstCriterion(t *testing.T) {
 	assert.Equal(t, "office", pending[1].Criteria[0].Source)
 	assert.Equal(t, "placed", pending[0].Proposal)
 }
+
+// TestHolidayAllocationMailNamesTheTraegerAndTheHostSchool: the mail of a
+// decision by criteria names the Träger and, for each week, its host school,
+// like the mail of a booking that moved up (#6437). Without the shared reader
+// the decision of the Büro's Träger transaction named neither.
+func TestHolidayAllocationMailNamesTheTraegerAndTheHostSchool(t *testing.T) {
+	t.Parallel()
+	a := newAllocationFixture(t, "Träger Vergabe Absender")
+	week := a.offer.Weeks[0]
+	receipt := a.submitCriteria(t, "absender@example.org", true, false)
+	pending := a.board(t).Weeks[0].Pending
+	require.Len(t, pending, 1)
+	rec := a.decide(t, decision(pending[0], "placed", ""))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	mail := a.placeMail(t, receipt.ID)
+	assert.True(t, mail.Allocated)
+	assert.Equal(t, "Träger Vergabe Absender", mail.TraegerName)
+	require.Len(t, mail.Children, 1)
+	require.Len(t, mail.Children[0].Weeks, 1)
+	assert.Equal(t, "04.01.2027 bis 08.01.2027: "+week.HostSchoolName+", bis 13 Uhr (08:00 bis 13:00 Uhr)", mail.Children[0].Weeks[0],
+		"the week names its host school")
+}

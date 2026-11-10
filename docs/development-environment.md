@@ -94,8 +94,9 @@ the current two-worker budget and later architecture-test changes.
    API calls from the frontend still need a running backend.
 2. During a fix, run a named test/package or
    `scripts/test-changed.sh --fast origin/development`. The fast mode omits
-   transitive importers and repository-wide ratchets. Run without `--fast`
-   before pushing; it is not a replacement for the full gate.
+   transitive importers and repository-wide ratchets. Before pushing, run
+   `scripts/run-go-toolchain.sh scripts/check-changed.mjs`; CI runs the full
+   affected closure.
 3. Run only one full backend suite or whole-repository analysis at a time
    across your worktrees. Each command has its own budget, not a shared
    machine-wide limit. Extra language-server sessions also keep their own

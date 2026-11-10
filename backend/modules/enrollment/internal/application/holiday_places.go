@@ -41,15 +41,16 @@ type HolidayPlaceStore interface {
 }
 
 // errHolidayPlaceMailRequired reports a move up the waiting list without the
-// mail outbox to tell the parents.
-var errHolidayPlaceMailRequired = errors.New("enrollment: moving up the holiday waiting list needs the mail outbox")
+// mail outbox to tell the parents or the Träger directory that names the
+// Träger and the host schools in that mail.
+var errHolidayPlaceMailRequired = errors.New("enrollment: moving up the holiday waiting list needs the mail outbox and the Träger directory")
 
 // holidayPlacement gives places and moves bookings up. mail tells the
 // parents of a booking that moved up; without it a move up fails, so no
 // child moves up unnoticed. traeger names the Träger and the host schools in
-// that mail where the caller can read them: the public submission reads
-// them with its link. The Träger-Büro's Träger transaction cannot, so its
-// mail names the period, the weeks and the time models (#4699).
+// that mail, in the caller's transaction: the public submission reads them
+// with its link, the Träger-Büro in its Träger transaction (#6437). Without
+// it a move up fails too, so no mail leaves the parents guessing who sent it.
 type holidayPlacement struct {
 	store   HolidayPlaceStore
 	traeger enrollment.HolidayTraegerDirectory
@@ -181,16 +182,12 @@ func (p holidayPlacement) announce(ctx context.Context, organizationID int64, pe
 	if len(promoted) == 0 {
 		return nil
 	}
-	if p.mail == nil {
+	if p.mail == nil || p.traeger == nil {
 		return errHolidayPlaceMailRequired
 	}
-	traeger := enrollment.HolidayTraeger{}
-	if p.traeger != nil {
-		read, err := p.traeger.HolidayTraeger(ctx, organizationID)
-		if err != nil {
-			return err
-		}
-		traeger = read
+	traeger, err := p.traeger.HolidayTraeger(ctx, organizationID)
+	if err != nil {
+		return fmt.Errorf("enrollment: read the Träger of the holiday place mail: %w", err)
 	}
 	byRegistration := map[int64][]enrollment.HolidayPromotion{}
 	var order []int64
@@ -323,8 +320,8 @@ type HolidayPlaces struct {
 var _ enrollment.HolidayPlaces = (*HolidayPlaces)(nil)
 
 // NewHolidayPlaces builds the places over store; mail tells the parents of a
-// booking that moved up, traeger names the Träger in it when it can. Without
-// mail only the read works.
+// booking that moved up, traeger names the Träger and the host schools in it.
+// Without both a capacity that moves a booking up fails; the read works.
 func NewHolidayPlaces(store HolidayPlaceStore, periods HolidayPeriodStore, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) *HolidayPlaces {
 	if store == nil || periods == nil {
 		panic("enrollment: the holiday place store and the period store are required")

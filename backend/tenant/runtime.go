@@ -58,9 +58,8 @@ type UnitOfWorkEvent struct {
 	Retries  int
 }
 
-// Compatibility names for callers migrating from the tenant-propagation
-// runtime introduced by #2642. They are aliases, not a second implementation.
-type RuntimeOutcome = UnitOfWorkEventKind
+// Compatibility name for callers migrating from the tenant-propagation
+// runtime introduced by #2642. It is an alias, not a second implementation.
 type RuntimeEvent = UnitOfWorkEvent
 
 const (

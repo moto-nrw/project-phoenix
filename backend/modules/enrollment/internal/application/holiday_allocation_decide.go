@@ -30,7 +30,7 @@ func (a *HolidayAllocation) DecideHolidayAllocation(ctx context.Context, reviewe
 	if err != nil {
 		return enrollment.HolidayAllocationBoard{}, err
 	}
-	if a.review.placement.mail == nil {
+	if a.review.placement.mail == nil || a.review.placement.traeger == nil {
 		return enrollment.HolidayAllocationBoard{}, errHolidayPlaceMailRequired
 	}
 	period, err := a.criteriaPeriod(ctx, reviewer, periodID, true)
@@ -251,6 +251,12 @@ func (a *HolidayAllocation) record(ctx context.Context, reviewer enrollment.Holi
 			return err
 		}
 	}
+	// The Träger and its host schools name the weeks in the mails, as in the
+	// mail of a booking that moved up (#6437).
+	traeger, err := a.review.placement.traeger.HolidayTraeger(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return fmt.Errorf("enrollment: read the Träger of the holiday allocation mail: %w", err)
+	}
 	for _, registrationID := range order {
 		var mine []enrollment.HolidayAllocationDecision
 		var keys []string
@@ -258,7 +264,7 @@ func (a *HolidayAllocation) record(ctx context.Context, reviewer enrollment.Holi
 			mine = append(mine, stored[i])
 			keys = append(keys, strconv.FormatInt(ids[i], 10))
 		}
-		if err := a.announce(ctx, reviewer.OrganizationID, period, registrationID, mine, keys); err != nil {
+		if err := a.announce(ctx, reviewer.OrganizationID, traeger, period, registrationID, mine, keys); err != nil {
 			return err
 		}
 	}
@@ -268,7 +274,7 @@ func (a *HolidayAllocation) record(ctx context.Context, reviewer enrollment.Holi
 // announce tells the parents of a registration the places and the waiting
 // list the Büro decided on, in the mail of a granted place (#4699) marked
 // as an allocation.
-func (a *HolidayAllocation) announce(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, registrationID int64,
+func (a *HolidayAllocation) announce(ctx context.Context, organizationID int64, traeger enrollment.HolidayTraeger, period enrollment.HolidayPeriod, registrationID int64,
 	decisions []enrollment.HolidayAllocationDecision, keys []string,
 ) error {
 	read, _, err := a.review.store.ReadHolidayReview(ctx, organizationID, period.ID, registrationID)
@@ -279,7 +285,7 @@ func (a *HolidayAllocation) announce(ctx context.Context, organizationID int64, 
 		return enrollment.ErrHolidayRegistrationEntryNotFound
 	}
 	registration := read[0]
-	lines := holidayWeekLines(enrollment.HolidayTraeger{}, period)
+	lines := holidayWeekLines(traeger, period)
 	children := []enrollment.HolidayRegistrationMailChild{}
 	for _, child := range registration.Children {
 		if mailChild := holidayAllocationMailChild(child, decisions, lines); len(mailChild.Weeks)+len(mailChild.WaitlistWeeks) > 0 {
@@ -289,7 +295,7 @@ func (a *HolidayAllocation) announce(ctx context.Context, organizationID int64, 
 	slices.Sort(keys)
 	payload, err := json.Marshal(enrollment.HolidayPlaceGrantedMail{
 		Recipient: registration.GuardianEmail, GuardianName: registration.GuardianFirstName + " " + registration.GuardianLastName,
-		PeriodName: period.Name, Binding: period.Binding, Allocated: true, Children: children,
+		TraegerName: traeger.Name, PeriodName: period.Name, Binding: period.Binding, Allocated: true, Children: children,
 	})
 	if err != nil {
 		return fmt.Errorf("enrollment: encode holiday allocation mail: %w", err)

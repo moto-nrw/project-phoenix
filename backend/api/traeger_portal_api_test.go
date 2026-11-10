@@ -82,7 +82,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
 		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), owners.HolidayTestSchoolCalendar{},
-		holidayTraegerMail{delivery: delivery.Module})
+		holidayTraegerMail{delivery: delivery.Module}, newHolidayOfficeTraeger(organizations))
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {

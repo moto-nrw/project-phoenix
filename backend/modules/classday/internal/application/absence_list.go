@@ -195,10 +195,8 @@ func (a absenceList) children(ctx context.Context, schoolClass string, from, unt
 	}
 	children = kept
 	sort.SliceStable(children, func(i, j int) bool {
-		if children[i].LastName != children[j].LastName {
-			return children[i].LastName < children[j].LastName
-		}
-		return children[i].FirstName < children[j].FirstName
+		a, b := children[i], children[j]
+		return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 	})
 	return children, participation, nil
 }

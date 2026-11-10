@@ -1,6 +1,62 @@
 import { expect, test } from "@playwright/test";
 import { pickDate } from "../date-picker";
 
+test("date selection reopens a picker closed before reading its month", async ({
+  page,
+}) => {
+  await page.setContent(`
+    <button aria-label="Startdatum" aria-expanded="false">10.11.2026</button>
+    <div id="calendar"></div>
+    <script>
+      const trigger = document.querySelector('button');
+      const calendar = document.querySelector('#calendar');
+      let first = true;
+      trigger.onclick = () => {
+        trigger.setAttribute('aria-expanded', 'true');
+        const date = first ? '2026-11-01' : '2026-12-09';
+        first = false;
+        calendar.innerHTML = '<table><tbody><tr><td data-day="' + date + '"><button>9</button></td></tr></tbody></table>';
+        calendar.querySelector('button').onclick = () => {
+          trigger.textContent = '09.12.2026';
+          trigger.setAttribute('aria-expanded', 'false');
+          calendar.innerHTML = '';
+        };
+      };
+    </script>
+  `);
+
+  // Force the observed interleaving without a timing-dependent sleep: the
+  // grid disappears after the visibility/count queries, before the month read.
+  // The read itself remains a real browser locator, including its timeout.
+  const selector = "td[data-day]:not([data-outside])";
+  const calendar = page.locator(selector);
+  const grid = calendar.first();
+  const readAttribute = grid.getAttribute.bind(grid);
+  grid.getAttribute = async (...args) => {
+    await page.evaluate(() => {
+      document.querySelector("#calendar")!.replaceChildren();
+      document.querySelector("button")!.setAttribute("aria-expanded", "false");
+    });
+    grid.getAttribute = readAttribute;
+    return readAttribute(...args);
+  };
+  calendar.first = () => grid;
+  const interruptedPage = new Proxy(page, {
+    get(target, property, receiver) {
+      if (property === "locator") {
+        return (query: string) =>
+          query === selector ? calendar : page.locator(query);
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+
+  const trigger = page.getByRole("button", { name: "Startdatum" });
+  await pickDate(interruptedPage, trigger, "2026-12-09");
+  await expect(trigger).toHaveText("09.12.2026");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+});
+
 // A picker rerender can detach the day while Playwright waits for stability.
 // Reproduce that lifecycle without a server, login, or seeded database.
 test("date selection reopens a picker detached during the day click", async ({

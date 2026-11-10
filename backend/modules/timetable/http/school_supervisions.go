@@ -27,7 +27,7 @@ import (
 //
 //  1. SchoolScopeMiddleware (via ProtectedSchoolRoutes) admits only school-scope
 //     tokens, so a tenant token cannot reach these routes and a school token
-//     still reaches nothing under /api (TestSchoolScopeRejectedOnAllAPIRoutes).
+//     still reaches nothing under /api (the school scope matrix in TestFullProductionRouterGolden).
 //  2. permissions.SupervisionOwn instead of SchedulesRead: the permission says
 //     "own", and the planner stays shut.
 //  3. The day list runs in PlannedNowScopeDay, which filters to the caller's

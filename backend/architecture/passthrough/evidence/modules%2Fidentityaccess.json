@@ -856,7 +856,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
+      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Phone: request.Phone, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/DemoAccessEngine.RequestDemoAccess",
       "owner": "modules/identityaccess"

@@ -22,6 +22,7 @@ type staffShiftRow struct {
 	Notes                string        `bun:"notes"`
 	SeriesID             *int64        `bun:"series_id"`
 	Detached             bool          `bun:"detached,notnull,default:false"`
+	SeriesOverride       bool          `bun:"series_override,notnull,default:false"`
 	SeriesOccurrenceDate *calendarDate `bun:"series_occurrence_date,type:date"`
 	Cancelled            bool          `bun:"cancelled,notnull,default:false"`
 	ChangeReason         *string       `bun:"change_reason"`
@@ -111,7 +112,7 @@ func staffShiftFromDomain(value domain.StaffShift) (*staffShiftRow, error) {
 	return &staffShiftRow{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Date: calendarDate(value.Date),
 		StartTime: start, EndTime: end, BreakMinutes: value.BreakMinutes, ShiftTypeID: value.ShiftTypeID,
-		Notes: value.Notes, SeriesID: value.SeriesID, Detached: value.Detached,
+		Notes: value.Notes, SeriesID: value.SeriesID, Detached: value.Detached, SeriesOverride: value.SeriesOverride,
 		SeriesOccurrenceDate: optionalCalendarDate(value.SeriesOccurrenceDate), Cancelled: value.Cancelled,
 		ChangeReason: value.ChangeReason, OriginShiftID: value.OriginShiftID, SickAbsenceID: value.SickAbsenceID,
 		CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
@@ -122,7 +123,7 @@ func staffShiftToDomain(row staffShiftRow) domain.StaffShift {
 	return domain.StaffShift{
 		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Date: string(row.Date),
 		StartTime: wallClockString(row.StartTime), EndTime: wallClockString(row.EndTime), BreakMinutes: row.BreakMinutes,
-		ShiftTypeID: row.ShiftTypeID, Notes: row.Notes, SeriesID: row.SeriesID, Detached: row.Detached,
+		ShiftTypeID: row.ShiftTypeID, Notes: row.Notes, SeriesID: row.SeriesID, Detached: row.Detached, SeriesOverride: row.SeriesOverride,
 		SeriesOccurrenceDate: calendarDateString(row.SeriesOccurrenceDate), Cancelled: row.Cancelled,
 		ChangeReason: row.ChangeReason, OriginShiftID: row.OriginShiftID, SickAbsenceID: row.SickAbsenceID,
 		CreatedBy: row.CreatedBy, UpdatedBy: row.UpdatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,

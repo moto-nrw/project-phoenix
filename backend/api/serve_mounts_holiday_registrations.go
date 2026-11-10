@@ -37,7 +37,7 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, contractHolidays carecontract.SchoolHolidays,
 	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, calendarSchools traegercalendar.Schools,
 	parentsURL string, logger *slog.Logger) error {
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}); err != nil {
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations)); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, holidayCalendar, settings, logger).Router())

@@ -20,8 +20,6 @@ func NewGuardianBankRekeyStore() *GuardianBankRekeyStore { return &GuardianBankR
 type guardianBankRekeyRow struct {
 	ID                  int64   `bun:"id"`
 	GuardianProfileID   int64   `bun:"guardian_profile_id"`
-	IBAN                *string `bun:"iban"`
-	AccountHolder       *string `bun:"account_holder"`
 	IBANSealed          []byte  `bun:"iban_sealed"`
 	IBANMasked          *string `bun:"iban_masked"`
 	AccountHolderSealed []byte  `bun:"account_holder_sealed"`
@@ -51,7 +49,7 @@ func rewriteGuardianBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID 
 ) (peopledirectory.BankDataRekeyResult, error) {
 	var rows []guardianBankRekeyRow
 	// The school filter stays explicit: the maintenance login bypasses RLS.
-	if err := tx.NewRaw(`SELECT id, guardian_profile_id, iban, account_holder, iban_sealed, iban_masked, account_holder_sealed
+	if err := tx.NewRaw(`SELECT id, guardian_profile_id, iban_sealed, iban_masked, account_holder_sealed
    FROM users.guardian_financial_data WHERE tenant_id = ? AND id > ? ORDER BY id LIMIT ? FOR UPDATE`,
 		schoolID, afterID, limit).Scan(ctx, &rows); err != nil {
 		return peopledirectory.BankDataRekeyResult{}, err
@@ -59,7 +57,6 @@ func rewriteGuardianBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID 
 	result := peopledirectory.BankDataRekeyResult{}
 	for _, row := range rows {
 		value := &peopledirectory.GuardianPayment{ID: row.ID, TenantID: schoolID, GuardianProfileID: row.GuardianProfileID,
-			IBAN: row.IBAN, AccountHolder: row.AccountHolder,
 			IBANSealed: row.IBANSealed, IBANMasked: row.IBANMasked, AccountHolderSealed: row.AccountHolderSealed}
 		changed, err := rewrite(value)
 		if err != nil {
@@ -71,7 +68,7 @@ func rewriteGuardianBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID 
 			continue
 		}
 		if _, err := tx.NewRaw(`UPDATE users.guardian_financial_data
-   SET iban_sealed = ?, iban_masked = ?, account_holder_sealed = ?, iban = NULL, account_holder = NULL
+   SET iban_sealed = ?, iban_masked = ?, account_holder_sealed = ?
    WHERE tenant_id = ? AND id = ?`, value.IBANSealed, value.IBANMasked, value.AccountHolderSealed, schoolID, row.ID).Exec(ctx); err != nil {
 			return result, err
 		}

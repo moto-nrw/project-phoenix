@@ -82,8 +82,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayMail)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayMail, holidayTraeger)
 	if err != nil {
 		return err
 	}
@@ -99,10 +99,12 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // "Gesundheitsangaben sehen" (#4722). holidayCalendar names the host
 // schools' days without care, which no holiday week may book (#4702).
 // holidayMail tells the parents the places the Büro decided on by criteria
-// (#4700), in the Träger transaction of the decision.
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil || holidayMail == nil {
-		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings, the host schools' calendar and the holiday mail are required")
+// (#4700), in the Träger transaction of the decision; holidayTraeger names
+// the Träger and the host schools in that mail, like the mail of a booking
+// that moved up (#6437).
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil || holidayMail == nil || holidayTraeger == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings, the host schools' calendar, the holiday mail and the Träger names are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
@@ -117,7 +119,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	if err != nil {
 		return nil, err
 	}
-	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayCalendar)
+	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, allocation, holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
