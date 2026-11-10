@@ -154,8 +154,8 @@
   "holiday_proof_limit": "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
   "family_children_closed": "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
   "family_children_invalid": "Bitte geben Sie eine Zahl von 1 bis 20 an.",
-  "holiday_allocation_mode_locked": "Für diesen Ferienzeitraum gibt es schon Anmeldungen. Darum bleibt die Art der Platzvergabe so.",
-  "holiday_allocation_pending": "Für diese Anmeldung ist noch kein Platz vergeben. Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
+  "holiday_allocation_mode_locked": "Es gibt schon Anmeldungen. Darum bleibt die Platzvergabe so.",
+  "holiday_allocation_pending": "Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
   "holiday_allocation_full": "In dieser Woche ist kein Platz mehr frei. Bitte laden Sie die Liste neu.",
-  "holiday_allocation_changed": "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal."
+  "holiday_allocation_changed": "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu."
 }

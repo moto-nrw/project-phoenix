@@ -154,8 +154,8 @@
   "holiday_proof_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "family_children_closed": "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
   "family_children_invalid": "Lütfen 1 ile 20 arasında bir sayı girin.",
-  "holiday_allocation_mode_locked": "Bu tatil dönemi için zaten kayıtlar var. Bu yüzden yerlerin dağıtım şekli değiştirilemez.",
-  "holiday_allocation_pending": "Bu kayıt için henüz yer verilmedi. Lütfen önce „Vergabe“ sekmesinde yerleri dağıtın.",
+  "holiday_allocation_mode_locked": "Kayıtlar zaten var, dağıtım şekli değişmez.",
+  "holiday_allocation_pending": "Önce „Vergabe“ sekmesinde yerleri dağıtın.",
   "holiday_allocation_full": "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
-  "holiday_allocation_changed": "Liste az önce değişti. Listeyi yeniden yükledik. Lütfen kararınızı bir kez daha kontrol edin."
+  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin."
 }

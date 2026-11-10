@@ -154,8 +154,8 @@
   "holiday_proof_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "family_children_closed": "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
   "family_children_invalid": "Proszę podać liczbę od 1 do 20.",
-  "holiday_allocation_mode_locked": "Na ten okres ferii są już zgłoszenia. Dlatego sposób przydziału miejsc pozostaje bez zmian.",
-  "holiday_allocation_pending": "Dla tego zgłoszenia nie przydzielono jeszcze miejsca. Proszę najpierw przydzielić miejsca w zakładce „Vergabe”.",
+  "holiday_allocation_mode_locked": "Są już zgłoszenia, więc sposób przydziału pozostaje.",
+  "holiday_allocation_pending": "Najpierw przydziel miejsca w zakładce „Vergabe”.",
   "holiday_allocation_full": "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
-  "holiday_allocation_changed": "Lista właśnie się zmieniła. Wczytaliśmy ją ponownie. Proszę jeszcze raz sprawdzić swoją decyzję."
+  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję."
 }

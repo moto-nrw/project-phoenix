@@ -311,7 +311,7 @@ describe("holiday allocation page (#4700)", () => {
     await waitFor(() => expect(fetchBoard).toHaveBeenCalledTimes(2));
     expect(
       await screen.findByText(
-        "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal.",
+        "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu.",
       ),
     ).toBeInTheDocument();
   });
