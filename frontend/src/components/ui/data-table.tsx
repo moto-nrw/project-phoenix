@@ -235,7 +235,12 @@ const headRowClass =
 // neighbours, whose button carries the weight (#3834).
 const headCellClass =
   "px-5 py-3 font-medium max-sm:px-3 compact:px-4 compact:py-2";
-const denseHeadCellClass = "px-2.5 py-3 font-medium compact:py-2";
+// Dense tables narrow the gaps between columns, not the edges: the first
+// and last cell keep the outer padding, so the table lines up with its
+// card's title like every other table.
+const DENSE_EDGE =
+  "first:pl-5 last:pr-5 max-sm:first:pl-3 max-sm:last:pr-3 compact:first:pl-4 compact:last:pr-4";
+const denseHeadCellClass = `px-2.5 py-3 font-medium compact:py-2 ${DENSE_EDGE}`;
 const bodyRowClass = "border-b border-gray-50 last:border-0";
 
 // The row-action column stays at the right edge of the surface while wider
@@ -281,9 +286,9 @@ function pinnedBodyCellClass(
 }
 const bodyCellClass =
   "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";
-const denseBodyCellClass = "px-2.5 py-3 align-middle compact:py-2";
+const denseBodyCellClass = `px-2.5 py-3 align-middle compact:py-2 ${DENSE_EDGE}`;
 const extraCellClass = "px-5 py-2 max-sm:px-3 compact:px-4";
-const denseExtraCellClass = "px-2.5 py-2";
+const denseExtraCellClass = `px-2.5 py-2 ${DENSE_EDGE}`;
 const subRowClass = `${bodyRowClass} bg-gray-50 text-xs text-gray-500`;
 const summaryRowClass = `${bodyRowClass} bg-gray-50 text-xs font-medium text-gray-600`;
 

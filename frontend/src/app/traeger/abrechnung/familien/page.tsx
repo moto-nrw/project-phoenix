@@ -82,7 +82,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
           </span>
           {/* The address gives way first: on a tablet all four sums stay
               in view beside it. */}
-          <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-40">
+          <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-36">
             {family.recipientEmail}
           </span>
         </span>
