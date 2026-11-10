@@ -240,3 +240,59 @@ func TestConfirmRenewalRecordsSubmittedRenewalBeforeDecision(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, capability.ChildStatusSubmitted, kept.Status)
 }
+
+// A renewal confirmation must not hide other concurrent edits, including
+// optional consents that were not part of that confirmation.
+func TestRenewalConsentKeepsPendingAdjustmentConflictChecks(t *testing.T) {
+	t.Parallel()
+	for _, field := range []string{"guardian", "photo"} {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			env := setupRolloverTest(t)
+			ctx := testpkg.Ctx(t)
+			_ = seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Konflikt", "anna.konflikt@example.test", "Lina", "Konflikt", 1)
+			request, child := rolledRequest(t, env, capability.PhaseRolloverModeOptIn)
+			svc := newChangeRequestServiceForTest(&requestTestEnv{
+				db: env.db, repos: env.repos, reposCare: env.reposCare, reposSchools: env.reposSchools,
+				settings: env.settings, outbox: env.outbox, creatorID: env.creatorID,
+			})
+			phone := "+49 221 555 2165"
+			created, err := svc.Create(ctx, request.StatusToken, enrollmentAPI.CreateChangeRequestInput{
+				Submission: enrollmentAPI.SubmitRequest{
+					GuardianFirstName: request.GuardianFirstName, GuardianLastName: request.GuardianLastName,
+					GuardianEmail: request.GuardianEmail, GuardianPhone: &phone,
+					Children: []enrollmentAPI.SubmitChild{{
+						ID: child.ID, FirstName: child.FirstName, LastName: child.LastName,
+						DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel,
+					}},
+				},
+			})
+			require.NoError(t, err)
+			_, err = env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken))
+			require.NoError(t, err)
+			newer, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
+			require.NoError(t, err)
+			if field == "guardian" {
+				newer.GuardianLastName = "Geändert"
+			} else {
+				flags := map[string]any{}
+				for key, value := range newer.ConsentFlags.All() {
+					flags[key] = value
+				}
+				flags["photo"] = true
+				newer.ConsentFlags = testFormValues(flags)
+			}
+			require.NoError(t, enrollmentAPI.UpdateOwnerRequestGuardianForTest(ctx, env.repos.Enrollment(), newer, false))
+			_, err = testpkg.TenantQuery2(t, ctx, env.db, svc.Approve, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
+				ActorAccountID: env.creatorID, ActorRole: "admin",
+			})
+			require.ErrorIs(t, err, capability.ErrChangeRequestConflict)
+			stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
+			require.NoError(t, err)
+			assert.Equal(t, newer.GuardianLastName, stored.GuardianLastName)
+			assert.Equal(t, newer.ConsentFlags, stored.ConsentFlags)
+			assert.Equal(t, newer.LegalBlocksSnapshot, stored.LegalBlocksSnapshot)
+		})
+	}
+}

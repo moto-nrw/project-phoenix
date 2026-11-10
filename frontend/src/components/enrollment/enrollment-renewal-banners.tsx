@@ -7,13 +7,12 @@
 
 import { useState } from "react";
 import { useLocale } from "next-intl";
-import { FileText } from "lucide-react";
 
 import { Button, ButtonLink } from "~/components/ui/button";
-import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { Modal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import { EnrollmentConsent } from "~/components/enrollment/enrollment-form-consent";
 import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
 import { formatDate } from "~/lib/date-helpers";
@@ -86,7 +85,7 @@ export function RenewalBanners({
       <p className="text-sm text-gray-700">{t("renewalTermsIntro")}</p>
       {blocks.map((block) => (
         <div key={block.key}>
-          <ConsentCheckbox
+          <EnrollmentConsent
             name={fieldName(block.key)}
             label={block.label}
             checked={ticks[block.key] === true}
@@ -99,20 +98,15 @@ export function RenewalBanners({
                 ? t("renewalTermsMissing")
                 : undefined
             }
-            action={
-              block.text ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  aria-label={t("renewalTermsReadAria", { title: block.title })}
-                  onClick={() => setOpenBlock(block)}
-                  className="shrink-0"
-                >
-                  <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{t("renewalTermsRead")}</span>
-                </Button>
-              ) : undefined
+            legalText={block.text}
+            legalTitle={block.title}
+            onViewLegal={() => setOpenBlock(block)}
+            tr={(key, values) =>
+              key === "actions.detailsAria"
+                ? t("renewalTermsReadAria", {
+                    title: String(values?.title ?? ""),
+                  })
+                : t("renewalTermsRead")
             }
           />
           <DocumentAttachmentList attachments={block.attachments} />

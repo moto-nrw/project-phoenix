@@ -1096,6 +1096,24 @@ describe("EnrollmentStatusView renewal terms (#6456)", () => {
     expect(mockConfirmRenewal).not.toHaveBeenCalled();
 
     fireEvent.click(
+      screen.getByRole("button", { name: "Betreuungsvertrag lesen" }),
+    );
+    const legalDialog = screen.getByRole("dialog", {
+      name: "Betreuungsvertrag",
+    });
+    expect(
+      within(legalDialog).getByText("Vertragsbedingungen für die Betreuung"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(legalDialog).getByRole("button", { name: "Dialog schließen" }),
+    );
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Ich stimme den Vertragsbedingungen zu\./,
+      }),
+    ).not.toBeChecked();
+
+    fireEvent.click(
       screen.getByRole("checkbox", {
         name: /Ich stimme den Vertragsbedingungen zu\./,
       }),

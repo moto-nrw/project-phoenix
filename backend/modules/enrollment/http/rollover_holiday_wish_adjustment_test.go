@@ -57,7 +57,7 @@ func TestRolloverHolidayWishCanBeAnsweredWithBookingAdjustment(t *testing.T) {
 				Submission: enrollmentAPI.SubmitRequest{
 					GuardianFirstName: request.GuardianFirstName, GuardianLastName: request.GuardianLastName,
 					GuardianEmail: request.GuardianEmail, GuardianPhone: request.GuardianPhone,
-					ConsentFlags: request.ConsentFlags, CustomData: request.CustomData,
+					ConsentFlags: testFormValues(map[string]any{"photo": true}), CustomData: request.CustomData,
 					Children: []enrollmentAPI.SubmitChild{{
 						ID: rolled[0].ID, FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
 						TargetGradeLevel: rolled[0].TargetGradeLevel, HolidayCareWish: &wish,
@@ -67,12 +67,20 @@ func TestRolloverHolidayWishCanBeAnsweredWithBookingAdjustment(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
+			confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
+			_, err = env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
+			require.NoError(t, err)
 			_, err = testpkg.TenantQuery2(t, ctx, env.db, svc.Approve, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
 				ActorAccountID: env.creatorID, ActorRole: "admin",
 			})
 			require.NoError(t, err)
-			_, saved, err := env.requestSvc.GetByStatusToken(ctx, request.StatusToken)
+			stored, saved, err := env.requestSvc.GetByStatusToken(ctx, request.StatusToken)
 			require.NoError(t, err)
+			require.Len(t, stored.LegalBlocksSnapshot, 1, "approval keeps the renewal evidence")
+			assert.Equal(t, true, testFormValue(stored.ConsentFlags, "photo"), "approval keeps the proposed optional consent")
+			for key := range confirmation.ConsentFlags.All() {
+				assert.Equal(t, true, testFormValue(stored.ConsentFlags, key), "approval keeps accepted %s", key)
+			}
 			require.NotNil(t, saved[0].HolidayCareWish)
 			assert.Equal(t, wish, *saved[0].HolidayCareWish)
 			bookings, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().RequestChildOfferingHistory, rolled[0].ID)
