@@ -2,11 +2,12 @@ package parentbilling
 
 import "context"
 
-// The DATEV booking batch of the Elternabrechnung (#4694). The file comes
-// with the export protocol and the file number (#4693); until then the
-// Träger can check whether its settings make a valid batch. The check runs
-// the same formatter as the export over a probe booking, so it cannot
-// disagree with it.
+// The DATEV booking batch of the Elternabrechnung (#4694). The file of a
+// released run leaves moto through the finance exports (FinanceExports.DatevFile)
+// with the file number and the protocol of #4693. The check of the settings
+// runs the same formatter as the export over a probe booking, so it cannot
+// disagree with it; the export refuses every file while the check names a
+// setting.
 
 // DatevSetting is one setting of the Träger with its key, so the check can
 // name it.
@@ -40,9 +41,9 @@ type DatevBillingSettings interface {
 // batch. It names the keys of the settings that are missing or invalid,
 // never their values.
 type DatevReadiness struct {
-	Ready           bool
-	MissingSettings []string
-	InvalidSettings []string
+	Ready           bool     `json:"ready"`
+	MissingSettings []string `json:"missing_settings"`
+	InvalidSettings []string `json:"invalid_settings"`
 }
 
 // DatevExport is the DATEV booking batch of a Träger. The caller opens the

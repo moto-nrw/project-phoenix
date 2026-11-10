@@ -31,6 +31,7 @@ type exportEntryBody struct {
 	RunKind       string  `json:"run_kind"`
 	RunLabel      string  `json:"run_label"`
 	FileName      string  `json:"file_name"`
+	Fingerprint   string  `json:"fingerprint"`
 	InvoiceCount  int     `json:"invoice_count"`
 	TotalCents    int64   `json:"total_cents"`
 	Reference     string  `json:"reference"`

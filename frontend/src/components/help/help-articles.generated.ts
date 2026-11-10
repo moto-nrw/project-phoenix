@@ -348,6 +348,8 @@ import type { traegerClosingDaysTopic as authored_traegerClosingDaysTopic } from
 
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
+import type { traegerDatevExportTopic as authored_traegerDatevExportTopic } from "./articles/traeger-datev-export";
+
 import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } from "./articles/traeger-document-kinds";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
@@ -11326,6 +11328,71 @@ export const traegerDashboardTopic =
     };
   } satisfies typeof authored_traegerDashboardTopic;
 
+export const traegerDatevExportTopic =
+  function traegerDatevExportTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerDatevExport,
+      title: "DATEV-Werte eintragen",
+      question: "Wie bekommt mein Steuerbüro die Beiträge für DATEV?",
+      summary:
+        "Für jeden ausgestellten Lauf laden Sie eine DATEV-Datei herunter. Ihr Steuerbüro liest sie in DATEV ein. Vorher tragen Sie einmal die DATEV-Werte Ihres Steuerbüros ein.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Settings",
+      requirements: [
+        "Ihre Rolle im Träger-Büro hat das Recht Finanz-Export.",
+        "Ihr Steuerbüro hat Ihnen die DATEV-Werte genannt.",
+        "Jede Familie hat eine Debitorennummer.",
+        "Der Monatslauf oder Ferienlauf ist ausgestellt.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "DATEV-Werte eintragen",
+          description:
+            "Das machen Sie nur einmal. Fragen Sie Ihr Steuerbüro nach den Werten.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `DATEV-Werte`. Die Einstellungen öffnen sich im Bereich `DATEV`.",
+            "Tragen Sie `Beraternummer` und `Mandantennummer` ein.",
+            "Wählen Sie die `Länge der Sachkonten`, den `Kontenrahmen` und den `Beginn des Wirtschaftsjahres`.",
+            "Tragen Sie das `Erlöskonto für Elternbeiträge` ein.",
+          ],
+        },
+        {
+          title: "DATEV-Datei herunterladen",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie beim Lauf `DATEV`. Die Datei wird heruntergeladen.",
+            "Geben Sie die Datei an Ihr Steuerbüro.",
+          ],
+        },
+      ],
+      result:
+        "In der Datei steht jede Rechnung im Soll, jedes Storno und jede Gutschrift im Haben. Die Datei steht im `Exportprotokoll` mit ihrer Nummer. In jeder Rechnung zeigt `Verlauf`, in welcher Datei sie war.",
+      notes: [
+        "Die Debitorennummer tragen Sie bei `Empfänger und Zahlung` der Familie ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
+        "Jeder Download ist eine neue Datei mit neuer Nummer. Geben Sie Ihrem Steuerbüro einen Lauf nur einmal, sonst stehen die Buchungen doppelt in DATEV.",
+        "Die DATEV-Datei und die Sollstellung zählen in derselben Reihe von Dateinummern.",
+        "Eine Rechnung über 0 € steht nicht in der DATEV-Datei. Sie bewegt kein Geld.",
+      ],
+      differences: [
+        "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",
+        "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
+      ],
+      troubleshootingDetails: [
+        "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Laden Sie für diesen Lauf die `Sollstellung` herunter. Geben Sie diese Datei und die genannten Rechnungsnummern an Ihr Steuerbüro. Es kann die Buchungen damit von Hand erfassen. Die DATEV-Datei bleibt für den ganzen Lauf gesperrt. Auch ein Storno hebt diese Sperre nicht auf. Ausgestellte Rechnungen und ihre Stornos behalten die Debitorennummer. Änderungen bei der Familie gelten nur für künftige Rechnungen. Prüfen Sie diese Nummer vor dem nächsten Ausstellen mit Ihrem Steuerbüro.",
+        "Eine Rechnung liegt in einem anderen Wirtschaftsjahr? Eine DATEV-Datei gilt nur für ein Wirtschaftsjahr. Fragen Sie Ihr Steuerbüro, wie es diese Rechnung buchen möchte.",
+        "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
+      ],
+      related: [
+        HELP_TOPICS.traegerFinanceExports,
+        HELP_TOPICS.traegerBillingTerms,
+        HELP_TOPICS.traegerCareMonths,
+      ],
+    };
+  } satisfies typeof authored_traegerDatevExportTopic;
+
 /**
  * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
  * oder Bestätigung mit Rechnung je Leistung; die Rechtsbehelfsbelehrung des
@@ -11512,7 +11579,8 @@ export const traegerFinanceExportsTopic =
         "Die Datei steht im `Exportprotokoll` mit Nummer, Datum und wer sie geholt hat. Beim Lauf steht die letzte Sollstellung. In jeder Monatsrechnung zeigt `Verlauf`, in welchen Dateien sie war.",
       notes: [
         "Jeder Download ist eine neue Datei mit neuer Nummer. Steht im Protokoll `Gleicher Inhalt wie Nr. …`, enthält die Datei nichts Neues.",
-        "Auch jede Lastschriftdatei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
+        "Auch jede Lastschriftdatei und jede DATEV-Datei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
+        "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
         "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
         "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
       ],
@@ -11527,6 +11595,7 @@ export const traegerFinanceExportsTopic =
         "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
       ],
       related: [
+        HELP_TOPICS.traegerDatevExport,
         HELP_TOPICS.traegerCareMonths,
         HELP_TOPICS.traegerSepaDebitFile,
         HELP_TOPICS.traegerBillingTerms,

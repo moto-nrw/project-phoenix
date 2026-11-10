@@ -934,6 +934,10 @@ export const ERROR_CATALOG = {
         "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.cost_takeover_with_exemption":
         "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
+      "parent_billing.datev_bookings_invalid":
+        "Einige Rechnungen passen nicht in die DATEV-Datei. Bitte prüfen Sie die genannten Rechnungen.",
+      "parent_billing.datev_not_ready":
+        "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
@@ -2339,6 +2343,10 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.care_amendment_disabled":
         "{object} could not be changed. Please check its current status.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -2930,6 +2938,10 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.care_amendment_disabled":
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3471,6 +3483,10 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.care_amendment_disabled":
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4000,6 +4016,10 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.care_amendment_disabled":
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4534,6 +4554,10 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.care_amendment_disabled":
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -5061,6 +5085,10 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.care_amendment_disabled":
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
