@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -111,6 +112,39 @@ func (s *TemplateService) reconcileSeriesPredecessorRoster(
 		)
 	}
 	return nil
+}
+
+// Lock all segments together before either participant or staff rows change.
+// A cancellation takes the day first and then locks those participant rows.
+func (s *TemplateService) lockSeriesPredecessorDays(ctx context.Context, in TemplateUpdateInput, livingValidFrom *calendar.Date) error {
+	if in.SeriesRosterFrom == nil || (len(in.SeriesRosterScopeStudentIDs) == 0 && len(in.SeriesRosterScopeStaffIDs) == 0) || noInstanceRows(s.deps.ActivityInstanceRepo) {
+		return nil
+	}
+	anchor := *in.SeriesRosterFrom
+	if today := s.deps.Today(); anchor.Before(today) {
+		anchor = today
+	}
+	segments, err := loadTemplateSeriesSegments(ctx, s.deps.ActivityGroupRepo, s.deps.ActivityScheduleRepo, s.getLogger(), in.TemplateID)
+	if err != nil {
+		return err
+	}
+	var occurrences []*scheduleModel.ActivityInstance
+	for i := range segments {
+		seg := &segments[i]
+		if !segmentIsReconcilablePredecessor(seg, in.TemplateID, anchor, livingValidFrom) {
+			continue
+		}
+		window, ok := predecessorWindowOf(seg, anchor, in.SeriesRosterScopeWeekdays)
+		if !ok {
+			continue
+		}
+		instances, _, err := loadPlannedTemplateInstances(ctx, s.deps.ActivityInstanceRepo.Reads, seg.Group.ID, window.from, "lock predecessor occurrences")
+		if err != nil {
+			return err
+		}
+		occurrences = append(occurrences, instances...)
+	}
+	return s.lockOccurrenceDays(ctx, occurrences)
 }
 
 // segmentIsReconcilablePredecessor filters the lineage down to the bounded

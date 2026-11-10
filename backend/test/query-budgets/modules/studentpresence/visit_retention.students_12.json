@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.studentpresence.visit_retention.students_12",
+  "max": 11,
+  "exact": true,
+  "description": "#6455: complete visit cleanup of 12 children in one batch; the expired visits go in one DELETE, their audit rows in one INSERT, so the count does not grow with the cohort."
+}

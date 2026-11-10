@@ -93,12 +93,6 @@ func statusFlagArchiveWindow(now time.Time) (time.Time, calendar.Date) {
 // excused flags and their status days in step for every school, according
 // to operations.sick_clear_mode and operations.excused_clear_mode.
 func (s *Scheduler) scheduleStatusFlagClearTask() {
-	// Env var kill switch to allow ops to disable this task without code changes.
-	if s.env("STATUS_FLAG_CLEAR_ENABLED") == "false" {
-		s.getLogger().Info("status flag clear scheduler is disabled via env var")
-		return
-	}
-
 	s.registerTask("status-flag-clear", "1m-poll", s.runStatusFlagClearTaskPolling)
 }
 

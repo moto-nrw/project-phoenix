@@ -29,9 +29,9 @@ func (a *Appender) Append(ctx context.Context, event any) error {
 	return wrapDatabase("append "+table, err)
 }
 
-// AppendAll inserts class-list entry changes or consent changes in one
-// statement with the same columns as Append; any other event type, or a
-// mix, is appended one by one.
+// AppendAll inserts class-list entry changes, consent changes or data
+// deletions in one statement with the same columns as Append; any other event
+// type, or a mix, is appended one by one.
 func (a *Appender) AppendAll(ctx context.Context, events []any) error {
 	if len(events) == 0 {
 		return nil
@@ -51,6 +51,13 @@ func (a *Appender) AppendAll(ctx context.Context, events []any) error {
 		}
 		_, err = db.NewInsert().Model(&rows).ModelTableExpr("audit.student_consent_changes").Exec(ctx)
 		return wrapDatabase("append audit.student_consent_changes", err)
+	case *auditModels.DataDeletion:
+		db, rows, err := prepareAll(ctx, a, events, func(value *auditModels.DataDeletion) *auditModels.DataDeletion { return value })
+		if err != nil || rows == nil {
+			return err
+		}
+		_, err = db.NewInsert().Model(&rows).ModelTableExpr("audit.data_deletions").Exec(ctx)
+		return wrapDatabase("append audit.data_deletions", err)
 	}
 	return a.appendEach(ctx, events)
 }

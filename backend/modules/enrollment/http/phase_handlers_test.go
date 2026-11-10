@@ -441,6 +441,26 @@ func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+// A window edit that would end a pending child's window before it starts is
+// refused with its own code (#6505).
+func TestUpdatePhaseHandler_PendingChildWindowConflictReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     fmt.Errorf("phase update: %w", capability.ErrPhasePendingChildWindowConflict),
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "enrollment.phase_pending_child_window_conflict", body.Code)
+}
+
 func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 	t.Parallel()
 
@@ -602,6 +622,18 @@ func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// A phase whose bookings still apply is refused with 409 and its own code, so
+// the dialog names the reason (#6505).
+func TestDeletePhaseHandler_EffectiveBookingsReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{deleteErr: fmt.Errorf("%w: 2 children", capability.ErrPhaseHasEffectiveBookings)}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.phase_has_effective_bookings"`)
 }
 
 func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {

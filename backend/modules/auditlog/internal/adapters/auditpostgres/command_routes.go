@@ -55,6 +55,27 @@ func (r dataDeletionCommand) Create(ctx context.Context, event *auditModel.DataD
 	return r.command.Append(ctx, event)
 }
 
+// CreateAll routes the deletions through the command's AppendAll where it has
+// one, one Append per deletion otherwise; either way the first failure fails
+// the call and the caller's transaction rolls back what was written.
+func (r dataDeletionCommand) CreateAll(ctx context.Context, events []*auditModel.DataDeletion) error {
+	all, err := dataDeletionEvents(events)
+	if err != nil || len(all) == 0 {
+		return err
+	}
+	if batch, ok := r.command.(interface {
+		AppendAll(context.Context, []any) error
+	}); ok {
+		return batch.AppendAll(ctx, all)
+	}
+	for _, event := range all {
+		if err := r.command.Append(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type studentDeletionCommand struct {
 	auditModel.StudentDeletionRepository
 	command auditModel.Command

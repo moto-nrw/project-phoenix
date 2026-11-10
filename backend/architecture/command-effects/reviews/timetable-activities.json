@@ -2352,35 +2352,35 @@
     },
     {
       "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "classification": "leaf",
       "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Capability.DeleteCompletedVisitsBefore; modules/studentpresence.Capability (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Capability.DeleteExpiredVisits; modules/studentpresence.Capability (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
       "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "classification": "leaf",
       "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredVisits; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
       "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "leaf",
       "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredVisits; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
@@ -6203,28 +6203,6 @@
     },
     {
       "adr": "0067",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "classification": "leaf",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore; modules/studentpresence/internal/application/visit_commands.go:44.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
-      "source_owner": "timetable-activities",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "target_owner": "student-presence"
-    },
-    {
-      "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "classification": "leaf",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "target_owner": "student-presence"
-    },
-    {
-      "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredAttendance",
       "classification": "leaf",
       "effect": "mutation",
@@ -6265,6 +6243,28 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteExpiredVisits; modules/studentpresence/internal/application/visit_commands.go:44.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredVisits; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
@@ -28045,7 +28045,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Binding changed by #6232: the split takes the grade-transition gate together with the recurrence gate, before its day locks; the target still only derives the key.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
@@ -28363,7 +28363,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Binding changed by #6232: the split takes the grade-transition gate together with the recurrence gate, before its day locks; the target still only derives the key.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
@@ -34654,7 +34654,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Binding changed by #6232: the split takes the grade-transition gate together with the recurrence gate, before its day locks; the target still only derives the key.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"

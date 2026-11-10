@@ -1,0 +1,104 @@
+package compose
+
+import (
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// A phase edit moves the window of a still pending child through
+// MovePendingWindow (#6505). A bound moves only while it still equals the
+// phase's old bound; a child that is no longer pending stays as it is, and a
+// window that would end before it starts is refused before any write. A
+// bound from another approval of the child moves only to widen the window.
+// The first-care bound follows a start that lies ahead.
+func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	dependencies := Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas(),
+		Today: func() calendar.Date { return "2099-12-07" }}
+	module, err := New(dependencies)
+	require.NoError(t, err)
+	windows, err := NewPendingWindows(dependencies)
+	require.NoError(t, err)
+	enroll := func(name, status, from, until string) int64 {
+		t.Helper()
+		student := testpkg.CreateTestStudent(t, db, "Fenster", name, "1a")
+		_, err := db.ExecContext(ctx, "DELETE FROM users.student_school_memberships WHERE tenant_id = ? AND student_profile_id = ?", testpkg.Tenant(t), student.ID)
+		require.NoError(t, err)
+		_, err = module.Enroll(ctx, schoolmembership.StudentEnrollment{StudentID: student.ID, SchoolClass: "1a", Status: status, EnrolledFrom: from, EnrolledUntil: until})
+		require.NoError(t, err)
+		return student.ID
+	}
+	window := func(id int64) (string, string, string, string) {
+		t.Helper()
+		var row struct {
+			Status    string         `bun:"status"`
+			From      *calendar.Date `bun:"enrolled_from"`
+			Until     *calendar.Date `bun:"enrolled_until"`
+			FirstCare *calendar.Date `bun:"first_care_from"`
+		}
+		require.NoError(t, db.NewRaw(`SELECT status, enrolled_from, enrolled_until, first_care_from FROM users.student_school_memberships
+			WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL`, testpkg.Tenant(t), id).Scan(ctx, &row))
+		text := func(day *calendar.Date) string {
+			if day == nil {
+				return ""
+			}
+			return day.String()
+		}
+		return row.Status, text(row.From), text(row.Until), text(row.FirstCare)
+	}
+	move := func(id int64, from, until calendar.Date) schoolmembership.PendingWindowMove {
+		return schoolmembership.PendingWindowMove{StudentID: id,
+			FromBefore: "2100-08-01", FromAfter: from, UntilBefore: "2101-07-31", UntilAfter: until,
+			OtherStarts: []calendar.Date{"2100-07-20"}, OtherEnds: []calendar.Date{"2100-07-31"}}
+	}
+
+	both := enroll("Beide", "pending", "2100-08-01", "2101-07-31")
+	moved, err := windows.MovePendingWindow(ctx, move(both, "2100-08-08", "2101-07-24"))
+	require.NoError(t, err)
+	assert.True(t, moved)
+	status, from, until, firstCare := window(both)
+	assert.Equal(t, []string{"pending", "2100-08-08", "2101-07-24", "2100-08-08"}, []string{status, from, until, firstCare},
+		"both phase bounds and the first-care bound move")
+
+	manual := enroll("Hand", "pending", "2100-09-15", "2101-07-31")
+	moved, err = windows.MovePendingWindow(ctx, move(manual, "2100-08-08", "2101-07-24"))
+	require.NoError(t, err)
+	assert.True(t, moved, "the child is still pending")
+	_, from, until, _ = window(manual)
+	assert.Equal(t, []string{"2100-09-15", "2101-07-24"}, []string{from, until}, "a start set by hand stays, the phase end moves")
+
+	active := enroll("Aktiv", "active", "2100-08-01", "2101-07-31")
+	moved, err = windows.MovePendingWindow(ctx, move(active, "2100-08-08", "2101-07-24"))
+	require.NoError(t, err)
+	assert.False(t, moved, "an active child is not moved")
+	status, from, until, _ = window(active)
+	assert.Equal(t, []string{"active", "2100-08-01", "2101-07-31"}, []string{status, from, until})
+
+	// A holiday approval from 2100-07-20 shapes the start: a later school
+	// year keeps it, an earlier one widens the window to its own start.
+	holiday := enroll("Ferien", "pending", "2100-07-20", "2101-07-31")
+	moved, err = windows.MovePendingWindow(ctx, move(holiday, "2100-08-08", "2101-07-31"))
+	require.NoError(t, err)
+	assert.True(t, moved)
+	_, from, _, _ = window(holiday)
+	assert.Equal(t, "2100-07-20", from, "a later school year keeps the earlier holiday start")
+	moved, err = windows.MovePendingWindow(ctx, move(holiday, "2100-07-15", "2101-07-31"))
+	require.NoError(t, err)
+	assert.True(t, moved)
+	_, from, _, _ = window(holiday)
+	assert.Equal(t, "2100-07-15", from, "an earlier school year starts the child with it")
+
+	short := enroll("Kurz", "pending", "2100-08-01", "2100-08-05")
+	_, err = windows.MovePendingWindow(ctx, move(short, "2100-08-08", "2101-07-24"))
+	var conflict *schoolmembership.PendingWindowConflictError
+	require.ErrorAs(t, err, &conflict, "a window ending before its start is refused")
+	_, from, until, _ = window(short)
+	assert.Equal(t, []string{"2100-08-01", "2100-08-05"}, []string{from, until}, "nothing was written")
+}

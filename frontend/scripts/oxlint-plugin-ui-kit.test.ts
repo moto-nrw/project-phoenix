@@ -3684,6 +3684,87 @@ describe.concurrent("ui-kit/no-radix-outside-kit", () => {
   });
 });
 
+describe.concurrent("ui-kit/form-modal-pending", () => {
+  const RULE = /ui-kit\(form-modal-pending\)/g;
+  const PATH = "src/components/probe/probe-modal.tsx";
+
+  it.each([
+    ["without pending", ""],
+    ["with pending={undefined}", " pending={undefined}"],
+    ["with pending={null}", " pending={null}"],
+  ])("reports a saving FormModal %s", async (_label, attribute) => {
+    const result = await lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        const save = async () => { await fetch("/x"); onClose(); };
+        return (
+          <FormModal isOpen onClose={onClose} title="Probe"${attribute} footer={<button type="button" onClick={() => void save()}>Speichern</button>}>
+            <p>Inhalt</p>
+          </FormModal>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it("accepts a FormModal that passes the pending contract", async () => {
+    const result = await lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        const save = useFormModalPending();
+        return (
+          <FormModal isOpen onClose={onClose} title="Probe" pending={save}>
+            <p>Inhalt</p>
+          </FormModal>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei ohne pending fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("accepts a dialog without a save that names its reason", async () => {
+    const result = await lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        return (
+          // oxlint-disable-next-line ui-kit/form-modal-pending -- übergibt die Auswahl synchron und speichert nichts.
+          <FormModal isOpen onClose={onClose} title="Probe">
+            <p>Inhalt</p>
+          </FormModal>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = `import { FormModal } from "./form-modal";
+      export const Probe = () => (
+        <FormModal isOpen onClose={() => undefined} title="Probe"><p /></FormModal>
+      );`;
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+    expect(kit.status).toBe(0);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
   it.each(["src/app/school/probe/page.tsx", "src/app/operator/probe/page.tsx"])(
     "reports a hand-rolled card in %s",

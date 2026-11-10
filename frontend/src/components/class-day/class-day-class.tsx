@@ -21,6 +21,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
@@ -217,7 +218,8 @@ export function ClassDayClass({
   const [hintOpen, setHintOpen] = useState(false);
   const [hintTarget, setHintTarget] = useState(CLASS_TARGET);
   const [hintBody, setHintBody] = useState("");
-  const [hintSaving, setHintSaving] = useState(false);
+  const hintSave = useFormModalPending(hintOpen);
+  const hintSaving = hintSave.pending;
   const [hintDeleteOpen, setHintDeleteOpen] = useState(false);
   const [hintDeleting, setHintDeleting] = useState(false);
   const hintErrors = useApiFormError();
@@ -414,23 +416,28 @@ export function ClassDayClass({
       hintErrors.invalid(DAY_HINT_TOO_LONG, { day_hint: DAY_HINT_TOO_LONG });
       return;
     }
-    setHintSaving(true);
-    hintErrors.clear();
-    try {
-      await saveDayHintSchool(schoolClass, dateISO, trimmedHint, hintStudentId);
-      setHintOpen(false);
-      await refetchReport();
-    } catch (err) {
-      logger.error("class_day_hint_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await hintErrors.show(err, {
-        object: "der Hinweis",
-        retry: () => void retrySaveRef.current.hint(),
-      });
-    } finally {
-      setHintSaving(false);
-    }
+    await hintSave.run(async (op) => {
+      hintErrors.clear();
+      try {
+        await saveDayHintSchool(
+          schoolClass,
+          dateISO,
+          trimmedHint,
+          hintStudentId,
+        );
+        if (op.isCurrent()) setHintOpen(false);
+        await refetchReport();
+      } catch (err) {
+        logger.error("class_day_hint_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await hintErrors.show(err, {
+          object: "der Hinweis",
+          retry: () => void retrySaveRef.current.hint(),
+        });
+      }
+    });
   };
   const deleteHint = async () => {
     setHintDeleting(true);
@@ -561,7 +568,8 @@ export function ClassDayClass({
   const [handoverAbsent, setHandoverAbsent] = useState<ReadonlySet<number>>(
     () => new Set(),
   );
-  const [savingHandover, setSavingHandover] = useState(false);
+  const handoverSave = useFormModalPending(handoverOpen);
+  const savingHandover = handoverSave.pending;
   const handoverErrors = useApiFormError();
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -582,29 +590,29 @@ export function ClassDayClass({
   const saveHandover = async () => {
     if (!handOverClass) return;
     handoverErrors.clear();
-    setSavingHandover(true);
-    try {
-      await handOverClass(schoolClass, dateISO, {
-        present: ogsRows
-          .filter((row) => !handoverAbsent.has(row.student_id))
-          .map((row) => row.student_id),
-        absent: ogsRows
-          .filter((row) => handoverAbsent.has(row.student_id))
-          .map((row) => row.student_id),
-      });
-      await refetchReport();
-      setHandoverOpen(false);
-    } catch (cause) {
-      logger.error("class_day_handover_save_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void handoverErrors.show(cause, {
-        object: "die Übergabe",
-        retry: () => void retrySaveRef.current.handover(),
-      });
-    } finally {
-      setSavingHandover(false);
-    }
+    await handoverSave.run(async (op) => {
+      try {
+        await handOverClass(schoolClass, dateISO, {
+          present: ogsRows
+            .filter((row) => !handoverAbsent.has(row.student_id))
+            .map((row) => row.student_id),
+          absent: ogsRows
+            .filter((row) => handoverAbsent.has(row.student_id))
+            .map((row) => row.student_id),
+        });
+        await refetchReport();
+        if (op.isCurrent()) setHandoverOpen(false);
+      } catch (cause) {
+        logger.error("class_day_handover_save_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (!op.isCurrent()) return;
+        void handoverErrors.show(cause, {
+          object: "die Übergabe",
+          retry: () => void retrySaveRef.current.handover(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     retrySaveRef.current = {
@@ -668,7 +676,7 @@ export function ClassDayClass({
               }
               size="md"
               mobilePosition="bottom"
-              closeDisabled={homeworkForm.saving}
+              pending={homeworkForm.pending}
               isBackdropDismissDisabled
               error={homeworkForm.formError}
               footer={
@@ -737,7 +745,7 @@ export function ClassDayClass({
             <FormModal
               isOpen={handoverOpen}
               onClose={() => setHandoverOpen(false)}
-              closeDisabled={savingHandover}
+              pending={handoverSave}
               title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
               size="md"
               mobilePosition="bottom"
@@ -840,6 +848,7 @@ export function ClassDayClass({
               isOpen={hintOpen}
               suspended={hintDeleteOpen}
               onClose={closeHint}
+              pending={hintSave}
               title="Hinweis für die OGS"
               size="md"
               mobilePosition="bottom"
