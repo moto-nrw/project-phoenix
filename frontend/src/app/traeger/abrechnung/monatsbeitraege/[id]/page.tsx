@@ -571,6 +571,16 @@ export default function TraegerCareRunPage() {
                   "Noch kein Muster"
                 )}
               </DataField>
+              {/* What the release leaves out belongs to the decision, so it
+                  stays in the overview; the card below lists the invoices. */}
+              {preview && run.excludedCount > 0 ? (
+                <DataField label="Ausgeschlossen">
+                  <span className="tabular-nums">
+                    {invoiceCountLabel(run.excludedCount)} ·{" "}
+                    {formatEuro(run.excludedCents)}
+                  </span>
+                </DataField>
+              ) : null}
               {(run.freeOfCharge ?? 0) > 0 ? (
                 <DataField label="Beitragsfreier Monat">
                   {run.freeOfCharge === 1

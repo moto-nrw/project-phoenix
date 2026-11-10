@@ -176,7 +176,7 @@ export function CareRunMealsCard({
             // time: the badge names the schools instead.
             open.length > 0
               ? bySchool.size > 1
-                ? `Freigabe fehlt an ${bySchool.size} Schulen`
+                ? `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe an ${bySchool.size} Schulen`
                 : `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
               : null,
             expired.length > 0

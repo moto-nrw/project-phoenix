@@ -89,6 +89,10 @@ const columnsFor = (
         ) : null}
       </span>
     ),
+    // A phone row names the run's number once, in the line below.
+    stackedRender: (run) => (
+      <span className="font-medium text-gray-900">{run.periodName}</span>
+    ),
     stacked: "title",
   },
   {

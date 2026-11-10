@@ -366,17 +366,18 @@ function DebitHintsCard({
                   : text}
               </p>
             </div>
+            {/* The mandate stays one click away also when only the date is
+                too early: the central „Fälligkeiten ändern“ fixes the date,
+                this link checks the family's mandate. */}
             <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
-              {dueTooSoon && dueDatesHref ? null : (
-                <ButtonLink
-                  href={traegerPath(item.href)}
-                  variant="surface"
-                  size="compact"
-                  aria-label={`${mandateAction(item)}: ${item.family}`}
-                >
-                  {mandateAction(item)}
-                </ButtonLink>
-              )}
+              <ButtonLink
+                href={traegerPath(item.href)}
+                variant="surface"
+                size="compact"
+                aria-label={`${mandateAction(item)}: ${item.family}`}
+              >
+                {mandateAction(item)}
+              </ButtonLink>
             </div>
           </li>
         );
