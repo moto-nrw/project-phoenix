@@ -297,7 +297,29 @@ func (s *Store) AcceptGuardianInvitation(ctx context.Context, id int64, accepted
 			Set("accepted_at = ?", acceptedAt).
 			Set("updated_at = NOW()").
 			Where(`"guardian_invitation".id = ?`, id).
-			Where(`"guardian_invitation".accepted_at IS NULL`))
+			Where(`"guardian_invitation".accepted_at IS NULL`).
+			Where(`"guardian_invitation".expires_at >= ?`, acceptedAt).
+			Where(`"guardian_invitation".approval_status IN (?, ?)`, domain.GuardianInvitationApprovalNotRequired, domain.GuardianInvitationApprovalApproved))
 	})
 	return rows == 1, err
+}
+
+// InvalidateGuardianInvitations ends every unspent link for this school's
+// profile. Pending approvals are rejected so they cannot refresh an ended
+// link. Accepted invitations and their account bindings remain untouched.
+func (s *Store) InvalidateGuardianInvitations(ctx context.Context, profileID int64, now time.Time) error {
+	if s.scope(ctx).TenantID <= 0 {
+		return domain.ErrTenantRequired
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = guardianTenantFilter(s.scope(ctx), db.NewUpdate().Model((*guardianInvitationRow)(nil)).
+		Set("expires_at = LEAST(expires_at, ?)", now).
+		Set("email = NULL").
+		Set("approval_status = CASE WHEN approval_status = ? THEN ? ELSE approval_status END", domain.GuardianInvitationApprovalPending, domain.GuardianInvitationApprovalRejected).
+		Set("updated_at = ?", now).
+		Where("guardian_profile_id = ?", profileID).Where("accepted_at IS NULL").Where("expires_at > ?", now)).Exec(ctx)
+	return err
 }

@@ -29,7 +29,7 @@ type PasswordResetWiring struct {
 	Backoff []time.Duration
 }
 
-func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
+func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger, signingSecret string) *identityaccessCompose.PasswordResetDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -55,6 +55,7 @@ func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger)
 		Passwords:        passwordPolicy{},
 		Expiry:           wiring.Expiry,
 		RateLimitEnabled: wiring.RateLimitEnabled,
+		RateLimitSecret:  []byte(signingSecret),
 		Logger:           logger,
 	}
 }

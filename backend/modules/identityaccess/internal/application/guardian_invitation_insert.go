@@ -12,26 +12,10 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 	studentID := req.StudentID
 	var invitation domain.GuardianInvitation
 	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		// Account, school, profile, as acceptance locks them (40P01
-		// otherwise); the address is checked again under the profile lock.
-		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
-			return failed(opGuardianInviteToStudent, lockErr)
-		}
-		if lockErr := l.lockInvitingSchool(txCtx); lockErr != nil {
-			return failed(opGuardianInviteToStudent, lockErr)
-		}
-		readAddress := domain.GuardianInvitationAddress(profile.Email)
-		var locked bool
-		var lockErr error
-		profile, locked, lockErr = l.guardians.LockGuardianProfile(txCtx, profile.ID)
-		if lockErr != nil {
-			return failed(opGuardianInviteToStudent, lockErr)
-		}
-		if !locked {
-			return failed(opGuardianInviteToStudent, fmt.Errorf("guardian profile not found"))
-		}
-		if domain.GuardianInvitationAddress(profile.Email) != readAddress {
-			return failed(opGuardianInviteToStudent, domain.ErrGuardianInvitationAddressChanged)
+		var err error
+		profile, err = l.lockStudentInvitationProfile(txCtx, profile)
+		if err != nil {
+			return err
 		}
 		expiry, err := l.delivery.InvitationExpiry(txCtx)
 		if err != nil {
@@ -48,6 +32,13 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 			ProfileCreatedForInvitation: profileCreated,
 			RoleUpgrade:                 roleUpgrade,
 		}
+		// A queued approval has no usable mailed link yet. Issuing one does
+		// supersede the profile's previous open invitations.
+		if approvalStatus != domain.GuardianInvitationApprovalPending {
+			if err := l.invitations.InvalidateGuardianInvitations(txCtx, profile.ID, time.Now()); err != nil {
+				return failed(opGuardianInviteToStudent, err)
+			}
+		}
 		issueGuardianInvitationLink(&draft, profile)
 		var insertErr error
 		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, draft)
@@ -60,4 +51,29 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 		return domain.GuardianInvitation{}, err
 	}
 	return invitation, nil
+}
+
+func (l *AccountLifecycle) lockStudentInvitationProfile(ctx context.Context, profile domain.GuardianProfile) (domain.GuardianProfile, error) {
+	// Account, school, profile, as acceptance locks them (40P01
+	// otherwise); the address is checked again under the profile lock.
+	if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(ctx, profile.Email); lockErr != nil {
+		return domain.GuardianProfile{}, failed(opGuardianInviteToStudent, lockErr)
+	}
+	if lockErr := l.lockInvitingSchool(ctx); lockErr != nil {
+		return domain.GuardianProfile{}, failed(opGuardianInviteToStudent, lockErr)
+	}
+	readAddress := domain.GuardianInvitationAddress(profile.Email)
+	var locked bool
+	var lockErr error
+	profile, locked, lockErr = l.guardians.LockGuardianProfile(ctx, profile.ID)
+	if lockErr != nil {
+		return domain.GuardianProfile{}, failed(opGuardianInviteToStudent, lockErr)
+	}
+	if !locked {
+		return domain.GuardianProfile{}, failed(opGuardianInviteToStudent, fmt.Errorf("guardian profile not found"))
+	}
+	if domain.GuardianInvitationAddress(profile.Email) != readAddress {
+		return domain.GuardianProfile{}, failed(opGuardianInviteToStudent, domain.ErrGuardianInvitationAddressChanged)
+	}
+	return profile, nil
 }

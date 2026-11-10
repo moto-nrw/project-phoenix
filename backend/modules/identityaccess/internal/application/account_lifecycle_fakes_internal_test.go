@@ -811,7 +811,7 @@ func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id in
 		return false, s.updateErr
 	}
 	invitation, ok := s.rows[id]
-	if !ok || invitation.AcceptedAt != nil {
+	if !ok || invitation.AcceptedAt != nil || invitation.Redeemable(acceptedAt) != nil {
 		return false, nil
 	}
 	invitation.AcceptedAt = &acceptedAt
@@ -958,4 +958,18 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 
 func tenantContext() context.Context {
 	return (&fakeRuntime{}).WithTenantID(context.Background(), lifecycleTenant)
+}
+
+func (s *lifecycleInvitations) InvalidateGuardianInvitations(_ context.Context, profileID int64, now time.Time) error {
+	for id, row := range s.rows {
+		if row.GuardianProfileID == profileID && row.AcceptedAt == nil && row.ExpiresAt.After(now) {
+			row.ExpiresAt = now
+			row.Email = ""
+			if row.ApprovalStatus == domain.GuardianInvitationApprovalPending {
+				row.ApprovalStatus = domain.GuardianInvitationApprovalRejected
+			}
+			s.rows[id] = row
+		}
+	}
+	return nil
 }

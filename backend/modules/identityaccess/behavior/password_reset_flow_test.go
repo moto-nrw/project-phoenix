@@ -2,6 +2,9 @@ package behavior_test
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -43,7 +46,7 @@ func forgetResetWindow(t *testing.T, db *bun.DB, emails ...string) {
 	t.Helper()
 	t.Cleanup(func() {
 		for _, email := range emails {
-			_, err := db.NewRaw(`DELETE FROM auth.password_reset_rate_limits WHERE email = ?`, email).Exec(context.Background())
+			_, err := db.NewRaw(`DELETE FROM auth.password_reset_rate_limits WHERE email = ?`, resetLimitKey(email)).Exec(context.Background())
 			require.NoError(t, err)
 		}
 	})
@@ -202,24 +205,31 @@ func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 	require.NotNil(t, link)
 }
 
-// An address that receives no link is never counted, so an unauthenticated
-// caller cannot fill the window table with arbitrary addresses.
-func TestPasswordResetRateLimitCountsOnlyActionableRequests(t *testing.T) {
+// Unknown and portal-ineligible addresses have the same observable limit as
+// eligible accounts, but no unknown plaintext address is retained.
+func TestPasswordResetRateLimitDoesNotRevealAccountExistence(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	unknown := "reset-unknown@test.local"
-	forgetResetWindow(t, db, unknown)
-
-	for range 5 {
-		_, err := resets.InitiatePasswordReset(ctx, unknown, identityaccess.PasswordResetScopeStaff)
-		require.NoError(t, err)
+	ineligible := resetAccount(t, db, "reset-ineligible")
+	for _, address := range []string{unknown, ineligible} {
+		for range 3 {
+			link, err := resets.InitiatePasswordReset(ctx, address, identityaccess.PasswordResetScopeParent)
+			require.NoError(t, err)
+			require.Nil(t, link)
+		}
+		_, err := resets.InitiatePasswordReset(ctx, address, identityaccess.PasswordResetScopeParent)
+		require.ErrorIs(t, err, identityaccess.ErrPasswordResetRateLimited)
+		var limited *identityaccess.PasswordResetRateLimitError
+		require.ErrorAs(t, err, &limited)
+		require.Equal(t, 3, limited.Attempts)
+		require.Positive(t, limited.RetryAfterSeconds(time.Now()))
 	}
-
 	var windows int
-	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.password_reset_rate_limits WHERE email = ?`, unknown).Scan(ctx, &windows))
-	assert.Zero(t, windows)
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.password_reset_rate_limits WHERE email IN (?, ?)`, unknown, ineligible).Scan(ctx, &windows))
+	require.Zero(t, windows, "no plaintext address is retained by the limiter")
 }
 
 // Cleanup removes spent links and stale windows and keeps what is still in
@@ -244,7 +254,7 @@ func TestPasswordResetCleanupKeepsLiveLinksAndTheWindow(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT id FROM auth.password_reset_tokens WHERE account_id = (SELECT account_id FROM auth.password_reset_tokens WHERE id = ?) ORDER BY id`, live.ID).Scan(ctx, &remaining))
 	assert.Equal(t, []int64{live.ID}, remaining, "a redeemable link survives the cleanup")
 
-	_, err = db.NewRaw(`UPDATE auth.password_reset_rate_limits SET window_start = NOW() - INTERVAL '25 hours' WHERE email = ?`, email).Exec(ctx)
+	_, err = db.NewRaw(`UPDATE auth.password_reset_rate_limits SET window_start = NOW() - INTERVAL '25 hours' WHERE email = ?`, resetLimitKey(email)).Exec(ctx)
 	require.NoError(t, err)
 	recent := resetAccount(t, db, "reset-cleanup-recent")
 	_, err = resets.InitiatePasswordReset(ctx, recent, identityaccess.PasswordResetScopeStaff)
@@ -254,8 +264,8 @@ func TestPasswordResetCleanupKeepsLiveLinksAndTheWindow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, deleted)
 	var windows []string
-	require.NoError(t, db.NewRaw(`SELECT email FROM auth.password_reset_rate_limits WHERE email IN (?, ?)`, email, recent).Scan(ctx, &windows))
-	assert.Equal(t, []string{recent}, windows, "a window inside the day the cleanup keeps stays")
+	require.NoError(t, db.NewRaw(`SELECT email FROM auth.password_reset_rate_limits WHERE email IN (?, ?)`, resetLimitKey(email), resetLimitKey(recent)).Scan(ctx, &windows))
+	assert.Equal(t, []string{resetLimitKey(recent)}, windows, "a window inside the day the cleanup keeps stays")
 }
 
 // The address is matched case-insensitively: an account registered in lower
@@ -294,4 +304,21 @@ func TestResetPasswordReplacesTheAccountCredential(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, refreshToken)
+}
+
+func resetLimitKey(email string) string {
+	mac := hmac.New(sha256.New, []byte(api.CurrentServiceConfig().JWTSecret))
+	mac.Write([]byte("password-reset-rate-limit-v1\x00" + strings.ToLower(strings.TrimSpace(email))))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func TestPasswordResetRateLimitPreservesLegacyWindow(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
+	email := resetAccount(t, db, "legacy-reset-limit")
+	_, err := db.NewRaw(`INSERT INTO auth.password_reset_rate_limits (email, attempts, window_start) VALUES (?, 3, NOW())`, email).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	_, err = resets.InitiatePasswordReset(testpkg.Ctx(t), email, identityaccess.PasswordResetScopeStaff)
+	require.ErrorIs(t, err, identityaccess.ErrPasswordResetRateLimited, "deploying hashed counters must not grant another three requests")
 }

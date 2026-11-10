@@ -96,6 +96,10 @@ func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID,
 // It preserves infrastructure failures so callers do not turn them into a
 // misleading not-found response.
 func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, op string) error {
+	holders, err := r.lockRoleHolders(ctx, roleID)
+	if err != nil {
+		return err
+	}
 	role, found, err := r.store.FindRoleForUpdate(ctx, roleID)
 	if err != nil {
 		return failed(op, err)
@@ -106,7 +110,7 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 	if role.IsSystem {
 		return failed(op, identityaccess.ErrSystemRoleImmutable)
 	}
-	return nil
+	return r.requireLockedRoleHolders(ctx, roleID, holders)
 }
 
 // ReplaceRolePermissions applies a complete permission selection to a custom
@@ -146,11 +150,13 @@ func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID 
 // drops, in store order, and assigns the ones it adds.
 func (r *RoleAdministration) applyRolePermissionSelection(txCtx context.Context, roleID int64, desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
 	assigned := make(map[int64]struct{}, len(current))
+	removed := false
 	for _, permission := range current {
 		assigned[permission.ID] = struct{}{}
 		if _, keep := desired[permission.ID]; keep {
 			continue
 		}
+		removed = true
 		if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
 			return failed(op, err)
 		}
@@ -163,6 +169,9 @@ func (r *RoleAdministration) applyRolePermissionSelection(txCtx context.Context,
 			return failed(op, err)
 		}
 	}
+	if removed {
+		return r.revokeRoleHolderSessions(txCtx, roleID)
+	}
 	return nil
 }
 
@@ -174,12 +183,26 @@ func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleI
 			if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
 				return err
 			}
-			if err := r.store.RemoveRolePermission(txCtx, roleID, permissionID); err != nil {
-				return failed(op, err)
+			current, err := r.rolePermissions(txCtx, roleID, op)
+			if err != nil {
+				return err
 			}
-			return nil
+			return r.removeHeldRolePermission(txCtx, roleID, permissionID, current)
 		})
 	})
+}
+
+func (r *RoleAdministration) removeHeldRolePermission(ctx context.Context, roleID, permissionID int64, current []domain.ManagedPermission) error {
+	for _, permission := range current {
+		if permission.ID != permissionID {
+			continue
+		}
+		if err := r.store.RemoveRolePermission(ctx, roleID, permissionID); err != nil {
+			return failed("remove permission from role", err)
+		}
+		return r.revokeRoleHolderSessions(ctx, roleID)
+	}
+	return nil
 }
 
 func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) (value0 []identityaccess.Permission, err error) {

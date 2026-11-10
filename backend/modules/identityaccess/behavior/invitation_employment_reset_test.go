@@ -17,8 +17,10 @@ func TestInvitationEmploymentResets(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name                                                                                     string
+		permission                                                                               string
 		master, qualifications, work, active, numberTaken, failAudit, oldOpening, futureVacation bool
 	}{
+		{name: "global wildcard reset", master: true, permission: "*:*"}, {name: "prefix wildcard reset", master: true, permission: "user*:man*"},
 		{name: "unchanged"}, {name: "master data", master: true}, {name: "qualifications", qualifications: true},
 		{name: "work time after closed month", work: true}, {name: "all", master: true, qualifications: true, work: true},
 		{name: "already active", master: true, qualifications: true, work: true, active: true},
@@ -57,8 +59,12 @@ func TestInvitationEmploymentResets(t *testing.T) {
 			require.NoError(t, err)
 			role := testpkg.CreateTestRole(t, db, "return-reset")
 			creator := testpkg.CreateTestAccount(t, db, "reset-inviter")
+			permission := tc.permission
+			if permission == "" {
+				permission = usersManagePermission
+			}
 			invitation, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
-				Email: account.Email, RoleID: role.ID, CreatedBy: creator.ID, ActorPermissions: []string{usersManagePermission},
+				Email: account.Email, RoleID: role.ID, CreatedBy: creator.ID, ActorPermissions: []string{permission},
 				FirstName: testpkg.StrPtr("Return"), LastName: testpkg.StrPtr("Reset"),
 				EmploymentAction: identityaccess.EmploymentActionResume, ResetMasterData: tc.master, ResetQualifications: tc.qualifications, ResetWorkTime: tc.work,
 			})

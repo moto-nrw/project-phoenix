@@ -89,3 +89,16 @@ func (l *AccountLifecycle) ListRedeemableGuardianInvitations(ctx context.Context
 	}
 	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListRedeemableGuardianInvitations(bindRuntime(l.auth.attach, ctx))
 }
+
+// NewGuardianInvitationInvalidation binds the guarded command independently of
+// the full lifecycle, so contact edits need neither late binding nor a cycle.
+func NewGuardianInvitationInvalidation(invitations ports.GuardianInvitationStore) identityaccess.GuardianInvitationInvalidation {
+	return func(ctx context.Context, profileID int64) error {
+		if profileID <= 0 {
+			return failed("invalidate guardian invitations", identityaccess.ErrGuardianInvitationNotFound)
+		}
+		// The store refuses a missing school or transaction. This leaf command
+		// never starts an independent unit or switches the caller's scope.
+		return invitationError(invitations.InvalidateGuardianInvitations(ctx, profileID, time.Now()))
+	}
+}

@@ -116,9 +116,16 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	// No permissions -> denied (permission gate, runs before membership).
 	err := svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", nil)
 	assert.ErrorIs(t, err, identityaccess.ErrMFAPermissionDenied)
+	require.ErrorIs(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{"users:read"}), identityaccess.ErrMFAPermissionDenied)
 
 	// Wildcard admin permission + matching tenant -> allowed.
 	require.NoError(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{"admin:*"}))
+
+	// The same component and prefix wildcards the route authorizer accepts
+	// must also pass the capability's permission gate.
+	for _, permission := range []string{"users:*", "*:*", "*:manage", "user*:man*"} {
+		require.NoError(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{permission}))
+	}
 
 	// Explicit users:manage permission also works.
 	require.NoError(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "user lost device", []string{"users:manage"}))

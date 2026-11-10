@@ -115,6 +115,7 @@ type Config struct {
 	// open invitations shown as pending.
 	GuardianInvites     GuardianAccess
 	GuardianInvitations GuardianInvitationReads
+	InvalidateInvites   func(context.Context, int64) error
 
 	// Meal Plan of the child's school, and the portal languages.
 	MealPlan MealPlan
