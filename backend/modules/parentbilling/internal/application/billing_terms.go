@@ -213,7 +213,20 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 
 // deviates tells whether a deviation changes anything.
 func deviates(family parentbilling.FamilyBilling) bool {
-	return family.RecipientKind != parentbilling.RecipientApplicant || family.PaymentMethod != "" || family.DueDay != nil
+	return family.RecipientKind != parentbilling.RecipientApplicant || family.PaymentMethod != "" || family.DueDay != nil ||
+		family.DebtorNumber != ""
+}
+
+// MaxDebtorNumberLength bounds a debtor number like the holiday one (#5621).
+const MaxDebtorNumberLength = 35
+
+// checkDebtorNumber refuses a debtor number that is too long or has a line
+// break; the format the finance system wants is checked by its export.
+func checkDebtorNumber(number string) error {
+	if len([]rune(number)) > MaxDebtorNumberLength || strings.ContainsAny(number, "\r\n") {
+		return fmt.Errorf("must be at most %d characters without a line break", MaxDebtorNumberLength)
+	}
+	return nil
 }
 
 // DeleteFamilyBilling removes a deviation; a missing one is
@@ -245,8 +258,12 @@ var postalCodePattern = regexp.MustCompile(`^[0-9]{5}$`)
 // names it needs: both parents a second name, another payer a name, a mail
 // address and a postal address.
 func normalizeFamilyBilling(input parentbilling.FamilyBillingInput) (parentbilling.FamilyBilling, error) {
-	family := parentbilling.FamilyBilling{RecipientKind: input.RecipientKind, PaymentMethod: input.PaymentMethod, DueDay: input.DueDay}
+	family := parentbilling.FamilyBilling{RecipientKind: input.RecipientKind, PaymentMethod: input.PaymentMethod, DueDay: input.DueDay,
+		DebtorNumber: strings.TrimSpace(input.DebtorNumber)}
 	errs := validation.Errors{}
+	if err := checkDebtorNumber(family.DebtorNumber); err != nil {
+		errs["debtor_number"] = err
+	}
 	switch input.RecipientKind {
 	case parentbilling.RecipientApplicant:
 	case parentbilling.RecipientBoth:
@@ -493,6 +510,9 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 		LastName: invoice.Recipient.LastName, Email: invoice.Recipient.Email}, family)
 	invoice.Recipient = parentbilling.CareRecipient{FirstName: recipient.FirstName, LastName: recipient.LastName,
 		Email: recipient.Email, Kind: recipient.Kind, SecondName: recipient.SecondName, Address: recipient.Address}
+	if family != nil {
+		invoice.DebtorNumber = family.DebtorNumber
+	}
 	service := invoice.Service
 	if service == "" {
 		service = parentbilling.ServiceCare

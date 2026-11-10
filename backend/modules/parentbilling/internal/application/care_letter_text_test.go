@@ -201,3 +201,15 @@ func TestCareLetterTellsWhetherItReachesTheInbox(t *testing.T) {
 	assert.Equal(t, 2, summary.Letters)
 	assert.Equal(t, 1, summary.WithoutInbox)
 }
+
+func TestCareLettersUseTheIssuedDebtorNumber(t *testing.T) {
+	t.Parallel()
+	content := careLetterSJR()
+	content.invoice.DebtorNumber = "20 0001"
+	content.letterhead.PaymentText = "Zweck: {Debitorennummer}, {Rechnungsnummer}"
+	assert.Equal(t, "Zweck: 20 0001, MB-2027-0001", carePaymentText(content))
+	assert.Contains(t, careInvoiceLetter(content).Facts, LetterFact{Label: "Debitorennummer", Value: "20 0001"})
+	assert.Equal(t, "20 0001", careNoticeValues(content)["debitorennummer"].Text)
+	content.cancellation = &parentbilling.CareCancellation{Number: "ST-1", IssuedOn: calendar.NewDate(2027, 1, 10)}
+	assert.Contains(t, careCancellationLetter(content).Facts, LetterFact{Label: "Debitorennummer", Value: "20 0001"})
+}

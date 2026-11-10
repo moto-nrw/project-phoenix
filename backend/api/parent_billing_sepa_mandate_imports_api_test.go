@@ -148,7 +148,8 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "0532013001", "nor an invalid one")
 	preview = decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
 	require.Len(t, preview.Rows, 4)
-	assert.Equal(t, map[string]int{"ready": 2, "clarify": 1, "duplicate": 0, "conflict": 0, "invalid": 1, "imported": 0}, preview.Counts)
+	assert.Equal(t, map[string]int{"ready": 2, "clarify": 1, "duplicate": 0, "conflict": 0, "invalid": 1, "imported": 0,
+		"debtor_numbers": 0, "debtor_conflicts": 0}, preview.Counts)
 	assert.Equal(t, "clarify", preview.Rows[2].Status)
 	assert.Equal(t, 4, preview.Rows[2].Line)
 	assert.Equal(t, "invalid", preview.Rows[3].Status)

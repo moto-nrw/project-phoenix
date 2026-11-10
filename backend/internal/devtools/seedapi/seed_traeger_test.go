@@ -227,6 +227,9 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/billing-runs/9/release Bearer traeger-token",
 		"GET /traeger/billing-runs/9/export Bearer traeger-token",
 		"GET /traeger/billing-runs/9/cost-takeovers/7/export Bearer traeger-token",
+		// The Abrechnung maps and downloads the Sollstellung (#4693).
+		"PUT /traeger/finance-exports/settings/sollstellung Bearer traeger-token",
+		"GET /traeger/finance-exports/runs/holiday-runs/9/sollstellung Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
 	assert.Equal(t, map[string]any{"registration_id": float64(9), "child_id": float64(91), "total_cents": float64(3500),
 		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")

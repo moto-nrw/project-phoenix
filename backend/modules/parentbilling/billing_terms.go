@@ -171,7 +171,10 @@ type FamilyBilling struct {
 	PayerAddress    *PostalAddress `json:"payer_address"`
 	PaymentMethod   string         `json:"payment_method"`
 	DueDay          *int           `json:"due_day"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	// DebtorNumber is the number of the family in the finance system of
+	// the Träger (#4693); the release copies it onto the monthly invoice.
+	DebtorNumber string    `json:"debtor_number"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // FamilyBillingInput is a deviation as the Abrechnung writes it: for the
@@ -187,6 +190,7 @@ type FamilyBillingInput struct {
 	PayerAddress    *PostalAddress
 	PaymentMethod   string
 	DueDay          *int
+	DebtorNumber    string
 }
 
 // RunDueDates are the due dates of a run per payment method.
