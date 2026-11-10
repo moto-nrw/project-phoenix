@@ -17,12 +17,17 @@ import (
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
-func buildHolidayRegistrationFamilyService(t *testing.T) (*parentService.Portal, *bun.DB) {
+func buildHolidayRegistrationFamilyService(t *testing.T, wishes ...parentService.HolidayWishStatements) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	var wishStatements parentService.HolidayWishStatements
+	if len(wishes) > 0 {
+		wishStatements = wishes[0]
+	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		HolidayWishes:       wishStatements,
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -69,7 +74,7 @@ func TestHolidayRegistrationFamilyOffersOnlyPermittedOwnChildren(t *testing.T) {
 	foreignGuardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Frieda", "Fremd", "frieda.fremd")
 	testpkg.CreateTestStudentGuardianLink(t, db, foreign.ID, foreignGuardian.ID, "primary_guardian")
 
-	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, 42, []int64{chain.TenantID})
+	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, SchoolIDs: []int64{chain.TenantID}})
 	require.NoError(t, err)
 	require.Len(t, family.Children, 1, "only the child whose relationship grants the registration")
 	child := family.Children[0]
@@ -87,9 +92,71 @@ func TestHolidayRegistrationFamilyOffersOnlyPermittedOwnChildren(t *testing.T) {
 	assert.Zero(t, prefillReads(t, db, pickupOnly.ID), "a child without the permission is not read")
 	assert.Zero(t, prefillReads(t, db, foreign.ID), "a child of another family is not read")
 
-	other, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, 43, []int64{chain.TenantID + 1_000_000})
+	other, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 43, SchoolIDs: []int64{chain.TenantID + 1_000_000}})
 	require.NoError(t, err)
 	assert.Empty(t, other.Children, "a child at a school of another Träger is not offered")
 	assert.Nil(t, other.Guardian)
 	assert.Equal(t, 1, prefillReads(t, db, chain.StudentID), "nothing is read for another Träger")
+}
+
+// fixedWishes states every child's wish as yes and records the claims.
+type fixedWishes struct {
+	claims *[]parentService.HolidayWishClaim
+}
+
+func (w fixedWishes) HolidayWishStatement(_ context.Context, claim parentService.HolidayWishClaim) (string, string, error) {
+	*w.claims = append(*w.claims, claim)
+	return "yes", "sealed-statement", nil
+}
+
+// TestHolidayRegistrationFamilyStatesTheWishOnlyWhenThePeriodAsks pins the
+// prefill half of #4703: the wish of a child comes only with the child the
+// relationship right offers, only for a period that takes it into account,
+// for the link's period and the child's school, and its read is in the
+// school's data access log. A child without the right gets no statement.
+func TestHolidayRegistrationFamilyStatesTheWishOnlyWhenThePeriodAsks(t *testing.T) {
+	t.Parallel()
+	var claims []parentService.HolidayWishClaim
+	svc, db := buildHolidayRegistrationFamilyService(t, fixedWishes{claims: &claims})
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	_, err := db.ExecContext(ctx, `UPDATE users.persons SET birthday = '2018-03-01' WHERE id = ?`, chain.PersonID)
+	require.NoError(t, err)
+	pickupOnly := testpkg.CreateTestStudent(t, db, "Mia", "Schneider", "2b")
+	testpkg.CreateTestStudentGuardianLink(t, db, pickupOnly.ID, chain.GuardianProfileID, "pickup_only")
+
+	off, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, PeriodID: 7, SchoolIDs: []int64{chain.TenantID}})
+	require.NoError(t, err)
+	require.Len(t, off.Children, 1)
+	assert.Empty(t, off.Children[0].HolidayWish, "a period without the rule states no wish")
+	assert.Empty(t, claims)
+
+	scope := parentService.HolidayRegistrationScope{
+		OrganizationID: 42, PeriodID: 7, SchoolIDs: []int64{chain.TenantID}, HolidayWishRule: true, FirstDay: calendar.NewDate(2027, 7, 5),
+	}
+	on, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, scope)
+	require.NoError(t, err)
+	require.Len(t, on.Children, 1, "only the child with the relationship right")
+	assert.Equal(t, "yes", on.Children[0].HolidayWish)
+	assert.Equal(t, "sealed-statement", on.Children[0].HolidayWishProof)
+	require.Len(t, claims, 1, "no statement for the child without the right")
+	assert.Equal(t, parentService.HolidayWishClaim{
+		OrganizationID: 42, PeriodID: 7, SchoolID: chain.TenantID, StudentID: chain.StudentID,
+		FirstName: "Felix", LastName: "Schneider", BirthDate: calendar.NewDate(2018, 3, 1), On: calendar.NewDate(2027, 7, 5),
+	}, claims[0])
+
+	var wishReads int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM audit.data_access_log
+		WHERE resource_type = 'holiday_prefill' AND student_id = ? AND metadata->>'holiday_wish' = 'true'`, chain.StudentID).Scan(context.Background(), &wishReads))
+	assert.Equal(t, 1, wishReads, "the read of the wish is in the school's audit")
+	assert.Zero(t, prefillReads(t, db, pickupOnly.ID))
+
+	_, err = buildHolidayRegistrationFamilyServiceWithoutWishes(t).HolidayRegistrationFamily(ctx, chain.AccountID, scope)
+	require.Error(t, err, "a period with the rule needs the wish statements")
+}
+
+func buildHolidayRegistrationFamilyServiceWithoutWishes(t *testing.T) *parentService.Portal {
+	t.Helper()
+	svc, _ := buildHolidayRegistrationFamilyService(t)
+	return svc
 }

@@ -1,4 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type ExportRun,
+  downloadDatevBatch,
+  fetchDatevRunStates,
+  resetSollMapping,
+} from "./traeger-finance-exports-api";
+import { applySepaImport, previewSepaImport } from "./traeger-sepa-import-api";
 import { ApiError } from "./api-error";
 import {
   acceptTraegerInvitation,
@@ -30,6 +37,138 @@ describe("traeger-api", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  // The DATEV states of the export page (#6433): one request per page of
+  // runs, the Jahresbescheide never asked, the backend IDs as strings.
+  it("reads the DATEV states of the runs one page at a time", async () => {
+    const run = (runKind: ExportRun["runKind"], runId: number): ExportRun => ({
+      runKind,
+      pathKind: "care-runs",
+      runId: String(runId),
+      label: "",
+      issuedOn: "2026-10-30",
+      invoiceCount: 1,
+      totalCents: 1,
+      lastSollstellung: null,
+      lastDatev: null,
+      exports: 0,
+    });
+    const runs = [
+      ...Array.from({ length: 50 }, (_, i) => run("care", i + 1)),
+      run("holiday", 7),
+      run("notice", 202610),
+    ];
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(200, {
+        data: {
+          ready: true,
+          runs: [
+            {
+              run_kind: "holiday",
+              run_id: 7,
+              new_bookings: 2,
+              fiscal_years: ["2026-01-01"],
+            },
+          ],
+        },
+      }),
+    );
+    const states = await fetchDatevRunStates(runs);
+    const urls = fetchMock.mock.calls.map(([url]) =>
+      decodeURIComponent(String(url)),
+    );
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toMatch(
+      /^\/api\/traeger\/finance-exports\/datev-runs\?care=1,2,/,
+    );
+    expect(urls[1]).toBe("/api/traeger/finance-exports/datev-runs?holiday=7");
+    expect(states.ready).toBe(true);
+    expect(states.runs.get("holiday/7")).toEqual({
+      newBookings: 2,
+      fiscalYears: ["2026-01-01"],
+    });
+  });
+
+  it("asks for every DATEV booking again only when told", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("extf", { status: 200 }),
+    );
+    await downloadDatevBatch("care-runs", "7");
+    await downloadDatevBatch("care-runs", "7", {
+      all: true,
+      fiscalYear: "2027-01-01",
+    });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/traeger/finance-exports/runs/care-runs/7/datev",
+      "/api/traeger/finance-exports/runs/care-runs/7/datev?mode=all&fiscal_year=2027-01-01",
+    ]);
+  });
+
+  it("reloads the default mapping after a bodyless reset response", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            sollstellung: {
+              mapping: {
+                columns: [{ field: "invoice_number", header: "Rechnung" }],
+                delimiter: ";",
+                decimal_separator: ",",
+                date_format: "dd.mm.yyyy",
+                encoding: "utf-8-bom",
+                header_row: true,
+                file_name_pattern: "sollstellung-{NR}.csv",
+              },
+              custom: false,
+              updated_at: null,
+            },
+            file_numbers: { next: 9, started: true },
+          },
+        }),
+      );
+    const settings = await resetSollMapping();
+    expect(
+      fetchMock.mock.calls.map(([url, init]) => [url, init?.method]),
+    ).toEqual([
+      ["/api/traeger/finance-exports/settings/sollstellung", "DELETE"],
+      ["/api/traeger/finance-exports/settings", "GET"],
+    ]);
+    expect(settings.custom).toBe(false);
+    expect(settings.mapping.columns).toEqual([
+      { field: "invoice_number", header: "Rechnung", value: "" },
+    ]);
+    expect(settings.nextFileNumber).toBe(9);
+  });
+
+  it("retains the backend's family counts in preview and import results", async () => {
+    const request = { file: new File(["csv"], "mandate.csv"), mapping: null };
+    for (const call of [previewSepaImport, applySepaImport]) {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            mapping: {
+              columns: {},
+              payer_key: "email",
+              creditor_from_traeger: false,
+            },
+            counts: {
+              ready: 0,
+              imported: 0,
+              duplicate: 2,
+              debtor_numbers: 1,
+              debtor_conflicts: 0,
+            },
+            rows: [],
+          },
+        }),
+      );
+      const result = await call(request);
+      expect(result.counts.debtorNumbers).toBe(1);
+      expect(result.counts.duplicate).toBe(2);
+      expect(result.counts.debtorConflicts).toBe(0);
+    }
   });
 
   it("sends the chosen Träger as a number and returns only session status", async () => {
@@ -276,6 +415,7 @@ describe("traeger-api holiday periods", () => {
       registrationOpensOn: "2027-01-11",
       registrationClosesOn: "2027-02-26",
       binding: false,
+      holidayWishRule: false,
       notes: "",
       weeks: [
         {
@@ -312,12 +452,15 @@ describe("traeger-api holiday periods", () => {
       registration_closes_on: "2027-02-26",
       binding: false,
       notes: "",
+      holiday_wish_rule: false,
+      max_days_per_child: null,
       weeks: [
         {
           id: 7,
           starts_on: "2027-03-22",
           ends_on: "2027-03-26",
           host_school_id: 31,
+          booking_unit: "week",
           time_models: [
             {
               name: "bis 16 Uhr",

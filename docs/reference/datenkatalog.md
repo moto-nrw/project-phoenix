@@ -79,7 +79,7 @@ nächtliche Delivery-Aufbewahrung löscht sie vorher. Beim Löschen eines
 Demo-Besuchs entfernt `platform.erase_closed_demo_visitors` seit Migration
 1.15.732 alle Kopien der ausgemusterten Demo-Schule mit (#5540).
 
-**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
+**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --operator … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
 Direkte Tabellen werden per `tenant_id`, Kindtabellen per Katalog-FK-Pfad,
@@ -87,8 +87,9 @@ Schul-/Trägerwurzeln und gemeinsame Konten per ausdrücklicher Schulzuordnung
 ausgewählt. Originaldateien, JSONL-Tabellen, Modellmetadaten und SHA-256-
 Prüfsummen liegen in einem neuen privaten Verzeichnis. Ein Teilfehler
 verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
-alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
-Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
+alle Datei-Kinds und alle ausgeschlossenen Spalten. Seit #6326 verlangt jeder
+Lauf `--operator` und steht im Operator-Protokoll (ADR 0187, Addendum).
+Ausführung, Übergabe und Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
@@ -154,10 +155,30 @@ reguläre Löschfrist dort, Mandantenzuordnung und Rückgabeumfang hier.
 Tabellenausschlüsse gelten für alle Spalten. Bei `include` gelten zusätzlich
 `excludeSecretColumns`; `allowedSensitiveColumns` begründet bewusst
 freigegebene verdächtige Namen, etwa Postleitzahl oder Inhaltsprüfsumme.
+`openSealedColumns` ordnet einer feldverschlüsselten, in
+`excludeSecretColumns` ausgeschlossenen Spalte einen neuen Klartext-Spaltennamen
+zu: Die Rückgabe enthält den geöffneten Wert statt des Chiffrats, das ohne den
+Schlüssel der Installation nutzlos ist. Der Besitzer der Tabelle öffnet ihn
+über `TenantExportSealedFields` (#3838): IBAN und Kontoinhaber der
+SEPA-Mandate und -Lastschriften (Bankring, ADR 0192) sowie die
+Gesundheitsangaben der Betreuungsprofile, Ferienanmeldungen, -kinder und
+-gäste (Gesundheitsring, ADR 0193, #6328). Die Ferienwerte stehen als der
+JSON-Text, den sie halten.
+`projectedColumns` ordnet einem ausgeschlossenen, untypisierten Container eine
+neue Spalte mit seiner geprüften Projektion zu (ADR 0193). Der Besitzer
+entscheidet über `TenantExportProjectedFields`, was Kundendaten ist: Settings
+geben den Wert einer registrierten, nicht geheimen Definition zurück und `null`
+für `password`-Definitionen und unbekannte Schlüssel; `platform.schools.settings`
+gibt nur `logoUrl` und `loginImageUrl` zurück. Ein Rohcontainer verlässt den
+Export nie.
 `include` ist **keine Freigabe für Rohdaten, andere Mandanten oder andere
-Personen**. Ein späterer Export muss Feldprojektionen und den Auftragszweck
-anwenden. Interne Protokolle können erforderlichen Auskunftskontext enthalten;
-ein Tabellenausschluss ersetzt dessen rechtliche Prüfung nicht.
+Personen**. Der Export wendet Öffnung und Projektion an; den Auftragszweck
+prüft der Mensch. Zustellprotokolle (`platform.email_suppressions`,
+`platform.email_delivery_events`, Push-Inhalte) gehen mit; der Mail-Payload
+bleibt draußen, weil Sicherheitsmails dort Link oder Code tragen. Die übrigen
+`excludeInternal`-Tabellen sind technische Zähler, Läufe oder Kopien ohne
+eigenen Kundendatensatz. Ein Tabellenausschluss ersetzt die rechtliche Prüfung
+von Auskunftskontext nicht.
 
 Teilnahmen, Antwortbögen und Einzelantworten von Umfragen (#4781) bleiben als
 `excludeSecret` außerhalb des Schulexports. Ihre Zeilen würden die Antworten
@@ -189,10 +210,10 @@ offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht
 2. Neue geheimnisverdächtige Spalten ausschließen oder ihre Freigabe mit
    konkreter Bedeutung begründen. Auch anders benannte Container prüfen:
    `settings`, Zustellpayloads und Credential-JSON können Geheimnisse enthalten.
-   Die jetzigen breiten Spaltenausschlüsse sind konservativ; spätere
-   key-/feldbezogene Projektionen müssen nicht geheime Einstellungen und
-   erforderlichen Nachrichtenkontext verfügbar machen. Sonst ist der Export
-   noch nicht vollständig.
+   Enthält ein solcher Container Kundendaten, braucht er eine Projektion über
+   `projectedColumns` beim Besitzer, keinen Rohexport. Feldverschlüsselte
+   Spalten (`*_sealed`, `health_data`) brauchen `openSealedColumns`; der
+   Stolperdraht erkennt beide Namensformen.
 3. Neue Dateiablage mit Kind und Layout in denselben Katalog aufnehmen.
    Der Quellenwächter durchsucht Produktions-Go-Dateien nach Upload-Literalen,
    Upload-`Join`-Pfaden, Namespace-Konstanten, `TenantKey`-/Private-Object-Aufrufen

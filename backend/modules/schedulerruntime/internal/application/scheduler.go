@@ -25,6 +25,7 @@ var errWorkerTraceStart = errors.New("start worker trace")
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
+	retentionCleanupJobs
 	activeService               ports.SessionMaintenance
 	cleanupService              ports.PresenceCleanup
 	authCleanup                 ports.AuthCleanup
@@ -32,7 +33,6 @@ type Scheduler struct {
 	workSessionCleanup          ports.WorkSessionCleaner
 	breakAutoEnder              ports.BreakAutoEnder
 	autoCheckouter              ports.AutoCheckouter
-	feedbackCleaner             ports.FeedbackCleaner
 	retention                   RetentionRun
 	cleanupRuns                 ports.CleanupRunLedger
 	cleanupClock                func() time.Time
@@ -45,8 +45,6 @@ type Scheduler struct {
 	calendarFeedCleanup         ports.CalendarFeedCleaner
 	timeTrackingCleanup         ports.TimeTrackingCleanupService
 	studentChangeLogCleanup     ports.StudentChangeLogCleanup
-	pwaUsageCleanup             ports.PWAUsageCleanup
-	staffMessageCleanup         ports.StaffMessageCleanup
 	bookingConsistency          ports.BookingConsistencyAudit
 	holidayGuests               ports.HolidayGuestReconciliation
 	plannedStaffExits           ports.PlannedStaffExits
@@ -194,6 +192,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 	return &Scheduler{
 		tasks:                         make(map[string]*ScheduledTask),
 		schedulerLifecycle:            newSchedulerLifecycle(deps),
+		retentionCleanupJobs:          newRetentionCleanupJobs(deps),
 		logger:                        deps.Logger,
 		getenv:                        deps.Getenv,
 		now:                           deps.Now,
@@ -206,7 +205,6 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		authCleanup:                deps.AuthCleanup,
 		invitationCleanup:          deps.InvitationCleanup,
 		workSessionCleanup:         deps.WorkSessionCleanup,
-		feedbackCleaner:            deps.FeedbackCleaner,
 		staffDocumentFileCleaner:   deps.StaffDocumentCleaner,
 		studentDocumentFileCleaner: deps.StudentDocumentCleaner,
 		fileStoreCleaner:           deps.FileStoreCleaner,
@@ -214,8 +212,6 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		calendarFeedCleanup:        deps.CalendarFeedCleanup,
 		timeTrackingCleanup:        deps.TimeTrackingCleanup,
 		studentChangeLogCleanup:    deps.StudentChangeLogCleanup,
-		pwaUsageCleanup:            deps.PWAUsageCleanup,
-		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
 		cleanupJobs:                schedulerCleanupJobs(deps),
 
@@ -260,6 +256,12 @@ func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	}
 	if !isNilDependency(deps.TraegerDocumentReadRetention) {
 		jobs = append(jobs, CleanupJob{Description: "Träger document read retention", Run: deps.TraegerDocumentReadRetention.DeleteExpiredTraegerDocumentReads})
+	}
+	if !isNilDependency(deps.BelegRetention) {
+		jobs = append(jobs, CleanupJob{Description: "Beleg retention", Run: deps.BelegRetention.ApplyBelegRetention})
+	}
+	if !isNilDependency(deps.SEPADebitDownloadRetention) {
+		jobs = append(jobs, CleanupJob{Description: "SEPA debit download retention", Run: deps.SEPADebitDownloadRetention.DeleteExpiredSEPADebitDownloads})
 	}
 	return jobs
 }

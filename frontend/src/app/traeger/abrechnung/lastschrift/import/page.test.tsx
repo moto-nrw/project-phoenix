@@ -51,6 +51,7 @@ const preview: ImportResult = {
       creditor_id: "",
       sequence: "",
       last_collected_on: "",
+      debtor_number: "",
     },
     payerKey: "email",
     creditorFromTraeger: true,
@@ -67,6 +68,8 @@ const preview: ImportResult = {
     conflict: 0,
     invalid: 0,
     imported: 0,
+    debtorNumbers: 0,
+    debtorConflicts: 0,
   },
   rows: [
     {
@@ -85,6 +88,8 @@ const preview: ImportResult = {
       mandateId: null,
       problems: [],
       hints: [],
+      debtorNumber: "",
+      debtorNumberStatus: "",
     },
   ],
 };
@@ -212,6 +217,34 @@ describe("SEPA import approval", () => {
         mapping: preview.mapping,
         sequences: { 2: "recurring" },
       }),
+    );
+  });
+
+  it("confirms and reports a debtor-only import separately from mandates", async () => {
+    const onlyDebtors = {
+      ...preview,
+      counts: { ...preview.counts, ready: 0, duplicate: 1, debtorNumbers: 1 },
+      rows: [
+        {
+          ...preview.rows[0]!,
+          status: "duplicate" as const,
+          debtorNumber: "20 0001",
+          debtorNumberStatus: "new" as const,
+        },
+      ],
+    };
+    await choose(onlyDebtors);
+    const apply = await screen.findByRole("button", {
+      name: "1 Debitorennummer übernehmen",
+    });
+    expect(apply).toBeEnabled();
+    api.applySepaImport.mockResolvedValue({ ...onlyDebtors, applied: true });
+    fireEvent.click(apply);
+    expect(
+      await screen.findByText("1 Debitorennummer übernommen"),
+    ).toBeInTheDocument();
+    expect(api.applySepaImport).toHaveBeenCalledWith(
+      expect.objectContaining({ fingerprint: preview.fingerprint }),
     );
   });
 

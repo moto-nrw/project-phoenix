@@ -14865,6 +14865,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordPrivacyConsents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.PrivacyConsentBatches.RecordPrivacyConsents",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application.Service.RecordPrivacyConsents. No persistent, lock or scope effect; the batch form of RecordPrivacyConsent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListRoomSessionHistory",
       "classification": "platform",
@@ -18814,6 +18824,16 @@
       "target_owner": "device-fleet"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.AdmitVisit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.AdmitVisit",
+      "reason": "Retrieves the caller's existing tenant transaction for the owner-private ReadVisitAdmission query after the session lock. The resolver opens no unit, acquires no lock, changes no role or scope and performs no write. The SQL reads only Student Presence's tenant-filtered active.visits. This classifies the runtime lookup, not the enclosing admission command (ADR 0067).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.AdmitVisit",
@@ -21751,6 +21771,16 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
       "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.service.CreateVisit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.Service.CreateVisit",
+      "reason": "Retrieves the caller's existing tenant transaction for the owner-private ReadVisitAdmission query after the session lock. The resolver opens no unit, acquires no lock, changes no role or scope and performs no write. The SQL reads only Student Presence's tenant-filtered active.visits. This classifies the runtime lookup, not the enclosing admission command (ADR 0067).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -28386,6 +28416,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsents",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents. No persistent, lock or scope effect; the batch form of RecordPrivacyConsent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordSupervision",
       "classification": "query",
       "effect": "query",
@@ -29138,28 +29178,6 @@
       "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastParentMessage",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "classification": "platform",
-      "effect": "notice",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Hub.BroadcastToAll (delivery-platform) through realtime.Hub.BroadcastToAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "student-presence",
-      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "classification": "platform",
-      "effect": "notice",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastToAll (delivery-platform) through realtime.Broadcaster.BroadcastToAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
       "target_owner": "delivery-platform"
     },
     {

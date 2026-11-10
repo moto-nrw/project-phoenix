@@ -72,7 +72,9 @@ type ParentDocument struct {
 	// it.
 	RunID int64 `json:"-"`
 	// CareRun tells that RunID names a monthly run (#4684).
-	CareRun      bool          `json:"-"`
+	CareRun bool `json:"-"`
+	// NoticeRun tells that RunID names a run of Jahresbescheide (#6347).
+	NoticeRun    bool          `json:"-"`
 	Kind         string        `json:"kind"`
 	Number       string        `json:"number"`
 	PeriodName   string        `json:"period_name"`

@@ -9,17 +9,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger-Portal's Träger transaction (ADR 0105).
-func NewHolidayPeriods(today func() calendar.Date) enrollment.HolidayPeriods {
-	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today)
+// NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger transaction (ADR 0105); schoolCalendar (#4702) may be nil only for a reader.
+func NewHolidayPeriods(today func() calendar.Date, schoolCalendar enrollment.HolidaySchoolCalendar) enrollment.HolidayPeriods {
+	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today, schoolCalendar)
 }
 
-// NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722).
-func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
+// NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722); schoolCalendar (#4702) may be nil only for links and quotes; wishModes (#4703).
+func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, wishModes enrollment.HolidayWishModes, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
-		Proofs: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Random: random, Fingerprint: fingerprint, Logger: logger,
+		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Calendar: schoolCalendar, WishModes: wishModes, Random: random, Fingerprint: fingerprint, Logger: logger,
 	})
+}
+
+// NewHolidayWishes builds the prefill's sealed statements of the holiday care wish (school tenant transaction) and the office's decision on it (#4703).
+func NewHolidayWishes(health enrollment.HolidayHealthCipher) (enrollment.HolidayWishProofs, enrollment.HolidayWishReview) {
+	review, _ := applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, nil, nil)
+	return applicationNative.NewHolidayWishProofs(newStore(), health, nil), applicationNative.NewHolidayWishReview(review)
 }
 
 // NewHolidayRegistrationRetention deletes ended holiday registrations hourly (#4661, #4667); nil today: Berlin day.
@@ -27,9 +33,14 @@ func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.Holi
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
 }
 
-// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722).
-func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher) enrollment.HolidayRegistrationReview {
-	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil)
+// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722) and places (#4699); nil mail moves nobody up; schoolCalendar (#4702) may be nil without rebooking.
+func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces) {
+	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, schoolCalendar)
+}
+
+// NewHolidayHealthExportFields opens the sealed health information for the return export (#3838, #6328); only the administrative export CLI binds it, never HTTP.
+func NewHolidayHealthExportFields(health enrollment.HolidayHealthCipher) enrollment.HolidayHealthExportFields {
+	return applicationNative.NewHolidayHealthExportFields(health)
 }
 
 // NewHolidayHostParticipants builds the hosting school's participant lists (ADR 0116).
@@ -62,8 +73,7 @@ func NewOpenEnrollments() enrollment.OpenEnrollments {
 	return postgres.NewOpenEnrollmentStore()
 }
 
-// NewBookedChildren ties the approved children of the online enrollment to
-// their student, for the Träger's occupancy (#4676, ADR 0154).
+// NewBookedChildren ties approved children of the online enrollment to their student, for the Träger's occupancy (#4676, ADR 0154).
 func NewBookedChildren() enrollment.BookedChildren {
 	return postgres.NewBookedChildStore()
 }
@@ -71,4 +81,9 @@ func NewBookedChildren() enrollment.BookedChildren {
 // NewContractApplications reads the accepted application children of a school for the Träger's contracts (#4678, ADR 0153), in that school's tenant transaction.
 func NewContractApplications(fingerprint func([]byte) string) enrollment.ContractApplications {
 	return postgres.NewContractApplicationStore(fingerprint)
+}
+
+// NewHolidayClosures builds the notices of closing days in booked holiday weeks (#6434) in the Träger transaction; nil today: Berlin day.
+func NewHolidayClosures(schoolCalendar enrollment.HolidaySchoolCalendar, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, today func() calendar.Date) enrollment.HolidayClosures {
+	return applicationNative.NewHolidayClosures(postgres.NewHolidayRegistrationStore(), schoolCalendar, traeger, mail, today)
 }

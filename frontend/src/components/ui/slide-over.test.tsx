@@ -93,14 +93,24 @@ vi.mock("vaul", async () => {
         HTMLDivElement,
         React.HTMLAttributes<HTMLDivElement> & {
           onInteractOutside?: (event: Event) => void;
+          onEscapeKeyDown?: (event: KeyboardEvent) => void;
         }
-      >(({ onInteractOutside, children, ...props }, ref) => {
+      >(({ onInteractOutside, onEscapeKeyDown, children, ...props }, ref) => {
         const interactOutsideHandler = React.useContext(InteractOutsideContext);
         if (interactOutsideHandler) {
           interactOutsideHandler.current = onInteractOutside;
         }
+        const close = React.useContext(OpenChangeContext);
         return (
-          <div ref={ref} {...props}>
+          <div
+            ref={ref}
+            {...props}
+            onKeyDownCapture={(event) => {
+              if (event.key !== "Escape") return;
+              onEscapeKeyDown?.(event.nativeEvent);
+              if (!event.nativeEvent.defaultPrevented) close?.(false);
+            }}
+          >
             {children}
           </div>
         );
@@ -146,6 +156,51 @@ function StatefulContent() {
 }
 
 describe("SlideOver", () => {
+  it.each(["select", "date-picker", "modal"])(
+    "keeps the panel open when Escape belongs to a %s above it",
+    (overlay) => {
+      const onOpenChange = vi.fn();
+      const onEscape = vi.fn();
+      const { rerender } = render(
+        <SlideOver open onOpenChange={onOpenChange}>
+          <SlideOverContent onEscapeKeyDown={onEscape}>
+            <input aria-label="Panel input" />
+            {overlay === "select" && (
+              <button
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="test-listbox"
+              >
+                Select
+              </button>
+            )}
+            {overlay === "date-picker" && (
+              <div data-date-picker-panel>Calendar</div>
+            )}
+            {overlay === "modal" && (
+              <div data-modal-focus-scope="true">Confirmation</div>
+            )}
+          </SlideOverContent>
+        </SlideOver>,
+      );
+      const input = screen.getByRole("textbox", { name: "Panel input" });
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(onEscape).toHaveBeenCalledOnce();
+      expect(onOpenChange).not.toHaveBeenCalled();
+      rerender(
+        <SlideOver open onOpenChange={onOpenChange}>
+          <SlideOverContent>
+            <input aria-label="Panel input" />
+          </SlideOverContent>
+        </SlideOver>,
+      );
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Panel input" }), {
+        key: "Escape",
+      });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    },
+  );
+
   let matches = false;
   let changeListener: (() => void) | undefined;
 

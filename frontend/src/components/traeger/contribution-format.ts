@@ -2,6 +2,7 @@
 
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { formatDate } from "~/lib/date-helpers";
+import { holidayDayCount } from "~/lib/holiday-days";
 import type {
   ContributionLine,
   ContributionRule,
@@ -33,7 +34,7 @@ export function contributionLineLabel(line: ContributionLine): string {
   switch (line.kind) {
     case "base":
       return line.weekStartsOn && line.weekEndsOn
-        ? `${formatDateRange(line.weekStartsOn, line.weekEndsOn)}: ${line.timeModelName}`
+        ? `${formatDateRange(line.weekStartsOn, line.weekEndsOn)}: ${line.timeModelName}${line.bookedDays ? `, ${holidayDayCount(line.bookedDays)}` : ""}`
         : line.timeModelName;
     case "sibling":
       return `Geschwister: ${line.childRank ?? ""}. Kind, ${discountText(line.discountBasisPoints, line.discountCents)}`;

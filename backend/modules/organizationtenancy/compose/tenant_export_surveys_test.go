@@ -34,10 +34,10 @@ func TestTenantExportLeavesSurveyAnswersOut(t *testing.T) {
 	_, err = db.ExecContext(ctx, `INSERT INTO users.survey_answers (tenant_id, response_id, question_id, text_value) VALUES (?, ?::uuid, ?, 'Geheime Antwort')`, school, responseID, questionID)
 	require.NoError(t, err)
 
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(ctx, organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: t.TempDir()}))
+	require.NoError(t, exporter.Export(ctx, organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: out, Uploads: t.TempDir()}))
 	manifest := readExportManifest(t, out)
 	assertExportArtifacts(t, out, manifest)
 

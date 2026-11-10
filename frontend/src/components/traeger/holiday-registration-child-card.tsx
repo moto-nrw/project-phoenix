@@ -20,7 +20,14 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
+import {
+  holidayCareDays,
+  holidayDayLabel,
+  holidayDayList,
+  holidayWeekdayShort,
+} from "~/lib/holiday-days";
 import { createLogger } from "~/lib/logger";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import {
@@ -31,11 +38,17 @@ import {
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
 import {
+  type HolidayRebookingDays,
   type HolidayRebookingDraft,
   rebookingBookings,
   rebookingChanged,
+  rebookingDays,
   rebookingDraft,
+  rebookingMissesDays,
 } from "./holiday-rebooking-model";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { holidayPlacementStatus } from "./holiday-placement";
+import { HolidayWishSection } from "./holiday-wish";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -81,6 +94,7 @@ export function HolidayRegistrationChildCard({
   editor?: ReactNode;
 }>) {
   const [draft, setDraft] = useState<HolidayRebookingDraft | null>(null);
+  const [draftDays, setDraftDays] = useState<HolidayRebookingDays>({});
   const [saving, setSaving] = useState(false);
   const saveErrors = useApiFormError();
   const cancelled = registration.status === "cancelled";
@@ -95,7 +109,7 @@ export function HolidayRegistrationChildCard({
           period.id,
           registration.id,
           child.id,
-          rebookingBookings(period, draft),
+          rebookingBookings(period, draft, draftDays),
         ),
       );
       setDraft(null);
@@ -109,14 +123,17 @@ export function HolidayRegistrationChildCard({
     }
   };
 
-  const bookings = draft ? rebookingBookings(period, draft) : [];
+  const bookings = draft ? rebookingBookings(period, draft, draftDays) : [];
   const rebook =
     draft || cancelled || registration.frozen ? null : (
       <Button
         type="button"
         variant="outline"
         size="md"
-        onClick={() => setDraft(rebookingDraft(period, child))}
+        onClick={() => {
+          setDraft(rebookingDraft(period, child));
+          setDraftDays(rebookingDays(child));
+        }}
       >
         Umbuchen
       </Button>
@@ -151,6 +168,7 @@ export function HolidayRegistrationChildCard({
             saving={saving}
             disabled={
               bookings.length === 0 ||
+              rebookingMissesDays(bookings) ||
               !rebookingChanged(child, bookings) ||
               (draft !== null && weeksOverlap(period, draft))
             }
@@ -194,19 +212,39 @@ export function HolidayRegistrationChildCard({
           <RebookingEditor
             period={period}
             draft={draft}
+            days={draftDays}
+            savedBookings={child.bookings}
             names={names}
             onChange={setDraft}
+            onDaysChange={setDraftDays}
             error={saveErrors.error}
           />
         ) : (
           <InfoSection title="Gebuchte Wochen">
             <ul className="space-y-1 text-sm text-gray-900">
               {child.bookings.map((booking) => (
-                <li key={booking.weekId}>
-                  {formatHolidayWeek(booking.weekStartsOn, booking.weekEndsOn)}:{" "}
-                  {booking.timeModelName},{" "}
-                  {names.get(booking.hostSchoolId) ??
-                    "Schule nicht mehr vorhanden"}
+                <li
+                  key={booking.weekId}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                >
+                  <span>
+                    {formatHolidayWeek(
+                      booking.weekStartsOn,
+                      booking.weekEndsOn,
+                    )}
+                    : {booking.timeModelName},{" "}
+                    {names.get(booking.hostSchoolId) ??
+                      "Schule nicht mehr vorhanden"}
+                    {booking.days && booking.days.length > 0
+                      ? ` · ${holidayDayList(booking.days)}`
+                      : ""}
+                  </span>
+                  {cancelled ? null : (
+                    <StatusBadge
+                      {...holidayPlacementStatus(booking)}
+                      size="xs"
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -217,6 +255,15 @@ export function HolidayRegistrationChildCard({
             ) : null}
           </InfoSection>
         )}
+
+        <HolidayWishSection
+          periodId={period.id}
+          registrationId={registration.id}
+          child={child}
+          wishRule={period.holidayWishRule}
+          cancelled={cancelled}
+          onChanged={onChanged}
+        />
 
         <ChildAnswers registration={registration} childId={child.id} />
 
@@ -283,14 +330,20 @@ function weeksOverlap(
 function RebookingEditor({
   period,
   draft,
+  days,
+  savedBookings,
   names,
   onChange,
+  onDaysChange,
   error,
 }: Readonly<{
   period: HolidayPeriod;
   draft: HolidayRebookingDraft;
+  days: HolidayRebookingDays;
+  savedBookings: HolidayRegistrationChild["bookings"];
   names: ReadonlyMap<string, string>;
   onChange: (draft: HolidayRebookingDraft) => void;
+  onDaysChange: (days: HolidayRebookingDays) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
 }>) {
   return (
@@ -309,41 +362,113 @@ function RebookingEditor({
           const range = formatHolidayWeek(first.startsOn, first.endsOn);
           const parallel = group.length > 1;
           const label = parallel ? range : `${range}, ${schoolOf(first)}`;
+          const chosen = weekGroupBooking(draft, group);
+          const bookedWeek = group.find((week) =>
+            week.timeModels.some((model) => model.id === chosen),
+          );
+          const byDays =
+            bookedWeek?.bookingUnit === "day" && bookedWeek.id !== undefined;
+          const weekDays =
+            byDays && bookedWeek.id ? (days[bookedWeek.id] ?? []) : [];
           return (
-            <li
-              key={first.id ?? range}
-              className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <span className="text-sm text-gray-900">{label}</span>
-              <CustomSelect
-                value={weekGroupBooking(draft, group)}
-                wrapLabels={parallel}
-                options={[
-                  { value: "", label: "Nicht angemeldet" },
-                  ...group.flatMap((week) =>
-                    // An archived time model takes no new booking (#5994);
-                    // the one a week is booked on stays selectable.
-                    week.timeModels
-                      .filter(
-                        (model) =>
-                          !model.archived ||
-                          (week.id !== undefined &&
-                            draft[week.id] === model.id),
+            <li key={first.id ?? range} className="space-y-2">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm text-gray-900">
+                  {label}
+                  {group
+                    .filter(
+                      (week) =>
+                        week.bookingUnit !== "day" && week.noCareDays?.length,
+                    )
+                    .map((week) => (
+                      <span
+                        key={week.id ?? week.startsOn}
+                        className="block text-xs text-gray-600"
+                      >
+                        {parallel ? `${schoolOf(week)}: ` : ""}Keine neue
+                        Buchung, weil am {formatDate(week.noCareDays![0]!.date)}{" "}
+                        keine Betreuung ist ({week.noCareDays![0]!.name}).
+                      </span>
+                    ))}
+                </span>
+                <CustomSelect
+                  value={weekGroupBooking(draft, group)}
+                  wrapLabels={parallel}
+                  options={[
+                    { value: "", label: "Nicht angemeldet" },
+                    ...group.flatMap((week) =>
+                      // A week with a day without care at its host school
+                      // takes no new booking (#4702); a booked one stays. A
+                      // week by days only leaves that day out (#4701).
+                      (week.bookingUnit !== "day" &&
+                      week.noCareDays?.length &&
+                      !savedBookings.some(
+                        (booking) => booking.weekId === week.id,
                       )
-                      .map((model) => ({
-                        value: model.id ?? "",
-                        label: parallel
-                          ? `${schoolOf(week)}: ${model.name}`
-                          : model.name,
-                      })),
-                  ),
-                ]}
-                onChange={(value) =>
-                  onChange(withWeekGroupBooking(draft, group, value))
-                }
-                ariaLabel={`Zeitmodell ${label}`}
-                className="w-full sm:w-56"
-              />
+                        ? []
+                        : week.timeModels
+                      )
+                        .filter(
+                          (model) =>
+                            !model.archived ||
+                            savedBookings.some(
+                              (booking) =>
+                                booking.weekId === week.id &&
+                                booking.timeModelId === model.id,
+                            ),
+                        )
+                        .map((model) => ({
+                          value: model.id ?? "",
+                          label: parallel
+                            ? `${schoolOf(week)}: ${model.name}`
+                            : model.name,
+                        })),
+                    ),
+                  ]}
+                  onChange={(value) =>
+                    onChange(withWeekGroupBooking(draft, group, value))
+                  }
+                  ariaLabel={`Zeitmodell ${label}`}
+                  className="w-full sm:w-56"
+                />
+              </div>
+              {byDays && bookedWeek.id ? (
+                <WeekdayToggleGroup
+                  ariaLabel={`Tage ${label}`}
+                  days={holidayCareDays(bookedWeek.startsOn, bookedWeek.endsOn)
+                    .filter(
+                      (day) =>
+                        savedBookings.some(
+                          (booking) =>
+                            booking.weekId === bookedWeek.id &&
+                            booking.days?.includes(day),
+                        ) ||
+                        !bookedWeek.noCareDays?.some(
+                          (none) => none.date === day,
+                        ),
+                    )
+                    .map((day) => ({
+                      value: day,
+                      label: holidayWeekdayShort(day),
+                      ariaLabel: holidayDayLabel(day),
+                    }))}
+                  value={weekDays}
+                  onToggle={(day) => {
+                    const weekId = bookedWeek.id ?? "";
+                    onDaysChange({
+                      ...days,
+                      [weekId]: weekDays.includes(day)
+                        ? weekDays.filter((current) => current !== day)
+                        : [...weekDays, day].sort(),
+                    });
+                  }}
+                  hint={
+                    weekDays.length === 0
+                      ? "Bitte wählen Sie mindestens einen Tag."
+                      : `Gewählt: ${holidayDayList(weekDays)}`
+                  }
+                />
+              ) : null}
             </li>
           );
         })}

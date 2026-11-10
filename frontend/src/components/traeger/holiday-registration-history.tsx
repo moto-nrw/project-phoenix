@@ -9,6 +9,7 @@
 
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
+import { holidayDayList } from "~/lib/holiday-days";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import type {
   HolidayBookingChange,
@@ -32,6 +33,8 @@ const ACTION_LABELS: Readonly<
   sibling_merge: "Als Geschwister zusammengeführt",
   sibling_split: "Von Geschwistern getrennt",
   sibling_cancel: "Aus Geschwistergruppe gelöst (storniert)",
+  promote: "Von der Warteliste nachgerückt",
+  wish: "Ferienwunsch festgelegt",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
@@ -52,8 +55,11 @@ function bookingsText(
       const model = week?.timeModels.find(
         (entry) => entry.id === change.timeModelId,
       );
-      if (!week || !model) return "eine entfernte Woche";
-      return `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}: ${model.name}`;
+      const days = change.days?.length
+        ? ` · ${holidayDayList(change.days)}`
+        : "";
+      if (!week || !model) return `eine entfernte Woche${days}`;
+      return `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}: ${model.name}${days}`;
     })
     .join("; ");
 }
@@ -80,6 +86,13 @@ function eventDetail(
   if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
   if (event.siblings.length > 0) {
     return `Anmeldung Nr. ${event.siblings.join(", ")}`;
+  }
+  if (event.action === "wish") {
+    const wished = registration.children.find(
+      (entry) => entry.id === event.childId,
+    );
+    const who = wished ? `${wished.firstName} ${wished.lastName}: ` : "";
+    return `${who}${event.wish === "yes" ? "Mit Ferienwunsch" : "Ohne Ferienwunsch"}`;
   }
   if (event.action !== "rebook") return null;
   const child = registration.children.find(

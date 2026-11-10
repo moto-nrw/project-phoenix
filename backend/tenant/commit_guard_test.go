@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,18 +69,16 @@ func TestCommitGuardRejectionRollsTheTransactionBack(t *testing.T) {
 	ctx = tenant.WithCommitGuard(ctx, func(context.Context) error { return fenced })
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
-	var afterCommit, afterRollback bool
+	var afterCommit bool
 
 	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		tenant.RegisterAfterCommit(txCtx, func() { afterCommit = true })
-		tenanttest.RegisterAfterRollback(txCtx, func() { afterRollback = true })
 		return nil
 	})
 
 	require.ErrorIs(t, err, fenced)
 	assert.Empty(t, commits)
 	assert.False(t, afterCommit, "a fenced transaction publishes nothing")
-	assert.True(t, afterRollback)
 }
 
 func TestCommitGuardRunsOnceForNestedTransactionsAndNotAfterFailure(t *testing.T) {

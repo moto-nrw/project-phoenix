@@ -29,6 +29,28 @@ const (
 	ImportFieldCreditorID    = "creditor_id"
 	ImportFieldSequence      = "sequence"
 	ImportFieldLastCollected = "last_collected_on"
+	// ImportFieldDebtorNumber is the debtor number of the family in the
+	// finance system of the Träger (OGS Connect "kinder-Debitorennummer",
+	// #4693); optional, it goes to the family, not to the mandate.
+	ImportFieldDebtorNumber = "debtor_number"
+)
+
+// What the import does with the debtor number of a row (#4693).
+const (
+	// DebtorNumberNew is taken over for the family.
+	DebtorNumberNew = "new"
+	// DebtorNumberSame is the number the family already has.
+	DebtorNumberSame = "same"
+	// DebtorNumberSiblingsDiffer is a family whose rows (siblings) carry
+	// different numbers: the import takes over none of them.
+	DebtorNumberSiblingsDiffer = "siblings_differ"
+	// DebtorNumberDiffers is a family that has another number in moto: the
+	// import never overwrites it.
+	DebtorNumberDiffers = "differs"
+	// DebtorNumberInvalid is too long or has a line break.
+	DebtorNumberInvalid = "invalid"
+	// DebtorNumberNoFamily is a row whose family moto does not know.
+	DebtorNumberNoFamily = "no_family"
 )
 
 // How the payer column names the family of a mandate.
@@ -124,6 +146,7 @@ type SEPAMandateImportColumns struct {
 	CreditorID    string `json:"creditor_id"`
 	Sequence      string `json:"sequence"`
 	LastCollected string `json:"last_collected_on"`
+	DebtorNumber  string `json:"debtor_number"`
 }
 
 // SEPAMandateImportMapping is how the rows of a file become mandates.
@@ -185,6 +208,10 @@ type SEPAMandateImportRow struct {
 	MandateID       int64                      `json:"mandate_id,omitempty"`
 	Problems        []SEPAMandateImportProblem `json:"problems"`
 	Hints           []string                   `json:"hints"`
+	// DebtorNumber is the debtor number of the row and DebtorNumberStatus
+	// what the import does with it (#4693); empty without the column.
+	DebtorNumber       string `json:"debtor_number,omitempty"`
+	DebtorNumberStatus string `json:"debtor_number_status,omitempty"`
 }
 
 // SEPAMandateImportCounts counts the rows per status.
@@ -195,6 +222,17 @@ type SEPAMandateImportCounts struct {
 	Conflict  int `json:"conflict"`
 	Invalid   int `json:"invalid"`
 	Imported  int `json:"imported"`
+	// DebtorNumbers counts the families whose debtor number the import
+	// takes over; DebtorConflicts the rows whose number it leaves.
+	DebtorNumbers   int `json:"debtor_numbers"`
+	DebtorConflicts int `json:"debtor_conflicts"`
+}
+
+// FamilyDebtorNumber is a debtor number the import sets for a family.
+type FamilyDebtorNumber struct {
+	FamilyEmail  string
+	ContractID   int64
+	DebtorNumber string
 }
 
 // SEPAMandateImport is the answer to a look at a file: how it was read, the

@@ -18,10 +18,9 @@ import (
 // landing/health probes, the public image/legal-document servers, and the
 // bearer-protected metrics endpoint.
 // mountPublic mounts everything that needs no session.
-func mountPublic(root chi.Router, metricsToken string, db transactionruntime.Database, emailWebhooks emailWebhooksHTTP.Ingest) error {
+func mountPublic(root chi.Router, metricsToken string, db transactionruntime.Database, emailWebhooks emailWebhooksHTTP.Ingest, rateLimitEnabled bool) {
 	mountPublicRoutes(root, metricsToken, db.Pool().PingContext)
-	mountEmailWebhooks(root, emailWebhooks)
-	return nil
+	mountEmailWebhooks(root, emailWebhooks, rateLimitEnabled)
 }
 
 func mountPublicRoutes(root chi.Router, metricsToken string, ping func(context.Context) error) {

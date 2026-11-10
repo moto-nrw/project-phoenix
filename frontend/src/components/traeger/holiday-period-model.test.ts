@@ -131,6 +131,7 @@ describe("holiday period model", () => {
       registrationOpensOn: "2027-01-11",
       registrationClosesOn: "2027-02-26",
       binding: true,
+      holidayWishRule: false,
       notes: "",
       status: "draft" as const,
       publishedAt: null,

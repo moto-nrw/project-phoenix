@@ -39,6 +39,22 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// #4701: the booked days of a holiday booking are a DATE[] written from
+	// calendar.Date text as an array literal and read back as ::text into
+	// calendar.Date values; no time.Time ever reaches the column.
+	"enrollment.holiday_registration_bookings.days": "#4701: Enrollment binds and reads calendar.Date text of a DATE[], never time.Time",
+	// The Beleg retention (#4720, ADR 0184) writes its records in one
+	// INSERT ... SELECT FROM unnest with calendar.Date text cast to DATE and
+	// reads them back with calendar.Date fields of ad-hoc scan structs; no
+	// time.Time reaches the columns.
+	"parent_billing.beleg_retentions.trigger_date":          "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.deletable_on":          "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.proposed_on":           "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.listed_on":             "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.review_on":             "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.evaluated_on":          "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.collection_trigger_on": "Beleg retention binds calendar.Date text in raw SQL and SQL functions, never time.Time",
+	"parent_billing.beleg_deletions.deleted_on":             "Beleg deletion log binds calendar.Date in raw SQL and SQL functions, never time.Time",
 	// #4686: the attendance retention binds its cutoff and scans the mark
 	// through raw SQL in Student Presence as calendar.Date (ports.Date); no
 	// time.Time ever reaches the column.
@@ -239,7 +255,16 @@ func TestDateColumnTypes(t *testing.T) {
 				continue
 			}
 			for _, f := range fields {
-				switch f.goType {
+				fieldType := f.goType
+				if strings.Contains(ref, "(DATE[])") {
+					if !strings.HasPrefix(fieldType, "[]") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" is a DATE[] column — use []calendar.Date"))
+						continue
+					}
+					fieldType = strings.TrimPrefix(fieldType, "[]")
+				}
+				switch fieldType {
 				case "calendar.Date", "*calendar.Date":
 					// migrated — ok
 				case "calendarDate", "*calendarDate":
@@ -390,8 +415,8 @@ var (
 	createTableRe = regexp.MustCompile(`CREATE TABLE (?:IF NOT EXISTS )?([a-z_]+\.[a-z_]+)`)
 	alterTableRe  = regexp.MustCompile(`ALTER TABLE (?:ONLY )?(?:IF EXISTS )?([a-z_]+\.[a-z_]+)`)
 	// Case-sensitive DATE so CURRENT_DATE, ::date casts, and VALIDATE never match.
-	colDeclRe = regexp.MustCompile(`^\s*([a-z_]+)\s+DATE\b`)
-	addColRe  = regexp.MustCompile(`ADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_]+)\s+DATE\b`)
+	colDeclRe = regexp.MustCompile(`^\s*([a-z_]+)\s+DATE\b(\[\])?`)
+	addColRe  = regexp.MustCompile(`ADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_]+)\s+DATE\b(\[\])?`)
 )
 
 // scanMigrationsForDateColumns line-scans the SQL embedded in migration Go
@@ -441,8 +466,14 @@ func scanMigrationsForDateColumns(t *testing.T, root string) map[string]string {
 
 			ref := fmt.Sprintf("database/migrations/%s:%d", entry.Name(), lineNo)
 			if m := addColRe.FindStringSubmatch(line); m != nil {
+				if m[2] != "" {
+					ref += " (DATE[])"
+				}
 				result[currentTable+"."+m[1]] = ref
 			} else if m := colDeclRe.FindStringSubmatch(line); m != nil {
+				if m[2] != "" {
+					ref += " (DATE[])"
+				}
 				result[currentTable+"."+m[1]] = ref
 			}
 		}
@@ -665,6 +696,10 @@ func renderType(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.StarExpr:
 		return "*" + renderType(e.X)
+	case *ast.ArrayType:
+		if e.Len == nil {
+			return "[]" + renderType(e.Elt)
+		}
 	case *ast.SelectorExpr:
 		if pkg, ok := e.X.(*ast.Ident); ok {
 			return pkg.Name + "." + e.Sel.Name
@@ -672,9 +707,8 @@ func renderType(expr ast.Expr) string {
 		return e.Sel.Name
 	case *ast.Ident:
 		return e.Name
-	default:
-		return "(complex)"
 	}
+	return "(complex)"
 }
 
 // underscore approximates bun's CamelCase → snake_case column naming.

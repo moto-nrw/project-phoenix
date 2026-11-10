@@ -91,7 +91,10 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         steps: [
           "Wählen Sie beim Kind `Umbuchen`.",
           "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
+          "Wird die Woche tageweise gebucht, wählen Sie darunter die Tage. Mehr Tage als `Höchstens Tage je Kind` nimmt moto nicht an.",
           "Wählen Sie `Speichern`.",
+          "Eine Woche, die das Kind nicht mehr bucht, gibt ihren Platz frei. Das nächste Kind der Warteliste rückt sofort nach. Eine neue Woche bekommt einen Platz, wenn einer frei ist. Sonst kommt das Kind dort auf die Warteliste.",
+          "Kommt bei einer Woche mit einzelnen Tagen ein Tag dazu, braucht das Kind an jedem Tag einen Platz. Fehlt einer, wartet die ganze Woche wieder. Fallen nur Tage weg, behält das Kind seinen Platz.",
         ],
       },
       {
@@ -113,7 +116,9 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     result:
       "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
     notes: [
-      "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
+      "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
+      "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
+      "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
       "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
       "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
@@ -121,7 +126,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
       "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
       "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
-      "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
+      "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
       "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
       "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
       "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
@@ -149,7 +154,9 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     related: [
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerHolidayPlaces,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerHolidayWish,
     ],
   };
 }

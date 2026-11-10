@@ -344,11 +344,17 @@ import type { traegerCareReductionsTopic as authored_traegerCareReductionsTopic 
 
 import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
 
+import type { traegerClosingDaysTopic as authored_traegerClosingDaysTopic } from "./articles/traeger-closing-days";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
+
+import type { traegerDatevExportTopic as authored_traegerDatevExportTopic } from "./articles/traeger-datev-export";
 
 import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } from "./articles/traeger-document-kinds";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
+
+import type { traegerFinanceExportsTopic as authored_traegerFinanceExportsTopic } from "./articles/traeger-finance-exports";
 
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
@@ -356,9 +362,13 @@ import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from
 
 import type { traegerHolidayPeriodTopic as authored_traegerHolidayPeriodTopic } from "./articles/traeger-holiday-period";
 
+import type { traegerHolidayPlacesTopic as authored_traegerHolidayPlacesTopic } from "./articles/traeger-holiday-places";
+
 import type { traegerHolidayRegistrationReviewTopic as authored_traegerHolidayRegistrationReviewTopic } from "./articles/traeger-holiday-registration-review";
 
 import type { traegerHolidayRegistrationTopic as authored_traegerHolidayRegistrationTopic } from "./articles/traeger-holiday-registration";
+
+import type { traegerHolidayWishTopic as authored_traegerHolidayWishTopic } from "./articles/traeger-holiday-wish";
 
 import type { traegerInvitationTopic as authored_traegerInvitationTopic } from "./articles/traeger-invitation";
 
@@ -530,7 +540,7 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
       "Die Krankmeldung oder Entschuldigung ist gespeichert. Das Kind erscheint am gewählten Tag mit dem passenden Status.",
     notes: [
       "Die heutige Meldung aufheben ändert geplante Tage in der Zukunft nicht.",
-      "Ist das Kind trotzdem da, zählt es als anwesend. Die Meldung bleibt als Hinweis beim Kind sichtbar.",
+      "Ist das Kind trotzdem da, zählt es als anwesend. Seine geplante Gehzeit gilt weiter. Ist sie vorbei, wird sie als überfällig markiert. Die Meldung bleibt als Hinweis beim Kind sichtbar.",
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
@@ -1099,6 +1109,7 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
+          "Richtet Ihre OGS in dieser Zeit Ferienbetreuung für den Träger aus, zeigt der Dialog die Woche und wie viele Kinder gebucht haben. Die Buchungen bleiben. Der Träger informiert die Eltern.",
           "Wählen Sie `Speichern`.",
           "Stehen an diesen Tagen schon Termine, fragt moto nach. Sagen Sie sie ab wie im nächsten Abschnitt.",
         ],
@@ -1138,7 +1149,8 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       },
       {
         title: "Termine an Schließtagen absagen",
-        description: "Für Termine, die schon vor dem Schließtag geplant waren.",
+        description:
+          "Für Termine, die schon vor dem Schließtag geplant waren. Das geht auch bei Schließtagen mit `Vom Träger`.",
         steps: [
           "Wählen Sie beim Schließtag die drei Punkte.",
           "Wählen Sie `Termine absagen`.",
@@ -1154,6 +1166,7 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
+      "Ein Schließtag mit `Vom Träger` hat Ihr Träger geplant. Er gilt wie Ihre eigenen Schließtage. Ändern kann ihn nur das Träger-Büro.",
       "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
       "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
       "Schichten, die schon geplant waren, bleiben stehen.",
@@ -2581,6 +2594,7 @@ export const enrollmentFormTopic = function enrollmentFormTopic(): HelpTopic {
     result:
       "Eltern füllen in dieser Phase das Basisformular und Ihre zusätzlichen Fragen aus.",
     notes: [
+      "Fragt Ihr Träger nach dem Ferienwunsch, schalten Sie bei `Ferienwunsch (Kind)` den Schalter `Ferienwunsch abfragen` ein. Eltern wählen dann für jedes Kind Ja oder Nein.",
       "Eine Vorlage gilt für alle Phasen, die sie auswählen. Sie brauchen nicht für jede Phase eine eigene.",
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
       "Die Vorschau zeigt nur Ihre Fragen, keine Betreuungsangebote. Unter `Angebote prüfen` öffnen Sie die Vorschau jeder Phase, die die Vorlage nutzt. Dort stehen die Angebote, auch wenn die Phase noch nicht aktiv ist.",
@@ -3321,6 +3335,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
+      "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
@@ -3602,7 +3617,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     result:
       "Die Person bekommt eine E-Mail mit einem Link. Bei der Person sehen Sie, ob die Mail angekommen ist. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
     notes: [
-      "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen` oder `Konto aktiv`.",
+      "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen`, `Link gilt nicht mehr` oder `Konto aktiv`.",
       "Bei `Einladung offen` heißt der Knopf `Erneut einladen`. Damit geht die E-Mail noch einmal raus.",
       "Eine Person mit mehreren Kindern laden Sie nur einmal ein. Sie sieht danach alle ihre Kinder.",
     ],
@@ -3614,6 +3629,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Bei der Person steht `Link gilt nicht mehr`? Zum Beispiel wurde die `E-Mail` nach der Einladung geändert. Wählen Sie `Einladung neu senden`. Der neue Link geht an die Adresse, die jetzt eingetragen ist.",
       "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -4419,7 +4435,7 @@ export const mealBillingReleaseTopic =
         "Wählen Sie `Monat freigeben` und bestätigen Sie mit `Freigeben`.",
       ],
       result:
-        "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so.",
+        "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so. Zurücknehmen lässt sich die Freigabe nicht.",
       notes: [
         "Ein Essen zählt, wenn das Kind angemeldet und da war. Tage, an denen die Eltern abgemeldet haben, zählen nicht.",
         "Ferien, Feiertage und Schließtage zählen nie.",
@@ -4429,6 +4445,7 @@ export const mealBillingReleaseTopic =
         "`Nicht mehr abrechenbar`: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich. Geben Sie Monate deshalb bald nach dem Monatsende frei.",
         "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
         "Haben Sie nach der Freigabe eine Anwesenheit nachgetragen, steht oben `Seit der Freigabe hat sich die Anwesenheit geändert`. Prüfen Sie die Liste, wählen Sie `Erneut freigeben` und nennen Sie den Grund. Schon gestellte Rechnungen ändert das nicht. Der Träger sieht die Änderung und korrigiert die Rechnung.",
+        "Sie haben einen Monat mit falschen Zahlen freigegeben: Zurücknehmen geht nicht. Die Karte `Zahlen korrigieren` zeigt den Weg. Tragen Sie die Anwesenheit nach. Dann wählen Sie `Erneut freigeben` und nennen den Grund. Hat der Träger schon abgerechnet, storniert er die Rechnung und stellt sie neu aus.",
       ],
       related: [HELP_TOPICS.leadMealPlan],
     };
@@ -5361,6 +5378,7 @@ export const parentAccountProblemTopic =
       notes: ["Ein Einladungslink lässt sich nur einmal benutzen."],
       differences: [
         "`Diese Einladung ist abgelaufen oder wurde bereits verwendet.` Fragen Sie nach einer neuen.",
+        "`Dieser Link gilt nicht mehr.` Fragen Sie die Schule nach einer neuen Einladung.",
         "`Für diese E-Mail existiert bereits ein Konto.` Melden Sie sich direkt an.",
         "`Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.` Prüfen Sie die Liste unter dem Feld.",
       ],
@@ -5908,7 +5926,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
         description:
           "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
         steps: [
-          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`.",
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`. Ohne Konto öffnen Sie den Link aus der Vertragsmail.",
           "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
           "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
           "Wählen Sie `Angabe senden`.",
@@ -5933,6 +5951,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
+      "Hat Ihr Träger Ihnen einen Gebührenbescheid für das Jahr geschickt, liegt er hier mit demselben PDF wie in der Mail. Ändert sich Ihr Vertrag, kommt ein Änderungsbescheid dazu. Der alte Bescheid bleibt hier stehen.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
       "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin und dann `Jetzt kündigen`. Solange Sie den Vertrag widerrufen können, steht beim Vertrag auch `Vertrag widerrufen`. Wählen Sie dann `Widerruf bestätigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
@@ -5940,6 +5959,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Sie dürfen Anmeldungen nur ansehen? Wählen Sie beim Vertrag `Kinder in Ihrer Familie`. Dort sehen Sie die Angabe und die bestätigte Zahl. Sie können die Zahl nicht ändern.",
+      "Über den Link aus der Vertragsmail ändern Sie die Kinderzahl bis zur Unterschrift. Danach geht das in der Eltern-App unter `Dokumente`.",
       "Ihre Angabe zur Kinderzahl prüft der Träger. Bis dahin steht `Wird geprüft`. Hat er sie bestätigt, steht `Bestätigt`. Erst dann zählt sie für die Ermäßigung.",
       "Nach dem Mandat steht beim Vertrag `Lastschrift erteilt`. Unter `Lastschrift` sehen Sie Ihr Konto, die Mandatsreferenz und den Text. Mit `Als Datei speichern` legen Sie den Text bei Ihren Unterlagen ab.",
       "Sie möchten ein anderes Konto nutzen oder keine Lastschrift mehr? Wählen Sie unter `Lastschrift` den Knopf `Mandat widerrufen`. Ab der nächsten Rechnung bucht Ihr Träger nichts mehr ab. Danach können Sie ein neues Mandat erteilen.",
@@ -6001,6 +6021,17 @@ export const parentEnrollStatusTopic =
           ],
         },
         {
+          title: "Kinder in der Familie angeben",
+          description:
+            "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
+          steps: [
+            "Öffnen Sie die Statusseite.",
+            "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
+            "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
+            "Tippen Sie auf `Angabe senden`.",
+          ],
+        },
+        {
           title: "Eine Anmeldung zurückziehen",
           steps: [
             "Öffnen Sie die Statusseite.",
@@ -6012,8 +6043,10 @@ export const parentEnrollStatusTopic =
       result:
         "Sobald die OGS entschieden hat, sehen Sie das unter `Kinder` und bekommen eine E-Mail.",
       notes: [
+        "Nach einer Verlängerung kann das Formular nach dem Ferienwunsch fragen. Wählen Sie je Kind `Ja` oder `Nein`.",
         "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
         "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
+        "Die Kinderzahl können Sie ändern, bis ein Kind angenommen ist. Sie kommt dann mit in Ihren Betreuungsvertrag. Dort ändern Sie sie später.",
         "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
       ],
       differences: [
@@ -6022,6 +6055,7 @@ export const parentEnrollStatusTopic =
         "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
         "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
         "Steht dort `Zugang zur Eltern-App nicht möglich`? Dann wenden Sie sich an die OGS.",
+        "Sie sehen keine Karte `Kinder in Ihrer Familie`? Dann braucht Ihr Träger die Zahl nicht.",
       ],
       troubleshootingDetails: [
         "moto sagt, der Status-Link sei ungültig? Prüfen Sie die Adresse aus der E-Mail oder fragen Sie bei der OGS nach.",
@@ -6370,6 +6404,7 @@ export const parentHolidayRegistrationTopic =
         "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
         "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
+        "Steht bei der Zeit „je Tag“? Dann wählen Sie darunter die Tage, an denen Ihr Kind kommt. Der Preis gilt je Tag.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
         "Tragen Sie `Ihre Angaben` ein.",
         "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",
@@ -6386,12 +6421,16 @@ export const parentHolidayRegistrationTopic =
       result:
         "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf.",
       notes: [
+        "Achtet der Träger auf den Ferienwunsch aus der OGS-Anmeldung, steht das über den Kindern. Mit Elternkonto sehen Sie beim Kind, was in der OGS-Anmeldung steht.",
         "Ein Elternkonto brauchen Sie nicht.",
+        "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
         "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
         "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
         "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
+        "Manche Ferien haben eine Grenze, zum Beispiel höchstens 5 Tage je Kind. Dann steht sie über den Wochen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag.",
+        "Steht unter den Tagen `Schon voll`? An diesen Tagen sind alle Plätze vergeben. Wählen Sie einen davon, kommt Ihr Kind für diese Woche auf die Warteliste.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
@@ -10760,7 +10799,7 @@ export const traegerCareMealsTopic =
         "Jeder freigegebene Mensa-Monat steht genau einmal auf einer Rechnung. Gibt eine Schule einen Monat später frei, rechnet ihn der nächste Lauf nachträglich ab.",
       notes: [
         "Nach einem Storno stellen Sie die Mensa im ursprünglichen Rechnungsmonat neu aus. Starten Sie dafür einen weiteren Lauf dieses Monats.",
-        "Ob die Mensa auf der Rechnung der Betreuung steht oder eine eigene Rechnung bekommt, legen Sie unter `Einstellungen` und dann `Abrechnungsvorgaben` in der Karte `Zahlung und Rechnungen` beim `Mittagessen` fest. Eine eigene Mensa-Rechnung hat ihren eigenen Zahlungsweg und ihr eigenes Zahlungsziel.",
+        "Ob die Mensa auf der Rechnung der Betreuung steht oder eine eigene Rechnung bekommt, legen Sie unter `Einstellungen` und dann `Abrechnungsvorgaben` in der Karte `Zahlung und Rechnungen` beim `Mittagessen` fest. Eine eigene Mensa-Rechnung hat ihren eigenen Zahlungsweg und ihr eigenes Zahlungsziel. Im Monatslauf schließen Sie sie getrennt von der Betreuung aus.",
         "Ermäßigungen wie Geschwister oder Einkommensstufen gelten nur für die Module. Die Mensa zahlen Eltern voll.",
         "Ein Preis, mit dem schon abgerechnet ist, bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
       ],
@@ -10832,13 +10871,14 @@ export const traegerCareMonthsTopic =
         {
           title: "Vorschau prüfen und Rechnungen ausschließen",
           description:
-            "Sie können eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
+            "Sie können eine Rechnung aus diesem Lauf nehmen. Sie kommt im nächsten Lauf dieses Monats wieder. Hat ein Kind eine Rechnung für die Betreuung und eine eigene `Mensa-Rechnung`, schließen Sie jede für sich aus.",
           steps: [
             "Wählen Sie bei `Monatslauf` den Knopf `Prüfliste` und dann `Excel` oder `CSV`. Die Liste hat je Position eine Zeile. Rechnungsnummern stehen noch nicht darin.",
             "Stimmt eine Rechnung noch nicht, wählen Sie in ihrer Zeile das Menü mit den drei Punkten und dann `Ausschließen`.",
+            "Prüfen Sie im Fenster, welche Rechnung Sie ausschließen. Dort steht zum Beispiel `Mensa-Rechnung` und darunter, ob die Betreuungsrechnung des Kindes im Lauf bleibt. Steht die Mensa auf der Rechnung der Betreuung, wird sie mit ausgeschlossen.",
             "Schreiben Sie bei `Grund`, warum, zum Beispiel „Kündigung wird noch geprüft“. Wählen Sie `Ausschließen`.",
-            "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer.",
-            "Mit `Wieder aufnehmen` nehmen Sie sie zurück in den Lauf.",
+            "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer. Die andere Rechnung des Kindes bleibt im Lauf.",
+            "Mit `Wieder aufnehmen` nehmen Sie genau diese Rechnung zurück in den Lauf.",
             "Sind alle Rechnungen ausgeschlossen, wählen Sie trotzdem `Lauf freigeben`. Der Lauf schließt ohne Rechnungen und gibt die Schulen wieder frei. Die Gründe bleiben im Verlauf. Ein neuer Lauf kann diese Kinder abrechnen.",
             "Das Rechnungsdatum ändern Sie bei `Rechnungsdatum` mit `Ändern`.",
           ],
@@ -10985,7 +11025,19 @@ export const traegerCareNoticesTopic =
             "Prüfen Sie Zahl und Summe und wählen Sie `Ausstellen`.",
             "Jeder Bescheid bekommt seine Nummer. Danach ändert er sich nicht mehr.",
             "Hat sich seit Ihrer Prüfung etwas geändert, stellt moto nichts aus. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und stellen Sie dann aus.",
-            "Wählen Sie bei einem Bescheid `Drucken`, um ihn auszudrucken.",
+          ],
+        },
+        {
+          title: "Bescheide an die Familien senden",
+          description:
+            "moto speichert jeden ausgestellten Bescheid einmal als PDF. Dieses Original bleibt gleich, auch wenn sich später Briefkopf, Vorlage, Adresse oder Vertrag ändern. Die Familie bekommt den Bescheid erst, wenn Sie senden.",
+          steps: [
+            "Öffnen Sie den ausgestellten Jahreslauf und wählen Sie `An Familien senden`.",
+            "Wählen Sie `Originale speichern`. Gesendet wird dabei noch nichts.",
+            "Wählen Sie `An alle senden` und bestätigen Sie. Jede Familie mit E-Mail-Adresse bekommt das Original als Anhang.",
+            "Hat die Familie mit dieser Adresse ein Konto in der Eltern-App, liegt der Bescheid dort unter `Dokumente`.",
+            "Familien ohne E-Mail geben Sie den Bescheid auf Papier. Wählen Sie `Drucken` und dann `Nur Familien ohne E-Mail`.",
+            "Einen einzelnen Bescheid senden Sie über das Menü seiner Zeile mit `Senden` oder `Erneut senden`.",
           ],
         },
         {
@@ -11007,12 +11059,17 @@ export const traegerCareNoticesTopic =
         "Endet ein Vertrag, setzt der Änderungsbescheid die Monate danach auf 0,00 €. Das ist ein Abgang.",
       ],
       notes: [
+        "E-Mail und Eltern-App sind keine förmliche Zustellung. Brauchen Sie einen Nachweis, dass die Familie den Bescheid bekommen hat? Dann stellen Sie ihn zusätzlich auf anderem Weg zu.",
+        "Ein Änderungsbescheid ist ein eigener Bescheid mit eigenem Original. Senden Sie ihn genauso. Der alte Bescheid bleibt unverändert.",
         "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
         "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
         "Der `Gesamtbetrag aller Bescheide` ist die Forderung vor Zahlungseingang. Zahlungen sieht moto nicht, auch nicht nach der Lastschrift. Ob eine Rate bezahlt ist, prüfen Sie in Ihrer Buchhaltung.",
         "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
       ],
       troubleshootingDetails: [
+        "Bei `Nicht angekommen`: Wählen Sie im Menü der Zeile `Erneut senden`. Oder geben Sie der Familie den gedruckten Bescheid.",
+        "Ein Bescheid geht nicht raus und es steht `Die Person zahlt nicht mehr für diesen Vertrag`: Empfänger oder Zahler haben sich nach dem Ausstellen geändert. Der Bescheid geht nur an die Adresse, die er nennt. Drucken Sie den Bescheid und geben Sie ihn der Familie auf Papier.",
+        "Ein Bescheid steht nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz, oder das Konto der Familie hat eine andere E-Mail-Adresse. Die Familie bekommt ihn per E-Mail oder auf Papier.",
         "`Bescheide ausstellen` geht nicht und oben steht `Rechtsbehelfsbelehrung fehlt`: Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Dafür brauchen Sie das Recht `Einstellungen`.",
         "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste. Stellen Sie die Bescheide aus oder schließen Sie den leeren Lauf ab.",
         "Die Vorschau ist leer: Es gibt nichts Neues auszustellen. Wählen Sie `Jahreslauf abschließen` und dann `Abschließen`. Danach können Sie einen neuen Jahreslauf für andere Schulen starten.",
@@ -11074,7 +11131,7 @@ export const traegerCareReductionsTopic =
         {
           title: "Kinderzahl der Familie prüfen",
           description:
-            "Eltern geben im Vertrag an, wie viele Kinder ihre Familie hat. Sie bestätigen die Zahl. Erst dann zählt sie.",
+            "Eltern geben an, wie viele Kinder ihre Familie hat: bei der Anmeldung, über den Link aus der Vertragsmail oder im Vertrag in der Eltern-App. Die Zahl aus der Anmeldung kommt mit dem Vertrag. Sie bestätigen die Zahl. Erst dann zählt sie.",
           steps: [
             "Wählen Sie `Abrechnung` und dann den Reiter `Kinderzahl`.",
             "Unter `Zu prüfen` stehen neue Angaben der Eltern und Zahlen, die bald ablaufen.",
@@ -11176,6 +11233,79 @@ export const traegerCareTimeOverrunsTopic =
     };
   } satisfies typeof authored_traegerCareTimeOverrunsTopic;
 
+/** `/traeger/schliesstage` (#4702): Schließtage des Trägers und Feiertage je Bundesland. */
+export const traegerClosingDaysTopic =
+  function traegerClosingDaysTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerClosingDays,
+      title: "Schließtage für Schulen planen",
+      question: "Wie plane ich einen Brückentag für mehrere Schulen?",
+      summary:
+        "Ein Schließtag gilt für die Schulen, die Sie wählen. An diesem Tag ist die OGS zu. Die Feiertage kommen aus dem Bundesland der Schule.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarSlash",
+      requirements: [
+        "Sehen kann die Seite jede Rolle im Träger-Büro.",
+        "Schließtage anlegen darf Ihre Rolle, wenn sie Einstellungen verwalten darf. Das gilt für die Rolle Verwaltung.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Schließtag anlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Wählen Sie `Schließtag anlegen`.",
+            "Tragen Sie den `Grund` ein, zum Beispiel Brückentag.",
+            "Tragen Sie `Von` und `Bis` ein. Für einen Tag tragen Sie zweimal dasselbe Datum ein.",
+            "Wählen Sie bei `Gilt für` die Schulen. `Alle Schulen` wählt alle auf einmal.",
+            "Prüfen Sie unter `Ferienbetreuung an diesen Tagen`, welche gebuchten Ferienwochen betroffen sind.",
+            "Wählen Sie `Speichern`. Sind Ferienwochen betroffen, heißt der Knopf `Speichern und Eltern informieren`.",
+          ],
+        },
+        {
+          title: "Eltern zu einem Schließtag der Schule informieren",
+          description:
+            "Trägt eine Schule selbst einen Schließtag in eine gebuchte Ferienwoche ein, informiert das Träger-Büro die Eltern.",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Oben steht dann die Karte `Eltern noch nicht informiert` mit den betroffenen Wochen.",
+            "Wählen Sie `Eltern informieren`.",
+            "Bestätigen Sie mit `E-Mails senden`.",
+          ],
+        },
+        {
+          title: "Feiertage prüfen",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Oben wählen Sie das Jahr.",
+            "In der `Jahresübersicht` sind Feiertage blau und Schließtage orange.",
+            "Unter `Feiertage nach Bundesland` stehen die Feiertage und die Schulen dazu.",
+          ],
+        },
+      ],
+      result:
+        "Die gewählten Schulen haben an diesem Tag zu. Ferienwochen mit diesem Tag sind nicht mehr buchbar. Termine fallen aus, und Mitarbeitende haben kein Soll. Eltern mit einer Buchung in der Woche bekommen eine E-Mail mit den geschlossenen Tagen.",
+      notes: [
+        "Die Schulen sehen den Schließtag in ihrem Kalender mit `Vom Träger`. Ändern kann ihn nur das Träger-Büro.",
+        "Der Elternbeitrag ändert sich durch einen Schließtag nicht, auch nicht bei tageweise gebuchten Wochen. Das steht auch in der E-Mail an die Eltern.",
+        "Jede Familie bekommt eine E-Mail, auch wenn mehrere Kinder oder Wochen betroffen sind. Speichern Sie den Schließtag noch einmal, bekommt niemand eine zweite E-Mail.",
+        "Das Bundesland einer Schule legt das moto-Team fest. Stimmt es nicht, schreiben Sie dem moto-Team.",
+        "Bisherige Buchungen einer Ferienwoche bleiben, auch wenn Sie später einen Schließtag in die Woche legen. Niemand verliert seinen Platz, und niemand rückt von der Warteliste nach. Neue Buchungen der Woche sind dann nicht möglich.",
+      ],
+      differences: [
+        "Sie sehen keinen Knopf `Schließtag anlegen`? Ihre Rolle darf keine Einstellungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+      ],
+      troubleshootingDetails: [
+        "Beim Speichern steht, die gebuchten Ferientage haben sich geändert? Inzwischen hat jemand gebucht oder storniert. Prüfen Sie die neue Liste im Dialog und speichern Sie noch einmal.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerSchoolView,
+      ],
+    };
+  } satisfies typeof authored_traegerClosingDaysTopic;
+
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =
   function traegerDashboardTopic(): HelpTopic {
@@ -11223,6 +11353,88 @@ export const traegerDashboardTopic =
       ],
     };
   } satisfies typeof authored_traegerDashboardTopic;
+
+export const traegerDatevExportTopic =
+  function traegerDatevExportTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerDatevExport,
+      title: "DATEV-Werte eintragen",
+      question: "Wie bekommt mein Steuerbüro die Beiträge für DATEV?",
+      summary:
+        "Für jeden ausgestellten Lauf laden Sie eine DATEV-Datei herunter. Sie enthält nur Buchungen, die noch in keiner DATEV-Datei waren. Ihr Steuerbüro liest sie in DATEV ein. Vorher tragen Sie einmal die DATEV-Werte Ihres Steuerbüros ein.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Settings",
+      requirements: [
+        "Ihre Rolle im Träger-Büro hat das Recht Finanz-Export.",
+        "Ihr Steuerbüro hat Ihnen die DATEV-Werte genannt.",
+        "Bei Monatsbeiträgen hat jede Familie eine Debitorennummer. Bei Ferienbeiträgen steht sie in der Ferienanmeldung.",
+        "Der Monatslauf oder Ferienlauf ist ausgestellt.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "DATEV-Werte eintragen",
+          description:
+            "Das machen Sie nur einmal. Fragen Sie Ihr Steuerbüro nach den Werten.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `DATEV-Werte`. Die Einstellungen öffnen sich im Bereich `DATEV`.",
+            "Tragen Sie `Beraternummer` und `Mandantennummer` ein.",
+            "Wählen Sie die `Länge der Sachkonten`, den `Kontenrahmen` und den `Beginn des Wirtschaftsjahres`.",
+            "Tragen Sie das `Erlöskonto für Elternbeiträge` ein.",
+          ],
+        },
+        {
+          title: "Neue Buchungen herunterladen",
+          description:
+            "Die Spalte `DATEV-Datei` zeigt, wie viele neue Buchungen ein Lauf hat.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie beim Lauf `DATEV`. Die Datei wird heruntergeladen. Sie enthält nur die neuen Buchungen.",
+            "Geben Sie die Datei an Ihr Steuerbüro.",
+          ],
+        },
+        {
+          title: "Alle Buchungen erneut herunterladen",
+          description:
+            "Nur wenn Ihr Steuerbüro eine frühere Datei nicht hat oder nicht einlesen konnte.",
+          steps: [
+            "Wählen Sie beim Lauf das Menü mit den drei Punkten neben `DATEV`.",
+            "Wählen Sie `Alle Buchungen erneut`.",
+            "Lesen Sie den Hinweis. Hat der Lauf Buchungen in mehreren Wirtschaftsjahren, wählen Sie das `Wirtschaftsjahr`.",
+            "Wählen Sie `Erneut herunterladen`.",
+          ],
+        },
+      ],
+      result:
+        "In der Datei steht jede Rechnung im Soll, jedes Storno und jede Gutschrift im Haben. Die Datei steht im `Exportprotokoll` mit ihrer Nummer. Eine Datei mit allen Buchungen steht dort als `Alle erneut: Wiederholung`. In jeder Rechnung zeigt `Verlauf`, in welcher Datei sie war.",
+      notes: [
+        "Bei Monatsbeiträgen tragen Sie die Debitorennummer bei `Empfänger und Zahlung` der Familie ein. Bei Ferienbeiträgen tragen Sie sie in der Ferienanmeldung ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
+        "Jede Buchung kommt nur einmal in eine DATEV-Datei. Stornieren Sie später eine Rechnung, steht das Storno in der nächsten Datei des Laufs. Die Rechnung selbst steht dort nicht noch einmal.",
+        "Eine DATEV-Datei gilt für ein Wirtschaftsjahr. Liegt ein Storno im neuen Jahr, kommt es in eine eigene Datei. Laden Sie dafür noch einmal `DATEV` herunter.",
+        "Hat ein Lauf keine neuen Buchungen, lässt sich `DATEV` nicht wählen. Dann entsteht keine Datei und keine Nummer.",
+        "Die DATEV-Datei und die Sollstellung zählen in derselben Reihe von Dateinummern.",
+        "Eine Rechnung über 0 € steht nicht in der DATEV-Datei. Sie bewegt kein Geld.",
+      ],
+      differences: [
+        "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",
+        "Beim Lauf steht `Alles exportiert`? Alle Buchungen sind schon in einer DATEV-Datei. Darunter steht ihre Nummer.",
+        "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
+      ],
+      troubleshootingDetails: [
+        "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Eine ausgestellte Rechnung behält ihre Debitorennummer. Bei Monatsbeiträgen tragen Sie bei der Familie die richtige Nummer ein. Stornieren Sie dann die genannte Rechnung und stellen Sie sie neu aus. Bei Ferienbeiträgen ohne Gutschrift stornieren Sie zuerst die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Waren Rechnung und Storno in keiner DATEV-Datei, heben sie sich auf. Danach lässt sich `DATEV` für den Lauf wieder wählen. Die neue Rechnung kommt mit ihrem Lauf in DATEV.",
+        "Hat eine Ferienrechnung mit ungültiger Debitorennummer schon eine Gutschrift? Dann ist kein Storno möglich. Laden Sie die Sollstellung des Laufs für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt.",
+        "Es erscheint `Keine neuen Buchungen für …`? Jemand hat die Buchungen gerade heruntergeladen. Die Datei steht im `Exportprotokoll`.",
+        "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
+      ],
+      related: [
+        HELP_TOPICS.traegerFinanceExports,
+        HELP_TOPICS.traegerBillingTerms,
+        HELP_TOPICS.traegerCareMonths,
+      ],
+    };
+  } satisfies typeof authored_traegerDatevExportTopic;
 
 /**
  * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
@@ -11358,6 +11570,82 @@ export const traegerDocumentTemplatesTopic =
     };
   } satisfies typeof authored_traegerDocumentTemplatesTopic;
 
+export const traegerFinanceExportsTopic =
+  function traegerFinanceExportsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerFinanceExports,
+      title: "Sollstellung für die Kämmerei",
+      question: "Wie gebe ich die Rechnungen an die Kämmerei?",
+      summary:
+        "Für jeden ausgestellten Lauf laden Sie eine Sollstellung herunter. Das ist eine CSV-Datei mit einer Zeile je Rechnung. Welche Spalten sie hat, legen Sie selbst fest. Jede Datei bekommt eine laufende Nummer.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Table",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Monatslauf oder Ferienlauf ist ausgestellt.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Spalten festlegen",
+          description:
+            "Fragen Sie Ihre Kämmerei, welche Spalten ihr Programm liest. Das machen Sie nur einmal.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `Feldzuordnung`.",
+            "Wählen Sie bei jeder Spalte den `Inhalt` und tragen Sie den `Spaltennamen` ein.",
+            "Mit `Spalte` fügen Sie eine Spalte hinzu. Für einen Wert, der in jeder Zeile gleich ist, wählen Sie `Fester Wert`, etwa ein Konto.",
+            "Legen Sie unter `Datei` Trennzeichen, Beträge, Datum, Zeichensatz und Dateinamen fest. `{NR}` im Dateinamen wird zur Dateinummer.",
+            "Prüfen Sie die `Vorschau` und wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Erste Dateinummer festlegen",
+          description:
+            "Nur nötig, wenn die Nummern Ihres bisherigen Programms weiterlaufen sollen.",
+          steps: [
+            "Tragen Sie in der Karte `Dateinummern` bei `Erste Nummer` die Nummer nach Ihrer letzten Datei ein.",
+            "Wählen Sie `Festlegen` und dann `Ja, festlegen`.",
+          ],
+        },
+        {
+          title: "Sollstellung herunterladen",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
+            "Geben Sie die Datei an Ihre Kämmerei.",
+          ],
+        },
+      ],
+      result:
+        "Die Datei steht im `Exportprotokoll` mit Nummer, Datum und wer sie geholt hat. Beim Lauf steht die letzte Sollstellung. In jeder Monatsrechnung zeigt `Verlauf`, in welchen Dateien sie war.",
+      notes: [
+        "Jeder Download ist eine neue Datei mit neuer Nummer. Steht im Protokoll `Gleicher Inhalt wie Nr. …`, enthält die Datei nichts Neues.",
+        "Auch jede Lastschriftdatei und jede DATEV-Datei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
+        "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
+        "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
+        "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
+      ],
+      differences: [
+        "Der Reiter `Exporte` fehlt? Ihnen fehlt das Recht `Finanz-Export`.",
+        "Ein älterer Lauf oder eine ältere Datei fehlt? Die Listen zeigen zuerst die neuesten 50. Wählen Sie unter der Liste `Ältere anzeigen`.",
+        "Die Karte `Dateinummern` zeigt kein Feld? Die Nummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      ],
+      troubleshootingDetails: [
+        "Die Kämmerei sieht falsche Umlaute? Wählen Sie bei `Zeichensatz` den Wert `Windows-1252`.",
+        "In der Datei stehen alle Werte in einer Spalte? Das Trennzeichen passt nicht zum Programm der Kämmerei. Wählen Sie ein anderes.",
+        "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDatevExport,
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerSepaDebitFile,
+        HELP_TOPICS.traegerBillingTerms,
+      ],
+    };
+  } satisfies typeof authored_traegerFinanceExportsTopic;
+
 /** `/traeger/einstellungen/abrechnung` (#4664, #5627, #5685): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
   function traegerHolidayContributionTopic(): HelpTopic {
@@ -11379,6 +11667,7 @@ export const traegerHolidayContributionTopic =
           title: "Preis festlegen",
           steps: [
             "Den Preis jeder Woche legen Sie im Ferienzeitraum fest. Jedes Zeitmodell hat einen `Preis in Euro`.",
+            "Wird eine Woche tageweise gebucht, ist es ein `Preis je Tag in Euro`. Der Beitrag ist dann der Tagespreis mal die gebuchten Tage. Danach rechnet moto Geschwister und Befreiung wie bei ganzen Wochen.",
           ],
         },
         {
@@ -11594,6 +11883,7 @@ export const traegerHolidayPeriodTopic =
             "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
             "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
             "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
+            "Soll ein Kind nur eine bestimmte Zahl an Tagen kommen? Tragen Sie die Zahl bei `Höchstens Tage je Kind` ein, zum Beispiel 5. Ohne Grenze lassen Sie das Feld leer.",
           ],
         },
         {
@@ -11601,7 +11891,9 @@ export const traegerHolidayPeriodTopic =
           steps: [
             "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
             "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
-            "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
+            "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Wählen Sie dann andere Tage, zum Beispiel Dienstag bis Freitag.",
+            "Wählen Sie bei `Buchung`, wie Eltern die Woche buchen: `Ganze Woche` oder `Einzelne Tage`. Bei einzelnen Tagen wählen Eltern Tage von Montag bis Freitag.",
+            "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und einen Preis. Bei `Ganze Woche` ist es der `Preis in Euro` für die Woche, bei `Einzelne Tage` der `Preis je Tag in Euro`.",
             "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
             "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
             "Wählen Sie `Speichern`.",
@@ -11619,26 +11911,110 @@ export const traegerHolidayPeriodTopic =
       result:
         "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
       notes: [
+        "Mit `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` warten Kinder Ihrer Schulen ohne Ferienwunsch auf der Warteliste hinter den anderen.",
         "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
         "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
+        "`Höchstens Tage je Kind` gilt für alle Wochen zusammen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag. Eltern dürfen die Tage auf mehrere Wochen verteilen. Senken Sie die Zahl später, behalten Kinder ihre gebuchten Tage.",
+        "Bei `Einzelne Tage` zahlt die Familie den Preis je Tag mal die gebuchten Tage.",
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
+        "`Ganze Woche` und `Einzelne Tage` lassen sich nicht wählen? Für die Woche gibt es schon Anmeldungen. Die Buchungsart bleibt dann so. Bei einzelnen Tagen bleiben auch die Tage der Woche.",
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
       troubleshootingDetails: [
         "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
+        "Die Woche lässt sich nicht speichern, weil keine Betreuung ist? An einem Feiertag oder Schließtag der Schule kann niemand buchen. Lassen Sie diesen Tag aus der Woche.",
       ],
       related: [
         HELP_TOPICS.traegerLogin,
         HELP_TOPICS.traegerHolidayForm,
         HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerClosingDays,
+        HELP_TOPICS.traegerHolidayWish,
       ],
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;
+
+/** `/traeger/ferien/[id]/plaetze` (#4699): Plätze, Warteliste, Nachrücken. */
+export const traegerHolidayPlacesTopic =
+  function traegerHolidayPlacesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayPlaces,
+      title: "Plätze und Warteliste in den Ferien",
+      question: "Wie lege ich Plätze je Ferienwoche fest?",
+      summary:
+        "Sie legen je Woche fest, wie viele Kinder mitmachen können. Plätze gehen in der Reihenfolge der Anmeldung. Ist eine Woche voll, kommt das Kind auf die Warteliste und rückt automatisch nach.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Hourglass",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+        "Der Ferienzeitraum hat Wochen. Die legen Sie im Reiter `Planung` an.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Plätze festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Ferienbetreuung`.",
+            "Öffnen Sie den Ferienzeitraum.",
+            "Wählen Sie den Reiter `Plätze`.",
+            "Wählen Sie bei der Woche `Plätze ändern`.",
+            "Schalten Sie `Plätze begrenzen` ein und stellen Sie die Zahl ein.",
+            "Wählen Sie `Plätze speichern`.",
+          ],
+        },
+        {
+          title: "Warteliste ansehen",
+          steps: [
+            "Unter jeder Woche steht `Warteliste` mit allen Kindern, die auf einen Platz warten.",
+            "Die Zahl vorne ist der Rang. Das Kind mit der 1 bekommt den nächsten freien Platz.",
+            "Berücksichtigt der Ferienzeitraum den Ferienwunsch, stehen Kinder mit `Ohne Ferienwunsch` hinter den anderen.",
+            "Wählen Sie ein Kind, um seine Anmeldung zu öffnen.",
+          ],
+        },
+        {
+          title: "Wann ein Kind nachrückt",
+          steps: [
+            "Sie stornieren eine Anmeldung mit Platz.",
+            "Sie buchen ein Kind aus der Woche heraus.",
+            "Sie geben der Woche mehr Plätze oder heben die Grenze auf.",
+          ],
+          ordered: false,
+        },
+      ],
+      result:
+        "Das nächste Kind der Warteliste hat sofort einen Platz. Die Anmeldung gilt dann auch für diese Woche. Ist die Anmeldung verbindlich, ist es der Platz auch. Die Eltern bekommen eine E-Mail. Ist die Anmeldung bestätigt, rechnet moto den Ferienbeitrag mit der neuen Woche neu.",
+      notes: [
+        "Die Plätze gelten für alle Zeitmodelle einer Woche zusammen.",
+        "Bei einer Woche mit einzelnen Tagen gelten die Plätze an jedem Tag. Unter `Plätze je Tag` sehen Sie, wie voll jeder Tag ist. Ein Kind bekommt seinen Platz, wenn alle seine Tage frei sind. Sonst wartet es mit allen Tagen dieser Woche. Ein Kind mit anderen Tagen kann dann vor ihm einen Platz bekommen.",
+        "Eingegangene und bestätigte Anmeldungen zählen. Stornierte zählen nicht.",
+        "Geschwister bekommen ihre Plätze einzeln. Ein Kind kann einen Platz haben und das andere auf der Warteliste stehen.",
+        "Weniger Plätze nehmen niemandem den Platz weg. Neue Anmeldungen kommen dann auf die Warteliste.",
+        "Kinder auf der Warteliste zahlen nichts. Sie stehen auch nicht auf der Teilnehmerliste der ausrichtenden OGS.",
+        "Eltern sehen nach dem Absenden und in der E-Mail, in welchen Wochen ihr Kind einen Platz hat und wo es auf der Warteliste steht.",
+        "Ohne Grenze bekommt jedes angemeldete Kind einen Platz. So ist jede neue Woche eingestellt.",
+      ],
+      differences: [
+        "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
+        "Bei einer Woche steht `2 Tage voll` oder `Alle Tage voll`? Die Woche wird tageweise gebucht. An diesen Tagen sind alle Plätze vergeben.",
+        "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
+      ],
+      troubleshootingDetails: [
+        "Die Warteliste rückt nicht nach, obwohl Sie mehr Plätze eingetragen haben? Laden Sie die Seite neu. Steht das Kind noch auf der Warteliste, ist die Zahl nicht höher als die vergebenen Plätze.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerHolidayWish,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayPlacesTopic;
 
 /** `/traeger/ferien/[id]/anmeldungen` (#4663): Anmeldungen prüfen. */
 export const traegerHolidayRegistrationReviewTopic =
@@ -11731,7 +12107,10 @@ export const traegerHolidayRegistrationReviewTopic =
           steps: [
             "Wählen Sie beim Kind `Umbuchen`.",
             "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
+            "Wird die Woche tageweise gebucht, wählen Sie darunter die Tage. Mehr Tage als `Höchstens Tage je Kind` nimmt moto nicht an.",
             "Wählen Sie `Speichern`.",
+            "Eine Woche, die das Kind nicht mehr bucht, gibt ihren Platz frei. Das nächste Kind der Warteliste rückt sofort nach. Eine neue Woche bekommt einen Platz, wenn einer frei ist. Sonst kommt das Kind dort auf die Warteliste.",
+            "Kommt bei einer Woche mit einzelnen Tagen ein Tag dazu, braucht das Kind an jedem Tag einen Platz. Fehlt einer, wartet die ganze Woche wieder. Fallen nur Tage weg, behält das Kind seinen Platz.",
           ],
         },
         {
@@ -11753,7 +12132,9 @@ export const traegerHolidayRegistrationReviewTopic =
       result:
         "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
-        "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
+        "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
+        "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
+        "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
@@ -11761,7 +12142,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
         "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
-        "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
+        "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
         "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
         "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
         "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
@@ -11789,7 +12170,9 @@ export const traegerHolidayRegistrationReviewTopic =
       related: [
         HELP_TOPICS.traegerHolidayRegistration,
         HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayPlaces,
         HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerHolidayWish,
       ],
     };
   } satisfies typeof authored_traegerHolidayRegistrationReviewTopic;
@@ -11838,6 +12221,79 @@ export const traegerHolidayRegistrationTopic =
       related: [HELP_TOPICS.traegerHolidayPeriod],
     };
   } satisfies typeof authored_traegerHolidayRegistrationTopic;
+
+/**
+ * Ferienwunsch aus der OGS-Anmeldung (#4703): Vorrang oder nur mit
+ * Ferienwunsch, die Prüfung durch das Büro.
+ */
+export const traegerHolidayWishTopic =
+  function traegerHolidayWishTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayWish,
+      title: "Ferienwunsch aus der OGS-Anmeldung",
+      question: "Wie bekommen Kinder mit Ferienwunsch Vorrang?",
+      summary:
+        "Eltern geben in der OGS-Anmeldung an, ob ihr Kind in den Ferien Betreuung braucht. Sie schalten je Ferienzeitraum ein, dass dieser Ferienwunsch zählt.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Sun",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+        "Die OGS fragt den Ferienwunsch in ihrer Formularvorlage ab. Das schaltet die OGS bei `Ferienwunsch (Kind)` mit `Ferienwunsch abfragen` ein.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Festlegen, was ohne Ferienwunsch gilt",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen`.",
+            "Wählen Sie `Allgemein` und dann den Reiter `Ferienbetreuung`.",
+            "Wählen Sie bei `Was gilt ohne Ferienwunsch?`: `Kinder mit Ferienwunsch haben Vorrang` oder `Nur Kinder mit Ferienwunsch können sich anmelden`.",
+          ],
+        },
+        {
+          title: "Für einen Ferienzeitraum einschalten",
+          steps: [
+            "Wählen Sie in der Navigation `Ferienbetreuung`.",
+            "Öffnen Sie den Ferienzeitraum und wählen Sie den Reiter `Planung`.",
+            "Schalten Sie `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` ein.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Ferienwunsch prüfen",
+          description:
+            "Ist der Ferienwunsch nicht bekannt, steht beim Kind `Ferienwunsch prüfen`.",
+          steps: [
+            "Wählen Sie im Reiter `Anmeldungen` beim Filter `Ferienwunsch` den Eintrag `Ferienwunsch prüfen`.",
+            "Öffnen Sie eine Anmeldung.",
+            "Fragen Sie bei der OGS nach, was in der OGS-Anmeldung steht.",
+            "Wählen Sie beim Kind unter `Ferienwunsch` den Knopf `Mit Ferienwunsch` oder `Ohne Ferienwunsch`.",
+          ],
+        },
+      ],
+      result:
+        "Ist eine Woche voll, warten Kinder ohne Ferienwunsch auf der Warteliste hinter den anderen. Im Reiter `Plätze` stehen sie mit `Ohne Ferienwunsch`.",
+      notes: [
+        "Freie Plätze gehen weiter in der Reihenfolge der Anmeldung. Ein Platz, den ein Kind schon hat, bleibt.",
+        "Eltern mit Elternkonto sehen den Ferienwunsch ihres Kindes vor dem Absenden. moto prüft ihn dann selbst. Bei `Nur Kinder mit Ferienwunsch können sich anmelden` geht das Absenden ohne Ferienwunsch nicht.",
+        "Es zählt die zugesagte OGS-Anmeldung des Schuljahres, in dem der Ferienzeitraum beginnt.",
+        "Feriengäste ohne OGS-Platz sind nicht betroffen.",
+        "Nur das Träger-Büro sieht den Ferienwunsch und `Ferienwunsch prüfen`. Eltern, die Bestätigung und die ausrichtende OGS sehen ihn nicht.",
+      ],
+      differences: [
+        "Beim Kind steht nichts zum Ferienwunsch? Der Ferienzeitraum berücksichtigt ihn nicht, oder das Kind ist ein Feriengast.",
+      ],
+      troubleshootingDetails: [
+        "Auch mit Elternkonto kann der Ferienwunsch fehlen. Dann steht beim Kind `Ferienwunsch prüfen`. Bitte fragen Sie bei der OGS nach.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPlaces,
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+        HELP_TOPICS.traegerHolidayPeriod,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayWishTopic;
 
 /** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
 export const traegerInvitationTopic =
@@ -12156,7 +12612,8 @@ export const traegerSepaDebitFileTopic =
       result:
         "Die Karte zeigt `Bei der Bank eingereicht`. Bei einem neuen Mandat ist die nächste Abbuchung eine Folgelastschrift. Auf der Seite des Mandats steht jede Abbuchung unter `Abbuchungen`.",
       notes: [
-        "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt sie gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+        "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt ihr Inhalt gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+        "Jeder Download bekommt eine neue Dateinummer im Namen und steht unter `Abrechnung` → `Exporte` im `Exportprotokoll`.",
         "Eine Lastschrift, die schon fällig war, bucht die Datei am nächsten Tag ab.",
         "Ein Einmalmandat darf nur eine Rechnung einziehen. Bei mehreren Rechnungen klären Sie mit der Familie, wie sie zahlt.",
         "Ein Mandat gilt 36 Monate nach der letzten Abbuchung. Danach braucht die Familie ein neues Mandat.",
@@ -12241,7 +12698,7 @@ export const traegerSepaMandatesTopic =
             "Wählen Sie bei `Die Spalte „Zahler“ enthält`, ob dort die E-Mail der Familie oder die Vertragsnummer steht.",
             "Hat Ihre Datei keine Spalte mit der Gläubiger-ID? Dann bestätigen Sie, dass alle Mandate zu Ihrer Gläubiger-ID gehören.",
             "Prüfen Sie die Zeilen unter `Prüfen und übernehmen`. Bei `Bitte klären` wählen Sie unter `Schon abgebucht?` die Antwort `Ja` oder `Nein`.",
-            "Wählen Sie `Mandate übernehmen`.",
+            "Wählen Sie unten `übernehmen`. Der Knopf nennt Mandate und Debitorennummern getrennt.",
           ],
         },
         {
@@ -12262,7 +12719,7 @@ export const traegerSepaMandatesTopic =
         "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
-        "Beim Import übernimmt moto nur Zeilen mit dem Stand `Bereit`. Zeilen mit Fehlern oder Konflikten bleiben draußen. Korrigieren Sie die Datei und laden Sie sie noch einmal: Was schon da ist, zeigt moto als `Schon vorhanden`.",
+        "Mandate übernimmt moto nur mit dem Stand `Bereit`. Fehlende Debitorennummern können Sie auch bei vorhandenen Mandaten übernehmen. Die Vorschau zählt jede Familie einmal. Unterschiedliche Nummern werden nicht übernommen. Korrigieren Sie die Datei und laden Sie sie noch einmal.",
         "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
         "Wissen Sie, dass die letzte Abbuchung lange her ist? Dann tragen Sie das Datum in der Datei ein oder holen ein neues Mandat ein. Ohne Datum geht moto davon aus, dass das Mandat bis kurz vor dem Import genutzt wurde.",
       ],

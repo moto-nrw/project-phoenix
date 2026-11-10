@@ -5,6 +5,10 @@ const CodeTraegerAccessLogExportTooLarge = "traeger.access_log_export_too_large"
 const CodeTraegerAlreadyMember = "traeger.already_member"
 const CodeTraegerBankAccountLabelTaken = "traeger.bank_account_label_taken"
 const CodeTraegerBankAccountNotFound = "traeger.bank_account_not_found"
+const CodeTraegerClosingDayBookingsChanged = "traeger.closing_day_bookings_changed"
+const CodeTraegerClosingDayInvalid = "traeger.closing_day_invalid"
+const CodeTraegerClosingDayNotFound = "traeger.closing_day_not_found"
+const CodeTraegerClosingDaySchoolOutside = "traeger.closing_day_school_outside"
 const CodeTraegerDocumentAlreadyReleased = "traeger.document_already_released"
 const CodeTraegerDocumentAudienceInvalid = "traeger.document_audience_invalid"
 const CodeTraegerDocumentInvalid = "traeger.document_invalid"
@@ -30,6 +34,10 @@ var errorCodeClassesTraeger = []errorCodeClass{
 	{CodeTraegerAlreadyMember, "business_rejection"},
 	{CodeTraegerBankAccountLabelTaken, "input"},
 	{CodeTraegerBankAccountNotFound, "input"},
+	{CodeTraegerClosingDayBookingsChanged, "business_rejection"},
+	{CodeTraegerClosingDayInvalid, "input"},
+	{CodeTraegerClosingDayNotFound, "input"},
+	{CodeTraegerClosingDaySchoolOutside, "input"},
 	{CodeTraegerDocumentAlreadyReleased, "business_rejection"},
 	{CodeTraegerDocumentAudienceInvalid, "input"},
 	{CodeTraegerDocumentInvalid, "input"},

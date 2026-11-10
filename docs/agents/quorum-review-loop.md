@@ -15,12 +15,14 @@ only base-update behavior; the review/fix loop stays as configured.
 
 Before merging, fetch the PR's base and check mergeability. Fetching updates
 remote references; it does not merge or rebase the base into the PR. Update the
-branch to resolve actual conflicts (`DIRTY`), not merely because it is `BEHIND`
-or the base has advanced. For stacks, follow the
+branch only for actual conflicts (`DIRTY`) or when the PR adds or changes
+migrations, not merely because it is `BEHIND` or the base has advanced.
+`BASE_UPDATE=conflicts` does not cover the migration case: merge the base
+yourself, then check migration numbers and order against it and against open
+PRs. For stacks, follow the
 [stacked-PR workflow](../../.agents/skills/stacked-pr/SKILL.md#keep-the-stack-current).
-Check new migration numbers against the fetched base and open PRs without
-merging the base just to inspect them. Check relevant interactions with recent
-base changes; investigate concrete integration risks without routine sync commits.
+Check relevant interactions with recent base changes; investigate concrete
+integration risks without routine sync commits.
 
 The final check still applies: the PR is ready, its current head has passed
 required local checks and CI, review blockers are resolved, and it is

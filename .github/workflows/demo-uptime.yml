@@ -26,6 +26,9 @@ jobs:
     name: Probe the public demo
     if: github.event_name == 'workflow_dispatch' || vars.DEMO_MONITOR_ENABLED == 'true'
     runs-on: ubuntu-latest
+    # Healthy maximum: 6 s; three failed probes can consume 255 s of
+    # requests/retry delays before the failure notification can run.
+    timeout-minutes: 5
     steps:
       - name: Probe health endpoints and certificate
         id: probe

@@ -42,6 +42,8 @@ func NewMailRenderers() enrollment.MailRenderers {
 			phaseFullSubject: "Anmeldung verlängert: %s - %s",
 		})),
 		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
+		HolidayPlaceGranted:         renderHolidayPlaceGranted,
+		HolidayClosureNotice:        renderHolidayClosureNotice,
 	}
 }
 
@@ -60,8 +62,12 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 		subject = "Ferienanmeldung eingegangen: " + payload.PeriodName
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
 	for _, child := range payload.Children {
-		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+		children = append(children, map[string]any{
+			"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks,
+		})
+		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -74,7 +80,77 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 			"PeriodName":   payload.PeriodName,
 			"Binding":      payload.Binding,
 			"Children":     children,
+			"Waitlisted":   waitlisted,
 			"Declaration":  holidayDeclarationContent(payload.Declaration),
+		},
+	}, nil
+}
+
+// renderHolidayPlaceGranted renders the mail that a child moved up from the
+// waiting list of a holiday week (#4699). The Träger is the sender.
+func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayPlaceGrantedMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday place mail: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	subject := "Ferienplatz frei geworden"
+	if payload.PeriodName != "" {
+		subject = "Ferienplatz frei geworden: " + payload.PeriodName
+	}
+	children := make([]map[string]any, 0, len(payload.Children))
+	for _, child := range payload.Children {
+		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    subject,
+		Template:   "holiday-place-granted.html",
+		Content: map[string]any{
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"Binding":      payload.Binding,
+			"Children":     children,
+		},
+	}, nil
+}
+
+// renderHolidayClosureNotice renders the mail that a booked holiday week has
+// a day without care (#6434). The Träger is the sender.
+func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayClosureMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday closure mail: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
+	for _, child := range payload.Children {
+		weeks := make([]map[string]any, 0, len(child.Weeks))
+		for _, week := range child.Weeks {
+			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted})
+			waitlisted = waitlisted || week.Waitlisted
+		}
+		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": weeks})
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    "Ferienbetreuung: An einem gebuchten Tag ist geschlossen",
+		Template:   "holiday-closure-notice.html",
+		Content: map[string]any{
+			"GuardianName":      payload.GuardianName,
+			"SchoolName":        payload.TraegerName,
+			"Reasons":           payload.Reasons,
+			"Children":          children,
+			"Waitlisted":        waitlisted,
+			"KeepsContribution": payload.KeepsContribution,
 		},
 	}, nil
 }

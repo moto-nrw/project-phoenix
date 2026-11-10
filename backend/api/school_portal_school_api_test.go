@@ -158,7 +158,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 
 	// The tenant-portal twin under /api/class-day no longer exists since the
 	// cutover (#2207 PR 3) — its absence is pinned by the route-table golden,
-	// and TestSchoolScopeRejectedOnAllAPIRoutes keeps the whole /api surface
+	// and the school scope matrix in TestFullProductionRouterGolden keeps the whole /api surface
 	// closed to school tokens.
 
 	// Every non-school scope on the school surface → 401, permission or not.

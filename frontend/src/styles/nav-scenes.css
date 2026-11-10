@@ -140,6 +140,10 @@
 .ns-play[data-nav-scene="CalendarCheckIcon"] .ns-rings2{animation:ns-hop14 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
 .ns-play[data-nav-scene="CalendarCheckIcon"] .ns-draw{animation:ns-draw 320ms var(--ns-o) calc(var(--ns-i,0)*120ms) both}
 
+/* CalendarSlashIcon: Ringe hüpfen, der Tag wird durchgestrichen */
+.ns-play[data-nav-scene="CalendarSlashIcon"] .ns-rings2{animation:ns-hop14 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
+.ns-play[data-nav-scene="CalendarSlashIcon"] .ns-draw{animation:ns-draw 360ms var(--ns-o) calc(var(--ns-i,0)*120ms) both}
+
 /* CalendarPlusIcon: das Plus dreht sich herein */
 .ns-play[data-nav-scene="CalendarPlusIcon"] .ns-rings{animation:ns-hop14 320ms var(--ns-o) both}
 [data-nav-scene="CalendarPlusIcon"] .ns-spinIn{transform-origin:128px 160px} .ns-play[data-nav-scene="CalendarPlusIcon"] .ns-spinIn{animation:ns-spinIn 440ms var(--ns-o) 60ms both}

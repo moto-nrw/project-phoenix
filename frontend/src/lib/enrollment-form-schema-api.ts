@@ -245,8 +245,19 @@ export interface FormField {
 /**
  * `signature` asks the parent to sign the enrollment and every later edit
  * with a simple electronic signature with a drawn signature (#4786).
+ * `holiday_care_wish` asks, and requires, per child whether the child needs
+ * care in the holidays (#4703); the Träger's holiday registration reads the
+ * approved answer.
  */
-export type CoreRequirementKey = "guardian_phone" | "signature";
+export type CoreRequirementKey =
+  "guardian_phone" | "signature" | "holiday_care_wish";
+
+/** Whether the form asks the holiday care wish of every child (#4703). */
+export function holidayCareWishAsked(
+  schema: Pick<PublicFormSchema, "core_requirements"> | null | undefined,
+): boolean {
+  return schema?.core_requirements?.holiday_care_wish === true;
+}
 
 export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
 

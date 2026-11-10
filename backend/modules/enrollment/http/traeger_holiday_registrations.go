@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -42,7 +41,8 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Post("/{id}/registrations/{registrationId}/proofs", rs.uploadOfficeProof)
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
-	review.Put("/{id}/registrations/{registrationId}/children/{childId}/bookings", rs.rebookChild)
+	review.Get("/{id}/places", rs.listPlaces)
+	review.Put("/{id}/registrations/{registrationId}/children/{childId}/holiday-wish", rs.setHolidayWish)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Put("/{id}/registrations/{registrationId}/details", rs.editRegistration)
 }
 
@@ -57,12 +57,12 @@ func reviewerOf(w http.ResponseWriter, r *http.Request) (capability.HolidayRevie
 	return capability.HolidayReviewer{OrganizationID: principal.OrganizationID(), AccountID: principal.AccountID()}, true
 }
 
-// registrationFilter reads status, school, week_id and time_model.
+// registrationFilter reads status, school, week_id, time_model and wish.
 func registrationFilter(r *http.Request) (capability.HolidayRegistrationFilter, error) {
 	query := r.URL.Query()
 	filter := capability.HolidayRegistrationFilter{
 		Status: strings.TrimSpace(query.Get("status")), School: strings.TrimSpace(query.Get("school")),
-		TimeModel: strings.TrimSpace(query.Get("time_model")),
+		TimeModel: strings.TrimSpace(query.Get("time_model")), Wish: strings.TrimSpace(query.Get("wish")),
 	}
 	if raw := strings.TrimSpace(query.Get("week_id")); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
@@ -143,41 +143,25 @@ func (rs *HolidayPeriodResource) registrationAction(action string) http.HandlerF
 	}
 }
 
-// HolidayRebookingRequest is the body of PUT
-// /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings:
-// the new bookings of the child, one time model per week.
-type HolidayRebookingRequest struct {
-	Bookings []holidayBookingRequest `json:"bookings"`
-}
-
-// Bind accepts the body; the Owner validates the bookings.
-func (req *HolidayRebookingRequest) Bind(*http.Request) error { return nil }
-
-func (rs *HolidayPeriodResource) rebookChild(w http.ResponseWriter, r *http.Request) {
-	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+// listPlaces lists the places and the waiting list of every week of the
+// period (#4699). A rebooking and a new capacity run in the
+// Elternabrechnung, which computes the contribution of whoever moves up.
+func (rs *HolidayPeriodResource) listPlaces(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
 	if !ok {
 		return
 	}
-	childID, err := common.ParseIDParam(r, "childId")
+	periodID, err := common.ParseIDParam(r, "id")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	req := &HolidayRebookingRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	bookings := make([]capability.HolidayBookingInput, len(req.Bookings))
-	for i, booking := range req.Bookings {
-		bookings[i] = capability.HolidayBookingInput(booking)
-	}
-	detail, err := rs.review.RebookHolidayChild(r.Context(), reviewer, periodID, registrationID, childID, bookings)
+	places, err := rs.places.HolidayWeekPlaces(r.Context(), reviewer, periodID)
 	if err != nil {
 		renderHolidayReviewError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, detail, "Holiday registration rebooked successfully")
+	common.Respond(w, r, http.StatusOK, places, "Holiday week places retrieved successfully")
 }
 
 func registrationKey(w http.ResponseWriter, r *http.Request) (capability.HolidayReviewer, int64, int64, bool) {
@@ -203,8 +187,13 @@ func registrationKey(w http.ResponseWriter, r *http.Request) (capability.Holiday
 func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error) {
 	tenant.MarkRollback(r.Context())
 	var fields validation.Errors
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
+	case errors.Is(err, capability.ErrHolidayWishInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrInvalidHolidayRegistrationFilter):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -356,7 +345,7 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			"submitted_at": row.Registration.SubmittedAt.In(calendar.Berlin).Format("02.01.2006 15:04"),
 			"last_name":    row.Child.LastName, "first_name": row.Child.FirstName,
 			"birth_date": row.Child.BirthDate.Format("02.01.2006"), "school": school,
-			"week":        row.Booking.WeekStartsOn.Format("02.01.") + " bis " + row.Booking.WeekEndsOn.Format("02.01.2006"),
+			"week":        holidayExportWeek(row.Booking),
 			"host_school": schoolName(row.Booking.HostSchoolID), "time_model": row.Booking.TimeModelName,
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
@@ -479,4 +468,14 @@ func holidayTextAnswer(question capability.HolidayFormField, answer string) stri
 		}
 	}
 	return answer
+}
+
+// holidayExportWeek names the week of a booking in the export, with its days
+// for a booking of days (#4701).
+func holidayExportWeek(booking capability.HolidayRegistrationBooking) string {
+	week := booking.WeekStartsOn.Format("02.01.") + " bis " + booking.WeekEndsOn.Format("02.01.2006")
+	if len(booking.Days) > 0 {
+		week += " (" + capability.HolidayDayNames(booking.Days) + ")"
+	}
+	return week
 }

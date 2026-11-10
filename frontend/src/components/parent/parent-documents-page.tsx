@@ -46,6 +46,8 @@ const DOCUMENT_TITLES = {
   credit_letter: "creditLetter",
   care_invoice_letter: "careInvoiceLetter",
   care_cancellation_letter: "careCancellationLetter",
+  care_fee_notice: "careFeeNotice",
+  care_change_notice: "careChangeNotice",
   care_contract: "careContract",
 } as const satisfies Record<ParentDocument["kind"], string>;
 

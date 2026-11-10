@@ -368,3 +368,18 @@ func (s *RoleStore) ListAccountAvatars(ctx context.Context, accountIDs []int64) 
 	}
 	return result, nil
 }
+
+// ListRoleHolderAccountIDs reads the role's holders in the caller's school.
+func (s *RoleStore) ListRoleHolderAccountIDs(ctx context.Context, roleID int64) ([]int64, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	query := db.NewSelect().TableExpr("auth.account_roles AS ar").Column("account_id").Where("ar.role_id = ?", roleID).Order("account_id ASC")
+	query = scopeTenantQuery(s.scope(ctx), query, "ar.tenant_id = ?")
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, fmt.Errorf("list role holders: %w", err)
+	}
+	return ids, nil
+}

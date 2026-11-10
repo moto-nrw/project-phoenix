@@ -171,7 +171,7 @@ func composeServeRoot(
 		planExport       planexport.Service
 		workforce        owners.WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin
-		provisioning     organizationtenancy.Provisioning
+		provisioning     organizationtenancy.OperatorProvisioning
 		deliveryDevices  owners.DeliveryDevices
 		emergency        emergencysnapshot.Query
 		reminders        reminder.Module
@@ -514,17 +514,17 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity, identity)
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity, identity, env.Config.RateLimitEnabled)
 	if err != nil {
 		return nil, nil, err
 	}
-	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service)
+	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service, env.Config.RateLimitEnabled)
+	mountPublic(router, metricsToken, db, delivery.Runtime.EmailWebhooks, env.Config.RateLimitEnabled)
 	careOfferings := requests.CareOfferings
 	err = owners.RunRootSteps(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
-		func() error { return mountPublic(router, metricsToken, db, delivery.Runtime.EmailWebhooks) },
 		func() error { return mountRequestFeed(router, tenant, db, logger, config.FrontendURL) },
 		func() error { return mountModuleRoutes(tenant, settings.Service) },
 		func() error {
@@ -569,8 +569,8 @@ func composeServeRoot(
 				return err
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
-				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
-			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, presence.Presence, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, env.BankData, reports.Statistics, requests.OfferingChanges, owners.NewCareContractSchoolHolidays(settings.Service, calendar), env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command, delivery.Runtime.Module))
+				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData, settings.Traeger))
+			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, presence.Presence, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, env.BankData, reports.Statistics, requests.OfferingChanges, owners.NewCareContractSchoolHolidays(settings.Service, calendar), owners.NewHolidaySchoolCalendar(settings.Service, calendar, organizations), owners.NewTraegerCalendarSchools(organizations, settings.Service), env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command, delivery.Runtime.Module))
 		},
 	)
 	if err != nil {
@@ -610,8 +610,8 @@ func developmentWeekProtocolEvenings(
 // its route mounting steps begin.
 func newServeRouteRuntime(
 	db transactionruntime.Database, logger *slog.Logger, iot devicefleetCompose.IoTService,
-	organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
+	organizations organizationtenancy.Query, settings settingsCompose.SettingsService, rateLimitEnabled bool,
 ) (*slog.Logger, authRateLimiters, chi.Router, *deviceauth.Authenticators, studentpresence.Owner) {
-	return logger, authRateLimitersFromEnv(), chi.NewRouter(),
+	return logger, authRateLimitersFromEnv(rateLimitEnabled), chi.NewRouter(),
 		newDeviceAuthentication(iot, organizations, settings, logger), owners.NewLoggedStudentPresence(db, logger)
 }

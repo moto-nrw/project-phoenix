@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -109,7 +110,7 @@ func newOperatorRouter(
 	db transactionruntime.Database, logger *slog.Logger, sessionAuth *sessiontoken.TokenAuth, limiters authRateLimiters,
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
-	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
+	provisioning organizationtenancy.OperatorProvisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 	students importModels.RowImporter[importModels.StudentImportRow], traegerSettings settingsOperatorAPI.TraegerOperations,
 ) (chi.Router, error) {
@@ -138,10 +139,9 @@ func newOperatorRouter(
 		// the corresponding checkout toggle flips on).
 		OnValueSet: settingsWrites.SideEffects.Dispatch,
 	})
-	provisioningConfig := provisioningOperatorAPI.ProvisioningConfig{
-		Service:             provisioning,
-		CaregiverCapability: caregiverCapabilityViews(db, caregivers),
-		AppEnv:              viper.GetString("app_env"),
+	provisioningConfig, err := newProvisioningConfig(provisioning, caregiverCapabilityViews(db, caregivers))
+	if err != nil {
+		return nil, err
 	}
 	isLocalSeedRequest := func(r *http.Request) bool {
 		return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
@@ -178,7 +178,7 @@ func newParentResource(
 	logger *slog.Logger, identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications, delivery deliveryRuntime.Capability,
-	healthData enrollmentOwner.HolidayHealthCipher,
+	healthData enrollmentOwner.HolidayHealthCipher, traegerSettings TraegerBrandingSettings,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
@@ -193,7 +193,7 @@ func newParentResource(
 		),
 		GuardianProfileLoader: newParentGuardianProfiles(guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: organizations},
-		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, healthData, logger),
+		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, healthData, traegerSettings, logger),
 		Push:                  bindParentPushSubscriptions(devices.PushSubscriptions),
 		Preferences:           bindParentPreferences(notifications.Preferences),
 		PWAUsage:              devices.PWAUsage,
@@ -232,4 +232,15 @@ func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),
 	)
+}
+
+// newProvisioningConfig binds the operator provisioning routes to the
+// provisioning, the caregiver capability views and the audit of the Beleg
+// retention (#4720) of the same composition.
+func newProvisioningConfig(provisioning organizationtenancy.OperatorProvisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
+	audit, err := organizationCompose.BelegRetentionAudit(provisioning.Provisioning)
+	return provisioningOperatorAPI.ProvisioningConfig{
+		Service: provisioning, CaregiverCapability: caregivers, AppEnv: viper.GetString("app_env"), BelegRetentionAudit: audit,
+		ErasureOrderRecords: provisioning.ErasureOrderRecords,
+	}, err
 }

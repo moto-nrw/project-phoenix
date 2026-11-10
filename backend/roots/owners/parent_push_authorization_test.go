@@ -137,7 +137,7 @@ func TestBillingDevicePushRechecksCurrentObjectAndExactRelationship(t *testing.T
 				assert.Equal(t, []string{"pending", "pending"}, f.states(t))
 				assert.Equal(t, 2, f.transport.calls)
 				f.transport.err = nil
-				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at = NOW() WHERE tenant_id = ?`, chain.TenantID)
+				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at = 'epoch'::timestamptz WHERE tenant_id = ?`, chain.TenantID)
 				require.NoError(t, err)
 			}
 			switch scenario {
@@ -302,7 +302,7 @@ func TestContractDevicePushRechecksVersionAndExactChild(t *testing.T) {
 				f.runWorker(t)
 				require.Equal(t, 2, f.transport.calls)
 				f.transport.err = nil
-				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at=NOW() WHERE tenant_id=?`, chain.TenantID)
+				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at='epoch'::timestamptz WHERE tenant_id=?`, chain.TenantID)
 				require.NoError(t, err)
 			}
 			switch scenario {
@@ -368,7 +368,7 @@ func TestReleasedDocumentDevicePushRechecksReleaseAndCurrentAudience(t *testing.
 				f.runWorker(t)
 				require.Equal(t, 2, f.transport.calls)
 				f.transport.err = nil
-				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at=NOW() WHERE tenant_id=?`, chain.TenantID)
+				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at='epoch'::timestamptz WHERE tenant_id=?`, chain.TenantID)
 				require.NoError(t, err)
 			}
 			switch scenario {

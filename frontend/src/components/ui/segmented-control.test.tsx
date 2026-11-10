@@ -52,4 +52,26 @@ describe("SegmentedControl", () => {
     list.click();
     expect(onChange).toHaveBeenCalledWith("table");
   });
+
+  it.each(["joined", "pills"] as const)(
+    "names its hint as the description of the group (%s)",
+    (variant) => {
+      render(
+        <>
+          <SegmentedControl
+            variant={variant}
+            ariaLabel="Beträge"
+            ariaDescribedBy="hint"
+            value="a"
+            onChange={vi.fn()}
+            items={[{ value: "a", label: "12,50" }]}
+          />
+          <p id="hint">Bitte ein anderes Zeichen wählen.</p>
+        </>,
+      );
+      expect(
+        screen.getByRole("group", { name: "Beträge" }),
+      ).toHaveAccessibleDescription("Bitte ein anderes Zeichen wählen.");
+    },
+  );
 });

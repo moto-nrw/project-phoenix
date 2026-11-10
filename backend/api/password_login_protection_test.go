@@ -67,11 +67,12 @@ func passwordLoginFixture(t *testing.T, portal string) (*bun.DB, int64, func(str
 	}
 	hash, err := securityruntime.HashPassword(password)
 	require.NoError(t, err)
-	table := "auth.accounts"
+	statement := `UPDATE auth.accounts SET password_hash = ? WHERE id = ?`
 	if portal == "operator" {
-		table = "platform.operators"
+		// A changed operator password moves its credential generation on (#6308).
+		statement = `UPDATE platform.operators SET password_hash = ?, credential_generation = credential_generation + 1 WHERE id = ?`
 	}
-	_, err = db.NewRaw(`UPDATE `+table+` SET password_hash = ? WHERE id = ?`, hash, id).Exec(t.Context())
+	_, err = db.NewRaw(statement, hash, id).Exec(t.Context())
 	require.NoError(t, err)
 	module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)

@@ -24,8 +24,8 @@ no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
 across repos. Changing a code the kiosk branches on is a two-repo change.
-PyrePortal's `CODE_MESSAGES` maps 35 codes; the backend pins them in two
-places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
+PyrePortal's `CODE_MESSAGES` maps 36 codes. `module.not_booked` is pinned
+under Booked modules below; the backend pins the other 35 in two places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
 conflict, staff-clock and open-room codes to the declaration that emits them
 (`TestFullProductionRouterGolden/contracts/IoT_error_code_declarations`). The
 21 codes of the table below are pinned on the wire (see after the table);
@@ -366,6 +366,25 @@ server-side backend call forwards the client IP; a cached fetch keeps the IP
 out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
+
+### Password-reset address limits
+
+Every normalized address receives the same password-reset response sequence,
+regardless of account existence or eligibility for the requested portal. With
+rate limiting enabled, three requests per hour receive the neutral success
+response; the fourth receives `429 / identity.password_reset_rate_limited`
+and `Retry-After` for the remaining window. Portal choice does not create a
+separate address quota. Only eligible accounts receive a reset link.
+
+Identity & Access checks this quota before account lookup. Counter keys are
+purpose-separated HMAC-SHA256 values of the trimmed, lowercase address using
+the existing installation signing secret. Unknown addresses are never stored
+in plaintext or added to the account directory. Counters persist across
+processes and are removed by the existing stale-window cleanup after one day.
+Legacy plaintext counters are moved to hashed keys on their next request,
+without resetting the active quota. Rotating the signing secret starts new
+hashed windows, as it invalidates existing authentication material.
+The public routes retain their separate IP-based abuse limit.
 
 ## Mail provider webhook
 
@@ -856,7 +875,7 @@ Backend paths in this section are relative to `backend/`:
   portal (empty or legacy `tenant` claim) and `platform`. The portal facts
   live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
   pinned to each other by `TestPortalTableMatchesTheTokenGates`.
-  `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
+  `TestFullProductionRouterGolden/contracts/school_scope_matrix` checks school-token rejection under `/api`.
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
@@ -919,16 +938,31 @@ lock, and a code redeems only at its own generation. A refused resend or
 enrollment start answers 401 `identity.invalid_credentials`; tokens issued
 before this claim existed read as generation 0. The own change writes by
 compare-and-swap on the hash the current password was checked against, so of
-two changes on one proof only the first wins. Operators have no credential
-generation yet: their direct sign-in compares the checked hash under the
-operator lock, their MFA artifacts are not bound (#6289 follow-up).
+two changes on one proof only the first wins. Operators hold their own
+credential generation (`platform.operators.credential_generation`, migration
+1.15.882, #6308) under the same rules: one writer
+(`Store.WriteOperatorCredential`, `TestOperatorCredentialHasOneWriter`), the
+trigger `platform.operator_credential_moves_generation`, and the sign-in's
+generation in the enrollment and challenge tokens, the code rows and the
+remembered devices, compared under the operator lock at issue, redemption,
+the exchange's session mint and the device it remembers. The exchange takes
+the redeemed code's `OperatorMFAProof`; a passkey sign-in checks no password
+and binds nothing. Operators start at generation 1: codes, devices and tokens
+from before the binding stand at 0 and are refused. A refused mint, resend or
+enrollment start answers 401 `identity.invalid_credentials`, as on the account
+portals; a code of an older password 401 `identity.mfa_code_invalid`.
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
 CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
 A refresh successor is HMAC-derived from the presented token, so hand-off
 recovery recomputes it. A resend or guardian approval mails a new link and
-voids the previous one; listings return no token. Do not run an old backend
+voids the previous one; listings return no token. A guardian link also
+stores the normalized address it was issued for (migration 1.15.865, #6294):
+validate and accept answer 410 `identity.guardian_invitation_address_changed`
+without profile data once the profile address differs, and accept holds the
+profile row lock the contact edits take. Every new guardian token sets the
+address on file. Do not run an old backend
 against the migrated schema; migration rollback requires a forward fix. Tenant switching preserves proof only from the presented
 account's live same-portal session family, read under the account lock shared with
 MFA reset. Missing, expired, revoked, unverified or foreign-portal families
@@ -1027,10 +1061,16 @@ not composed. The backend routes are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `phone` (callback number, free text; whitespace runs collapsed, at most 50 bytes; dropped without `contact_opt_in`; not stored, it reaches only the team's lead mail), optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
 | `POST /demo/access/reset` | `{token}` → `202 {status: "preparing", entry_url}` (#3470): a fresh demo school is queued for the same access with the same names, the old one is soft-deleted and its sessions are revoked; `entry_url` is the waiting room with the token in the fragment, as in the mailed link. `409 demo_school_preparing` while the current school is still being seeded; `422 demo_access_invalid` for the shared standing school; `429 demo_access_rate_limited` with `Retry-After`, because a restart counts against the same per-address and per-IP windows as a request; `503 demo_capacity_reached` never for a restart, because the old school gives its place back first |
+
+The 10-minute per-address cooldown also applies to requests with a phone
+number. Requests during the cooldown still answer `202 {link_sent: true}`
+but send neither the access link nor the lead mail; the submitted number is
+discarded. Outside the cooldown, a request with a number and `contact_opt_in`
+sends the lead mail even for a known address with unchanged contact consent.
 
 Demo roles (#3467): `caregiver`, `lead`, `all`. A role first becomes the only
 role of the visitor's own caregiver in its school (`user` for `caregiver`,
@@ -1080,7 +1120,14 @@ address lead there too, and the old school's `account_id` and
 `parent_account_id` are forgotten. Expiry runs in the demo process once an
 hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
-through its owner. The standing school is never hidden. A hidden school
+through its owner. Its sessions, of every account and portal, end in the same
+unit, before the school is hidden (`auth.revoke_school_sessions`, #6305; the
+operator soft delete and the demo restart end them the same way through
+`RevokeTokensByTenantID`): every request checks only the session family, not
+the school. Every sign-in and refresh, of every portal, locks the school its
+session row is kept at under a share lock after the account lock, right
+before the row is written, so none mints a session at a school whose
+sessions are ending. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
 its subdomain resolves no tenant. An expired or deleted link answers `410` or
 `404`, and both entry pages show „Dieser Link funktioniert nicht mehr" with
@@ -1131,7 +1178,12 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 For the file erasure of retired demo schools (#5544, ADR 0148) it reads and
 adds rows of `platform.demo_school_file_erasures` (migration 1.15.735), never
 changes or deletes one, and reads `platform.demo_school_origins`, which only a
-trigger on `platform.demo_school_states` writes.
+trigger on `platform.demo_school_states` writes. For the database erasure of
+retired demo schools (#5559, ADR 0189) it may execute only
+`platform.retired_demo_schools_due_for_database_erasure` and
+`platform.erase_retired_demo_school` (migration 1.15.869); the latter alone
+sets `db_erased_at` and `db_row_counts` on the file marker, and a trigger
+rejects a marker the demo role inserts with them.
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,

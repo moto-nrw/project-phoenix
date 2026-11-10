@@ -169,6 +169,7 @@ func BuildEnrollmentFlows(
 			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),
+			FamilyChildrenPurpose: NewEnrollmentFamilyChildrenPurpose(organizations),
 		}),
 		Reports: NewEnrollmentReports(EnrollmentReportSources{
 			Owner: records, Offerings: notices.CareOfferings, AccessLog: audit.Persistence.DataAccessLog,
@@ -181,7 +182,7 @@ func BuildEnrollmentFlows(
 			Bookings: enrollment.CareBookings, Requests: records, Children: records, Guardians: records,
 			LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings, Capacity: capacity,
 			Catalog: records, Notifications: notices.Notifications, GuardianProfileRepo: people.GuardianProfiles,
-			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity},
+			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity, profiles: people.GuardianProfiles},
 			PersonRepo: people.Persons, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
 			Decisions: decisions, BookingGates: offerings.Bookings,
 			CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: carePlanRows.Companions, strandings: people.Students},

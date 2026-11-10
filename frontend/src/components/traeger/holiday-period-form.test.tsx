@@ -14,6 +14,10 @@ const { mockCreate, mockUpdate } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
 }));
 
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path,
+}));
+
 vi.mock("~/lib/traeger-api", () => ({
   createHolidayPeriod: (input: unknown) => mockCreate(input),
   updateHolidayPeriod: (id: string, input: unknown) => mockUpdate(id, input),
@@ -44,6 +48,7 @@ const stored: HolidayPeriod = {
   registrationOpensOn: "2027-01-11",
   registrationClosesOn: "2027-02-26",
   binding: true,
+  holidayWishRule: false,
   notes: "",
   status: "draft",
   publishedAt: null,

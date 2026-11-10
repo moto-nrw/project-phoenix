@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.finance_export_runs",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/finance-exports/runs (#4693):\nthe selects: the Träger binding of the Träger transaction and the released runs with the count of their\nexport files and their newest Sollstellung in one statement. Flat in the number of runs and files.",
+  "route": "GET /traeger/finance-exports/runs"
+}

@@ -1,10 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
-import {
-  SepaImportPreviewCard,
-  importableCount,
-} from "./sepa-import-preview-card";
+import { SepaImportPreviewCard } from "./sepa-import-preview-card";
+
+import { importableCount } from "./sepa-import-format";
 
 function row(line: number, overrides: Partial<ImportRow>): ImportRow {
   return {
@@ -23,6 +22,8 @@ function row(line: number, overrides: Partial<ImportRow>): ImportRow {
     mandateId: null,
     problems: [],
     hints: [],
+    debtorNumber: "",
+    debtorNumberStatus: "",
     ...overrides,
   };
 }
@@ -42,6 +43,7 @@ const result: ImportResult = {
       creditor_id: "",
       sequence: "",
       last_collected_on: "",
+      debtor_number: "",
     },
     payerKey: "email",
     creditorFromTraeger: true,
@@ -58,6 +60,8 @@ const result: ImportResult = {
     conflict: 0,
     invalid: 1,
     imported: 0,
+    debtorNumbers: 0,
+    debtorConflicts: 0,
   },
   rows: [
     row(2, {}),
@@ -109,6 +113,78 @@ describe("SepaImportPreviewCard", () => {
     expect(question).toBeDefined();
     fireEvent.click(screen.getAllByRole("button", { name: "Ja" })[0]!);
     expect(onAnswer).toHaveBeenCalledWith(3, "recurring");
+  });
+
+  it("names the debtor number siblings disagree on (#4693)", () => {
+    render(
+      <SepaImportPreviewCard
+        result={{
+          ...result,
+          rows: [
+            row(2, {
+              debtorNumber: "20 0001",
+              debtorNumberStatus: "siblings_differ",
+            }),
+            row(3, { debtorNumber: "10 0001", debtorNumberStatus: "new" }),
+          ],
+        }}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByText(/Geschwister haben verschiedene Nummern/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "Debitorennummer 10 0001 wird bei der Familie eingetragen.",
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("allows importing only missing debtor numbers for existing mandates", () => {
+    const onApply = vi.fn();
+    const debtorsOnly = {
+      ...result,
+      counts: {
+        ...result.counts,
+        ready: 0,
+        clarify: 0,
+        invalid: 0,
+        duplicate: 2,
+        debtorNumbers: 1,
+        debtorConflicts: 0,
+      },
+      rows: [
+        row(2, {
+          status: "duplicate",
+          debtorNumber: "20 0001",
+          debtorNumberStatus: "new",
+        }),
+        row(3, {
+          status: "duplicate",
+          debtorNumber: "20 0001",
+          debtorNumberStatus: "new",
+        }),
+      ],
+    };
+    render(
+      <SepaImportPreviewCard
+        result={debtorsOnly}
+        answers={{}}
+        applying={false}
+        onAnswer={vi.fn()}
+        onApply={onApply}
+      />,
+    );
+    const button = screen.getByRole("button", {
+      name: "1 Debitorennummer übernehmen",
+    });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(onApply).toHaveBeenCalledOnce();
   });
 
   it("filters the rows with problems", () => {

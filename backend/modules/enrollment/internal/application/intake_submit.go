@@ -214,7 +214,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 		return fmt.Errorf("submit: generate status token: %w", err)
 	}
 	plan.statusToken = token
-	lifetime, err := s.resolveStatusTokenExpiry(ctx)
+	lifetime, err := resolveStatusTokenExpiry(ctx, s.deps.Settings)
 	if err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides 
 	}
 	return &enrollmentNative.RequestChild{
 		RequestID: requestID, FirstName: textnorm.Name(child.FirstName), LastName: textnorm.Name(child.LastName),
-		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass,
+		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, HolidayCareWish: child.HolidayCareWish,
 		CustomData: formValues(child.CustomData), Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
 	}
 }

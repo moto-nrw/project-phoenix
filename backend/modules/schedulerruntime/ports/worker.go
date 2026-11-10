@@ -41,10 +41,16 @@ type WorkerDependencies struct {
 	// TraegerDocumentReadRetention deletes the expired reads of the shared
 	// Träger documents (#4692).
 	TraegerDocumentReadRetention TraegerDocumentReadRetention
-	WorkSessionCleanup           WorkSessionCleaner
-	BreakAutoEnder               BreakAutoEnder
-	AutoCheckouter               AutoCheckouter
-	FeedbackCleaner              FeedbackCleaner
+	// BelegRetention evaluates the Belege of every Träger daily and deletes
+	// those whose instructed period ended (#4720).
+	BelegRetention BelegRetention
+	// SEPADebitDownloadRetention expires the unsubmitted PAIN.008 downloads
+	// of every Träger (ADR 0187).
+	SEPADebitDownloadRetention SEPADebitDownloadRetention
+	WorkSessionCleanup         WorkSessionCleaner
+	BreakAutoEnder             BreakAutoEnder
+	AutoCheckouter             AutoCheckouter
+	FeedbackCleaner            FeedbackCleaner
 	// RetentionSteps are the owners' deletions of a school's nightly cleanup
 	// (#3950), RetentionLog records each deletion; NewWorker builds the run
 	// over them. CleanupRuns keeps each school's last successful nightly run.

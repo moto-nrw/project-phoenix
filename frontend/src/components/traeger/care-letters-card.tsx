@@ -13,9 +13,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ProgressBar } from "~/components/ui/progress-bar";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatCard } from "~/components/ui/stat-card";
 import type { useApiLoadError } from "~/contexts/ToastContext";
 import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
 import type { LetterSource } from "./billing-letters-modal";
@@ -25,8 +23,8 @@ import {
   LettersCreateCard,
   LettersFacts,
 } from "./billing-letters-card";
+import { LetterSendState, lettersToSend } from "./letter-send-state";
 import {
-  type CareLetterSummary,
   type CareLetters,
   createCareLetters,
   previewCareLetter,
@@ -34,10 +32,7 @@ import {
 
 const TITLE = "Schreiben an die Familien";
 
-/** The letters „An alle senden“ sends: open ones of families with an address. */
-export function lettersToSend(summary: CareLetterSummary): number {
-  return Math.max(0, summary.notSent - summary.withoutEmail);
-}
+export { lettersToSend } from "./letter-send-state";
 
 /**
  * Why some letters stay out of the parents inbox, and how the family gets
@@ -51,49 +46,6 @@ export function withoutInboxNote(count: number): string {
 /** „1 Familie“ / „3 Familien“. */
 export function familyCount(count: number): string {
   return count === 1 ? "1 Familie" : `${count} Familien`;
-}
-
-/** The figures of the send state, each letter in exactly one of them. */
-function SendState({ summary }: Readonly<{ summary: CareLetterSummary }>) {
-  const open = lettersToSend(summary);
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-gray-900 tabular-nums">
-          {summary.sent} von {summary.letters} Schreiben gesendet
-        </p>
-        <ProgressBar
-          value={summary.sent}
-          max={Math.max(summary.letters, 1)}
-          tone="green"
-          size="md"
-          label={`${summary.sent} von ${summary.letters} Schreiben gesendet`}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard variant="tile" label="Gesendet" value={summary.sent} />
-        <StatCard
-          variant="tile"
-          label="Wird gesendet"
-          value={summary.queued}
-          tone={summary.queued > 0 ? "blue" : undefined}
-        />
-        <StatCard
-          variant="tile"
-          label="Nicht angekommen"
-          value={summary.failed}
-          tone={summary.failed > 0 ? "red" : undefined}
-        />
-        <StatCard variant="tile" label="Noch nicht gesendet" value={open} />
-        <StatCard
-          variant="tile"
-          label="Ohne E-Mail"
-          value={summary.withoutEmail}
-          tone={summary.withoutEmail > 0 ? "orange" : undefined}
-        />
-      </div>
-    </div>
-  );
 }
 
 export function CareLettersCard({
@@ -204,7 +156,7 @@ export function CareLettersCard({
       }
     >
       <div className="space-y-5">
-        <SendState summary={summary} />
+        <LetterSendState summary={summary} />
         {summary.withoutInbox > 0 ? (
           <Alert type="info" message={withoutInboxNote(summary.withoutInbox)} />
         ) : null}

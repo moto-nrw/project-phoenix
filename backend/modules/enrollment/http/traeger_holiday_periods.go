@@ -1,6 +1,7 @@
 package enrollmenthttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,8 @@ import (
 type HolidayPeriodResource struct {
 	periods       capability.HolidayPeriods
 	review        capability.HolidayRegistrationReview
+	wishes        capability.HolidayWishReview
+	places        HolidayPlaceReads
 	schoolNames   capability.HolidaySchoolNames
 	requireManage common.Middleware
 	requireHealth common.Middleware
@@ -35,11 +38,17 @@ type HolidayPeriodResource struct {
 // schoolNames names the schools in the export. requireHealth admits only a
 // session with the Träger right "Gesundheitsangaben sehen" to the health
 // information of a registration (#4722).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
-	if periods == nil || review == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
-		panic("enrollment http: the holiday periods, the registration review, the school names and the right checks are required")
+// places lists the places of the weeks (#4699).
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, wishes capability.HolidayWishReview, places HolidayPlaceReads, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || wishes == nil || places == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
+		panic("enrollment http: the holiday periods, the registration review, the wish review, the places, the school names and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+	return &HolidayPeriodResource{periods: periods, review: review, wishes: wishes, places: places, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+}
+
+// HolidayPlaceReads lists the places of the weeks of a period (#4699).
+type HolidayPlaceReads interface {
+	HolidayWeekPlaces(ctx context.Context, reviewer capability.HolidayReviewer, periodID int64) ([]capability.HolidayWeekPlaces, error)
 }
 
 // TraegerRouter returns the routes mounted at /traeger/holiday-periods,
@@ -79,18 +88,24 @@ type holidayWeekRequest struct {
 	EndsOn       calendar.Date             `json:"ends_on"`
 	HostSchoolID int64                     `json:"host_school_id"`
 	TimeModels   []holidayTimeModelRequest `json:"time_models"`
+	// BookingUnit is "week" or "day"; empty is a week (#4701).
+	BookingUnit string `json:"booking_unit"`
 }
 
 // HolidayPeriodRequest is the body of POST /traeger/holiday-periods and PUT
 // /traeger/holiday-periods/{id}: the whole period with its weeks. Prices are
 // whole cent.
 type HolidayPeriodRequest struct {
-	Name                 string               `json:"name"`
-	RegistrationOpensOn  calendar.Date        `json:"registration_opens_on"`
-	RegistrationClosesOn calendar.Date        `json:"registration_closes_on"`
-	Binding              bool                 `json:"binding"`
-	Notes                string               `json:"notes"`
-	Weeks                []holidayWeekRequest `json:"weeks"`
+	Name                 string        `json:"name"`
+	RegistrationOpensOn  calendar.Date `json:"registration_opens_on"`
+	RegistrationClosesOn calendar.Date `json:"registration_closes_on"`
+	Binding              bool          `json:"binding"`
+	Notes                string        `json:"notes"`
+	HolidayWishRule      bool          `json:"holiday_wish_rule"`
+	// MaxDaysPerChild bounds the care days per child, null for no bound
+	// (#4701).
+	MaxDaysPerChild *int                 `json:"max_days_per_child"`
+	Weeks           []holidayWeekRequest `json:"weeks"`
 }
 
 // Bind accepts the body; the Owner validates the period as a whole.
@@ -105,11 +120,12 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 		}
 		weeks[i] = capability.HolidayWeekInput{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID, TimeModels: models,
+			BookingUnit: week.BookingUnit,
 		}
 	}
 	return capability.HolidayPeriodInput{
 		Name: req.Name, RegistrationOpensOn: req.RegistrationOpensOn, RegistrationClosesOn: req.RegistrationClosesOn,
-		Binding: req.Binding, Notes: req.Notes, Weeks: weeks,
+		Binding: req.Binding, Notes: req.Notes, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
 	}
 }
 
@@ -220,6 +236,9 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	var fields validation.Errors
 	var refusedHost *capability.HolidayHostSchoolRefusal
 	var refusedDates *capability.HolidayWeeksBookedTogetherRefusal
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayPeriodInvalid))
@@ -228,9 +247,13 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.As(err, &refusedHost):
 		field := fmt.Sprintf("weeks.%d.host_school_id", refusedHost.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger, field))
+	case errors.Is(err, capability.ErrHolidayHostSchoolOutsideTraeger):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger))
 	case errors.As(err, &refusedDates):
 		field := fmt.Sprintf("weeks.%d.starts_on", refusedDates.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayWeeksBookedTogether, field))
+	case errors.Is(err, capability.ErrHolidayBookingUnitBooked):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayBookingUnitBooked))
 	case errors.Is(err, capability.ErrHolidayWeekBooked):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayWeekBooked))
 	case errors.Is(err, capability.ErrHolidayPeriodIncomplete):

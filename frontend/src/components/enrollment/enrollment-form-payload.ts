@@ -2,9 +2,10 @@
 // passed validateEnrollmentForm. Pure: no checks, only mapping.
 
 import { visibleAnswerData } from "~/lib/enrollment-field-visibility";
-import type {
-  PublicFormSchema,
-  PublicLegalBlock,
+import {
+  holidayCareWishAsked,
+  type PublicFormSchema,
+  type PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import type {
   SubmitChildPayload,
@@ -156,6 +157,9 @@ function childPayload(
     // The backend re-validates and normalises the class (#1833/#1663).
     target_school_class:
       derivation.collectsSchoolClass && schoolClass ? schoolClass : undefined,
+    holiday_care_wish: holidayCareWishAsked(rules.schema)
+      ? child.holiday_care_wish
+      : undefined,
     custom_data: customData,
     offering_ids: rules.careOfferingsEnabled
       ? Array.from(child.offering_ids)

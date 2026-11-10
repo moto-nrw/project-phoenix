@@ -166,6 +166,24 @@ describe("SubstitutionSlideOver", () => {
     mockHistory([]);
   });
 
+  it("disables the close control while saving", async () => {
+    let finish!: () => void;
+    const onApply = vi.fn<ApplyFn>(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { onClose } = renderEditor({ onApply });
+    markAbsent();
+    chooseScope("Alle noch offenen Termine");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
+    finish();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
   describe("Radio-Zweige (Absage-Exklusivität)", () => {
     it("blendet die Besetzungs-Kontrollen aus, sobald 'Block absagen' gewählt ist, und wieder ein", () => {
       renderEditor();

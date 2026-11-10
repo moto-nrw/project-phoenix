@@ -111,8 +111,10 @@ func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
 	return value, nil
 }
 
-func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) (time.Duration, error) {
-	days, err := s.deps.Settings.StatusTokenTTLDays(ctx)
+func resolveStatusTokenExpiry(ctx context.Context, settings interface {
+	StatusTokenTTLDays(context.Context) (int, error)
+}) (time.Duration, error) {
+	days, err := settings.StatusTokenTTLDays(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("resolve enrollment.status_token_ttl_days: %w", err)
 	}

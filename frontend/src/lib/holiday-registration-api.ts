@@ -32,7 +32,10 @@ export interface HolidayRegistrationTimeModel {
   readonly name: string;
   readonly startsAt: string;
   readonly endsAt: string;
-  /** Price per week in cent: the base line of the contribution (#5237). */
+  /**
+   * Price in cent: per week, or per day in a week by days (#4701); the base
+   * line of the contribution (#5237).
+   */
   readonly priceCents: number;
 }
 
@@ -42,6 +45,23 @@ export interface HolidayRegistrationWeek {
   readonly endsOn: string;
   readonly hostSchoolName: string;
   readonly timeModels: readonly HolidayRegistrationTimeModel[];
+  /** "day": parents choose single days and prices are per day (#4701). */
+  readonly bookingUnit?: "week" | "day";
+  /**
+   * The days a week by days offers, Monday to Friday without the days
+   * without care, "YYYY-MM-DD".
+   */
+  readonly careDays?: readonly string[];
+  /** Days of a week by days without a free place: a booking of them waits. */
+  readonly fullDays?: readonly string[];
+  /**
+   * Days without care at the host school (#4702); a week booked as a whole
+   * with such a day is not bookable, a week by days leaves the day out.
+   */
+  readonly noCareDays?: readonly {
+    readonly date: string;
+    readonly name: string;
+  }[];
 }
 
 interface HolidayRegistrationSchool {
@@ -59,13 +79,26 @@ export interface HolidayRegistrationOffer {
   readonly notes: string;
   readonly open: boolean;
   readonly weeks: readonly HolidayRegistrationWeek[];
+  /** Care days one child may book over all weeks; null is no bound (#4701). */
+  readonly maxDaysPerChild?: number | null;
   readonly schools: readonly HolidayRegistrationSchool[];
   readonly captchaSiteKey: string;
   /** The questions of the Träger in their current version (#5198). */
   readonly form: HolidayFormVersion;
   /** The German texts of the declarations the form shows (#5626). */
   readonly consentTexts: HolidayConsentTexts;
+  /**
+   * Whether the period takes the holiday care wish of the OGS registration
+   * into account and how (#4703).
+   */
+  readonly holidayWishMode: HolidayWishMode;
 }
+
+/**
+ * "off": the wish does not count; "priority": children without a wish wait
+ * behind; "wish_only": only children with a wish can register (#4703).
+ */
+type HolidayWishMode = "off" | "priority" | "wish_only";
 
 interface BackendOffer {
   traeger_name: string;
@@ -81,6 +114,7 @@ interface BackendOffer {
         starts_on: string;
         ends_on: string;
         host_school_name: string;
+        no_care_days?: { date: string; name: string }[] | null;
         time_models?:
           | {
               id: number;
@@ -90,8 +124,12 @@ interface BackendOffer {
               price_cents: number;
             }[]
           | null;
+        booking_unit?: "week" | "day";
+        care_days?: string[] | null;
+        full_days?: string[] | null;
       }[]
     | null;
+  max_days_per_child?: number | null;
   schools?: { id: number; name: string }[] | null;
   captcha_site_key: string;
   form?: {
@@ -101,6 +139,7 @@ interface BackendOffer {
     address_requirement?: string | null;
   } | null;
   consent_texts?: BackendConsentTexts | null;
+  holiday_wish_mode?: HolidayWishMode;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -130,9 +169,13 @@ export interface HolidayRegistrationPayload {
     readonly bookings: readonly {
       readonly week_id: number;
       readonly time_model_id: number;
+      /** The chosen days of a week by days (#4701). */
+      readonly days?: readonly string[];
     }[];
     /** Answers to the questions per child, by key (#5198). */
     readonly custom_data: Readonly<Record<string, unknown>>;
+    /** The sealed statement of the holiday care wish from the prefill (#4703). */
+    readonly wish_proof?: string;
   }[];
   readonly emergency_contacts: readonly HolidayContactPayload[];
   readonly pickup_persons: readonly HolidayContactPayload[];
@@ -178,6 +221,10 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       startsOn: week.starts_on,
       endsOn: week.ends_on,
       hostSchoolName: week.host_school_name,
+      noCareDays: (week.no_care_days ?? []).map((day) => ({
+        date: day.date,
+        name: day.name,
+      })),
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,
@@ -185,7 +232,11 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
         endsAt: model.ends_at,
         priceCents: model.price_cents,
       })),
+      bookingUnit: week.booking_unit ?? "week",
+      careDays: week.care_days ?? [],
+      fullDays: week.full_days ?? [],
     })),
+    maxDaysPerChild: offer.max_days_per_child ?? null,
     schools: (offer.schools ?? []).map((school) => ({
       id: String(school.id),
       name: school.name,
@@ -200,6 +251,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       ),
     },
     consentTexts: consentTextsFromBackend(offer.consent_texts),
+    holidayWishMode: offer.holiday_wish_mode ?? "off",
   };
 }
 
@@ -255,10 +307,22 @@ export function uploadHolidayProof(
   return postUpload(`${registrationPath(token)}/uploads`, body, file, signal);
 }
 
+/**
+ * Whether one booking of the sent registration got a place or waits on the
+ * waiting list of its week (#4699). The child is named by its position in
+ * the form, from 1.
+ */
+export interface HolidayReceiptPlacement {
+  readonly childPosition: number;
+  readonly weekId: string;
+  readonly placement: "placed" | "waitlisted";
+}
+
+/** Sends the registration and answers with the place of every booking. */
 export async function submitHolidayRegistration(
   token: string,
   payload: HolidayRegistrationPayload,
-): Promise<void> {
+): Promise<readonly HolidayReceiptPlacement[]> {
   const response = await request(registrationPath(token), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -270,12 +334,24 @@ export async function submitHolidayRegistration(
       "Ferienanmeldung konnte nicht gesendet werden",
     );
   }
+  const body = (await response.json().catch(() => null)) as {
+    data?: {
+      placements?:
+        { child_position: number; week_id: number; placement: string }[] | null;
+    };
+  } | null;
+  return (body?.data?.placements ?? []).map((entry) => ({
+    childPosition: entry.child_position,
+    weekId: String(entry.week_id),
+    placement: entry.placement === "waitlisted" ? "waitlisted" : "placed",
+  }));
 }
 
 /** The bookings of one child of the form, for its contribution (#4664). */
 export type HolidayQuoteChild = readonly {
   readonly week_id: number;
   readonly time_model_id: number;
+  readonly days?: readonly string[];
 }[];
 
 /**
@@ -318,6 +394,14 @@ export interface HolidayKnownChild {
   readonly lastName: string;
   /** "YYYY-MM-DD", or "" when the school knows no date of birth. */
   readonly birthDate: string;
+  /**
+   * The holiday care wish from the OGS registration, when the period takes
+   * it into account (#4703): "yes", "no" or "" when the school does not
+   * know it. Only the parent with the relationship right gets it.
+   */
+  readonly holidayWish: "yes" | "no" | "";
+  /** The sealed statement the form sends back with the child. */
+  readonly holidayWishProof: string;
 }
 
 /** What the schools of the Träger know of a parent with an account. */
@@ -345,6 +429,8 @@ interface BackendFamily {
         first_name: string;
         last_name: string;
         birth_date?: string;
+        holiday_wish?: "yes" | "no";
+        holiday_wish_proof?: string;
       }[]
     | null;
 }
@@ -382,6 +468,8 @@ export async function fetchHolidayRegistrationFamily(
       firstName: child.first_name,
       lastName: child.last_name,
       birthDate: child.birth_date ?? "",
+      holidayWish: child.holiday_wish ?? "",
+      holidayWishProof: child.holiday_wish_proof ?? "",
     })),
   };
 }

@@ -100,6 +100,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	var registrations []map[string]any
 	var correction, release, confirmation, takeover, costBearer map[string]any
 	var merges []map[string]any
+	var capacity map[string]any
 	var proofs int
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
@@ -162,6 +163,21 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			assert.NoError(t, json.Unmarshal(raw, &merge))
 			merges = append(merges, merge)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":3,"registration_ids":[9,11]}}`))
+		case "/traeger/holiday-periods/5/places":
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"week_id":51,"placed":2},{"week_id":52,"placed":3}]}`))
+		case "/traeger/holiday-periods/5/registrations":
+			if r.URL.Query().Get("wish") != "check" {
+				_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
+				return
+			}
+			// The late child waits with a wish the office checks (#4703).
+			_, _ = w.Write([]byte(`{"status":"success","data":{"registrations":[{"id":13,"children":[` +
+				`{"id":131,"first_name":"Jonas","last_name":"Spät","holiday_wish_check":true}]}]}}`))
+		case "/traeger/holiday-contributions/5/weeks/52/capacity":
+			raw, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.NoError(t, json.Unmarshal(raw, &capacity))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"week_id":52,"capacity":3,"moved_up":[]}}`))
 		case "/traeger/billing-runs/9/release":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -206,6 +222,17 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key ",
 		"POST /traeger/holiday-contributions/5/sibling-groups Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/12/cancel Bearer traeger-token",
+		// The week of the third sibling is full; one more child waits (#4699).
+		"GET /traeger/holiday-periods/5/places Bearer traeger-token",
+		"PUT /traeger/holiday-contributions/5/weeks/52/capacity Bearer traeger-token",
+		"POST /traeger/holiday-registrations/link-key ",
+		// The period takes the holiday care wish into account; one more
+		// family registers and the office decides the late child (#4703).
+		"GET /traeger/holiday-periods/5 Bearer traeger-token",
+		"PUT /traeger/holiday-periods/5 Bearer traeger-token",
+		"POST /traeger/holiday-registrations/link-key ",
+		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
+		"PUT /traeger/holiday-periods/5/registrations/13/children/131/holiday-wish Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
 		// The Abrechnung chooses the kind of document (#4688).
 		"PUT /traeger/billing-document-kinds/holiday Bearer traeger-token",
@@ -215,6 +242,9 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/billing-runs/9/release Bearer traeger-token",
 		"GET /traeger/billing-runs/9/export Bearer traeger-token",
 		"GET /traeger/billing-runs/9/cost-takeovers/7/export Bearer traeger-token",
+		// The Abrechnung maps and downloads the Sollstellung (#4693).
+		"PUT /traeger/finance-exports/settings/sollstellung Bearer traeger-token",
+		"GET /traeger/finance-exports/runs/holiday-runs/9/sollstellung Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
 	assert.Equal(t, map[string]any{"registration_id": float64(9), "child_id": float64(91), "total_cents": float64(3500),
 		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")
@@ -231,7 +261,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	require.Len(t, weeks, 2)
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(31), weeks[1].(map[string]any)["host_school_id"], "the profile's school hosts both weeks, never the manual test school")
-	require.Len(t, registrations, 4)
+	assert.Equal(t, map[string]any{"capacity": float64(3)}, capacity, "the week holds as many places as it has children with a place")
+	require.Len(t, registrations, 6)
 	registration := registrations[0]
 	children, ok := registration["children"].([]any)
 	require.True(t, ok)
@@ -279,7 +310,7 @@ func TestSeedHolidayPeriodCoversTheSeededHerbstferien(t *testing.T) {
 	t.Parallel()
 
 	today := calendar.NewDate(2026, time.September, 23)
-	period := seedHolidayPeriod(today, 31)
+	period := seedHolidayPeriodShifted(today, 31, 0)
 	assert.Equal(t, "Ferienbetreuung Herbstferien 2026", period["name"])
 	assert.Equal(t, "2026-09-23", period["registration_opens_on"])
 	assert.Equal(t, "2026-10-05", period["registration_closes_on"], "a week before the Ferien")

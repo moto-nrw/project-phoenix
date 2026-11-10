@@ -103,7 +103,7 @@ export interface PortalDescriptor {
    */
   passwordLogin?: PasswordLogin;
   snapshotClaims?: (claims: SnapshotClaims) => boolean;
-  /** Discord, school slug login, Träger hand-off and the staff preview. */
+  /** School slug login, Träger hand-off and the staff preview. */
   tenantFeatures?: true;
 }
 

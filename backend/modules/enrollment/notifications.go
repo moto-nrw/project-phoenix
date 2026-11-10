@@ -179,6 +179,12 @@ type MailRenderers struct {
 	// HolidayRegistrationReceived renders the receipt of a public holiday
 	// registration (#4661), a mail of the Träger.
 	HolidayRegistrationReceived MailRenderer
+	// HolidayPlaceGranted renders the mail that a child moved up from the
+	// waiting list of a holiday week (#4699), a mail of the Träger.
+	HolidayPlaceGranted MailRenderer
+	// HolidayClosureNotice renders the mail that a booked holiday week has a
+	// day without care (#6434), a mail of the Träger.
+	HolidayClosureNotice MailRenderer
 }
 
 // CaptchaVerifier verifies a parent-submitted captcha token against the

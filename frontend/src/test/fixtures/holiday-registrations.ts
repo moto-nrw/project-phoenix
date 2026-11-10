@@ -20,6 +20,7 @@ export const HOLIDAY_PERIOD: HolidayPeriod = {
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishRule: false,
   notes: "",
   status: "published",
   publishedAt: "2026-08-20T10:00:00Z",
@@ -88,6 +89,9 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
       homeSchoolId: "31",
       guestSchoolName: "",
       duplicateRegistrationIds: ["8"],
+      holidayWish: "",
+      holidayWishSource: "",
+      holidayWishCheck: false,
       bookings: [
         {
           weekId: "51",
@@ -96,6 +100,9 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
           hostSchoolId: "31",
           timeModelId: "62",
           timeModelName: "bis 16 Uhr",
+          placement: "placed",
+          waitlistPosition: null,
+          promotedAt: null,
         },
       ],
     },
@@ -107,6 +114,9 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
       homeSchoolId: null,
       guestSchoolName: "Grundschule Melle",
       duplicateRegistrationIds: [],
+      holidayWish: "",
+      holidayWishSource: "",
+      holidayWishCheck: false,
       bookings: [
         {
           weekId: "52",
@@ -115,6 +125,9 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
           hostSchoolId: "32",
           timeModelId: "63",
           timeModelName: "bis 13 Uhr",
+          placement: "placed",
+          waitlistPosition: null,
+          promotedAt: null,
         },
       ],
     },

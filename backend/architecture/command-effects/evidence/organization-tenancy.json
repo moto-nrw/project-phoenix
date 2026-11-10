@@ -49,6 +49,102 @@
       "target_owner": "operator-dashboard-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.BeginTenantExport",
+      "binding_digest": "f183425c109df5c93a764f0c64d80c03",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.BeginTenantExport",
+      "binding_digest": "c5deaf6bb008625cd93dc0373e344f09",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.BeginTenantExport",
+      "binding_digest": "b5e7f6b0ad9b14be76aed1d0aee7e307",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.RecordTenantExport",
+      "binding_digest": "4bf8439d28fa335acdc877b8f9cb60c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.RecordTenantExport",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.tenantExportAudit.RecordTenantExport",
+      "binding_digest": "a5a6a00915117fed9bddf8c45dd8882b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.RecordTenantExport",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ExportFields.ProjectExportField",
+      "binding_digest": "3d0bff6900865862a421b54587104cc5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportProjectedFields.ProjectExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ExportFields.ProjectExportField",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "binding_digest": "0e0725e350245ed408af38ebde57bf92",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAReturn.SEPAReturn",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "binding_digest": "0aa2acbe0447a4f3f0927033072dd3bc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "binding_digest": "8bc6b9f73b9e8bd937abc18a983365f6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "source_owner": "organization-tenancy",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/cmd.write",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",
+      "binding_digest": "31a91b9f1ef52df22484a6e845db0eb2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
+      "binding_digest": "b1693a98a9cdcb61faeb50e3a9be5772",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
+      "binding_digest": "cbcc6121bd9c1ba3b7f4cc07d2e9d050",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",
       "binding_digest": "7dbccdbb893f52d8bfb9fc07c8f4fdb4",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExporter.Export",

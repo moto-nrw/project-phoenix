@@ -1,7 +1,7 @@
 {
   "eyebrow": "Eltern-Portal",
   "title": "Willkommen",
-  "fallbackSchool": "Ihrer Schule",
+  "fallbackSchool": "Ihre Schule",
   "subtitle": "Bestätigen Sie Ihre Einladung für {school} und legen Sie Ihr persönliches Passwort fest.",
   "errorHelpBefore": "Sie können eine neue Einladung bei der Schule anfordern oder sich über",
   "startPage": "die Startseite",

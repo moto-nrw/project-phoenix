@@ -122,7 +122,7 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), rt.Bootstrap.SchoolID))
+	raw, err := seedHolidayPeriodOutsideNoCareDays(rt.Client, auth, calendar.TodayDate(), rt.Bootstrap.SchoolID)
 	if err != nil {
 		return fmt.Errorf("create the holiday period: %w", err)
 	}
@@ -368,7 +368,10 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 		return fmt.Errorf("merge the siblings of two registrations: %w", err)
 	}
 	fmt.Println("  Träger-Büro: the third sibling's registration merged with the siblings")
-	return seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings)
+	if err := seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings); err != nil {
+		return err
+	}
+	return seedHolidayWaitlist(rt, auth, token, periodID, sibling)
 }
 
 // seedHolidayAfterConfirmation corrects the confirmed siblings' details
@@ -726,11 +729,12 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 	return ids, nil
 }
 
-// seedHolidayPeriod is the request body: the two Herbstferien weeks, Monday
-// to Friday, both hosted by host, with prices in whole cent.
-func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
+// seedHolidayPeriodShifted is the seeded holiday period with two weeks from
+// the autumn holidays on, Monday to Friday, hosted by host, with prices in
+// whole cent; both weeks shifted by shift weeks.
+func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[string]any {
 	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
-	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day())
+	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day()).AddDays(7 * shift)
 	weeks := make([]map[string]any, 0, 2)
 	for i := range 2 {
 		monday := firstMonday.AddDays(7 * i)

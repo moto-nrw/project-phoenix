@@ -50,6 +50,7 @@ import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ParentFamilyChildrenCard } from "~/components/parent/parent-family-children-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
@@ -671,6 +672,8 @@ function EnrollmentStatusContent({
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
+      {/* Kinder in der Familie (#6335): only where the school asks. */}
+      <ParentFamilyChildrenCard source={{ kind: "enrollment", token }} />
       <GuardianSection
         allEditable={allEditable}
         canRequestChange={canRequestChange}
@@ -1404,6 +1407,7 @@ function ChangeRequestsPanel({
         custom_data: t("diff.child.custom_data"),
         date_of_birth: t("diff.child.date_of_birth"),
         first_name: t("diff.child.first_name"),
+        holiday_care_wish: t("diff.child.holiday_care_wish"),
         last_name: t("diff.child.last_name"),
         offering_days: t("diff.child.offering_days"),
         offering_ids: t("diff.child.offering_ids"),

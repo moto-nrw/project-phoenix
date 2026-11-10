@@ -149,12 +149,14 @@ func (l GuardianLink) HasPermission(name string) bool {
 	return slices.Contains(l.Permissions, name)
 }
 
-// GuardianWithLink is a child's guardian together with the link and whether
-// an invitation is still open for that guardian on that child.
+// GuardianWithLink is a child's guardian together with the link, whether an
+// invitation is still open for that guardian on that child, and whether the
+// guardian's link ended unused and needs a new invitation (#6294).
 type GuardianWithLink struct {
-	Guardian          Guardian
-	Link              GuardianLink
-	InvitationPending bool
+	Guardian            Guardian
+	Link                GuardianLink
+	InvitationPending   bool
+	InvitationLinkEnded bool
 }
 
 // StudentWithLink is a guardian's child together with the link. Graduated

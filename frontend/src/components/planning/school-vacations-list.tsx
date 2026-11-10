@@ -101,10 +101,7 @@ export function SchoolVacationsList({
   readonly periodsLoading: boolean;
 }) {
   const today = useBerlinToday();
-  const window = useMemo(
-    () => holidayWindow(periods, today),
-    [periods, today],
-  );
+  const window = useMemo(() => holidayWindow(periods, today), [periods, today]);
   const { data, error, isLoading, mutate } = useSWRAuth<SchoolVacations>(
     periodsLoading
       ? null

@@ -11,16 +11,14 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
-// PasswordResetDependencies compose the password reset flows (#2722). They
-// require the session dependencies: the flows reuse the portal-role lookups
-// and the session revocation.
+// PasswordResetDependencies add reset policy and delivery to the session flows.
 type PasswordResetDependencies struct {
-	// DeliveryFor builds the delivery over the recorder of its outcome; the
-	// composition calls it once.
+	// DeliveryFor builds delivery over its outcome recorder once.
 	DeliveryFor      func(identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery
 	Passwords        identityPorts.PasswordPolicy
 	Expiry           time.Duration
 	RateLimitEnabled bool
+	RateLimitSecret  []byte
 	Logger           *slog.Logger
 }
 
@@ -45,6 +43,7 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 		Runtime:          runtime,
 		Expiry:           deps.Expiry,
 		RateLimitEnabled: deps.RateLimitEnabled,
+		RateLimitSecret:  deps.RateLimitSecret,
 		Logger:           deps.Logger,
 	})
 }

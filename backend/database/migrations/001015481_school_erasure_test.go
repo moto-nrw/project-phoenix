@@ -133,9 +133,15 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		// removes it (the demo erasure deletes the invoice). Träger data
 		// (scope organization), outside the plan of a school.
 		"parent_billing.care_invoice_corrections:parent_billing.refuse_care_invoice_correction_change",
+		// ADR 0187: a stored PAIN.008 file goes with its members (debits,
+		// notices of its installments, mandates). All are
+		// organization-scoped, outside the school erasure plan; no edge.
+		"parent_billing.care_notices:parent_billing.drop_sepa_debit_files_with_their_members",
 		// #5628: drops a sibling group of a Träger left with one holiday
 		// registration; Träger data, outside the plan of a school.
 		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",
+		"parent_billing.sepa_debits:parent_billing.drop_sepa_debit_files_with_their_members",
+		"parent_billing.sepa_mandates:parent_billing.drop_sepa_debit_files_with_their_members",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",

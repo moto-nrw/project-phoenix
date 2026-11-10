@@ -52,11 +52,11 @@ func (p probedClassList) FindExisting(ctx context.Context, row importModels.Clas
 	return p.ClassListImportConfig.FindExisting(ctx, row)
 }
 
-func (p probedClassList) ChunkKey(row importModels.ClassListEntryImportRow) string {
+func (p probedClassList) ChunkKeys(row importModels.ClassListEntryImportRow) []string {
 	if key, ok := p.chunkKeyByName[row.FirstName]; ok {
-		return key
+		return []string{key}
 	}
-	return p.ClassListImportConfig.ChunkKey(row)
+	return p.ClassListImportConfig.ChunkKeys(row)
 }
 
 func (p probedClassList) ResolveChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow) (ports.ImportConfig[importModels.ClassListEntryImportRow], error) {
@@ -357,6 +357,15 @@ type faultConnector struct {
 	prefix2 string
 	err2    error
 	armed2  *atomic.Bool
+	// decide, when set, replaces both rules: it sees every statement and
+	// returns the error to inject, or nil.
+	decide func(query string) error
+	// rollback, when set, sees every transaction ROLLBACK after the real one
+	// ran and returns the error to report instead, or nil.
+	rollback func() error
+	// commit, when set, sees every transaction COMMIT after the real one ran
+	// and returns the error to report instead, or nil.
+	commit func() error
 }
 
 func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -373,6 +382,9 @@ type faultConn struct {
 }
 
 func (c *faultConn) fail(query string) error {
+	if c.connector.decide != nil {
+		return c.connector.decide(query)
+	}
 	if second := c.connector; second.armed2 != nil && strings.HasPrefix(strings.TrimSpace(query), second.prefix2) && second.armed2.CompareAndSwap(true, false) {
 		return second.err2
 	}
@@ -406,7 +418,42 @@ func (c *faultConn) QueryContext(ctx context.Context, query string, args []drive
 }
 
 func (c *faultConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	return c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
+	tx, err := c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
+	if err != nil || (c.connector.rollback == nil && c.connector.commit == nil) {
+		return tx, err
+	}
+	return faultTx{Tx: tx, rollback: c.connector.rollback, commit: c.connector.commit}, nil
+}
+
+// faultTx reports an injected failure of ROLLBACK after it really rolled
+// back, so the connection never returns to the pool inside a transaction.
+type faultTx struct {
+	driver.Tx
+	rollback, commit func() error
+}
+
+func (t faultTx) Rollback() error {
+	err := t.Tx.Rollback()
+	if t.rollback == nil {
+		return err
+	}
+	if injected := t.rollback(); injected != nil {
+		return injected
+	}
+	return err
+}
+
+// Commit reports an injected failure after the real COMMIT: the outcome is
+// durable, the caller cannot know it.
+func (t faultTx) Commit() error {
+	err := t.Tx.Commit()
+	if t.commit == nil {
+		return err
+	}
+	if injected := t.commit(); injected != nil {
+		return injected
+	}
+	return err
 }
 
 func (c *faultConn) Ping(ctx context.Context) error {

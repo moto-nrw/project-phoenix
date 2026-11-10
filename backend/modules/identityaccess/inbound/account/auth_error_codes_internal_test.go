@@ -42,6 +42,9 @@ func TestInvitationRefusalsCarryCodes(t *testing.T) {
 		{identityaccess.ErrInvitationExpired, http.StatusGone, "identity.invitation_expired"},
 		{identityaccess.ErrInvitationUsed, http.StatusGone, "identity.invitation_expired"},
 		{identityaccess.ErrGuardianAccessMailNotQueued, http.StatusServiceUnavailable, "identity.guardian_invitation_email_not_queued"},
+		// #6294: the link of an earlier address; validate and accept answer alike.
+		{identityaccess.ErrGuardianInvitationAddressChanged, http.StatusGone, "identity.guardian_invitation_address_changed"},
+		{&identityaccess.AuthenticationError{Op: "accept guardian invitation", Err: identityaccess.ErrGuardianInvitationAddressChanged}, http.StatusGone, "identity.guardian_invitation_address_changed"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

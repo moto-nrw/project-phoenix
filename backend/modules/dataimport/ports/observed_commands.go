@@ -304,3 +304,20 @@ func (o observedAuditCommand) AppendAll(ctx context.Context, events []any) (err 
 	defer observeCommand(ctx, "audit-platform", "append_all", time.Now(), &err)
 	return batch.AppendAll(ctx, events)
 }
+
+type observedPersonBatches struct{ PersonBatches }
+
+func ObservePersonBatches(source PersonBatches) PersonBatches {
+	if source == nil {
+		return nil
+	}
+	if _, observed := source.(observedPersonBatches); observed {
+		return source
+	}
+	return observedPersonBatches{source}
+}
+
+func (o observedPersonBatches) CreatePersons(ctx context.Context, inputs []CreatePerson) (result []Person, err error) {
+	defer observeCommand(ctx, "people-directory", "create_persons", time.Now(), &err)
+	return o.PersonBatches.CreatePersons(ctx, inputs)
+}

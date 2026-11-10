@@ -16,7 +16,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/segmented-control.tsx",
-    lines: [143, 182, 199],
+    lines: [147, 187, 204],
     reason: "SegmentedControl: Wertauswahl, kein Knopf",
   },
   {
@@ -94,7 +94,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [349],
+    lines: [354],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -126,7 +126,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1544],
+    lines: [1567],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -184,7 +184,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1501],
+    lines: [1524],
     reason: "Statustag-Karte, öffnet das Entfernen: Kachel",
   },
   {

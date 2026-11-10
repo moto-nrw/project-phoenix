@@ -72,6 +72,13 @@ func (l *AccountLifecycle) inviteToStudent(ctx context.Context, req domain.Invit
 	}
 
 	tenantID := l.runtime.TenantID(ctx)
+	// Lock order account, school, profile before anything is written: the
+	// student link, a new profile and the account's school mapping all come
+	// after (#6305). Taking them later would hold the link or the profile
+	// while waiting for the account or the school.
+	if err := l.lockInviteeInOrder(ctx, email); err != nil {
+		return nil, failed(opGuardianInviteToStudent, err)
+	}
 
 	// An existing restrictive contact link would survive the link-if-absent
 	// untouched, leaving the invited account without parent_portal.access
@@ -105,6 +112,26 @@ func (l *AccountLifecycle) inviteToStudent(ctx context.Context, req domain.Invit
 		return nil, err
 	}
 	return l.resolveInviteNow(ctx, req, profile, tenantID, resolved.created, roleUpgrade)
+}
+
+// lockInviteeInOrder takes the locks of an invitation to a child in the one
+// order (#6305): the account of the address, the school, then the guardian
+// profile of the address when it exists.
+func (l *AccountLifecycle) lockInviteeInOrder(ctx context.Context, email string) error {
+	if _, _, _, err := l.logins.LockLoginAccountByEmail(ctx, email); err != nil {
+		return err
+	}
+	if err := l.lockInvitingSchool(ctx); err != nil {
+		return err
+	}
+	existing, found, err := l.guardians.FindGuardianProfileByEmail(ctx, email)
+	if err != nil || !found {
+		return err
+	}
+	if _, _, err := l.guardians.LockGuardianProfile(ctx, existing.ID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // detectRestrictedContact checks whether the invited email already belongs to
@@ -339,13 +366,36 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 		// the upgrade (#2172).
 		if roleUpgrade && !openInvitation.RoleUpgrade {
 			openInvitation.RoleUpgrade = true
-			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, openInvitation.ApprovalStatus); err != nil {
+			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, openInvitation.ApprovalStatus, openInvitation.ExpiresAt); err != nil {
 				return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 			}
+		}
+		if approvalStatus == domain.GuardianInvitationApprovalNotRequired {
+			return l.reissueStudentInvitationLink(ctx, openInvitation, profile)
 		}
 		return openInvitation, nil
 	}
 	return l.insertStudentInvitation(ctx, req, profile, tenantID, approvalStatus, profileCreated, roleUpgrade)
+}
+
+// reissueStudentInvitationLink gives a reused invitation that the caller is
+// about to mail a new link for the address on file and restarts its window.
+// The store keeps only the hash of the old token (#4902), so without a new
+// one the mail would carry no usable link.
+func (l *AccountLifecycle) reissueStudentInvitationLink(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) (domain.GuardianInvitation, error) {
+	readExpiry := invitation.ExpiresAt
+	expiry, err := l.delivery.InvitationExpiry(ctx)
+	if err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+	}
+	issueGuardianInvitationLink(&invitation, profile)
+	invitation.ExpiresAt = time.Now().Add(expiry)
+	invitation.EmailSentAt = nil
+	invitation.EmailError = nil
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus, readExpiry); err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+	}
+	return invitation, nil
 }
 
 // closeSupersededApprovalRequests resolves parent-initiated requests for this
@@ -366,7 +416,7 @@ func (l *AccountLifecycle) closeSupersededApprovalRequests(ctx context.Context, 
 		inv.ApprovedAt = nil
 		accepted := now
 		inv.AcceptedAt = &accepted
-		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, domain.GuardianInvitationApprovalPending); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, domain.GuardianInvitationApprovalPending, inv.ExpiresAt); err != nil {
 			return failed(opGuardianInviteToStudent, err)
 		}
 		l.logger.Info("guardian approval request closed: access granted directly",
@@ -527,11 +577,12 @@ func (l *AccountLifecycle) openStudentInvitations(ctx context.Context, guardianP
 func (l *AccountLifecycle) expireInvitations(ctx context.Context, invitations []domain.GuardianInvitation, now time.Time) error {
 	for _, inv := range invitations {
 		readStatus := inv.ApprovalStatus
+		readExpiry := inv.ExpiresAt
 		inv.ExpiresAt = now
 		if inv.ApprovalStatus == domain.GuardianInvitationApprovalPending {
 			inv.ApprovalStatus = domain.GuardianInvitationApprovalRejected
 		}
-		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, readStatus); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, readStatus, readExpiry); err != nil {
 			return err
 		}
 	}
@@ -683,6 +734,7 @@ func (l *AccountLifecycle) approveInvitationStudentLink(ctx context.Context, inv
 }
 
 func (l *AccountLifecycle) waiveInvitationApproval(ctx context.Context, openInvitation domain.GuardianInvitation, approvalStatus string) (domain.GuardianInvitation, error) {
+	readExpiry := openInvitation.ExpiresAt
 	if openInvitation.ApprovalStatus == domain.GuardianInvitationApprovalPending &&
 		approvalStatus == domain.GuardianInvitationApprovalNotRequired {
 		openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalNotRequired
@@ -695,7 +747,7 @@ func (l *AccountLifecycle) waiveInvitationApproval(ctx context.Context, openInvi
 		openInvitation.ExpiresAt = time.Now().Add(expiry)
 		openInvitation.EmailSentAt = nil
 		openInvitation.EmailError = nil
-		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, domain.GuardianInvitationApprovalPending); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, domain.GuardianInvitationApprovalPending, readExpiry); err != nil {
 			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 		}
 	}

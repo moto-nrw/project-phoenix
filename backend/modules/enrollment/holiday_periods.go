@@ -94,6 +94,19 @@ type HolidayWeek struct {
 	EndsOn       calendar.Date      `json:"ends_on"`
 	HostSchoolID int64              `json:"host_school_id"`
 	TimeModels   []HolidayTimeModel `json:"time_models"`
+	// NoCareDays are the days of the week on which the host school gives
+	// no care (#4702). A week with such a day takes no new booking.
+	NoCareDays []HolidayNoCareDay `json:"no_care_days"`
+	// Capacity is the number of places of the week across its time models;
+	// nil is unlimited (#4699). Only HolidayPlaces changes it. A week by
+	// days has this capacity on each of its days (#4701).
+	Capacity *int `json:"capacity"`
+	// BookingUnit is HolidayBookingUnitWeek or HolidayBookingUnitDay
+	// (#4701); a time model of a week by days prices one day.
+	BookingUnit string `json:"booking_unit"`
+	// CareDays are the bookable days of a week by days, Monday to Friday;
+	// only the public offer fills them (#4701).
+	CareDays []calendar.Date `json:"-"`
 }
 
 // HolidayPeriod is a holiday period of a Träger with its weeks.
@@ -108,7 +121,14 @@ type HolidayPeriod struct {
 	Notes       string     `json:"notes"`
 	Status      string     `json:"status"`
 	PublishedAt *time.Time `json:"published_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	// MaxDaysPerChild bounds the care days one child books in the period,
+	// nil for no bound (#4701).
+	MaxDaysPerChild *int `json:"max_days_per_child"`
+	// HolidayWishRule takes the holiday care wish of the online
+	// registration into account (#4703); the Träger setting
+	// holiday_registration.wish_mode says how.
+	HolidayWishRule bool      `json:"holiday_wish_rule"`
+	UpdatedAt       time.Time `json:"updated_at"`
 	// PublicToken is the key of the period's one public registration link
 	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
 	PublicToken string `json:"public_token"`
@@ -140,6 +160,9 @@ type HolidayWeekInput struct {
 	EndsOn       calendar.Date
 	HostSchoolID int64
 	TimeModels   []HolidayTimeModelInput
+	// BookingUnit is HolidayBookingUnitWeek or HolidayBookingUnitDay; empty
+	// is a week (#4701). It changes only while no booking names the week.
+	BookingUnit string
 }
 
 // HolidayPeriodInput is the whole period as the Träger-Büro writes it.
@@ -149,7 +172,10 @@ type HolidayPeriodInput struct {
 	RegistrationClosesOn calendar.Date
 	Binding              bool
 	Notes                string
-	Weeks                []HolidayWeekInput
+	HolidayWishRule      bool
+	// MaxDaysPerChild bounds the care days per child, nil for no bound.
+	MaxDaysPerChild *int
+	Weeks           []HolidayWeekInput
 }
 
 // HolidayPeriods lets the Träger-Büro plan holiday periods. Every operation

@@ -17,7 +17,6 @@ const {
   clearSettingValue,
   revealSettingValue,
   applyOptimisticSchemaUpdate,
-  getSettingValue,
   SETTINGS_SCHEMA_SWR_KEY,
 } = await import("./settings-api");
 
@@ -178,43 +177,6 @@ describe("SETTINGS_SCHEMA_SWR_KEY", () => {
     // The shared base key is tenant-prefixed by useSWRAuth/useTenantMutate.
     // Locking the value keeps all readers and invalidation paths in sync.
     expect(SETTINGS_SCHEMA_SWR_KEY).toBe("settings-schema");
-  });
-});
-
-describe("getSettingValue", () => {
-  const schema = {
-    tabs: [
-      {
-        categories: [
-          {
-            items: [
-              { key: "timetable.enabled", value: false },
-              { key: "operations.meal_plan_enabled", value: true },
-            ],
-          },
-        ],
-      },
-    ],
-  } as NonNullable<SchemaForTest>;
-
-  it("returns true and false values without treating false as missing", () => {
-    expect(getSettingValue(schema, "timetable.enabled")).toBe(false);
-    expect(getSettingValue(schema, "operations.meal_plan_enabled")).toBe(true);
-  });
-
-  it("returns undefined for missing schemas and keys", () => {
-    expect(getSettingValue(null, "timetable.enabled")).toBeUndefined();
-    expect(getSettingValue(schema, "missing.key")).toBeUndefined();
-  });
-
-  it("ignores malformed nested API collections", () => {
-    const malformedSchema = {
-      tabs: [{ categories: null }, { categories: [{ items: null }] }],
-    } as unknown as NonNullable<SchemaForTest>;
-
-    expect(
-      getSettingValue(malformedSchema, "timetable.enabled"),
-    ).toBeUndefined();
   });
 });
 

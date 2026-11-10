@@ -676,6 +676,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0110",
+      "id": "api/holidayClosureTraeger.HolidayTraeger",
+      "reason": "#6434: Consumer-port adapter of Enrollment's Träger directory for the closure notice; it translates Organisation \u0026 Tenancy's undeleted schools of the Träger into the host school names the mail prints, read in the caller's Träger transaction."
+    },
+    {
       "decision": "0090",
       "id": "api/holidayProofUnits.UploadHolidayProof",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -689,6 +694,11 @@
       "decision": "0110",
       "id": "api/holidayTraegerMail.EnqueueTraegerMail",
       "reason": "ADR 0110 (#4661): Consumer-port adapter of Enrollment's Träger mail outbox; it translates the receipt of a public holiday registration into a Delivery e-mail intent of the Träger, enqueued in the caller's Träger transaction."
+    },
+    {
+      "decision": "0110",
+      "id": "api/holidayWishModes.HolidayWishMode",
+      "reason": "ADR 0110 (#4703): Consumer-port adapter of Enrollment's holiday wish mode port; it reads the Träger's holiday_registration.wish_mode through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
     },
     {
       "decision": "0090",
@@ -852,6 +862,11 @@
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.RebookHolidayChild",
+      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it rebooks through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up from the waiting list again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it records a sibling merge or split through Enrollment's review, which locks the registration and appends the audit entry, in the caller's Träger transaction and translates Enrollment's refusals."
     },
@@ -864,6 +879,11 @@
       "decision": "0121",
       "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
+    },
+    {
+      "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
+      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it sets the capacity of a week through Enrollment's places in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up again in the same unit, and translates the moved-up registrations and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0126",
@@ -899,11 +919,6 @@
       "decision": "0121",
       "id": "api/parentBillingSettings.PaymentText",
       "reason": "ADR 0121 addendum (#5622): Consumer-port adapter of the Elternabrechnung's settings port; it reads the payment text of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
-    },
-    {
-      "decision": "0113",
-      "id": "api/parentHolidayRegistrationLinks.ResolveHolidayRegistrationSchools",
-      "reason": "ADR 0113 (#4662): Consumer-port adapter of the parents portal's holiday registration link port; it translates Enrollment's resolved link into the Träger and its school IDs and maps the unknown link onto the portal's sentinel."
     },
     {
       "decision": "0090",
@@ -1361,6 +1376,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "reason": "#6314: Consumer-port adapter that reads the Träger's master data in the caller's Träger transaction and translates its default bank account into the creditor account of the regenerated PAIN.008 files."
+    },
+    {
+      "decision": "0075",
+      "id": "cmd/traegerSEPADebitFiles.SEPADebitFiles",
+      "reason": "#6317: Consumer-port adapter that opens the Träger transaction of Parent Billing and hands each PAIN.008 file to the export's writer as it is read, translating the file type between the owners, so the Träger package holds one file in memory (ADR 0187)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/ArrivalBaselineProjector.ProjectArrivals",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -1469,6 +1494,16 @@
       "decision": "0126",
       "id": "roots/owners/CareContractDocumentNotices.EnqueueContractDocumentNotice",
       "reason": "ADR 0126 (#5941): Consumer-port adapter of the Betreuungsvertrag onto Delivery; it encodes the push of a sent contract as a deferred push of the Träger with its own kind, related type and a key of the contract and the hashed address."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/CareContractFamilyNumbers.FamilyChildren",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#6335): it reads the number of a checked contract's family at the Elternabrechnung in the caller's Träger transaction and maps channel, values and refusals into the Betreuungsvertrag's words."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/CareContractFamilyNumbers.StateFamilyChildren",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#6335): it stores the parents' number of a checked contract's family at the Elternabrechnung in the caller's Träger transaction and maps channel, validation and missing-family refusals into the Betreuungsvertrag's errors."
     },
     {
       "decision": "0090",
@@ -3827,11 +3862,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3987,13 +4017,13 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectSchoolClass",
+      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "id": "roots/owners/enrollmentRolloverSettings.StatusTokenTTLDays",
+      "reason": "Settings key mapping for the rollover status-token lifetime; ADR 0075 owner-port binding, unclassified source evidence under ADR 0090. No new forwarding debt."
     },
     {
       "decision": "0090",
@@ -4619,6 +4649,11 @@
       "decision": "0090",
       "id": "roots/owners/parentGuardianAccess.RevokeAccess",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0113",
+      "id": "roots/owners/parentHolidayWishes.HolidayWishStatement",
+      "reason": "ADR 0113 addendum (#4703): Consumer-port adapter of the parents portal's holiday wish statement port; it translates the workflow's claim into Enrollment's claim and the sealed statement into the wish and its proof, in the caller's tenant transaction."
     },
     {
       "decision": "0171",

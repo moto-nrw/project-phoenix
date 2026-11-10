@@ -4,17 +4,21 @@
 // die buchbaren Wochen mit ausrichtender OGS und Zeitmodellen.
 
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ISODateInput } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { SwitchRow } from "~/components/ui/switch";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { TRAEGER_HOLIDAY_TAB } from "~/lib/traeger-payment-text";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   createHolidayPeriod,
   type HolidayPeriod,
@@ -32,6 +36,8 @@ import {
   type WeekDraft,
 } from "./holiday-period-model";
 import { HolidayWeekEditor } from "./holiday-week-editor";
+import { weekNoCareDays } from "./use-week-no-care-days";
+import type { TraegerCalendar } from "~/lib/traeger-closing-days";
 
 const logger = createLogger({ component: "HolidayPeriodForm" });
 
@@ -68,6 +74,7 @@ export function HolidayPeriodForm({
   onSaved,
   onCancel,
   onDirtyChange,
+  calendar,
 }: Readonly<{
   /** The stored period; without it the form creates a new one. */
   period?: HolidayPeriod;
@@ -76,6 +83,8 @@ export function HolidayPeriodForm({
   onCancel: () => void;
   /** Reports whether the form holds unsaved changes. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Holidays and Träger closing days for the hints at each week (#4702). */
+  calendar?: TraegerCalendar;
 }>) {
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraftState] = useState<HolidayPeriodDraft>(() =>
@@ -130,6 +139,10 @@ export function HolidayPeriodForm({
   );
   const errorPath = useApiFormError(formRef);
   const fieldError = (name: string) => errorPath.fieldError(name);
+  const noCareDays = useMemo(
+    () => weekNoCareDays(draft.weeks, calendar, period),
+    [draft.weeks, calendar, period],
+  );
 
   const setDraft = (next: HolidayPeriodDraft) => {
     setDraftState(next);
@@ -245,6 +258,42 @@ export function HolidayPeriodForm({
                 Die Anmeldung ist verbindlich.
               </span>
             </label>
+            <Input
+              controlSize="compact"
+              name="max_days_per_child"
+              label="Höchstens Tage je Kind"
+              hint="Gilt für alle Wochen zusammen. Eltern dürfen die Tage verteilen. Leer lassen, wenn es keine Grenze gibt."
+              inputMode="numeric"
+              placeholder="zum Beispiel 5"
+              className="sm:max-w-xs"
+              value={draft.maxDaysPerChild}
+              error={fieldError("max_days_per_child") ?? undefined}
+              onChange={(event) =>
+                setDraft({ ...draft, maxDaysPerChild: event.target.value })
+              }
+            />
+            <SwitchRow
+              label="Ferienwunsch aus der OGS-Anmeldung berücksichtigen"
+              description={
+                <>
+                  Kinder Ihrer Schulen ohne Ferienwunsch warten hinter den
+                  anderen. Was ohne Ferienwunsch gilt, legen Sie in den{" "}
+                  <NavigationLink
+                    href={traegerPath(
+                      `/traeger/einstellungen?bereich=${TRAEGER_HOLIDAY_TAB}`,
+                    )}
+                    className="font-medium text-gray-900 underline underline-offset-2"
+                  >
+                    Einstellungen
+                  </NavigationLink>{" "}
+                  fest. Feriengäste sind nicht betroffen.
+                </>
+              }
+              checked={draft.holidayWishRule}
+              onCheckedChange={(holidayWishRule) =>
+                setDraft({ ...draft, holidayWishRule })
+              }
+            />
             <Textarea
               name="notes"
               label="Hinweise für Eltern"
@@ -281,6 +330,7 @@ export function HolidayPeriodForm({
                     index={index}
                     week={week}
                     schools={schools}
+                    noCareDays={noCareDays.get(week.key)}
                     fieldError={fieldError}
                     onChange={(next) => setWeek(index, next)}
                     onDateValidity={weekDateValidity}

@@ -96,3 +96,41 @@ func TestBankDataRekeyIncludesFrozenDebitCopies(t *testing.T) {
 		}
 	}
 }
+
+// The stored PAIN.008 file of a message (ADR 0187) is one sealed value bound
+// to its message ID; the rekey rewraps it on the active key and changes
+// nothing else, also on a submitted file.
+func TestBankDataRekeyIncludesStoredDebitFiles(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.NewDatabase(t, db).UnitOfWork())
+	own := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "File rekey", Slug: fmt.Sprintf("file-rekey-%d", testpkg.UniqueTestTenantID(t))}).ID
+	legacyKeys, bankKeys := testpkg.NewTestHealthDataKeys(), testpkg.NewTestHealthDataKeys()
+	legacy, err := securityRuntimeCompose.NewFieldCipher(legacyKeys)
+	require.NoError(t, err)
+	const messageID = "MOTO-20261201-FILE"
+	file := []byte("<Document><IBAN>DE89370400440532013000</IBAN></Document>")
+	sealed, err := legacy.Seal(file, []byte(fmt.Sprintf("parent_billing.sepa_debit_files.file|%d|%s", own, messageID)))
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debit_files (organization_id, message_id, run_kind, run_id,
+		file_sealed, file_sha256, creditor_iban, downloaded_at, submitted_at) VALUES (?, ?, 'care', 3, ?, ?, 'DE75512108001245126199', now(), now())`,
+		own, messageID, sealed, fmt.Sprintf("%064x", 1))
+	require.NoError(t, err)
+	query := `SELECT (to_jsonb(f) - 'file_sealed')::text FROM parent_billing.sepa_debit_files f WHERE organization_id = ?`
+	var before, after string
+	require.NoError(t, db.NewRaw(query, own).Scan(ctx, &before))
+	cipher, err := securityRuntimeCompose.NewBankDataCipher(bankKeys, legacyKeys)
+	require.NoError(t, err)
+	batch, err := bankDataRekeyBatch(ctx, parentBillingCompose.NewBankDataRekey(cipher), own, "debit_files", 0, 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, batch.Changed)
+	require.NoError(t, db.NewRaw(query, own).Scan(ctx, &after))
+	require.Equal(t, before, after, "only the sealed file changes")
+	var rewrapped []byte
+	require.NoError(t, db.NewRaw(`SELECT file_sealed FROM parent_billing.sepa_debit_files WHERE organization_id = ?`, own).Scan(ctx, &rewrapped))
+	independent, err := securityRuntimeCompose.NewBankDataCipher(bankKeys, "")
+	require.NoError(t, err)
+	plain, err := independent.Open(rewrapped, []byte(fmt.Sprintf("parent_billing.sepa_debit_files.file|%d|%s", own, messageID)))
+	require.NoError(t, err)
+	require.Equal(t, file, plain)
+}

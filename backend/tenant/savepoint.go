@@ -12,6 +12,11 @@ import (
 // can no longer be trusted.
 var ErrSavepointControl = errors.New("savepoint control failed")
 
+// IsSavepointControlFailure reports a savepoint-control failure anywhere in
+// err, nested savepoints included: the transaction err comes from can no
+// longer be trusted.
+func IsSavepointControlFailure(err error) bool { return errors.Is(err, ErrSavepointControl) }
+
 // ErrSavepointRollback classifies a savepoint whose rollback failed: ROLLBACK
 // TO SAVEPOINT itself, or the RELEASE after it. Such a failure also wraps
 // ErrSavepointControl. The transaction's state is unknown, so the unit is
@@ -62,13 +67,13 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 		return fmt.Errorf("%w: create: %w", ErrSavepointControl, err)
 	}
 
-	hooks, commitHookCount, rollbackHookCount := transactionHookCheckpoint(ctx)
+	hooks, commitHookCount := afterCommitCheckpoint(ctx)
 	operationErr := fn(ctx)
 	if operationErr != nil {
 		if err := uow.savepoint(ctx, RollbackSavepoint); err != nil {
 			return errors.Join(operationErr, SavepointRollbackFailure(fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err)))
 		}
-		runSavepointRollbackHooks(hooks, commitHookCount, rollbackHookCount)
+		discardSavepointCommitHooks(hooks, commitHookCount)
 		if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
 			return errors.Join(operationErr, SavepointRollbackFailure(fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err)))
 		}
@@ -81,17 +86,17 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 	return nil
 }
 
-func transactionHookCheckpoint(ctx context.Context) (*afterCommitHooks, int, int) {
+func afterCommitCheckpoint(ctx context.Context) (*afterCommitHooks, int) {
 	hooks, _ := ctx.Value(afterCommitKey{}).(*afterCommitHooks)
 	if hooks == nil {
-		return nil, 0, 0
+		return nil, 0
 	}
 	hooks.mu.Lock()
 	defer hooks.mu.Unlock()
-	return hooks, len(hooks.fns), len(hooks.rollbackFns)
+	return hooks, len(hooks.fns)
 }
 
-func runSavepointRollbackHooks(hooks *afterCommitHooks, commitCount, rollbackCount int) {
+func discardSavepointCommitHooks(hooks *afterCommitHooks, commitCount int) {
 	if hooks == nil {
 		return
 	}
@@ -105,16 +110,5 @@ func runSavepointRollbackHooks(hooks *afterCommitHooks, commitCount, rollbackCou
 	if commitCount < len(hooks.fns) {
 		hooks.fns = hooks.fns[:commitCount]
 	}
-	if rollbackCount < 0 {
-		rollbackCount = 0
-	}
-	if rollbackCount > len(hooks.rollbackFns) {
-		rollbackCount = len(hooks.rollbackFns)
-	}
-	fns := append([]func(){}, hooks.rollbackFns[rollbackCount:]...)
-	hooks.rollbackFns = hooks.rollbackFns[:rollbackCount]
 	hooks.mu.Unlock()
-	for i := len(fns) - 1; i >= 0; i-- {
-		fns[i]()
-	}
 }

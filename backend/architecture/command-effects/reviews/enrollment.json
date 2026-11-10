@@ -1698,6 +1698,67 @@
       "target_owner": "timetable-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/parentbilling ParentDocuments.CountsFamilyChildrenAt (parent-billing) through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) in the Träger's read transaction: it lists the care rules of the Träger and tells whether a current sibling rule counts the family at the school. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application.ParentDocuments.CountsFamilyChildrenAt",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/organizationtenancy.Capability.FindSchool through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the school and its Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/organizationtenancy.Query.FindSchool through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the school and its Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/organizationtenancy.SchoolQuery.FindSchool through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) to read the school and its Träger, so the status page asks for the children of the family only where a sibling rule counts them. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/parentbilling ParentDocuments.CountsFamilyChildrenAt (parent-billing) through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335) in the Träger's read transaction: it lists the care rules of the Träger and tells whether a current sibling rule counts the family at the school. No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose.NewParentDocuments",
+      "target_owner": "parent-billing"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked (#6335), which reads the sibling rules of the school's Träger in that Träger's own read transaction, outside the school transaction of the status link, to ask for the children of the family only where a rule counts them. No write.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.EnrollmentGuardianAutofill.LoadForTenant",
       "classification": "query",
       "effect": "query",
@@ -2002,6 +2063,16 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "reason": "#3838 / #6328: the tenant-export CLI binds Security Runtime's health ring (HEALTH_DATA_KEYS) directly to Enrollment's export opener. Pure in-memory authenticated decryption bound to the row context; no database access, write, locking read or audit mutation.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Open",
       "classification": "query",
       "effect": "query",
@@ -2009,6 +2080,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0084 and ADR 0116 addenda (#4722): Enrollment seals and opens the holiday health information with Security Runtime's field cipher, a pure computation over the root's key ring.",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "reason": "#3838 / #6328: same health ring binding as Open; the export opener never seals, the method exists on the bound cipher. Pure in-memory encryption; no database access, write, locking read or audit mutation.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
       "target_owner": "security-runtime"
     },
     {
@@ -2160,6 +2241,97 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Reads the federal state from the resolved settings snapshot in memory (#4702).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#4702).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#4702).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Reads each school's federal state (#4702) in an administrative unit detached from the caller's Träger transaction (ADR 0175, ADR 0105); no write or scope change of the caller.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Read-only platform helper: validates the host school ID before its school transaction is opened (#4702).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Platform protocol participation (scope): opens a read-only school transaction of each host school, detached from the caller's Träger transaction, to read its closing days (ADR 0105, #4702).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidaySchoolNames.HolidaySchoolNames",
       "classification": "query",
       "effect": "query",
@@ -2222,6 +2394,36 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization. #6434: the closure notice names the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization. #6434: the closure notice names the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. #6434: the closure notice names the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",
@@ -2280,6 +2482,16 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayWishModes.HolidayWishMode",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayWishModes.HolidayWishMode",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the Träger's holiday wish mode, precedence or wish only (#4703).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.LatestEnrollmentSignatures",
@@ -5289,16 +5501,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectGradeLevel",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.enrollmentRolloverSettings.CollectGradeLevel. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.CollectSchoolClass",
       "classification": "query",
       "effect": "query",
@@ -5319,16 +5521,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectSchoolClass",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectSchoolClass",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.enrollmentRolloverSettings.CollectSchoolClass. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.GradeLevelMax",
       "classification": "query",
       "effect": "query",
@@ -5346,16 +5538,6 @@
       "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.EnrollmentCollectionSettings.GradeLevelMax. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.GradeLevelMax",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.enrollmentRolloverSettings.GradeLevelMax. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform"
     },
     {
@@ -5883,7 +6065,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Pure value predicate owned by Identity \u0026 Access; enrollment eligibility and invitation redemption share GuardianInvitation.AddressedTo to compare the recorded recipient with the current address. No mutation or locking read.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.AddressedTo",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption",
       "target_owner": "identity-access"
@@ -5893,10 +6085,20 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.Owner.ListOpenGuardianInvitations. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read or pure value helper on the supplied interface: modules/identityaccess.Owner.ListOpenGuardianInvitations. No mutation or locking read at this terminal; since #6294 the adapter also skips links without a recorded recipient, still read-only. Type-level binding coverage, not proof that Enrollment calls every exposed method.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",
       "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
+      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs. Reads the current profile address to compare it with the recipient a link was issued for (#6294); no mutation or locking read at this terminal.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs",
+      "target_owner": "people-directory"
     },
     {
       "adr": "0067",
@@ -6923,6 +7125,36 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
+      "reason": "Existing read-only CollectGradeLevel binding moved from CollectionSettings to the narrower RolloverSettings port; the target resolver and binding digest are unchanged. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
+      "reason": "Existing read-only GradeLevelMax binding moved from CollectionSettings to the narrower RolloverSettings port; the target resolver and binding digest are unchanged. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.StatusTokenTTLDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
+      "reason": "Read-only TTL lookup through the rollover settings port: ResolveInt reads enrollment.status_token_ttl_days in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",

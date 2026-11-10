@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -364,11 +365,13 @@ func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source en
 	return h.planDays(ctx, studentID, actor, source, week)
 }
 
-// planDays writes the booked care of each day of the week into Care Plan.
+// planDays writes the selected dates, or the whole booked week, into Care Plan.
 func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) error {
-	days := make([]calendar.Date, 0, 7)
-	for day := week.StartsOn; !day.After(week.EndsOn); day = day.AddDays(1) {
-		days = append(days, day)
+	days := source.Days
+	if len(days) == 0 {
+		for day := week.StartsOn; !day.After(week.EndsOn); day = day.AddDays(1) {
+			days = append(days, day)
+		}
 	}
 	err := h.care.PlanHolidayGuestDays(ctx, studentID, actor, days, source.TimeModelStarts, source.TimeModelEnds)
 	if errors.Is(err, enrollment.ErrHolidayGuestPlanAuthorMissing) {
@@ -404,10 +407,10 @@ func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest 
 			return fmt.Errorf("update the child of a holiday guest: %w", err)
 		}
 	}
-	// A rebooked time model or moved week replans the days; a week without a
+	// Changed dates, a rebooked time model or a moved week replan the days; a week without a
 	// group keeps its plan until someone picks a group again.
 	replan := replanDays || guest.StartsOn != week.StartsOn || guest.EndsOn != week.EndsOn ||
-		guest.TimeModelStarts != source.TimeModelStarts || guest.TimeModelEnds != source.TimeModelEnds
+		guest.TimeModelStarts != source.TimeModelStarts || guest.TimeModelEnds != source.TimeModelEnds || !slices.Equal(guest.Days, source.Days)
 	if replan && actor > 0 {
 		if err := h.care.ClearHolidayGuestDays(ctx, guest.StudentID); err != nil {
 			return fmt.Errorf("clear the care days of a holiday guest: %w", err)
@@ -516,6 +519,7 @@ func sameGuestChild(a, b enrollment.HolidayGuestChild) bool {
 
 func guestRecord(guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) enrollment.HolidayGuest {
 	guest.StartsOn, guest.EndsOn = week.StartsOn, week.EndsOn
+	guest.Days = source.Days
 	guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName = source.HomeSchoolID, source.HomeSchoolName, source.GuestSchoolName
 	guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds = source.TimeModelName, source.TimeModelStarts, source.TimeModelEnds
 	guest.Emergency, guest.Pickup, guest.Answers = source.Emergency, source.Pickup, source.Answers

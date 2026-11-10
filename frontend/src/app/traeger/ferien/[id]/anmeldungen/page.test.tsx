@@ -130,6 +130,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
       school: "",
       weekId: "",
       timeModel: "",
+      wish: "",
     });
   });
 
@@ -204,6 +205,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
         school: "guest",
         weekId: "52",
         timeModel: "bis 13 Uhr",
+        wish: "",
       }),
     );
   });

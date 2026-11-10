@@ -18,7 +18,6 @@ import {
   fetchTransitionHistory,
   purgeGraduatedStudent,
   listGradeTransitions,
-  GRADUATES_CHECKED_IN_CODE,
   NOT_APPLIED_CODE,
   NOT_LATEST_TRANSITION_CODE,
   PREVIEW_STALE_CODE,
@@ -352,13 +351,15 @@ describe("applyGradeTransition", () => {
     stubOnce(
       fail(409, {
         detail: "2 graduating children are still checked in",
-        code: GRADUATES_CHECKED_IN_CODE,
+        code: "grade_transition.graduates_checked_in",
       }),
     );
 
     const err = await applyGradeTransition("7").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
-    expect((err as ApiError).code).toBe(GRADUATES_CHECKED_IN_CODE);
+    expect((err as ApiError).code).toBe(
+      "grade_transition.graduates_checked_in",
+    );
   });
 
   it("keeps the preview_stale code on a 409", async () => {

@@ -45,6 +45,7 @@ import {
   type CareLetterSeries,
   type CareLetters,
   type CareRunDetail,
+  downloadCareLetter,
   fetchCareLetters,
   fetchCareRun,
   fetchCareRuns,
@@ -307,8 +308,20 @@ export default function TraegerCareRunLettersPage() {
         run && released ? (
           <>
             <CareLetterPanel
-              runId={run.id}
               letter={shownLetter}
+              title={
+                shownLetter
+                  ? `${shownLetter.kind === "cancellation" ? "Storno" : "Rechnung"} ${shownLetter.number}`
+                  : ""
+              }
+              fileKey={
+                shownLetter
+                  ? `${shownLetter.kind}-${shownLetter.invoiceId}`
+                  : ""
+              }
+              load={(letter) =>
+                downloadCareLetter(run.id, letter.invoiceId, letter.kind)
+              }
               onClose={() => setShownLetter(null)}
             />
             <BillingCorrectionModal

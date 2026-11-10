@@ -1,7 +1,6 @@
 package fileformat
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
 
@@ -20,7 +19,10 @@ func NewCSVParser() *CSVParser {
 
 // ParseStudents parses a CSV file into student import rows
 func (p *CSVParser) ParseStudents(reader io.Reader) ([]importModels.StudentImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	csvReader, err := newCSVReader(reader)
+	if err != nil {
+		return nil, err
+	}
 	csvReader.FieldsPerRecord = -1 // Variable columns (support any number of guardians)
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true // Handle quotes more leniently

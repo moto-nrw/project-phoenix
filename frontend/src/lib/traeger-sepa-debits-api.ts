@@ -179,6 +179,14 @@ export async function downloadSepaDebitFile(
   return billingFile(`${runPath(kind, runId)}/file`, {}, "lastschrift.xml");
 }
 
+/**
+ * The message ID of a downloaded file: its name without the file number of
+ * the export protocol (#4693), "lastschrift-112-MOTO-….xml" → "MOTO-…".
+ */
+export function messageIdOfDebitFile(filename: string): string {
+  return filename.replace(/\.xml$/i, "").replace(/^lastschrift-\d+-/, "");
+}
+
 /** Confirms that the office submitted the file messageId to its bank. */
 export async function submitSepaDebits(
   kind: SepaDebitRunKind,

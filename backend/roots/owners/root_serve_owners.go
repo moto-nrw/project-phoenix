@@ -39,12 +39,12 @@ import (
 
 // BuildServeOrganizations composes Organisation & Tenancy.
 func BuildServeOrganizations(db transactionruntime.Database) (organizationtenancy.Capability, error) {
-	return organizationCompose.New(organizationCompose.Dependencies{
-		DB: db.Pool(),
-		Observe: func(observation organizationCompose.Observation) {
-			observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationtenancy.ErrorCode(observation.Err), observation.Err)
-		},
-	})
+	return organizationCompose.New(organizationCompose.Dependencies{DB: db.Pool(), Observe: observeOrganizationTenancy})
+}
+
+// observeOrganizationTenancy records one Organisation & Tenancy operation.
+func observeOrganizationTenancy(observation organizationCompose.Observation) {
+	observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationtenancy.ErrorCode(observation.Err), observation.Err)
 }
 
 // BuildServeSchoolStructure composes School Structure.
@@ -88,7 +88,7 @@ func ObserveSchoolCalendar(observation schoolCalendarCompose.Observation) {
 // over the tenant's federal state; the period administration is composed
 // once its guards exist.
 func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), settings settingsCompose.SettingsService) (schoolcalendar.Days, error) {
-	return schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
+	return schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{ClosingDayReads: NewSchoolClosingDayReads(),
 		DB: db.Pool(), Observe: observe,
 		FederalState: func(ctx context.Context) (string, error) {
 			region, err := settings.ResolveString(ctx, configModels.KeyFederalState)

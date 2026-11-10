@@ -119,11 +119,7 @@ func newLetterChrome(title string) (*pageChrome, error) {
 	if err := pdf.AddTTFFontData(fallbackFontFamily, unifontRegular); err != nil {
 		return nil, fmt.Errorf("embed fallback font: %w", err)
 	}
-	primaryCov, err := newFontCoverage(interRegular)
-	if err != nil {
-		return nil, err
-	}
-	fallbackCov, err := newFontCoverage(unifontRegular)
+	primaryCov, fallbackCov, err := documentCoverages()
 	if err != nil {
 		return nil, err
 	}

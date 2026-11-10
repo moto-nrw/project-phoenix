@@ -8,6 +8,8 @@
   "creditLetter": "Credit note {period}",
   "careInvoiceLetter": "Invoice {period}",
   "careCancellationLetter": "Cancellation {period}",
+  "careFeeNotice": "Fee notice {period}",
+  "careChangeNotice": "Amended fee notice {period}",
   "sender": "From {traeger}",
   "children": "For",
   "amount": "Amount",

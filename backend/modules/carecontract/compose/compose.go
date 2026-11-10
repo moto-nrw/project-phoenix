@@ -70,3 +70,7 @@ type OverrunPorts struct {
 	Access    carecontract.SchoolAccessLog
 	Runtime   carecontract.Runtime
 }
+
+// NewContractRetention reads and deletes contracts for the retention of the
+// Belege of a Träger (#4720, ADR 0184) in the caller's administrative unit.
+func NewContractRetention() carecontract.ContractRetention { return postgres.NewContractRetention() }

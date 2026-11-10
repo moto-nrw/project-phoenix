@@ -428,6 +428,10 @@ export const ERROR_CATALOG = {
         "Ihre Auswahl passt nicht mehr zu diesem Kind. Bitte laden Sie die Seite neu.",
       "enrollment.export_too_large":
         "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
+      "enrollment.family_children_closed":
+        "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
+      "enrollment.family_children_invalid":
+        "Bitte geben Sie eine Zahl von 1 bis 20 an.",
       "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
       "enrollment.form_attachment_invalid":
         "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
@@ -463,6 +467,12 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_booking_unit_booked":
+        "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
+      "enrollment.holiday_care_wish_required":
+        "Bitte wählen Sie, ob Ihr Kind in den Ferien Betreuung braucht.",
+      "enrollment.holiday_child_day_limit":
+        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Gewählt sind {days}. Bitte wählen Sie weniger Tage.",
       "enrollment.holiday_form_field_not_allowed":
         "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
@@ -495,8 +505,14 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
+      "enrollment.holiday_week_no_care_day":
+        "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen. Wählen Sie eine andere Woche.",
+      "enrollment.holiday_week_not_found":
+        "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
         "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
+      "enrollment.holiday_wish_missing":
+        "Für diese Ferien können Sie nur Kinder anmelden, für die Sie in der OGS-Anmeldung Ferienbetreuung gewählt haben. Bei Fragen hilft Ihnen der Träger.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.invalid_email":
@@ -661,6 +677,8 @@ export const ERROR_CATALOG = {
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.guardian_email_address_blocked":
         "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+      "identity.guardian_invitation_address_changed":
+        "Dieser Link gilt nicht mehr. Bitte fragen Sie die Schule nach einer neuen Einladung.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -813,6 +831,8 @@ export const ERROR_CATALOG = {
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "parent_billing.bank_account_missing":
         "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Abrechnungsvorgaben“ ein Konto ein.",
+      "parent_billing.beleg_retention_basis_cites_statute":
+        "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
       "parent_billing.benefits_exemption_unavailable":
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Abrechnungsvorgaben“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
@@ -879,6 +899,8 @@ export const ERROR_CATALOG = {
         "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_notice_not_found":
         "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_recipient_changed":
+        "Die Person oder ihre E-Mail-Adresse hat sich seit dem Ausstellen geändert. Drucken Sie den gespeicherten Bescheid. Geben Sie ihn der Familie auf Papier.",
       "parent_billing.care_notice_run_invalid":
         "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
       "parent_billing.care_notice_run_not_found":
@@ -920,6 +942,14 @@ export const ERROR_CATALOG = {
         "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.cost_takeover_with_exemption":
         "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
+      "parent_billing.datev_bookings_invalid":
+        "Einige Rechnungen passen nicht in die DATEV-Datei. Bitte prüfen Sie die genannten Rechnungen.",
+      "parent_billing.datev_bookings_taken":
+        "Jemand hat die neuen Buchungen gerade heruntergeladen. Es wurde keine Datei erstellt. Laden Sie die Seite neu.",
+      "parent_billing.datev_no_new_bookings":
+        "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei. Es wurde keine Datei erstellt.",
+      "parent_billing.datev_not_ready":
+        "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
@@ -930,6 +960,16 @@ export const ERROR_CATALOG = {
         "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
         "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.export_file_number_start_locked":
+        "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      "parent_billing.export_invoice_not_found":
+        "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
+      "parent_billing.export_mapping_invalid":
+        "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.export_run_empty":
+        "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
+      "parent_billing.export_run_not_found":
+        "Diesen Lauf gibt es nicht oder er ist noch nicht ausgestellt. Laden Sie die Seite neu.",
       "parent_billing.family_billing_invalid":
         "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
       "parent_billing.family_billing_not_found":
@@ -1092,6 +1132,8 @@ export const ERROR_CATALOG = {
         "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
       "provisioning.traeger_erasure_order_open":
         "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_records_recorded":
+        "Die Wahl des Kunden ist schon eingetragen. Sie kann nicht mehr geändert werden.",
       "provisioning.traeger_erasure_started":
         "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
@@ -1626,6 +1668,14 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_bookings_changed":
+        "Die gebuchten Ferientage haben sich gerade geändert. Bitte prüfen Sie die betroffenen Buchungen noch einmal.",
+      "traeger.closing_day_invalid":
+        "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
+      "traeger.closing_day_not_found":
+        "Diesen Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_school_outside":
+        "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen aus der Liste.",
       "traeger.document_already_released":
         "Das Dokument ist für diese Menschen schon freigegeben.",
       "traeger.document_audience_invalid":
@@ -2119,6 +2169,10 @@ export const ERROR_CATALOG = {
         "Online enrollment is not available at this school right now. Please contact the school.",
       "enrollment.edit_not_allowed":
         "This enrollment can no longer be changed. Please contact the school.",
+      "enrollment.family_children_closed":
+        "The number of children can no longer be changed here. You will find it in your care contract.",
+      "enrollment.family_children_invalid":
+        "Please enter a number from 1 to 20.",
       "enrollment.field_required": "Please fill in all required fields.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
@@ -2132,6 +2186,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_booking_unit_booked":
+        "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
+      "enrollment.holiday_care_wish_required":
+        "Please choose whether your child needs care during the holidays.",
+      "enrollment.holiday_child_day_limit":
+        "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
       "enrollment.holiday_guest_group_invalid":
         "This group no longer exists. Please choose another group.",
       "enrollment.holiday_guest_not_found":
@@ -2159,8 +2219,14 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
+      "enrollment.holiday_week_no_care_day":
+        "There is no care on {date} ({name}). This week cannot be booked.",
+      "enrollment.holiday_week_not_found":
+        "This week is not part of this holiday period. Please reload the page.",
       "enrollment.holiday_weeks_booked_together":
         "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
+      "enrollment.holiday_wish_missing":
+        "For these holidays you can only register children for whom you chose holiday care in the OGS registration. Please contact the provider if you have questions.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.invalid_email": "Please enter a valid email address.",
@@ -2229,6 +2295,8 @@ export const ERROR_CATALOG = {
         "There is already an account for this email address. Please use a different address.",
       "identity.guardian_email_address_blocked":
         "The invitation could not be sent right now. Please try again.",
+      "identity.guardian_invitation_address_changed":
+        "This link is no longer valid. Please ask the school for a new invitation.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -2297,6 +2365,24 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.care_amendment_disabled":
         "{object} could not be changed. Please check its current status.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Please enter a whole number from 1 to 20.",
       "parent_billing.holiday_quote_invalid":
@@ -2389,6 +2475,14 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.closing_day_bookings_changed":
+        "The booked holiday days changed just now. Please check the affected bookings again.",
+      "traeger.closing_day_invalid":
+        "The closing day is incomplete. Please check the dates, the reason and the schools.",
+      "traeger.closing_day_not_found":
+        "This closing day no longer exists. Please reload the page.",
+      "traeger.closing_day_school_outside":
+        "A selected school does not belong to your Träger. Please choose the schools from the list.",
       "traeger.document_already_released":
         "The document is already shared with these people.",
       "traeger.document_audience_invalid":
@@ -2714,6 +2808,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запись в этой школе сейчас недоступна. Обратитесь в школу.",
       "enrollment.edit_not_allowed":
         "Эту запись больше нельзя изменить. Обратитесь в школу.",
+      "enrollment.family_children_closed":
+        "Количество детей здесь больше нельзя изменить. Вы найдёте его в договоре об уходе.",
+      "enrollment.family_children_invalid":
+        "Пожалуйста, укажите число от 1 до 20.",
       "enrollment.field_required": "Заполните все обязательные поля.",
       "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -2725,6 +2823,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
+      "enrollment.holiday_booking_unit_booked":
+        "На эту неделю уже есть заявки. Поэтому способ бронирования, а для отдельных дней и даты недели, остаются без изменений.",
+      "enrollment.holiday_care_wish_required":
+        "Пожалуйста, укажите, нужен ли вашему ребёнку присмотр во время каникул.",
+      "enrollment.holiday_child_day_limit":
+        "В эти каникулы ребёнок может прийти не больше {limit} дней. Выбрано: {days}. Выберите меньше дней.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -2733,6 +2837,10 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
+      "enrollment.holiday_wish_missing":
+        "На эти каникулы можно записать только детей, для которых при записи в OGS вы выбрали присмотр на каникулах. По вопросам обращайтесь к организатору.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
@@ -2798,6 +2906,8 @@ export const ERROR_CATALOG = {
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
       "identity.guardian_email_address_blocked":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
+      "identity.guardian_invitation_address_changed":
+        "Эта ссылка больше не действует. Попросите школу прислать новое приглашение.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -2864,6 +2974,24 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.care_amendment_disabled":
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Пожалуйста, укажите целое число от 1 до 20.",
       "parent_billing.holiday_quote_invalid":
@@ -3229,6 +3357,10 @@ export const ERROR_CATALOG = {
         "Regjistrimi online nuk është i mundur tani në këtë shkollë. Ju lutemi kontaktoni shkollën.",
       "enrollment.edit_not_allowed":
         "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.family_children_closed":
+        "Numri i fëmijëve nuk mund të ndryshohet më këtu. Do ta gjeni në kontratën e kujdesit.",
+      "enrollment.family_children_invalid":
+        "Ju lutemi shkruani një numër nga 1 deri në 20.",
       "enrollment.field_required":
         "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
       "enrollment.form_attachment_invalid":
@@ -3245,6 +3377,12 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani emrin dhe mbiemrin.",
       "enrollment.guardian_phone_required":
         "Ju lutemi shkruani një numër telefoni.",
+      "enrollment.holiday_booking_unit_booked":
+        "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
+      "enrollment.holiday_care_wish_required":
+        "Ju lutemi zgjidhni nëse fëmija juaj ka nevojë për kujdes gjatë pushimeve.",
+      "enrollment.holiday_child_day_limit":
+        "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Janë zgjedhur {days}. Ju lutemi zgjidhni më pak ditë.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -3253,6 +3391,10 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_week_no_care_day":
+        "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
+      "enrollment.holiday_wish_missing":
+        "Për këto pushime mund të regjistroni vetëm fëmijët për të cilët keni zgjedhur kujdes gjatë pushimeve në regjistrimin e OGS. Për pyetje kontaktoni organizatorin.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
       "enrollment.invalid_phone":
@@ -3320,6 +3462,8 @@ export const ERROR_CATALOG = {
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
       "identity.guardian_email_address_blocked":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+      "identity.guardian_invitation_address_changed":
+        "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -3387,6 +3531,24 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.care_amendment_disabled":
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
       "parent_billing.holiday_quote_invalid":
@@ -3749,6 +3911,9 @@ export const ERROR_CATALOG = {
         "Zapis online w tej szkole jest teraz niedostępny. Skontaktuj się ze szkołą.",
       "enrollment.edit_not_allowed":
         "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.family_children_closed":
+        "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
+      "enrollment.family_children_invalid": "Proszę podać liczbę od 1 do 20.",
       "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
       "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
       "enrollment.form_field_file_options_invalid":
@@ -3760,6 +3925,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Wpisz adres e-mail.",
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
+      "enrollment.holiday_booking_unit_booked":
+        "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
+      "enrollment.holiday_care_wish_required":
+        "Proszę wybrać, czy Państwa dziecko potrzebuje opieki w czasie ferii.",
+      "enrollment.holiday_child_day_limit":
+        "W te ferie dziecko może przyjść najwyżej {limit} dni. Wybrano {days}. Wybierz mniej dni.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -3767,6 +3938,10 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_week_no_care_day":
+        "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
+      "enrollment.holiday_wish_missing":
+        "Na te ferie można zapisać tylko dzieci, dla których przy zapisie do OGS wybrano opiekę w czasie ferii. W razie pytań prosimy o kontakt z organizatorem.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
@@ -3832,6 +4007,8 @@ export const ERROR_CATALOG = {
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
       "identity.guardian_email_address_blocked":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+      "identity.guardian_invitation_address_changed":
+        "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -3899,6 +4076,24 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.care_amendment_disabled":
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Proszę podać liczbę całkowitą od 1 do 20.",
       "parent_billing.holiday_quote_invalid":
@@ -4263,6 +4458,10 @@ export const ERROR_CATALOG = {
         "Bu okulda çevrim içi kayıt şu anda mümkün değil. Lütfen okulla iletişime geçin.",
       "enrollment.edit_not_allowed":
         "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.family_children_closed":
+        "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
+      "enrollment.family_children_invalid":
+        "Lütfen 1 ile 20 arasında bir sayı girin.",
       "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
       "enrollment.form_attachment_invalid":
         "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -4276,6 +4475,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
+      "enrollment.holiday_booking_unit_booked":
+        "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
+      "enrollment.holiday_care_wish_required":
+        "Lütfen çocuğunuzun tatilde bakıma ihtiyacı olup olmadığını seçin.",
+      "enrollment.holiday_child_day_limit":
+        "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -4284,6 +4489,10 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
+      "enrollment.holiday_wish_missing":
+        "Bu tatil için yalnızca OGS kaydında tatil bakımı seçtiğiniz çocukları kaydedebilirsiniz. Sorularınız için kurumla iletişime geçin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
@@ -4349,6 +4558,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
       "identity.guardian_email_address_blocked":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
+      "identity.guardian_invitation_address_changed":
+        "Bu bağlantı artık geçerli değil. Lütfen okuldan yeni bir davet isteyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -4415,6 +4626,24 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.care_amendment_disabled":
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Lütfen 1 ile 20 arasında bir tam sayı girin.",
       "parent_billing.holiday_quote_invalid":
@@ -4774,6 +5003,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запис у цій школі зараз недоступний. Зверніться до школи.",
       "enrollment.edit_not_allowed":
         "Цей запис більше не можна змінити. Зверніться до школи.",
+      "enrollment.family_children_closed":
+        "Кількість дітей тут більше не можна змінити. Ви знайдете її у договорі про догляд.",
+      "enrollment.family_children_invalid":
+        "Будь ласка, вкажіть число від 1 до 20.",
       "enrollment.field_required": "Заповніть усі обов'язкові поля.",
       "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -4785,6 +5018,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
+      "enrollment.holiday_booking_unit_booked":
+        "На цей тиждень уже є заявки. Тому спосіб бронювання, а для окремих днів і дати тижня, залишаються без змін.",
+      "enrollment.holiday_care_wish_required":
+        "Будь ласка, вкажіть, чи потрібен вашій дитині догляд під час канікул.",
+      "enrollment.holiday_child_day_limit":
+        "У ці канікули дитина може прийти не більше {limit} днів. Обрано: {days}. Оберіть менше днів.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":
@@ -4793,6 +5032,10 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
+      "enrollment.holiday_wish_missing":
+        "На ці канікули можна записати лише дітей, для яких під час запису до OGS ви обрали догляд на канікулах. З питаннями звертайтеся до організатора.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
@@ -4858,6 +5101,8 @@ export const ERROR_CATALOG = {
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
       "identity.guardian_email_address_blocked":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
+      "identity.guardian_invitation_address_changed":
+        "Це посилання більше не дійсне. Попросіть школу надіслати нове запрошення.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
@@ -4924,6 +5169,24 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.care_amendment_disabled":
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Будь ласка, вкажіть ціле число від 1 до 20.",
       "parent_billing.holiday_quote_invalid":

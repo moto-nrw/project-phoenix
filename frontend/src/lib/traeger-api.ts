@@ -483,6 +483,17 @@ export interface HolidayTimeModel {
   readonly protected?: boolean;
 }
 
+/**
+ * A day of a week on which the host school gives no care (#4702): a
+ * statutory holiday of its federal state or one of its closing days.
+ */
+export interface HolidayNoCareDay {
+  /** Calendar date "YYYY-MM-DD". */
+  readonly date: string;
+  readonly kind: "holiday" | "closing_day";
+  readonly name: string;
+}
+
 /** A bookable week of a holiday period with the school that hosts it. */
 export interface HolidayWeek {
   readonly id?: string;
@@ -491,7 +502,17 @@ export interface HolidayWeek {
   readonly endsOn: string;
   readonly hostSchoolId: string;
   readonly timeModels: readonly HolidayTimeModel[];
+  /**
+   * "week": parents book the whole week; "day": single days, and the price
+   * of a time model is the price of one day (#4701). Absent reads as week.
+   */
+  readonly bookingUnit?: HolidayBookingUnit;
+  /** Days without care of the stored week; such a week takes no new booking. Read only. */
+  readonly noCareDays?: readonly HolidayNoCareDay[];
 }
+
+/** How a holiday week is booked (#4701). */
+export type HolidayBookingUnit = "week" | "day";
 
 /** What the Träger-Büro writes: the whole period with its weeks. */
 export interface HolidayPeriodInput {
@@ -500,6 +521,16 @@ export interface HolidayPeriodInput {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  /**
+   * Children with a holiday care wish from the OGS registration come first
+   * (#4703); the Träger setting decides what happens without one.
+   */
+  readonly holidayWishRule: boolean;
+  /**
+   * Care days one child may book in the period; null or absent is no bound
+   * (#4701).
+   */
+  readonly maxDaysPerChild?: number | null;
   readonly weeks: readonly HolidayWeek[];
 }
 
@@ -529,6 +560,8 @@ interface BackendWeek {
   ends_on: string;
   host_school_id: number;
   time_models?: BackendTimeModel[] | null;
+  booking_unit?: HolidayBookingUnit;
+  no_care_days?: HolidayNoCareDay[] | null;
 }
 
 interface BackendHolidayPeriod {
@@ -538,10 +571,12 @@ interface BackendHolidayPeriod {
   registration_closes_on: string;
   binding: boolean;
   notes: string;
+  holiday_wish_rule?: boolean;
   status: "draft" | "published";
   published_at: string | null;
   public_token?: string;
   registration_count?: number;
+  max_days_per_child?: number | null;
   weeks?: BackendWeek[] | null;
 }
 
@@ -553,15 +588,19 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
     registrationClosesOn: period.registration_closes_on,
     binding: period.binding,
     notes: period.notes,
+    holidayWishRule: period.holiday_wish_rule ?? false,
     status: period.status,
     publishedAt: period.published_at,
     publicToken: period.public_token ?? "",
     registrationCount: period.registration_count ?? 0,
+    maxDaysPerChild: period.max_days_per_child ?? null,
     weeks: (period.weeks ?? []).map((week) => ({
       id: String(week.id),
       startsOn: week.starts_on,
       endsOn: week.ends_on,
       hostSchoolId: String(week.host_school_id),
+      bookingUnit: week.booking_unit ?? "week",
+      noCareDays: week.no_care_days ?? [],
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,
@@ -582,11 +621,14 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
     registration_closes_on: input.registrationClosesOn,
     binding: input.binding,
     notes: input.notes,
+    holiday_wish_rule: input.holidayWishRule,
+    max_days_per_child: input.maxDaysPerChild ?? null,
     weeks: input.weeks.map((week) => ({
       ...(week.id ? { id: Number(week.id) } : {}),
       starts_on: week.startsOn,
       ends_on: week.endsOn,
       host_school_id: Number(week.hostSchoolId),
+      booking_unit: week.bookingUnit ?? "week",
       time_models: week.timeModels.map((model) => ({
         ...(model.id ? { id: Number(model.id) } : {}),
         name: model.name,

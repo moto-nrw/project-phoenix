@@ -14,5 +14,10 @@
   "pendingBadge": "Wird geprüft",
   "pending": "Ihre Angabe vom {date}: {count, plural, one {1 Kind} other {# Kinder}}. Der Träger prüft sie.",
   "noRight": "Die Zahl geben Eltern an, die für dieses Kind Anmeldungen abschicken dürfen.",
-  "onlyNumber": "Wir speichern nur die Zahl. Namen der anderen Kinder brauchen wir nicht."
+  "onlyNumber": "Wir speichern nur die Zahl. Namen der anderen Kinder brauchen wir nicht.",
+  "enrollmentPending": "Ihre Angabe vom {date}: {count, plural, one {1 Kind} other {# Kinder}}. Der Träger prüft sie, wenn Ihr Vertrag kommt.",
+  "enrollmentSaved": "Gespeichert. Die Zahl kommt mit in Ihren Betreuungsvertrag.",
+  "enrollmentClosed": "Ihr Kind ist angenommen. Die Zahl ändern Sie jetzt in Ihrem Betreuungsvertrag.",
+  "linkHint": "Bis zur Unterschrift können Sie die Zahl hier ändern.",
+  "enrollmentHint": "Bis Ihr Kind angenommen ist, können Sie die Zahl hier ändern."
 }

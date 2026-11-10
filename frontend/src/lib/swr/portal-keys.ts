@@ -64,6 +64,8 @@ export const operatorProvisioningKeys = {
     `operator-school-pwa-usage-${encodeURIComponent(id ?? "")}`,
   orgErasureOrder: (id: string | undefined) =>
     `operator-org-erasure-order-${encodeURIComponent(id ?? "")}`,
+  orgBelegRetention: (id: string | undefined) =>
+    `operator-org-beleg-retention-${encodeURIComponent(id ?? "")}`,
   orgTraegerSettings: (id: string | undefined) =>
     `operator-org-traeger-settings-${encodeURIComponent(id ?? "")}`,
   provisioningStats: () => "operator-provisioning-stats",
@@ -329,6 +331,12 @@ export const traegerKeys = {
   period: (id: string) =>
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
+  // Schließtage und Feiertage eines Jahres (#4702), keine Personendaten.
+  closingDays: (from: string, to: string) =>
+    `traeger-closing-days-${from}-${to}`,
+  // Offene Hinweise an Eltern zu Schließtagen in Ferienwochen (#6434):
+  // Wochen und Zahlen, keine Namen.
+  holidayClosures: () => "traeger-holiday-closures-pending",
   billingRuns: () => "traeger-billing-run-list",
   // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
   documents: () => "traeger-document-list",

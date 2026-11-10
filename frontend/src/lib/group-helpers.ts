@@ -152,26 +152,3 @@ export function mapGroupsResponse(backendGroups: BackendGroup[]): Group[] {
   }
   return backendGroups.map(mapGroupResponse);
 }
-
-export function mapSingleGroupResponse(response: {
-  data: BackendGroup;
-}): Group {
-  return mapGroupResponse(response.data);
-}
-
-// Prepare frontend types for backend
-export function prepareGroupForBackend(
-  group: Partial<Group>,
-): Partial<BackendGroup> {
-  return {
-    id: group.id ? Number.parseInt(group.id, 10) : undefined,
-    name: group.name,
-    room_id: group.room_id ? Number.parseInt(group.room_id, 10) : undefined,
-    // Note: room_name is not sent to backend, only room_id
-    representative_id: group.representative_id
-      ? Number.parseInt(group.representative_id, 10)
-      : undefined,
-    // Note: representative_name is also not sent to backend, only representative_id
-    teacher_ids: group.teacher_ids?.map((id) => Number.parseInt(id, 10)),
-  };
-}

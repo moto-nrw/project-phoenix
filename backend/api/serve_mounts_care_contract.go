@@ -57,6 +57,7 @@ func careContractSignaturePorts(organizations HolidayOrganizations, settings Tra
 		Sender: owners.CareContractSigningSender{CareContractSender: owners.CareContractSender{Settings: settings},
 			MasterData: organizationTenancyCompose.NewTraegerMasterData()},
 		Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{}, Holidays: holidays,
+		Families: owners.NewCareContractFamilyNumbers(),
 	}
 }
 
@@ -102,7 +103,7 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
 		Modes: careContractModes{settings: schoolSettings}, Mail: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
-		Letterheads: letterheads,
+		Letterheads: letterheads, Families: owners.NewCareContractFamilyNumbers(),
 	}
 }
 
@@ -188,6 +189,9 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 			GuardianLastName: application.GuardianLastName, GuardianEmail: application.GuardianEmail,
 			GuardianAccountID: application.GuardianAccountID, PhaseName: application.PhaseName,
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
+		}
+		if application.FamilyChildren != nil && application.FamilyChildrenStatedAt != nil {
+			result[i].FamilyChildren = &carecontract.FamilyStatement{Children: *application.FamilyChildren, StatedAt: *application.FamilyChildrenStatedAt}
 		}
 		for _, proof := range application.Acceptances {
 			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt,

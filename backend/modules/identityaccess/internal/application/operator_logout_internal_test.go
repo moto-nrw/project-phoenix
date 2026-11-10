@@ -48,7 +48,7 @@ func TestOperatorLogoutRequiresConfirmedRevocation(t *testing.T) {
 			ctx := context.Background()
 			f := newOperatorFixture(t)
 			operator := f.seedOperator(42)
-			_, _, err := f.auth.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "", "")
+			_, _, err := f.auth.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "", "")
 			require.NoError(t, err)
 			sessions := f.store.operatorSessionsOf(operator.ID)
 			require.Len(t, sessions, 1)

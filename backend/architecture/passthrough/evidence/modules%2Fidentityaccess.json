@@ -856,7 +856,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
+      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Phone: request.Phone, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/DemoAccessEngine.RequestDemoAccess",
       "owner": "modules/identityaccess"
@@ -1185,7 +1185,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip)\n}",
+      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip, \u0026claims.CredentialGeneration)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
       "owner": "modules/identityaccess"

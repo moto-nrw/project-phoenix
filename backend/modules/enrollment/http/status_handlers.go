@@ -126,6 +126,7 @@ type EditDraftChildResponse struct {
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
+	HolidayCareWish   *bool                          `json:"holiday_care_wish,omitempty"`
 	CustomData        capability.FormValues          `json:"custom_data"`
 	OfferingIDs       []string                       `json:"offering_ids"`
 	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
@@ -464,6 +465,7 @@ func toEditDraftChildResponse(child *capability.RequestChild, offeringLinks []*R
 		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
+		HolidayCareWish:   child.HolidayCareWish,
 		CustomData:        child.CustomData,
 		OfferingIDs:       []string{},
 		Locked:            ChildTakenOver(child),
@@ -533,18 +535,7 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		return rs.RequestService.Edit(adminCtx, token, patch)
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, capability.ErrRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
-		case errors.Is(err, capability.ErrEditNotAllowed):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentEditNotAllowed))
-		case errors.Is(err, capability.ErrInvalidGuardianPhone):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
-		case errors.Is(err, capability.ErrSignatureRequired):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentSignatureRequired))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
-		}
+		mapEditError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"message": "updated"}, "Request updated")

@@ -101,6 +101,22 @@ func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
 	assert.Equal(t, float64(13), decoded["grade_level_max"])
 }
 
+func TestEditDraftChildResponse_PreservesHolidayCareWish(t *testing.T) {
+	t.Parallel()
+	for _, wish := range []*bool{nil, new(true), new(false)} {
+		response := toEditDraftChildResponse(&capability.RequestChild{HolidayCareWish: wish}, nil)
+		payload, err := json.Marshal(response)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, json.Unmarshal(payload, &decoded))
+		if wish == nil {
+			assert.NotContains(t, decoded, "holiday_care_wish")
+		} else {
+			assert.Equal(t, *wish, decoded["holiday_care_wish"])
+		}
+	}
+}
+
 func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -645,6 +661,31 @@ func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testi
 	childFields := doc.Groups[1].Records[1].Fields
 	assert.Contains(t, childFields, lists.Field{Label: "Betreuungsangebote", Value: "Kernzeit (#42) (Mo, Mi)"})
 	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
+}
+
+func TestSignatureProofDocument_IncludesHolidayCareWish(t *testing.T) {
+	t.Parallel()
+	for _, wish := range []*bool{new(true), new(false), nil} {
+		doc, err := signatureProofDocument(signatureProof{
+			Request: &capability.Request{}, Signature: &capability.RequestSignature{},
+			Children: []*capability.RequestChild{{FirstName: "Lina", LastName: "Beispiel",
+				DateOfBirth: calendar.NewDate(2018, 4, 15), HolidayCareWish: wish}},
+		}, time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC))
+		require.NoError(t, err)
+		require.Len(t, doc.Groups[1].Records, 2)
+		fields := doc.Groups[1].Records[1].Fields
+		if wish == nil {
+			for _, field := range fields {
+				assert.NotEqual(t, "Ferienwunsch", field.Label, "unknown must not read as no")
+			}
+			continue
+		}
+		answer := "Nein"
+		if *wish {
+			answer = "Ja"
+		}
+		assert.Contains(t, fields, lists.Field{Label: "Ferienwunsch", Value: answer})
+	}
 }
 
 // TestSubmitCarriesTheShownFormVersion: the form version the page showed

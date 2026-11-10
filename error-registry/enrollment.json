@@ -507,6 +507,12 @@
       "legacy": "enrollment.guardian_phone_required"
     },
     {
+      "code": "enrollment.holiday_care_wish_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_care_wish_required"
+    },
+    {
       "code": "enrollment.holiday_form_field_not_allowed",
       "class": "input",
       "parameters": [],
@@ -537,6 +543,12 @@
       "legacy": "enrollment.holiday_period_not_found"
     },
     {
+      "code": "enrollment.holiday_week_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_not_found"
+    },
+    {
       "code": "enrollment.holiday_registration_closed",
       "class": "business_rejection",
       "parameters": [],
@@ -553,6 +565,15 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_registration_form_changed"
+    },
+    {
+      "code": "enrollment.holiday_week_no_care_day",
+      "class": "business_rejection",
+      "parameters": [
+        "date",
+        "name"
+      ],
+      "legacy": "enrollment.holiday_week_no_care_day"
     },
     {
       "code": "enrollment.hosted_holiday_week_not_found",
@@ -601,6 +622,28 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_week_booked"
+    },
+    {
+      "code": "enrollment.holiday_wish_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_wish_missing"
+    },
+    {
+      "code": "enrollment.holiday_booking_unit_booked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_booking_unit_booked"
+    },
+    {
+      "code": "enrollment.holiday_child_day_limit",
+      "class": "input",
+      "parameters": [
+        "limit",
+        "days",
+        "child"
+      ],
+      "legacy": "enrollment.holiday_child_day_limit"
     },
     {
       "code": "enrollment.holiday_weeks_booked_together",
@@ -903,6 +946,18 @@
         "max_files"
       ],
       "legacy": "enrollment.holiday_proof_limit"
+    },
+    {
+      "code": "enrollment.family_children_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.family_children_closed"
+    },
+    {
+      "code": "enrollment.family_children_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.family_children_invalid"
     }
   ]
 }

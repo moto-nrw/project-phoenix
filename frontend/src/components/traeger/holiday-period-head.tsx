@@ -1,8 +1,8 @@
 "use client";
 
 // Der gemeinsame Kopf eines Ferienzeitraums (#5146): „Planung“, „Formular“
-// (#5198) und „Anmeldungen“ sind Reiter derselben Sache, jeder mit eigener
-// Adresse.
+// (#5198), „Anmeldungen“ und „Plätze“ (#4699) sind Reiter derselben Sache,
+// jeder mit eigener Adresse.
 // Der Status steht als Plakette in der Statuszeile, auf beiden Reitern gleich.
 
 import type { ReactNode } from "react";
@@ -12,7 +12,8 @@ import type { HolidayPeriod } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { formatDateRange, holidayStatusLabel } from "./holiday-period-format";
 
-export type HolidayPeriodTab = "planung" | "formular" | "anmeldungen";
+export type HolidayPeriodTab =
+  "planung" | "formular" | "anmeldungen" | "plaetze";
 
 /** Die Reiter eines Ferienzeitraums; jeder führt auf seine eigene Seite. */
 export function holidayPeriodTabs(
@@ -41,6 +42,11 @@ export function holidayPeriodTabs(
         label: "Anmeldungen",
         badge: registrationCount,
         href: traegerPath(`/traeger/ferien/${periodId}/anmeldungen`),
+      },
+      {
+        value: "plaetze",
+        label: "Plätze",
+        href: traegerPath(`/traeger/ferien/${periodId}/plaetze`),
       },
     ],
   };
@@ -78,6 +84,9 @@ export function HolidayPeriodStatusLine({
           period.registrationClosesOn,
         )}
       </span>
+      {period.maxDaysPerChild == null ? null : (
+        <span>höchstens {period.maxDaysPerChild} Tage je Kind</span>
+      )}
       {children}
     </HolidayHeadFacts>
   );

@@ -55,8 +55,10 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.Form.Get("response") != failingCaptcha})
 	}))
 	t.Cleanup(turnstile.Close)
+	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
+	require.NoError(t, err)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, testHealthCipher(), slog.Default())
+		turnstile.URL, testHealthCipher(), owners.HolidayTestSchoolCalendar{}, settings, slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -222,7 +224,11 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 		Data map[string]any `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &receipt))
-	assert.ElementsMatch(t, []string{"id", "submitted_at"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	// The placements name each booking by the child's position and week
+	// (#4699), never by a name.
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	assert.NotContains(t, rec.Body.String(), "Lia", "the placements name no child")
+	assert.NotContains(t, rec.Body.String(), "Muster", "the placements name no family")
 
 	ctx := context.Background()
 	var children []struct {

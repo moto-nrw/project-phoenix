@@ -265,18 +265,35 @@ func (l *CareLetters) currentRecipients(ctx context.Context, reviewer parentbill
 			contracts = append(contracts, letter.invoice.ContractID)
 		}
 	}
+	return effectiveRecipients(ctx, l.recipients, l.store, reviewer, contracts)
+}
+
+// familyBillingReader reads the deviations of the families and records the
+// read (#4689).
+type familyBillingReader interface {
+	FamilyBillings(ctx context.Context, organizationID int64) ([]parentbilling.FamilyBilling, error)
+	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
+}
+
+// effectiveRecipients resolves the party each contract bills now with the
+// deviation of its family, the payer included, and audits the read of the
+// deviations. The letters of the monthly runs and of the Jahresbescheide
+// check every send against it.
+func effectiveRecipients(ctx context.Context, source CareLetterRecipients, store familyBillingReader,
+	reviewer parentbilling.HolidayReviewer, contracts []int64,
+) (map[int64]parentbilling.CareRecipient, error) {
 	if len(contracts) == 0 {
 		return map[int64]parentbilling.CareRecipient{}, nil
 	}
-	recipients, err := l.recipients.Recipients(ctx, reviewer.OrganizationID, contracts)
+	recipients, err := source.Recipients(ctx, reviewer.OrganizationID, contracts)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read the recipients of the contracts: %w", err)
 	}
-	families, err := l.store.FamilyBillings(ctx, reviewer.OrganizationID)
+	families, err := store.FamilyBillings(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read the family billing: %w", err)
 	}
-	if err := l.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, families); err != nil {
+	if err := store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, families); err != nil {
 		return nil, fmt.Errorf("parent billing: record the read of the family billing: %w", err)
 	}
 	byFamily := make(map[string]*parentbilling.FamilyBilling, len(families))

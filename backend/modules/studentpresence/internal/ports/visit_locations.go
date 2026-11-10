@@ -22,6 +22,12 @@ type VisitLocation struct {
 	TimeoutMinutes int
 }
 
+// VisitAdmission is read after locking the target session and the child.
+type VisitAdmission struct {
+	HasOpenVisit   bool
+	GroupOccupancy int
+}
+
 type VisitLocationStore interface {
 	ListVisitLocations(context.Context, studentpresence.VisitLocationFilter) ([]VisitLocation, Stats, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, Stats, error)

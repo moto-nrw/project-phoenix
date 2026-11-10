@@ -50,7 +50,8 @@ never use `git commit --no-verify`.)
 ## Keep the stack current
 
 Fetch base changes to inspect them; a moving base or `BEHIND` status alone does
-not require updating the stack. When actual conflicts require an update, merge
+not require updating the stack. When actual conflicts or migrations in the
+stack require an update, merge
 `development` into the **parent** branch, then merge the parent into the child.
 Merging `development` straight into the child pulls its
 commits into the child's diff, because GitHub diffs from the merge-base with the

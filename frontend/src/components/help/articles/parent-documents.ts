@@ -45,7 +45,7 @@ export function parentDocumentsTopic(): HelpTopic {
         description:
           "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
         steps: [
-          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`.",
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`. Ohne Konto öffnen Sie den Link aus der Vertragsmail.",
           "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
           "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
           "Wählen Sie `Angabe senden`.",
@@ -70,6 +70,7 @@ export function parentDocumentsTopic(): HelpTopic {
       "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
+      "Hat Ihr Träger Ihnen einen Gebührenbescheid für das Jahr geschickt, liegt er hier mit demselben PDF wie in der Mail. Ändert sich Ihr Vertrag, kommt ein Änderungsbescheid dazu. Der alte Bescheid bleibt hier stehen.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
       "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin und dann `Jetzt kündigen`. Solange Sie den Vertrag widerrufen können, steht beim Vertrag auch `Vertrag widerrufen`. Wählen Sie dann `Widerruf bestätigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
@@ -77,6 +78,7 @@ export function parentDocumentsTopic(): HelpTopic {
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Sie dürfen Anmeldungen nur ansehen? Wählen Sie beim Vertrag `Kinder in Ihrer Familie`. Dort sehen Sie die Angabe und die bestätigte Zahl. Sie können die Zahl nicht ändern.",
+      "Über den Link aus der Vertragsmail ändern Sie die Kinderzahl bis zur Unterschrift. Danach geht das in der Eltern-App unter `Dokumente`.",
       "Ihre Angabe zur Kinderzahl prüft der Träger. Bis dahin steht `Wird geprüft`. Hat er sie bestätigt, steht `Bestätigt`. Erst dann zählt sie für die Ermäßigung.",
       "Nach dem Mandat steht beim Vertrag `Lastschrift erteilt`. Unter `Lastschrift` sehen Sie Ihr Konto, die Mandatsreferenz und den Text. Mit `Als Datei speichern` legen Sie den Text bei Ihren Unterlagen ab.",
       "Sie möchten ein anderes Konto nutzen oder keine Lastschrift mehr? Wählen Sie unter `Lastschrift` den Knopf `Mandat widerrufen`. Ab der nächsten Rechnung bucht Ihr Träger nichts mehr ab. Danach können Sie ein neues Mandat erteilen.",

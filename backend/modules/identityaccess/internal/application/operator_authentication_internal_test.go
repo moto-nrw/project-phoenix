@@ -221,7 +221,7 @@ func TestIssueTokensForAuthenticatedOperator(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.seedOperator(42)
-		access, refresh, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 42, "127.0.0.1", "ua")
+		access, refresh, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 42, nil, "127.0.0.1", "ua")
 		require.NoError(t, err)
 		assert.NotEmpty(t, access)
 		assert.NotEmpty(t, refresh)
@@ -231,21 +231,21 @@ func TestIssueTokensForAuthenticatedOperator(t *testing.T) {
 	t.Run("unknown operator", func(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
-		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 404, "", "")
+		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 404, nil, "", "")
 		require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 	})
 	t.Run("inactive operator", func(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.addOperator(7, "inactive@example.com", "hash:secret", false)
-		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 7, "", "")
+		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 7, nil, "", "")
 		require.ErrorIs(t, err, identityaccess.ErrOperatorInactive, "inactive operators never receive a session token")
 	})
 	t.Run("lookup failure propagates", func(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.findOperatorErr = errDB
-		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 42, "", "")
+		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 42, nil, "", "")
 		require.ErrorIs(t, err, errDB)
 	})
 }

@@ -2,6 +2,9 @@ package application
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -35,6 +38,7 @@ type PasswordReset struct {
 	runtime          ports.Runtime
 	expiry           time.Duration
 	rateLimitEnabled bool
+	rateLimitSecret  []byte
 	now              func() time.Time
 	logger           *slog.Logger
 }
@@ -48,6 +52,7 @@ type PasswordResetDependencies struct {
 	Runtime          ports.Runtime
 	Expiry           time.Duration
 	RateLimitEnabled bool
+	RateLimitSecret  []byte
 	Logger           *slog.Logger
 }
 
@@ -61,6 +66,8 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 		return nil, fmt.Errorf("identity access password reset: stores are required")
 	case deps.Passwords == nil, deps.Delivery == nil, deps.Runtime == nil:
 		return nil, fmt.Errorf("identity access password reset: password policy, delivery and tenant runtime are required")
+	case deps.RateLimitEnabled && len(deps.RateLimitSecret) == 0:
+		return nil, fmt.Errorf("identity access password reset: rate limit secret is required")
 	case deps.Expiry <= 0:
 		return nil, fmt.Errorf("identity access password reset: a positive link expiry is required")
 	}
@@ -70,18 +77,22 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 	}
 	return &PasswordReset{
 		auth: auth, store: deps.Store, logins: deps.Logins, passwords: deps.Passwords, delivery: deps.Delivery,
-		runtime: deps.Runtime, expiry: deps.Expiry, rateLimitEnabled: deps.RateLimitEnabled, now: time.Now, logger: logger,
+		rateLimitSecret: append([]byte(nil), deps.RateLimitSecret...),
+		runtime:         deps.Runtime, expiry: deps.Expiry, rateLimitEnabled: deps.RateLimitEnabled, now: time.Now, logger: logger,
 	}, nil
 }
 
 // InitiatePasswordReset issues a reset link for the address and mails it. An
 // unknown address, or an account without a role of the scope's portal,
 // yields no link and no error, so the response never reveals whether an
-// account exists. The rate limit counts only requests that would send.
+// account exists. Every normalized address shares the same rate-limit contract.
 func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, portal identityaccess.PasswordResetScope) (*identityaccess.PasswordResetLink, error) {
 	return runFlow(ctx, r.flow(), func(ctx context.Context) (*identityaccess.PasswordResetLink, error) {
 		scope := domain.PasswordResetScope(portal)
 		email = strings.TrimSpace(strings.ToLower(email))
+		if err := r.checkRateLimit(ctx, email); err != nil {
+			return nil, err
+		}
 		account, found, _, err := findLoginAccountByEmail(ctx, r.runtime, r.logins, email)
 		if err != nil {
 			// The answer stays neutral, but a failing lookup is an incident, not
@@ -97,13 +108,6 @@ func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string,
 		}
 		eligible, err := r.portalEligible(ctx, account.ID, scope)
 		if err != nil || !eligible {
-			return nil, err
-		}
-		// Rate-limit only after confirming a real, actionable account: keying the
-		// limiter on accounts that will be mailed keeps an unauthenticated caller
-		// from filling the table with arbitrary addresses. The IP-keyed limiter in
-		// front of the public routes bounds volumetric probing.
-		if err := r.checkRateLimit(ctx, email); err != nil {
 			return nil, err
 		}
 		r.logger.Info("password reset requested",
@@ -171,7 +175,31 @@ func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, sco
 // checkRateLimit rejects a request while the window already holds the
 // threshold, and again after counting when this request crossed it.
 func (r *PasswordReset) checkRateLimit(ctx context.Context, email string) error {
-	return globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error { return r.checkRateLimitInTransaction(txCtx, email) })
+	if !r.rateLimitEnabled {
+		return nil
+	}
+	// Purpose-separated HMACs make the persisted counter unusable as a list of
+	// submitted addresses, including addresses with no account.
+	mac := hmac.New(sha256.New, r.rateLimitSecret)
+	mac.Write([]byte("password-reset-rate-limit-v1\x00" + email))
+	key := hex.EncodeToString(mac.Sum(nil))
+	var refusal error
+	err := globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		if err := r.store.MigratePasswordResetWindow(txCtx, email, key); err != nil {
+			return failed("migrate password reset rate limit", err)
+		}
+		err := r.checkRateLimitInTransaction(txCtx, key)
+		if errors.Is(err, domain.ErrPasswordResetRateLimited) {
+			// Commit the migration and counter even when the quota refuses the request.
+			refusal = err
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return refusal
 }
 func (r *PasswordReset) checkRateLimitInTransaction(ctx context.Context, email string) error {
 	if !r.rateLimitEnabled {

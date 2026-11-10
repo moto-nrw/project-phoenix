@@ -29,6 +29,7 @@ const CodeProvisioningSchoolSubdomainTaken = "provisioning.school_subdomain_take
 const CodeProvisioningTraegerActive = "provisioning.traeger_active"
 const CodeProvisioningTraegerErasureOrderNotFound = "provisioning.traeger_erasure_order_not_found"
 const CodeProvisioningTraegerErasureOrderOpen = "provisioning.traeger_erasure_order_open"
+const CodeProvisioningTraegerErasureRecordsRecorded = "provisioning.traeger_erasure_records_recorded"
 const CodeProvisioningTraegerErasureStarted = "provisioning.traeger_erasure_started"
 
 var errorCodeClassesProvisioning = []errorCodeClass{
@@ -60,6 +61,7 @@ var errorCodeClassesProvisioning = []errorCodeClass{
 	{CodeProvisioningTraegerActive, "business_rejection"},
 	{CodeProvisioningTraegerErasureOrderNotFound, "business_rejection"},
 	{CodeProvisioningTraegerErasureOrderOpen, "business_rejection"},
+	{CodeProvisioningTraegerErasureRecordsRecorded, "business_rejection"},
 	{CodeProvisioningTraegerErasureStarted, "business_rejection"},
 }
 
