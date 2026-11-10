@@ -132,6 +132,19 @@ func (c *RequestChild) IsTerminal() bool {
 	return slices.Contains(TerminalChildStatuses(), c.Status)
 }
 
+// ActivationPlan is the open scheduled activation of an approved request
+// child: the child's student becomes active On unless an earlier plan or a
+// manual change wins. PhaseEnd is the end of the service window of the
+// child's phase, so a phase edit can tell which plans shape the end of the
+// student's enrollment window (#6505).
+type ActivationPlan struct {
+	RequestChildID int64
+	StudentID      int64
+	PhaseID        int64
+	On             Date
+	PhaseEnd       Date
+}
+
 // ClassSwitch is the class change an approved re-enrollment planned for an
 // already enrolled child (#3917). The child keeps From until On, the first day
 // of the new school year; the switch to To applies only while the child still

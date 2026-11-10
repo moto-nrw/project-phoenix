@@ -99,6 +99,7 @@
   "message_required": "Напишите сообщение.",
   "offering_adjustment_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "phase_care_offering_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "phase_has_effective_bookings": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "phase_eligibility_setting_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "phase_name_exists": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "phase_name_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",

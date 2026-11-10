@@ -102,7 +102,16 @@ type enrollmentPhaseOfferings struct {
 	carePlan interface {
 		ListCareOfferings(context.Context, careplan.CareOfferingFilter) ([]careplan.CareOffering, error)
 		CountCareOfferingsByPhase(context.Context, int64) (int, error)
+		CareOfferingBookingsForPhase(context.Context, int64) ([]careplan.CareOfferingBooking, error)
 	}
+}
+
+func (o enrollmentPhaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentOwner.OfferingBooking, error) {
+	rows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care offering bookings by phase: %w", err)
+	}
+	return enrollmentBookings(rows), nil
 }
 
 func (o enrollmentPhaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {

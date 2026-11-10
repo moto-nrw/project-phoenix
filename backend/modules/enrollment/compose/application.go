@@ -17,6 +17,7 @@ import (
 type (
 	PhaseRecords             = application.PhaseRecords
 	PhaseOfferings           = application.PhaseOfferings
+	PhaseStudents            = application.PhaseStudents
 	CalendarPeriods          = application.CalendarPeriods
 	CollectionSettings       = application.CollectionSettings
 	FormSchemaRecords        = application.FormSchemaRecords
@@ -49,7 +50,10 @@ type PhaseDependencies struct {
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollment.Phase) error
 	// Resyncer keeps the templates sourcing the phase's offerings in step.
-	Resyncer       enrollment.SourcedTemplateResyncer
+	Resyncer enrollment.SourcedTemplateResyncer
+	// Students moves the window of still pending students with a phase-start
+	// edit; the root binds People Directory.
+	Students       PhaseStudents
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -70,6 +74,7 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
+		Students:                        deps.Students,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),

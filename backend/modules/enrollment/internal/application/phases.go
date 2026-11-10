@@ -27,6 +27,10 @@ type PhaseDependencies struct {
 	// Resyncer keeps the rosters of the templates sourcing the phase's
 	// offerings in step with a window change or a delete.
 	Resyncer enrollment.SourcedTemplateResyncer
+	// Students moves the enrollment window of still pending students with
+	// a phase-start edit (#6505). Optional: nil leaves the students alone
+	// (focused tests); the root always binds it.
+	Students PhaseStudents
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -230,7 +234,15 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 	if err := s.validatePhaseWrite(ctx, phase); err != nil {
 		return err
 	}
-	serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
+	// The shared class-writes gate comes before the recurrence gate (ADR
+	// 0162): the edit locks pending students below, and their locked read
+	// takes this gate again.
+	if s.deps.Students != nil {
+		if err := s.deps.Students.LockEnrollmentClassWrites(ctx); err != nil {
+			return fmt.Errorf("lock class writes for phase update: %w", err)
+		}
+	}
+	existing, serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
 	if err != nil {
 		return err
 	}
@@ -238,6 +250,9 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 		return s.translatePhaseWriteError(err)
 	}
 	if serviceWindowChanged {
+		if err := s.followPendingActivations(ctx, existing, phase); err != nil {
+			return err
+		}
 		if err := s.resyncPhaseSourcedTemplates(ctx, phase.ID); err != nil {
 			return err
 		}
@@ -250,30 +265,31 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 // legacy-linked care offerings and reports whether the window actually
 // changed, so Update can resync offering-sourced templates after the write
 // (#2147 review). The recurrence lock is taken before the existing row is
-// read and stays held for the whole update transaction.
-func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (bool, error) {
+// read and stays held for the whole update transaction. It returns the
+// stored phase, so the update can tell where its window was.
+func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (*enrollment.Phase, bool, error) {
 	if err := s.deps.LockTemplateRecurrence(ctx); err != nil {
-		return false, fmt.Errorf("lock template recurrence for phase update: %w", err)
+		return nil, false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
 	existing, err := s.deps.Records.Phase(ctx, phase.ID)
 	if err != nil {
 		if s.notFound(err) {
-			return false, fmt.Errorf("%w: phase %d", enrollment.ErrPhaseNotFound, phase.ID)
+			return nil, false, fmt.Errorf("%w: phase %d", enrollment.ErrPhaseNotFound, phase.ID)
 		}
-		return false, fmt.Errorf("load phase for care-offering validation: %w", err)
+		return nil, false, fmt.Errorf("load phase for care-offering validation: %w", err)
 	}
 	if existing.ServiceStartDate == phase.ServiceStartDate && existing.ServiceEndDate == phase.ServiceEndDate {
-		return false, nil
+		return existing, false, nil
 	}
 	if s.deps.ValidateCareOfferingPhaseChange != nil {
 		if err := s.deps.ValidateCareOfferingPhaseChange(ctx, phase.ID, phase); err != nil {
 			if errors.Is(err, careplan.ErrCareOfferingConfigInvalid) {
-				return false, fmt.Errorf("%w: %v", enrollment.ErrPhaseCareOfferingConflict, err)
+				return nil, false, fmt.Errorf("%w: %v", enrollment.ErrPhaseCareOfferingConflict, err)
 			}
-			return false, fmt.Errorf("validate care offerings for phase update: %w", err)
+			return nil, false, fmt.Errorf("validate care offerings for phase update: %w", err)
 		}
 	}
-	return true, nil
+	return existing, true, nil
 }
 
 // resyncPhaseSourcedTemplates re-reconciles every template sourcing one of
@@ -363,9 +379,11 @@ func (s *Phases) DeleteImpact(ctx context.Context, id int64) (*enrollment.PhaseD
 }
 
 // DeletePhase permanently removes the phase and every enrollment record that
-// hangs off it. There is intentionally no reference guard: admins may
-// delete a phase at any lifecycle stage. To merely hide a phase from
-// parents, use Update(is_active=false) instead.
+// hangs off it. A phase whose care offering bookings still apply today or
+// later is refused before any write (#6505): the delete would end a child's
+// care without the care-end or booking process. An ended phase or one
+// without such bookings may be deleted at any lifecycle stage. To merely
+// hide a phase from parents, use Update(is_active=false) instead.
 //
 // Ordering matters. The care_offering_id FKs of care_offering_bookings and
 // request_child_offering_selections are ON DELETE RESTRICT, so a single
@@ -395,6 +413,14 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 
 	deletedRequests := 0
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		// The recurrence gate serializes the check with the approvals and
+		// booking changes that write bookings under it.
+		if err := s.deps.LockTemplateRecurrence(txCtx); err != nil {
+			return fmt.Errorf("lock template recurrence for phase delete: %w", err)
+		}
+		if err := s.refuseEffectiveBookings(txCtx, id); err != nil {
+			return err
+		}
 		// Retire sourced rosters FIRST, while request children and offering
 		// links still exist: the phase cascade SET-NULLs the templates'
 		// source and the rows' provenance, which would leave bounded

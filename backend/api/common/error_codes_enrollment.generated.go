@@ -121,6 +121,7 @@ const CodeEnrollmentMessageRequired = "enrollment.message_required"
 const CodeEnrollmentOfferingAdjustmentInvalid = "enrollment.offering_adjustment_invalid"
 const CodeEnrollmentPhaseCareOfferingConflict = "enrollment.phase_care_offering_conflict"
 const CodeEnrollmentPhaseEligibilitySettingRequired = "enrollment.phase_eligibility_setting_required"
+const CodeEnrollmentPhaseHasEffectiveBookings = "enrollment.phase_has_effective_bookings"
 const CodeEnrollmentPhaseNameExists = "enrollment.phase_name_exists"
 const CodeEnrollmentPhaseNameRequired = "enrollment.phase_name_required"
 const CodeEnrollmentPhaseNotEligible = "enrollment.phase_not_eligible"
@@ -278,6 +279,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentOfferingAdjustmentInvalid, "input"},
 	{CodeEnrollmentPhaseCareOfferingConflict, "business_rejection"},
 	{CodeEnrollmentPhaseEligibilitySettingRequired, "input"},
+	{CodeEnrollmentPhaseHasEffectiveBookings, "business_rejection"},
 	{CodeEnrollmentPhaseNameExists, "business_rejection"},
 	{CodeEnrollmentPhaseNameRequired, "input"},
 	{CodeEnrollmentPhaseNotEligible, "permission"},

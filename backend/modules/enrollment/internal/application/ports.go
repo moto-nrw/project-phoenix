@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
@@ -85,6 +86,9 @@ type PhaseRecords interface {
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
 	RemovePhase(context.Context, int64) (int, error)
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error)
+	PhaseActivationPlans(ctx context.Context, phaseID int64, on enrollment.Date) ([]enrollment.ActivationPlan, error)
+	ChildrenByID(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error)
+	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *enrollment.Date) error
 }
 
 // PhaseList lists every phase of the tenant.
@@ -96,6 +100,18 @@ type PhaseList interface {
 type PhaseOfferings interface {
 	OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error)
 	CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error)
+	// CareOfferingBookingsForPhase lists the bookings of the phase's
+	// offerings, including ended ones.
+	CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollment.OfferingBooking, error)
+}
+
+// PhaseStudents is the People Directory seam a phase-start edit moves the
+// enrollment window of still pending students through (#6505). The locked
+// read takes the shared class-writes gate before the student row.
+type PhaseStudents interface {
+	LockEnrollmentClassWrites(context.Context) error
+	ReadEnrollmentStudent(context.Context, int64, string) (peopleEnrollment.Record, error)
+	RenewEnrollmentStudent(context.Context, int64, peopleEnrollment.Input) error
 }
 
 // CalendarPeriods is the slice of the School Calendar the phase link

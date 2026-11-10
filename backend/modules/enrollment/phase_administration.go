@@ -16,6 +16,10 @@ var (
 	ErrInvalidPhase              = errors.New("invalid phase")
 	ErrPhaseDuplicateName        = errors.New("phase name already exists")
 	ErrPhaseCareOfferingConflict = errors.New("phase change is incompatible with a linked care offering")
+	// ErrPhaseHasEffectiveBookings rejects deleting a phase whose care
+	// offering bookings still apply today or later (#6505): the delete would
+	// remove a child's care without the care-end or booking process.
+	ErrPhaseHasEffectiveBookings = errors.New("phase still has effective care offering bookings")
 )
 
 // Storage refusals of a phase write. The owner marks the database error with

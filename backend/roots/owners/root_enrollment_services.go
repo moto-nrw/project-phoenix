@@ -68,7 +68,7 @@ func BuildEnrollmentPhases(
 	phases, err := enrollmentCompose.NewResyncingPhases(enrollmentCompose.PhaseDependencies{
 		Records: enrollment.Bookings, Offerings: enrollmentPhaseOfferings{carePlan: carePlan}, Calendar: calendar,
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites, ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(offerings.Catalog),
-		Resyncer: offerings.Bookings, Settings: EnrollmentCollectionSettings{Settings: settings},
+		Resyncer: offerings.Bookings, Students: persons, Settings: EnrollmentCollectionSettings{Settings: settings},
 		Roster: phaseResponseRoster{query: persons}, CareExits: phaseResponseCareExits{query: carePlan},
 		PortalAccounts: persons, Logger: env.Logger.With("service", "enrollment-phase"),
 	})

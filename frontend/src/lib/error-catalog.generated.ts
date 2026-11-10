@@ -538,6 +538,8 @@ export const ERROR_CATALOG = {
         "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
       "enrollment.phase_eligibility_setting_required":
         "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
+      "enrollment.phase_has_effective_bookings":
+        "Für diese Anmeldephase sind noch Kinder gebucht. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“ oder beenden Sie zuerst die Buchungen.",
       "enrollment.phase_name_exists":
         "Es gibt schon eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "enrollment.phase_name_required":

@@ -114,6 +114,10 @@ type ChildCommands interface {
 	InsertChild(ctx context.Context, child *RequestChild) error
 	UpdateChildData(ctx context.Context, child *RequestChild) error
 	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *Date) error
+	// PhaseActivationPlans lists the activation plans a phase-start edit
+	// follows: every approved scheduled plan of each student the phase plans
+	// to activate on the given day (#6505).
+	PhaseActivationPlans(ctx context.Context, phaseID int64, on Date) ([]ActivationPlan, error)
 	LinkCreatedStudent(ctx context.Context, childID, studentID int64) error
 	UpdateMatchedStudent(ctx context.Context, childID int64, studentID *int64) error
 	// PinOfficeChosenStudent pins the enrolled student the office chose at

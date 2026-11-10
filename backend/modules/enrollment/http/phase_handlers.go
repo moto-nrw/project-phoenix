@@ -414,6 +414,10 @@ func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
 			return
 		}
+		if errors.Is(err, enrollmentOwner.ErrPhaseHasEffectiveBookings) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseHasEffectiveBookings, common.CodeEnrollmentPhaseHasEffectiveBookings))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
