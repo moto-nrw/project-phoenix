@@ -233,16 +233,28 @@ export default function TraegerCareNoticeRunPage() {
               : "Bescheide ausstellen"}
           </Button>
         ) : run?.status === "released" && run.previewCount > 0 ? (
-          // The PAIN.008 file of the installments has its own page (#4697).
-          <ButtonLink
-            href={traegerPath(
-              `/traeger/abrechnung/jahresbescheide/${run.id}/lastschrift`,
-            )}
-            variant="outline"
-            size="md"
-          >
-            Lastschrift der Raten
-          </ButtonLink>
+          // The PAIN.008 file of the installments (#4697) and the delivery of
+          // the stored originals (#6347) have pages of their own.
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink
+              href={traegerPath(
+                `/traeger/abrechnung/jahresbescheide/${run.id}/lastschrift`,
+              )}
+              variant="outline"
+              size="md"
+            >
+              Lastschrift der Raten
+            </ButtonLink>
+            <ButtonLink
+              href={traegerPath(
+                `/traeger/abrechnung/jahresbescheide/${run.id}/versand`,
+              )}
+              variant="primary"
+              size="md"
+            >
+              An Familien senden
+            </ButtonLink>
+          </div>
         ) : undefined
       }
       error={pageLoad.error}
@@ -340,6 +352,13 @@ export default function TraegerCareNoticeRunPage() {
             <StatCard
               label="Gesamtbetrag aller Bescheide"
               value={formatEuro(run.previewCents)}
+              // A released notice is a claim before any payment: moto sees
+              // no incoming money, the bookkeeping does (#6348).
+              hint={
+                preview
+                  ? undefined
+                  : "Forderung vor Zahlungseingang. Zahlungen sieht moto nicht."
+              }
             />
             <StatCard
               label="Zu-/Abgang gegenüber bisher"
@@ -372,7 +391,7 @@ export default function TraegerCareNoticeRunPage() {
             caption={
               preview
                 ? "Wählen Sie eine Zeile. Sie sehen Seite 1 des Bescheids."
-                : "Wählen Sie eine Zeile, um den Bescheid anzusehen und zu drucken."
+                : "Wählen Sie eine Zeile, um Seite 1 des Bescheids anzusehen. Das Original zum Versand finden Sie unter „An Familien senden“."
             }
             emptyState={
               <EmptyState

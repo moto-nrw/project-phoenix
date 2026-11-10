@@ -42,7 +42,15 @@ func (s *StudentStatusDayService) createForDatesLocked(ctx context.Context, wc S
 	if err != nil {
 		return err
 	}
-	if err := s.lockAndCheckStatusDates(ctx, studentID, dates); err != nil {
+	if err := s.lockStudentStatusDates(ctx, studentID, dates); err != nil {
+		return err
+	}
+	if wc.ReplacePartialAbsences != nil {
+		if err := wc.ReplacePartialAbsences(ctx, studentID); err != nil {
+			return err
+		}
+	}
+	if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
 		return err
 	}
 

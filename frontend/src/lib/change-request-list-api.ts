@@ -145,6 +145,12 @@ export interface RequestReviewMetadata extends SubmittedBy {
    */
   readonly current_status_by_date?: Readonly<Record<string, string>>;
   /**
+   * Nur bei Abwesenheiten: Tage, an denen die OGS das Kind schon ab einer
+   * Uhrzeit entschuldigt hat, je Tag `YYYY-MM-DD` → `HH:MM` (#5698). Freigeben
+   * ersetzt diese Einträge erst nach ausdrücklicher Bestätigung.
+   */
+  readonly partial_absence_from_by_date?: Readonly<Record<string, string>>;
+  /**
    * Die Anfrage betrifft nur vergangene Tage. Sie ändert nichts mehr und kann
    * nur noch abgelehnt oder als erledigt markiert werden (#2267).
    */

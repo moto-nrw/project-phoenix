@@ -94,6 +94,12 @@ type HolidayWeek struct {
 	EndsOn       calendar.Date      `json:"ends_on"`
 	HostSchoolID int64              `json:"host_school_id"`
 	TimeModels   []HolidayTimeModel `json:"time_models"`
+	// NoCareDays are the days of the week on which the host school gives
+	// no care (#4702). A week with such a day takes no new booking.
+	NoCareDays []HolidayNoCareDay `json:"no_care_days"`
+	// Capacity is the number of places of the week across its time models;
+	// nil is unlimited (#4699). Only HolidayPlaces changes it.
+	Capacity *int `json:"capacity"`
 }
 
 // HolidayPeriod is a holiday period of a Träger with its weeks.

@@ -2,6 +2,8 @@ package importpkg
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -14,25 +16,42 @@ import (
 // uses this read model, but consumes names before preceding writes can stale it.
 // Failed bulk reads roll back before the original row-by-row path runs, so an
 // optimization cannot turn one lookup failure into errors on unrelated rows.
-func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) ports.ImportConfig[importModels.StudentImportRow] {
+//
+// A failed savepoint statement of the bulk read ends the preview (E19): its
+// transaction can no longer be trusted, so no row falls back onto it.
+func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) (ports.ImportConfig[importModels.StudentImportRow], error) {
+	view, err := c.previewConfig(ctx, rows)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read preview matches: %v", errSavepointLost, err)
+	}
+	return view, nil
+}
+
+// previewConfig is PreviewConfig that returns a failed savepoint statement of
+// the bulk read instead of falling back (E19); a failed read whose savepoint
+// rolled back still falls back to the row-by-row path.
+func (c *StudentImportConfig) previewConfig(ctx context.Context, rows []importModels.StudentImportRow) (ports.ImportConfig[importModels.StudentImportRow], error) {
 	if c.Transactions == nil || len(rows) < 2 {
-		return c
+		return c, nil
 	}
 	filter, names := studentPreviewNames(rows)
 	if len(filter.Names) == 0 {
-		return c
+		return c, nil
 	}
 	persons, students, err := c.readPreviewMatches(ctx, filter)
+	if errors.Is(err, importModels.ErrSavepointControl) {
+		return nil, err
+	}
 	if err != nil {
-		return c
+		return c, nil
 	}
 	viewPersons, viewStudents, ok := nameMatchDirectories(persons, students, filter, names, c.Persons, c.Students)
 	if !ok {
-		return c
+		return c, nil
 	}
 	clone := *c
 	clone.Persons, clone.Students = viewPersons, viewStudents
-	return &clone
+	return &clone, nil
 }
 
 // nameMatchDirectories answers the exact-name searches of filter's names, and

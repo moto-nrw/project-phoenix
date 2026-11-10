@@ -64,6 +64,8 @@ const CodeEnrollmentDuplicateDetected = "enrollment.duplicate_detected"
 const CodeEnrollmentEditNotAllowed = "enrollment.edit_not_allowed"
 const CodeEnrollmentExistingChildChoiceInvalid = "enrollment.existing_child_choice_invalid"
 const CodeEnrollmentExportTooLarge = "enrollment.export_too_large"
+const CodeEnrollmentFamilyChildrenClosed = "enrollment.family_children_closed"
+const CodeEnrollmentFamilyChildrenInvalid = "enrollment.family_children_invalid"
 const CodeEnrollmentFieldRequired = "enrollment.field_required"
 const CodeEnrollmentFormAttachmentInvalid = "enrollment.form_attachment_invalid"
 const CodeEnrollmentFormFieldAllowedTimesInvalid = "enrollment.form_field_allowed_times_invalid"
@@ -99,6 +101,8 @@ const CodeEnrollmentHolidayRegistrationInvalid = "enrollment.holiday_registratio
 const CodeEnrollmentHolidayRegistrationNotFound = "enrollment.holiday_registration_not_found"
 const CodeEnrollmentHolidayRegistrationStateConflict = "enrollment.holiday_registration_state_conflict"
 const CodeEnrollmentHolidayWeekBooked = "enrollment.holiday_week_booked"
+const CodeEnrollmentHolidayWeekNoCareDay = "enrollment.holiday_week_no_care_day"
+const CodeEnrollmentHolidayWeekNotFound = "enrollment.holiday_week_not_found"
 const CodeEnrollmentHolidayWeeksBookedTogether = "enrollment.holiday_weeks_booked_together"
 const CodeEnrollmentHostedHolidayWeekNotFound = "enrollment.hosted_holiday_week_not_found"
 const CodeEnrollmentInvalidEmail = "enrollment.invalid_email"
@@ -213,6 +217,8 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentEditNotAllowed, "permission"},
 	{CodeEnrollmentExistingChildChoiceInvalid, "business_rejection"},
 	{CodeEnrollmentExportTooLarge, "input"},
+	{CodeEnrollmentFamilyChildrenClosed, "business_rejection"},
+	{CodeEnrollmentFamilyChildrenInvalid, "input"},
 	{CodeEnrollmentFieldRequired, "input"},
 	{CodeEnrollmentFormAttachmentInvalid, "input"},
 	{CodeEnrollmentFormFieldAllowedTimesInvalid, "input"},
@@ -248,6 +254,8 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayRegistrationNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationStateConflict, "business_rejection"},
 	{CodeEnrollmentHolidayWeekBooked, "business_rejection"},
+	{CodeEnrollmentHolidayWeekNoCareDay, "business_rejection"},
+	{CodeEnrollmentHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayWeeksBookedTogether, "input"},
 	{CodeEnrollmentHostedHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentInvalidEmail, "input"},

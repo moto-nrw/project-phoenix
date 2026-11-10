@@ -428,6 +428,10 @@ export const ERROR_CATALOG = {
         "Ihre Auswahl passt nicht mehr zu diesem Kind. Bitte laden Sie die Seite neu.",
       "enrollment.export_too_large":
         "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
+      "enrollment.family_children_closed":
+        "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
+      "enrollment.family_children_invalid":
+        "Bitte geben Sie eine Zahl von 1 bis 20 an.",
       "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
       "enrollment.form_attachment_invalid":
         "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
@@ -495,6 +499,10 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
+      "enrollment.holiday_week_no_care_day":
+        "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen.",
+      "enrollment.holiday_week_not_found":
+        "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
         "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
       "enrollment.hosted_holiday_week_not_found":
@@ -661,6 +669,8 @@ export const ERROR_CATALOG = {
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.guardian_email_address_blocked":
         "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+      "identity.guardian_invitation_address_changed":
+        "Dieser Link gilt nicht mehr. Bitte fragen Sie die Schule nach einer neuen Einladung.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -813,6 +823,8 @@ export const ERROR_CATALOG = {
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "parent_billing.bank_account_missing":
         "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Abrechnungsvorgaben“ ein Konto ein.",
+      "parent_billing.beleg_retention_basis_cites_statute":
+        "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
       "parent_billing.benefits_exemption_unavailable":
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Abrechnungsvorgaben“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
@@ -879,6 +891,8 @@ export const ERROR_CATALOG = {
         "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_notice_not_found":
         "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_recipient_changed":
+        "Die Person oder ihre E-Mail-Adresse hat sich seit dem Ausstellen geändert. Drucken Sie den gespeicherten Bescheid. Geben Sie ihn der Familie auf Papier.",
       "parent_billing.care_notice_run_invalid":
         "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
       "parent_billing.care_notice_run_not_found":
@@ -930,6 +944,16 @@ export const ERROR_CATALOG = {
         "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
         "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.export_file_number_start_locked":
+        "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      "parent_billing.export_invoice_not_found":
+        "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
+      "parent_billing.export_mapping_invalid":
+        "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.export_run_empty":
+        "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
+      "parent_billing.export_run_not_found":
+        "Diesen Lauf gibt es nicht oder er ist noch nicht ausgestellt. Laden Sie die Seite neu.",
       "parent_billing.family_billing_invalid":
         "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
       "parent_billing.family_billing_not_found":
@@ -968,6 +992,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
       "parent_billing.number_range_missing":
         "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnungsvorgaben“ fest.",
+      "parent_billing.online_mandate_disabled":
+        "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
       "parent_billing.parent_document_not_found":
         "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.payment_text_debtor_number_missing":
@@ -1008,6 +1034,8 @@ export const ERROR_CATALOG = {
         "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
       "parent_billing.sepa_mandate_revoked":
         "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal.",
       "parent_billing.sibling_group_invalid":
         "Bitte wählen Sie mindestens zwei Anmeldungen aus, die nicht storniert sind.",
       "parent_billing.sibling_group_invoiced":
@@ -1088,6 +1116,8 @@ export const ERROR_CATALOG = {
         "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
       "provisioning.traeger_erasure_order_open":
         "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_records_recorded":
+        "Die Wahl des Kunden ist schon eingetragen. Sie kann nicht mehr geändert werden.",
       "provisioning.traeger_erasure_started":
         "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
@@ -1622,6 +1652,12 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_invalid":
+        "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
+      "traeger.closing_day_not_found":
+        "Diesen Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_school_outside":
+        "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen aus der Liste.",
       "traeger.document_already_released":
         "Das Dokument ist für diese Menschen schon freigegeben.",
       "traeger.document_audience_invalid":
@@ -1755,6 +1791,8 @@ export const ERROR_CATALOG = {
         "Bitte buchen Sie höchstens {limit} Einträge auf einmal um.",
       "workforce.replacement_outside_origin":
         "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
+      "workforce.replacement_staff_absent":
+        "Die Vertretung ist an diesem Tag selbst abwesend. Bitte wählen Sie eine andere Person.",
       "workforce.session_check_in_in_future":
         "Der Beginn darf nicht in der Zukunft liegen. Bitte prüfen Sie den Beginn.",
       "workforce.session_not_found": "Eintrag nicht gefunden.",
@@ -2113,6 +2151,10 @@ export const ERROR_CATALOG = {
         "Online enrollment is not available at this school right now. Please contact the school.",
       "enrollment.edit_not_allowed":
         "This enrollment can no longer be changed. Please contact the school.",
+      "enrollment.family_children_closed":
+        "The number of children can no longer be changed here. You will find it in your care contract.",
+      "enrollment.family_children_invalid":
+        "Please enter a number from 1 to 20.",
       "enrollment.field_required": "Please fill in all required fields.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
@@ -2153,6 +2195,10 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
+      "enrollment.holiday_week_no_care_day":
+        "There is no care on {date} ({name}). This week cannot be booked.",
+      "enrollment.holiday_week_not_found":
+        "This week is not part of this holiday period. Please reload the page.",
       "enrollment.holiday_weeks_booked_together":
         "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
       "enrollment.hosted_holiday_week_not_found":
@@ -2223,6 +2269,8 @@ export const ERROR_CATALOG = {
         "There is already an account for this email address. Please use a different address.",
       "identity.guardian_email_address_blocked":
         "The invitation could not be sent right now. Please try again.",
+      "identity.guardian_invitation_address_changed":
+        "This link is no longer valid. Please ask the school for a new invitation.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -2291,12 +2339,24 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.care_amendment_disabled":
         "{object} could not be changed. Please check its current status.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Please enter a whole number from 1 to 20.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.letter_mail_block_unreadable":
         "We cannot check right now whether this address is blocked. Please try again later.",
+      "parent_billing.online_mandate_disabled":
+        "Your provider does not accept the direct debit mandate in the app right now.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
       "parent_billing.sepa_account_holder_unsupported":
@@ -2311,6 +2371,8 @@ export const ERROR_CATALOG = {
         "This run has no open direct debit. There is no file to download or confirm.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "The mandate text has changed. Please read and confirm it again.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2379,6 +2441,12 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.closing_day_invalid":
+        "The closing day is incomplete. Please check the dates, the reason and the schools.",
+      "traeger.closing_day_not_found":
+        "This closing day no longer exists. Please reload the page.",
+      "traeger.closing_day_school_outside":
+        "A selected school does not belong to your Träger. Please choose the schools from the list.",
       "traeger.document_already_released":
         "The document is already shared with these people.",
       "traeger.document_audience_invalid":
@@ -2704,6 +2772,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запись в этой школе сейчас недоступна. Обратитесь в школу.",
       "enrollment.edit_not_allowed":
         "Эту запись больше нельзя изменить. Обратитесь в школу.",
+      "enrollment.family_children_closed":
+        "Количество детей здесь больше нельзя изменить. Вы найдёте его в договоре об уходе.",
+      "enrollment.family_children_invalid":
+        "Пожалуйста, укажите число от 1 до 20.",
       "enrollment.field_required": "Заполните все обязательные поля.",
       "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -2723,6 +2795,8 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
@@ -2788,6 +2862,8 @@ export const ERROR_CATALOG = {
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
       "identity.guardian_email_address_blocked":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
+      "identity.guardian_invitation_address_changed":
+        "Эта ссылка больше не действует. Попросите школу прислать новое приглашение.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -2854,12 +2930,24 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.care_amendment_disabled":
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Пожалуйста, укажите целое число от 1 до 20.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.letter_mail_block_unreadable":
         "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
+      "parent_billing.online_mandate_disabled":
+        "Ваш попечитель сейчас не принимает мандат на прямое дебетование в приложении.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
       "parent_billing.sepa_account_holder_unsupported":
@@ -2874,6 +2962,8 @@ export const ERROR_CATALOG = {
         "This run has no open direct debit. There is no file to download or confirm.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Текст мандата изменился. Пожалуйста, прочитайте и подтвердите его ещё раз.",
       "school.parent_conference_change_closed":
         "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
       "school.parent_conference_slot_taken":
@@ -3215,6 +3305,10 @@ export const ERROR_CATALOG = {
         "Regjistrimi online nuk është i mundur tani në këtë shkollë. Ju lutemi kontaktoni shkollën.",
       "enrollment.edit_not_allowed":
         "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.family_children_closed":
+        "Numri i fëmijëve nuk mund të ndryshohet më këtu. Do ta gjeni në kontratën e kujdesit.",
+      "enrollment.family_children_invalid":
+        "Ju lutemi shkruani një numër nga 1 deri në 20.",
       "enrollment.field_required":
         "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
       "enrollment.form_attachment_invalid":
@@ -3239,6 +3333,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_week_no_care_day":
+        "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
       "enrollment.invalid_phone":
@@ -3306,6 +3402,8 @@ export const ERROR_CATALOG = {
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
       "identity.guardian_email_address_blocked":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+      "identity.guardian_invitation_address_changed":
+        "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -3373,12 +3471,24 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.care_amendment_disabled":
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.letter_mail_block_unreadable":
         "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
+      "parent_billing.online_mandate_disabled":
+        "Ofruesi juaj nuk e pranon tani mandatin e debitimit direkt në aplikacion.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
       "parent_billing.sepa_account_holder_unsupported":
@@ -3393,6 +3503,8 @@ export const ERROR_CATALOG = {
         "This run has no open direct debit. There is no file to download or confirm.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Teksti i mandatit ka ndryshuar. Ju lutemi lexojeni dhe konfirmojeni përsëri.",
       "school.parent_conference_change_closed":
         "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
       "school.parent_conference_slot_taken":
@@ -3731,6 +3843,9 @@ export const ERROR_CATALOG = {
         "Zapis online w tej szkole jest teraz niedostępny. Skontaktuj się ze szkołą.",
       "enrollment.edit_not_allowed":
         "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.family_children_closed":
+        "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
+      "enrollment.family_children_invalid": "Proszę podać liczbę od 1 do 20.",
       "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
       "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
       "enrollment.form_field_file_options_invalid":
@@ -3749,6 +3864,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_week_no_care_day":
+        "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
@@ -3814,6 +3931,8 @@ export const ERROR_CATALOG = {
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
       "identity.guardian_email_address_blocked":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+      "identity.guardian_invitation_address_changed":
+        "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -3881,12 +4000,24 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.care_amendment_disabled":
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Proszę podać liczbę całkowitą od 1 do 20.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.letter_mail_block_unreadable":
         "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
+      "parent_billing.online_mandate_disabled":
+        "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
       "parent_billing.sepa_account_holder_unsupported":
@@ -3901,6 +4032,8 @@ export const ERROR_CATALOG = {
         "This run has no open direct debit. There is no file to download or confirm.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie.",
       "school.parent_conference_change_closed":
         "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
       "school.parent_conference_slot_taken":
@@ -4241,6 +4374,10 @@ export const ERROR_CATALOG = {
         "Bu okulda çevrim içi kayıt şu anda mümkün değil. Lütfen okulla iletişime geçin.",
       "enrollment.edit_not_allowed":
         "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.family_children_closed":
+        "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
+      "enrollment.family_children_invalid":
+        "Lütfen 1 ile 20 arasında bir sayı girin.",
       "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
       "enrollment.form_attachment_invalid":
         "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -4262,6 +4399,8 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
@@ -4327,6 +4466,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
       "identity.guardian_email_address_blocked":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
+      "identity.guardian_invitation_address_changed":
+        "Bu bağlantı artık geçerli değil. Lütfen okuldan yeni bir davet isteyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -4393,12 +4534,24 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.care_amendment_disabled":
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Lütfen 1 ile 20 arasında bir tam sayı girin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.letter_mail_block_unreadable":
         "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
+      "parent_billing.online_mandate_disabled":
+        "Kurumunuz şu anda otomatik ödeme talimatını uygulamada kabul etmiyor.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
       "parent_billing.sepa_account_holder_unsupported":
@@ -4413,6 +4566,8 @@ export const ERROR_CATALOG = {
         "This run has no open direct debit. There is no file to download or confirm.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Talimat metni değişti. Lütfen tekrar okuyup onaylayın.",
       "school.parent_conference_change_closed":
         "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
       "school.parent_conference_slot_taken":
@@ -4748,6 +4903,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запис у цій школі зараз недоступний. Зверніться до школи.",
       "enrollment.edit_not_allowed":
         "Цей запис більше не можна змінити. Зверніться до школи.",
+      "enrollment.family_children_closed":
+        "Кількість дітей тут більше не можна змінити. Ви знайдете її у договорі про догляд.",
+      "enrollment.family_children_invalid":
+        "Будь ласка, вкажіть число від 1 до 20.",
       "enrollment.field_required": "Заповніть усі обов'язкові поля.",
       "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -4767,6 +4926,8 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
@@ -4832,6 +4993,8 @@ export const ERROR_CATALOG = {
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
       "identity.guardian_email_address_blocked":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
+      "identity.guardian_invitation_address_changed":
+        "Це посилання більше не дійсне. Попросіть школу надіслати нове запрошення.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
@@ -4898,12 +5061,24 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.care_amendment_disabled":
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Будь ласка, вкажіть ціле число від 1 до 20.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.letter_mail_block_unreadable":
         "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
+      "parent_billing.online_mandate_disabled":
+        "Ваш засновник зараз не приймає мандат на пряме дебетування в застосунку.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
       "parent_billing.sepa_account_holder_unsupported":
@@ -4918,6 +5093,8 @@ export const ERROR_CATALOG = {
         "This run has no open direct debit. There is no file to download or confirm.",
       "parent_billing.sepa_end_to_end_duplicate":
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
+      "parent_billing.sepa_mandate_text_changed":
+        "Текст мандата змінився. Будь ласка, прочитайте й підтвердьте його ще раз.",
       "school.parent_conference_change_closed":
         "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
       "school.parent_conference_slot_taken":

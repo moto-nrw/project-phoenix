@@ -39,6 +39,7 @@
   "weeksText": "Zgjidhni për çdo javë sa gjatë qëndron fëmija.",
   "notBooked": "Pa regjistrim",
   "parallelWeeksHint": "Kjo javë ofrohet në disa shkolla. Zgjidhni një shkollë dhe kohën.",
+  "weekWithoutCare": "Nuk mund të rezervohet: më {date} nuk ka kujdes ({name}).",
   "weekRange": "{starts} deri më {ends}",
   "timeModel": "{name} ({startsAt} deri {endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt} deri {endsAt})",
@@ -100,6 +101,10 @@
   "doneTitle": "Regjistrimi juaj mbërriti",
   "doneText": "Do të dërgojmë një konfirmim në {email}.",
   "doneNext": "Kjo nuk është ende një vend i konfirmuar. Organizatori e kontrollon regjistrimin dhe ju shkruan nëse fëmija merr vend.",
+  "placementHeading": "Vendet",
+  "placementPlaced": "Vend i rezervuar",
+  "placementWaitlisted": "Lista e pritjes",
+  "waitlistNote": "Disa javë janë tashmë plot. Në ato javë fëmija është në listën e pritjes. Nëse lirohet një vend, fëmija e merr automatikisht. Atëherë do t'ju shkruajmë një email.",
   "errors": {
     "phone": "Ju lutemi shkruani një numër telefoni të vlefshëm.",
     "required": "Ju lutemi plotësoni këtë fushë.",

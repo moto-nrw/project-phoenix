@@ -21,6 +21,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Real Intake fixture shared by the fault schedules below. The trusted school
@@ -295,20 +296,20 @@ func TestRestoreMatchedStudentFailureAttribution(t *testing.T) {
 				require.EqualError(t, operationErr, prefix+"failed to check active request for matched student: "+sql.ErrTxDone.Error())
 			case "terminated_connection_after_first_exists":
 				require.NoError(t, callbackErr)
-				var state interface{ Field(byte) string }
+				var state pgdriver.Error
 				require.ErrorAs(t, callErr, &state)
 				require.Equal(t, "57P01", state.Field('C'))
-				require.EqualError(t, operationErr, prefix+"failed to check active request for matched student: FATAL: terminating connection due to administrator command (SQLSTATE=57P01)")
+				require.EqualError(t, operationErr, prefix+"failed to check active request for matched student: "+state.Error())
 			default:
 				require.Error(t, callbackErr)
-				var state interface{ Field(byte) string }
+				var state pgdriver.Error
 				require.ErrorAs(t, callErr, &state)
 				require.Equal(t, "25P02", state.Field('C'))
 				detail := "failed to check active request for matched student: "
 				if mode == "first_lock_failure" {
 					detail = "failed to acquire existing-student match lock: "
 				}
-				require.EqualError(t, operationErr, prefix+detail+"ERROR: current transaction is aborted, commands ignored until end of transaction block (SQLSTATE=25P02)")
+				require.EqualError(t, operationErr, prefix+detail+state.Error())
 			}
 			require.NotNil(t, request.WithdrawnAt)
 			require.Empty(t, audit)

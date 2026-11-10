@@ -35,27 +35,29 @@ import (
 // /traeger/contract-notices (#4682).
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
 	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender,
-	addressees carecontract.NoticeAddressees, parentsURL string) {
-	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
+	addressees carecontract.NoticeAddressees, holidays carecontract.SchoolHolidays, parentsURL string) {
+	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog, holidays, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
-	mountCareContractNoticeRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, accessLog, addressees, parentsURL)
+	mountCareContractNoticeRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, accessLog, addressees, holidays, parentsURL)
 	// The one-time link of a contract mail (#4679), without an account.
-	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
+	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, outcomes, holidays, parentsURL))
 	root.Mount("/public/care-contract-signing", careContractHTTP.NewSigningResource(signing).PublicRouter())
 }
 
 // careContractSignaturePorts binds the signature of a contract (#4679): the
 // Audit Platform's ledger at the Träger, the one-time link tokens with the
 // base of the parents portal, the name and letterhead of the Träger and
-// Delivery's outbox.
+// Delivery's outbox, and the school holidays the withdrawal period of a
+// signature moves past (#6350).
 func careContractSignaturePorts(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, parentsURL string) careContractCompose.SignaturePorts {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, holidays carecontract.SchoolHolidays, parentsURL string) careContractCompose.SignaturePorts {
 	return careContractCompose.SignaturePorts{
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
 		Sender: owners.CareContractSigningSender{CareContractSender: owners.CareContractSender{Settings: settings},
 			MasterData: organizationTenancyCompose.NewTraegerMasterData()},
-		Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{},
+		Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{}, Holidays: holidays,
+		Families: owners.NewCareContractFamilyNumbers(),
 	}
 }
 
@@ -65,9 +67,10 @@ func careContractSignaturePorts(organizations HolidayOrganizations, settings Tra
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
-	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
-	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender,
+	holidays carecontract.SchoolHolidays, parentsURL string) *careContractHTTP.Resource {
+	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, holidays, parentsURL)
+	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, outcomes, holidays, parentsURL))
 	return careContractHTTP.NewResource(careContractCompose.NewContracts(contractPorts), careContractCompose.NewIntake(intakePorts), paper,
 		common.RequiresPermission(identityaccess.TraegerRightContractsManage))
 }
@@ -77,12 +80,14 @@ func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBra
 // the automatic contract reads, renders and sends exactly like the
 // Träger-Büro's.
 func NewCareContractConclusion(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) carecontract.Conclusion {
-	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL))
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender,
+	holidays carecontract.SchoolHolidays, parentsURL string) carecontract.Conclusion {
+	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, holidays, parentsURL))
 }
 
 func careContractPorts(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings CareContractSchoolSettings,
-	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender,
+	holidays carecontract.SchoolHolidays, parentsURL string) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
 	if schoolSettings == nil {
 		panic("care contract: the school settings are required")
 	}
@@ -92,13 +97,13 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
 		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
-		Notices: owners.CareContractDocumentNotices{Delivery: delivery},
+		Notices: owners.CareContractDocumentNotices{Delivery: delivery}, Holidays: holidays,
 	}, careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
 		Modes: careContractModes{settings: schoolSettings}, Mail: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
-		Letterheads: letterheads,
+		Letterheads: letterheads, Families: owners.NewCareContractFamilyNumbers(),
 	}
 }
 
@@ -184,6 +189,9 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 			GuardianLastName: application.GuardianLastName, GuardianEmail: application.GuardianEmail,
 			GuardianAccountID: application.GuardianAccountID, PhaseName: application.PhaseName,
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
+		}
+		if application.FamilyChildren != nil && application.FamilyChildrenStatedAt != nil {
+			result[i].FamilyChildren = &carecontract.FamilyStatement{Children: *application.FamilyChildren, StatedAt: *application.FamilyChildrenStatedAt}
 		}
 		for _, proof := range application.Acceptances {
 			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt,

@@ -50,7 +50,7 @@ func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 
 	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
 
-	cookie, expiresAt, err := svc.IssueOperatorTrustedDevice(ctx, op.ID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	cookie, expiresAt, err := svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, op.ID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
 	assert.True(t, expiresAt.After(time.Now()))
@@ -73,7 +73,7 @@ func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
 
 	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
 
-	tokenString, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.42"))
+	tokenString, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.42"), nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenString)
 
@@ -103,9 +103,9 @@ func TestOperatorMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, devices, "fresh operator has no trusted devices")
 
-	_, _, err = svc.IssueOperatorTrustedDevice(ctx, op.ID, "UA-A", net.ParseIP("203.0.113.11"))
+	_, _, err = svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, op.ID), "UA-A", net.ParseIP("203.0.113.11"))
 	require.NoError(t, err)
-	_, _, err = svc.IssueOperatorTrustedDevice(ctx, op.ID, "UA-B", net.ParseIP("203.0.113.12"))
+	_, _, err = svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, op.ID), "UA-B", net.ParseIP("203.0.113.12"))
 	require.NoError(t, err)
 
 	devices, err = svc.ListOperatorTrustedDevices(ctx, op.ID)
@@ -129,7 +129,7 @@ func TestOperatorMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 	attacker := testpkg.CreateTestOperator(t, db)
 
 	require.NoError(t, svc.EnrollOperatorMFA(ctx, owner.ID))
-	_, _, err := svc.IssueOperatorTrustedDevice(ctx, owner.ID, "UA", net.ParseIP("203.0.113.20"))
+	_, _, err := svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, owner.ID), "UA", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
 
 	ownerDevices, err := svc.ListOperatorTrustedDevices(ctx, owner.ID)

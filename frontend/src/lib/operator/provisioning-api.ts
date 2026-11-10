@@ -47,6 +47,7 @@ import type {
   OperatorCaterer,
   TraegerMember,
   RecordTraegerErasureOrderRequest,
+  RecordTraegerErasureOrderRecordsRequest,
   TraegerErasureOrder,
 } from "./provisioning-helpers";
 import {
@@ -263,6 +264,20 @@ class OperatorProvisioningService {
     );
     if (!isBackendTraegerErasureOrder(result)) {
       throw new Error("erasure order response without order");
+    }
+    return mapTraegerErasureOrder(result);
+  }
+
+  async recordTraegerErasureOrderRecords(
+    orgId: string,
+    data: RecordTraegerErasureOrderRecordsRequest,
+  ): Promise<TraegerErasureOrder> {
+    const result = await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order/records`,
+      { method: "PUT", body: data },
+    );
+    if (!isBackendTraegerErasureOrder(result)) {
+      throw new Error("erasure order records response without order");
     }
     return mapTraegerErasureOrder(result);
   }

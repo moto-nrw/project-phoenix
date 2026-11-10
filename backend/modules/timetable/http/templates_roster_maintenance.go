@@ -81,13 +81,27 @@ func rosterMaintenanceCalendarPeriodID(template templateResponse, requestedPerio
 			}
 		}
 	}
+	if periodID := effectiveTemplateCalendarPeriodID(template); periodID != nil {
+		return periodID
+	}
+	return requestedPeriodID
+}
+
+// effectiveTemplateCalendarPeriodID resolves the period that the template's
+// schedules actually use. A schedule pin is more specific than the fallback
+// stored on the template row.
+func effectiveTemplateCalendarPeriodID(template templateResponse) *int64 {
 	if len(template.Schedules) > 0 && template.Schedules[0].CalendarPeriodID != nil {
 		return template.Schedules[0].CalendarPeriodID
 	}
-	if template.CalendarPeriodID != nil {
-		return template.CalendarPeriodID
+	return template.CalendarPeriodID
+}
+
+func effectiveScheduleCalendarPeriodID(schedule templateScheduleResponse, template templateResponse) *int64 {
+	if schedule.CalendarPeriodID != nil {
+		return schedule.CalendarPeriodID
 	}
-	return requestedPeriodID
+	return template.CalendarPeriodID
 }
 
 func templateHasDynamicTargets(template templateResponse) bool {

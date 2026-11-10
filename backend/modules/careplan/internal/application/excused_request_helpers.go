@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // probeLimit asks the store for one row more than the caller wants, so a
@@ -219,4 +220,13 @@ func containsDate(dates []careplan.Date, needle careplan.Date) bool {
 		}
 	}
 	return false
+}
+
+// calendarDates converts Care Plan dates for the partial-absence command.
+func calendarDates(dates []careplan.Date) []calendar.Date {
+	out := make([]calendar.Date, len(dates))
+	for i, date := range dates {
+		out[i] = calendar.Date(date)
+	}
+	return out
 }

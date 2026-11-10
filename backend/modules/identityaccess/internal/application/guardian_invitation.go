@@ -45,16 +45,9 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	var invitation domain.GuardianInvitation
 	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		txCtx = bindRuntime(l.auth.attach, txCtx)
-		var (
-			profile    domain.GuardianProfile
-			profileErr error
-		)
-		profile, profileErr = l.lockInvitationProfile(txCtx, request.GuardianProfileID)
+		profile, profileErr := l.lockInvitationAccountThenProfile(txCtx, request.GuardianProfileID)
 		if profileErr != nil {
 			return failed(opGuardianInviteCreate, profileErr)
-		}
-		if _, _, _, err := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); err != nil {
-			return failed(opGuardianInviteCreate, err)
 		}
 		expiry, err := l.delivery.InvitationExpiry(txCtx)
 		if err != nil {
@@ -78,14 +71,15 @@ func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request 
 			return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
 		}
 	}
-	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
+	draft := domain.GuardianInvitation{
 		TenantID:          l.runtime.TenantID(ctx),
-		Token:             uuid.Must(uuid.NewV4()).String(),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         request.CreatedBy,
 		ExpiresAt:         expiresAt,
 		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
-	})
+	}
+	issueGuardianInvitationLink(&draft, profile)
+	invitation, err := l.invitations.InsertGuardianInvitation(ctx, draft)
 	if err != nil {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
 	}
@@ -98,6 +92,49 @@ func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request 
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
 	}
 	return invitation, nil
+}
+
+// issueGuardianInvitationLink gives the invitation a new link for the address
+// the guardian has now (#6294). Only the hash of the token is stored (#4902),
+// so the previous link stops working; the address travels with the token, and
+// accepting requires the guardian to still have it.
+func issueGuardianInvitationLink(invitation *domain.GuardianInvitation, profile domain.GuardianProfile) {
+	invitation.Token = uuid.Must(uuid.NewV4()).String()
+	invitation.Email = domain.GuardianInvitationAddress(profile.Email)
+}
+
+// lockInvitationAccountThenProfile locks the account of the guardian's
+// address, then the school, then the guardian's profile: the order every
+// acceptance and sign-in takes (#6294, #6305). Holding the profile while
+// waiting for the account or the school would close a cycle with an
+// acceptance or with a transaction that holds the school and then the
+// profile (40P01). The address is read again under the profile lock; a
+// change in between refuses the invitation instead of binding it to an
+// account that was not locked.
+func (l *AccountLifecycle) lockInvitationAccountThenProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
+	unlocked, found, err := l.guardians.FindGuardianProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if !found {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian profile not found")
+	}
+	if strings.TrimSpace(unlocked.Email) != "" {
+		if _, _, _, err := l.logins.LockLoginAccountByEmail(ctx, unlocked.Email); err != nil {
+			return domain.GuardianProfile{}, err
+		}
+	}
+	if err := l.lockInvitingSchool(ctx); err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	profile, err := l.lockInvitationProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if domain.GuardianInvitationAddress(profile.Email) != domain.GuardianInvitationAddress(unlocked.Email) {
+		return domain.GuardianProfile{}, domain.ErrGuardianInvitationAddressChanged
+	}
+	return profile, nil
 }
 
 func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
@@ -208,6 +245,11 @@ func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token
 		if !found {
 			return failed(opGuardianInviteValidate, fmt.Errorf("guardian profile not found"))
 		}
+		// A link issued for an earlier address shows nothing of the profile:
+		// its holder may not be the guardian (#6294).
+		if !identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
+			return failed(opGuardianInviteValidate, domain.ErrGuardianInvitationAddressChanged)
+		}
 		result = identityaccess.GuardianInvitationPreview{
 			Email:     strings.TrimSpace(profile.Email),
 			FirstName: textnorm.Name(profile.FirstName),
@@ -260,11 +302,7 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 		if fetchErr != nil {
 			return fetchErr
 		}
-		if err := l.requireInvitationSchool(txCtx, invitation); err != nil {
-			return err
-		}
-		invitationCtx := l.runtime.WithTenantID(txCtx, invitation.TenantID)
-		account, acceptErr := l.acceptGuardianAtSchool(invitationCtx, invitation, registration)
+		account, acceptErr := l.acceptGuardianAtSchool(txCtx, invitation, registration)
 		if acceptErr != nil {
 			return acceptErr
 		}
@@ -388,10 +426,9 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 			return failed(opGuardianInviteResend, err)
 		}
 		// The delivery bookkeeping starts over; the previous attempt's outcome
-		// says nothing about the send that follows. Only the hash of a token
-		// is stored (#4902), so the mail carries a new link and the previous
-		// one stops working.
-		invitation.Token = uuid.Must(uuid.NewV4()).String()
+		// says nothing about the send that follows. The mail carries a new
+		// link for the address on file, and the previous one stops working.
+		issueGuardianInvitationLink(&invitation, profile)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
 		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus); err != nil {
@@ -456,6 +493,26 @@ func (l *AccountLifecycle) redeemableGuardianInvitation(ctx context.Context, tok
 	return invitation, nil
 }
 
+// lockInvitingSchool holds the school of the inviting transaction under a
+// share lock, between the account and the profile (#6305). Without an
+// explicit lock the transaction would reach the school only through the
+// invitation's foreign key, after the profile. A school that is gone or
+// switched off invites nobody.
+func (l *AccountLifecycle) lockInvitingSchool(ctx context.Context) error {
+	tenantID := l.runtime.TenantID(ctx)
+	if tenantID <= 0 {
+		return nil
+	}
+	school, found, err := l.schools.LockSchoolShared(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("lock the inviting school: %w", err)
+	}
+	if !found || !school.Live() {
+		return domain.ErrInvitationTenantDeleted
+	}
+	return nil
+}
+
 func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invitation domain.GuardianInvitation) error {
 	// A shared lock on the school serializes with the exclusive lock a
 	// soft delete takes, so the school cannot vanish under the acceptance.
@@ -471,7 +528,16 @@ func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invita
 	return nil
 }
 
-func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
+// acceptGuardianAtSchool creates or reuses the account for the address the
+// link was issued for (#6294). The profile stays locked until commit, the
+// lock both contact edit paths take before they change the address: an
+// address change either commits first, and the link is refused, or waits for
+// the acceptance. Locks follow one order: account, then school, then profile
+// (40P01 otherwise, #6294/#6333). The first address check is only an early
+// refusal; the check under the profile lock decides whether access can be
+// granted.
+func (l *AccountLifecycle) acceptGuardianAtSchool(txCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
+	invitationCtx := l.runtime.WithTenantID(txCtx, invitation.TenantID)
 	profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
 	if profileErr != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
@@ -479,13 +545,26 @@ func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context,
 	if !found {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
 	}
-	email := strings.ToLower(strings.TrimSpace(profile.Email))
-	if email == "" {
-		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile missing email"))
+	if !identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrGuardianInvitationAddressChanged)
 	}
+	email := invitation.Email
 	account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
 	if accountErr != nil {
 		return domain.LoginAccount{}, accountErr
+	}
+	if err := l.requireInvitationSchool(txCtx, invitation); err != nil {
+		return domain.LoginAccount{}, err
+	}
+	profile, found, profileErr = l.guardians.LockGuardianProfile(invitationCtx, invitation.GuardianProfileID)
+	if profileErr != nil {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
+	}
+	if !found {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
+	}
+	if !identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrGuardianInvitationAddressChanged)
 	}
 	if grantErr := l.grantGuardianAccess(invitationCtx, invitation, profile, account); grantErr != nil {
 		return domain.LoginAccount{}, grantErr

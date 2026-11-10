@@ -10,17 +10,13 @@ import {
   type OverflowMenuItem,
   OverflowMenu,
 } from "~/components/ui/page-header/OverflowMenu";
-import { StatusBadge } from "~/components/ui/status-badge";
 import type {
   CareInvoice,
   CareLetterMailing,
 } from "~/lib/traeger-care-billing-api";
-import {
-  canSendMail,
-  mailBadge,
-  mailStatusDetail,
-} from "./billing-mail-status";
+import { canSendMail } from "./billing-mail-status";
 import { type CareInvoiceRow, CareRunInvoices } from "./care-run-invoices";
+import { LetterSendCell } from "./letter-send-cell";
 
 /** What the run does with the letters of its invoices, from the page. */
 export interface CareInvoiceLetterActions {
@@ -60,22 +56,11 @@ function SendCell({
       </p>
     );
   }
-  const detail = mailStatusDetail(letter);
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1">
-      <StatusBadge {...mailBadge(letter)} />
-      {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
-      {!letter.recipientEmail.trim() ? (
-        <p className="text-xs text-gray-600">
-          Bitte drucken Sie das Schreiben.
-        </p>
-      ) : null}
-      {!letter.inInbox ? (
-        <p className="text-xs text-gray-600">
-          Nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz.
-        </p>
-      ) : null}
-    </div>
+    <LetterSendCell
+      letter={letter}
+      printInstruction="Bitte drucken Sie das Schreiben."
+    />
   );
 }
 

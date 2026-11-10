@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetSollMapping } from "./traeger-finance-exports-api";
+import { applySepaImport, previewSepaImport } from "./traeger-sepa-import-api";
 import { ApiError } from "./api-error";
 import {
   acceptTraegerInvitation,
@@ -30,6 +32,72 @@ describe("traeger-api", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("reloads the default mapping after a bodyless reset response", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            sollstellung: {
+              mapping: {
+                columns: [{ field: "invoice_number", header: "Rechnung" }],
+                delimiter: ";",
+                decimal_separator: ",",
+                date_format: "dd.mm.yyyy",
+                encoding: "utf-8-bom",
+                header_row: true,
+                file_name_pattern: "sollstellung-{NR}.csv",
+              },
+              custom: false,
+              updated_at: null,
+            },
+            file_numbers: { next: 9, started: true },
+          },
+        }),
+      );
+    const settings = await resetSollMapping();
+    expect(
+      fetchMock.mock.calls.map(([url, init]) => [url, init?.method]),
+    ).toEqual([
+      ["/api/traeger/finance-exports/settings/sollstellung", "DELETE"],
+      ["/api/traeger/finance-exports/settings", "GET"],
+    ]);
+    expect(settings.custom).toBe(false);
+    expect(settings.mapping.columns).toEqual([
+      { field: "invoice_number", header: "Rechnung", value: "" },
+    ]);
+    expect(settings.nextFileNumber).toBe(9);
+  });
+
+  it("retains the backend's family counts in preview and import results", async () => {
+    const request = { file: new File(["csv"], "mandate.csv"), mapping: null };
+    for (const call of [previewSepaImport, applySepaImport]) {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: {
+            mapping: {
+              columns: {},
+              payer_key: "email",
+              creditor_from_traeger: false,
+            },
+            counts: {
+              ready: 0,
+              imported: 0,
+              duplicate: 2,
+              debtor_numbers: 1,
+              debtor_conflicts: 0,
+            },
+            rows: [],
+          },
+        }),
+      );
+      const result = await call(request);
+      expect(result.counts.debtorNumbers).toBe(1);
+      expect(result.counts.duplicate).toBe(2);
+      expect(result.counts.debtorConflicts).toBe(0);
+    }
   });
 
   it("sends the chosen Träger as a number and returns only session status", async () => {

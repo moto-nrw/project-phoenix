@@ -34,8 +34,9 @@ type CareReviewStore interface {
 	// OpenCareRunSchools names per school the open run of the month.
 	OpenCareRunSchools(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]int64, error)
 	SetCareRunInvoiceDate(ctx context.Context, organizationID, runID int64, invoiceDate *calendar.Date) error
-	// CareRunExclusions reads per contract the exclusion in force.
-	CareRunExclusions(ctx context.Context, organizationID, runID int64) (map[int64]parentbilling.CareExclusion, error)
+	// CareRunExclusions reads per invoice (contract and service) the
+	// exclusion in force (#6346).
+	CareRunExclusions(ctx context.Context, organizationID, runID int64) (map[parentbilling.CareInvoiceKey]parentbilling.CareExclusion, error)
 }
 
 // reviewedMonth is the preview of a calculated run: the invoices the
@@ -82,8 +83,10 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 }
 
 // narrowMonth keeps the part of the month the schools bill and moves the
-// excluded invoices aside.
-func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parentbilling.CareExclusion) reviewedMonth {
+// excluded invoices aside: each by its own key, so excluding the Mensa
+// invoice of its own of a contract keeps its care invoice and the other way
+// round (#6346).
+func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[parentbilling.CareInvoiceKey]parentbilling.CareExclusion) reviewedMonth {
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
 		duplicates: []parentbilling.CareDuplicate{}, mealGaps: []parentbilling.CareMealGap{},
@@ -98,7 +101,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		if !inRun(invoice.SchoolID) {
 			continue
 		}
-		if exclusion, ok := exclusions[invoice.ContractID]; ok {
+		if exclusion, ok := exclusions[careInvoiceKeyOf(invoice)]; ok {
 			invoice.Exclusion = &exclusion
 			review.excluded = append(review.excluded, invoice)
 			continue
@@ -377,11 +380,30 @@ func (c *CareBilling) SetCareRunInvoiceDate(ctx context.Context, reviewer parent
 	return c.CareRun(ctx, reviewer, run.ID)
 }
 
-// ExcludeCareInvoice leaves the invoice of a contract out of the release of
-// the run, with a reason. The contract comes back in the next run of the
+// checkExclusionService accepts the service of an invoice of a run; an
+// exclusion names exactly one (#6346).
+func checkExclusionService(service string) error {
+	if !slices.Contains(parentbilling.ExcludableServices, service) {
+		return validation.Errors{"service": errors.New("must be care or meal")}
+	}
+	return nil
+}
+
+// exclusionEvent names the one invoice of a trail entry: its contract and
+// its service.
+func exclusionEvent(key parentbilling.CareInvoiceKey) map[string]any {
+	return map[string]any{"contract_ids": []int64{key.ContractID}, "services": []string{key.Service}}
+}
+
+// ExcludeCareInvoice leaves one invoice of the preview out of the release of
+// the run, with a reason: the invoice of the contract for the service the
+// key names, and no other (#6346). It comes back in the next run of the
 // month.
-func (c *CareBilling) ExcludeCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID, contractID int64, reason string) (parentbilling.CareRunDetail, error) {
+func (c *CareBilling) ExcludeCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64, key parentbilling.CareInvoiceKey, reason string) (parentbilling.CareRunDetail, error) {
 	reason = strings.TrimSpace(reason)
+	if err := checkExclusionService(key.Service); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
 	switch {
 	case reason == "":
 		return parentbilling.CareRunDetail{}, validation.Errors{"reason": errors.New("is required")}
@@ -396,19 +418,24 @@ func (c *CareBilling) ExcludeCareInvoice(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}
-	index := slices.IndexFunc(review.invoices, func(invoice parentbilling.CareInvoice) bool { return invoice.ContractID == contractID })
+	index := slices.IndexFunc(review.invoices, func(invoice parentbilling.CareInvoice) bool { return careInvoiceKeyOf(invoice) == key })
 	if index < 0 {
 		return parentbilling.CareRunDetail{}, parentbilling.ErrCareExclusionConflict
 	}
-	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventExclude,
-		map[string]any{"contract_ids": []int64{contractID}, "school_id": review.invoices[index].SchoolID, "reason": reason}); err != nil {
+	details := exclusionEvent(key)
+	details["school_id"], details["reason"] = review.invoices[index].SchoolID, reason
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventExclude, details); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record the exclusion: %w", err)
 	}
 	return c.CareRun(ctx, reviewer, run.ID)
 }
 
-// IncludeCareInvoice takes an excluded invoice back into the release.
-func (c *CareBilling) IncludeCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID, contractID int64) (parentbilling.CareRunDetail, error) {
+// IncludeCareInvoice takes the one excluded invoice the key names back into
+// the release; an exclusion of the contract's other invoice stays (#6346).
+func (c *CareBilling) IncludeCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64, key parentbilling.CareInvoiceKey) (parentbilling.CareRunDetail, error) {
+	if err := checkExclusionService(key.Service); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
 	run, err := c.openRun(ctx, reviewer, runID)
 	if err != nil {
 		return parentbilling.CareRunDetail{}, err
@@ -417,11 +444,11 @@ func (c *CareBilling) IncludeCareInvoice(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return parentbilling.CareRunDetail{}, err
 	}
-	if _, excluded := exclusions[contractID]; !excluded {
+	if _, excluded := exclusions[key]; !excluded {
 		return parentbilling.CareRunDetail{}, parentbilling.ErrCareExclusionConflict
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventInclude,
-		map[string]any{"contract_ids": []int64{contractID}}); err != nil {
+		exclusionEvent(key)); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record the return: %w", err)
 	}
 	return c.CareRun(ctx, reviewer, run.ID)
@@ -476,12 +503,27 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	return nil
 }
 
+// excludedContracts names the contracts of the excluded invoices, each once.
 func excludedContracts(invoices []parentbilling.CareInvoice) []int64 {
-	ids := make([]int64, len(invoices))
-	for i, invoice := range invoices {
-		ids[i] = invoice.ContractID
+	ids := []int64{}
+	for _, invoice := range invoices {
+		if !slices.Contains(ids, invoice.ContractID) {
+			ids = append(ids, invoice.ContractID)
+		}
 	}
 	return ids
+}
+
+// excludedInvoices names each excluded invoice by its contract and service,
+// so the trail of a release says which invoice of a contract stayed out
+// (#6346).
+func excludedInvoices(invoices []parentbilling.CareInvoice) []map[string]any {
+	keys := make([]map[string]any, len(invoices))
+	for i, invoice := range invoices {
+		key := careInvoiceKeyOf(invoice)
+		keys[i] = map[string]any{"contract_id": key.ContractID, "service": key.Service}
+	}
+	return keys
 }
 
 // issueReviewed checks the review again in the release's transaction (the

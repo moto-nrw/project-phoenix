@@ -27,10 +27,11 @@ import (
 // sickShiftChangeReason / sickBlockAbsenceReason are the neutral machine
 // labels the cascade writes. The absence note is deliberately NOT propagated:
 // plan surfaces (Dienstplan cells, block badges) are visible to the whole
-// team, while the note may carry private medical detail.
+// team, while the note may carry private medical detail. Each label is its
+// plan owner's, which that owner's materializer writes as well (#6292, #6302).
 const (
-	sickShiftChangeReason  = "Krankheit"
-	sickBlockAbsenceReason = "Krankmeldung"
+	sickShiftChangeReason  = workforce.SickShiftChangeReason
+	sickBlockAbsenceReason = timetable.SickBlockAbsenceReason
 )
 
 // TimetableRows are the Betreuungsplan rows the cascade selects for the
@@ -732,16 +733,19 @@ func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
 
 // sickCascadeDays expands the absence range into the full sick days, skipping
 // half boundary days — a half sick day never cascades (#1843 product rule).
+// The Timetable owner's SickReport decides each day, the rule the
+// materializer applies to blocks planned after the report (#6292).
 func sickCascadeDays(report sickReport) []calendar.Date {
+	plan := timetable.SickReport{
+		AbsenceID: report.absenceID, StaffID: report.subjectStaffID,
+		DateStart: report.dateStart, DateEnd: report.dateEnd,
+		SkipStartDay: report.skipStartDay, SkipEndDay: report.skipEndDay,
+	}
 	var days []calendar.Date
 	for d := report.dateStart; !d.After(report.dateEnd); d = d.AddDays(1) {
-		if report.skipStartDay && d == report.dateStart {
-			continue
+		if plan.CoversFullDay(d) {
+			days = append(days, d)
 		}
-		if report.skipEndDay && d == report.dateEnd {
-			continue
-		}
-		days = append(days, d)
 	}
 	return days
 }

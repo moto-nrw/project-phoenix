@@ -46,6 +46,16 @@ type PrivacyConsentCommand interface {
 	RecordPrivacyConsent(context.Context, PrivacyConsent) (PrivacyConsent, error)
 }
 
+// PrivacyConsentBatches records the retention consents of many new students
+// at once (#5552, ADR 0067 addendum of 2026-11-08, step 5). It is a leaf
+// command (#4538) and stays outside Capability and Owner; the data import
+// binds it on its own. Every value is validated like RecordPrivacyConsent,
+// the call joins the caller's tenant transaction and writes every consent or
+// none, with the columns RecordPrivacyConsent writes.
+type PrivacyConsentBatches interface {
+	RecordPrivacyConsents(context.Context, []PrivacyConsent) error
+}
+
 type StudentRetentionSetting struct {
 	StudentID         int64
 	DataRetentionDays int

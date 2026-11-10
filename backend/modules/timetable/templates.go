@@ -236,7 +236,11 @@ type UpdateTemplateCommand struct {
 	SeriesRosterScopeStaffIDs   []int64
 	SeriesRosterScopeWeekdays   []int
 	SeriesRosterPrimaryChanged  bool
-	StartDate                   *calendar.Date
+	// PropagateNotesToPredecessors applies Fields.Notes to every bounded
+	// predecessor in this split series. It is used only by an "Alle Termine"
+	// Wochennotiz-only save resolved from a capped predecessor (#6141).
+	PropagateNotesToPredecessors bool
+	StartDate                    *calendar.Date
 }
 
 // SplitTemplateCommand is "Dieser und alle folgenden" (WP-B3): the update

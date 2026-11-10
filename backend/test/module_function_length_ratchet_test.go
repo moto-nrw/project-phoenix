@@ -92,7 +92,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/student_test_helpers.go:newStudentTestModule":                   315,
 	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":      85,
 	"api/timetable_http_test_helpers.go:newTimetableHTTPTestReads":       78,
-	"api/timetable_test_helpers.go:NewTimetableTestModule":               169,
+	"api/timetable_test_helpers.go:NewTimetableTestModule":               167,
 	"api/workforce_test_helpers.go:NewWorkforceTestModule":               102,
 	"cmd/devtools/command_adapter.go:(*Adapter).LoginOperator":           65,
 	"cmd/gendoc.go:getSettingsSchemas":                                   79,
@@ -578,7 +578,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/simulate/demo_day.go:(*demoDay).sync": 64,
 	// ADR 0087.
-	"internal/devtools/simulate/fullday.go:(seedStaffFeedTombstoneAction).Run": 73,
+	"internal/devtools/simulate/fullday.go:(seedStaffFeedTombstoneAction).Run": 70,
 	// ADR 0087.
 	"internal/devtools/simulate/live.go:RunLive": 101,
 	// ADR 0087.

@@ -4,9 +4,9 @@
 
 # General PR reviews are requested manually, not automatically on ready-for-review.
 
-# Deployment and production-state controls require board visibility.
-/.github/workflows/ @moto-nrw/moto-vorstand
-/scripts/deploy-remote.sh @moto-nrw/moto-vorstand
-/scripts/rollback-remote.sh @moto-nrw/moto-vorstand
-/environments/ @moto-nrw/moto-vorstand
-/backend/database/migrations/ @moto-nrw/moto-vorstand
+# Deployment and production-state controls are owned by @yungweng.
+/.github/workflows/ @yungweng
+/scripts/deploy-remote.sh @yungweng
+/scripts/rollback-remote.sh @yungweng
+/environments/ @yungweng
+/backend/database/migrations/ @yungweng

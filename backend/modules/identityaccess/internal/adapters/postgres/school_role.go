@@ -53,7 +53,7 @@ func (s *Store) FindSchoolRoleByName(ctx context.Context, name string, tenantID 
 	started := time.Now()
 	err = db.NewRaw(`SELECT id, tenant_id, name, is_system, base_role, school_portal FROM auth.roles
 		WHERE LOWER(name) = ? AND (tenant_id = ? OR tenant_id IS NULL)
-		ORDER BY tenant_id IS NULL ASC LIMIT 1`, name, tenantID).Scan(ctx, &rows)
+		ORDER BY tenant_id IS NULL ASC, id ASC LIMIT 1`, name, tenantID).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: find school role: %w", err)

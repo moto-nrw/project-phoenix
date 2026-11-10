@@ -764,9 +764,9 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
 
    | Fehlerpunkt | Status, Code heute | neu | committet nach Abbruch |
    |---|---|---|---|
-   | F1 Validierung (Mode, Checkpoints, Vorlast, Zeilen) | Zeilenfehler 200 bzw. 500 | gleich; der Bulk-Read der Rollen (#5887) läuft in einem Savepoint und fällt bei Fehler auf den Read je Zeile zurück, der dieselben `role_lookup_failed` liefert | frühere Chunks; nichts aus der Validierung |
+   | F1 Validierung (Mode, Checkpoints, Vorlast, Zeilen) | Zeilenfehler 200 bzw. 500 | gleich; der Bulk-Read der Rollen (#5887) läuft in einem Savepoint und fällt bei Fehler auf den Read je Zeile zurück, der dieselben `role_lookup_failed` liefert; scheitert ein Savepoint-Statement dieses Reads, 500 (E19, unten) | frühere Chunks; nichts aus der Validierung |
    | F2 Import-Lock, Checkpoint, Vorlast im Chunk | 500 `import.import_batch_failed` | gleich, unverändert vor dem Segment | frühere Chunks |
-   | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute | – |
+   | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute; scheitert ein Savepoint-Statement des Reads, 500 ohne Retry und Replay (E19, unten) | frühere Chunks |
    | F4 Match-Fehler je Zeile, `already_exists`, `not_found` | Zeilenfehler, Chunk läuft weiter | gleich, gleiche Reihenfolge | wie heute |
    | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, Ergebniszustand nach der Invariante wiederhergestellt, dann Replay des Chunks | – |
    | F6 Replay scheitert in Zeile k | 500 `import.import_batch_failed`; 409 mit `details.rejection` bei `BusinessRejection` | gleich: dieselbe erste Fehlerzeile, derselbe Zeilenfehler, dieselben Details (etwa `occupied_places`, `requested_places`), dieselben bestätigten Zähler | frühere Chunks; vom Chunk nichts |
@@ -853,6 +853,19 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    Erfüllt eine Batch-Form eine Auflage nicht, nimmt ihr Segment den
    Zeilenpfad.
 
+   **Nachtrag (09.11.2026, #5552 Schritt 5a): Unique-Einträge neuer Zeilen.**
+   Auch ein neu angelegter Schlüssel ist eine Sperre: Wer dieselbe Karte
+   anlegt, wartet auf den Unique-Eintrag. Der Zeilenpfad fordert Karten in
+   Verarbeitungsreihenfolge an, zwischen zwei Kindern liegt das exklusive
+   Kontingent. Ein Personen-Batch, der alle Karten eines Segments vorab
+   anlegt, bildet mit einem parallelen Upload derselben Schule, der zwei
+   dieser Karten in anderer Reihenfolge anlegt, ein Deadlock-Paar, das es
+   sequenziell nicht gibt; eine feste Reihenfolge im Batch beseitigt das nur
+   zwischen zwei Batches. Darum nimmt im Student-Create jede Zeile mit Karte
+   den Zeilenpfad (eigenes Segment); der Personen-Batch legt nur Personen
+   ohne Karte und ohne Konto an und wartet damit nur auf den geteilten
+   `staff-person-merge`-Lock, wie eine Einzelanlage.
+
    **Folge für parallele `NOWAIT`-Schreiber.** `NOWAIT` nehmen heute nur die
    Begleiter-Protokolle, und nur für ein Kind mit kleinerer ID als einer schon
    gehaltenen:
@@ -931,6 +944,10 @@ aus der Messung abgeleitet, nicht gemessen.
 Der Rechte-Read läuft einmal je Validierung, spätestens bei der ersten Zeile mit Rollenprüfung (lazy), damit Pfade ohne Rollenprüfung keinen Read zahlen.
 
 Sammel-Writes laufen als begrenzter Versuch (Entscheidung E13 vom 09.11.2026, präzisiert als E13′); bei Zeitüberschreitung ist die Chunk-Transaktion verloren (pgdriver schließt die Verbindung bei 57014, pgdriver v1.3.0 `error.go:55–82`), der Chunk läuft in einer neuen Transaktion zeilenweise ohne Grenze, mit vollem Retry-Budget; Ergebnis und Status wie Zeilenpfad.
+
+**Nachtrag E19 (09.11.2026): gescheiterter Savepoint-Rollback.** Scheitert `ROLLBACK TO SAVEPOINT` oder das `RELEASE` danach, ist der Zustand der Transaktion unbekannt. Der Upload endet dann immer mit 500 `import.import_batch_failed`, ohne Retry und ohne Replay, an jedem Savepoint (Chunk, `ResolveChunk`, geschützte Reads in Validierung und Zeilenpfad, Zeilen-Savepoint, innere Savepoints der Owner) und gleich, mit welchem SQLSTATE der Rollback oder der Hauptfehler endet. Ein geschützter Read fällt dann nicht auf den Read je Zeile zurück (F1, F3). Die Ursache steht nur im Text der Antwort. Dasselbe gilt für jedes andere gescheiterte Savepoint-Statement innerhalb eines Writes oder geschützten Reads (`SAVEPOINT`, `RELEASE` nach Erfolg): Kein Retry startet danach, im Batch- wie im Zeilenpfad. Die Statements des Chunk-Savepoints selbst (`SAVEPOINT chunk` und `RELEASE` nach Erfolg) bleiben Fehler eines Statements wie der erste Write des Zeilenpfads. Einzige Ausnahme ist E13′: Endet das gebündelte Statement des Batch-Kommandos selbst mit `57014`, ist die Chunk-Transaktion mit ihrer Verbindung verloren, ihr Rollback scheitert zwangsläufig, und der Chunk läuft in einer neuen Transaktion zeilenweise (#6280). Jede dieser Entscheidungen fällt an der Herkunft des Hauptfehlers: am Ergebnis des jeweiligen Statements, auch durch seine einfachen Hüllen (`%w`) hindurch. Angehängte Cleanup-Diagnosen (gescheiterter Savepoint-Rollback, gescheitertes äußeres `ROLLBACK`) zählen dabei nie, weder für Retry noch für Replay oder E13′ (#6316: `walkOperation` überspringt sie, Marker `tenant.ErrSavepointRollback`).
+
+Ein Chunk und ein Segment nehmen auch dann den Zeilenpfad, wenn sie weniger Zeilen haben, als der Batchpfad braucht, um weniger Statements als der Zeilenpfad auszugeben; die Mindestzahl legt jede Config fest (Klassenliste zwei, Student-Create sechs).
 
 2, 3 und 4 sind unabhängig. 5 und 6 brauchen 4; 7 braucht 5.
 

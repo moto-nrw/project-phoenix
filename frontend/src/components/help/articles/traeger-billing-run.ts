@@ -7,7 +7,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     title: "Ferien abrechnen",
     question: "Wie stelle ich die Rechnungen für die Ferien aus?",
     summary:
-      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut. Unter `Familien` sehen Sie je Familie alle Rechnungen und den offenen Betrag.",
+      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut. Unter `Familien` sehen Sie je Familie alle Rechnungen und die offene Forderung vor Zahlungseingang.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "FileText",
@@ -127,7 +127,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Mit einer Gutschrift wird ein Teil der Rechnung erlassen, zum Beispiel für einen Krankheitstag. Sie ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
         steps: [
           "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
-          "Wählen Sie `Gutschrift für …` beim Kind.",
+          "Wählen Sie `Gutschrift für …` beim Kind. Oben steht die offene Forderung für das Kind. Das ist der Stand vor Zahlungseingang.",
           "Tragen Sie den Betrag und eine Begründung ein.",
           "Wählen Sie `Gutschreiben`.",
         ],
@@ -161,8 +161,8 @@ export function traegerBillingRunTopic(): HelpTopic {
         steps: [
           "Wählen Sie in der Navigation `Abrechnung`.",
           "Wählen Sie oben den Reiter `Familien`.",
-          "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
+          "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
+          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen.",
           "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
           "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
         ],
@@ -184,7 +184,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
       "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
-      "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
+      "`Offene Forderung` und `Forderung offen` heißen: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Das ist der Stand vor Zahlungseingang. Zahlungen sieht moto nicht. Eine offene Forderung heißt also nicht, dass die Familie im Rückstand ist. Ob sie gezahlt hat, prüfen Sie in Ihrer Buchhaltung.",
       "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
     ],
     differences: [

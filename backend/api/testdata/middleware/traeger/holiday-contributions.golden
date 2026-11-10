@@ -9,4 +9,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel
 	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
 	POST /traeger/holiday-contributions/{periodId}/sibling-groups
+	PUT /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/children/{childId}/bookings
 	PUT /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number
+	PUT /traeger/holiday-contributions/{periodId}/weeks/{weekId}/capacity

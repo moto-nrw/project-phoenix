@@ -36,6 +36,8 @@ import {
   rebookingChanged,
   rebookingDraft,
 } from "./holiday-rebooking-model";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { holidayPlacementStatus } from "./holiday-placement";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -194,6 +196,7 @@ export function HolidayRegistrationChildCard({
           <RebookingEditor
             period={period}
             draft={draft}
+            savedBookings={child.bookings}
             names={names}
             onChange={setDraft}
             error={saveErrors.error}
@@ -202,11 +205,25 @@ export function HolidayRegistrationChildCard({
           <InfoSection title="Gebuchte Wochen">
             <ul className="space-y-1 text-sm text-gray-900">
               {child.bookings.map((booking) => (
-                <li key={booking.weekId}>
-                  {formatHolidayWeek(booking.weekStartsOn, booking.weekEndsOn)}:{" "}
-                  {booking.timeModelName},{" "}
-                  {names.get(booking.hostSchoolId) ??
-                    "Schule nicht mehr vorhanden"}
+                <li
+                  key={booking.weekId}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                >
+                  <span>
+                    {formatHolidayWeek(
+                      booking.weekStartsOn,
+                      booking.weekEndsOn,
+                    )}
+                    : {booking.timeModelName},{" "}
+                    {names.get(booking.hostSchoolId) ??
+                      "Schule nicht mehr vorhanden"}
+                  </span>
+                  {cancelled ? null : (
+                    <StatusBadge
+                      {...holidayPlacementStatus(booking)}
+                      size="xs"
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -283,12 +300,14 @@ function weeksOverlap(
 function RebookingEditor({
   period,
   draft,
+  savedBookings,
   names,
   onChange,
   error,
 }: Readonly<{
   period: HolidayPeriod;
   draft: HolidayRebookingDraft;
+  savedBookings: HolidayRegistrationChild["bookings"];
   names: ReadonlyMap<string, string>;
   onChange: (draft: HolidayRebookingDraft) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
@@ -314,21 +333,42 @@ function RebookingEditor({
               key={first.id ?? range}
               className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
             >
-              <span className="text-sm text-gray-900">{label}</span>
+              <span className="text-sm text-gray-900">
+                {label}
+                {group
+                  .filter((week) => week.noCareDays?.length)
+                  .map((week) => (
+                    <span
+                      key={week.id ?? week.startsOn}
+                      className="block text-xs text-gray-600"
+                    >
+                      {parallel ? `${schoolOf(week)}: ` : ""}Keine neue Buchung,
+                      weil am {formatDate(week.noCareDays![0]!.date)} keine
+                      Betreuung ist ({week.noCareDays![0]!.name}).
+                    </span>
+                  ))}
+              </span>
               <CustomSelect
                 value={weekGroupBooking(draft, group)}
                 wrapLabels={parallel}
                 options={[
                   { value: "", label: "Nicht angemeldet" },
                   ...group.flatMap((week) =>
-                    // An archived time model takes no new booking (#5994);
-                    // the one a week is booked on stays selectable.
-                    week.timeModels
+                    // A week with a day without care at its host school
+                    // takes no new booking (#4702); a booked one stays.
+                    (week.noCareDays?.length &&
+                    !savedBookings.some((booking) => booking.weekId === week.id)
+                      ? []
+                      : week.timeModels
+                    )
                       .filter(
                         (model) =>
                           !model.archived ||
-                          (week.id !== undefined &&
-                            draft[week.id] === model.id),
+                          savedBookings.some(
+                            (booking) =>
+                              booking.weekId === week.id &&
+                              booking.timeModelId === model.id,
+                          ),
                       )
                       .map((model) => ({
                         value: model.id ?? "",

@@ -10993,6 +10993,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordPrivacyConsents",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.PrivacyConsentBatches.RecordPrivacyConsents",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListRoomSessionHistory",
       "binding_digest": "082a0a7a1d52fef0199e34b9b441c2d1",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.RoomHistoryQuery.ListRoomSessionHistory",
@@ -13543,6 +13551,14 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians",
       "target_owner": "communication"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PartialAbsenceService.ReplaceManualPartialAbsences",
+      "binding_digest": "9299fb2a61691f90622f809f9c1d9620",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.PartialAbsenceReplacer.ReplaceManualPartialAbsences",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PartialAbsenceService.ReplaceManualPartialAbsences",
+      "target_owner": "care-plan"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRoutePersons.AssignStudentTag",
@@ -17634,7 +17650,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "bc73ca6c9d2cee0590b8f5f64acc30e3",
+      "binding_digest": "d3cb18acdeab737b21578f2eb195242f",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CountEffectiveStudentAbsences",
@@ -17642,7 +17658,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "5747c45150826b2328b6bbb2ca91324a",
+      "binding_digest": "222d68bb5f4a9ecaa2f3ffbca6e6ef4e",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountEffectiveStudentAbsences",
@@ -17866,7 +17882,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "bc73ca6c9d2cee0590b8f5f64acc30e3",
+      "binding_digest": "d3cb18acdeab737b21578f2eb195242f",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CountEffectiveStudentAbsences",
@@ -17874,7 +17890,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "5747c45150826b2328b6bbb2ca91324a",
+      "binding_digest": "222d68bb5f4a9ecaa2f3ffbca6e6ef4e",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountEffectiveStudentAbsences",
@@ -21068,6 +21084,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsent",
       "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsent",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsents",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"

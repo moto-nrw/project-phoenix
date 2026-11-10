@@ -113,9 +113,11 @@ const (
 		RETURNING id, submitted_at`
 	setHolidayFamilyHealthQuery = `UPDATE enrollment.holiday_registrations SET health_data = ?
 		WHERE organization_id = ? AND id = ?`
+	// insertHolidayBookingsQuery puts every booking on the waiting list:
+	// only the placement under the lock of its week gives it a place (#4699).
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
-			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
-		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id
+			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement)
+		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, 'waitlisted'
 		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[]) AS booking(child_id, week_id, time_model_id)`
 	insertHolidayContactsQuery = `INSERT INTO enrollment.holiday_registration_contacts
 			(organization_id, holiday_registration_id, kind, position, name, phone, relationship)

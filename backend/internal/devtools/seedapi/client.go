@@ -94,6 +94,16 @@ func (c *Client) PostPublic(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, false, nil)
 }
 
+// GetPublic makes an unauthenticated GET request.
+func (c *Client) GetPublic(path string) ([]byte, error) {
+	return c.doRequestWithHeaders("GET", path, nil, false, nil)
+}
+
+// PutPublic makes an unauthenticated PUT request.
+func (c *Client) PutPublic(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("PUT", path, body, false, nil)
+}
+
 // PostPublicWithHeaders makes an unauthenticated POST request with extra headers.
 func (c *Client) PostPublicWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, false, headers)

@@ -39,6 +39,7 @@
   "weeksText": "Her hafta için çocuğunuzun ne kadar kalacağını seçin.",
   "notBooked": "Kayıt yok",
   "parallelWeeksHint": "Bu hafta birkaç okulda sunuluyor. Bir okul ve saat seçin.",
+  "weekWithoutCare": "Rezerve edilemez: {date} tarihinde bakım yok ({name}).",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",
@@ -100,6 +101,10 @@
   "doneTitle": "Kaydınız alındı",
   "doneText": "{email} adresine bir onay göndereceğiz.",
   "doneNext": "Bu henüz kesin bir yer değildir. Kurum kaydı kontrol eder ve çocuğunuzun yer alıp almadığını size yazar.",
+  "placementHeading": "Yerler",
+  "placementPlaced": "Yer ayrıldı",
+  "placementWaitlisted": "Bekleme listesi",
+  "waitlistNote": "Bazı haftalar dolu. Bu haftalarda çocuğunuz bekleme listesinde. Bir yer boşalırsa çocuğunuz onu otomatik olarak alır. O zaman size e-posta göndeririz.",
   "errors": {
     "phone": "Lütfen geçerli bir telefon numarası girin.",
     "required": "Lütfen bu alanı doldurun.",

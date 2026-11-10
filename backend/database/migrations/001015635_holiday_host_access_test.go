@@ -181,5 +181,5 @@ func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T)
 			own, draft, confirmed, draftWeek, draftModel)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "the host writes no booking")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the host writes no booking")
 }

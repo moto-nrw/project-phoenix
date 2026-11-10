@@ -45,7 +45,7 @@ func TestUnclaimedGroupOwnerIsolationRollbackAndLock(t *testing.T) {
 		// the owner claim is awaiting the surrounding transaction's decision.
 		var id int64
 		lockErr := db.NewRaw("SELECT id FROM active.groups WHERE id = ? FOR UPDATE NOWAIT", group.ID).Scan(context.Background(), &id)
-		require.ErrorContains(t, lockErr, "could not obtain lock")
+		require.Equal(t, "55P03", testpkg.PostgresSQLState(lockErr))
 		return abort
 	})
 	require.ErrorIs(t, err, abort)

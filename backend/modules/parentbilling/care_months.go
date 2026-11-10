@@ -285,6 +285,9 @@ type CareInvoice struct {
 	// FamilyEmail is the family of the invoice: the mail address of the
 	// contract party, whoever pays (#4689). The sibling rules count by it.
 	FamilyEmail string `json:"family_email"`
+	// DebtorNumber is the number of the family in the finance system of the
+	// Träger the release copies (#4693); empty without one.
+	DebtorNumber string `json:"debtor_number,omitempty"`
 	// Payment is how and by when the invoice is paid (#4689); an invoice
 	// issued before has none.
 	Payment   *InvoicePayment `json:"payment"`

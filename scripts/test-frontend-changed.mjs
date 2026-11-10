@@ -108,6 +108,7 @@ const guards = [
   "src/lib/hooks/use-sse.test.ts",
   "src/lib/service-worker.test.ts",
   "src/styles/moto-token-drift.test.ts",
+  "src/lib/hooks/tailwind-breakpoints.test.ts",
   "src/server/node-header-limit.test.ts",
   "src/lib/permission-labels.test.ts",
   "src/lib/modules.test.ts",

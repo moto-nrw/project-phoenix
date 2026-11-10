@@ -148,15 +148,16 @@ func (w *ExcusedRequests) pendingReviewItem(ctx context.Context, r *careplan.Exc
 	if viewErr != nil {
 		return nil, fmt.Errorf("care plan: resolve current absence statuses: %w", viewErr)
 	}
-	eligible, reasonCode, reasonText, eligibilityErr := w.excusedBulkEligibility(ctx, r, st, view, today, facts)
+	eligibility, eligibilityErr := w.excusedBulkEligibility(ctx, r, st, view, today, facts)
 	if eligibilityErr != nil {
 		return nil, fmt.Errorf("care plan: resolve absence bulk eligibility: %w", eligibilityErr)
 	}
 	currentValueChanged := view.changedSinceRequest
 	return &careplan.ExcusedRequestReviewItem{
-		Request: r, BulkEligible: eligible,
-		BulkIneligibleReason: reasonCode, BulkIneligibleText: reasonText,
+		Request: r, BulkEligible: eligibility.eligible,
+		BulkIneligibleReason: eligibility.code, BulkIneligibleText: eligibility.text,
 		CurrentStatusByDate: view.byDate, CurrentValueChanged: &currentValueChanged,
+		PartialAbsenceFromByDate: eligibility.partialFrom,
 	}, nil
 }
 

@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.finance_export_files",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/finance-exports/files (#4693):\nthe selects: the Träger binding of the Träger transaction and the export protocol with the label of each\nrun and the earliest file of the same content in one statement. Flat in the number of files.",
+  "route": "GET /traeger/finance-exports/files"
+}

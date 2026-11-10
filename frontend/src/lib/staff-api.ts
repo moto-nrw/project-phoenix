@@ -1554,6 +1554,16 @@ interface AdminSessionPayload {
   notes: string;
 }
 
+// An update leaves out a time it does not change: the backend keeps the
+// stored value for a missing field (#6293).
+interface AdminSessionUpdatePayload {
+  check_in_time?: string; // ISO 8601
+  check_out_time?: string; // ISO 8601
+  break_minutes: number;
+  status: "present" | "home_office";
+  notes: string;
+}
+
 class StaffSessionEditsService {
   async getEdits(
     staffId: string,
@@ -1739,7 +1749,7 @@ class StaffSessionService {
   async updateSession(
     staffId: string,
     sessionId: string,
-    payload: AdminSessionPayload,
+    payload: AdminSessionUpdatePayload,
   ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/${staffId}/time-tracking/sessions/${sessionId}`,

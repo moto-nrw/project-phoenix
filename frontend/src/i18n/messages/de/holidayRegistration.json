@@ -39,6 +39,7 @@
   "weeksText": "Wählen Sie für jede Woche, wie lange Ihr Kind bleibt.",
   "notBooked": "Nicht angemeldet",
   "parallelWeeksHint": "Diese Woche gibt es an mehreren Schulen. Wählen Sie eine Schule und die Zeit.",
+  "weekWithoutCare": "Nicht buchbar: Am {date} ist keine Betreuung ({name}).",
   "weekRange": "{starts} bis {ends}",
   "timeModel": "{name} ({startsAt} bis {endsAt} Uhr)",
   "timeModelPrice": "{name} · {price} ({startsAt} bis {endsAt} Uhr)",
@@ -100,6 +101,10 @@
   "doneTitle": "Ihre Anmeldung ist eingegangen",
   "doneText": "Wir schicken Ihnen eine Bestätigung an {email}.",
   "doneNext": "Das ist noch keine Zusage. Der Träger prüft die Anmeldung und schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
+  "placementHeading": "Plätze",
+  "placementPlaced": "Platz reserviert",
+  "placementWaitlisted": "Warteliste",
+  "waitlistNote": "In manchen Wochen sind alle Plätze vergeben. Dort steht Ihr Kind auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Wir schreiben Ihnen dann eine E-Mail.",
   "errors": {
     "phone": "Bitte geben Sie eine gültige Telefonnummer ein.",
     "required": "Bitte füllen Sie dieses Feld aus.",

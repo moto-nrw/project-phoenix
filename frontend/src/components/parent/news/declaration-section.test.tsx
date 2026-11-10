@@ -53,7 +53,6 @@ function declaration(
   return {
     kind: "consent",
     signers: "any",
-    revocable: true,
     requires_password: false,
     requires_signature: false,
     deadline: null,
@@ -273,6 +272,39 @@ describe("Einverständnis in the detail view", () => {
     expect(screen.getByText("Fassung 2")).toBeInTheDocument();
   });
 
+  it("says before the consent that it can be withdrawn at any time (#6303)", () => {
+    render(
+      <NewsDetailModal item={item()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Zustimmen" })).toBeEnabled();
+    expect(
+      screen.getByText("Sie können Ihre Zustimmung jederzeit widerrufen."),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the hint once only a refusal is left to give", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({ my_action: "revoked", allowed_actions: ["declined"] }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Ablehnen" })).toBeEnabled();
+    expect(
+      screen.queryByText("Sie können Ihre Zustimmung jederzeit widerrufen."),
+    ).not.toBeInTheDocument();
+  });
+
   it("confirms child, action and version before it submits", async () => {
     const submit = vi
       .spyOn(parentApi, "submitDeclaration")
@@ -437,6 +469,116 @@ describe("Einverständnis in the detail view", () => {
         screen.queryByRole("dialog", { name: "Ihre Antwort prüfen" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("shows a consent to an older wording with that wording and revokes it on that version (#6303)", async () => {
+    const submit = vi
+      .spyOn(parentApi, "submitDeclaration")
+      .mockResolvedValue(submission("revoked"));
+    const onUpdated = vi.fn();
+    const earlier = {
+      version: {
+        id: "11",
+        version_no: 1,
+        content_hash: "ef".repeat(32),
+        title: "Ausflug in den Zoo",
+        body: "Alter Text: Abfahrt um 8 Uhr.",
+      },
+      submitted_at: "2026-09-01T08:30:00Z",
+      allowed_actions: ["revoked"] as const,
+    };
+
+    render(
+      <NewsDetailModal
+        item={item({}, { children: [child({ earlier_consent: earlier })] })}
+        onClose={vi.fn()}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    // The school asks for the new wording; the old consent stands below it.
+    expect(screen.getByRole("button", { name: "Zustimmen" })).toBeEnabled();
+    expect(
+      screen.getByText(
+        /Sie haben Fassung 1 am 01\.09\.2026, 10:30 Uhr zugestimmt\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Alter Text: Abfahrt um 8 Uhr."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zustimmung widerrufen",
+    });
+    expect(within(dialog).getByText("Fassung 1")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
+
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith("42", {
+        studentId: "5",
+        action: "revoked",
+        versionId: "11",
+        password: undefined,
+        signature: undefined,
+      }),
+    );
+    expect(onUpdated).toHaveBeenCalledWith(
+      "42",
+      expect.objectContaining({
+        declaration: expect.objectContaining({
+          children: [
+            expect.objectContaining({
+              earlier_consent: null,
+              my_action: null,
+              allowed_actions: ["agreed", "declined"],
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("says that revoking the current consent also ends the one to an older wording", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({
+                my_action: "agreed",
+                my_submitted_at: "2026-09-09T08:30:00Z",
+                state: "agreed",
+                allowed_actions: ["revoked"],
+                earlier_consent: {
+                  version: {
+                    id: "11",
+                    version_no: 1,
+                    content_hash: "ef".repeat(32),
+                    title: "Ausflug in den Zoo",
+                    body: "Alter Text",
+                  },
+                  submitted_at: "2026-09-01T08:30:00Z",
+                  allowed_actions: ["revoked"],
+                },
+              }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Zustimmung widerrufen" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText("Damit endet auch Ihre Zustimmung zu Fassung 1."),
+    ).toBeInTheDocument();
   });
 
   it("shows the own action with a proof link and offers a withdrawal with its own dialog", async () => {
@@ -807,7 +949,7 @@ describe("an Einverständnis the school ended (#6290)", () => {
 
     expect(
       screen.getByText(
-        "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
+        "Die Schule fragt hier nicht mehr nach. Sie können nicht mehr neu antworten.",
       ),
     ).toBeInTheDocument();
     expect(

@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"time"
 
+	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
+	"github.com/spf13/viper"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	schedulerCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
@@ -82,8 +85,13 @@ func NewSchedulerFileRetentionTestDependencies(db transactionruntime.Database, u
 	}
 	// Recovery reads Workforce records and offboarded membership IDs; it does
 	// not invoke personnel edits or their audit trail.
+	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), "")
+	if err != nil {
+		return deps, err
+	}
 	documents, err := workforceCompose.NewStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: db.Pool(), Subjects: staffAdminSubjects{membership: membership}, Audit: staffAdminAudit{}, Allows: securityruntime.HasPermission,
+		BankData: bankData,
 	})
 	if err != nil {
 		return deps, err

@@ -35,7 +35,7 @@ func (guardSender) WithdrawalReach(context.Context, int64) (carecontract.Withdra
 func (f raceFixture) signatures() *Signatures {
 	return NewSignatures(postgres.NewStore(), SignaturePorts{
 		Ledger: struct{ carecontract.SignatureLedger }{}, Links: f.contracts.links, Sender: guardSender{},
-		Post: &racePost{next: time.Now().UnixNano()}, Runtime: raceRuntime{},
+		Post: &racePost{next: time.Now().UnixNano()}, Runtime: raceRuntime{}, Holidays: schoolHolidays{}, Families: familyNumbersDouble{},
 	}, Clock{Now: time.Now}, f.contracts)
 }
 

@@ -757,3 +757,75 @@ describe("earlyCheckoutMinutes (#3324)", () => {
     ).toBe(80);
   });
 });
+
+// Ort vor Status (#6371), Entscheidung A in #6407: Ein eingechecktes Kind
+// behält trotz Meldung seine geplante Gehzeit samt Verspätungsmarkierung. Die
+// Meldung bleibt ein Hinweis am Ortsbadge und ersetzt keine Zeile.
+describe("checked-in child despite a status (#6407)", () => {
+  const now = new Date("2025-01-15T15:00:00");
+  const statuses = [
+    { name: "sick", flags: { sick: true } },
+    { name: "excused", flags: { excused: true } },
+    { name: "class trip", flags: { classTrip: true } },
+  ] as const;
+
+  it.each(statuses)(
+    "keeps the planned pickup and marks it overdue for a checked-in $name child",
+    ({ flags }) => {
+      const status = getStudentTimeStatus({
+        plannedTime: "14:00",
+        now,
+        kind: "pickup",
+        day: getStudentDayTimes({
+          pickup_time: "14:00",
+          actual_arrival_time: "08:05",
+          current_location: "Anwesend - Raum 1",
+        }),
+        currentLocation: "Anwesend - Raum 1",
+        ...flags,
+      });
+
+      expect(status.state).toBe("very-overdue");
+      expect(status.displayTime).toBe("14:00");
+      expect(status.textColor).toBe(LOCATION_COLORS.DANGER);
+      expect(status.detailAnnotation).toBe("Überfällig seit 60 min");
+    },
+  );
+
+  it.each(["Anwesend", "Schulhof", "Unterwegs"])(
+    "treats the location %s as a check-in",
+    (location) => {
+      expect(
+        getStudentAbsence({ sick: true, currentLocation: location }),
+      ).toBeNull();
+      expect(
+        getStudentTimeStatus({
+          plannedTime: "14:50",
+          now,
+          sick: true,
+          currentLocation: location,
+        }).state,
+      ).toBe("slightly-overdue");
+    },
+  );
+
+  it.each(["Zuhause", "Schule", "Im Unterricht", "", null, undefined])(
+    "keeps the absence for a child not checked in (location %s)",
+    (location) => {
+      expect(
+        getStudentAbsence({ sick: true, currentLocation: location }),
+      ).toEqual({ reason: "sick", label: "krank gemeldet" });
+      expect(
+        getStudentAbsence({ excused: true, currentLocation: location }),
+      ).toEqual({ reason: "excused", label: "entschuldigt" });
+      const status = getStudentTimeStatus({
+        plannedTime: "14:00",
+        now,
+        sick: true,
+        currentLocation: location,
+      });
+      expect(status.state).toBe("absent-excused");
+      expect(status.textColor).toBeUndefined();
+    },
+  );
+});

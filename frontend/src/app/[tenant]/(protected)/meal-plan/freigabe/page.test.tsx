@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -145,6 +146,53 @@ describe("MealBillingReleasePage", () => {
       screen.queryByRole("button", { name: "Monat freigeben" }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByText("Albers, Mia").length).toBeGreaterThan(0);
+  });
+
+  // #6346, decision B: a release is not taken back. A released month
+  // states the correction path in steps and offers no button that pretends
+  // to undo it; „Erneut freigeben“ appears only once the counts changed.
+  it("explains how a released month is corrected, without a way to take it back", async () => {
+    fetchMealBillingMonth.mockResolvedValue({
+      ...MARCH,
+      status: "released",
+      releasedAt: "2026-04-02T09:00:00Z",
+      version: 1,
+    });
+    renderPage();
+    const steps = await screen.findByRole("list", {
+      name: "Schritte zur Korrektur",
+    });
+    expect(
+      screen.getByText(
+        "Eine Freigabe lässt sich nicht zurücknehmen. So korrigieren Sie einen freigegebenen Monat:",
+      ),
+    ).toBeInTheDocument();
+    const items = Array.from(steps.querySelectorAll("li")).map(
+      (item) => item.textContent,
+    );
+    expect(items).toEqual([
+      "Tragen Sie die fehlende oder falsche Anwesenheit nach.",
+      "Oben steht dann „Seit der Freigabe hat sich die Anwesenheit geändert“. Wählen Sie „Erneut freigeben“ und nennen Sie den Grund.",
+      "Hat der Träger den Monat schon abgerechnet, sieht er die neue Zahl. Er storniert die Rechnung und stellt sie neu aus.",
+    ]);
+    expect(
+      within(steps.closest("section") ?? steps).queryAllByRole("button"),
+    ).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /zurücknehmen/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Erneut freigeben" }),
+    ).toBeNull();
+    expect(screen.getAllByText("Albers, Mia").length).toBeGreaterThan(0);
+  });
+
+  it("states before the first release that it cannot be taken back", async () => {
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Monat freigeben" }),
+    );
+    expect(
+      await screen.findByText(/Zurücknehmen lässt sich die Freigabe nicht\./),
+    ).toBeInTheDocument();
   });
 
   it("explains that a running month waits for its end", async () => {

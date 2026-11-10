@@ -80,6 +80,7 @@
   "guardian_email_required": "Wpisz adres e-mail.",
   "guardian_name_required": "Wpisz imię i nazwisko.",
   "guardian_phone_required": "Wpisz numer telefonu.",
+  "holiday_week_no_care_day": "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
   "invalid_email": "Wpisz prawidłowy adres e-mail.",
   "invalid_phone": "Wpisz prawidłowy numer telefonu.",
   "late_invite_invalid": "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
@@ -132,6 +133,7 @@
   "holiday_period_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "holiday_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_registration_closed": "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
   "holiday_registration_entry_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_registration_frozen": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -145,5 +147,7 @@
   "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "holiday_form_field_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "holiday_registration_form_changed": "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz.",
-  "holiday_proof_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "holiday_proof_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "family_children_closed": "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
+  "family_children_invalid": "Proszę podać liczbę od 1 do 20."
 }

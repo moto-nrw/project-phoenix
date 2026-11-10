@@ -25,6 +25,11 @@ type Operator struct {
 	DeactivatedAt  *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// CredentialGeneration is the state of the operator's password: every
+	// password write moves it on, and every artifact a password check leads
+	// to (e-mail code, enrollment and challenge token, remembered device) is
+	// bound to it (#6308).
+	CredentialGeneration int64
 }
 
 // Validate normalizes the address and display name in place and rejects an

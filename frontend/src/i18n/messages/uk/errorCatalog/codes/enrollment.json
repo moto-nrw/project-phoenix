@@ -80,6 +80,7 @@
   "guardian_email_required": "Вкажіть адресу електронної пошти.",
   "guardian_name_required": "Вкажіть ім'я та прізвище.",
   "guardian_phone_required": "Вкажіть номер телефону.",
+  "holiday_week_no_care_day": "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
   "invalid_email": "Вкажіть правильну адресу електронної пошти.",
   "invalid_phone": "Вкажіть правильний номер телефону.",
   "late_invite_invalid": "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
@@ -132,6 +133,7 @@
   "holiday_period_incomplete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_period_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "holiday_period_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_registration_closed": "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
   "holiday_registration_entry_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_registration_frozen": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -145,5 +147,7 @@
   "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "holiday_form_field_not_allowed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "holiday_registration_form_changed": "Організатор щойно змінив форму. Будь ласка, перевірте дані й надішліть заявку ще раз.",
-  "holiday_proof_limit": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "holiday_proof_limit": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "family_children_closed": "Кількість дітей тут більше не можна змінити. Ви знайдете її у договорі про догляд.",
+  "family_children_invalid": "Будь ласка, вкажіть число від 1 до 20."
 }

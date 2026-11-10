@@ -73,6 +73,7 @@ import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
+  countedDayStatus,
   parseLocation,
   isAtSchoolLocation,
   isInClassLocation,
@@ -719,10 +720,18 @@ const HOME_STATUSES: ReadonlySet<string> = new Set([
   LOCATION_STATUSES.NOT_ARRIVAL,
 ]);
 
+const DAY_STATUS_LABELS = {
+  sick: "Krank",
+  class_trip: "Klassenfahrt",
+  excused: "Entschuldigt",
+} as const;
+
+// Ort vor Status (#6371): Ein eingechecktes Kind steht unter seinem Ort, auch
+// mit Krankmeldung, Entschuldigung oder Klassenfahrt. Der Status bleibt als
+// Hinweis am Ortsbadge.
 function statusLabelForStudent(student: Student): string {
-  if (student.sick) return "Krank";
-  if (student.class_trip) return "Klassenfahrt";
-  if (student.excused) return "Entschuldigt";
+  const dayStatus = countedDayStatus(student);
+  if (dayStatus) return DAY_STATUS_LABELS[dayStatus];
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
@@ -1002,6 +1011,7 @@ function compareByPickupTime(
     sick: a.sick,
     classTrip: a.class_trip,
     excused: a.excused,
+    currentLocation: isToday ? a.current_location : null,
   });
   const statusB = getStudentTimeStatus({
     plannedTime: b.pickup_time,
@@ -1012,6 +1022,7 @@ function compareByPickupTime(
     sick: b.sick,
     classTrip: b.class_trip,
     excused: b.excused,
+    currentLocation: isToday ? b.current_location : null,
   });
   const rankA = getTimeStatusSortRank(statusA);
   const rankB = getTimeStatusSortRank(statusB);
@@ -2766,6 +2777,7 @@ function SearchPageContent() {
         sick: a.sick,
         classTrip: a.class_trip,
         excused: a.excused,
+        currentLocation: isToday ? a.current_location : null,
       });
       const statusB = getStudentTimeStatus({
         plannedTime: b.arrival_time,
@@ -2776,6 +2788,7 @@ function SearchPageContent() {
         sick: b.sick,
         classTrip: b.class_trip,
         excused: b.excused,
+        currentLocation: isToday ? b.current_location : null,
       });
       const rankA = getTimeStatusSortRank(statusA);
       const rankB = getTimeStatusSortRank(statusB);
@@ -2809,7 +2822,8 @@ function SearchPageContent() {
     // Wie im Dashboard: Zuhause ist jedes Kind, das weder anwesend noch krank
     // oder entschuldigt ist und auch nicht mehr in der Schule erwartet wird
     // (#3260). Ohne eingecheckten Aufenthaltsort ist es deshalb zuhause, auch
-    // wenn der Status noch unbekannt ist.
+    // wenn der Status noch unbekannt ist. Ein eingechecktes Kind zählt „in der
+    // OGS“, auch wenn es krank gemeldet ist (Ort vor Status, #6371).
     let sick = 0;
     // In der OGS: in einem Raum, auf dem Schulhof oder unterwegs. Ohne diese
     // Zahl stünde unter „Meine Aufsicht“ „7 Kinder · 0 in der Schule ·
@@ -2820,11 +2834,12 @@ function SearchPageContent() {
     let inClass = 0;
     let atHome = 0;
     for (const student of students) {
-      if (student.sick === true) {
+      const dayStatus = countedDayStatus(student);
+      if (dayStatus === "sick") {
         sick += 1;
         continue;
       }
-      if (student.excused === true || student.class_trip === true) continue;
+      if (dayStatus !== null) continue;
       const status = parseLocation(student.current_location).status;
       if (status === LOCATION_STATUSES.SICK) {
         sick += 1;
@@ -3715,6 +3730,9 @@ function SearchPageContent() {
                                 sick: student.sick,
                                 classTrip: student.class_trip,
                                 excused: student.excused,
+                                currentLocation: isToday
+                                  ? student.current_location
+                                  : null,
                               });
                               const absenceWording = isToday
                                 ? undefined

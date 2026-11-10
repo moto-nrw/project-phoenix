@@ -1,0 +1,21 @@
+{
+  "api/traeger/finance-exports/files": [
+    "GET traeger /traeger/finance-exports/files"
+  ],
+  "api/traeger/finance-exports/invoice-history/[kind]/[id]": [
+    "GET traeger /traeger/finance-exports/invoice-history/kind%2F1/id%2F1"
+  ],
+  "api/traeger/finance-exports/runs": [
+    "GET traeger /traeger/finance-exports/runs"
+  ],
+  "api/traeger/finance-exports/settings": [
+    "GET traeger /traeger/finance-exports/settings"
+  ],
+  "api/traeger/finance-exports/settings/file-number-start": [
+    "PUT traeger /traeger/finance-exports/settings/file-number-start"
+  ],
+  "api/traeger/finance-exports/settings/sollstellung": [
+    "PUT traeger /traeger/finance-exports/settings/sollstellung",
+    "DELETE traeger /traeger/finance-exports/settings/sollstellung"
+  ]
+}

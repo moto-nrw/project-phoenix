@@ -80,6 +80,7 @@
   "guardian_email_required": "Lütfen bir e-posta adresi girin.",
   "guardian_name_required": "Lütfen adı ve soyadı girin.",
   "guardian_phone_required": "Lütfen bir telefon numarası girin.",
+  "holiday_week_no_care_day": "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
   "invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
   "invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
   "late_invite_invalid": "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
@@ -132,6 +133,7 @@
   "holiday_period_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_period_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "holiday_period_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "holiday_week_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_registration_closed": "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
   "holiday_registration_entry_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_registration_frozen": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -145,5 +147,7 @@
   "holiday_guest_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "holiday_form_field_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "holiday_registration_form_changed": "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin.",
-  "holiday_proof_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "holiday_proof_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "family_children_closed": "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
+  "family_children_invalid": "Lütfen 1 ile 20 arasında bir sayı girin."
 }

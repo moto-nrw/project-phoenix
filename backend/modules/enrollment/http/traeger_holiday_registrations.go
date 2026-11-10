@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -42,7 +41,7 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Post("/{id}/registrations/{registrationId}/proofs", rs.uploadOfficeProof)
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
-	review.Put("/{id}/registrations/{registrationId}/children/{childId}/bookings", rs.rebookChild)
+	review.Get("/{id}/places", rs.listPlaces)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Put("/{id}/registrations/{registrationId}/details", rs.editRegistration)
 }
 
@@ -143,41 +142,25 @@ func (rs *HolidayPeriodResource) registrationAction(action string) http.HandlerF
 	}
 }
 
-// HolidayRebookingRequest is the body of PUT
-// /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings:
-// the new bookings of the child, one time model per week.
-type HolidayRebookingRequest struct {
-	Bookings []holidayBookingRequest `json:"bookings"`
-}
-
-// Bind accepts the body; the Owner validates the bookings.
-func (req *HolidayRebookingRequest) Bind(*http.Request) error { return nil }
-
-func (rs *HolidayPeriodResource) rebookChild(w http.ResponseWriter, r *http.Request) {
-	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+// listPlaces lists the places and the waiting list of every week of the
+// period (#4699). A rebooking and a new capacity run in the
+// Elternabrechnung, which computes the contribution of whoever moves up.
+func (rs *HolidayPeriodResource) listPlaces(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
 	if !ok {
 		return
 	}
-	childID, err := common.ParseIDParam(r, "childId")
+	periodID, err := common.ParseIDParam(r, "id")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	req := &HolidayRebookingRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	bookings := make([]capability.HolidayBookingInput, len(req.Bookings))
-	for i, booking := range req.Bookings {
-		bookings[i] = capability.HolidayBookingInput(booking)
-	}
-	detail, err := rs.review.RebookHolidayChild(r.Context(), reviewer, periodID, registrationID, childID, bookings)
+	places, err := rs.places.HolidayWeekPlaces(r.Context(), reviewer, periodID)
 	if err != nil {
 		renderHolidayReviewError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, detail, "Holiday registration rebooked successfully")
+	common.Respond(w, r, http.StatusOK, places, "Holiday week places retrieved successfully")
 }
 
 func registrationKey(w http.ResponseWriter, r *http.Request) (capability.HolidayReviewer, int64, int64, bool) {
@@ -203,6 +186,9 @@ func registrationKey(w http.ResponseWriter, r *http.Request) (capability.Holiday
 func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error) {
 	tenant.MarkRollback(r.Context())
 	var fields validation.Errors
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))

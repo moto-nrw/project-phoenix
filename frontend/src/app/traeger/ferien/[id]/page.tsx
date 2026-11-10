@@ -10,6 +10,7 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
+import { useHolidayEditorCalendar } from "~/components/traeger/use-week-no-care-days";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
@@ -25,6 +26,7 @@ import { traegerKeys } from "~/lib/swr/portal-keys";
 import { traegerPath } from "~/lib/traeger-url";
 
 export default function TraegerHolidayPeriodPage() {
+  const holidayCalendar = useHolidayEditorCalendar();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
@@ -95,6 +97,7 @@ export default function TraegerHolidayPeriodPage() {
             onPublished={saved}
           />
           <HolidayPeriodForm
+            calendar={holidayCalendar}
             key={period.id}
             period={period}
             schools={schools}

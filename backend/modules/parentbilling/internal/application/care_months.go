@@ -412,7 +412,8 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule,
 			"free_of_charge":     month.free,
 			"duplicate_children": duplicateChildren(month.duplicates), "issued_on": issuedOn.String(),
-			"excluded_contract_ids": excludedContracts(month.excluded)}); err != nil {
+			"excluded_contract_ids": excludedContracts(month.excluded),
+			"excluded_invoices":     excludedInvoices(month.excluded)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care release: %w", err)
 	}
 	released.FreeOfCharge = month.free

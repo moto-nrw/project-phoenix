@@ -72,6 +72,10 @@ func (fakeOwnerStore) InsertTraegerErasureOrder(context.Context, organizationten
 	return organizationtenancy.TraegerErasureOrder{}, domain.OperationStats{}, nil
 }
 
+func (fakeOwnerStore) UpdateTraegerErasureOrderRecords(context.Context, int64, organizationtenancy.RecordsHandover) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error) {
+	return organizationtenancy.TraegerErasureOrder{}, false, domain.OperationStats{}, nil
+}
+
 func (fakeOwnerStore) WithdrawTraegerErasureOrder(context.Context, int64, int64) (bool, domain.OperationStats, error) {
 	return false, domain.OperationStats{}, nil
 }

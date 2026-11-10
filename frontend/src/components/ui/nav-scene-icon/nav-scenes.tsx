@@ -548,6 +548,18 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
       </>
     ),
   },
+  CalendarSlashIcon: {
+    description: "Ringe hüpfen, der Tag wird durchgestrichen",
+    render: () => (
+      <>
+        <rect x="40" y="40" width="176" height="176" rx="8" />
+        <path d="M40,88H216" />
+        <path className="ns-rings2 ns-i0" d="M80,24V56" />
+        <path className="ns-rings2 ns-i1" d="M176,24V56" />
+        <path className="ns-draw ns-i1" pathLength="1" d="M48,40L208,216" />
+      </>
+    ),
+  },
   CalendarPlusIcon: {
     description: "das Plus dreht sich herein",
     render: () => (

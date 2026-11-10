@@ -64,15 +64,22 @@ type staffQualificationRow struct {
 }
 
 type staffFinancialDataRow struct {
-	bun.BaseModel        `bun:"table:users.staff_financial_data,alias:staff_financial_data"`
-	ID                   int64     `bun:"id,pk,autoincrement"`
-	TenantID             int64     `bun:"tenant_id,notnull"`
-	StaffID              int64     `bun:"staff_id,notnull"`
-	IBAN                 *string   `bun:"iban"`
-	TaxID                *string   `bun:"tax_id"`
-	SocialSecurityNumber *string   `bun:"social_security_number"`
-	CreatedAt            time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt            time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	bun.BaseModel `bun:"table:users.staff_financial_data,alias:staff_financial_data"`
+	ID            int64 `bun:"id,pk,autoincrement"`
+	TenantID      int64 `bun:"tenant_id,notnull"`
+	StaffID       int64 `bun:"staff_id,notnull"`
+	// The plaintext columns before #6332: writers always store NULL, only
+	// rows the maintenance backfill has not sealed yet still carry a value.
+	// Migration 1.15.839 drops them.
+	IBAN                       *string   `bun:"iban"`
+	TaxID                      *string   `bun:"tax_id"`
+	SocialSecurityNumber       *string   `bun:"social_security_number"`
+	IBANSealed                 []byte    `bun:"iban_sealed"`
+	IBANMasked                 *string   `bun:"iban_masked"`
+	TaxIDSealed                []byte    `bun:"tax_id_sealed"`
+	SocialSecurityNumberSealed []byte    `bun:"social_security_number_sealed"`
+	CreatedAt                  time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt                  time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 type staffDocumentRow struct {
@@ -585,17 +592,22 @@ func staffQualificationsToDomain(rows []staffQualificationRow) []domain.StaffQua
 	return result
 }
 
+// staffFinancialDataFromDomain writes only sealed values and the mask; the
+// plaintext columns are always cleared.
 func staffFinancialDataFromDomain(value domain.StaffFinancialData) *staffFinancialDataRow {
 	return &staffFinancialDataRow{
-		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, IBAN: value.IBAN, TaxID: value.TaxID,
-		SocialSecurityNumber: value.SocialSecurityNumber, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID,
+		IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked, TaxIDSealed: value.TaxIDSealed,
+		SocialSecurityNumberSealed: value.SocialSecurityNumberSealed, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
 func staffFinancialDataToDomain(row staffFinancialDataRow) domain.StaffFinancialData {
 	return domain.StaffFinancialData{
 		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, IBAN: row.IBAN, TaxID: row.TaxID,
-		SocialSecurityNumber: row.SocialSecurityNumber, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		SocialSecurityNumber: row.SocialSecurityNumber, IBANSealed: row.IBANSealed, IBANMasked: row.IBANMasked,
+		TaxIDSealed: row.TaxIDSealed, SocialSecurityNumberSealed: row.SocialSecurityNumberSealed,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 

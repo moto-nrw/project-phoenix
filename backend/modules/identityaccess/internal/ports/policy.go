@@ -70,7 +70,9 @@ type OperatorMFAGate interface {
 	Configured() bool
 	HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error)
 	VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
+	// StartOperatorMFAChallenge issues nothing unless the operator still
+	// holds credentialGeneration, the generation the password check read.
+	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, credentialGeneration *int64) (string, error)
 	OperatorTrustedDeviceDays() int
 }
 

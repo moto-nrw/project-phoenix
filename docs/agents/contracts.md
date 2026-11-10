@@ -919,16 +919,31 @@ lock, and a code redeems only at its own generation. A refused resend or
 enrollment start answers 401 `identity.invalid_credentials`; tokens issued
 before this claim existed read as generation 0. The own change writes by
 compare-and-swap on the hash the current password was checked against, so of
-two changes on one proof only the first wins. Operators have no credential
-generation yet: their direct sign-in compares the checked hash under the
-operator lock, their MFA artifacts are not bound (#6289 follow-up).
+two changes on one proof only the first wins. Operators hold their own
+credential generation (`platform.operators.credential_generation`, migration
+1.15.882, #6308) under the same rules: one writer
+(`Store.WriteOperatorCredential`, `TestOperatorCredentialHasOneWriter`), the
+trigger `platform.operator_credential_moves_generation`, and the sign-in's
+generation in the enrollment and challenge tokens, the code rows and the
+remembered devices, compared under the operator lock at issue, redemption,
+the exchange's session mint and the device it remembers. The exchange takes
+the redeemed code's `OperatorMFAProof`; a passkey sign-in checks no password
+and binds nothing. Operators start at generation 1: codes, devices and tokens
+from before the binding stand at 0 and are refused. A refused mint, resend or
+enrollment start answers 401 `identity.invalid_credentials`, as on the account
+portals; a code of an older password 401 `identity.mfa_code_invalid`.
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
 CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
 A refresh successor is HMAC-derived from the presented token, so hand-off
 recovery recomputes it. A resend or guardian approval mails a new link and
-voids the previous one; listings return no token. Do not run an old backend
+voids the previous one; listings return no token. A guardian link also
+stores the normalized address it was issued for (migration 1.15.865, #6294):
+validate and accept answer 410 `identity.guardian_invitation_address_changed`
+without profile data once the profile address differs, and accept holds the
+profile row lock the contact edits take. Every new guardian token sets the
+address on file. Do not run an old backend
 against the migrated schema; migration rollback requires a forward fix. Tenant switching preserves proof only from the presented
 account's live same-portal session family, read under the account lock shared with
 MFA reset. Missing, expired, revoked, unverified or foreign-portal families
@@ -1080,7 +1095,14 @@ address lead there too, and the old school's `account_id` and
 `parent_account_id` are forgotten. Expiry runs in the demo process once an
 hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
-through its owner. The standing school is never hidden. A hidden school
+through its owner. Its sessions, of every account and portal, end in the same
+unit, before the school is hidden (`auth.revoke_school_sessions`, #6305; the
+operator soft delete and the demo restart end them the same way through
+`RevokeTokensByTenantID`): every request checks only the session family, not
+the school. Every sign-in and refresh, of every portal, locks the school its
+session row is kept at under a share lock after the account lock, right
+before the row is written, so none mints a session at a school whose
+sessions are ending. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
 its subdomain resolves no tenant. An expired or deleted link answers `410` or
 `404`, and both entry pages show „Dieser Link funktioniert nicht mehr" with
@@ -1131,7 +1153,12 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 For the file erasure of retired demo schools (#5544, ADR 0148) it reads and
 adds rows of `platform.demo_school_file_erasures` (migration 1.15.735), never
 changes or deletes one, and reads `platform.demo_school_origins`, which only a
-trigger on `platform.demo_school_states` writes.
+trigger on `platform.demo_school_states` writes. For the database erasure of
+retired demo schools (#5559, ADR 0189) it may execute only
+`platform.retired_demo_schools_due_for_database_erasure` and
+`platform.erase_retired_demo_school` (migration 1.15.869); the latter alone
+sets `db_erased_at` and `db_row_counts` on the file marker, and a trigger
+rejects a marker the demo role inserts with them.
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,

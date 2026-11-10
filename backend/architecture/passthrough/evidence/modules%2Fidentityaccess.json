@@ -1185,7 +1185,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip)\n}",
+      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip, \u0026claims.CredentialGeneration)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
       "owner": "modules/identityaccess"

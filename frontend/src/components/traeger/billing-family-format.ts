@@ -25,7 +25,8 @@ export type BillingTab =
   | "kinderzahl"
   | "kostentraeger"
   | "familien"
-  | "lastschrift";
+  | "lastschrift"
+  | "exporte";
 
 export function billingTabs(
   active: BillingTab,
@@ -91,13 +92,22 @@ export function billingTabs(
         label: "Lastschrift",
         href: traegerPath("/traeger/abrechnung/lastschrift"),
       },
+      {
+        value: "exporte",
+        label: "Exporte",
+        href: traegerPath("/traeger/abrechnung/exporte"),
+      },
     ],
   };
 }
 
-/** What an invoice still asks for, as a pill. */
+/**
+ * What an invoice still asks for, as a pill. „Forderung offen“ says that
+ * the invoice still asks for money; whether the family paid is checked in
+ * the bookkeeping, not in moto (#6348).
+ */
 export const INVOICE_STATUS_LABELS: Record<BillingInvoiceStatus, string> = {
-  open: "Offen",
+  open: "Forderung offen",
   partly_credited: "Teilgutschrift",
   credited: "Gutgeschrieben",
   cancelled: "Storniert",

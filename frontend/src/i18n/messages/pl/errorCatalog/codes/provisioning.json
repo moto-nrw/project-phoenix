@@ -13,6 +13,7 @@
   "traeger_erasure_order_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "traeger_erasure_order_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "traeger_erasure_started": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "traeger_erasure_records_recorded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "school_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "school_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "school_already_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

@@ -294,14 +294,14 @@ func TestTenantRoleCannotReachTheLeaseTable(t *testing.T) {
 			_, err := tx.ExecContext(ctx, statement)
 			return err
 		})
-		require.ErrorContains(t, err, "permission denied", statement)
+		require.Equal(t, "42501", testpkg.PostgresSQLState(err), statement)
 	}
 
 	err = db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, "SELECT holder_id FROM platform.worker_leases")
 		return err
 	})
-	require.ErrorContains(t, err, "permission denied", "the login role reaches the lease only through the administrative role")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err), "the login role reaches the lease only through the administrative role")
 
 	var holder string
 	err = withRole(ctx, db, "phoenix_admin", func(ctx context.Context, tx bun.IDB) error {

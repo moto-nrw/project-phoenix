@@ -2,6 +2,7 @@
 package common
 
 const CodeParentBillingBankAccountMissing = "parent_billing.bank_account_missing"
+const CodeParentBillingBelegRetentionBasisCitesStatute = "parent_billing.beleg_retention_basis_cites_statute"
 const CodeParentBillingBenefitsExemptionUnavailable = "parent_billing.benefits_exemption_unavailable"
 const CodeParentBillingBillingCorrectionInvalid = "parent_billing.billing_correction_invalid"
 const CodeParentBillingBillingDocumentCorrectionInvalid = "parent_billing.billing_document_correction_invalid"
@@ -35,6 +36,7 @@ const CodeParentBillingCareMealTariffInvalid = "parent_billing.care_meal_tariff_
 const CodeParentBillingCareMealTariffMonthBilled = "parent_billing.care_meal_tariff_month_billed"
 const CodeParentBillingCareMealTariffNotFound = "parent_billing.care_meal_tariff_not_found"
 const CodeParentBillingCareNoticeNotFound = "parent_billing.care_notice_not_found"
+const CodeParentBillingCareNoticeRecipientChanged = "parent_billing.care_notice_recipient_changed"
 const CodeParentBillingCareNoticeRunInvalid = "parent_billing.care_notice_run_invalid"
 const CodeParentBillingCareNoticeRunNotFound = "parent_billing.care_notice_run_not_found"
 const CodeParentBillingCareNoticeRunOpen = "parent_billing.care_notice_run_open"
@@ -61,6 +63,11 @@ const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked
 const CodeParentBillingDirectDebitWithoutMandate = "parent_billing.direct_debit_without_mandate"
 const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_invalid"
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
+const CodeParentBillingExportFileNumberStartLocked = "parent_billing.export_file_number_start_locked"
+const CodeParentBillingExportInvoiceNotFound = "parent_billing.export_invoice_not_found"
+const CodeParentBillingExportMappingInvalid = "parent_billing.export_mapping_invalid"
+const CodeParentBillingExportRunEmpty = "parent_billing.export_run_empty"
+const CodeParentBillingExportRunNotFound = "parent_billing.export_run_not_found"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
 const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
 const CodeParentBillingFamilyChildrenInvalid = "parent_billing.family_children_invalid"
@@ -80,6 +87,7 @@ const CodeParentBillingLetterMailPending = "parent_billing.letter_mail_pending"
 const CodeParentBillingLetterheadTooLong = "parent_billing.letterhead_too_long"
 const CodeParentBillingNumberRangeInvalid = "parent_billing.number_range_invalid"
 const CodeParentBillingNumberRangeMissing = "parent_billing.number_range_missing"
+const CodeParentBillingOnlineMandateDisabled = "parent_billing.online_mandate_disabled"
 const CodeParentBillingParentDocumentNotFound = "parent_billing.parent_document_not_found"
 const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_text_debtor_number_missing"
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
@@ -100,12 +108,14 @@ const CodeParentBillingSepaMandateInvalid = "parent_billing.sepa_mandate_invalid
 const CodeParentBillingSepaMandateNotFound = "parent_billing.sepa_mandate_not_found"
 const CodeParentBillingSepaMandateReferenceTaken = "parent_billing.sepa_mandate_reference_taken"
 const CodeParentBillingSepaMandateRevoked = "parent_billing.sepa_mandate_revoked"
+const CodeParentBillingSepaMandateTextChanged = "parent_billing.sepa_mandate_text_changed"
 const CodeParentBillingSiblingGroupInvalid = "parent_billing.sibling_group_invalid"
 const CodeParentBillingSiblingGroupInvoiced = "parent_billing.sibling_group_invoiced"
 const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_found"
 
 var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
+	{CodeParentBillingBelegRetentionBasisCitesStatute, "input"},
 	{CodeParentBillingBenefitsExemptionUnavailable, "business_rejection"},
 	{CodeParentBillingBillingCorrectionInvalid, "input"},
 	{CodeParentBillingBillingDocumentCorrectionInvalid, "input"},
@@ -139,6 +149,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCareMealTariffMonthBilled, "business_rejection"},
 	{CodeParentBillingCareMealTariffNotFound, "business_rejection"},
 	{CodeParentBillingCareNoticeNotFound, "business_rejection"},
+	{CodeParentBillingCareNoticeRecipientChanged, "business_rejection"},
 	{CodeParentBillingCareNoticeRunInvalid, "input"},
 	{CodeParentBillingCareNoticeRunNotFound, "business_rejection"},
 	{CodeParentBillingCareNoticeRunOpen, "business_rejection"},
@@ -165,6 +176,11 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDirectDebitWithoutMandate, "business_rejection"},
 	{CodeParentBillingDocumentKindInvalid, "input"},
 	{CodeParentBillingDueDatesInvalid, "input"},
+	{CodeParentBillingExportFileNumberStartLocked, "business_rejection"},
+	{CodeParentBillingExportInvoiceNotFound, "business_rejection"},
+	{CodeParentBillingExportMappingInvalid, "input"},
+	{CodeParentBillingExportRunEmpty, "business_rejection"},
+	{CodeParentBillingExportRunNotFound, "business_rejection"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},
 	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
 	{CodeParentBillingFamilyChildrenInvalid, "input"},
@@ -184,6 +200,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingLetterheadTooLong, "business_rejection"},
 	{CodeParentBillingNumberRangeInvalid, "input"},
 	{CodeParentBillingNumberRangeMissing, "business_rejection"},
+	{CodeParentBillingOnlineMandateDisabled, "permission"},
 	{CodeParentBillingParentDocumentNotFound, "business_rejection"},
 	{CodeParentBillingPaymentTextDebtorNumberMissing, "business_rejection"},
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
@@ -204,6 +221,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingSepaMandateNotFound, "business_rejection"},
 	{CodeParentBillingSepaMandateReferenceTaken, "business_rejection"},
 	{CodeParentBillingSepaMandateRevoked, "business_rejection"},
+	{CodeParentBillingSepaMandateTextChanged, "business_rejection"},
 	{CodeParentBillingSiblingGroupInvalid, "input"},
 	{CodeParentBillingSiblingGroupInvoiced, "business_rejection"},
 	{CodeParentBillingSiblingGroupNotFound, "business_rejection"},

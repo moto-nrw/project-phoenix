@@ -24,6 +24,7 @@ type intakeSettingsFake struct {
 var _ IntakeSettings = intakeSettingsFake{}
 
 func (f intakeSettingsFake) EnrollmentEnabled(context.Context) bool { return f.enrollmentEnabled }
+
 func (f intakeSettingsFake) OnlineAnmeldungBooked(context.Context) bool {
 	return !f.moduleCancelled
 }

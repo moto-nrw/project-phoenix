@@ -852,6 +852,11 @@
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.RebookHolidayChild",
+      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it rebooks through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up from the waiting list again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it records a sibling merge or split through Enrollment's review, which locks the registration and appends the audit entry, in the caller's Träger transaction and translates Enrollment's refusals."
     },
@@ -864,6 +869,11 @@
       "decision": "0121",
       "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
+    },
+    {
+      "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
+      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it sets the capacity of a week through Enrollment's places in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up again in the same unit, and translates the moved-up registrations and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0126",
@@ -1361,6 +1371,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "reason": "#6314: Consumer-port adapter that reads the Träger's master data in the caller's Träger transaction and translates its default bank account into the creditor account of the regenerated PAIN.008 files."
+    },
+    {
+      "decision": "0075",
+      "id": "cmd/traegerSEPADebitFiles.SEPADebitFiles",
+      "reason": "#6317: Consumer-port adapter that opens the Träger transaction of Parent Billing and hands each PAIN.008 file to the export's writer as it is read, translating the file type between the owners, so the Träger package holds one file in memory (ADR 0187)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/ArrivalBaselineProjector.ProjectArrivals",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -1469,6 +1489,16 @@
       "decision": "0126",
       "id": "roots/owners/CareContractDocumentNotices.EnqueueContractDocumentNotice",
       "reason": "ADR 0126 (#5941): Consumer-port adapter of the Betreuungsvertrag onto Delivery; it encodes the push of a sent contract as a deferred push of the Träger with its own kind, related type and a key of the contract and the hashed address."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/CareContractFamilyNumbers.FamilyChildren",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#6335): it reads the number of a checked contract's family at the Elternabrechnung in the caller's Träger transaction and maps channel, values and refusals into the Betreuungsvertrag's words."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/CareContractFamilyNumbers.StateFamilyChildren",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#6335): it stores the parents' number of a checked contract's family at the Elternabrechnung in the caller's Träger transaction and maps channel, validation and missing-family refusals into the Betreuungsvertrag's errors."
     },
     {
       "decision": "0090",
@@ -2513,6 +2543,11 @@
     {
       "decision": "0090",
       "id": "roots/owners/StudentStatusDayRepository.ArchiveEndOfDayStatusFlag",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0177",
+      "id": "roots/owners/StudentStatusDayRepository.CarryStatusFlag",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -3822,11 +3857,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -4616,6 +4646,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0171",
+      "id": "roots/owners/parentMandateParties.Recipients",
+      "reason": "Consumer-port adapter of the parents' SEPA mandate (#4696): it reads the billing party of the checked contract from the Betreuungsvertrag and translates it into the Elternabrechnung's recipient, the proposal for the account holder."
+    },
+    {
       "decision": "0132",
       "id": "roots/owners/parentMessageNotifier.NotifyStaffParentMessage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4649,6 +4684,31 @@
       "decision": "0126",
       "id": "roots/owners/parentReleaseSchools.TraegerSchoolIDs",
       "reason": "ADR 0126 (#5941): Consumer-port adapter of the parents portal's release push onto Organisation \u0026 Tenancy; it keeps the undeleted schools of the Träger and maps them onto their IDs."
+    },
+    {
+      "decision": "0171",
+      "id": "roots/owners/parentSEPAMandates.GrantSEPAMandate",
+      "reason": "Consumer-port adapter of the parents portal (#4696): it stores the confirmed mandate with its proof through the Elternabrechnung and maps validation, text, in-force and creditor refusals into the workflow's errors."
+    },
+    {
+      "decision": "0171",
+      "id": "roots/owners/parentSEPAMandates.PreviewSEPAMandate",
+      "reason": "Consumer-port adapter of the parents portal (#4696): it renders the mandate text through the Elternabrechnung and maps validation, switch and creditor refusals into the workflow's errors."
+    },
+    {
+      "decision": "0171",
+      "id": "roots/owners/parentSEPAMandates.RevokeSEPAMandate",
+      "reason": "Consumer-port adapter of the parents portal (#4696): it revokes the family's mandate through the Elternabrechnung and maps the switch and missing-mandate refusals into the workflow's errors."
+    },
+    {
+      "decision": "0171",
+      "id": "roots/owners/parentSEPAMandates.SEPAMandate",
+      "reason": "Consumer-port adapter of the parents portal (#4696): it reads the family's mandate through the Elternabrechnung in the caller's Träger transaction and maps values and refusals into the workflow's words."
+    },
+    {
+      "decision": "0171",
+      "id": "roots/owners/parentSEPAMandates.SEPAMandateStatuses",
+      "reason": "ADR 0171 (#4696): maps batched, read-only mandate status into the parent inbox contract in its authorized Träger transaction; no decryption, proof read or audit write."
     },
     {
       "decision": "0084",

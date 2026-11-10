@@ -537,6 +537,12 @@
       "legacy": "enrollment.holiday_period_not_found"
     },
     {
+      "code": "enrollment.holiday_week_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_not_found"
+    },
+    {
       "code": "enrollment.holiday_registration_closed",
       "class": "business_rejection",
       "parameters": [],
@@ -553,6 +559,15 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_registration_form_changed"
+    },
+    {
+      "code": "enrollment.holiday_week_no_care_day",
+      "class": "business_rejection",
+      "parameters": [
+        "date",
+        "name"
+      ],
+      "legacy": "enrollment.holiday_week_no_care_day"
     },
     {
       "code": "enrollment.hosted_holiday_week_not_found",
@@ -903,6 +918,18 @@
         "max_files"
       ],
       "legacy": "enrollment.holiday_proof_limit"
+    },
+    {
+      "code": "enrollment.family_children_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.family_children_closed"
+    },
+    {
+      "code": "enrollment.family_children_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.family_children_invalid"
     }
   ]
 }

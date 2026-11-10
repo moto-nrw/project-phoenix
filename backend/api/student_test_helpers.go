@@ -344,7 +344,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	excusedRequestService, err := owners.NewExcusedAbsenceRequestService(
 		students.CarePlan, repos.Student, repos.Person, owners.ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
-		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil,
+		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil, partialAbsenceService,
 	)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err

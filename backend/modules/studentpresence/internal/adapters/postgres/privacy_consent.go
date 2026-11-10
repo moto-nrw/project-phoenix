@@ -81,6 +81,37 @@ func (s *Store) RecordPrivacyConsent(ctx context.Context, value *studentpresence
 	return stats, nil
 }
 
+// RecordPrivacyConsents inserts every consent in one statement with the
+// columns RecordPrivacyConsent names; the rest stays with the defaults and
+// the row trigger, as there.
+func (s *Store) RecordPrivacyConsents(ctx context.Context, values []studentpresence.PrivacyConsent) (ports.Stats, error) {
+	if len(values) == 0 {
+		return ports.Stats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return ports.Stats{}, err
+	}
+	rows := make([]privacyConsentRow, len(values))
+	for i, value := range values {
+		rows[i] = privacyConsentRow{
+			TenantID: tenantID, StudentID: value.StudentID, PolicyVersion: value.PolicyVersion, Accepted: value.Accepted,
+			AcceptedAt: value.AcceptedAt, ExpiresAt: value.ExpiresAt, DurationDays: value.DurationDays,
+			RenewalRequired: value.RenewalRequired, DataRetentionDays: value.DataRetentionDays, Details: value.Details,
+		}
+	}
+	started := time.Now()
+	_, err = db.NewInsert().Model(&rows).ModelTableExpr(`users.privacy_consents`).
+		Column("tenant_id", "student_id", "policy_version", "accepted", "accepted_at", "expires_at", "duration_days", "renewal_required", "data_retention_days", "details").
+		Returning("NULL").Exec(ctx)
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("record privacy consents: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	return stats, nil
+}
+
 func (s *Store) RevisePrivacyConsent(ctx context.Context, value *studentpresence.PrivacyConsent) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

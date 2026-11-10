@@ -149,12 +149,14 @@ func (l GuardianLink) HasPermission(name string) bool {
 	return slices.Contains(l.Permissions, name)
 }
 
-// GuardianWithLink is a child's guardian together with the link and whether
-// an invitation is still open for that guardian on that child.
+// GuardianWithLink is a child's guardian together with the link, whether an
+// invitation is still open for that guardian on that child, and whether the
+// guardian's link ended unused and needs a new invitation (#6294).
 type GuardianWithLink struct {
-	Guardian          Guardian
-	Link              GuardianLink
-	InvitationPending bool
+	Guardian            Guardian
+	Link                GuardianLink
+	InvitationPending   bool
+	InvitationLinkEnded bool
 }
 
 // StudentWithLink is a guardian's child together with the link. Graduated
@@ -313,15 +315,21 @@ type GuardianPaymentActor struct {
 }
 
 // GuardianPayment is the bank section of one guardian: masked after the
-// default read, unmasked after the audited reveal.
+// default read, unmasked after the audited reveal. IBAN and AccountHolder are
+// opened values (#6332): the store keeps them only sealed with the bank ring,
+// plus the IBAN mask, and fills them from the plaintext columns only for rows
+// the maintenance backfill has not sealed yet.
 type GuardianPayment struct {
-	ID                int64
-	TenantID          int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	GuardianProfileID int64
-	IBAN              *string
-	AccountHolder     *string
+	ID                  int64
+	TenantID            int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	GuardianProfileID   int64
+	IBAN                *string
+	AccountHolder       *string
+	IBANSealed          []byte
+	IBANMasked          *string
+	AccountHolderSealed []byte
 }
 
 type GuardianPaymentInput struct {

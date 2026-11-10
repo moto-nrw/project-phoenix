@@ -245,7 +245,27 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0181: the SEPA debit constructor (+5).
 // ADR 0183: bank cipher (+6), rekey (+5).
-const moduleComposeBudgetTotal = 13158
+// ADR 0184: the Beleg retention of modules/parentbilling/compose (+6), the
+// contract retention of modules/carecontract/compose (+4) and the operator
+// audit of modules/organizationtenancy/compose (+11).
+// ADR 0185: the admin-to-tenant handoff binding of
+// modules/transactionruntime/compose adds exactly 2 LOC.
+// ADR 0188: the guardian bank backfill/rekey constructor of
+// modules/peopledirectory/compose (+6), the staff bank cipher dependency and
+// backfill/rekey constructor of modules/workforce/compose (+7).
+// ADR 0192: the export opener of the sealed bank data of
+// modules/parentbilling/compose adds exactly 5 LOC.
+// ADR 0193: the export openers of health information (+5) and setting
+// values (+3).
+// ADR 0187: the Träger package constructor with its PAIN.008 files and
+// operator audit of modules/organizationtenancy/compose (+13), its records
+// command injected into the operator provisioning (+10), the operator
+// directory of modules/identityaccess/compose (+11), the PAIN.008 files of
+// the Träger package (+7) and the expiry of the unsubmitted PAIN.008
+// downloads (+5) of modules/parentbilling/compose.
+// ADR 0191: the constructor of the stored originals of the Jahresbescheide
+// of modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13237
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -257,6 +277,9 @@ const moduleComposeBudgetTotal = 13158
 // workflows/parentportal/compose for the meal ordering rules.
 // ADR 0168 raised modules/mealplan/compose for the Mensa-Monatsfreigabe and
 // modules/parentbilling/compose for the Mensa of the monthly run.
+// ADR 0187 raised modules/identityaccess/compose,
+// modules/organizationtenancy/compose and modules/parentbilling/compose for
+// the audit and the PAIN.008 files of the Träger package.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.
@@ -290,7 +313,8 @@ var moduleComposeBudgets = map[string]int{
 	// modules/securityruntime/compose.
 	// ADR 0153: the contract applications constructor (+5).
 	// ADR 0154: the booked children constructor (+6).
-	"modules/enrollment/compose":                   602,
+	// ADR 0193: the export opener of the holiday health information (+5).
+	"modules/enrollment/compose":                   606,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -299,14 +323,19 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                    14,
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
-	"modules/identityaccess/compose": 1365, // raised by ADR 0077
-	"modules/mealplan/compose":       105,  // raised by ADR 0078 and ADR 0168
+	// Raised by ADR 0187: the operator directory of the Träger export CLI (+11).
+	"modules/identityaccess/compose": 1376, // raised by ADR 0077
+	"modules/mealplan/compose":       102,  // raised by ADR 0078 and ADR 0168
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
 	// Raised by ADR 0152: the document template constructor (+6).
 	// Raised by ADR 0157: the shared document constructors (+10).
-	"modules/organizationtenancy/compose": 309,
+	// Raised by ADR 0184: the operator audit of the Beleg retention (+11).
+	// Raised by ADR 0187: the Träger package constructor with its PAIN.008
+	// files and operator audit (+13) and the records command injected into
+	// the operator provisioning (+10).
+	"modules/organizationtenancy/compose": 343,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
@@ -317,8 +346,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
 	// ADR 0155: the signature, the paper contract and the reminders (+58),
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
-	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5).
-	"modules/carecontract/compose": 178,
+	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5);
+	// ADR 0184: the contract retention of the Belege (+4).
+	"modules/carecontract/compose": 175,
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
@@ -326,17 +356,24 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0171: the constructor of the SEPA mandates (+5);
 	// ADR 0182: the constructor of the Jahresbescheide (+7);
 	// ADR 0181: the constructor of the SEPA direct debit file (+5);
-	// ADR 0183: rekey constructor (+5).
-	"modules/parentbilling/compose":               96,
+	// ADR 0183: rekey constructor (+5);
+	// ADR 0184: the Beleg retention constructor (+6).
+	// ADR 0192: the export opener of the sealed bank data (+5).
+	// ADR 0187: the PAIN.008 files of the Träger package (+7), the expiry of
+	// the unsubmitted PAIN.008 downloads (+5).
+	// ADR 0191: the constructor of the stored originals of the
+	// Jahresbescheide (+5).
+	"modules/parentbilling/compose":               124,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/peopledirectory/compose":    973,
+	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
+	"modules/peopledirectory/compose":    979,
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
 	"modules/schedulerruntime/compose":   45,
 	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
 	// ADR 0144: the school vacation constructor (+11).
-	"modules/schoolcalendar/compose":        166,
+	"modules/schoolcalendar/compose":        159,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
@@ -349,7 +386,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the group names constructor (+13).
 	"modules/schoolstructure/compose": 606,
 	// Raised by ADR 0107 and ADR 0175: the Träger settings and school-read context guard.
-	"modules/settings/compose":             320,
+	// ADR 0193: the export projection of setting values (+3).
+	"modules/settings/compose":             323,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).
@@ -363,11 +401,13 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
-	// Raised by ADR 0105: the Träger transaction binding (+4).
-	"modules/transactionruntime/compose": 137,
+	// Raised by ADR 0105: the Träger transaction binding (+4), and by
+	// ADR 0185: the admin-to-tenant handoff binding (+2).
+	"modules/transactionruntime/compose": 139,
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
 	// ADR 0151: the school figure constructor (+13).
-	"modules/workforce/compose":         909,
+	// ADR 0188: the bank cipher dependency and backfill/rekey constructor (+7).
+	"modules/workforce/compose":         913,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
 	"workflows/openroommove/compose":    46,

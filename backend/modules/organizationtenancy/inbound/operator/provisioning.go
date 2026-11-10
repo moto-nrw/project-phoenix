@@ -27,6 +27,7 @@ type ProvisioningResource struct {
 	service                    organizationtenancy.Provisioning
 	CaregiverCapabilityService SchoolAccountCaregivers
 	appEnv                     string
+	belegRetentionAudit        organizationtenancy.BelegRetentionChangeAudit
 }
 
 // ProvisioningConfig holds the provisioning routes' dependencies.
@@ -37,6 +38,12 @@ type ProvisioningConfig struct {
 	CaregiverCapability SchoolAccountCaregivers
 	// AppEnv decides whether a seeding client may read invitation tokens.
 	AppEnv string
+	// ErasureOrderRecords serves the records route of an older erasure
+	// order (#4720) through NewTraegerErasureOrderRecordsResource; required.
+	ErasureOrderRecords organizationtenancy.TraegerErasureOrderRecordsProvisioning
+	// BelegRetentionAudit records the changes of the Beleg retention of a
+	// Träger (#4720). Without it those changes answer 500.
+	BelegRetentionAudit organizationtenancy.BelegRetentionChangeAudit
 }
 
 // NewProvisioningResource creates a new provisioning resource.
@@ -45,6 +52,7 @@ func NewProvisioningResource(cfg ProvisioningConfig) *ProvisioningResource {
 		service:                    cfg.Service,
 		CaregiverCapabilityService: cfg.CaregiverCapability,
 		appEnv:                     cfg.AppEnv,
+		belegRetentionAudit:        cfg.BelegRetentionAudit,
 	}
 }
 

@@ -81,6 +81,9 @@ type HolidayRegistrationWeek struct {
 	EndsOn         calendar.Date                  `json:"ends_on"`
 	HostSchoolName string                         `json:"host_school_name"`
 	TimeModels     []HolidayRegistrationTimeModel `json:"time_models"`
+	// NoCareDays are the days the host school gives no care (#4702); such
+	// a week takes no booking.
+	NoCareDays []capability.HolidayNoCareDay `json:"no_care_days"`
 }
 
 // HolidayRegistrationOfferResponse is the body of GET
@@ -233,6 +236,9 @@ func holidayContacts(contacts []holidayContactRequest) []capability.HolidayConta
 type HolidayRegistrationReceiptResponse struct {
 	ID          int64     `json:"id"`
 	SubmittedAt time.Time `json:"submitted_at"`
+	// Placements say for every booking whether the child got a place or is
+	// on the waiting list (#4699), by the child's position in the form.
+	Placements []capability.HolidayReceiptPlacement `json:"placements"`
 }
 
 // resolveLink resolves the link in the administrative transaction.
@@ -287,6 +293,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
+			NoCareDays: noCareDaysOrEmpty(week.NoCareDays),
 		})
 	}
 	return HolidayRegistrationOfferResponse{
@@ -369,6 +376,9 @@ func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organiz
 func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	var rejection *capability.UploadRejection
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	switch {
 	case common.HasInputRejection(err):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

@@ -3,7 +3,6 @@ package devices
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/render"
 
@@ -42,7 +41,8 @@ func testRuntime() Runtime {
 			})
 		},
 		ConstraintViolation: func(err error) bool {
-			return strings.Contains(err.Error(), "violates foreign key constraint") || strings.Contains(err.Error(), "violates not-null constraint")
+			state := testpkg.PostgresSQLState(err)
+			return state == "23503" || state == "23502"
 		},
 	}
 }

@@ -28,6 +28,9 @@ func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles
 
 var orderReferencePattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]{2,39}$`)
 
+// exportChecksumPattern is the lowercase SHA-256 a COMPLETE file holds (#4720).
+var exportChecksumPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
 func validateErasureRequest(r organizationtenancy.ErasureRequest) error {
 	if r.ReceiptID != 0 {
 		if r.ReceiptID < 0 || r.SchoolID != 0 || r.OrganizationID != 0 || r.OperatorID != 0 || r.OrderReference != "" {
@@ -174,6 +177,11 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 		}
 		proof, err := s.eraseOrganizationRoot(ctx, r)
 		return append(results, proof...), err
+	}
+	if !r.DryRun && status == "records_choice_missing" {
+		// An order recorded before the hint on the records (#4720, AVV Ziff.
+		// 8.4), started or not: never erase or resume without the choice.
+		return nil, errors.New("erasure: organization order is records_choice_missing; it was recorded without the hint on the records and the customer's choice. Record both on the open erasure order in the operator portal (Träger page, erasure order: record the choice), then run again; nothing erased")
 	}
 	if !r.DryRun && status != "due" {
 		return nil, fmt.Errorf("erasure: organization order is %s; it needs the written confirmation recorded in the operator portal, a deactivated organization and the end of the grace period; nothing erased", status)

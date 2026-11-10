@@ -23,7 +23,7 @@ func TestConcurrentMFACodeRequestsRespectIdentityLimit(t *testing.T) {
 			if operator {
 				identity := testpkg.CreateTestOperator(t, db)
 				start = func() error {
-					_, err := module.OperatorMFA.StartOperatorMFAChallenge(t.Context(), identity.ID, nil)
+					_, err := module.OperatorMFA.StartOperatorMFAChallenge(t.Context(), identity.ID, nil, nil)
 					return err
 				}
 			} else {
