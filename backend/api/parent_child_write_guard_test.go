@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -127,6 +129,14 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 	adjust := append([]func(*portalCompose.Dependencies){func(deps *portalCompose.Dependencies) {
 		deps.StatusDayRepo = NewRepositoryTestFactory(database).StudentStatusDay
 		deps.StudentPhotos = &photoUnlinks{db: db}
+		deps.OfferingChanges = markingOfferings{OfferingChangeRequests: deps.OfferingChanges}
+		deps.GuardianInvites = markingInvites{}
+		if deps.ArrivalSchedules == nil || deps.PickupSchedules == nil {
+			_, schedules, _, _, _, _, err := NewTestCareRequests(database, slog.Default())
+			require.NoError(t, err)
+			deps.ArrivalSchedules = owners.NewParentArrivalSchedules(schedules.Arrivals)
+			deps.PickupSchedules = owners.NewParentPickupSchedules(schedules.Pickups)
+		}
 		deps.InvalidateInvites = owners.NewGuardianInvitationInvalidation(database)
 		deps.ChildRepo = gatedChildReads{ChildReads: deps.ChildRepo, gate: rig.checked}
 		deps.StudentGuardianRepo = parentportal.StudentGuardianReadsAfterLock(deps.StudentGuardianRepo, rig.locked.afterLock)
@@ -139,6 +149,86 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 	require.NoError(t, err)
 	rig.settings = settings.Settings
 	return rig
+}
+
+func offeringChange(f childReadFamily, method, suffix string) childWrite {
+	return childWrite{method, childPath(f, suffix), map[string]any{
+		"offerings":      []map[string]any{{"offering_id": "1", "selected_days": []string{"mon"}}},
+		"effective_from": "2026-10-01", "note": "Bitte",
+	}}
+}
+
+// secondGuardian links a second account holder of another family as legal
+// guardian of the family's child and returns the profile.
+func (r *guardRig) secondGuardian(t *testing.T, f childReadFamily) int64 {
+	t.Helper()
+	other := testpkg.CreateTestParentGuardianChain(t, r.db)
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), r.db, f.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := r.people.LinkGuardianToStudent(txCtx, peopledirectory.LinkGuardian{
+			StudentID: f.StudentID, GuardianProfileID: other.GuardianProfileID,
+			RelationshipType: "parent", GuardianRole: "legal_guardian",
+		})
+		return err
+	}))
+	return other.GuardianProfileID
+}
+
+func (r *guardRig) enableCareScheduleRequests(t *testing.T) {
+	t.Helper()
+	r.set(t, map[string]any{
+		parentportal.KeyParentCarePickupRequestEnabled: true,
+		parentportal.KeyParentCareModeRequestEnabled:   true, parentportal.KeyEnrollmentBookingsAuthoritative: false,
+	})
+}
+
+func careScheduleRequest(f childReadFamily) childWrite {
+	return childWrite{http.MethodPost, childPath(f, "/care-schedule/requests"), map[string]any{"payload": map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "pickup": "15:30"}}}}}
+}
+
+// markOwnerWrite is the row an owner-command double writes in the request's
+// transaction: a pending Stammdaten request of the child, so the fingerprint
+// sees a committed write and a rolled-back one leaves nothing.
+func markOwnerWrite(ctx context.Context, studentID, accountID int64) error {
+	tx, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return errors.New("owner command outside the school transaction")
+	}
+	_, err := tx.(bun.IDB).NewRaw(`INSERT INTO users.student_data_change_requests (tenant_id, student_id, submitted_by, target, field_key, new_value, status)
+		VALUES (current_setting('app.current_tenant_id')::bigint, ?, ?, 'person', 'birthday', '"2018-01-01"'::jsonb, 'pending')`, studentID, accountID).Exec(ctx)
+	return err
+}
+
+// markingOfferings keeps the reads of Enrollment and writes a marker row for
+// the request commands, whose own preconditions are Enrollment's tests.
+type markingOfferings struct {
+	parentportal.OfferingChangeRequests
+}
+
+func (m markingOfferings) SubmitOfferingChange(ctx context.Context, input parentportal.CreateOfferingChangeInputSnapshot) (*parentportal.OfferingChangeRequestSnapshot, error) {
+	return &parentportal.OfferingChangeRequestSnapshot{}, markOwnerWrite(ctx, input.StudentID, input.AccountID)
+}
+
+func (m markingOfferings) Edit(ctx context.Context, _ int64, input parentportal.CreateOfferingChangeInputSnapshot, _ string) (*parentportal.OfferingChangeRequestSnapshot, error) {
+	return &parentportal.OfferingChangeRequestSnapshot{}, markOwnerWrite(ctx, input.StudentID, input.AccountID)
+}
+
+func (m markingOfferings) CreateCourseRequest(ctx context.Context, input parentportal.CreateCourseRequestInputSnapshot) (*parentportal.OfferingChangeRequestSnapshot, error) {
+	return &parentportal.OfferingChangeRequestSnapshot{}, markOwnerWrite(ctx, input.StudentID, input.AccountID)
+}
+
+func (m markingOfferings) WithdrawCourseRequest(ctx context.Context, _ int64, accountID, studentID int64) error {
+	return markOwnerWrite(ctx, studentID, accountID)
+}
+
+// markingInvites stands for Identity & Access's relative-access flows.
+type markingInvites struct{}
+
+func (markingInvites) InviteToStudent(ctx context.Context, request parentportal.GuardianInviteRequest) (parentportal.GuardianInviteOutcome, error) {
+	return parentportal.GuardianInviteOutcome{Outcome: "invited"}, markOwnerWrite(ctx, request.StudentID, request.RequestedByAccountID)
+}
+
+func (markingInvites) RevokeAccess(ctx context.Context, revocation parentportal.GuardianAccessRevocation) error {
+	return markOwnerWrite(ctx, revocation.StudentID, revocation.ActorAccountID)
 }
 
 // givePhoto stores a granted photo consent with a photo.
@@ -261,6 +351,23 @@ func (r *guardRig) fingerprint(t *testing.T, f childReadFamily) map[string]strin
 	return out
 }
 
+// withdrawalTables hold the rows the withdrawals themselves change.
+var withdrawalTables = []string{"auth.account_tenants.", "auth.guardian_student_access.", "users.student_guardian_relationships."}
+
+func withoutWithdrawalRows(changed []string) []string {
+	out := changed[:0:0]
+	for _, key := range changed {
+		owned := false
+		for _, prefix := range withdrawalTables {
+			owned = owned || strings.HasPrefix(key, prefix)
+		}
+		if !owned {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
 func changedTables(before, after map[string]string) []string {
 	var changed []string
 	for key, digest := range after {
@@ -340,6 +447,7 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 			case <-time.After(writeDeadline):
 				t.Fatal("the write never locked its relationship")
 			}
+			before := rig.fingerprint(t, f)
 			withdrawn := make(chan error, 1)
 			go func() { withdrawn <- apply() }()
 			require.Eventually(t, func() bool {
@@ -355,12 +463,18 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 			}
 			close(rig.locked.release)
 			rec := awaitAnswer(t, done, request.path)
-			require.Less(t, rec.Code, 300, "the guarded write commits first: %s", rec.Body.String())
+			require.Less(t, rec.Code, 500, "the guarded write commits first: %s", rec.Body.String())
 			select {
 			case err := <-withdrawn:
 				require.NoError(t, err)
 			case <-time.After(writeDeadline):
 				t.Fatal("the withdrawal did not finish after the write")
+			}
+			// A route that reads its view in a second unit after the write
+			// may already see the withdrawal; its write itself committed.
+			if rec.Code >= 300 {
+				require.NotEmpty(t, withoutWithdrawalRows(changedTables(before, rig.fingerprint(t, f))),
+					"the guarded write commits before the withdrawal: %d %s", rec.Code, rec.Body.String())
 			}
 		})
 	}
@@ -489,6 +603,69 @@ func guardedWrites() []guardedWrite {
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
 				r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
 				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/guardians/%d/pickup", f.GuardianProfileID)), map[string]any{"pickup_notes": "Nur nach Absprache"}}
+			},
+		},
+		{
+			name:        "Betreuungsplan-Antrag",
+			permissions: []string{permRequestSubmit},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.enableCareScheduleRequests(t)
+				return careScheduleRequest(f)
+			},
+		},
+		{
+			name:        "Betreuungsplan-Antrag bearbeiten",
+			permissions: []string{permRequestSubmit},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.enableCareScheduleRequests(t)
+				r.do(t, careScheduleRequest(f), f.token)
+				id := r.scalar(t, `SELECT id FROM schedule.care_schedule_change_requests WHERE student_id = ? ORDER BY id DESC LIMIT 1`, f.StudentID)
+				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/care-schedule/requests/%d", id)), map[string]any{"payload": map[string]any{"weekdays": []any{map[string]any{"weekday": 2, "pickup": "16:00"}}}}}
+			},
+		},
+		{
+			name:        "Betreuungsangebot ändern",
+			permissions: []string{permRequestSubmit},
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return offeringChange(f, http.MethodPost, "/care-offerings/requests")
+			},
+		},
+		{
+			name:        "Betreuungsangebot-Antrag bearbeiten",
+			permissions: []string{permRequestSubmit},
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return offeringChange(f, http.MethodPut, fmt.Sprintf("/care-offerings/requests/%d", f.requestID))
+			},
+		},
+		{
+			name:        "Kurs anfragen",
+			permissions: []string{permEnrollSubmit, permEnrollmentView},
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return childWrite{http.MethodPost, childPath(f, "/courses/requests"), map[string]any{"course_id": "1", "note": "Bitte"}}
+			},
+		},
+		{
+			name:        "Kursanfrage zurücknehmen",
+			permissions: []string{permEnrollSubmit, permEnrollmentView},
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return childWrite{http.MethodPost, childPath(f, fmt.Sprintf("/courses/requests/%d/withdraw", f.requestID)), nil}
+			},
+		},
+		{
+			name:        "Mitbenutzer einladen",
+			permissions: []string{permRelatedManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDirect})
+				return childWrite{http.MethodPost, childPath(f, "/related-accounts"), map[string]any{"email": fmt.Sprintf("mitbenutzer-%d@example.test", testpkg.UniqueSuffix()), "first_name": "Max", "last_name": "Mitbenutzer"}}
+			},
+		},
+		{
+			name:        "Mitbenutzer entfernen",
+			permissions: []string{permRelatedManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDirect, parentportal.KeyGuardianParentCanRemove: true})
+				other := r.secondGuardian(t, f)
+				return childWrite{http.MethodDelete, childPath(f, fmt.Sprintf("/related-accounts/%d", other)), nil}
 			},
 		},
 		{
