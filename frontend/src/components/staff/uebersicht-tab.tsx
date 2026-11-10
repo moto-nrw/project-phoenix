@@ -828,7 +828,7 @@ function distributeNetMinutes(
 // Cumulative weekly balance series over [from, to]. Running total starts at 0
 // at the first week of `from` — caller can shift the anchor by widening the
 // range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
-function buildWeeklyBalanceSeriesRange(
+export function buildWeeklyBalanceSeriesRange(
   targets: TargetsByDay,
   sessions: readonly StaffHistorySession[],
   absences: readonly StaffAbsenceRow[],
@@ -855,9 +855,7 @@ function buildWeeklyBalanceSeriesRange(
   const lastWeekStart = startOfWeek(to);
   const weekCount = Math.min(
     104,
-    Math.floor(
-      (lastWeekStart.getTime() - firstWeekStart.getTime()) / (7 * 86_400_000),
-    ) + 1,
+    differenceInCalendarDays(lastWeekStart, firstWeekStart) / 7 + 1,
   );
   let running = 0;
   for (let i = 0; i < weekCount; i++) {
