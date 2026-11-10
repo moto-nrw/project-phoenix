@@ -4,7 +4,7 @@
 // dazu sagt, für das Träger-Büro. Nur das Büro sieht ihn; Eltern, Bestätigung
 // und die ausrichtende OGS sehen ihn nicht.
 
-import { Sun, SunDim } from "lucide-react";
+import { CircleHelp, Sun, SunDim } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { InfoSection } from "~/components/ui/detail-modal-components";
@@ -27,7 +27,7 @@ const logger = createLogger({ component: "HolidayWish" });
 interface WishView {
   readonly tone: StatusBadgeTone;
   readonly label: string;
-  readonly icon?: typeof Sun;
+  readonly icon?: typeof Sun | typeof CircleHelp;
 }
 
 /**
@@ -40,7 +40,9 @@ export function holidayWishView(
 ): WishView | null {
   if (!wishRule || child.homeSchoolId === null) return null;
   if (child.holidayWishCheck) {
-    return { tone: "warning", label: "Ferienwunsch prüfen" };
+    // A task of the office, not a warning: blue keeps it apart from the
+    // yellow hint of a possible duplicate in the same row.
+    return { tone: "blue", label: "Ferienwunsch prüfen", icon: CircleHelp };
   }
   if (child.holidayWish === "yes") {
     return { tone: "green", label: "Mit Ferienwunsch", icon: Sun };

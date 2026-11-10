@@ -24,8 +24,8 @@ export function traegerHolidayWishTopic(): HelpTopic {
       {
         title: "Festlegen, was ohne Ferienwunsch gilt",
         steps: [
-          "Wählen Sie in der Navigation `Einstellungen`.",
-          "Öffnen Sie den Bereich `Ferien`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Allgemein` und dann den Reiter `Ferienbetreuung`.",
           "Wählen Sie bei `Was gilt ohne Ferienwunsch?`: `Kinder mit Ferienwunsch haben Vorrang` oder `Nur Kinder mit Ferienwunsch können sich anmelden`.",
         ],
       },
