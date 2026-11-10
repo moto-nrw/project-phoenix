@@ -33,7 +33,7 @@ export const REVENUE_SERVICES: readonly {
 ];
 
 /** Where a revenue account comes from. */
-export type RevenueSource = "own" | "service" | "standard" | "missing";
+type RevenueSource = "own" | "service" | "standard" | "missing";
 
 export interface EffectiveRevenue {
   readonly account: string;

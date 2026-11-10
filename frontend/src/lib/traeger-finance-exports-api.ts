@@ -617,7 +617,7 @@ export type RevenueScope = "care" | "meals" | "holiday" | "offering";
 /** Whose cost center: a school (KOST1), the holiday care (KOST1), an Angebot (KOST2). */
 export type CostCenterScope = "school" | "holiday" | "offering";
 
-export interface RevenueAccount {
+interface RevenueAccount {
   readonly scope: RevenueScope;
   /** The Angebot; "0" for a Leistung. */
   readonly scopeId: string;
@@ -635,7 +635,7 @@ export interface CostCenter {
   readonly code: string;
 }
 
-export interface BookingOffering {
+interface BookingOffering {
   readonly schoolId: string;
   readonly offeringId: string;
   readonly moduleNames: readonly string[];

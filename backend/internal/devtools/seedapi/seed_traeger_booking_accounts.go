@@ -52,9 +52,13 @@ func seedBookingAccounts(client *Client, auth AuthRef, from calendar.Date) (int,
 	for _, center := range centers {
 		center["valid_from"] = from.String()
 		_, err := client.PostWithAuth(auth, "/traeger/finance-exports/booking-accounts/cost-centers", center)
-		if err != nil && !seedConflictCode(err, "parent_billing.cost_center_date_taken") {
+		if err != nil && !seedConflictCode(err, seedCostCenterDateTaken) {
 			return 0, fmt.Errorf("add the cost center of %v: %w", center["scope"], err)
 		}
 	}
 	return len(accounts) + len(centers), nil
 }
+
+// seedCostCenterDateTaken is the conflict of a second cost center of a
+// scope on one day: a second seed finds it in place.
+const seedCostCenterDateTaken = "parent_billing.cost_center_date_taken"
