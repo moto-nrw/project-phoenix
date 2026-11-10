@@ -445,7 +445,7 @@ export default function TraegerVertraegePage() {
   return (
     <TenantPage
       title="Verträge"
-      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
+      info="Hier sehen Sie die Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Gilt der Vertrag bei der Annahme, entsteht er von selbst, wenn die Eltern im Anmeldeformular den Vertragsbedingungen zugestimmt haben. Sonst prüfen Sie den Entwurf und senden ihn per Mail und in die Eltern-App."
       tabs={careContractTabs("vertraege")}
       stats={
         total > 0 || candidates.length > 0 ? (
@@ -511,9 +511,14 @@ export default function TraegerVertraegePage() {
         <SectionCard
           title="Wann gilt der Vertrag?"
           // Closed, the card shows only its title: the explanation would
-          // push the contracts down again.
+          // push the contracts down again. On a phone the rule per school and
+          // its warning stay, the explanation is in the page's info (i).
           description={
-            (rulesOpen ?? true) ? conclusionDescription(data.modes) : undefined
+            (rulesOpen ?? true) ? (
+              <span className="max-sm:hidden">
+                {conclusionDescription(data.modes)}
+              </span>
+            ) : undefined
           }
           // Open on every device: the rule per school decides what to do
           // next; it folds away on request.
