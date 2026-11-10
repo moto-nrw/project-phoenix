@@ -21,6 +21,11 @@ func (openedSealedFields) OpenExportField(table, column string, row map[string]j
 	if len(sealed) == 0 || row["fixture_school"] == nil {
 		return "", errors.New("sealed value or its row missing")
 	}
+	// The consent gets the reference of its own mandate from the snapshot
+	// (#6412), never one of another Träger.
+	if table == "parent_billing.sepa_mandate_consents" && string(row["mandate_reference"]) != `"fixture-reference-`+string(row["fixture_school"])+`"` {
+		return "", errors.New("mandate reference not bound")
+	}
 	return "opened-" + table + "-" + column, nil
 }
 

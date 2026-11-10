@@ -265,7 +265,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // downloads (+5) of modules/parentbilling/compose.
 // ADR 0191: the constructor of the stored originals of the Jahresbescheide
 // of modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13235
+// ADR 0196: the export openers of the sealed guardian bank data of
+// modules/peopledirectory/compose (+5) and of the sealed staff bank and tax
+// data of modules/workforce/compose (+5).
+const moduleComposeBudgetTotal = 13245
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -369,7 +372,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
-	"modules/peopledirectory/compose":    979,
+	// ADR 0196: the export opener of the sealed guardian bank data (+5).
+	"modules/peopledirectory/compose":    984,
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
 	"modules/schedulerruntime/compose":   45,
@@ -409,7 +413,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0188: the bank cipher dependency and backfill/rekey constructor (+7).
-	"modules/workforce/compose":         913,
+	// ADR 0196: the export opener of the sealed staff bank and tax data (+5).
+	"modules/workforce/compose":         918,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
 	"workflows/openroommove/compose":    46,
