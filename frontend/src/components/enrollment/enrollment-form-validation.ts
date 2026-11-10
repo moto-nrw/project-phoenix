@@ -159,6 +159,14 @@ export function validateEnrollmentForm(
   const fieldErrors = rules.restrictToOfferings
     ? {}
     : dataFieldErrors(values, rules, tr);
+  if (holidayCareWishAsked(rules.schema)) {
+    values.children.forEach((child, i) => {
+      if (!child.locked && child.holiday_care_wish === undefined) {
+        fieldErrors[formFieldName.child(i, "holiday_care_wish")] =
+          tr("errors.yesNo");
+      }
+    });
+  }
   if (rules.signatureRequired && values.signature === null) {
     fieldErrors[formFieldName.signature] = tr("signature.required");
   }
@@ -302,12 +310,6 @@ function childFieldErrors(
   }
   if (rules.collectGradeLevel && !child.target_grade_level) {
     errors[formFieldName.child(i, "target_grade_level")] = tr("errors.grade");
-  }
-  if (
-    holidayCareWishAsked(rules.schema) &&
-    child.holiday_care_wish === undefined
-  ) {
-    errors[formFieldName.child(i, "holiday_care_wish")] = tr("errors.yesNo");
   }
   // A grade the phase offers no class for stays "Klasse offen", even when
   // the phase requires classes; the backend gate is the same (#1833).

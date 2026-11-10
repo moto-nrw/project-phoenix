@@ -182,9 +182,9 @@
     }
   },
   "renewalAdjust": "Angebote und Wochentage anpassen",
-  "renewalAdjustHint": "Sie können die Betreuung unverändert fortführen, nur Angebote oder Wochentage anpassen oder die Betreuung zum Ende des aktuellen Zeitraums beenden. Alle übrigen Daten bleiben unverändert.",
+  "renewalAdjustHint": "Sie können die Betreuung unverändert fortführen, Angebote oder Wochentage anpassen oder die Betreuung zum Ende des aktuellen Zeitraums beenden. Falls gefragt, geben Sie auch den Ferienwunsch an.",
   "adjustTitle": "Angebote und Wochentage anpassen",
-  "adjustDescription": "Passen Sie nur die Betreuungsangebote und gebuchten Wochentage an. Alle übrigen Daten bleiben unverändert und werden nicht erneut abgefragt.",
+  "adjustDescription": "Ändern Sie die Betreuungsangebote und gebuchten Wochentage. Falls gefragt, geben Sie auch den Ferienwunsch an.",
   "adjustSubmit": "Anpassung senden",
   "lockedChildHint": "Änderungen für dieses Kind laufen über die Eltern-App.",
   "lockedAllTitle": "Änderungen laufen über die Eltern-App",

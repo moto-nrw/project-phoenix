@@ -182,9 +182,9 @@
     }
   },
   "renewalAdjust": "Teklifleri ve günleri değiştir",
-  "renewalAdjustHint": "Bakımı olduğu gibi sürdürebilirsiniz. Sadece teklifleri veya günleri değiştirebilirsiniz. Ya da bakımı mevcut dönemin sonunda bitirebilirsiniz. Diğer tüm bilgiler aynı kalır.",
+  "renewalAdjustHint": "Bakımı olduğu gibi sürdürebilirsiniz. Teklifleri veya günleri değiştirebilirsiniz. Ya da bakımı mevcut dönemin sonunda bitirebilirsiniz. Sorulursa çocuğun tatilde bakıma ihtiyacı olup olmadığını da belirtin.",
   "adjustTitle": "Teklifleri ve günleri değiştir",
-  "adjustDescription": "Sadece bakım tekliflerini ve seçili günleri değiştirin. Diğer tüm bilgiler aynı kalır ve yeniden sorulmaz.",
+  "adjustDescription": "Bakım tekliflerini ve seçili günleri değiştirin. Sorulursa çocuğun tatilde bakıma ihtiyacı olup olmadığını da belirtin.",
   "adjustSubmit": "Değişikliği gönder",
   "lockedChildHint": "Bu çocuk için değişiklikler veli uygulamasından yapılır.",
   "lockedAllTitle": "Değişiklikler veli uygulamasından yapılır",

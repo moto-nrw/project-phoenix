@@ -200,12 +200,11 @@ interface Props {
   readonly lockedGuardianEmail?: boolean;
   readonly lockChildStructure?: boolean;
   /**
-   * Reduced Halbjahreswechsel flow (#2251): render ONLY the per-child
-   * care-offering selection. Guardian data, child identity, custom
-   * fields, and consents stay hidden but travel unchanged in the
-   * submit payload (seeded from initialDraft), so the resulting change
-   * request diffs exactly the offerings. Callers must also lock the
-   * child structure.
+   * Reduced Halbjahreswechsel flow (#2251): render per-child care offerings
+   * and the holiday care question when the target form asks it.
+   * Guardian data, child identity, custom fields and consents stay hidden
+   * and travel unchanged from initialDraft. The change request captures
+   * bookings and the current year's wish. Callers must lock child structure.
    */
   readonly restrictToOfferings?: boolean;
   readonly submitLabel?: string;
@@ -1471,25 +1470,23 @@ export function EnrollmentForm({
                     )}
                   </div>
                 )}
-                {!restrictToOfferings &&
-                  askHolidayCareWish &&
-                  !child.locked && (
-                    <CustomFieldInput
-                      field={holidayCareWishField}
-                      inputName={formFieldName.child(i, "holiday_care_wish")}
-                      value={child.holiday_care_wish}
-                      onChange={(v) =>
-                        updateChild(i, {
-                          holiday_care_wish:
-                            typeof v === "boolean" ? v : undefined,
-                        })
-                      }
-                      error={fieldError(
-                        formFieldName.child(i, "holiday_care_wish"),
-                      )}
-                      tr={tr}
-                    />
-                  )}
+                {askHolidayCareWish && !child.locked && (
+                  <CustomFieldInput
+                    field={holidayCareWishField}
+                    inputName={formFieldName.child(i, "holiday_care_wish")}
+                    value={child.holiday_care_wish}
+                    onChange={(v) =>
+                      updateChild(i, {
+                        holiday_care_wish:
+                          typeof v === "boolean" ? v : undefined,
+                      })
+                    }
+                    error={fieldError(
+                      formFieldName.child(i, "holiday_care_wish"),
+                    )}
+                    tr={tr}
+                  />
+                )}
                 {availabilityNotices[child.clientId] ? (
                   <Alert
                     type="warning"

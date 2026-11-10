@@ -182,9 +182,9 @@
     }
   },
   "renewalAdjust": "Zmień oferty i dni tygodnia",
-  "renewalAdjustHint": "Mogą Państwo kontynuować opiekę bez zmian, zmienić tylko oferty lub dni tygodnia albo zakończyć opiekę z końcem bieżącego okresu. Pozostałe dane nie zmieniają się.",
+  "renewalAdjustHint": "Mogą Państwo kontynuować opiekę bez zmian, zmienić oferty lub dni tygodnia albo zakończyć opiekę z końcem bieżącego okresu. Jeśli pojawi się pytanie, proszę też podać, czy dziecko potrzebuje opieki w czasie ferii.",
   "adjustTitle": "Zmiana ofert i dni tygodnia",
-  "adjustDescription": "Proszę zmienić tylko oferty opieki i zarezerwowane dni tygodnia. Pozostałe dane nie zmieniają się i nie trzeba ich podawać ponownie.",
+  "adjustDescription": "Proszę zmienić oferty opieki i zarezerwowane dni tygodnia. Jeśli pojawi się pytanie, proszę też podać, czy dziecko potrzebuje opieki w czasie ferii.",
   "adjustSubmit": "Wyślij zmianę",
   "lockedChildHint": "Zmiany dla tego dziecka zgłaszają Państwo w aplikacji dla rodziców.",
   "lockedAllTitle": "Zmiany zgłaszają Państwo w aplikacji dla rodziców",

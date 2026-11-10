@@ -182,9 +182,9 @@
     }
   },
   "renewalAdjust": "Adjust offerings and weekdays",
-  "renewalAdjustHint": "You can continue care unchanged, adjust only offerings or weekdays, or end care at the end of the current period. All other data stays unchanged.",
+  "renewalAdjustHint": "You can continue care unchanged, adjust offerings or weekdays, or end care at the end of the current period. If asked, also state whether your child needs holiday care.",
   "adjustTitle": "Adjust offerings and weekdays",
-  "adjustDescription": "Adjust only the care offerings and booked weekdays. All other data stays unchanged and is not requested again.",
+  "adjustDescription": "Adjust the care offerings and booked weekdays. If asked, also state whether your child needs holiday care.",
   "adjustSubmit": "Send adjustment",
   "lockedChildHint": "Changes for this child go through the parents app.",
   "lockedAllTitle": "Changes go through the parents app",
