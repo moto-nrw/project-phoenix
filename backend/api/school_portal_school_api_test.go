@@ -496,7 +496,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 			scopeOnlyVerify = true
 			return schoolportal.VerifiedChallenge{AccountID: verifiedAccountID, TenantID: verifiedTenantID}, nil
 		},
-		Enroll: func(context.Context, int64) error { return nil },
+		Enroll: func(context.Context, schoolportal.VerifiedChallenge) error { return nil },
 	})
 	schoolRouter := newSchoolRouter(resource, mfa)
 

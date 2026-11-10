@@ -252,6 +252,7 @@ func TransactionFromContext(ctx context.Context) (any, bool) {
 func ContextWithoutTransaction(ctx context.Context) context.Context {
 	ctx = context.WithValue(withTransaction(ctx, nil), transactionMaskedKey{}, true)
 	ctx = context.WithValue(ctx, traegerTxKey{}, int64(0))
+	ctx = context.WithValue(ctx, lockLedgerKey{}, (*lockLedger)(nil))
 	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withoutTx != nil {
 		return uow.withoutTx(ctx)
 	}

@@ -13,6 +13,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -133,7 +134,8 @@ export function CarePriceListModal({
   const [month, setMonth] = useState("");
   const [drafts, setDrafts] = useState<Drafts>({});
   const [freeMonths, setFreeMonths] = useState<readonly number[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(school !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -219,18 +221,24 @@ export function CarePriceListModal({
       formErrors.invalid("Bitte tragen Sie mindestens einen Preis ein.", {});
       return;
     }
-    setSaving(true);
-    try {
-      onSaved(await saveCarePriceList(school.id, month, prices, freeMonths));
-      success(`Die Preise gelten ab ${formatMonth(month)}.`);
-    } catch (err) {
-      logger.error("care_price_list_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Preise" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const result = await saveCarePriceList(
+          school.id,
+          month,
+          prices,
+          freeMonths,
+        );
+        if (op.isCurrent()) onSaved(result);
+        success(`Die Preise gelten ab ${formatMonth(month)}.`);
+      } catch (err) {
+        logger.error("care_price_list_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Preise" });
+      }
+    });
   };
 
   const toggleFreeMonth = (value: number, pressed: boolean) =>
@@ -244,7 +252,7 @@ export function CarePriceListModal({
     <FormModal
       isOpen={school !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={school ? `Preise für ${school.name}` : "Preise"}
       size="xl"

@@ -26,6 +26,9 @@ func TestParentBillingDatevSettings(t *testing.T) {
 	}
 	assert.Equal(t, "1", config.GetDefinition(config.KeyParentBillingDatevFiscalYearStart).Default)
 	assert.Equal(t, false, config.GetDefinition(config.KeyParentBillingDatevLocked).Default)
+	// Whether the SJR books by cost center waits for Ute (#4821): off.
+	assert.Equal(t, false, config.GetDefinition(config.KeyParentBillingDatevCostCenterRequired).Default)
+	assert.Equal(t, config.LevelTraeger, config.GetDefinition(config.KeyParentBillingDatevCostCenterRequired).Levels)
 
 	patterns := map[string]struct{ valid, invalid []string }{
 		config.KeyParentBillingDatevConsultantNumber: {

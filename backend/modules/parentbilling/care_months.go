@@ -240,6 +240,8 @@ type CarePosition struct {
 	// SiblingCents is what the position costs at the sibling prices of the
 	// price list; a sibling rule in the price-list mode charges it (#6196).
 	SiblingCents int64 `json:"-"`
+	// Accounts is where the position books, copied by the release (#4821).
+	Accounts PositionAccounts `json:"-"`
 }
 
 // CareRecipient is who an invoice goes to: the contract party, which the
@@ -470,6 +472,9 @@ type CareBillingSettings interface {
 	// CareAmendmentSettings says which changes of an invoice the review
 	// allows (#6197).
 	CareAmendmentSettings
+	// DatevBillingSettings names the standard revenue account the release
+	// copies onto a position without an account of its own (#4821).
+	DatevBillingSettings
 }
 
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of

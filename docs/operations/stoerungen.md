@@ -63,8 +63,9 @@ Empfänger provisionieren:
   können ohne Alarm enden. `DB Connection Error` erkennt nur den Text
   `connection refused`; `HTTP 5xx Spike` nur die konfigurierte Fehlerschwelle.
 - [`infrastructure.yml`](../../monitoring/grafana/provisioning/alerting/infrastructure.yml):
-  Host-Disk, RAM, CPU, Scrape-Ausfall, Backup, DB-Pool, Postgres-Verbindungen und
-  Frontend-Event-Loop. Einige Regeln behandeln fehlende Daten/Auswertungsfehler
+  Host-Disk, RAM, CPU, Scrape-Ausfall, Backup, Wartezeit und Auslastung des
+  DB-Pools im Backend (nicht die Verbindungen des ganzen PostgreSQL-Clusters)
+  und Frontend-Event-Loop. Einige Regeln behandeln fehlende Daten/Auswertungsfehler
   als OK. Aktive Datenquellen und Labels vor Ort prüfen.
 - [`server-errors.yml`](../../monitoring/grafana/provisioning/alerting/server-errors.yml):
   Server-/Postgres-Fehlerspitzen; [Fehler-Runbook](../../monitoring/runbooks/server-errors.md).

@@ -121,10 +121,12 @@ const CodeEnrollmentMessageRequired = "enrollment.message_required"
 const CodeEnrollmentOfferingAdjustmentInvalid = "enrollment.offering_adjustment_invalid"
 const CodeEnrollmentPhaseCareOfferingConflict = "enrollment.phase_care_offering_conflict"
 const CodeEnrollmentPhaseEligibilitySettingRequired = "enrollment.phase_eligibility_setting_required"
+const CodeEnrollmentPhaseHasEffectiveBookings = "enrollment.phase_has_effective_bookings"
 const CodeEnrollmentPhaseNameExists = "enrollment.phase_name_exists"
 const CodeEnrollmentPhaseNameRequired = "enrollment.phase_name_required"
 const CodeEnrollmentPhaseNotEligible = "enrollment.phase_not_eligible"
 const CodeEnrollmentPhaseNotFound = "enrollment.phase_not_found"
+const CodeEnrollmentPhasePendingChildWindowConflict = "enrollment.phase_pending_child_window_conflict"
 const CodeEnrollmentPhaseSchoolClassesInvalid = "enrollment.phase_school_classes_invalid"
 const CodeEnrollmentPhaseServicePeriodInvalid = "enrollment.phase_service_period_invalid"
 const CodeEnrollmentPhaseWindowInvalid = "enrollment.phase_window_invalid"
@@ -280,10 +282,12 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentOfferingAdjustmentInvalid, "input"},
 	{CodeEnrollmentPhaseCareOfferingConflict, "business_rejection"},
 	{CodeEnrollmentPhaseEligibilitySettingRequired, "input"},
+	{CodeEnrollmentPhaseHasEffectiveBookings, "business_rejection"},
 	{CodeEnrollmentPhaseNameExists, "business_rejection"},
 	{CodeEnrollmentPhaseNameRequired, "input"},
 	{CodeEnrollmentPhaseNotEligible, "permission"},
 	{CodeEnrollmentPhaseNotFound, "business_rejection"},
+	{CodeEnrollmentPhasePendingChildWindowConflict, "business_rejection"},
 	{CodeEnrollmentPhaseSchoolClassesInvalid, "input"},
 	{CodeEnrollmentPhaseServicePeriodInvalid, "input"},
 	{CodeEnrollmentPhaseWindowInvalid, "input"},

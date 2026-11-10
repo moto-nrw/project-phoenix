@@ -8,11 +8,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -84,14 +88,16 @@ func openedValues(t *testing.T, path string, columns ...string) []string {
 	return values
 }
 
-// The return of a school carries the IBAN and account holder of a guardian
-// and the IBAN, tax ID and social security number of a staff member opened
-// with the bank ring, never their ciphertext (#6412).
-func TestTenantExportOpensGuardianAndStaffBankDataWithTheRootBindings(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	school := testpkg.Tenant(t)
-	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Synthetic", "Payer", "export-bank")
+// schoolBankData seals the bank values of one guardian and one staff member
+// of a school as People Directory and Workforce do (#6332) and stores them.
+type schoolBankData struct {
+	school, guardian, staff int64
+	sealed                  [][]byte
+}
+
+func seedSchoolBankData(t *testing.T, db *bun.DB, school int64, guardianIBAN, holder, staffIBAN, taxID, social string) schoolBankData {
+	t.Helper()
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Synthetic", "Payer", fmt.Sprintf("export-bank-%d", school))
 	staff := testpkg.CreateTestStaffForTenant(t, db, school, "Synthetic", "Payroll")
 	guardianContext := func(field string) string {
 		return fmt.Sprintf("users.guardian_financial_data.%s|%d|%d", field, school, guardian.ID)
@@ -99,46 +105,129 @@ func TestTenantExportOpensGuardianAndStaffBankDataWithTheRootBindings(t *testing
 	staffContext := func(field string) string {
 		return fmt.Sprintf("users.staff_financial_data.%s|%d|%d", field, school, staff.ID)
 	}
-	guardianIBAN := bankSeal(t, "DE89370400440532013000", guardianContext("iban"))
-	guardianHolder := bankSeal(t, "Synthetic Holder", guardianContext("account_holder"))
-	staffIBAN := bankSeal(t, "DE02120300000000202051", staffContext("iban"))
-	staffTaxID := bankSeal(t, "12345678995", staffContext("tax_id"))
-	staffSocial := bankSeal(t, "65170839J003", staffContext("social_security_number"))
+	data := schoolBankData{school: school, guardian: guardian.ID, staff: staff.ID, sealed: [][]byte{
+		bankSeal(t, guardianIBAN, guardianContext("iban")), bankSeal(t, holder, guardianContext("account_holder")),
+		bankSeal(t, staffIBAN, staffContext("iban")), bankSeal(t, taxID, staffContext("tax_id")), bankSeal(t, social, staffContext("social_security_number")),
+	}}
 	_, err := db.NewRaw(`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban_sealed, iban_masked, account_holder_sealed)
-		VALUES (?, ?, ?, '****3000', ?)`, school, guardian.ID, guardianIBAN, guardianHolder).Exec(t.Context())
+		VALUES (?, ?, ?, '****0000', ?)`, school, guardian.ID, data.sealed[0], data.sealed[1]).Exec(t.Context())
 	require.NoError(t, err)
 	_, err = db.NewRaw(`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban_sealed, iban_masked, tax_id_sealed, social_security_number_sealed)
-		VALUES (?, ?, ?, '****2051', ?, ?)`, school, staff.ID, staffIBAN, staffTaxID, staffSocial).Exec(t.Context())
+		VALUES (?, ?, ?, '****0000', ?, ?)`, school, staff.ID, data.sealed[2], data.sealed[3], data.sealed[4]).Exec(t.Context())
 	require.NoError(t, err)
+	return data
+}
 
-	out, err := exportSchool(t, db, school)
+// The return of a school carries the IBAN and account holder of a guardian
+// and the IBAN, tax ID and social security number of a staff member opened
+// with the bank ring, never their ciphertext (#6412), and only those of the
+// school it returns: the values of another school leave in no form (#6386).
+func TestTenantExportOpensGuardianAndStaffBankDataWithTheRootBindings(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	otherSchool := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherSchool)
+	own := seedSchoolBankData(t, db, testpkg.Tenant(t), "DE89370400440532013000", "Synthetic Holder", "DE02120300000000202051", "12345678995", "65170839J003")
+	other := seedSchoolBankData(t, db, otherSchool, "DE75512108001245126199", "Other Holder", "DE12500105170648489890", "86095742719", "12150379M512")
+
+	out, err := exportSchool(t, db, own.school)
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(out, "COMPLETE"))
 	require.Equal(t, []string{"iban_opened=DE89370400440532013000", "account_holder_opened=Synthetic Holder"},
 		openedValues(t, filepath.Join(out, "users.guardian_financial_data.jsonl"), "iban_opened", "account_holder_opened"))
 	require.Equal(t, []string{"iban_opened=DE02120300000000202051", "tax_id_opened=12345678995", "social_security_number_opened=65170839J003"},
 		openedValues(t, filepath.Join(out, "users.staff_financial_data.jsonl"), "iban_opened", "tax_id_opened", "social_security_number_opened"))
-	requireNoCiphertext(t, out, guardianIBAN, guardianHolder, staffIBAN, staffTaxID, staffSocial)
+	requireNoCiphertext(t, out, append(own.sealed, other.sealed...)...)
+	require.NoError(t, filepath.WalkDir(out, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for _, value := range []string{"DE75512108001245126199", "Other Holder", "DE12500105170648489890", "86095742719", "12150379M512"} {
+			require.NotContains(t, string(data), value, "bank data of another school in %s", path)
+		}
+		return nil
+	}))
 }
 
-// A sealed value copied into the row of another guardian does not open: the
-// return does not complete and passes on neither ciphertext nor a gap.
-func TestTenantExportRefusesBankDataCopiedIntoAnotherRow(t *testing.T) {
+// A sealed value that does not open in its row stops the return (#6386):
+// copied from another guardian or another school, moved into another
+// field, or sealed with a ring the installation does not hold. The package
+// never completes, carries neither ciphertext nor a gap, the error names no
+// value, and the operator audit holds the attempt and the failure.
+func TestTenantExportRefusesBankDataThatDoesNotOpenInItsRow(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	school := testpkg.Tenant(t)
-	owner := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Synthetic", "Owner", "export-bank-owner")
-	other := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Synthetic", "Other", "export-bank-other")
-	copied := bankSeal(t, "DE89370400440532013000", fmt.Sprintf("users.guardian_financial_data.iban|%d|%d", school, owner.ID))
-	_, err := db.NewRaw(`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban_sealed, iban_masked)
-		VALUES (?, ?, ?, '****3000')`, school, other.ID, copied).Exec(t.Context())
+	const iban = "DE89370400440532013000"
+	foreignRing, err := securityRuntimeCompose.NewBankDataCipher(testpkg.NewTestHealthDataKeys(), "")
 	require.NoError(t, err)
+	for name, sealFor := range map[string]func(school, owner, other int64) (column string, sealed []byte){
+		"another guardian": func(school, owner, _ int64) (string, []byte) {
+			return "iban_sealed", bankSeal(t, iban, fmt.Sprintf("users.guardian_financial_data.iban|%d|%d", school, owner))
+		},
+		"another school": func(_, _, other int64) (string, []byte) {
+			return "iban_sealed", bankSeal(t, iban, fmt.Sprintf("users.guardian_financial_data.iban|%d|%d", testpkg.UniqueTestTenantID(t), other))
+		},
+		"another field": func(school, _, other int64) (string, []byte) {
+			return "account_holder_sealed", bankSeal(t, iban, fmt.Sprintf("users.guardian_financial_data.iban|%d|%d", school, other))
+		},
+		"another ring": func(school, _, other int64) (string, []byte) {
+			sealed, err := foreignRing.Seal([]byte(iban), fmt.Appendf(nil, "users.guardian_financial_data.iban|%d|%d", school, other))
+			require.NoError(t, err)
+			return "iban_sealed", sealed
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			school := testpkg.UniqueTestTenantID(t) // one school per case: the audit is per school
+			testpkg.EnsureTestTenant(t, db, school)
+			owner := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Synthetic", "Owner", fmt.Sprintf("export-bank-owner-%d", school))
+			other := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Synthetic", "Other", fmt.Sprintf("export-bank-other-%d", school))
+			column, sealed := sealFor(school, owner.ID, other.ID)
+			_, err := db.NewRaw(`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban_masked, ?)
+				VALUES (?, ?, '****3000', ?)`, bun.Ident(column), school, other.ID, sealed).Exec(t.Context())
+			require.NoError(t, err)
 
-	out, err := exportSchool(t, db, school)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot open a sealed value of users.guardian_financial_data")
-	require.NotContains(t, err.Error(), "DE89")
-	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
+			out, err := exportSchool(t, db, school)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "cannot open a sealed value of users.guardian_financial_data")
+			require.NotContains(t, err.Error(), "DE89")
+			require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
+			requireNoCiphertext(t, out, sealed)
+
+			var audit []string
+			require.NoError(t, db.NewRaw(`SELECT changes::text FROM platform.operator_audit_log
+				WHERE action = 'export' AND resource_type = 'school' AND resource_id = ? ORDER BY id`, school).Scan(t.Context(), &audit))
+			require.Len(t, audit, 2, "the attempt and the failure")
+			var failure organizationtenancy.TenantExportRecord
+			require.NoError(t, json.Unmarshal([]byte(audit[1]), &failure))
+			require.Equal(t, organizationtenancy.TenantExportFailed, failure.Outcome)
+			require.Equal(t, "snapshot", failure.ErrorClass)
+			for _, entry := range audit {
+				require.NotContains(t, entry, "DE89", "the audit holds no bank data")
+			}
+		})
+	}
+}
+
+// The root can bind only the bank ring to the bank openers (#6386): the
+// health cipher does not satisfy the port any of them takes.
+func TestTenantExportBankOpenersRefuseTheHealthCipher(t *testing.T) {
+	t.Parallel()
+	health, err := securityRuntimeCompose.NewFieldCipher(testpkg.TestHealthDataKeys)
+	require.NoError(t, err)
+	bank, err := securityRuntimeCompose.NewBankDataCipher(testpkg.TestBankDataKeys, "")
+	require.NoError(t, err)
+	for name, constructor := range map[string]any{
+		"guardian": peopleCompose.NewGuardianBankExportFields,
+		"staff":    workforceCompose.NewStaffBankExportFields,
+		"sepa":     parentBillingCompose.NewSEPAExportFields,
+	} {
+		port := reflect.TypeOf(constructor).In(0)
+		require.True(t, reflect.TypeOf(bank).Implements(port), name)
+		require.False(t, reflect.TypeOf(health).Implements(port), name)
+	}
 }
 
 // The Träger package carries the confirmed text of an online mandate opened

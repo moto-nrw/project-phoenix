@@ -1609,13 +1609,13 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@931",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@147",
+      "Ordner bearbeiten Neuer Ordner@149",
     ],
     "src/components/planning/closing-day-modal.tsx": [
-      "Schließtag bearbeiten Schließtag anlegen@145",
+      "Schließtag bearbeiten Schließtag anlegen@154",
     ],
     "src/components/staff-notices/staff-notice-modal.tsx": [
-      "Tagesinformation bearbeiten Neue Tagesinformation@188",
+      "Tagesinformation bearbeiten Neue Tagesinformation@190",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
       "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@405",
@@ -1628,7 +1628,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Zwei-Faktor-Authentifizierung verwalten@387",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@334",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@336",
     ],
   }),
 );

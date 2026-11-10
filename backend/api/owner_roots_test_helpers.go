@@ -55,7 +55,7 @@ func NewFacilitiesRoomRepository(db transactionruntime.Database) (owners.RoomTes
 // the Timetable owner's staffing writes take (#1840, #3551). The
 // shift-plan-sync workflow tests compose the cascade with it too.
 func NewSickCascadeTimetableRows(rows timetableCompose.OwnerRows, db transactionruntime.Database) shiftplansyncCompose.TimetableRows {
-	return rows.SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool()))
+	return rows.SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool()), owners.MustNewTimetableRecurrenceLock(db))
 }
 
 // NewCalendarReminderOutboxFixture exposes preparation and the real worker so

@@ -9,6 +9,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -689,7 +690,6 @@ export function CareWeeklyPlanEditForm({
   const toast = useToast();
   const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup, weeklyNotes);
   const pickupNeedsCareDay = careDaysSource === "bookings";
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
   const error = errors.error;
@@ -698,6 +698,8 @@ export function CareWeeklyPlanEditForm({
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [weeklyAdjustment, setWeeklyAdjustment] =
     useState<PickupAdjustmentPreview | null>(null);
+  const save = useFormModalPending(weeklyAdjustment !== null);
+  const isSubmitting = save.pending;
   const [offeringSelections, setOfferingSelections] = useState<
     PickupAdjustmentSelection[]
   >([]);
@@ -752,59 +754,60 @@ export function CareWeeklyPlanEditForm({
 
   const performSave = async () => {
     errors.clear();
-    setIsSubmitting(true);
-    try {
-      const adjustment = await onSubmitWeekly(
-        toWeeklySubmit(draft.rows, pickupNeedsCareDay),
-      );
-      if (adjustment) {
-        weeklyExceptionPreview.current = adjustment;
-        setWeeklyAdjustment(adjustment);
-        setOfferingEffectiveFrom(adjustment.effective_from);
-        setOfferingConfirmed(false);
-        return;
+    await save.run(async (op) => {
+      try {
+        const adjustment = await onSubmitWeekly(
+          toWeeklySubmit(draft.rows, pickupNeedsCareDay),
+        );
+        if (adjustment) {
+          weeklyExceptionPreview.current = adjustment;
+          setWeeklyAdjustment(adjustment);
+          setOfferingEffectiveFrom(adjustment.effective_from);
+          setOfferingConfirmed(false);
+          return;
+        }
+        toast.success("Der Wochenplan ist gespeichert.");
+        onSaved();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        clearDecision();
+        latestRetryRef.current = () => void performSave();
+        await errors.show(err, {
+          object: "die Änderung am Wochenplan",
+          retry: () => latestRetryRef.current(),
+        });
+      } finally {
+        setShowRemovalConfirm(false);
       }
-      toast.success("Der Wochenplan ist gespeichert.");
-      onSaved();
-    } catch (err) {
-      clearDecision();
-      latestRetryRef.current = () => void performSave();
-      await errors.show(err, {
-        object: "die Änderung am Wochenplan",
-        retry: () => latestRetryRef.current(),
-      });
-    } finally {
-      setShowRemovalConfirm(false);
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const saveWeeklyException = async () => {
     const preview = weeklyExceptionPreview.current;
     if (!preview) return;
     errors.clear();
-    setIsSubmitting(true);
-    try {
-      await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
-        resolution: "exception",
-        preview,
-        reason: offeringReason,
-        confirm: true,
-      });
-      toast.success("Die dauerhafte Ausnahme ist gespeichert.");
-      onSaved();
-    } catch (err) {
-      clearDecision();
-      // Die Vorschau ist mit dem Dialog verworfen; ein neuer Versuch startet
-      // beim Speichern des Wochenplans.
-      latestRetryRef.current = () => void performSave();
-      await errors.show(err, {
-        object: "die dauerhafte Ausnahme",
-        retry: () => latestRetryRef.current(),
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
+          resolution: "exception",
+          preview,
+          reason: offeringReason,
+          confirm: true,
+        });
+        toast.success("Die dauerhafte Ausnahme ist gespeichert.");
+        onSaved();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        clearDecision();
+        // Die Vorschau ist mit dem Dialog verworfen; ein neuer Versuch startet
+        // beim Speichern des Wochenplans.
+        latestRetryRef.current = () => void performSave();
+        await errors.show(err, {
+          object: "die dauerhafte Ausnahme",
+          retry: () => latestRetryRef.current(),
+        });
+      }
+    });
   };
 
   const previewMatchingOffering = async (
@@ -826,98 +829,98 @@ export function CareWeeklyPlanEditForm({
     setOfferingConfirmed(false);
 
     errors.clear();
-    setIsSubmitting(true);
-    try {
-      const preview = await onSubmitWeekly(
-        toWeeklySubmit(draft.rows, pickupNeedsCareDay),
-        {
-          resolution: "offering",
-          preview: weeklyAdjustment,
-          selections,
-          effectiveFrom,
-          reason: offeringReason,
-          confirm: false,
-        },
-      );
-      if (requestId !== offeringPreviewRequestId.current) return;
-      if (!preview) {
-        errors.invalid(
-          "Das Angebot konnte nicht geprüft werden. Bitte wählen Sie es noch einmal.",
+    await save.run(async (op) => {
+      try {
+        const preview = await onSubmitWeekly(
+          toWeeklySubmit(draft.rows, pickupNeedsCareDay),
+          {
+            resolution: "offering",
+            preview: weeklyAdjustment,
+            selections,
+            effectiveFrom,
+            reason: offeringReason,
+            confirm: false,
+          },
         );
-        return;
-      }
-      if (
-        !preview.matching_offerings.some(
+        if (requestId !== offeringPreviewRequestId.current) return;
+        if (!preview) {
+          errors.invalid(
+            "Das Angebot konnte nicht geprüft werden. Bitte wählen Sie es noch einmal.",
+          );
+          return;
+        }
+        if (
+          !preview.matching_offerings.some(
+            (item) => item.offering_id === offeringId,
+          )
+        ) {
+          setWeeklyAdjustment(preview);
+          return;
+        }
+        const refreshedTarget = preview.offering_catalog?.items.find(
           (item) => item.offering_id === offeringId,
-        )
-      ) {
-        setWeeklyAdjustment(preview);
-        return;
-      }
-      const refreshedTarget = preview.offering_catalog?.items.find(
-        (item) => item.offering_id === offeringId,
-      );
-      if (
-        refreshedTarget &&
-        !refreshedTarget.selected &&
-        refreshedTarget.capacity !== undefined &&
-        refreshedTarget.free_slots === 0
-      ) {
-        setWeeklyAdjustment(preview);
-        errors.invalid(
-          "Dieses Angebot hat keinen freien Platz mehr. Bitte wählen Sie ein anderes.",
         );
-        return;
+        if (
+          refreshedTarget &&
+          !refreshedTarget.selected &&
+          refreshedTarget.capacity !== undefined &&
+          refreshedTarget.free_slots === 0
+        ) {
+          setWeeklyAdjustment(preview);
+          errors.invalid(
+            "Dieses Angebot hat keinen freien Platz mehr. Bitte wählen Sie ein anderes.",
+          );
+          return;
+        }
+        setOfferingSelections(selections);
+        setWeeklyAdjustment(preview);
+        setSelectedOfferingId(offeringId);
+        setOfferingConfirmed(false);
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        if (requestId !== offeringPreviewRequestId.current) return;
+        setOfferingSelections([]);
+        setSelectedOfferingId(null);
+        setOfferingConfirmed(false);
+        latestRetryRef.current = () =>
+          void previewMatchingOffering(offeringId, effectiveFrom);
+        await errors.show(err, {
+          object: "die Umbuchung",
+          retry: () => latestRetryRef.current(),
+        });
       }
-      setOfferingSelections(selections);
-      setWeeklyAdjustment(preview);
-      setSelectedOfferingId(offeringId);
-      setOfferingConfirmed(false);
-    } catch (err) {
-      if (requestId !== offeringPreviewRequestId.current) return;
-      setOfferingSelections([]);
-      setSelectedOfferingId(null);
-      setOfferingConfirmed(false);
-      latestRetryRef.current = () =>
-        void previewMatchingOffering(offeringId, effectiveFrom);
-      await errors.show(err, {
-        object: "die Umbuchung",
-        retry: () => latestRetryRef.current(),
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const saveMatchingOffering = async () => {
     if (!weeklyAdjustment || !offeringConfirmed) return;
     errors.clear();
-    setIsSubmitting(true);
-    try {
-      await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
-        resolution: "offering",
-        preview: weeklyAdjustment,
-        selections: offeringSelections,
-        effectiveFrom: offeringEffectiveFrom,
-        reason: offeringReason,
-        confirm: true,
-        completeWithdrawalConfirmed: offeringRemovesAllCareDays(
-          weeklyAdjustment,
-          offeringSelections,
-        ),
-      });
-      toast.success("Angebot und Wochenplan sind geändert.");
-      onSaved();
-    } catch (err) {
-      clearDecision();
-      latestRetryRef.current = () => void performSave();
-      await errors.show(err, {
-        object: "die Angebotsänderung",
-        retry: () => latestRetryRef.current(),
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onSubmitWeekly(toWeeklySubmit(draft.rows, pickupNeedsCareDay), {
+          resolution: "offering",
+          preview: weeklyAdjustment,
+          selections: offeringSelections,
+          effectiveFrom: offeringEffectiveFrom,
+          reason: offeringReason,
+          confirm: true,
+          completeWithdrawalConfirmed: offeringRemovesAllCareDays(
+            weeklyAdjustment,
+            offeringSelections,
+          ),
+        });
+        toast.success("Angebot und Wochenplan sind geändert.");
+        onSaved();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        clearDecision();
+        latestRetryRef.current = () => void performSave();
+        await errors.show(err, {
+          object: "die Angebotsänderung",
+          retry: () => latestRetryRef.current(),
+        });
+      }
+    });
   };
 
   return (
@@ -993,7 +996,7 @@ export function CareWeeklyPlanEditForm({
         title="Wochenplan speichern"
         size="xl"
         error={error}
-        closeDisabled={isSubmitting}
+        pending={save}
         footer={
           <Button
             type="button"

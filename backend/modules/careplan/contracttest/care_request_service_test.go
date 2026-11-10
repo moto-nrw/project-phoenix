@@ -68,6 +68,7 @@ func newCareScheduleRequestService(
 	people owners.RequestPeople,
 	arrival careplan.ArrivalScheduleService,
 	pickup careplan.PickupScheduleService,
+	excusal careplan.PickupAutoExcusal,
 	caller *owners.CallerRows,
 	services owners.PeopleServices,
 	emitter eventContract.Emitter,
@@ -75,7 +76,7 @@ func newCareScheduleRequestService(
 	logger *slog.Logger,
 ) carerequests.Service {
 	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		requestRepo, people, arrival, pickup, nil, nil, nil,
+		requestRepo, people, arrival, pickup, nil, excusal, nil,
 		caller, emitter, broadcaster,
 		testpkg.RequestReviewPolicy[*peopleValues.StudentState]{UserContext: caller}, testpkg.PermissionsFromContext, nil, logger,
 		services.StudentAudit,
@@ -429,6 +430,7 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		failingPickupDeleteService{PickupScheduleService: f.schedules.Pickups, err: wantErr},
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		nil,
@@ -475,6 +477,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 			studentID:             f.chain.StudentID,
 			weekday:               2,
 		},
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		nil,
@@ -560,6 +563,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		f.schedules.Pickups,
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, nil, nil, nil, slog.Default()),
@@ -632,6 +636,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		f.schedules.Pickups,
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		f.emitter(t, settings, nil),
@@ -684,6 +689,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 		f.persons,
 		f.schedules.Arrivals,
 		f.schedules.Pickups,
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		f.emitter(t, &toggleSettings{enabled: true}, nil),
@@ -738,6 +744,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		f.schedules.Pickups,
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		f.emitter(t, fakeDisabledSettings{}, nil),
@@ -773,6 +780,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		f.schedules.Pickups,
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		f.emitter(t, fakeDisabledSettings{}, nil),
@@ -980,7 +988,7 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(), f.persons,
-		f.schedules.Arrivals, f.schedules.Pickups, f.caller,
+		f.schedules.Arrivals, f.schedules.Pickups, f.autoExcusal, f.caller,
 		f.services,
 		nil, bc, slog.Default(),
 	)
@@ -1015,7 +1023,7 @@ func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := newCareScheduleRequestService(
 		f.reposCare.CarePlan(), f.persons,
-		f.schedules.Arrivals, f.schedules.Pickups, f.caller,
+		f.schedules.Arrivals, f.schedules.Pickups, f.autoExcusal, f.caller,
 		f.services,
 		nil, bc, slog.Default(),
 	)
@@ -1137,6 +1145,7 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		f.schedules.Pickups,
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		f.emitter(t, &toggleSettings{enabled: true}, broadcaster),

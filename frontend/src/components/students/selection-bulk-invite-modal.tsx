@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   useApiFormError,
@@ -75,7 +76,8 @@ export function SelectionBulkInviteModal({
   const [preview, setPreview] = useState<BulkInviteResult | null>(null);
   const [sent, setSent] = useState<BulkInviteResult | null>(null);
   const [resendOpen, setResendOpen] = useState(false);
-  const [sending, setSending] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const sending = save.pending;
   const [previewAttempt, setPreviewAttempt] = useState(0);
   const errors = useApiFormError();
   const load = useApiLoadError();
@@ -126,30 +128,30 @@ export function SelectionBulkInviteModal({
   };
 
   const handleSend = async () => {
-    setSending(true);
-    errors.clear();
-    try {
-      const result = await bulkInviteGuardians(studentIds, {
-        dryRun: false,
-        resendOpen,
-      });
-      setSent(result);
-      success(
-        invitedNotice(
-          result.invited + result.resent + result.linkedExistingAccount,
-        ),
-      );
-    } catch (err) {
-      logger.error("bulk_invite_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await errors.show(err, {
-        object: "die Einladung",
-        retry: () => void latestSendRef.current(),
-      });
-    } finally {
-      setSending(false);
-    }
+    await save.run(async (op) => {
+      errors.clear();
+      try {
+        const result = await bulkInviteGuardians(studentIds, {
+          dryRun: false,
+          resendOpen,
+        });
+        if (op.isCurrent()) setSent(result);
+        success(
+          invitedNotice(
+            result.invited + result.resent + result.linkedExistingAccount,
+          ),
+        );
+      } catch (err) {
+        logger.error("bulk_invite_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await errors.show(err, {
+          object: "die Einladung",
+          retry: () => void latestSendRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSendRef.current = handleSend;
@@ -162,7 +164,7 @@ export function SelectionBulkInviteModal({
       title="Eltern ins Elternportal einladen"
       size="md"
       mobilePosition="bottom"
-      closeDisabled={sending}
+      pending={save}
       error={errors.error}
       footer={
         <div className="flex justify-end gap-2 p-4">

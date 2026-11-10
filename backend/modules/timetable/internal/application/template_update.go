@@ -171,6 +171,11 @@ func (s *TemplateService) updateTemplateLocked(
 	if err != nil {
 		return err
 	}
+	// Predecessor reconciliation can wait on days. Take them before roster
+	// writes lock staff or participant rows that a cancellation also needs.
+	if err := s.lockSeriesPredecessorDays(ctx, in, state.validFrom); err != nil {
+		return err
+	}
 	if err := s.writeTemplateFields(ctx, in, state, targetsProvided); err != nil {
 		return err
 	}

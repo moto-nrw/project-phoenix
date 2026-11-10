@@ -1,5 +1,6 @@
 {
   "access_log_export_too_large": "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
+  "account_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "bank_account_label_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "bank_account_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

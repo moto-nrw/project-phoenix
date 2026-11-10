@@ -2178,7 +2178,7 @@
     {
       "decision": "0090",
       "id": "roots/owners/ProvisioningIdentity.AssignTraegerRole",
-      "reason": "ADR 0084 (#4649): root translation of the Identity \u0026 Access Träger role refusal and of an account erased before the grant onto the Organisation \u0026 Tenancy provisioning contract."
+      "reason": "ADR 0084 (#4649): root translation of the Identity \u0026 Access Träger role refusal, of an account erased before the grant and of a deactivated account (#6535) onto the Organisation \u0026 Tenancy provisioning contract."
     },
     {
       "decision": "0090",
@@ -3716,6 +3716,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "roots/owners/deletionAudit.CreateAll",
+      "reason": "Root binding of Student Presence's DeletionAudit port (#6455): maps each presence deletion event onto the Audit Platform data-deletion row before the one batch append (ADR 0067 consumer-port adapter)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/deliveryOnDutyStaff.OnDutyStaffIDs",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -3951,6 +3956,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0202",
+      "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "#6505: Consumer-port adapter of Enrollment's phase delete; it reads Care Plan's bookings of the phase's offerings and maps them onto Enrollment's booking rows, read in the caller's tenant transaction under the recurrence gate."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentPhaseOfferings.CountOfferingsForPhase",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -3959,6 +3969,11 @@
       "decision": "0090",
       "id": "roots/owners/enrollmentPhaseOfferings.OfferingIDsForPhase",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0202",
+      "id": "roots/owners/enrollmentPhaseStudents.MovePendingWindow",
+      "reason": "#6505: Consumer-port adapter of Enrollment's phase edit; it maps the proposed window onto School Membership's guarded pending-window command and its refusal of an inverted window onto an invalid phase edit."
     },
     {
       "decision": "0090",

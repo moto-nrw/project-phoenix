@@ -27,6 +27,7 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { IconTile } from "~/components/ui/icon-tile";
 import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -453,7 +454,8 @@ export function RenameSchemaDialog({
   onConfirm: (newName: string) => Promise<void>;
 }>) {
   const [value, setValue] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(schema !== null, schema?.id);
+  const submitting = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const {
     error,
@@ -468,7 +470,6 @@ export function RenameSchemaDialog({
     if (schema) {
       setValue(schema.name);
       clearError();
-      setSubmitting(false);
     }
   }, [schema, clearError]);
 
@@ -480,20 +481,24 @@ export function RenameSchemaDialog({
   const submitRef = useRef<() => Promise<void>>(async () => undefined);
   const submit = async () => {
     if (!canSubmit) return;
-    setSubmitting(true);
     clearError();
-    try {
-      await onConfirm(trimmed);
-    } catch (err) {
-      logger.warn("schema_rename_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showError(err, {
-        object: "die Formularvorlage",
-        retry: () => void submitRef.current(),
-      });
-      setSubmitting(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onConfirm(trimmed);
+        // Eine späte Antwort schließt nicht den Dialog einer anderen Vorlage
+        // (#6533).
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.warn("schema_rename_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void showError(err, {
+          object: "die Formularvorlage",
+          retry: () => void submitRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     submitRef.current = submit;
@@ -503,6 +508,7 @@ export function RenameSchemaDialog({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Formular umbenennen"
       size="sm"
       error={error}

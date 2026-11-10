@@ -12,6 +12,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { CareSchool } from "~/lib/traeger-care-billing-api";
@@ -46,7 +47,8 @@ export function CareNoticeRunStartModal({
   const [fromMonth, setFromMonth] = useState(initialMonth);
   const [selected, setSelected] = useState<string[]>([]);
   const [noticeDate, setNoticeDate] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -83,29 +85,29 @@ export function CareNoticeRunStartModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", invalid);
       return;
     }
-    setSaving(true);
-    try {
-      await onStart({
-        year,
-        fromMonth,
-        schoolIds: selected,
-        noticeDate: noticeDate || null,
-      });
-    } catch (err) {
-      logger.error("care_notice_run_start_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "der Jahreslauf" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onStart({
+          year,
+          fromMonth,
+          schoolIds: selected,
+          noticeDate: noticeDate || null,
+        });
+      } catch (err) {
+        logger.error("care_notice_run_start_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "der Jahreslauf" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Jahreslauf starten"
       size="md"

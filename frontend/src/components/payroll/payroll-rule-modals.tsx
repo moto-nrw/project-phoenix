@@ -4,6 +4,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -90,7 +91,8 @@ export function CreateWageTypeModal({
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [unit, setUnit] = useState<WageTypeUnit>("stunden");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
 
   const numberValid = number.trim() === "" || /^\d{1,4}$/.test(number.trim());
 
@@ -105,17 +107,21 @@ export function CreateWageTypeModal({
   const submit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (name.trim() === "" || !numberValid) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await createWageType({ name: name.trim(), number: number.trim(), unit });
-      close();
-      onCreated();
-    } catch (err) {
-      void formErrors.show(err, { object: "die Lohnart" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await createWageType({
+          name: name.trim(),
+          number: number.trim(),
+          unit,
+        });
+        if (op.isCurrent()) close();
+        onCreated();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Lohnart" });
+      }
+    });
   };
 
   return (
@@ -124,7 +130,7 @@ export function CreateWageTypeModal({
       onClose={close}
       title="Lohnart anlegen"
       size="md"
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       error={formErrors.error}
       footer={
@@ -204,7 +210,8 @@ export function CreateSurchargeRuleModal({
   const [rateType, setRateType] = useState<SurchargeRateType>("prozent");
   const [rate, setRate] = useState("");
   const [wageTypeId, setWageTypeId] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
 
   const choices = wageTypesForRate(wageTypes, rateType);
   const selectedWageType = choices.some((w) => w.id === wageTypeId)
@@ -232,24 +239,24 @@ export function CreateSurchargeRuleModal({
   const submit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!complete || rateValue === null) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await createSurchargeRule({
-        kind,
-        windowStartMinute: kind === "nacht" ? fromMinute : null,
-        windowEndMinute: kind === "nacht" ? untilMinute : null,
-        rateType,
-        rateHundredths: rateValue,
-        wageTypeId: selectedWageType,
-      });
-      close();
-      onCreated();
-    } catch (err) {
-      void formErrors.show(err, { object: "die Zuschlagsregel" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await createSurchargeRule({
+          kind,
+          windowStartMinute: kind === "nacht" ? fromMinute : null,
+          windowEndMinute: kind === "nacht" ? untilMinute : null,
+          rateType,
+          rateHundredths: rateValue,
+          wageTypeId: selectedWageType,
+        });
+        if (op.isCurrent()) close();
+        onCreated();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Zuschlagsregel" });
+      }
+    });
   };
 
   return (
@@ -258,7 +265,7 @@ export function CreateSurchargeRuleModal({
       onClose={close}
       title="Zuschlagsregel anlegen"
       size="md"
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       error={formErrors.error}
       footer={

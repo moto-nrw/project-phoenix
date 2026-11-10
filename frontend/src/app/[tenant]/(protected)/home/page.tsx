@@ -14,7 +14,10 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { redirect } from "next/navigation";
 
 import { HomeBlockContent } from "~/components/home/home-block-content";
-import { HomeBoard } from "~/components/home/home-board";
+import {
+  HomeBoard,
+  preloadHomeBoardEditor,
+} from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
 import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
 import { BookingLeftoverTodos } from "~/components/home/booking-leftover-todos";
@@ -488,8 +491,14 @@ function HomeContent() {
           // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
           // `data-icon-only` an der Hülle hält ihn unter sm in der
           // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am
-          // rechten Rand sitzt.
-          <div data-icon-only="">
+          // rechten Rand sitzt. Zeigen, Fokus oder Antippen laden das
+          // Anpassen schon vor dem Klick (#6469).
+          <div
+            data-icon-only=""
+            onPointerEnter={preloadHomeBoardEditor}
+            onPointerDown={preloadHomeBoardEditor}
+            onFocus={preloadHomeBoardEditor}
+          >
             <Tooltip
               content="Anpassen"
               asChild
@@ -559,6 +568,8 @@ function HomeContent() {
                 variant="primary"
                 size="md"
                 disabled={!homeLayoutReady}
+                onPointerEnter={preloadHomeBoardEditor}
+                onFocus={preloadHomeBoardEditor}
                 onClick={startEditing}
               >
                 Bausteine hinzufügen

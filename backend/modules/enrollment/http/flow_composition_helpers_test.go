@@ -95,7 +95,12 @@ type phaseOfferings struct {
 	rows interface {
 		ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
 		CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
+		CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error)
 	}
+}
+
+func (o phaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error) {
+	return o.rows.CareOfferingBookingsForPhase(ctx, phaseID)
 }
 
 func (o phaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {

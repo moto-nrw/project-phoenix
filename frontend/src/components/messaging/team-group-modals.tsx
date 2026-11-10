@@ -8,6 +8,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
@@ -167,7 +168,8 @@ export function NewTeamGroupModal({
   const { data: session } = useSession();
   const [name, setName] = useState("");
   const { selected, toggle } = useSelection();
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending();
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formError = useApiFormError(formRef);
   const creator = useMemo(
@@ -187,26 +189,26 @@ export function NewTeamGroupModal({
       formError.invalid("Bitte wählen Sie mindestens eine Person aus.");
       return;
     }
-    setSaving(true);
-    formError.clear();
-    try {
-      const group = await api.createGroup(trimmed, [...selected]);
-      onCreated(group.thread_id);
-    } catch (err) {
-      logger.error("team_group_create_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formError.show(err, { object: "der Gruppenchat" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formError.clear();
+      try {
+        const group = await api.createGroup(trimmed, [...selected]);
+        if (op.isCurrent()) onCreated(group.thread_id);
+      } catch (err) {
+        logger.error("team_group_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formError.show(err, { object: "der Gruppenchat" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Neuer Gruppenchat"
       size="md"
@@ -272,7 +274,8 @@ export function AddGroupMembersModal({
   readonly onAdded: (thread: StaffThreadDetail) => void;
 }) {
   const { selected, toggle } = useSelection();
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending();
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formError = useApiFormError(formRef);
   const members = useMemo(
@@ -285,26 +288,29 @@ export function AddGroupMembersModal({
       formError.invalid("Bitte wählen Sie mindestens eine Person aus.");
       return;
     }
-    setSaving(true);
-    formError.clear();
-    try {
-      onAdded(await api.addGroupMembers(thread.thread_id, [...selected]));
-    } catch (err) {
-      logger.error("team_group_members_add_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        thread_id: thread.thread_id,
-      });
-      void formError.show(err, { object: "die Personen" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formError.clear();
+      try {
+        const result = await api.addGroupMembers(thread.thread_id, [
+          ...selected,
+        ]);
+        if (op.isCurrent()) onAdded(result);
+      } catch (err) {
+        logger.error("team_group_members_add_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          thread_id: thread.thread_id,
+        });
+        if (!op.isCurrent()) return;
+        void formError.show(err, { object: "die Personen" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Personen hinzufügen"
       size="md"

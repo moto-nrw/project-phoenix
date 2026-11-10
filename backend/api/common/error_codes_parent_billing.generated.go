@@ -57,6 +57,7 @@ const CodeParentBillingCostBearerInUse = "parent_billing.cost_bearer_in_use"
 const CodeParentBillingCostBearerInactive = "parent_billing.cost_bearer_inactive"
 const CodeParentBillingCostBearerInvalid = "parent_billing.cost_bearer_invalid"
 const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_found"
+const CodeParentBillingCostCenterDateTaken = "parent_billing.cost_center_date_taken"
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDatevBookingsInvalid = "parent_billing.datev_bookings_invalid"
 const CodeParentBillingDatevBookingsTaken = "parent_billing.datev_bookings_taken"
@@ -116,6 +117,7 @@ const CodeParentBillingSepaMandateTextChanged = "parent_billing.sepa_mandate_tex
 const CodeParentBillingSiblingGroupInvalid = "parent_billing.sibling_group_invalid"
 const CodeParentBillingSiblingGroupInvoiced = "parent_billing.sibling_group_invoiced"
 const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_found"
+const CodeParentBillingSollstellungRevenueAccountMissing = "parent_billing.sollstellung_revenue_account_missing"
 
 var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
@@ -174,6 +176,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostBearerInactive, "business_rejection"},
 	{CodeParentBillingCostBearerInvalid, "input"},
 	{CodeParentBillingCostBearerNotFound, "business_rejection"},
+	{CodeParentBillingCostCenterDateTaken, "business_rejection"},
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDatevBookingsInvalid, "business_rejection"},
 	{CodeParentBillingDatevBookingsTaken, "business_rejection"},
@@ -233,6 +236,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingSiblingGroupInvalid, "input"},
 	{CodeParentBillingSiblingGroupInvoiced, "business_rejection"},
 	{CodeParentBillingSiblingGroupNotFound, "business_rejection"},
+	{CodeParentBillingSollstellungRevenueAccountMissing, "business_rejection"},
 }
 
 func init() {

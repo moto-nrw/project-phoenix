@@ -68,12 +68,14 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 	}
 
 	hooks, commitHookCount := afterCommitCheckpoint(ctx)
+	restoreLocks := lockCheckpoint(ctx)
 	operationErr := fn(ctx)
 	if operationErr != nil {
 		if err := uow.savepoint(ctx, RollbackSavepoint); err != nil {
 			return errors.Join(operationErr, SavepointRollbackFailure(fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err)))
 		}
 		discardSavepointCommitHooks(hooks, commitHookCount)
+		restoreLocks()
 		if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
 			return errors.Join(operationErr, SavepointRollbackFailure(fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err)))
 		}

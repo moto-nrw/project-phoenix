@@ -353,7 +353,7 @@ func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templa
 		}
 	}
 	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "instance"`).
-		ColumnExpr(`"instance".id AS id, "instance".date::text AS date, "own".id AS own_participant_id`).
+		ColumnExpr(`"instance".id AS id, "instance".date::text AS date, "own".id AS own_participant_id, "instance".start_time::text AS start_time, "instance".end_time::text AS end_time`).
 		Join(`LEFT JOIN schedule.instance_students AS "own" ON "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id AND "own".student_id = ?`, studentID).
 		Where(`"instance".tenant_id = ?`, tenantID).
 		Where(`"instance".activity_group_id = ?`, templateID).

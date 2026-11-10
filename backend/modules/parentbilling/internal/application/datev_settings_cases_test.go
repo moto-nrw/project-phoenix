@@ -38,6 +38,7 @@ func TestDatevReadinessMatchesTheSettingsCases(t *testing.T) {
 			return parentbilling.DatevSetting{Key: key, Value: value}
 		}
 		locked, _ := values["parent_billing.datev_locked"].(bool)
+		costCenterRequired, _ := values["parent_billing.datev_cost_center_required"].(bool)
 		return parentbilling.DatevSettings{
 			ConsultantNumber: text("parent_billing.datev_consultant_number"),
 			ClientNumber:     text("parent_billing.datev_client_number"),
@@ -46,6 +47,8 @@ func TestDatevReadinessMatchesTheSettingsCases(t *testing.T) {
 			FiscalYearStart:  text("parent_billing.datev_fiscal_year_start"),
 			RevenueAccount:   text("parent_billing.datev_revenue_account"),
 			Locked:           locked,
+			// A Pflicht-KOST1 is a rule of the bookings, not of the settings.
+			CostCenterRequired: costCenterRequired,
 		}
 	}
 	readiness := func(values map[string]any) parentbilling.DatevReadiness {
