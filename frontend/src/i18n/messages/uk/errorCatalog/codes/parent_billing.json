@@ -83,6 +83,7 @@
   "care_notice_run_open": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_notice_run_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_notice_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_notice_recipient_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "sepa_creditor_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "sepa_mandate_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "sepa_mandate_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

@@ -83,6 +83,7 @@
   "care_notice_run_open": "{object} could not be changed. Please check its current status.",
   "care_notice_run_invalid": "{object} could not be saved. Please check your entries.",
   "care_notice_not_found": "{object} could not be changed. Please check its current status.",
+  "care_notice_recipient_changed": "{object} could not be changed. Please check its current status.",
   "sepa_creditor_invalid": "{object} could not be saved. Please check your entries.",
   "sepa_mandate_invalid": "{object} could not be saved. Please check your entries.",
   "sepa_mandate_not_found": "{object} could not be changed. Please check its current status.",

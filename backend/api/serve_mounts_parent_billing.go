@@ -80,7 +80,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/care-meal-tariffs", meals.Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-cost-shares", reductions.CostShareRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
-	root.Mount("/traeger/care-notice-runs", NewCareNoticeHTTP(organizations, settings, schoolSettings, marks).Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-notice-runs", NewCareNoticeHTTP(organizations, settings, schoolSettings, marks, delivery, outcomes).Router(ProtectedTraegerRoutes))
 	terms, datev := NewBillingTermsHTTP(settings)
 	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-billing", terms.FamilyRouter(ProtectedTraegerRoutes))
@@ -149,14 +149,18 @@ func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBran
 
 // NewCareNoticeHTTP binds the Jahresbescheide of the monthly care (#6219,
 // ADR 0182) to the right "Abrechnung" and to the same ports as the monthly
-// run, plus the letterhead of the Träger for page 1 of the Bescheid.
+// run, plus the letterhead of the Träger for page 1 of the Bescheid; their
+// stored originals, mail and print (#6347) to the letterhead and to Delivery
+// like the monthly letters.
 func NewCareNoticeHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings,
-	marks owners.MealAttendanceMarks,
+	marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes,
 ) *parentBillingHTTP.CareNoticeResource {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	notices := parentBillingCompose.NewCareFeeNotices(contracts, parentBillingCareSchools{organizations: organizations},
 		parentBillingSettings{settings: settings}, newParentBillingCareMeals(schoolSettings, marks), newParentBillingLetterheads(settings))
-	return parentBillingHTTP.NewCareNoticeResource(notices, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	post := parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}
+	letters := parentBillingCompose.NewCareNoticeLetters(newParentBillingLetterheads(settings), contracts, post, post)
+	return parentBillingHTTP.NewCareNoticeResource(notices, letters, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

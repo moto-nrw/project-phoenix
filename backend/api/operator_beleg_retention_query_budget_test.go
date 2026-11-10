@@ -36,7 +36,7 @@ func TestOperatorBelegRetentionOverviewQueryBudget(t *testing.T) {
 	ctx := provisioningContext(t, db)
 	auth, err := NewConfiguredSessionAuth(viper.GetString("auth_jwt_secret"), viper.GetDuration("auth_jwt_expiry"), viper.GetDuration("auth_jwt_refresh_expiry"))
 	require.NoError(t, err)
-	token, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operatorID, "127.0.0.1", "beleg-budget")
+	token, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operatorID, nil, "127.0.0.1", "beleg-budget")
 	require.NoError(t, err)
 	routes := newOperatorIdentity(auth, identity).routes()
 	router := chi.NewRouter()

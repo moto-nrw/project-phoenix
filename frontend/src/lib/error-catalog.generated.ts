@@ -891,6 +891,8 @@ export const ERROR_CATALOG = {
         "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_notice_not_found":
         "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_recipient_changed":
+        "Die Person oder ihre E-Mail-Adresse hat sich seit dem Ausstellen geändert. Drucken Sie den gespeicherten Bescheid. Geben Sie ihn der Familie auf Papier.",
       "parent_billing.care_notice_run_invalid":
         "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
       "parent_billing.care_notice_run_not_found":

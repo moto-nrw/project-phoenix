@@ -24,9 +24,9 @@ func TestIntegration_OperatorLogout_RevokesOnlyTheFamily(t *testing.T) {
 	ctx := context.Background()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-logout"), testPassword)
 
-	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	otherAccess, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	otherAccess, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 	family, otherFamily := accessSessionOf(t, access).FamilyID, accessSessionOf(t, otherAccess).FamilyID
 	require.NotEqual(t, family, otherFamily)
@@ -59,7 +59,7 @@ func TestIntegration_OperatorLogout_CatchesAConcurrentRotation(t *testing.T) {
 	identity := buildOperatorIdentity(t, db)
 	ctx := context.Background()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-logout-race"), testPassword)
-	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 	family := accessSessionOf(t, access).FamilyID
 

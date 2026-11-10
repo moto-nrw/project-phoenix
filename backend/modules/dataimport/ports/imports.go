@@ -157,6 +157,15 @@ type ChunkWriter[T any] interface {
 	CreateChunk(ctx context.Context, rows []T, bounded BatchStatement) error
 }
 
+// ConsentTransition is one consent-history transition of a batch.
+type ConsentTransition = consents.ConsentTransition
+
+// ConsentTransitionBatches is the Audit consent-history batch slice of the
+// student chunk executor (#5552).
+type ConsentTransitionBatches interface {
+	RecordTransitionsAll(context.Context, []ConsentTransition) error
+}
+
 // StudentImportDeps are the consumer-owned ports of the student import.
 // Persons, Students and Guardians are the People Directory; Schedules is
 // Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
@@ -171,6 +180,11 @@ type StudentImportDeps struct {
 	Guardians       GuardianDirectory
 	Schedules       StudentSchedules
 	PrivacyConsents PrivacyConsents
+	// PrivacyConsentBatches is Student Presence's consent batch slice and
+	// ConsentHistoryBatches the Audit recorder's; without both every chunk
+	// takes the row path.
+	PrivacyConsentBatches PrivacyConsentBatches
+	ConsentHistoryBatches ConsentTransitionBatches
 	// FindRFIDCard resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
 	FindRFIDCard   func(context.Context, string) (string, bool, error)

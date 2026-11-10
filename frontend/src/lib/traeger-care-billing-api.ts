@@ -1093,7 +1093,7 @@ export interface CareLetterMailing {
  * The letters of a run by the state of their last mail. `notSent` includes
  * `withoutEmail`, the letters of families without an address.
  */
-export interface CareLetterSummary {
+interface CareLetterSummary {
   readonly letters: number;
   readonly sent: number;
   readonly queued: number;

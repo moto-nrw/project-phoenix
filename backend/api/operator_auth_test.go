@@ -57,7 +57,7 @@ func (m *mockOperatorAuthService) SetMFAService(_ identityaccess.OperatorMFAFlow
 // IssueTokensForAuthenticatedOperator no-op stub. The legacy auth_test cases
 // exercise the password-only Login flow; the new MFA verify flow has its own
 // tests in mfa_internal_test.go that wire a dedicated stub.
-func (m *mockOperatorAuthService) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error) {
+func (m *mockOperatorAuthService) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, _ *int64, ipAddress, userAgent string) (string, string, error) {
 	return "", "", nil
 }
 

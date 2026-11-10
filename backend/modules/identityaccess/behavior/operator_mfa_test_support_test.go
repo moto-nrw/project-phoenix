@@ -42,6 +42,17 @@ func newTestOperatorMFAService(t *testing.T, options ...api.AuthTestOption) (ide
 	return module.OperatorMFA, challengeTokenAuth(t, module), db
 }
 
+// currentOperatorProof is the proof a code redeemed under the operator's
+// current password hands the exchange (#6308): the device it remembers is
+// bound to that credential generation.
+func currentOperatorProof(t *testing.T, db *bun.DB, operatorID int64) identityaccess.OperatorMFAProof {
+	t.Helper()
+	proof := identityaccess.OperatorMFAProof{OperatorID: operatorID}
+	require.NoError(t, db.NewRaw(`SELECT credential_generation FROM platform.operators WHERE id = ?`, operatorID).
+		Scan(context.Background(), &proof.CredentialGeneration))
+	return proof
+}
+
 // operatorChallengeRow is the test's read side of
 // platform.operator_mfa_email_challenges.
 type operatorChallengeRow struct {

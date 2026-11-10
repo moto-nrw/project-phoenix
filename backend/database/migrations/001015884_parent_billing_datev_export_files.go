@@ -14,8 +14,8 @@ func init() {
 		Version:     parentBillingDatevExportFilesVersion,
 		Description: "Elternabrechnung: DATEV-Buchungsstapel im Exportprotokoll (#4694)",
 		DependsOn: []string{
-			traegerClosingDaysVersion,       // the newest migration on development (1.15.881)
-			parentBillingExportFilesVersion, // the protocol whose formats this one extends (1.15.875)
+			parentBillingCareNoticeLettersVersion, // the newest migration on development (1.15.883)
+			parentBillingExportFilesVersion,       // the protocol whose formats this one extends (1.15.875)
 		},
 	})
 	Migrations.MustRegister(parentBillingDatevExportFilesUp, parentBillingDatevExportFilesDown)

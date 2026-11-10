@@ -2502,7 +2502,9 @@ export interface ParentDocument {
   /**
    * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
    * a care contract (#4678), or the letter of a monthly invoice and of its
-   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`.
+   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`, or
+   * a Jahresbescheid and its Änderungsbescheid (#6347), named
+   * „Betreuung 2027“.
    */
   readonly kind:
     | "confirmation_letter"
@@ -2510,6 +2512,8 @@ export interface ParentDocument {
     | "credit_letter"
     | "care_invoice_letter"
     | "care_cancellation_letter"
+    | "care_fee_notice"
+    | "care_change_notice"
     | "care_contract";
   readonly number: string;
   readonly period_name: string;

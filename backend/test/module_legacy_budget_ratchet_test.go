@@ -263,7 +263,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // directory of modules/identityaccess/compose (+11), the PAIN.008 files of
 // the Träger package (+7) and the expiry of the unsubmitted PAIN.008
 // downloads (+5) of modules/parentbilling/compose.
-const moduleComposeBudgetTotal = 13232
+// ADR 0191: the constructor of the stored originals of the Jahresbescheide
+// of modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13237
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -359,7 +361,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0192: the export opener of the sealed bank data (+5).
 	// ADR 0187: the PAIN.008 files of the Träger package (+7), the expiry of
 	// the unsubmitted PAIN.008 downloads (+5).
-	"modules/parentbilling/compose":               119,
+	// ADR 0191: the constructor of the stored originals of the
+	// Jahresbescheide (+5).
+	"modules/parentbilling/compose":               124,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).

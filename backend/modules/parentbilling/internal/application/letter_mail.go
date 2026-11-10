@@ -25,6 +25,9 @@ const (
 	invoiceLetterMailTemplate    = "billing-invoice-letter.html"
 	noticeLetterMailTemplate     = "billing-notice-letter.html"
 	noticeCorrectionMailTemplate = "billing-notice-correction-letter.html"
+	// careChangeNoticeMailTemplate carries the change notice of a
+	// Jahresbescheid (#6347); it may raise or lower the amount.
+	careChangeNoticeMailTemplate = "billing-care-change-notice-letter.html"
 )
 
 // letterKindOf is the kind of document a mail names: empty for the kinds
@@ -38,6 +41,9 @@ func letterKindOf(documentKind string) string {
 
 // letterMailOf is the subject and the template of a letter mail.
 func letterMailOf(mail parentbilling.BillingLetterMail) (string, string) {
+	if subject, template, ok := careNoticeMailOf(mail.DocumentKind); ok {
+		return subject, template
+	}
 	correction := mail.DocumentKind == parentbilling.DocumentCancellation || mail.DocumentKind == parentbilling.MailDocumentCareCancellation
 	switch {
 	case mail.LetterKind == parentbilling.DocumentKindFeeNotice && correction:
@@ -61,6 +67,18 @@ func letterMailOf(mail parentbilling.BillingLetterMail) (string, string) {
 		return "Ihre Rechnung", invoiceLetterMailTemplate
 	}
 	return "Bestätigung und Rechnung", letterMailTemplate
+}
+
+// careNoticeMailOf is the subject and the template of the mail of a
+// Jahresbescheid (#6347).
+func careNoticeMailOf(documentKind string) (string, string, bool) {
+	switch documentKind {
+	case parentbilling.MailDocumentCareFeeNotice:
+		return "Ihr Gebührenbescheid", noticeLetterMailTemplate, true
+	case parentbilling.MailDocumentCareChangeNotice:
+		return "Änderungsbescheid zu Ihrem Gebührenbescheid", careChangeNoticeMailTemplate, true
+	}
+	return "", "", false
 }
 
 // RenderLetterMail turns the payload of a claimed letter mail into the mail

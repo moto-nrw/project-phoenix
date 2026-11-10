@@ -33,7 +33,7 @@ func NewSettingsBudgetRouterForTest(ctx context.Context, db transactionruntime.D
 	if err != nil {
 		return nil, "", err
 	}
-	token, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operatorID, "127.0.0.1", "settings-budget-test")
+	token, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operatorID, nil, "127.0.0.1", "settings-budget-test")
 	if err != nil {
 		return nil, "", err
 	}

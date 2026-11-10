@@ -24,7 +24,7 @@ func TestOperatorDeactivationCatchesAConcurrentRefresh(t *testing.T) {
 	ctx := context.Background()
 	actor := testpkg.CreateTestOperator(t, db)
 	target := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-deactivation-race"), testPassword)
-	_, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, target.ID, "127.0.0.1", "ua")
+	_, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, target.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 
 	// The holder stands in for the moment the refresh holds its session row:
