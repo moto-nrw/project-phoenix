@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // ListExport is a list of the meal plan as an export renders it: the
@@ -118,14 +119,11 @@ var weekdayAbbreviations = [...]string{"Mo", "Di", "Mi", "Do", "Fr"}
 func SortDailyParticipants(participants []DailyParticipant) {
 	sort.SliceStable(participants, func(left, right int) bool {
 		a, b := participants[left], participants[right]
-		if a.SchoolClass != b.SchoolClass {
-			return a.SchoolClass < b.SchoolClass
+		if order := collation.CompareSchoolClasses(a.SchoolClass, b.SchoolClass); order != 0 {
+			return order < 0
 		}
-		if a.LastName != b.LastName {
-			return a.LastName < b.LastName
-		}
-		if a.FirstName != b.FirstName {
-			return a.FirstName < b.FirstName
+		if order := collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName); order != 0 {
+			return order < 0
 		}
 		return a.StudentID < b.StudentID
 	})

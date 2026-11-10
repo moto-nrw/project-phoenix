@@ -474,27 +474,6 @@ func (s *sickCascade) reactivateStampedShifts(ctx context.Context, report sickRe
 	return nil
 }
 
-func (s *sickCascade) reactivateStampedShift(ctx context.Context, report sickReport, shift workforce.StaffShift) error {
-	covers, err := s.shifts.ListStaffShifts(ctx, workforce.StaffShiftFilter{
-		OriginShiftID: shift.ID,
-		Order:         []workforce.StaffShiftOrder{{Field: workforce.StaffShiftOrderStartTime}},
-	})
-	if err != nil {
-		return fmt.Errorf("sick clear: load covers of shift %d: %w", shift.ID, err)
-	}
-	if !shift.Cancelled || len(covers) > 0 {
-		return s.releaseStampedShift(ctx, shift, len(covers))
-	}
-	// Reactivation clears sick_absence_id and change_reason via the ordinary
-	// update path and re-checks overlap against the freed window.
-	if _, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-		ShiftID: shift.ID, Cancelled: false, ActorStaffID: report.actorStaffID,
-	}); err != nil {
-		return fmt.Errorf("sick clear: reactivate shift %d: %w", shift.ID, err)
-	}
-	return nil
-}
-
 func (s *sickCascade) releaseStampedShift(ctx context.Context, shift workforce.StaffShift, replacementCount int) error {
 	if _, err := s.shifts.SetStaffShiftSickAbsence(ctx, shift.ID, nil); err != nil {
 		return fmt.Errorf("sick clear: release shift %d: %w", shift.ID, err)

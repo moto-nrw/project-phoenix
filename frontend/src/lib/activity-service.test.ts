@@ -25,10 +25,6 @@ vi.mock("./activity-api", () => ({
   unenrollStudent: vi.fn(),
   getActivitySchedules: vi.fn(),
   getActivitySchedule: vi.fn(),
-  getAvailableTimeSlots: vi.fn(),
-  createActivitySchedule: vi.fn(),
-  updateActivitySchedule: vi.fn(),
-  deleteActivitySchedule: vi.fn(),
   getActivitySupervisors: vi.fn(),
   getAvailableSupervisors: vi.fn(),
   assignSupervisor: vi.fn(),
@@ -52,10 +48,6 @@ describe("ActivityService", () => {
   let mockUnenrollStudent: ReturnType<typeof vi.fn>;
   let mockGetActivitySchedules: ReturnType<typeof vi.fn>;
   let mockGetActivitySchedule: ReturnType<typeof vi.fn>;
-  let mockGetAvailableTimeSlots: ReturnType<typeof vi.fn>;
-  let mockCreateActivitySchedule: ReturnType<typeof vi.fn>;
-  let mockUpdateActivitySchedule: ReturnType<typeof vi.fn>;
-  let mockDeleteActivitySchedule: ReturnType<typeof vi.fn>;
   let mockGetActivitySupervisors: ReturnType<typeof vi.fn>;
   let mockGetAvailableSupervisors: ReturnType<typeof vi.fn>;
   let mockAssignSupervisor: ReturnType<typeof vi.fn>;
@@ -92,14 +84,6 @@ describe("ActivityService", () => {
       activityApiModule.getActivitySchedules as typeof mockGetActivitySchedules;
     mockGetActivitySchedule =
       activityApiModule.getActivitySchedule as typeof mockGetActivitySchedule;
-    mockGetAvailableTimeSlots =
-      activityApiModule.getAvailableTimeSlots as typeof mockGetAvailableTimeSlots;
-    mockCreateActivitySchedule =
-      activityApiModule.createActivitySchedule as typeof mockCreateActivitySchedule;
-    mockUpdateActivitySchedule =
-      activityApiModule.updateActivitySchedule as typeof mockUpdateActivitySchedule;
-    mockDeleteActivitySchedule =
-      activityApiModule.deleteActivitySchedule as typeof mockDeleteActivitySchedule;
     mockGetActivitySupervisors =
       activityApiModule.getActivitySupervisors as typeof mockGetActivitySupervisors;
     mockGetAvailableSupervisors =
@@ -329,35 +313,6 @@ describe("ActivityService", () => {
       expect(result).toBe(mockSchedule);
     });
 
-    it("getAvailableTimeSlots delegates to API with date", async () => {
-      const mockSlots = [{ weekday: "monday", timeframe_id: "t1" }];
-      mockGetAvailableTimeSlots.mockResolvedValue(mockSlots);
-
-      const result = await activityService.getAvailableTimeSlots(
-        "activity-1",
-        "2024-01-15",
-      );
-
-      expect(mockGetAvailableTimeSlots).toHaveBeenCalledWith(
-        "activity-1",
-        "2024-01-15",
-      );
-      expect(result).toBe(mockSlots);
-    });
-
-    it("getAvailableTimeSlots delegates to API without date", async () => {
-      const mockSlots = [{ weekday: "monday" }];
-      mockGetAvailableTimeSlots.mockResolvedValue(mockSlots);
-
-      const result = await activityService.getAvailableTimeSlots("activity-1");
-
-      expect(mockGetAvailableTimeSlots).toHaveBeenCalledWith(
-        "activity-1",
-        undefined,
-      );
-      expect(result).toBe(mockSlots);
-    });
-
     it("getTimeframes delegates to API", async () => {
       const mockTimeframes: Timeframe[] = [
         { id: "1", name: "Morning" } as Timeframe,
@@ -368,101 +323,6 @@ describe("ActivityService", () => {
 
       expect(mockGetTimeframes).toHaveBeenCalled();
       expect(result).toBe(mockTimeframes);
-    });
-
-    it("createActivitySchedule delegates to API", async () => {
-      const scheduleData: Partial<ActivitySchedule> = { weekday: "monday" };
-      const mockSchedule: ActivitySchedule = {
-        id: "1",
-        weekday: "monday",
-      } as ActivitySchedule;
-      mockCreateActivitySchedule.mockResolvedValue(mockSchedule);
-
-      const result = await activityService.createActivitySchedule(
-        "activity-1",
-        scheduleData,
-      );
-
-      expect(mockCreateActivitySchedule).toHaveBeenCalledWith(
-        "activity-1",
-        scheduleData,
-      );
-      expect(result).toBe(mockSchedule);
-    });
-
-    it("updateActivitySchedule delegates to API", async () => {
-      const scheduleData: Partial<ActivitySchedule> = { weekday: "tuesday" };
-      const mockSchedule: ActivitySchedule = {
-        id: "1",
-        weekday: "tuesday",
-      } as ActivitySchedule;
-      mockUpdateActivitySchedule.mockResolvedValue(mockSchedule);
-
-      const result = await activityService.updateActivitySchedule(
-        "activity-1",
-        "schedule-1",
-        scheduleData,
-      );
-
-      expect(mockUpdateActivitySchedule).toHaveBeenCalledWith(
-        "activity-1",
-        "schedule-1",
-        scheduleData,
-      );
-      expect(result).toBe(mockSchedule);
-    });
-
-    it("deleteActivitySchedule delegates to API", async () => {
-      mockDeleteActivitySchedule.mockResolvedValue(true);
-
-      const result = await activityService.deleteActivitySchedule(
-        "activity-1",
-        "schedule-1",
-      );
-
-      expect(mockDeleteActivitySchedule).toHaveBeenCalledWith(
-        "activity-1",
-        "schedule-1",
-      );
-      expect(result).toBe(true);
-    });
-  });
-
-  describe("alias methods for compatibility", () => {
-    it("deleteTimeSlot delegates to deleteActivitySchedule", async () => {
-      mockDeleteActivitySchedule.mockResolvedValue(true);
-
-      const result = await activityService.deleteTimeSlot(
-        "activity-1",
-        "time-1",
-      );
-
-      expect(mockDeleteActivitySchedule).toHaveBeenCalledWith(
-        "activity-1",
-        "time-1",
-      );
-      expect(result).toBe(true);
-    });
-
-    it("addTimeSlot formats data and calls createActivitySchedule", async () => {
-      const timeData = {
-        weekday: "Monday",
-        startTime: "09:00",
-        endTime: "10:00",
-      };
-      const mockSchedule: ActivitySchedule = {
-        id: "1",
-        weekday: "monday",
-      } as ActivitySchedule;
-      mockCreateActivitySchedule.mockResolvedValue(mockSchedule);
-
-      const result = await activityService.addTimeSlot("activity-1", timeData);
-
-      expect(mockCreateActivitySchedule).toHaveBeenCalledWith("activity-1", {
-        activity_id: "activity-1",
-        weekday: "monday",
-      });
-      expect(result).toBe(mockSchedule);
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET, POST } from "./route";
+import { GET } from "./route";
 import {
   type ExtendedSession,
   createMockContext,
@@ -57,12 +57,6 @@ vi.mock("~/lib/activity-helpers", () => ({
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
@@ -132,69 +126,5 @@ describe("GET /api/activities/[id]/schedules", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Failed to fetch schedules");
-  });
-});
-
-describe("POST /api/activities/[id]/schedules", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("creates schedule with wrapped response", async () => {
-    const schedule = { id: 1, activity_id: 1, weekday: 1, timeframe_id: 1 };
-    mockApiPost.mockResolvedValueOnce({
-      status: "success",
-      data: schedule,
-    });
-
-    const request = createMockRequest("/api/activities/1/schedules", {
-      method: "POST",
-      body: { weekday: "1", timeframe_id: 1 },
-    });
-    const response = await POST(request, createMockContext({ id: "1" }));
-
-    expect(mockApiPost).toHaveBeenCalledWith(
-      "/api/activities/1/schedules",
-      "test-token",
-      { weekday: "1", timeframe_id: 1 },
-    );
-    expect(response.status).toBe(200);
-
-    const json =
-      await parseJsonResponse<ApiResponse<typeof schedule>>(response);
-    expect(json.data).toEqual(schedule);
-  });
-
-  it("creates schedule with direct response", async () => {
-    const schedule = { id: 1, activity_id: 1, weekday: 1, timeframe_id: 1 };
-    mockApiPost.mockResolvedValueOnce(schedule);
-
-    const request = createMockRequest("/api/activities/1/schedules", {
-      method: "POST",
-      body: { weekday: "1" },
-    });
-    const response = await POST(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(200);
-
-    const json =
-      await parseJsonResponse<ApiResponse<typeof schedule>>(response);
-    expect(json.data).toEqual(schedule);
-  });
-
-  it("throws error on unexpected response structure", async () => {
-    mockApiPost.mockResolvedValueOnce({ unexpected: "structure" });
-
-    const request = createMockRequest("/api/activities/1/schedules", {
-      method: "POST",
-      body: { weekday: "1" },
-    });
-    const response = await POST(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Unexpected response structure");
   });
 });

@@ -250,3 +250,61 @@ func TestSickReport_LaterSeriesSkipsWindowOfSickCancelledShift(t *testing.T) {
 	e.deleteSickAbsence(t, absenceID)
 	assertPlanned(t, e.seriesShift(t, earlier, stampWeekTwo), "earlier shift after the deletion")
 }
+
+// Deleting a sick report must not restore a detached cancellation beyond
+// the current segment's exclusive validity, including after a shorter split.
+func TestSickReport_DeletingReportDoesNotReviveEndedSeriesShift(t *testing.T) {
+	t.Parallel()
+	for _, split := range []bool{false, true} {
+		t.Run(fmt.Sprintf("split=%t", split), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			e := buildSickCascadeEnv(t)
+			periodID := e.createSeriesPeriod(t)
+			from := calendar.NewDate(2026, time.November, 9)
+			endedFrom := from.AddDays(7)
+			sickDay := from.AddDays(14)
+			var seriesID int64
+			e.inTx(t, func(ctx context.Context) error {
+				created, err := e.Planning.CreateSeries(ctx, workforce.CreateStaffShiftSeries{StaffShiftSeriesInput: workforce.StaffShiftSeriesInput{
+					StaffID: e.subject.ID, Weekdays: []int{1}, StartTime: clock("08:00"), EndTime: clock("12:00"),
+					CalendarPeriodID: periodID, ValidFrom: from.String(), ValidUntil: from.AddDays(22).String(), ActorStaffID: e.admin.ID,
+				}})
+				seriesID = created.SeriesID
+				return err
+			})
+			absenceID := e.createSickAbsence(t, sickDay, sickDay)
+			assertSickCancelled(t, e.seriesShift(t, seriesID, sickDay), absenceID, "before ending the series")
+			e.inTx(t, func(ctx context.Context) error {
+				if !split {
+					_, err := e.Planning.EndSeries(ctx, seriesID, endedFrom.String())
+					return err
+				}
+				result, err := e.Planning.SplitSeries(ctx, workforce.SplitStaffShiftSeries{
+					SeriesID: seriesID, EffectiveDate: from.String(), ValidUntilSet: true, ValidUntil: endedFrom.String(),
+					StartTime: clock("08:00"), EndTime: clock("12:00"), ActorStaffID: e.admin.ID,
+				})
+				seriesID = result.SeriesID
+				return err
+			})
+			e.deleteSickAbsence(t, absenceID)
+			shifts, err := e.shifts.ListStaffShifts(e.ctx, workforce.StaffShiftFilter{StaffID: e.subject.ID, From: sickDay.String(), To: sickDay.String()})
+			require.NoError(t, err)
+			assert.Empty(t, shifts, "23 November is not planned after the series ends on 16 November")
+			earlier, err := e.shifts.ListStaffShifts(e.ctx, workforce.StaffShiftFilter{StaffID: e.subject.ID, From: from.String(), To: from.String()})
+			require.NoError(t, err)
+			require.Len(t, earlier, 1, "the still-valid occurrence is preserved")
+			assertPlanned(t, earlier[0], "the still-valid occurrence")
+			// This cleanup is not an admin's deliberate one-occurrence
+			// removal. Extending the series later may plan the date again.
+			e.inTx(t, func(ctx context.Context) error {
+				result, err := e.Planning.SplitSeries(ctx, workforce.SplitStaffShiftSeries{
+					SeriesID: seriesID, EffectiveDate: from.String(), ValidUntilSet: true, ValidUntil: from.AddDays(22).String(),
+					StartTime: clock("08:00"), EndTime: clock("12:00"), ActorStaffID: e.admin.ID,
+				})
+				seriesID = result.SeriesID
+				return err
+			})
+			assertPlanned(t, e.seriesShift(t, seriesID, sickDay), "a later extension may plan the date again")
+		})
+	}
+}
