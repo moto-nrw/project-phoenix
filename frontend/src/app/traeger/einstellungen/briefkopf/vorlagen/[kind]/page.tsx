@@ -440,9 +440,9 @@ function TemplateEditorPage({
                 </form>
               </SectionCard>
             </div>
-            {/* Below xl the preview comes last: the placeholders insert at
-                the caret of the text field and belong right under it. */}
-            <div className="order-last min-w-0 xl:sticky xl:top-6 xl:order-none xl:row-span-3">
+            {/* Below xl the preview follows the form directly: checking the
+                letter after an edit is the frequent step. */}
+            <div className="min-w-0 xl:sticky xl:top-6 xl:row-span-3">
               <SectionCard
                 title="Vorschau"
                 description="So sieht der ganze Brief aus. Kopf, Infoblock und Fußzeile kommen aus dem Briefkopf. Im Brieftext ist alles ein Beispiel: Familie, Kinder, Beträge, Schulen und Ansprechperson."

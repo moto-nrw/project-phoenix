@@ -31,11 +31,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { StatCard } from "~/components/ui/stat-card";
-import {
-  TenantPage,
-  TenantPageStats,
-  TenantPageListSearch,
-} from "~/components/ui/tenant-page";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   SCHOOL_SWITCH_MISSING_HINT,
   useOpenTraegerSchool,
@@ -558,6 +554,15 @@ export default function TraegerDashboardPage() {
       }
       statsLoading={loading}
       error={error}
+      search={
+        schools.length > 1
+          ? {
+              value: search,
+              onChange: setSearch,
+              placeholder: "Schule oder Ort",
+            }
+          : undefined
+      }
     >
       {refreshFailed && snapshot ? (
         // Bestätigte Zahlen bleiben stehen; der Hinweis sagt, wie alt sie sind.
@@ -756,19 +761,7 @@ export default function TraegerDashboardPage() {
           ) : null}
         </SectionCard>
       )}
-      {/* The search filters only this table, so it stands right above it
-          (TENANT-PAGE-SPEC rule 5), not in the head next to the figures it
-          does not touch. */}
-      {schools.length > 1 ? (
-        <TenantPageListSearch
-          label="Schulen suchen"
-          search={{
-            value: search,
-            onChange: setSearch,
-            placeholder: "Schule oder Ort",
-          }}
-        />
-      ) : null}
+
       <DataTable
         heading={{
           title: "Zahlen je Schule",

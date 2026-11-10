@@ -57,16 +57,20 @@ export function TraegerRoleChoice({
       <legend className="mb-2 text-sm font-medium text-gray-700">
         Rolle (mindestens eine)
       </legend>
-      {TRAEGER_ROLES.map((role) => (
-        <CheckboxCard
-          key={role}
-          checked={value.includes(role)}
-          disabled={disabled || locked[role] !== undefined}
-          onChange={() => toggle(role)}
-          label={TRAEGER_ROLE_LABELS[role]}
-          hint={locked[role] ?? ROLE_DESCRIPTIONS[role]}
-        />
-      ))}
+      {/* Two columns from sm on: all seven roles stay in view of the
+          dialog on a laptop or tablet; a phone lists them one below the other. */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {TRAEGER_ROLES.map((role) => (
+          <CheckboxCard
+            key={role}
+            checked={value.includes(role)}
+            disabled={disabled || locked[role] !== undefined}
+            onChange={() => toggle(role)}
+            label={TRAEGER_ROLE_LABELS[role]}
+            hint={locked[role] ?? ROLE_DESCRIPTIONS[role]}
+          />
+        ))}
+      </div>
       <FieldErrorHint id="traeger-roles-error" message={error} />
     </fieldset>
   );

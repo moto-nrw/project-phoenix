@@ -145,9 +145,12 @@ function TraegerSettingsContent() {
       stats={
         tabs.length > 0 ? (
           <TenantPageStats
-            // The tabs count themselves; the line names the values the
-            // Träger set.
-            items={[{ value: fromTraeger, label: "vom Träger festgelegt" }]}
+            items={[
+              // Die Bereiche der Einstellungen und „Kontakt“: auf dem
+              // Telefon liegen einige Reiter außerhalb des Ausschnitts.
+              { value: tabs.length + 1, label: "Bereiche" },
+              { value: fromTraeger, label: "vom Träger festgelegt" },
+            ]}
           />
         ) : null
       }

@@ -45,9 +45,10 @@ describe("TraegerBottomNav", () => {
     sessionUser.permissions = [];
   });
 
-  it("puts the daily work first, then the sidebar order behind Mehr (#5685)", async () => {
-    // Ohne Dashboard (#4674): Ferienbetreuung und Abrechnungsläufe vorn,
-    // danach die Seitenleiste; ab sechs Zielen der Rest hinter „Mehr".
+  it("follows the sidebar: main navigation, the rest behind Mehr (#5685)", async () => {
+    // Ohne Dashboard (#4674): die Reihenfolge der Seitenleiste; die drei
+    // Abrechnungsbereiche füllen die Leiste, Preise, Hilfe und
+    // Einstellungen stehen hinter „Mehr“.
     sessionUser.permissions = [
       "traeger_enrollment:manage",
       "traeger_billing:manage",
@@ -60,9 +61,9 @@ describe("TraegerBottomNav", () => {
         .getAllByRole("link")
         .map((link) => link.getAttribute("aria-label")),
     ).toEqual([
+      "Schulen",
       "Ferienbetreuung",
       "Abrechnungsläufe",
-      "Schulen",
       "Familien und Zahlung",
     ]);
     expect(bar().getByRole("link", { name: "Schulen" })).toHaveAttribute(
@@ -88,17 +89,17 @@ describe("TraegerBottomNav", () => {
       bar()
         .getAllByRole("link")
         .map((link) => link.getAttribute("aria-label")),
-    ).toEqual(["Dashboard", "Ferienbetreuung", "Abrechnungsläufe", "Schulen"]);
+    ).toEqual(["Dashboard", "Schulen", "Stichtagszahlen", "Belegung"]);
     expect(bar().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/uebersicht",
     );
-    expect(
-      bar().getByRole("link", { name: "Abrechnungsläufe" }),
-    ).toHaveAttribute("href", "/abrechnung");
 
     fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
     const drawer = within(await screen.findByRole("dialog"));
+    expect(
+      drawer.getByRole("link", { name: "Abrechnungsläufe" }),
+    ).toHaveAttribute("href", "/abrechnung");
     expect(
       drawer.getByRole("link", { name: "Familien und Zahlung" }),
     ).toHaveAttribute("href", "/abrechnung/familien");

@@ -97,7 +97,7 @@ export function InviteTraegerAccountModal({
       closeDisabled={saving}
       isBackdropDismissDisabled
       title={title}
-      size="md"
+      size="lg"
       error={formErrors.error}
       footer={
         <EditActions
@@ -211,7 +211,7 @@ export function ChangeTraegerRolesModal({
       onClose={onClose}
       closeDisabled={saving}
       title="Rollen ändern"
-      size="md"
+      size="lg"
       error={formErrors.error}
       footer={
         <EditActions

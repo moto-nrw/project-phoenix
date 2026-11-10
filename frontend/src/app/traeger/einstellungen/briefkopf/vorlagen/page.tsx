@@ -46,6 +46,13 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
         {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
       </span>
     ),
+    // On a phone two lines are enough to tell the templates apart; all seven
+    // stay close together. The template's page carries the whole sentence.
+    stackedRender: (template) => (
+      <span className="line-clamp-2 text-sm text-gray-600">
+        {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
+      </span>
+    ),
     stackedLabel: false,
   },
   {
