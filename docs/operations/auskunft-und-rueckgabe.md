@@ -5,7 +5,7 @@ Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemein
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
 [ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
 [ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md),
-[ADR 0196](../adr/0196-mandantenrueckgabe-oeffnet-bankdaten-von-eltern-und-personal-und-den-mandatstext.md)
+[ADR 0197](../adr/0197-mandantenrueckgabe-oeffnet-bankdaten-von-eltern-und-personal-und-den-mandatstext.md)
 und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
 Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
 und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)

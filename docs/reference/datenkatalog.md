@@ -162,14 +162,14 @@ Schlüssel der Installation nutzlos ist. Der Besitzer der Tabelle öffnet ihn
 über `TenantExportSealedFields` (#3838): IBAN und Kontoinhaber der
 SEPA-Mandate und -Lastschriften (Bankring, ADR 0192), der bestätigte
 Mandatstext, IBAN und Kontoinhaber der Eltern, IBAN, Steuer-ID und
-Sozialversicherungsnummer des Personals (Bankring, ADR 0196, #6412) sowie die
+Sozialversicherungsnummer des Personals (Bankring, ADR 0197, #6412) sowie die
 Gesundheitsangaben der Betreuungsprofile, Ferienanmeldungen, -kinder und
 -gäste (Gesundheitsring, ADR 0193, #6328). Die Ferienwerte stehen als der
 JSON-Text, den sie halten. Bei Eltern und Personal heißen die geöffneten
 Spalten `*_opened`, weil die alten Klartextspalten (`iban`, `tax_id` …) bis
 zu ihrem Drop noch bestehen.
 `sealedBindings` reicht dem Besitzer einen Wert einer anderen Tabelle aus
-demselben Snapshot zum Öffnen (ADR 0196): Der Mandatstext ist an die
+demselben Snapshot zum Öffnen (ADR 0197): Der Mandatstext ist an die
 Mandatsreferenz gebunden, die Einwilligungszeile nennt nur `mandate_id`. Der
 Eintrag nennt Zieltabelle, Zielspalte und die Spaltenpaare (`match`), über die
 genau eine Zeile gefunden wird. Der Wert ist keine Exportspalte und steht
