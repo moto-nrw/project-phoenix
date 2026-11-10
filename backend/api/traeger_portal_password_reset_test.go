@@ -98,7 +98,7 @@ func TestTraegerPortalPasswordResetLinksMembersToTheTraegerHost(t *testing.T) {
 // requests an hour, then 429 with the Retry-After the dialog counts down.
 func TestTraegerPortalPasswordResetIsRateLimited(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t) // address counters have no tenant
 	portal, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db), WithAuthTestPasswordResetRateLimit(true))
 	organization := traegerOrganization(t, db, "Träger Grenze", true)
 	member := traegerAccount(t, db, testpkg.NewTestPassword())

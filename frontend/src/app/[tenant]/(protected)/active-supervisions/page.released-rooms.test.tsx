@@ -154,7 +154,6 @@ vi.mock("~/components/ui/modal", () => ({
 // Mock activeService
 vi.mock("~/lib/active-api", () => ({
   activeService: {
-    getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
     claimActiveGroup: vi.fn(() => Promise.resolve()),
@@ -869,11 +868,6 @@ describe("open-room tab onTabChange callback", () => {
   });
 
   it("keeps the last own supervision when selecting a shared room tab", async () => {
-    const { activeService } = await import("~/lib/active-api");
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
-      [] as never,
-    );
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -968,12 +962,6 @@ describe("open-room tab onTabChange callback", () => {
     expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
       "room-1",
     );
-
-    // The room's occupancy already arrived with the dashboard, so opening it
-    // starts no visits request of its own.
-    expect(
-      activeService.getActiveGroupVisitsWithDisplay,
-    ).not.toHaveBeenCalled();
     expect(
       vi
         .mocked(useSWRAuth)
@@ -1355,8 +1343,6 @@ describe("open-room tab onTabChange callback", () => {
   });
 
   it("shows a released room the caller does not supervise", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -1443,11 +1429,6 @@ describe("open-room tab onTabChange callback", () => {
       expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     });
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
-
-    // Its occupancy came with the dashboard; no extra request is made.
-    expect(
-      activeService.getActiveGroupVisitsWithDisplay,
-    ).not.toHaveBeenCalled();
   });
 
   it("opens no released room on its own without an own supervision (#4372)", async () => {
@@ -1504,11 +1485,6 @@ describe("open-room tab onTabChange callback", () => {
   });
 
   it("switching from a released room back to an own session", async () => {
-    const { activeService } = await import("~/lib/active-api");
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
-      [] as never,
-    );
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -1580,12 +1556,6 @@ describe("open-room tab onTabChange callback", () => {
         "/test-tenant/active-supervisions?session=room-1",
       );
     });
-
-    // The room's visits ride in the aggregate (#2096) — no separate
-    // per-room request is issued by the switch.
-    expect(
-      activeService.getActiveGroupVisitsWithDisplay,
-    ).not.toHaveBeenCalled();
   });
 });
 

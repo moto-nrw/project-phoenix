@@ -13,6 +13,8 @@ import (
 // auth.accounts. Every statement runs on the connection the caller's context
 // carries. "Redeemable" compares against the now the caller passes.
 type PasswordResetStore interface {
+	// MigratePasswordResetWindow replaces a legacy plaintext key without resetting its quota.
+	MigratePasswordResetWindow(ctx context.Context, address, key string) error
 	// PasswordResetWindow reads the address's window without counting.
 	PasswordResetWindow(ctx context.Context, email string) (domain.PasswordResetWindow, bool, domain.OperationStats, error)
 	// CountPasswordResetRequest counts one request in the rolling window,

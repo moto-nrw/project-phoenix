@@ -23,8 +23,6 @@ export const WEBP_SIGNATURE: ImageMagicSignature = {
     bytes[11] === 0x50,
 };
 
-export const GIF_SIGNATURE: ImageMagicSignature = { prefix: "47494638" };
-
 export function validateImageMagicBytes(
   buffer: ArrayBuffer,
   signatures: readonly ImageMagicSignature[],

@@ -5501,16 +5501,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectGradeLevel",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.enrollmentRolloverSettings.CollectGradeLevel. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.CollectSchoolClass",
       "classification": "query",
       "effect": "query",
@@ -5531,16 +5521,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectSchoolClass",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectSchoolClass",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.enrollmentRolloverSettings.CollectSchoolClass. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.GradeLevelMax",
       "classification": "query",
       "effect": "query",
@@ -5558,16 +5538,6 @@
       "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.EnrollmentCollectionSettings.GradeLevelMax. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.GradeLevelMax",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.enrollmentRolloverSettings.GradeLevelMax. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform"
     },
     {
@@ -7155,6 +7125,36 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
+      "reason": "Existing read-only CollectGradeLevel binding moved from CollectionSettings to the narrower RolloverSettings port; the target resolver and binding digest are unchanged. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
+      "reason": "Existing read-only GradeLevelMax binding moved from CollectionSettings to the narrower RolloverSettings port; the target resolver and binding digest are unchanged. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.StatusTokenTTLDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
+      "reason": "Read-only TTL lookup through the rollover settings port: ResolveInt reads enrollment.status_token_ttl_days in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",

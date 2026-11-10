@@ -469,7 +469,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/00_migrations.go:DetectVersionCollisions": 76,
 	// ADR 0087.
-	"database/migrations/00_migrations.go:ValidateMigrations": 61,
 	// ADR 0087.
 	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 75,
 	// ADR 0087.

@@ -13,11 +13,6 @@ func (s *Scheduler) scheduleSessionEndTask() {
 		s.getLogger().Info("session end scheduler is disabled via env var")
 		return
 	}
-	// Legacy guard: without settings service, require non-false env var
-	if s.settings == nil && s.env("SESSION_END_SCHEDULER_ENABLED") == "false" {
-		s.getLogger().Info("session end scheduler is disabled")
-		return
-	}
 
 	s.registerTask("session-end", "1m-poll", s.runSessionEndTaskPolling)
 }

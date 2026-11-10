@@ -4017,13 +4017,13 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectSchoolClass",
+      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
-      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "id": "roots/owners/enrollmentRolloverSettings.StatusTokenTTLDays",
+      "reason": "Settings key mapping for the rollover status-token lifetime; ADR 0075 owner-port binding, unclassified source evidence under ADR 0090. No new forwarding debt."
     },
     {
       "decision": "0090",

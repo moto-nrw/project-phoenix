@@ -79,7 +79,7 @@ nächtliche Delivery-Aufbewahrung löscht sie vorher. Beim Löschen eines
 Demo-Besuchs entfernt `platform.erase_closed_demo_visitors` seit Migration
 1.15.732 alle Kopien der ausgemusterten Demo-Schule mit (#5540).
 
-**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
+**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --operator … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
 Direkte Tabellen werden per `tenant_id`, Kindtabellen per Katalog-FK-Pfad,
@@ -87,8 +87,9 @@ Schul-/Trägerwurzeln und gemeinsame Konten per ausdrücklicher Schulzuordnung
 ausgewählt. Originaldateien, JSONL-Tabellen, Modellmetadaten und SHA-256-
 Prüfsummen liegen in einem neuen privaten Verzeichnis. Ein Teilfehler
 verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
-alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
-Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
+alle Datei-Kinds und alle ausgeschlossenen Spalten. Seit #6326 verlangt jeder
+Lauf `--operator` und steht im Operator-Protokoll (ADR 0187, Addendum).
+Ausführung, Übergabe und Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle

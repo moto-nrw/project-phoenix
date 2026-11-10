@@ -122,7 +122,7 @@ func BuildIdentityAccess(
 			Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable,
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL, CatererURL: links.CatererURL, TraegerURL: links.TraegerURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		}, authLogger),
+		}, authLogger, cfg.JWTSecret),
 		Invitations: invitationDeps, Traeger: traegerAccountDependencies(mailDispatcher, mailFrom, deliveryRuntime, links, authLogger),
 		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
 			dispatcher: mailDispatcher, defaultFrom: mailFrom, durable: durable,

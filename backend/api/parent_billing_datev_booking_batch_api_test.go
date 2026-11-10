@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -19,6 +20,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type exportSettingsDatevBody struct {
@@ -134,13 +137,25 @@ func TestDatevBatchOfAReleasedRun(t *testing.T) {
 	}
 	assert.Equal(t, []string{"datev", "sollstellung"}, formats)
 
-	// A new file number changes the bytes, but not the bookings. Both
-	// the protocol and the invoice history must name the first download.
+	// The invoice is in a DATEV file now (#6433): a second standard
+	// download makes no file and takes no number.
+	next := exportSettingsDatev(t, f).FileNumbers.Next
 	rec = exportGet(t, f, datevPath)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), common.CodeParentBillingDatevNoNewBookings)
+	assert.Equal(t, next, exportSettingsDatev(t, f).FileNumbers.Next, "no number without a file")
+	assert.Len(t, exportFiles(t, f, ""), 2)
+
+	// "All again" repeats the bookings on purpose. A new file number
+	// changes the bytes, but not the bookings: the protocol and the invoice
+	// history name the first download and mark the repeat.
+	rec = exportGet(t, f, datevPath+"?mode=all")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	files = exportFiles(t, f, "")
 	require.Len(t, files, 3)
 	assert.Equal(t, before.FileNumbers.Next, files[0].RepeatOf)
+	assert.True(t, files[0].DatevAll, "the protocol marks the file of all bookings again")
+	assert.False(t, files[2].DatevAll)
 	assert.NotEqual(t, files[2].Fingerprint, files[0].Fingerprint, "the audit hash covers the actual file metadata")
 	rec = exportGet(t, f, fmt.Sprintf("/invoice-history/care-invoices/%d", invoice))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -148,6 +163,8 @@ func TestDatevBatchOfAReleasedRun(t *testing.T) {
 	last := history.Entries[len(history.Entries)-1].File
 	require.NotNil(t, last)
 	assert.Equal(t, before.FileNumbers.Next, last.RepeatOf)
+	rec = exportGet(t, f, datevPath+"?mode=again")
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 }
 
 // A debtor DATEV refuses names the invoice and takes no number.
@@ -193,4 +210,120 @@ func TestDatevBatchRightsAndTraeger(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), common.CodeParentBillingExportRunNotFound)
 	assert.Zero(t, datevFileCount(t, f))
 	assert.Zero(t, datevFileCount(t, other))
+}
+
+type datevRunsBody struct {
+	Ready bool `json:"ready"`
+	Runs  []struct {
+		RunKind     string   `json:"run_kind"`
+		RunID       int64    `json:"run_id"`
+		NewBookings int      `json:"new_bookings"`
+		FiscalYears []string `json:"fiscal_years"`
+	} `json:"runs"`
+}
+
+func datevNewBookings(t *testing.T, f careBillingFixture, run int64) int {
+	t.Helper()
+	rec := exportGet(t, f, fmt.Sprintf("/datev-runs?care=%d", run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	runs := decodeSchoolPortalData[datevRunsBody](t, rec.Body.Bytes()).Runs
+	require.Len(t, runs, 1)
+	return runs[0].NewBookings
+}
+
+func cancelCareInvoice(t *testing.T, f careBillingFixture, run, invoice int64) {
+	t.Helper()
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run, fmt.Sprintf("/invoices/%d/cancellation", invoice)),
+		map[string]any{"reason": "Falsche Debitorennummer"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+}
+
+// A Storno of an invoice that went to DATEV is a booking of its own in the
+// next file (#6433): Haben on the debtor of the invoice, the invoice is not
+// booked again, and the run counts it as its one new booking.
+func TestDatevBatchBooksALaterStornoOnce(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger DATEV Storno")
+	lia := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", sepaDebitMonth, sjrServices()...)
+	setDebtor(t, f, lia, "10001")
+	run := releaseDebitRun(t, f, sepaDebitMonth)
+	var invoice int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE run_id = ?`, run).Scan(context.Background(), &invoice))
+	setDatevSettings(t, f)
+	datevPath := fmt.Sprintf("/runs/care-runs/%d/datev", run)
+	assert.Equal(t, 1, datevNewBookings(t, f, run))
+	rec := exportGet(t, f, datevPath)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Zero(t, datevNewBookings(t, f, run))
+
+	cancelCareInvoice(t, f, run, invoice)
+	assert.Equal(t, 1, datevNewBookings(t, f, run), "the Storno is new")
+	rec = exportGet(t, f, datevPath)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	lines := strings.Split(strings.TrimSuffix(rec.Body.String(), "\r\n"), "\r\n")
+	require.Len(t, lines, 3, "header, columns and only the Storno")
+	assert.Contains(t, lines[2], `;"H";`, "the Storno relieves the debtor")
+	assert.Contains(t, lines[2], ";10001;4400;")
+	assert.Zero(t, datevNewBookings(t, f, run))
+	rec = exportGet(t, f, datevPath)
+	assert.Equal(t, http.StatusConflict, rec.Code, "the Storno goes to DATEV once: %s", rec.Body.String())
+}
+
+// An invoice whose debtor DATEV refuses locked its run (#6427). Its Storno
+// frees it: the pair never reached DATEV and cancels out, so the run has no
+// booking left and the next one books the reissue (#6433).
+func TestDatevBatchOfARefusedDebtorIsFreedByItsStorno(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger DATEV Sperre")
+	mia := careContract(t, f.db, f.office.organization, f.office.schools[0], "Mia", sepaDebitMonth, sjrServices()...)
+	ida := careContract(t, f.db, f.office.organization, f.office.schools[0], "Ida", sepaDebitMonth, sjrServices()...)
+	setDebtor(t, f, mia, "10 4711")
+	setDebtor(t, f, ida, "10002")
+	run := releaseDebitRun(t, f, sepaDebitMonth)
+	var refused int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE run_id = ? AND debtor_number = '10 4711'`, run).
+		Scan(context.Background(), &refused))
+	setDatevSettings(t, f)
+	datevPath := fmt.Sprintf("/runs/care-runs/%d/datev", run)
+	rec := exportGet(t, f, datevPath)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), common.CodeParentBillingDatevBookingsInvalid)
+
+	cancelCareInvoice(t, f, run, refused)
+	assert.Equal(t, 1, datevNewBookings(t, f, run), "only Ida's invoice is left to book")
+	rec = exportGet(t, f, datevPath)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	lines := strings.Split(strings.TrimSuffix(rec.Body.String(), "\r\n"), "\r\n")
+	require.Len(t, lines, 3, "header, columns and Ida's invoice; the cancelled pair is left out")
+	assert.Contains(t, lines[2], ";10002;4400;")
+	_, content := sollstellung(t, f, run)
+	assert.Contains(t, content, "10 4711", "the Sollstellung keeps the invoice and its Storno")
+}
+
+// The DATEV counts of the export page read the same statements for one run
+// as for several (#6433, query budget).
+func TestDatevRunsQueryBudget(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger DATEV Budget")
+	lia := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", sepaDebitMonth, sjrServices()...)
+	setDebtor(t, f, lia, "10001")
+	first := releaseDebitRun(t, f, sepaDebitMonth)
+	setDatevSettings(t, f)
+	measure := func(path string) testpkg.QueryMeasurement {
+		counter := testpkg.CaptureQueriesForContext(t, f.db)
+		req := httptest.NewRequest(http.MethodGet, financeExportsPath+path, nil)
+		req.Header.Set("Authorization", "Bearer "+f.office.token)
+		rec := httptest.NewRecorder()
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return counter.Measurement(counter.Selects(""))
+	}
+	one := measure(fmt.Sprintf("/datev-runs?care=%d", first))
+	second := releaseDebitRun(t, f, sepaDebitNextMonth)
+	assert.Len(t, measure(fmt.Sprintf("/datev-runs?care=%d,%d&holiday=%d", first, second, second+1000)).Statements, len(one.Statements),
+		"flat in the number of runs")
+	querybudgets.AssertQueryBudget(t, "api.traeger.finance_export_datev_runs", one)
+
+	rec := exportGet(t, f, "/datev-runs?care=x")
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 }

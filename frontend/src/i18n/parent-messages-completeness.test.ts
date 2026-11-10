@@ -89,8 +89,6 @@ describe("complete catalogs for pl, tr and uk", () => {
 // by key so a new German leftover cannot hide behind them.
 const sameWordByLocale: Record<"en" | "ru" | "sq", ReadonlySet<string>> = {
   en: new Set([
-    "parentNav.feedback",
-    "parentFeedback.title",
     "parentDeclaration.confirmVersion",
     "enrollmentForm.actions.details",
     "enrollmentStatus.nameLabel",

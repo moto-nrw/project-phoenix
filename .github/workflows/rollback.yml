@@ -26,6 +26,9 @@ jobs:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Full-state recovery includes archive verification, image pulls, database
+    # and uploads restoration, then healthchecks. Leave time for reporting too.
+    timeout-minutes: 30
     environment:
       name: ${{ inputs.environment }}
     permissions:

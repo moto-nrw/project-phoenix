@@ -70,7 +70,7 @@ func datevRunContent() parentbilling.ExportRunContent {
 		Invoices: []parentbilling.ExportInvoice{
 			{CareInvoiceID: 1, Number: "MB-2026-0001", Kind: "invoice", IssuedOn: october(30), TotalCents: 7800,
 				DebtorNumber: "10001", ChildName: "Lia Müller", ServiceFrom: month},
-			{CareInvoiceID: 1, Number: "ST-2026-0001", Kind: "cancellation", IssuedOn: october(31), TotalCents: -7800,
+			{CareInvoiceID: 1, CareCancellationID: 21, Number: "ST-2026-0001", Kind: "cancellation", IssuedOn: october(31), TotalCents: -7800,
 				DebtorNumber: "10001", ChildName: "Lia Müller", ServiceFrom: month},
 			// A full exemption moves no money and is no booking.
 			{CareInvoiceID: 2, Number: "MB-2026-0002", Kind: "invoice", IssuedOn: october(30), TotalCents: 0,
@@ -96,7 +96,7 @@ func TestDatevFileBooksInvoicesInSollAndStornoInHaben(t *testing.T) {
 	t.Parallel()
 	store := &datevRunStore{content: datevRunContent()}
 	file, err := newFinanceExportsWithDatev(store, runPost{}, datevReadySettings()).
-		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5)
+		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5, parentbilling.DatevFileOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "EXTF_Buchungsstapel_110.csv", file.Entry.FileName, "the file number of the Träger names the file")
@@ -139,7 +139,7 @@ func TestDatevFileOfAHolidayRunCreditsTheCreditNote(t *testing.T) {
 			ChildName: "Lia Müller", ServiceFrom: september},
 	}}}
 	file, err := newFinanceExportsWithDatev(store, runPost{}, datevReadySettings()).
-		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunHoliday, 5)
+		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunHoliday, 5, parentbilling.DatevFileOptions{})
 	require.NoError(t, err)
 	lines := datevLines(t, file.Data)
 	require.Len(t, lines, 4)
@@ -158,7 +158,7 @@ func TestDatevFileFingerprintsBookingsApartFromFileMetadata(t *testing.T) {
 	exports.datev.now = func() time.Time { return now }
 	export := func() parentbilling.ExportFileRecord {
 		t.Helper()
-		_, err := exports.DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5)
+		_, err := exports.DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5, parentbilling.DatevFileOptions{})
 		require.NoError(t, err)
 		return store.records[len(store.records)-1]
 	}
@@ -194,7 +194,7 @@ func TestDatevFileWaitsForTheSettingsWithoutTakingANumber(t *testing.T) {
 		99:                         datevSettingsOf("29098", "55003", "4", "04", "1", "4400"),
 	}}
 	_, err := newFinanceExportsWithDatev(store, runPost{}, settings).
-		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5)
+		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5, parentbilling.DatevFileOptions{})
 	var notReady *parentbilling.DatevNotReadyError
 	require.ErrorAs(t, err, &notReady)
 	assert.Equal(t, []string{"consultant"}, notReady.Readiness.MissingSettings)
@@ -206,22 +206,24 @@ func TestDatevFileWaitsForTheSettingsWithoutTakingANumber(t *testing.T) {
 }
 
 // Invariant 2 and 3: a document DATEV would refuse is named and refuses
-// the file before a number is taken: a missing or not numeric debtor, and a
-// Storno in the next fiscal year.
+// the file before a number is taken: a missing or not numeric debtor. A
+// Storno in the next fiscal year is no longer refused (#6433): it waits for
+// the file of its fiscal year (TestDatevFileBooksALaterStornoInItsOwnFiscalYear).
 func TestDatevFileNamesTheDocumentsDatevWouldRefuse(t *testing.T) {
 	t.Parallel()
 	content := datevRunContent()
-	content.Invoices[0].DebtorNumber = ""
 	content.Invoices[3].DebtorNumber = "10 003"
-	content.Invoices[1].IssuedOn = calendar.NewDate(2027, time.January, 4)
+	// An invoice without a debtor and without a Storno; one with a Storno
+	// that never went to DATEV is left out instead (datev_run_selection.go).
+	content.Invoices = append(content.Invoices, parentbilling.ExportInvoice{CareInvoiceID: 4, Number: "MB-2026-0004",
+		Kind: "invoice", IssuedOn: calendar.NewDate(2026, time.October, 30), TotalCents: 7800, ServiceFrom: calendar.NewDate(2026, time.October, 1)})
 	store := &datevRunStore{content: content}
 	_, err := newFinanceExportsWithDatev(store, runPost{}, datevReadySettings()).
-		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5)
+		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5, parentbilling.DatevFileOptions{})
 	var refused *parentbilling.DatevBookingsError
 	require.ErrorAs(t, err, &refused)
 	assert.ElementsMatch(t, []parentbilling.DatevBookingProblem{
-		{DocumentNumber: "MB-2026-0001", Field: parentbilling.DatevBookingAccount, Reason: parentbilling.DatevProblemMissing},
-		{DocumentNumber: "ST-2026-0001", Field: parentbilling.DatevBookingDate, Reason: parentbilling.DatevProblemOutOfPeriod},
+		{DocumentNumber: "MB-2026-0004", Field: parentbilling.DatevBookingAccount, Reason: parentbilling.DatevProblemMissing},
 		{DocumentNumber: "MB-2026-0003", Field: parentbilling.DatevBookingAccount, Reason: parentbilling.DatevProblemInvalid},
 	}, refused.Problems)
 	assert.Zero(t, store.reserved)
@@ -234,12 +236,12 @@ func TestDatevFileOfARunWithoutAmountsIsEmpty(t *testing.T) {
 	content.Invoices = content.Invoices[2:3]
 	store := &datevRunStore{content: content}
 	_, err := newFinanceExportsWithDatev(store, runPost{}, datevReadySettings()).
-		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5)
+		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5, parentbilling.DatevFileOptions{})
 	require.ErrorIs(t, err, parentbilling.ErrExportRunEmpty)
 	assert.Zero(t, store.reserved)
 
 	_, err = newFinanceExportsWithDatev(store, runPost{}, datevReadySettings()).
-		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunNotice, 5)
+		DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunNotice, 5, parentbilling.DatevFileOptions{})
 	require.ErrorIs(t, err, parentbilling.ErrExportRunNotFound, "the Jahresbescheide have no DATEV batch")
 	assert.False(t, errors.Is(err, parentbilling.ErrExportRunEmpty))
 }

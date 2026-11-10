@@ -1,15 +1,6 @@
 {
-  "api/me": [
-    "GET tenant /api/me"
-  ],
   "api/me/groups": [
     "GET tenant /api/me/groups"
-  ],
-  "api/me/groups/active": [
-    "GET tenant /api/me/groups/active"
-  ],
-  "api/me/groups/activity": [
-    "GET tenant /api/me/groups/activity"
   ],
   "api/me/groups/supervised": [
     "GET tenant /api/me/groups/supervised"
@@ -20,8 +11,5 @@
   ],
   "api/me/staff": [
     "GET tenant /api/me/staff"
-  ],
-  "api/me/teacher": [
-    "GET tenant /api/me/teacher"
   ]
 }

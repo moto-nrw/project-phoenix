@@ -59,6 +59,8 @@ const CodeParentBillingCostBearerInvalid = "parent_billing.cost_bearer_invalid"
 const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_found"
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDatevBookingsInvalid = "parent_billing.datev_bookings_invalid"
+const CodeParentBillingDatevBookingsTaken = "parent_billing.datev_bookings_taken"
+const CodeParentBillingDatevNoNewBookings = "parent_billing.datev_no_new_bookings"
 const CodeParentBillingDatevNotReady = "parent_billing.datev_not_ready"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
@@ -174,6 +176,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostBearerNotFound, "business_rejection"},
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDatevBookingsInvalid, "business_rejection"},
+	{CodeParentBillingDatevBookingsTaken, "business_rejection"},
+	{CodeParentBillingDatevNoNewBookings, "business_rejection"},
 	{CodeParentBillingDatevNotReady, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},

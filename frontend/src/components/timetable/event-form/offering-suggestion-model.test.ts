@@ -5,7 +5,6 @@ import {
   draftPreviewQuery,
   mapOfferingSuggestion,
   suggestionQuery,
-  suggestionSelection,
 } from "~/lib/offering-suggestion";
 
 import {
@@ -92,59 +91,6 @@ describe("suggestion queries", () => {
     expect(query.get("grade_levels")).toBe("1,2");
     expect(query.getAll("roster")).toEqual(["1:11"]);
     expect(query.get("from")).toBe("2026-09-14");
-  });
-});
-
-describe("mapOfferingSuggestion", () => {
-  it("turns ids into strings and keeps null as no suggestion", () => {
-    expect(mapOfferingSuggestion({ suggestion: null })).toBeNull();
-    const suggestion = mapOfferingSuggestion({
-      suggestion: {
-        offerings: [{ id: 7, name: "Randstunde" }],
-        school_classes: ["1b"],
-        grade_levels: null,
-        unbooked_count: 2,
-        missing_count: 0,
-        candidates: [{ id: 7, name: "Randstunde" }],
-      },
-    });
-    expect(suggestion).toEqual({
-      offerings: [{ id: "7", name: "Randstunde" }],
-      schoolClasses: ["1b"],
-      gradeLevels: [],
-      combinations: [],
-      unbookedCount: 2,
-      missingCount: 0,
-      candidates: [{ id: "7", name: "Randstunde" }],
-      ambiguous: false,
-    });
-    expect(
-      mapOfferingSuggestion({
-        suggestion: {
-          offerings: [{ id: 7, name: "Randstunde" }],
-          unbooked_count: 2,
-          missing_count: 0,
-          ambiguous: true,
-        },
-      })?.ambiguous,
-    ).toBe(true);
-    expect(suggestionSelection(suggestion!)).toEqual({
-      offeringIds: ["7"],
-      gradeLevels: [],
-      schoolClasses: ["1b"],
-    });
-    const combined = mapOfferingSuggestion({
-      suggestion: {
-        offerings: [
-          { id: 7, name: "Randstunde" },
-          { id: 4, name: "Ganztag" },
-        ],
-        school_classes: ["1a"],
-        unbooked_count: 0,
-        missing_count: 0,
-      },
-    });
-    expect(suggestionSelection(combined!).offeringIds).toEqual(["7", "4"]);
   });
 });
 

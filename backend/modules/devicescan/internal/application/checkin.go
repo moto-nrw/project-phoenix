@@ -204,7 +204,7 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := s.checkActivityCapacity(ctx, &selection.Session); err != nil {
+	if err := validateActivitySession(&selection.Session); err != nil {
 		return nil, nil, err
 	}
 
@@ -230,6 +230,11 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 // the existing stay, a departed child is "not a student", and everything
 // else is the pinned create failure.
 func (s *Service) classifyRecordFailure(ctx context.Context, studentID int64, selection *selectedSession, err error) error {
+	if activityCapacity, ok := errors.AsType[*devicescan.ActivityCapacityExceededError](err); ok {
+		refusal := *activityCapacity
+		refusal.Details = s.capacityDetailsDisclosed(ctx, ports.CapacityActivity, false)
+		return &refusal
+	}
 	var roomCapacity *ports.RoomCapacityExceeded
 	if errors.As(err, &roomCapacity) {
 		s.deleteEmptyCreatedSession(ctx, selection)
@@ -333,59 +338,12 @@ func (s *Service) checkRoomCapacity(ctx context.Context, room facilities.Room) e
 	return nil
 }
 
-// checkActivityCapacity validates that the session's activity has room for
-// another child. Spontaneous sessions (no template) are unsupported here.
-func (s *Service) checkActivityCapacity(ctx context.Context, session *devicescan.Session) error {
-	activity := session.Activity
-	if activity == nil {
-		if session.TemplateID == nil {
-			s.logger.ErrorContext(ctx, "spontaneous active group reached IoT capacity check — unsupported in this flow",
-				slog.Int64("active_group_id", session.ID),
-			)
-			return devicescan.Internal(devicescan.MessageSpontaneousUnsupported, nil)
-		}
-		if s.activities == nil {
-			return devicescan.Internal(devicescan.MessageGetActivityFailed, nil)
-		}
-		loaded, err := s.activities.FindByIDs(ctx, []int64{*session.TemplateID})
-		activity = loaded[*session.TemplateID]
-		if err != nil || activity == nil {
-			s.logger.ErrorContext(ctx, "failed to get activity group",
-				slog.Int64("activity_group_id", *session.TemplateID),
-				slog.String("error", errorText(err)),
-			)
-			return devicescan.Internal(devicescan.MessageGetActivityFailed, nil)
-		}
+// validateActivitySession preserves the kiosk's exclusion of spontaneous
+// sessions. Student Presence owns the capacity check under its session lock.
+func validateActivitySession(session *devicescan.Session) error {
+	if session.Activity == nil && session.TemplateID == nil {
+		return devicescan.Internal(devicescan.MessageSpontaneousUnsupported, nil)
 	}
-	if !activity.HasParticipantLimit() {
-		return nil
-	}
-
-	occupancy, err := s.presence.CountOpenVisitsInGroup(ctx, session.ID)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to count activity occupancy",
-			slog.Int64("active_group_id", session.ID),
-			slog.String("error", err.Error()),
-		)
-		return devicescan.Internal(devicescan.MessageCheckActivityCapFailed, nil)
-	}
-	if occupancy >= activity.MaxParticipants {
-		s.logger.WarnContext(ctx, "activity is at capacity",
-			slog.String("activity_name", activity.Name),
-			slog.Int64("activity_id", activity.ID),
-			slog.Int("current_occupancy", occupancy),
-			slog.Int("max_participants", activity.MaxParticipants),
-		)
-		return &devicescan.ActivityCapacityExceededError{
-			ActivityID: activity.ID, ActivityName: activity.Name, CurrentOccupancy: occupancy, MaxCapacity: activity.MaxParticipants,
-			Details: s.capacityDetailsDisclosed(ctx, ports.CapacityActivity, false),
-		}
-	}
-	s.logger.DebugContext(ctx, "activity capacity check passed",
-		slog.String("activity_name", activity.Name),
-		slog.Int("current_occupancy", occupancy),
-		slog.Int("max_participants", activity.MaxParticipants),
-	)
 	return nil
 }
 

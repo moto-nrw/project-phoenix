@@ -39,10 +39,24 @@ func newDatevExport(settings parentbilling.DatevBillingSettings, today func() ca
 const datevProbeDocument = "PRUEFUNG"
 
 func (d *datevExport) DatevReadiness(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.DatevReadiness, error) {
+	_, readiness, err := d.settingsAndReadiness(ctx, reviewer)
+	return readiness, err
+}
+
+// settingsAndReadiness reads the DATEV settings of the reviewer's Träger
+// once and checks them.
+func (d *datevExport) settingsAndReadiness(ctx context.Context, reviewer parentbilling.HolidayReviewer,
+) (parentbilling.DatevSettings, parentbilling.DatevReadiness, error) {
 	settings, err := d.settings.DatevSettings(ctx, reviewer.OrganizationID)
 	if err != nil {
-		return parentbilling.DatevReadiness{}, fmt.Errorf("read DATEV settings: %w", err)
+		return parentbilling.DatevSettings{}, parentbilling.DatevReadiness{}, fmt.Errorf("read DATEV settings: %w", err)
 	}
+	readiness, err := d.readiness(settings)
+	return settings, readiness, err
+}
+
+// readiness checks settings with a probe booking of today's fiscal year.
+func (d *datevExport) readiness(settings parentbilling.DatevSettings) (parentbilling.DatevReadiness, error) {
 	readiness := datevReadiness{}
 	header := DatevBatchHeader{
 		ConsultantNumber: readiness.number(settings.ConsultantNumber),
@@ -62,7 +76,7 @@ func (d *datevExport) DatevReadiness(ctx context.Context, reviewer parentbilling
 	}
 	probe := DatevBooking{AmountCents: 1, Side: DatevDebit, Account: datevProbeDebtor(header.AccountLength),
 		CounterAccount: settings.RevenueAccount.Value, DocumentDate: header.From, DocumentNumber: datevProbeDocument}
-	_, err = FormatDatevBookingBatch(header, []DatevBooking{probe})
+	_, err := FormatDatevBookingBatch(header, []DatevBooking{probe})
 	var formatErr *DatevFormatError
 	if err != nil && !errors.As(err, &formatErr) {
 		return parentbilling.DatevReadiness{}, err

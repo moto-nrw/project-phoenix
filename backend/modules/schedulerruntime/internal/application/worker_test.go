@@ -78,6 +78,7 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		BelegRetention:               fakeBelegRetention{},
 		SEPADebitDownloadRetention:   fakeSEPADebitDownloadRetention{},
 		FeedbackCleaner:              &fakeFeedbackCleaner{},
+		RetentionLog:                 func(context.Context, string, ports.RetentionOutcome) error { return nil },
 		CleanupRuns:                  newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{
 			Store: newMemoryLeaseStore(), Name: "worker", Holder: "test-worker",
@@ -109,6 +110,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		name   string
 		remove func(*ports.WorkerDependencies)
 	}{
+		{name: "retention log", remove: func(deps *ports.WorkerDependencies) { deps.RetentionLog = nil }},
 		{name: "auth cleanup", remove: func(deps *ports.WorkerDependencies) { deps.AuthCleanup = nil }},
 		{name: "invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.InvitationCleanup = nil }},
 		{name: "email change cleanup", remove: func(deps *ports.WorkerDependencies) { deps.EmailChangeCleanup = nil }},

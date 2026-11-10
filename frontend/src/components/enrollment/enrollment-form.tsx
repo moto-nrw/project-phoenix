@@ -19,7 +19,7 @@ import {
 } from "react";
 import { useLocale } from "next-intl";
 import { Check, Lock, Plus } from "lucide-react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -536,6 +536,7 @@ export function EnrollmentForm({
     showLoadError,
   ]);
 
+  const captchaRef = useRef<TurnstileInstance>(undefined);
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
   // Which legal block text the parent is currently viewing in the modal.
@@ -795,8 +796,14 @@ export function EnrollmentForm({
       ...prev,
       withRequiredOfferings(blankChild(), offerings, collectGradeLevel),
     ]);
-  const removeChild = (index: number) =>
+  const removeChild = (index: number) => {
     setChildren((prev) => prev.filter((_, i) => i !== index));
+    // Field names and selection marks use child indices. Validate the new
+    // structure on the next submit instead of showing another child's error.
+    setChildOfferingErrors({});
+    setOfferingDayErrors({});
+    formError.clear();
+  };
 
   const addGuardian = () =>
     setAdditionalGuardians((prev) => [...prev, blankGuardian()]);
@@ -899,6 +906,8 @@ export function EnrollmentForm({
           : `${statusURL.pathname}${statusURL.search}${statusURL.hash}`,
       );
     } catch (err) {
+      setCaptchaToken("");
+      captchaRef.current?.reset();
       const code = err instanceof ApiError ? err.code : undefined;
       // A rejected input is expected; only server failures and crashes are
       // errors in the log.
@@ -1853,6 +1862,7 @@ export function EnrollmentForm({
               Sicherheitsprüfung
             </h2>
             <Turnstile
+              ref={captchaRef}
               siteKey={captchaConfig.site_key}
               options={{ theme: "light" }}
               onSuccess={(token: string) => setCaptchaToken(token)}

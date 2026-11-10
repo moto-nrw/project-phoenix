@@ -514,17 +514,17 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity, identity)
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity, identity, env.Config.RateLimitEnabled)
 	if err != nil {
 		return nil, nil, err
 	}
-	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service)
+	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service, env.Config.RateLimitEnabled)
+	mountPublic(router, metricsToken, db, delivery.Runtime.EmailWebhooks, env.Config.RateLimitEnabled)
 	careOfferings := requests.CareOfferings
 	err = owners.RunRootSteps(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
-		func() error { return mountPublic(router, metricsToken, db, delivery.Runtime.EmailWebhooks) },
 		func() error { return mountRequestFeed(router, tenant, db, logger, config.FrontendURL) },
 		func() error { return mountModuleRoutes(tenant, settings.Service) },
 		func() error {
@@ -610,8 +610,8 @@ func developmentWeekProtocolEvenings(
 // its route mounting steps begin.
 func newServeRouteRuntime(
 	db transactionruntime.Database, logger *slog.Logger, iot devicefleetCompose.IoTService,
-	organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
+	organizations organizationtenancy.Query, settings settingsCompose.SettingsService, rateLimitEnabled bool,
 ) (*slog.Logger, authRateLimiters, chi.Router, *deviceauth.Authenticators, studentpresence.Owner) {
-	return logger, authRateLimitersFromEnv(), chi.NewRouter(),
+	return logger, authRateLimitersFromEnv(rateLimitEnabled), chi.NewRouter(),
 		newDeviceAuthentication(iot, organizations, settings, logger), owners.NewLoggedStudentPresence(db, logger)
 }

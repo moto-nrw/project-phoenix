@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetSollMapping } from "./traeger-finance-exports-api";
+import {
+  type ExportRun,
+  downloadDatevBatch,
+  fetchDatevRunStates,
+  resetSollMapping,
+} from "./traeger-finance-exports-api";
 import { applySepaImport, previewSepaImport } from "./traeger-sepa-import-api";
 import { ApiError } from "./api-error";
 import {
@@ -32,6 +37,72 @@ describe("traeger-api", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  // The DATEV states of the export page (#6433): one request per page of
+  // runs, the Jahresbescheide never asked, the backend IDs as strings.
+  it("reads the DATEV states of the runs one page at a time", async () => {
+    const run = (runKind: ExportRun["runKind"], runId: number): ExportRun => ({
+      runKind,
+      pathKind: "care-runs",
+      runId: String(runId),
+      label: "",
+      issuedOn: "2026-10-30",
+      invoiceCount: 1,
+      totalCents: 1,
+      lastSollstellung: null,
+      lastDatev: null,
+      exports: 0,
+    });
+    const runs = [
+      ...Array.from({ length: 50 }, (_, i) => run("care", i + 1)),
+      run("holiday", 7),
+      run("notice", 202610),
+    ];
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(200, {
+        data: {
+          ready: true,
+          runs: [
+            {
+              run_kind: "holiday",
+              run_id: 7,
+              new_bookings: 2,
+              fiscal_years: ["2026-01-01"],
+            },
+          ],
+        },
+      }),
+    );
+    const states = await fetchDatevRunStates(runs);
+    const urls = fetchMock.mock.calls.map(([url]) =>
+      decodeURIComponent(String(url)),
+    );
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toMatch(
+      /^\/api\/traeger\/finance-exports\/datev-runs\?care=1,2,/,
+    );
+    expect(urls[1]).toBe("/api/traeger/finance-exports/datev-runs?holiday=7");
+    expect(states.ready).toBe(true);
+    expect(states.runs.get("holiday/7")).toEqual({
+      newBookings: 2,
+      fiscalYears: ["2026-01-01"],
+    });
+  });
+
+  it("asks for every DATEV booking again only when told", async () => {
+    fetchMock.mockImplementation(
+      async () => new Response("extf", { status: 200 }),
+    );
+    await downloadDatevBatch("care-runs", "7");
+    await downloadDatevBatch("care-runs", "7", {
+      all: true,
+      fiscalYear: "2027-01-01",
+    });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/traeger/finance-exports/runs/care-runs/7/datev",
+      "/api/traeger/finance-exports/runs/care-runs/7/datev?mode=all&fiscal_year=2027-01-01",
+    ]);
   });
 
   it("reloads the default mapping after a bodyless reset response", async () => {

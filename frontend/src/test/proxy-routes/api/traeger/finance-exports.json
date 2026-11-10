@@ -1,4 +1,7 @@
 {
+  "api/traeger/finance-exports/datev-runs": [
+    "GET traeger /traeger/finance-exports/datev-runs"
+  ],
   "api/traeger/finance-exports/files": [
     "GET traeger /traeger/finance-exports/files"
   ],

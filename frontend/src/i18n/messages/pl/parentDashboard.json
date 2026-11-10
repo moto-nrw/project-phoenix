@@ -2,7 +2,6 @@
   "eyebrow": "Portal dla rodziców",
   "title": "Witamy",
   "description": "Tu widzą Państwo, co jest dziś ważne.",
-  "childrenDescription": "Proszę od razu wybrać odpowiednią czynność.",
   "actions": {
     "sick": "Zgłoś nieobecność",
     "pickup": "Zmień odbiór",
@@ -10,17 +9,7 @@
   },
   "open": "W trakcie",
   "loadError": "Nie udało się wczytać przeglądu. Proszę odświeżyć stronę lub spróbować później.",
-  "unknownError": "Nieznany błąd",
   "notSet": "Nie ustawiono",
-  "status": {
-    "submitted": "Złożone",
-    "under_review": "W trakcie sprawdzania",
-    "approved": "Zatwierdzone",
-    "waitlisted": "Lista oczekujących",
-    "rejected": "Odrzucone",
-    "withdrawn": "Wycofane"
-  },
-  "newsNew": "Nowy list do rodziców",
   "newsOutstanding": "Oczekuje",
   "newsCareCancellation": "Opieka odwołana",
   "newsImportant": "Ważne",

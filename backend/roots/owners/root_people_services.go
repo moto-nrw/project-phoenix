@@ -55,10 +55,15 @@ func BuildGuardianService(db transactionruntime.Database, people PeopleRows, aud
 	if err != nil {
 		return nil, err
 	}
+	invalidate, err := identityaccessCompose.NewGuardianInvitationInvalidation(db.Pool())
+	if err != nil {
+		return nil, err
+	}
 	return peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: people.GuardianProfiles, GuardianPhoneNumberRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		StudentGuardianRepo: people.StudentGuardians, GuardianInvitations: NewGuardianInvitationReads(invitations),
-		StudentRepo: people.Students, PersonRepo: people.Persons,
+		InvalidateInvites: invalidate,
+		StudentRepo:       people.Students, PersonRepo: people.Persons,
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audit.Persistence.GuardianFinancialChange),
 		DataAccessLog:          NewGuardianDataAccessLog(audit.Persistence.DataAccessLog),
