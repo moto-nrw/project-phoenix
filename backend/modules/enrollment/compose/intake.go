@@ -39,8 +39,7 @@ type (
 	CareOfferingCatalogAdministration = application.CareOfferingCatalogAdministration
 )
 
-// Intake is Enrollment's parent-facing intake: the public
-// IntakeSubmissions, IntakeStatus and IntakeForms capabilities in one value.
+// Intake is Enrollment's parent-facing intake: the public IntakeSubmissions, IntakeStatus and IntakeForms capabilities in one value.
 type Intake = application.Intake
 
 // NewIntake composes the intake in the tenant runtime.
