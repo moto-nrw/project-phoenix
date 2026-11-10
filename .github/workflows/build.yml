@@ -46,6 +46,7 @@ jobs:
   check-environment:
     name: Check environment
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       environment: ${{ steps.check.outputs.environment }}
@@ -89,6 +90,7 @@ jobs:
   validate-migrations:
     name: Validate migrations
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
@@ -112,6 +114,7 @@ jobs:
   build-backend:
     name: Build backend image
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 3
     needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
@@ -181,6 +184,7 @@ jobs:
   build-frontend:
     name: Build frontend image
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
     needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
@@ -313,7 +317,7 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: "pnpm"
@@ -426,6 +430,7 @@ jobs:
       group: deploy-staging
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     permissions:
       contents: read
       pull-requests: read
@@ -534,6 +539,7 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     environment:
       name: production
     permissions:
@@ -658,6 +664,9 @@ jobs:
       group: deploy-demo
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Normal maximum: 106 s. Preserve the 20-minute order-smoke step and
+    # its failure notification, plus the separately bounded Sentry report.
+    timeout-minutes: 30
     environment:
       name: demo
     permissions:
@@ -803,6 +812,7 @@ jobs:
   build-status:
     name: Build status
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     needs: [check-environment, validate-migrations, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:

@@ -26,6 +26,7 @@ jobs:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     environment:
       name: ${{ inputs.environment }}
     permissions:
