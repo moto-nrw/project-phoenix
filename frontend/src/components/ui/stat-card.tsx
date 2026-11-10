@@ -272,18 +272,23 @@ export function StatCard(
             <IconTile icon={icon} />
           ) : null}
         </div>
+        {/* text-pretty: no explanation ends with a single word on its own
+            line. */}
         {hint !== undefined && hint !== "" ? (
-          <p className="mt-1 text-sm text-gray-500">{hint}</p>
+          <p className="mt-1 text-sm text-pretty text-gray-500">{hint}</p>
         ) : null}
+        {/* mt-auto: in a row of tiles the bars share one line at the bottom,
+            however long each explanation runs. */}
         {progressPct !== undefined ? (
-          <ProgressBar
-            value={Math.round(progressPct)}
-            max={100}
-            label={label}
-            color={barColor(tone)}
-            size="sm"
-            className="mt-3"
-          />
+          <div className="mt-auto pt-3">
+            <ProgressBar
+              value={Math.round(progressPct)}
+              max={100}
+              label={label}
+              color={barColor(tone)}
+              size="sm"
+            />
+          </div>
         ) : null}
       </div>
     );
