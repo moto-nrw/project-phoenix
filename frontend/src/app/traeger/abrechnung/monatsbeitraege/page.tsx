@@ -21,6 +21,7 @@ import {
   addMonths,
   formatMonth,
   monthRange,
+  factLine,
   invoiceCountLabel,
 } from "~/components/traeger/care-billing-format";
 import { runSchoolsLabel } from "~/components/traeger/care-review-format";
@@ -92,16 +93,20 @@ function runColumns(
         </span>
       ),
       stackedLabel: false,
+      // The schools may wrap; the facts after them stay whole.
       stackedRender: (run) =>
         [
           runSchoolsLabel(run.schoolIds, schools),
-          run.documentCount === null
-            ? null
-            : `${invoiceCountLabel(run.documentCount)} · ${formatEuro(run.totalCents ?? 0)}`,
-          run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
+          factLine([
+            run.documentCount === null
+              ? null
+              : invoiceCountLabel(run.documentCount),
+            run.documentCount === null ? null : formatEuro(run.totalCents ?? 0),
+            run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
+          ]),
         ]
           .filter(Boolean)
-          .join(" · "),
+          .join("\u00A0· "),
     },
     {
       key: "invoices",

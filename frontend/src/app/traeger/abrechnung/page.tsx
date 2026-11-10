@@ -21,7 +21,10 @@ import {
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
 import { BILLING_PERIOD_PARAM } from "~/components/traeger/use-holiday-period-billing-href";
-import { invoiceCountLabel } from "~/components/traeger/care-billing-format";
+import {
+  factLine,
+  invoiceCountLabel,
+} from "~/components/traeger/care-billing-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Button } from "~/components/ui/button";
@@ -102,16 +105,15 @@ const columnsFor = (
     // On a phone the title keeps one line; the run's number leads the
     // line below, so two runs of one period still differ.
     stackedRender: (run) =>
-      [
+      factLine([
         ordinals.has(run.id) ? `${ordinals.get(run.id)}. Lauf` : null,
         formatDateRange(run.serviceFrom, run.serviceUntil),
         run.documentCount === null
           ? null
-          : `${invoiceCountLabel(run.documentCount)} · ${formatEuro(run.totalCents ?? 0)}`,
+          : invoiceCountLabel(run.documentCount),
+        run.documentCount === null ? null : formatEuro(run.totalCents ?? 0),
         run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · "),
+      ]),
     // The line names itself; „Betreuung“ in front would only label the dates.
     stackedLabel: false,
   },

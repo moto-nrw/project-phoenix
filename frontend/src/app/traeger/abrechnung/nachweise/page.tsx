@@ -77,10 +77,16 @@ function EvidenceCell({
         ) : null}
         {expired ? <StatusBadge tone="gray" label="Abgelaufen" /> : null}
       </p>
+      {/* Each fact wraps as a whole and keeps its dot at the line end; the
+          proof's name is a block of its own, so a long one still wraps. */}
       <p className="mt-0.5 text-sm text-gray-600">
-        {evidencePeriod(evidence)}
-        {" · "}
-        {evidence.evidence} · geprüft am {formatDate(evidence.checkedOn)}
+        <span className="whitespace-nowrap">{evidencePeriod(evidence)} ·</span>{" "}
+        <span className="inline-block max-w-full wrap-break-word">
+          {evidence.evidence} ·
+        </span>{" "}
+        <span className="whitespace-nowrap">
+          geprüft am {formatDate(evidence.checkedOn)}
+        </span>
       </p>
     </div>
   );

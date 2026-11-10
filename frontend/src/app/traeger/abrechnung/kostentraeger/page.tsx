@@ -96,9 +96,17 @@ function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
         </span>
         <ShareStatus share={share} />
       </p>
-      <p className="mt-0.5 text-sm wrap-anywhere text-gray-600">
-        {sharePeriod(share)} · {share.reference} · geprüft am{" "}
-        {formatDate(share.checkedOn)}
+      {/* Each fact wraps as a whole and keeps its dot at the line end: a
+          file number never breaks at its hyphen, no line starts with „·“.
+          The reference is a block of its own, so a long one still wraps. */}
+      <p className="mt-0.5 text-sm text-gray-600">
+        <span className="whitespace-nowrap">{sharePeriod(share)} ·</span>{" "}
+        <span className="inline-block max-w-full wrap-anywhere">
+          {share.reference} ·
+        </span>{" "}
+        <span className="whitespace-nowrap">
+          geprüft am {formatDate(share.checkedOn)}
+        </span>
       </p>
     </div>
   );
