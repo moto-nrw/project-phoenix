@@ -176,7 +176,6 @@ jobs:
       NEXT_PUBLIC_APP_ENV: development
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-product-screenshots-throwaway-secret
-      AUTH_TRUST_HOST: "true"
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:

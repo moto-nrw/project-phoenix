@@ -55,25 +55,9 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
-	opened := make(map[string]bool, len(table.OpenSealedColumns)+len(table.ProjectedColumns))
-	for _, plain := range table.OpenSealedColumns {
-		opened[plain] = true
-	}
-	for _, projection := range table.ProjectedColumns {
-		opened[projection] = true
-	}
-	columns := make([]string, 0, len(model.Columns))
-	for _, col := range model.Columns {
-		if !opened[col.Name] {
-			columns = append(columns, "t."+quoteExportIdentifier(col.Name))
-		}
-	}
-	for _, sealed := range sealedColumnsOf(table) {
-		// Hex, independent of the session's bytea_output.
-		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
-	}
-	for _, container := range projectedColumnsOf(table) {
-		columns = append(columns, "t."+quoteExportIdentifier(container))
+	columns, err := r.exportSelectColumns(table, model)
+	if err != nil {
+		return 0, err
 	}
 	if len(columns) == 0 {
 		return 0, exportTableError(table.Name)
@@ -101,6 +85,37 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 		return 0, err
 	}
 	return count, nil
+}
+
+// exportSelectColumns selects the model's stored columns and, in place of
+// what owners write, the raw sealed and container values and the bindings
+// they open with.
+func (r *exportRun) exportSelectColumns(table organizationtenancy.LifecycleTable, model organizationtenancy.ExportModelTable) ([]string, error) {
+	opened := make(map[string]bool, len(table.OpenSealedColumns)+len(table.ProjectedColumns))
+	for _, plain := range table.OpenSealedColumns {
+		opened[plain] = true
+	}
+	for _, projection := range table.ProjectedColumns {
+		opened[projection] = true
+	}
+	columns := make([]string, 0, len(model.Columns))
+	for _, col := range model.Columns {
+		if !opened[col.Name] {
+			columns = append(columns, "t."+quoteExportIdentifier(col.Name))
+		}
+	}
+	for _, sealed := range sealedColumnsOf(table) {
+		// Hex, independent of the session's bytea_output.
+		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
+	}
+	for _, container := range projectedColumnsOf(table) {
+		columns = append(columns, "t."+quoteExportIdentifier(container))
+	}
+	bindings, err := r.sealedBindingColumns(table)
+	if err != nil {
+		return nil, err
+	}
+	return append(columns, bindings...), nil
 }
 
 func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, entry organizationtenancy.LifecycleTable) (int64, error) {

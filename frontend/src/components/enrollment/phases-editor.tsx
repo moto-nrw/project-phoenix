@@ -972,8 +972,8 @@ export function PhasesEditor() {
                 <p>
                   Möchten Sie die Anmeldephase{" "}
                   <span className="font-medium">„{deleteTarget.name}“</span>{" "}
-                  wirklich endgültig löschen? Sie kann jederzeit gelöscht
-                  werden, während des Betreuungszeitraums, davor und danach.
+                  wirklich endgültig löschen? Sind noch Kinder gebucht, geht das
+                  erst, wenn ihre Buchungen beendet sind.
                 </p>
               }
               warningSlot={

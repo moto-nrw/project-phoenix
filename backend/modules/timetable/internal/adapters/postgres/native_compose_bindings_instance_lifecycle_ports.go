@@ -3,19 +3,13 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// SubstituteDayLock takes the day-wide staffing lock (#1840) on the caller's
+// SubstituteDayLock takes one transaction-scoped advisory lock on the caller's
 // transaction, for compositions that serialize with the owner's staffing
-// writes (the #1843 sick cascade). Acquire days ascending before block row
-// locks; never acquire recurrence after a day (the #5378 split/cancel order).
-func SubstituteDayLock(db *bun.DB) func(context.Context, calendar.Date) error {
-	store := New(DatabaseRuntime(db))
-	return func(ctx context.Context, date calendar.Date) error {
-		return store.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
-	}
+// writes (the #1843 sick cascade). The owner's lockScheduleDays derives the
+// day key and admits it in the unit of work's lock order (#6232).
+func SubstituteDayLock(db *bun.DB) func(context.Context, string) error {
+	return New(DatabaseRuntime(db)).AcquireTransactionLock
 }

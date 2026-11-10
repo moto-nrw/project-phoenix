@@ -305,7 +305,8 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 }
 
 // SEPAExportFields opens the sealed IBAN and account holder of an exported
-// mandate or debit row for the return export of a Träger (#3838). Only the
+// mandate or debit row and the confirmed text of an online mandate consent
+// for the return export of a Träger (#3838, #6412). Only the
 // administrative export CLI binds it, never an HTTP route.
 type SEPAExportFields interface {
 	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)

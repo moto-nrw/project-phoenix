@@ -34,7 +34,11 @@ type catererMFAScenario struct {
 
 func newCatererMFAScenario(t *testing.T) catererMFAScenario {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newCatererMFAScenarioOn(t, testpkg.SetupTestDB(t))
+}
+
+func newCatererMFAScenarioOn(t *testing.T, db *bun.DB) catererMFAScenario {
+	t.Helper()
 	inviting := setupAuthFactory(t, db).Caterers()
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, "caterer-mfa-inviter")

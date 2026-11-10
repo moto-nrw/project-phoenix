@@ -14,6 +14,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Loading } from "~/components/ui/loading";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -56,7 +57,8 @@ export function CareRunStartModal({
   const [schools, setSchools] = useState<CareRunSchool[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [invoiceDate, setInvoiceDate] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors, show: showFormError } = formErrors;
@@ -121,28 +123,28 @@ export function CareRunStartModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", invalid);
       return;
     }
-    setSaving(true);
-    try {
-      await onStart({
-        billingMonth: month,
-        schoolIds: selected,
-        invoiceDate: invoiceDate || null,
-      });
-    } catch (err) {
-      logger.error("care_run_start_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "der Monatslauf" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onStart({
+          billingMonth: month,
+          schoolIds: selected,
+          invoiceDate: invoiceDate || null,
+        });
+      } catch (err) {
+        logger.error("care_run_start_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "der Monatslauf" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Monatslauf starten"
       size="md"

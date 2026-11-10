@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Textarea } from "~/components/ui/textarea";
@@ -57,7 +58,8 @@ export function CareExcludeModal({
   onExcluded: (run: CareRunDetail, invoice: CareInvoice) => void;
 }>) {
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(invoice !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear } = formErrors;
@@ -77,20 +79,18 @@ export function CareExcludeModal({
       });
       return;
     }
-    setSaving(true);
-    try {
-      onExcluded(
-        await excludeCareInvoice(runId, invoice, reason.trim()),
-        invoice,
-      );
-    } catch (err) {
-      logger.error("traeger_care_invoice_exclude_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Rechnung" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const result = await excludeCareInvoice(runId, invoice, reason.trim());
+        if (op.isCurrent()) onExcluded(result, invoice);
+      } catch (err) {
+        logger.error("traeger_care_invoice_exclude_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Rechnung" });
+      }
+    });
   };
 
   const child = invoice
@@ -103,7 +103,7 @@ export function CareExcludeModal({
     <FormModal
       isOpen={invoice !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={
         invoice ? exclusionTitle(invoice, invoices) : "Rechnung ausschließen"
@@ -187,7 +187,8 @@ export function CareInvoiceDateModal({
 }>) {
   const [choice, setChoice] = useState<DateChoice>("release");
   const [date, setDate] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear } = formErrors;
@@ -208,26 +209,28 @@ export function CareInvoiceDateModal({
       });
       return;
     }
-    setSaving(true);
-    try {
-      onSaved(
-        await setCareRunInvoiceDate(run.id, choice === "date" ? date : null),
-      );
-    } catch (err) {
-      logger.error("traeger_care_invoice_date_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Rechnungsdatum" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const result = await setCareRunInvoiceDate(
+          run.id,
+          choice === "date" ? date : null,
+        );
+        if (op.isCurrent()) onSaved(result);
+      } catch (err) {
+        logger.error("traeger_care_invoice_date_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Rechnungsdatum" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Rechnungsdatum"
       size="md"

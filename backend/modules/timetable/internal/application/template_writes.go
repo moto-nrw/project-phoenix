@@ -209,11 +209,14 @@ type TemplateServiceDependencies struct {
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
 	SickReports          ports.SickReportReader // nil: a series roster change marks nobody sick (#6292)
-	SchoolClasses        ports.SchoolClassRules
-	Staffing             ports.StaffingAnnouncer
-	Logger               *slog.Logger
-	Transactions         ports.TenantTransactions
-	Today                func() calendar.Date
+	// Deviations take the day locks a series roster change holds before it
+	// reads the sick reports (#6232); required with SickReports.
+	Deviations    ports.SeriesDeviations
+	SchoolClasses ports.SchoolClassRules
+	Staffing      ports.StaffingAnnouncer
+	Logger        *slog.Logger
+	Transactions  ports.TenantTransactions
+	Today         func() calendar.Date
 }
 
 // TemplateService holds the template writes (create, update, archive, the

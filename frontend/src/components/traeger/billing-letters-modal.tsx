@@ -13,6 +13,7 @@ import { ISODateInput } from "~/components/ui/date-picker";
 import { DataField } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -146,7 +147,8 @@ export function BillingLettersModal<T = BillingLetters>({
   const [dueDateValid, setDueDateValid] = useState(true);
   const [notes, setNotes] = useState("");
   const [contacts, setContacts] = useState<BillingEmergencyContact[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const [previewing, setPreviewing] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -229,21 +231,21 @@ export function BillingLettersModal<T = BillingLetters>({
   const submit = async () => {
     const value = input();
     if (!value) return;
-    setSaving(true);
-    try {
-      const letters = source
-        ? await source.create(value)
-        : ((await createBillingLetters(runId, value)) as T);
-      success("Die Schreiben sind erstellt.");
-      onCreated(letters);
-    } catch (err) {
-      logger.error("billing_letters_create_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Erstellen der Schreiben" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const letters = source
+          ? await source.create(value)
+          : ((await createBillingLetters(runId, value)) as T);
+        success("Die Schreiben sind erstellt.");
+        if (op.isCurrent()) onCreated(letters);
+      } catch (err) {
+        logger.error("billing_letters_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Erstellen der Schreiben" });
+      }
+    });
   };
 
   const contactsError = formErrors.fieldError("emergency_contacts");
@@ -251,7 +253,7 @@ export function BillingLettersModal<T = BillingLetters>({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Schreiben erstellen"
       size="lg"

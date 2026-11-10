@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -48,6 +49,7 @@ export function ExternalCaregiverCreateModal({
     onAdded: onSaved,
     containerRef: bodyRef,
     canGrantView,
+    isOpen,
   });
   // A reopened dialog starts empty: a successful save resets the form
   // itself, closing without saving resets it here.
@@ -72,7 +74,7 @@ export function ExternalCaregiverCreateModal({
       onClose={close}
       title="Externe Person anlegen"
       size="md"
-      closeDisabled={form.isSaving}
+      pending={form.pending}
       isBackdropDismissDisabled
       error={form.error}
       footer={
@@ -147,7 +149,8 @@ export function ExternalInvitationModal({
 }) {
   const [email, setEmail] = useState("");
   const [access, setAccess] = useState<ExternalInvitationAccess>("supervise");
-  const [isSaving, setIsSaving] = useState(false);
+  const save = useFormModalPending(target !== null);
+  const isSaving = save.pending;
   const bodyRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(bodyRef);
   const { clear } = formErrors;
@@ -170,22 +173,26 @@ export function ExternalInvitationModal({
       return;
     }
     formErrors.clear();
-    setIsSaving(true);
-    try {
-      const staff = await staffService.inviteExternal(target.id, email, access);
-      onInvited(staff);
-      onClose();
-    } catch (cause) {
-      logger.error("external_caregiver_invite_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void formErrors.show(cause, {
-        object: `die Einladung an ${target.name}`,
-        retry: () => void invite(),
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const staff = await staffService.inviteExternal(
+          target.id,
+          email,
+          access,
+        );
+        onInvited(staff);
+        if (op.isCurrent()) onClose();
+      } catch (cause) {
+        logger.error("external_caregiver_invite_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(cause, {
+          object: `die Einladung an ${target.name}`,
+          retry: () => void invite(),
+        });
+      }
+    });
   }
 
   const pending = target?.invitationPending === true;
@@ -195,7 +202,7 @@ export function ExternalInvitationModal({
       onClose={onClose}
       title={pending ? "Einladung erneut senden" : "Konto einladen"}
       size="md"
-      closeDisabled={isSaving}
+      pending={save}
       error={formErrors.error}
       footer={
         <>

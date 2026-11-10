@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
@@ -29,6 +30,45 @@ func projectedColumnsOf(table organizationtenancy.LifecycleTable) []string {
 	}
 	slices.Sort(columns)
 	return columns
+}
+
+// sealedBindingColumns selects the value of each sealed binding (#6412) as
+// a correlated lookup in the same snapshot. Every name is checked against
+// the schema; a binding that names an absent column or collides with a
+// column of the table fails the export.
+func (r *exportRun) sealedBindingColumns(table organizationtenancy.LifecycleTable) ([]string, error) {
+	keys := make([]string, 0, len(table.SealedBindings))
+	for key := range table.SealedBindings {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	own := r.schema.columns[table.Name]
+	var selects []string
+	for _, key := range keys {
+		binding := table.SealedBindings[key]
+		_, collides := schemaColumn(own, key)
+		_, known := schemaColumn(r.schema.columns[binding.Table], binding.Column)
+		if collides || !known || len(binding.Match) == 0 || len(table.OpenSealedColumns) == 0 {
+			return nil, exportTableError(table.Name)
+		}
+		locals := make([]string, 0, len(binding.Match))
+		for local := range binding.Match {
+			locals = append(locals, local)
+		}
+		slices.Sort(locals)
+		conditions := make([]string, 0, len(locals))
+		for _, local := range locals {
+			_, localKnown := schemaColumn(own, local)
+			_, targetKnown := schemaColumn(r.schema.columns[binding.Table], binding.Match[local])
+			if !localKnown || !targetKnown {
+				return nil, exportTableError(table.Name)
+			}
+			conditions = append(conditions, "b."+quoteExportIdentifier(binding.Match[local])+" = t."+quoteExportIdentifier(local))
+		}
+		selects = append(selects, "(SELECT b."+quoteExportIdentifier(binding.Column)+" FROM "+quoteExportTable(binding.Table)+
+			" AS b WHERE "+strings.Join(conditions, " AND ")+") AS "+quoteExportIdentifier(key))
+	}
+	return selects, nil
 }
 
 // ownerModelColumns describes the columns the owners of the table write in
@@ -83,6 +123,10 @@ func (r *exportRun) applyOwnerColumns(table organizationtenancy.LifecycleTable, 
 			return nil, err
 		}
 		row[table.OpenSealedColumns[column]] = value
+	}
+	// A binding only lets the owner open the row; it is no export column.
+	for key := range table.SealedBindings {
+		delete(row, key)
 	}
 	for _, container := range projectedColumnsOf(table) {
 		raw := row[container]

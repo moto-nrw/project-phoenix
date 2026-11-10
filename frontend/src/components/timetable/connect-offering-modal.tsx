@@ -16,6 +16,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -105,7 +106,8 @@ export function ConnectOfferingModal({
   const [periodOfferings, setPeriodOfferings] = useState<
     OfferingSourceOption[]
   >([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formErrors = useApiFormError();
   const { clear: clearFormError } = formErrors;
   const { success: toastSuccess } = useToast();
@@ -161,31 +163,31 @@ export function ConnectOfferingModal({
 
   const handleSave = async () => {
     if (!preview) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await timetableService.connectTemplateToOffering(
-        deviation.templateId,
-        selection,
-        preview.from,
-      );
-      toastSuccess(
-        `Regeltermin ist mit ${offeringSetNames(selectedOfferings)} verbunden.`,
-      );
-      await onConnected();
-      onClose();
-    } catch (err) {
-      logger.error("offering_connection_failed", {
-        template_id: deviation.templateId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, {
-        object: `die Verbindung von „${templateName}“ mit ${selectedOfferings.length > 1 ? "den Angeboten" : "dem Angebot"}`,
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await timetableService.connectTemplateToOffering(
+          deviation.templateId,
+          selection,
+          preview.from,
+        );
+        toastSuccess(
+          `Regeltermin ist mit ${offeringSetNames(selectedOfferings)} verbunden.`,
+        );
+        await onConnected();
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("offering_connection_failed", {
+          template_id: deviation.templateId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: `die Verbindung von „${templateName}“ mit ${selectedOfferings.length > 1 ? "den Angeboten" : "dem Angebot"}`,
+          retry: () => latestSaveRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -198,7 +200,7 @@ export function ConnectOfferingModal({
       onClose={onClose}
       title="Mit Angebot verbinden"
       size="md"
-      closeDisabled={saving}
+      pending={save}
       error={formErrors.error}
       footer={
         <EditActions

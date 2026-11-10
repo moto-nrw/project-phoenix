@@ -77,7 +77,7 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	rules, evidences, err := seedCareReductions(rt.Client, auth, from)
+	rules, evidences, err := seedCareReductions(rt.Client, auth, rt.Bootstrap.SchoolID, from)
 	if err != nil {
 		return err
 	}

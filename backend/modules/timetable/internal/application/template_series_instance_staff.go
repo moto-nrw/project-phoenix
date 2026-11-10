@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // instanceStaffReconciliation is the state one staff alignment pass works
@@ -49,6 +51,9 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	}
 	instances, instanceIDs, err := loadPlannedTemplateInstances(ctx, s.deps.ActivityInstanceRepo.Reads, templateID, from, "reconcile predecessor staff")
 	if err != nil || len(instances) == 0 {
+		return err
+	}
+	if err := s.lockOccurrenceDays(ctx, instances); err != nil {
 		return err
 	}
 	pass, err := s.loadInstanceStaffReconciliation(ctx, templateID, instanceIDs, priorSupervisors)
@@ -330,6 +335,29 @@ func sortedInt64Keys(set map[int64]bool) []int64 {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// lockOccurrenceDays takes the day lock of every occurrence the pass may
+// write, ascending, before it reads the sick reports (#6232): a sick-report
+// write holds the days of its range while it writes, so the pass either
+// reads the committed report or the report's cascade sees the rows the pass
+// added. It also serializes participant reconciliation with cancellation.
+// The callers hold the recurrence gate, which every date-moving write takes
+// as well, so the occurrence days stay put.
+func (s *TemplateService) lockOccurrenceDays(ctx context.Context, instances []*scheduleModel.ActivityInstance) error {
+	if len(instances) == 0 {
+		return nil
+	}
+	if s.deps.Deviations == nil {
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: lock days", Err: errors.New("day locks are not configured")}
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, day := range ascendingDays(occurrenceDays(instances)) {
+		if err := s.deps.Deviations.LockDeviationDays(ctx, tenantID, day, day); err != nil {
+			return &ports.ScheduleError{Op: "reconcile predecessor staff: lock days", Err: err}
+		}
+	}
+	return nil
 }
 
 // occurrenceDays lists the occurrence dates.

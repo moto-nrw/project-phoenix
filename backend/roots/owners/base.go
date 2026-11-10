@@ -62,6 +62,16 @@ func ComposeSchoolMembership(db transactionruntime.Database) (schoolMembershipMo
 	return schoolMembershipCompose.New(dependencies)
 }
 
+// ComposePendingWindows composes School Membership's pending-window command
+// a phase edit moves still pending children with (#6505, ADR 0202).
+func ComposePendingWindows(db transactionruntime.Database) (schoolMembershipModule.PendingWindows, error) {
+	dependencies, err := SchoolMembershipDependencies(db)
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.NewPendingWindows(dependencies)
+}
+
 // ComposeStaffReinstatement composes School Membership's observed staff
 // lifecycle for its Wiederaufnahme (ADR 0021), which the identity chain uses
 // when a former staff member is invited again.

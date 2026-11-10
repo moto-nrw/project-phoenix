@@ -1339,16 +1339,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (l RecurrenceWriteLock) LockRecurrenceWrites(ctx context.Context) error {\n\ttenantID, err := LockTenant(ctx, \"template recurrence lock requires a transaction\")\n\tif err != nil {\n\t\treturn err\n\t}\n\tif err := l.Store.AcquireTransactionLock(ctx, schedule.TenantRecurrenceLockKey(tenantID)); err != nil {\n\t\treturn fmt.Errorf(\"lock template recurrence writes: %w\", err)\n\t}\n\treturn nil\n}",
+      "evidence": "func (l RecurrenceWriteLock) LockRecurrenceWrites(ctx context.Context) error {\n\ttenantID, err := LockTenant(ctx, \"template recurrence lock requires a transaction\")\n\tif err != nil {\n\t\treturn err\n\t}\n\tif err := tenant.OrderLock(ctx, tenant.LockRecurrence, tenant.LockIDKey(tenantID)); err != nil {\n\t\treturn fmt.Errorf(\"lock template recurrence writes: %w\", err)\n\t}\n\tif err := l.Store.AcquireTransactionLock(ctx, schedule.TenantRecurrenceLockKey(tenantID)); err != nil {\n\t\treturn fmt.Errorf(\"lock template recurrence writes: %w\", err)\n\t}\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/timetable/internal/adapters/postgres/RecurrenceWriteLock.LockRecurrenceWrites",
-      "owner": "modules/timetable"
-    },
-    {
-      "build": "production",
-      "evidence": "func (l RecurrenceWriteLock) LockRecurrenceWritesThenGradeTransitions(ctx context.Context) error {\n\tif err := l.LockRecurrenceWrites(ctx); err != nil {\n\t\treturn err\n\t}\n\ttenantID, err := LockTenant(ctx, \"grade transition lock requires a transaction\")\n\tif err != nil {\n\t\treturn err\n\t}\n\tif err := l.Store.AcquireTransactionLock(ctx, l.GradeTransitionLockKey(tenantID)); err != nil {\n\t\treturn fmt.Errorf(\"lock tenant grade transitions: %w\", err)\n\t}\n\treturn nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/timetable/internal/adapters/postgres/RecurrenceWriteLock.LockRecurrenceWritesThenGradeTransitions",
       "owner": "modules/timetable"
     },
     {

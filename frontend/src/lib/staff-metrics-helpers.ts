@@ -409,7 +409,7 @@ function staffSessionToHistorySession(
       id: index.toString(),
       sessionId: session.id ?? "",
       startedAt: workBreak.started_at,
-      endedAt: workBreak.ended_at,
+      endedAt: workBreak.ended_at ?? null,
       durationMinutes: 0,
       plannedEndTime: null,
     })),

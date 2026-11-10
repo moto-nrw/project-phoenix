@@ -803,12 +803,15 @@ jobs:
 
       # The public demo (#3456) seeds one such school per visitor into a
       # database that already holds others. The duration is what a visitor
-      # waits for, so it is printed per school.
+      # waits for, so it is printed per school. The second school sorts before
+      # the first by name, as a new order sorts before older demo schools on
+      # the demo server: the Träger pages then list its contracts first, and
+      # its seed must not use rules that only reach the earlier school.
       - name: Seed two demo schools into the same database and simulate their day
         if: ${{ matrix.scenario == 'isolation' }}
         working-directory: backend
         run: |
-          for slug in demo-smoke-eins demo-smoke-zwei; do
+          for slug in demo-smoke-zwei demo-smoke-eins; do
             started=$(date +%s)
             "${RUNNER_TEMP}/devtools" seed \
               --email "${OPERATOR_EMAIL}" \

@@ -89,8 +89,11 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitServ
 		deps.Today = calendar.TodayDate
 	}
 	return &TemplateSplitService{
-		deps:                 deps,
-		lockTenantRecurrence: deps.RecurrenceLock.LockRecurrenceWrites,
+		deps: deps,
+		// The split materializes its window, which reads roster state under
+		// the grade-transition gate; the gate precedes the split's day locks
+		// (recurrence → transitions → days, #6232).
+		lockTenantRecurrence: deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions,
 		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
 			return inTenant(ctx, deps.Transactions, tenant.FromContext(ctx), func(txCtx context.Context) error {
 				return fn(txCtx)

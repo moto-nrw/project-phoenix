@@ -9,6 +9,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -160,6 +161,7 @@ export function PresentChildrenPicker({
 }: PresentChildrenPickerProps) {
   const formId = useId();
   const now = useMinuteClock();
+  const add = useFormModalPending(isOpen, instanceId);
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [offerings, setOfferings] = useState<OfferingsState>({
     kind: "loading",
@@ -326,7 +328,11 @@ export function PresentChildrenPicker({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (selectedIds.length === 0 || isAdding) return;
-    if (await onAdd(selectedIds)) handleClose();
+    await add.run(async (op) => {
+      // Eine späte Antwort schließt keinen Dialog, der inzwischen für einen
+      // anderen Termin offen ist (#6533).
+      if ((await onAdd(selectedIds)) && op.isCurrent()) handleClose();
+    });
   };
 
   let submitLabel = "Kinder hinzufügen";
@@ -342,7 +348,7 @@ export function PresentChildrenPicker({
       title="Anwesende Kinder hinzufügen"
       size="md"
       error={error}
-      closeDisabled={isAdding}
+      pending={add}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
           <Button

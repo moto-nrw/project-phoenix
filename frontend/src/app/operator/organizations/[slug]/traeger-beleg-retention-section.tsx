@@ -8,6 +8,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -517,7 +518,8 @@ function InstructionModal({
   const [instructedBy, setInstructedBy] = useState("");
   const [instructedOn, setInstructedOn] = useState("");
   const [reference, setReference] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
@@ -552,38 +554,39 @@ function InstructionModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!complete) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await belegRetentionService.recordInstruction(organizationId, {
-        beleg_type: type,
-        trigger_event: trigger,
-        period: Number(period),
-        basis,
-        legal_basis: legalBasis.trim(),
-        basis_justification: withoutStatutes ? justification.trim() : "",
-        instructed_by: instructedBy.trim(),
-        instructed_on: instructedOn,
-        instruction_reference: reference.trim(),
-        statutes_not_applicable_confirmed: withoutStatutes && confirmed,
-      });
-      success("Die Weisung ist erfasst.");
-      onClose();
-      await onSaved();
-    } catch (saveError) {
-      logger.warn("beleg_instruction_record_failed", {
-        error: errorMessage(saveError),
-      });
-      void formErrors.show(saveError, { object: "die Weisung" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await belegRetentionService.recordInstruction(organizationId, {
+          beleg_type: type,
+          trigger_event: trigger,
+          period: Number(period),
+          basis,
+          legal_basis: legalBasis.trim(),
+          basis_justification: withoutStatutes ? justification.trim() : "",
+          instructed_by: instructedBy.trim(),
+          instructed_on: instructedOn,
+          instruction_reference: reference.trim(),
+          statutes_not_applicable_confirmed: withoutStatutes && confirmed,
+        });
+        success("Die Weisung ist erfasst.");
+        if (op.isCurrent()) onClose();
+        await onSaved();
+      } catch (saveError) {
+        logger.warn("beleg_instruction_record_failed", {
+          error: errorMessage(saveError),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(saveError, { object: "die Weisung" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Weisung erfassen"
       error={formErrors.error}
       isBackdropDismissDisabled
@@ -741,7 +744,8 @@ function SuspensionModal({
   const [scope, setScope] = useState("");
   const [responsible, setResponsible] = useState("");
   const [reviewOn, setReviewOn] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
@@ -754,33 +758,34 @@ function SuspensionModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!complete) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await belegRetentionService.recordSuspension(organizationId, {
-        beleg_type: type,
-        reason: reason.trim(),
-        scope: scope.trim(),
-        responsible: responsible.trim(),
-        review_on: reviewOn,
-      });
-      success("Die Löschung ist ausgesetzt.");
-      onClose();
-      await onSaved();
-    } catch (saveError) {
-      logger.warn("beleg_suspension_record_failed", {
-        error: errorMessage(saveError),
-      });
-      void formErrors.show(saveError, { object: "die Aussetzung" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await belegRetentionService.recordSuspension(organizationId, {
+          beleg_type: type,
+          reason: reason.trim(),
+          scope: scope.trim(),
+          responsible: responsible.trim(),
+          review_on: reviewOn,
+        });
+        success("Die Löschung ist ausgesetzt.");
+        if (op.isCurrent()) onClose();
+        await onSaved();
+      } catch (saveError) {
+        logger.warn("beleg_suspension_record_failed", {
+          error: errorMessage(saveError),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(saveError, { object: "die Aussetzung" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Löschung aussetzen"
       error={formErrors.error}
       isBackdropDismissDisabled

@@ -51,6 +51,14 @@ var (
 // ErrInvalidMembership so callers can classify it with errors.Is.
 type InvalidMembershipError struct{ Reason string }
 
+// PendingWindowConflictError refuses a pending-window move that would end the
+// child's window before it starts (#6505). Nothing was written.
+type PendingWindowConflictError struct{ StudentID int64 }
+
+func (e *PendingWindowConflictError) Error() string {
+	return "school membership: the moved window of a pending child would end before it starts"
+}
+
 func (e *InvalidMembershipError) Error() string { return e.Reason }
 func (e *InvalidMembershipError) Unwrap() error { return ErrInvalidMembership }
 

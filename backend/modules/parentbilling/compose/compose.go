@@ -85,7 +85,7 @@ func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
 }
 
-// NewSEPAExportFields opens the sealed IBAN and account holder for the return export of a Träger (#3838); only the administrative export CLI binds it, never HTTP.
+// NewSEPAExportFields opens the sealed IBAN, account holder and mandate text for the return export of a Träger (#3838, #6412); only the administrative export CLI binds it, never HTTP.
 func NewSEPAExportFields(cipher parentbilling.BankDataCipher) parentbilling.SEPAExportFields {
 	return application.NewSEPAExportFields(cipher)
 }

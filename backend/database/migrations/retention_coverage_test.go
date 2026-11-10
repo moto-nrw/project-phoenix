@@ -129,7 +129,7 @@ var tableRetentions = map[string]tableRetention{
 	"active.staff_vacation_quota_changes":                   staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"active.student_status_days":                            own("nightly retention step status_day_retention (api/worker_retention.go), DeleteStudentStatusDaysBefore"),
 	"active.visit_revision_events":                          notPersonal("change counters of a session's open-visit count (#5128), session id only; the nightly close compacts ended sessions and drops deleted ones"),
-	"active.visits":                                         own("nightly visit-cleanup, CleanupExpiredVisits -> DeleteCompletedVisitsBefore"),
+	"active.visits":                                         own("nightly visit-cleanup, CleanupExpiredVisits -> DeleteExpiredVisits"),
 	"active.work_session_breaks":                            parent("active.work_sessions"),
 	"active.work_sessions":                                  own("nightly time-tracking-cleanup, CleanupExpiredTimeTrackingData -> DeleteWorkSessionsOlderThan(date)"),
 	"activities.categories":                                 notPersonal("activity category catalog"),
