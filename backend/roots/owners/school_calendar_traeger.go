@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
+	"github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -78,16 +79,17 @@ type HolidayCalendarDays interface {
 // (#6350); the closing days are read in a school transaction of each host
 // school, which shares nothing with the caller's Träger transaction
 // (ADR 0105), as for the Mensa (#4686).
-func NewHolidaySchoolCalendar(settings CareContractHolidaySettings, days HolidayCalendarDays) enrollment.HolidaySchoolCalendar {
-	if settings == nil || days == nil {
-		panic("holiday school calendar: the settings and School Calendar are required")
+func NewHolidaySchoolCalendar(settings CareContractHolidaySettings, days HolidayCalendarDays, organizations TraegerCalendarOrganizations) enrollment.HolidaySchoolCalendar {
+	if settings == nil || days == nil || organizations == nil {
+		panic("holiday school calendar: settings, School Calendar and Organisation & Tenancy are required")
 	}
-	return holidaySchoolCalendar{settings: settings, days: days}
+	return holidaySchoolCalendar{settings: settings, days: days, organizations: organizations}
 }
 
 type holidaySchoolCalendar struct {
-	settings CareContractHolidaySettings
-	days     HolidayCalendarDays
+	organizations TraegerCalendarOrganizations
+	settings      CareContractHolidaySettings
+	days          HolidayCalendarDays
 }
 
 func (c holidaySchoolCalendar) HolidayNoCareDays(ctx context.Context, schoolIDs []int64, from, to calendar.Date,
@@ -95,6 +97,9 @@ func (c holidaySchoolCalendar) HolidayNoCareDays(ctx context.Context, schoolIDs 
 	result := make(map[int64][]enrollment.HolidayNoCareDay, len(schoolIDs))
 	if len(schoolIDs) == 0 {
 		return result, nil
+	}
+	if err := c.authorizeHostSchools(ctx, schoolIDs); err != nil {
+		return nil, err
 	}
 	states, err := schoolFederalStates(ctx, c.settings, schoolIDs)
 	if err != nil {
@@ -115,6 +120,27 @@ func (c holidaySchoolCalendar) HolidayNoCareDays(ctx context.Context, schoolIDs 
 		result[schoolID] = mergeNoCareDays(byRegion[region], closing)
 	}
 	return result, nil
+}
+
+func (c holidaySchoolCalendar) authorizeHostSchools(ctx context.Context, schoolIDs []int64) error {
+	// Authorize every supplied school before crossing into school transactions
+	// or reading settings. A refusal must reveal none of a foreign calendar.
+	organizationID := tenant.TraegerTransactionFromContext(ctx)
+	if organizationID <= 0 {
+		return enrollment.ErrHolidayHostSchoolOutsideTraeger
+	}
+	schools, err := c.organizations.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	for _, id := range schoolIDs {
+		if !slices.ContainsFunc(schools, func(school organizationtenancy.School) bool {
+			return school.ID == id && school.OrganizationID == organizationID && !school.IsDeleted()
+		}) {
+			return enrollment.ErrHolidayHostSchoolOutsideTraeger
+		}
+	}
+	return nil
 }
 
 func (c holidaySchoolCalendar) regionHolidays(ctx context.Context, region string, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
@@ -175,3 +201,6 @@ func mergeNoCareDays(holidays, closing []enrollment.HolidayNoCareDay) []enrollme
 	slices.SortStableFunc(merged, func(a, b enrollment.HolidayNoCareDay) int { return a.Date.Compare(b.Date) })
 	return slices.CompactFunc(merged, func(a, b enrollment.HolidayNoCareDay) bool { return a.Date == b.Date })
 }
+
+// NewSchoolClosingDayReads binds the current-membership projection (ADR 0194).
+func NewSchoolClosingDayReads() schoolcalendar.ClosingDayReads { return schoolclosingdaysview.New() }

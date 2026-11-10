@@ -35,8 +35,10 @@ func PersistenceRuntimeFor(db *bun.DB) PersistenceRuntime {
 
 // RecordsDependencies are the bindings of the Records: the database and the federal state of the holiday reads.
 type RecordsDependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	// ClosingDayReads includes only the current Träger’s closing days (ADR 0194).
+	ClosingDayReads schoolcalendar.ClosingDayReads
+	DB              *bun.DB
+	Observe         func(Observation)
 	// FederalState resolves the tenant's federal-state ISO code (operations.federal_state).
 	FederalState func(context.Context) (string, error)
 }
@@ -44,13 +46,12 @@ type RecordsDependencies struct {
 // NewRecords composes the School Calendar without the period administration, for the owners a root builds
 // before the ones the administration asks (#4080). NewAdministration adds the administration later.
 func NewRecords(dependencies RecordsDependencies) (schoolcalendar.Days, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.FederalState == nil {
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.FederalState == nil || dependencies.ClosingDayReads == nil {
 		return nil, errors.New("school calendar compose: all dependencies are required")
 	}
 	// The records serve no period administration, so its gate and guard
 	// are never asked.
-	service := retainedNewService(dependencies.DB, dependencies.Observe, application.Administration{Transaction: writeTransaction, Today: application.BerlinToday, FederalState: dependencies.FederalState})
-	return service, nil
+	return application.New(postgres.New(postgres.NewCompositionDatabase(), dependencies.ClosingDayReads), ports.Observer(dependencies.Observe), application.Administration{Transaction: writeTransaction, Today: application.BerlinToday, FederalState: dependencies.FederalState}, application.LocalCalendar{}), nil
 }
 
 // AdministrationDependencies are the collaborators of the period

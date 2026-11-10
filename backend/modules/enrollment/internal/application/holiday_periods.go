@@ -17,7 +17,8 @@ import (
 
 // Holiday periods of a Träger (#4659). The caller runs every operation in the
 // Träger transaction of organizationID; the store refuses any other unit. The
-// database decides whether a host school belongs to the Träger.
+// calendar binding authorizes host schools before reading their calendars;
+// the database also enforces membership on writes.
 
 // Limits of one period. They bound the request, not the business: a holiday
 // season has a handful of weeks with two or three time models each.

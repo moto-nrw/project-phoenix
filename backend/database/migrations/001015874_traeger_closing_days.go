@@ -100,7 +100,10 @@ CREATE POLICY traeger_isolation_schedule_traeger_closing_days ON schedule.traege
 	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint)
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 CREATE POLICY school_read_schedule_traeger_closing_days ON schedule.traeger_closing_days FOR SELECT
-	USING (NULLIF(current_setting('app.current_tenant_id', true), '')::bigint = ANY (school_ids));
+	USING (NULLIF(current_setting('app.current_tenant_id', true), '')::bigint = ANY (school_ids)
+		AND EXISTS (SELECT 1 FROM platform.schools AS school
+			WHERE school.id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+				AND school.organization_id = traeger_closing_days.organization_id AND school.deleted_at IS NULL));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON schedule.traeger_closing_days TO phoenix_tenant;
 GRANT USAGE ON SEQUENCE schedule.traeger_closing_days_id_seq TO phoenix_tenant;

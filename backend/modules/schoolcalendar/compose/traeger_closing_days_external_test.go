@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -136,7 +137,7 @@ func TestSchoolReadsOnlyTheTraegerClosingDaysNamingItBelowRLS(t *testing.T) {
 	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{traeger.id: traeger.states()})
 	planClosingDay(t, ctx, days, traeger, calendar.NewDate(2027, 5, 7), "Brückentag", named)
 	planClosingDay(t, ctx, days, traeger, calendar.NewDate(2027, 5, 21), "Betriebsausflug", unnamed)
-	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{DB: db, Observe: func(schoolCalendarCompose.Observation) {},
+	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{ClosingDayReads: owners.NewSchoolClosingDayReads(), DB: db, Observe: func(schoolCalendarCompose.Observation) {},
 		FederalState: func(context.Context) (string, error) { return "DE-NW", nil }})
 	require.NoError(t, err)
 
@@ -171,4 +172,22 @@ func TestSchoolReadsOnlyTheTraegerClosingDaysNamingItBelowRLS(t *testing.T) {
 		}
 		return nil
 	}))
+	foreign := newClosingDayTraeger(t, db, "Träger nach Schulwechsel", 0)
+	_, err = db.ExecContext(ctx, `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, foreign.id, named)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinCurrentTenant(schoolCtx, func(txCtx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(txCtx))
+		list, err := records.ListClosingDays(txCtx, schoolcalendar.ClosingDayFilter{})
+		require.NoError(t, err)
+		require.Len(t, list, 1, "after transfer only the school's own closing day remains")
+		assert.False(t, list[0].Traeger)
+		dates, err := records.ClosingDayDates(txCtx, "2027-05-01", "2027-05-31")
+		require.NoError(t, err)
+		assert.False(t, dates["2027-05-07"], "the former Träger no longer changes the school's Soll")
+		closing, _, err := records.CareCalendarDays(txCtx, calendar.NewDate(2027, 5, 1), calendar.NewDate(2027, 5, 31))
+		require.NoError(t, err)
+		assert.False(t, closing[calendar.NewDate(2027, 5, 7)], "nor its care calendar")
+		return nil
+	}))
+
 }

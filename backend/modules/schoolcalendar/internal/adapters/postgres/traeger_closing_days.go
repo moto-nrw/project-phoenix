@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -55,18 +54,6 @@ const (
 		SET start_date = ?, end_date = ?, reason = ?, school_ids = ?
 		WHERE organization_id = ? AND id = ? RETURNING ` + traegerClosingDayColumns
 	deleteTraegerClosingDayQuery = `DELETE FROM schedule.traeger_closing_days WHERE organization_id = ? AND id = ?`
-	// schoolClosingDaysQuery lists a school's own closing days and those
-	// its Träger planned for it. Both filters name the school here as well
-	// as in the read policies, so a connection without row security never
-	// reads another school's closing days.
-	schoolClosingDaysQuery = `SELECT id, created_at, updated_at, start_date::text AS start_date, end_date::text AS end_date, reason, false AS traeger
-		FROM schedule.closing_days
-		WHERE tenant_id = ? AND start_date <= ? AND end_date >= ?
-		UNION ALL
-		SELECT id, created_at, updated_at, start_date::text, end_date::text, reason, true
-		FROM schedule.traeger_closing_days
-		WHERE ? = ANY (school_ids) AND start_date <= ? AND end_date >= ?
-		ORDER BY start_date, traeger, id`
 )
 
 // traegerDB returns the Träger transaction of organizationID. A school,
@@ -172,44 +159,4 @@ func traegerClosingDayToDomain(row traegerClosingDayRow) domain.TraegerClosingDa
 	return domain.TraegerClosingDay{
 		ID: row.ID, StartDate: row.StartDate, EndDate: row.EndDate, Reason: row.Reason, SchoolIDs: schoolIDs, UpdatedAt: row.UpdatedAt,
 	}
-}
-
-type schoolClosingDayRow struct {
-	ID        int64        `bun:"id"`
-	CreatedAt time.Time    `bun:"created_at"`
-	UpdatedAt time.Time    `bun:"updated_at"`
-	StartDate calendarDate `bun:"start_date"`
-	EndDate   calendarDate `bun:"end_date"`
-	Reason    string       `bun:"reason"`
-	Traeger   bool         `bun:"traeger"`
-}
-
-// listSchoolClosingDays lists the school's own closing days and those its
-// Träger planned for it touching [from, to] in one statement, ordered by
-// start date with the school's own first; an empty window lists all of them.
-func listSchoolClosingDays(ctx context.Context, db bun.IDB, tenantID int64, from, to string) ([]schoolcalendar.ClosingDay, domain.OperationStats, error) {
-	stats := domain.OperationStats{Queries: 1}
-	if tenantID <= 0 {
-		return nil, domain.OperationStats{}, errors.New("schoolcalendar: tenant is required")
-	}
-	if from == "" {
-		from, to = "0001-01-01", "9999-12-31"
-	}
-	started := time.Now()
-	var rows []schoolClosingDayRow
-	err := db.NewRaw(schoolClosingDaysQuery, tenantID, calendarDate(to), calendarDate(from),
-		tenantID, calendarDate(to), calendarDate(from)).Scan(ctx, &rows)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return nil, stats, fmt.Errorf("school calendar postgres: list closing days: %w", err)
-	}
-	result := make([]schoolcalendar.ClosingDay, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, schoolcalendar.ClosingDay{
-			ID: row.ID, TenantID: tenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-			StartDate: string(row.StartDate), EndDate: string(row.EndDate), Reason: row.Reason, Traeger: row.Traeger,
-		})
-	}
-	stats.Rows = int64(len(result))
-	return result, stats, nil
 }
