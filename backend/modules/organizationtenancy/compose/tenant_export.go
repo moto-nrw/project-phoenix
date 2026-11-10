@@ -29,3 +29,12 @@ func NewTraegerTenantExporter(db *bun.DB, dependencies organizationtenancy.Tenan
 	}
 	return tenantexport.NewTenantExporter(db, dependencies), nil
 }
+
+// NewReturnRegisterBuilder binds the register of the return package
+// (ADR 0200): it describes the tables with the code that writes model.json.
+func NewReturnRegisterBuilder(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints) (organizationtenancy.ReturnRegisterBuilder, error) {
+	if db == nil || fingerprints.Bytes == nil {
+		return nil, errors.New("return register requires a database and its fingerprints")
+	}
+	return tenantexport.NewReturnRegisterBuilder(db, fingerprints), nil
+}

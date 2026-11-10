@@ -8,6 +8,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
 	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
+	dataReturnHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/datareturn"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -51,6 +52,10 @@ func mountPublicRoutes(root chi.Router, metricsToken string, ping func(context.C
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400", nativeUploads.UploadFiles{})
 	})
+
+	// The register of the return package (Art. 26 Data Act, ADR 0200): no
+	// customer data, so customers and target providers read it without a session.
+	root.Mount("/public/data-return", dataReturnHTTP.NewResource().Router())
 
 	root.With(metricsAuthMiddleware(metricsToken)).Handle("/internal/metrics", metricsHandler())
 }
