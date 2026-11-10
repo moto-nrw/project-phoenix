@@ -27,19 +27,24 @@ export function ReleaseOpenPoints({
   const items = points.map((point) =>
     typeof point === "string" ? { text: point } : point,
   );
+  // The list goes in `details`: the symbol then stands beside the title, not
+  // beside a point in the middle, where it would mark that point alone.
   return (
     <Alert
       type="warning"
       announce="off"
       className="mt-3"
       title="Noch offen"
-      message={
-        <ul className="list-disc space-y-2 pl-4">
+      message="Sie können das vorher klären oder trotzdem freigeben."
+      details={
+        <ul className="mt-2 list-disc space-y-2 pl-4">
           {items.map((point) => (
             <li key={point.text}>
               <span>{point.text}</span>
+              {/* -ml-2.5 takes back the button's padding: its label starts
+                  where the point's text starts. */}
               {point.action ? (
-                <span className="mt-1 block">{point.action}</span>
+                <span className="-ml-2.5 block">{point.action}</span>
               ) : null}
             </li>
           ))}
