@@ -5623,16 +5623,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) CollectSchoolClass(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectSchoolClass)\n}",
+      "evidence": "func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)\n}",
       "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectSchoolClass",
+      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)\n}",
+      "evidence": "func (s enrollmentRolloverSettings) StatusTokenTTLDays(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentStatusTokenTTLDays)\n}",
       "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
+      "id": "roots/owners/enrollmentRolloverSettings.StatusTokenTTLDays",
       "owner": "roots"
     },
     {
