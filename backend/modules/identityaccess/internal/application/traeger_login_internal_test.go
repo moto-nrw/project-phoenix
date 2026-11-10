@@ -64,3 +64,7 @@ func TestTraegerMintGuard_RefusesAnAccountSwitchedOffAfterTheCredentialCheck(t *
 	require.ErrorIs(t, err, identityaccess.ErrAccountInactive)
 	assert.Nil(t, claims)
 }
+
+func (s traegerMembershipsStub) HasRetainedTraegerMembership(context.Context, int64) (bool, error) {
+	return len(s.organizations) > 0, nil
+}

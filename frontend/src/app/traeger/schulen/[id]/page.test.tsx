@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { mockFetchSchool, mockStartSession, mockUseSession } = vi.hoisted(
   () => ({
@@ -177,6 +178,21 @@ describe("TraegerSchoolPage", () => {
     renderPage();
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Kinder gesamt")).not.toBeInTheDocument();
+  });
+
+  // A foreign or unknown school answers 404 traeger.school_not_found (#6461).
+  it("names a school that is not the Träger's instead of showing figures", async () => {
+    mockFetchSchool.mockRejectedValue(
+      new ApiError("not found", 404, { code: "traeger.school_not_found" }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("traeger.school_not_found", "die Schule"),
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Kinder gesamt")).not.toBeInTheDocument();
   });
 });

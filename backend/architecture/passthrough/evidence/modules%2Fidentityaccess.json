@@ -681,7 +681,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {\n\treturn MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))\n}",
+      "evidence": "func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error {\n\treturn MFAError(c.Flows.Enroll(c.ctx(ctx), domain.VerifiedMFAChallenge(proof)))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.EnrollMFA",
       "owner": "modules/identityaccess"

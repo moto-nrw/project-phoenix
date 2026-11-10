@@ -64,7 +64,7 @@ func (s *staffDeviations) getLogger() *slog.Logger {
 // Take it before instance/participant row locks; if recurrence is needed,
 // take recurrence first (see InstanceLifecycleService.LockDeviationDays).
 func (s *staffDeviations) acquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
-	return s.deps.Locks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
+	return lockScheduleDays(ctx, s.deps.Locks.AcquireTransactionLock, tenant.FromContext(ctx), date)
 }
 
 // QueueActivityUpdates queues one activity update per touched running block

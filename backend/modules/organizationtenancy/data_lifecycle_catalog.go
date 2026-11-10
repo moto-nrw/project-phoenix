@@ -39,6 +39,11 @@ type LifecycleTable struct {
 	// ExcludeSecretColumns: its ciphertext never leaves; the owner of the table
 	// opens the value through TenantExportSealedFields.
 	OpenSealedColumns map[string]string `json:"openSealedColumns,omitempty"`
+	// SealedBindings adds a value of another table in the same snapshot to
+	// the row the owner opens (#6412): a consent row names its mandate only
+	// by ID, while its text is bound to the mandate reference. The key is the
+	// name the owner reads; the value never reaches the artifact or model.
+	SealedBindings map[string]LifecycleSealedBinding `json:"sealedBindings,omitempty"`
 	// ProjectedColumns maps an untyped container column to the column the
 	// return export writes its reviewed projection to (#3838). The container
 	// stays in ExcludeSecretColumns; the owner of the table drops every secret
@@ -47,6 +52,15 @@ type LifecycleTable struct {
 	// PersonKeys lists direct FK evidence only. It is not a complete person
 	// disclosure selector: historical snapshots, JSON and indirect links remain.
 	PersonKeys map[string]string `json:"personKeys,omitempty"`
+}
+
+// LifecycleSealedBinding reads Column of the single Table row whose columns
+// equal the exported row's: Match maps a column of the exported table to a
+// column of Table. It is a lookup for opening, not an export column.
+type LifecycleSealedBinding struct {
+	Table  string            `json:"table"`
+	Column string            `json:"column"`
+	Match  map[string]string `json:"match"`
 }
 
 // LifecycleParent is an actual foreign-key edge from Column to ParentColumn.

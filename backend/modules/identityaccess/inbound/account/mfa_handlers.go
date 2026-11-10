@@ -135,8 +135,10 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		mapMFAError(w, r, err)
 		return
 	}
-	// A retried confirm must still produce a session.
-	if err := rs.MFAService.EnrollMFA(ctx, claims.AccountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+	// A retried confirm must still produce a session. The enrollment holds
+	// the redeemed code's credential generation, so a password change or MFA
+	// reset since then records nothing and mints nothing (#6518).
+	if err := rs.MFAService.EnrollMFA(ctx, verified); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 		mapMFAError(w, r, err)
 		return
 	}

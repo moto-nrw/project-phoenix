@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
@@ -13,15 +14,22 @@ import (
 type SickCascadeTimetableRows struct {
 	TimetableInstanceReads
 	TimetableInstanceStaffReads
-	dayLock func(context.Context, calendar.Date) error
+	// RecurrenceWriteLock is the tenant recurrence gate, which the
+	// materialization and the series writes hold while they plan rows from
+	// the sick reports; a sick-report write takes it too (#6232).
+	timetable.RecurrenceWriteLock
+	dayLock func(context.Context, string) error
 }
 
 // AcquireSubstituteDayLock serializes the day-wide staffing mutations of the
-// tenant within the caller's transaction.
+// tenant within the caller's transaction, in the lock order of every other
+// day-lock writer (lockScheduleDays).
 func (r SickCascadeTimetableRows) AcquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
-	return r.dayLock(ctx, date)
+	return lockScheduleDays(ctx, r.dayLock, tenant.FromContext(ctx), date)
 }
 
-func NewSickCascadeTimetableRows(instances ports.LegacyInstanceReads, staff timetable.InstanceStaffCapability, dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
-	return SickCascadeTimetableRows{TimetableInstanceReads: NewTimetableInstanceReads(instances), TimetableInstanceStaffReads: NewTimetableInstanceStaffReads(staff), dayLock: dayLock}
+// NewSickCascadeTimetableRows binds the rows, dayLock, which takes one
+// transaction-scoped advisory lock on a hashed key, and the recurrence gate.
+func NewSickCascadeTimetableRows(instances ports.LegacyInstanceReads, staff timetable.InstanceStaffCapability, dayLock func(context.Context, string) error, recurrence timetable.RecurrenceWriteLock) SickCascadeTimetableRows {
+	return SickCascadeTimetableRows{TimetableInstanceReads: NewTimetableInstanceReads(instances), TimetableInstanceStaffReads: NewTimetableInstanceStaffReads(staff), RecurrenceWriteLock: recurrence, dayLock: dayLock}
 }

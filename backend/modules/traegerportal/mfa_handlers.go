@@ -38,7 +38,7 @@ type MFARuntime struct {
 	// StartChallenge mails the enrollment code and names its row; it is bound
 	// to the credential generation the enrollment token names (#6289).
 	StartChallenge func(ctx context.Context, accountID int64, ip net.IP, credentialGeneration int64) (string, error)
-	Enroll         func(ctx context.Context, accountID int64) error
+	Enroll         func(ctx context.Context, proof VerifiedChallenge) error
 }
 
 func (rt *MFARuntime) complete() bool {
@@ -149,7 +149,8 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
-	if err := rs.mfa.Enroll(r.Context(), accountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+	// The enrollment holds the redeemed code's credential generation (#6518).
+	if err := rs.mfa.Enroll(r.Context(), verified); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}

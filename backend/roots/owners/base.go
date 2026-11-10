@@ -63,7 +63,7 @@ func ComposeSchoolMembership(db transactionruntime.Database) (schoolMembershipMo
 }
 
 // ComposePendingWindows composes School Membership's pending-window command
-// a phase edit moves still pending children with (#6505, ADR 0200).
+// a phase edit moves still pending children with (#6505, ADR 0202).
 func ComposePendingWindows(db transactionruntime.Database) (schoolMembershipModule.PendingWindows, error) {
 	dependencies, err := SchoolMembershipDependencies(db)
 	if err != nil {

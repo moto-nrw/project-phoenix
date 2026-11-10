@@ -250,7 +250,7 @@ func EnrollmentMailBranding(baseURL, schoolImageURL string) (string, string) {
 }
 
 // enrollmentPhaseStudents binds the phase edit's pending-window move to
-// School Membership's guarded command (#6505, ADR 0200). A window the command
+// School Membership's guarded command (#6505, ADR 0202). A window the command
 // refuses as inverted is a conflict of the phase edit.
 type enrollmentPhaseStudents struct {
 	membership schoolmembership.PendingWindows

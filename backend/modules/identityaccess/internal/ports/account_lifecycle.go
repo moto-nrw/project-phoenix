@@ -155,8 +155,10 @@ type GuardianInvitationStore interface {
 	// otherwise it reports ErrGuardianInvitationNotFound.
 	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string, expectedExpiresAt time.Time) error
 	// AcceptGuardianInvitation stamps the acceptance and reports whether the
-	// invitation was still unaccepted, so a token is spent exactly once.
-	AcceptGuardianInvitation(ctx context.Context, id int64, acceptedAt time.Time) (bool, error)
+	// invitation was still unaccepted and still carried the link token it was
+	// looked up by, so a token is spent exactly once and a replaced link
+	// never (#6495).
+	AcceptGuardianInvitation(ctx context.Context, id int64, token string, acceptedAt time.Time) (bool, error)
 
 	AccountProvisioning
 }

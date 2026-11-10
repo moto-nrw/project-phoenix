@@ -15,6 +15,9 @@ func LockStaffShiftWrites(ctx context.Context, db *bun.DB, staffID int64) error 
 		return errors.New("tenant id is required")
 	}
 	key := fmt.Sprintf("staff-shift:%d:%d", tenantID, staffID)
+	if err := tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(staffID)); err != nil {
+		return fmt.Errorf("lock staff shift writes: %w", err)
+	}
 	if err := AcquireXactLock(ctx, key, New(DatabaseRuntime(db)).AcquireXactLock); err != nil {
 		return fmt.Errorf("lock staff shift writes: %w", err)
 	}

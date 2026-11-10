@@ -3951,7 +3951,7 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0200",
+      "decision": "0202",
       "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
       "reason": "#6505: Consumer-port adapter of Enrollment's phase delete; it reads Care Plan's bookings of the phase's offerings and maps them onto Enrollment's booking rows, read in the caller's tenant transaction under the recurrence gate."
     },
@@ -3966,7 +3966,7 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0200",
+      "decision": "0202",
       "id": "roots/owners/enrollmentPhaseStudents.MovePendingWindow",
       "reason": "#6505: Consumer-port adapter of Enrollment's phase edit; it maps the proposed window onto School Membership's guarded pending-window command and its refusal of an inverted window onto an invalid phase edit."
     },

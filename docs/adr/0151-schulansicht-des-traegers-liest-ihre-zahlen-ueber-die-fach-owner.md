@@ -43,7 +43,8 @@ Preis dieser Entscheidung (siehe Folgen).
 4. **Kein Protokoll.** Die Antwort trägt zusammengefasste Zahlen und die Kontaktdaten
    der Schule. Nach ADR 0084 Abschnitt 7 steht das Lesen nicht im Zugriffsprotokoll.
 5. **Fremde Schule.** Eine Schule eines anderen Trägers und eine unbekannte ID
-   antworten gleich mit 403. So verrät die Route keine Schule.
+   antworten gleich mit 403. So verrät die Route keine Schule. (Seit dem
+   Nachtrag vom 10.11.2026: 404.)
 6. **Wurzel und Register.** Die Signaturen nutzen nur eingebaute Typen. Die Fähigkeiten
    der Owner erfüllen die Ports von `traeger-view` also direkt, ohne Übersetzung in
    der Wurzel und ohne neuen Eintrag im Pass-through-Register. Die Konstruktoren heben
@@ -82,3 +83,13 @@ es entsteht keine neue Transaktionsstelle und keine Compose-Zeile. Die Projektio
 behält nur Zeilen der Schulmenge, die sie selbst aufgelöst hat. Dass beide Ansichten
 dieselben Zahlen zeigen, belegt `api/traeger_key_date_counts_test.go` mit einer
 echten Erfassung über zwei Monate und einer Schule eines anderen Trägers.
+
+## Nachtrag 10.11.2026: Fremde Schule antwortet mit 404 ([#6461](https://github.com/moto-nrw/project-phoenix/issues/6461))
+
+Punkt 5 gab der Schulansicht 403, der Absprung (`POST /traeger/school-sessions`)
+antwortet für dieselbe Schule mit 404. Beide tragen `traeger.school_not_found`.
+Jetzt antwortet auch die Schulansicht mit 404: der Code sagt „nicht gefunden“,
+das Repo antwortet auch sonst bei fremden Mandantenobjekten mit 404
+(`iot.room_not_found`), und eine fremde und eine unbekannte Schule bleiben
+gleich, also verrät die Route weiter keine Schule. Ein fehlendes Recht bleibt
+403 mit eigenem Code. Fehlercode und Klasse bleiben gleich.

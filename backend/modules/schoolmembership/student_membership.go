@@ -16,7 +16,7 @@ type StudentEnrollment struct {
 }
 
 // PendingWindows moves the enrollment window of a child an approval left
-// pending, for a phase edit (#6505, ADR 0200). MovePendingWindow locks only
+// pending, for a phase edit (#6505, ADR 0202). MovePendingWindow locks only
 // the child's row, takes no class gate and reports whether the child was
 // still pending. It raises no Kontingentzahl: a pending start that lies ahead
 // counts already, one that moves to the past no longer.

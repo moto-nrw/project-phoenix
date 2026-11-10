@@ -94,7 +94,6 @@ services:
       POSTHOG_HOST: ${POSTHOG_HOST}
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED}
       SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED}
-      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME}
       OPERATOR_EMAIL: ${OPERATOR_EMAIL}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME}
@@ -125,8 +124,6 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN}
-      # Trust the Host header from reverse proxy (required when behind nginx/caddy/traefik)
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED}
@@ -157,7 +154,6 @@ services:
       - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
-      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
       - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
       # Preserve Next.js incremental build artifacts across container rebuilds
       - next_cache:/app/.next/cache

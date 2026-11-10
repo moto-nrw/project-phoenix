@@ -123,7 +123,7 @@ func (p *Phase) EnrollmentWindowOpen(now time.Time) bool {
 }
 
 // PhaseStudents is the School Membership command a phase edit moves the
-// enrollment window of a still pending child with (#6505, ADR 0200). The
+// enrollment window of a still pending child with (#6505, ADR 0202). The
 // command locks the child's row, decides under that lock and reports whether
 // the child was still pending; it takes no class gate.
 type PhaseStudents interface {

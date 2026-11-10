@@ -102,7 +102,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 | Rollover-Lauf | `RunDeadlineWorker`, `LockApprovalGates` vor der ersten Sammelumstellung | Klasse, Wiederholung, Sammelumstellungen, Savepoints der Bestätigungen |
 | Fällige Klassenwechsel (#3917) | `ApplyDueClassSwitches` | Klasse, Wiederholung, Pläne, Kinder (`users.students`) |
 | Fällige Wochenpläne | `ApplyDueWeeklyPlans`, `LockApprovalGates` vor dem Lesen der Pläne | Klasse, Wiederholung, Pläne, Laufgemeinschaft, Kinder |
-| Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne, je vorgemerktes Kind dessen Zeile in School Membership (`MovePendingWindow`, keine Klassensperre), dann seine Aktivierungspläne ([ADR 0200](0200-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md)) |
+| Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne, je vorgemerktes Kind dessen Zeile in School Membership (`MovePendingWindow`, keine Klassensperre), dann seine Aktivierungspläne ([ADR 0202](0202-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md)) |
 | Phase löschen | `Phases.DeletePhase` → `refuseEffectiveBookings`, `detachPhaseSourcedTemplates` | Wiederholung, Buchungsprüfung, Vorlagen, Phase |
 | Rollover anlegen | `createRolloverPhase`, `LockApprovalGates` nach der Eignungsprüfung, vor dem Einfügen der neuen Phase | Klassenabfrage-Sperre (nur bei Klassenbeschränkung), Klasse, Wiederholung, Quellphase erneut, neue Phase (`KEY SHARE` auf die Quellphase), Katalogkopie ([ADR 0179](0179-rollover-anlegen-nimmt-die-wiederholungssperre-vor-der-neuen-phase.md)) |
 | Angebote anpassen | `UpdateChildOfferings` → Care Plan `AdjustOfferings` | Klasse, Wiederholung, Kind; die Anmeldung wird ungesperrt gelesen |
@@ -132,7 +132,7 @@ an jedem Tag den gültigen Plan.
 Wie die Wochenpläne folgen geplante Klassenwechsel, offene Aktivierungen und
 der Zeitraum vorgemerkter Kinder einer Phasenänderung in derselben
 Transaktion; eine Phase mit wirksamen Buchungen bestätigter Kinder wird nicht
-gelöscht. Entscheidung, Sperren und Grenzen: [ADR 0200](0200-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md).
+gelöscht. Entscheidung, Sperren und Grenzen: [ADR 0202](0202-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md).
 
 ## Freigegebene Effekte
 

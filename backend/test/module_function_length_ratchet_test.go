@@ -470,9 +470,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	"database/migrations/00_migrations.go:DetectVersionCollisions": 76,
 	// ADR 0087.
 	// ADR 0087.
-	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 75,
+	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 68,
 	// ADR 0087.
-	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).tryCopyBatch": 74,
 	// ADR 0087.
 	"database/migrations/guardian_owner_backfill_verify.go:(*guardianOwnerTenantRun).verifySnapshot": 78,
 	// ADR 0087.
@@ -498,9 +497,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/reset.go:resetDatabase": 71,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 75,
+	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 68,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).tryCopyBatch": 74,
 	// ADR 0087.
 	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).verifySnapshot": 72,
 	// ADR 0087.
@@ -510,9 +508,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/staff_owner_contract.go:staffOwnerContractDataPreflight": 76,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 75,
+	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 68,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).tryCopyBatch": 74,
 	// ADR 0087.
 	"database/migrations/student_owner_backfill_verify.go:(*studentOwnerTenantRun).verifySnapshot": 85,
 	// ADR 0087.

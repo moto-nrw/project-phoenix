@@ -34,6 +34,10 @@ type validationMemberships struct {
 	absent bool
 }
 
+func (s validationMemberships) HasRetainedTraegerMembership(context.Context, int64) (bool, error) {
+	return !s.absent, s.err
+}
+
 func (s validationMemberships) ListAccountTraegerOrganizations(context.Context, int64) ([]identityaccess.TraegerOrganization, error) {
 	if s.absent {
 		return nil, nil
