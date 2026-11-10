@@ -24,8 +24,15 @@ func TestLastSchoolOffboardingPreservesTraegerMembership(t *testing.T) {
 						assignSeededRole(t, db, account.ID, testpkg.Tenant(t), "user")
 					}
 					organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
-						Name: "Offboarding", Slug: fmt.Sprintf("offboarding-%d", testpkg.Tenant(t)), Active: organizationState == "active",
+						Name: "Offboarding", Slug: fmt.Sprintf("offboarding-%d", testpkg.Tenant(t)), Active: true,
 					})
+					if organizationState == "inactive" {
+						_, organizationErr := db.ExecContext(ctx, `UPDATE platform.organizations SET active = false WHERE id = ?`, organization.ID)
+						require.NoError(t, organizationErr)
+					}
+					var organizationActive bool
+					require.NoError(t, db.NewRaw(`SELECT active FROM platform.organizations WHERE id = ?`, organization.ID).Scan(ctx, &organizationActive))
+					require.Equal(t, organizationState != "inactive", organizationActive, "the fixture must exercise the intended organization state")
 					testpkg.CreateTestTraegerMember(t, db, organization.ID, account.ID, "read_only")
 					_, err := db.ExecContext(ctx, `UPDATE platform.organization_accounts SET status = ? WHERE organization_id = ? AND account_id = ?`, status, organization.ID, account.ID)
 					require.NoError(t, err)
