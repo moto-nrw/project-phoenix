@@ -64,7 +64,7 @@ func TestDeliveryCheckpointReportsOnlyItsWorkerQueries(t *testing.T) {
 		return fmt.Sprintf("delivery_scope_metric %d\n", metric)
 	}
 
-	results := testpkg.MeasureDeliveryCheckpoint(t, runtimeDB, fixtureDB, observed, unit, counter, metrics)
+	results := testpkg.MeasureDeliveryCheckpoint(t, runtimeDB, fixtureDB, observed, unit, counter, metrics, false)
 	counter.Stop()
 	reference.Stop()
 	require.Len(t, results, 3)

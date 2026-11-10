@@ -73,7 +73,8 @@ type CheckpointDeliveryWorker interface {
 
 // MeasureDeliveryCheckpoint drives the production worker over owned fixture
 // intents. Fixture insertion, inspection and reset are outside timed regions.
-func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker CheckpointDeliveryWorker, uow tenant.UnitOfWork, counter *QueryCounter, metrics func() string) []RuntimeCheckpointWorkerResult {
+// Enable sampleLocks only for opt-in runtime evidence, not query accounting.
+func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker CheckpointDeliveryWorker, uow tenant.UnitOfWork, counter *QueryCounter, metrics func() string, sampleLocks bool) []RuntimeCheckpointWorkerResult {
 	t.Helper()
 	require.Equal(t, "test", os.Getenv("APP_ENV"))
 	require.Empty(t, os.Getenv("EMAIL_SMTP_HOST"))
@@ -103,7 +104,7 @@ func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker Check
 			if iteration == 5 {
 				result.MetricsBefore = metrics()
 				deadlocksBefore = deadlocks()
-				stopSampling = SampleCheckpointLocks(func(sampleCtx context.Context) (int, error) {
+				stopSampling = sampleCheckpointLocks(sampleLocks, func(sampleCtx context.Context) (int, error) {
 					var waiting int
 					err := fixtureDB.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND usename = 'phoenix_auth' AND wait_event_type = 'Lock'").Scan(sampleCtx, &waiting)
 					return waiting, err
@@ -176,6 +177,15 @@ type RuntimeCheckpointLockSamples struct {
 	Error                 string  `json:"error,omitempty"`
 }
 
+// Accounting regressions exercise the real worker without live lock sampling.
+// Opt-in runtime evidence keeps the sampler and its errors unchanged.
+func sampleCheckpointLocks(enabled bool, sample func(context.Context) (int, error)) func() RuntimeCheckpointLockSamples {
+	if !enabled {
+		return func() RuntimeCheckpointLockSamples { return RuntimeCheckpointLockSamples{} }
+	}
+	return SampleCheckpointLocks(sample)
+}
+
 // Sample actual PostgreSQL Lock wait events, not acquisition-query duration.
 // Counts are sampled observations, not exact durations or proof of zero waits.
 func SampleCheckpointLocks(sample func(context.Context) (int, error)) func() RuntimeCheckpointLockSamples {
@@ -236,7 +246,8 @@ func CreateRuntimeCheckpointTimetable(t *testing.T, db *bun.DB, roomID int64) in
 
 // MeasureTimetableCheckpoint invokes the same public materialization operation
 // as the scheduler. Fixture resets are outside the timed production operation.
-func MeasureTimetableCheckpoint(t *testing.T, db, fixtureDB *bun.DB, uow tenant.UnitOfWork, counter *QueryCounter, templateID int64, run func(context.Context) (int, int, error), metrics func() string) []RuntimeCheckpointWorkerResult {
+// Enable sampleLocks only for opt-in runtime evidence, not query accounting.
+func MeasureTimetableCheckpoint(t *testing.T, db, fixtureDB *bun.DB, uow tenant.UnitOfWork, counter *QueryCounter, templateID int64, run func(context.Context) (int, int, error), metrics func() string, sampleLocks bool) []RuntimeCheckpointWorkerResult {
 	t.Helper()
 	ctx := counter.Context(tenant.WithUnitOfWork(Ctx(t), uow))
 	reset := func() {
@@ -262,7 +273,7 @@ func MeasureTimetableCheckpoint(t *testing.T, db, fixtureDB *bun.DB, uow tenant.
 			if iteration == 5 {
 				result.MetricsBefore = metrics()
 				deadlocksBefore = deadlocks()
-				stopSampling = SampleCheckpointLocks(func(sampleCtx context.Context) (int, error) {
+				stopSampling = sampleCheckpointLocks(sampleLocks, func(sampleCtx context.Context) (int, error) {
 					var waiting int
 					err := fixtureDB.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND usename = 'phoenix_auth' AND wait_event_type = 'Lock'").Scan(sampleCtx, &waiting)
 					return waiting, err
