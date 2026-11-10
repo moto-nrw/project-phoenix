@@ -1,0 +1,493 @@
+package parentportal_test
+
+import (
+	"go/ast"
+	"go/types"
+	"sort"
+	"strings"
+	"testing"
+
+	"golang.org/x/tools/go/packages"
+)
+
+// TestParentChildWritesRunBehindTheGuard is the ratchet of #6529: every
+// parent write for an existing child runs in a school unit opened by one of
+// the guarded openers, whose write argument runs only after guardChildWrite
+// locked membership, child, profile and relationship and re-checked the
+// permissions. The test reads the flows' call graph, not names: from every
+// exported method of the two flow services it follows the calls inside the
+// package (closures and method values included) and reports every call of a
+// port method the register below classifies as a write. A write argument of a
+// guarded opener is not followed: whatever runs there is guarded. Every write
+// reached on another way fails, unless its entry is in the exact register of
+// writes that are not bound to one child, with the reason. A port method the
+// classification does not know fails as well, so a new port or a new method
+// of a port is classified before it can be reached.
+func TestParentChildWritesRunBehindTheGuard(t *testing.T) {
+	t.Parallel()
+	// go test runs in the package directory, inside the backend module.
+	pkgs, err := packages.Load(&packages.Config{
+		Mode: packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedSyntax | packages.NeedFiles,
+	}, flowPackages...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range pkgs {
+		for _, loadErr := range pkg.Errors {
+			t.Fatalf("load %s: %v", pkg.PkgPath, loadErr)
+		}
+	}
+	graph := newFlowGraph(pkgs)
+	var failures []string
+	reached := map[string]bool{}
+	for _, root := range graph.roots() {
+		sinks, unknown := graph.writesFrom(root)
+		failures = append(failures, unknown...)
+		if len(sinks) == 0 {
+			continue
+		}
+		name := graph.name(root)
+		reached[name] = true
+		if strings.TrimSpace(childWriteGuardExemptions[name]) != "" {
+			continue
+		}
+		failures = append(failures, name+" writes outside a guarded child unit: "+strings.Join(sinks, ", "))
+	}
+	for name := range childWriteGuardExemptions {
+		if !reached[name] {
+			failures = append(failures, "stale exemption "+name+": it reaches no write")
+		}
+	}
+	sort.Strings(failures)
+	failures = compactStrings(failures)
+	if len(failures) > 0 {
+		t.Fatalf("parent child writes must run behind the child write guard (#6529):\n%s", strings.Join(failures, "\n"))
+	}
+}
+
+const flowModule = "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/"
+
+var flowPackages = []string{flowModule + "care", flowModule + "messaging"}
+
+// guardedOpeners open a school unit behind guardChildWrite; their last
+// argument is the write.
+var guardedOpeners = map[string]bool{
+	"care.Service.WithChildWrite":                        true,
+	"care.Service.WithPermittedChildForWrite":            true,
+	"care.Service.withPermittedChildForWrite":            true,
+	"care.Service.WithParentConferenceBooking":           true,
+	"messaging.ChildResolver.WithChildWrite":             true,
+	"messaging.ChildResolver.WithPermittedChildForWrite": true,
+}
+
+// childWriteGuardExemptions are the entries that write without a child of
+// the account being the subject of the write. Each one names why.
+var childWriteGuardExemptions = map[string]string{
+	"care.Service.UpdatePortalLocale":                  "the account's own portal language in every school profile; no child is written",
+	"care.Service.StateFamilyChildren":                 "the family's number of children on a Träger contract, authorized per contract in the Träger unit",
+	"care.Service.DeclareContractNotice":               "withdrawal or termination of a Träger contract, authorized per contract in the Träger unit",
+	"care.Service.SignContract":                        "signature of a Träger contract, authorized per contract in the Träger unit",
+	"care.Service.GrantSEPAMandate":                    "the payer's SEPA mandate on a Träger contract",
+	"care.Service.RevokeSEPAMandate":                   "the payer's SEPA mandate on a Träger contract",
+	"care.Service.HolidayRegistrationFamily":           "records the prefill read of the family's children in the data access log and states a holiday wish; a read with its audit, no change of a child",
+	"care.Service.ContractSigningView":                 "reads a Träger contract; it shares contractSigning with SignContract, which writes only when a signature is given",
+	"care.Service.NotifyBillingDocument":               "push of a Träger document to its accounts, run by Delivery, not by a parent request",
+	"care.Service.NotifyContractDocument":              "push of a Träger document to its accounts, run by Delivery, not by a parent request",
+	"care.Service.NotifyTraegerDocumentRelease":        "push of a Träger release to its accounts, run by Delivery, not by a parent request",
+	"care.Service.NotifyTraegerDocumentReleaseAccount": "push of a Träger release to one account, run by Delivery, not by a parent request",
+	"messaging.Service.GetChildConversation":           "moves the reader's own read cursor while it reads the conversation",
+	"messaging.Service.GetGroupThread":                 "moves the reader's own read cursor while it reads the group thread",
+	"messaging.Service.MarkAnnouncementRead":           "the account's read receipt of an announcement of its audience",
+	"messaging.Service.AcknowledgeAnnouncement":        "the account's acknowledgement of an announcement of its audience",
+	"messaging.Service.SubmitAnnouncementSurvey":       "one survey answer per account of the announcement's audience",
+	"messaging.Service.RespondToAnnouncement":          "poll answer for a child: HoldAnswerPermission share-locks relationship, profile and membership in the answer's own transaction",
+	"messaging.Service.SubmitDeclaration":              "declaration for a child: HoldDeclarationSigner share-locks relationship, profile and membership in the declaration's own transaction; a revocation stays possible without the submit permission",
+	"messaging.Service.ShareRequestInTx":               "delegated: care calls it through RequestSharer, a write sink of care, only inside its guarded units",
+}
+
+// portClasses classifies the port methods the flows call: a whole port by
+// its name, or one method. Only "write" is a write; "read" covers reads,
+// locks, runtime and pure policy; "notice" covers losable after-commit
+// notices, such as the chat pill that mirrors a committed self-service write
+// in its own detached transaction.
+var portClasses = map[string]string{
+	"care.AbsenceNotifier":                                      "notice",
+	"care.ArrivalSchedules":                                     "read",
+	"care.AttendanceReader":                                     "read",
+	"care.BatchSettingsService":                                 "read",
+	"care.BillingDocumentNotifier":                              "write",
+	"care.BillingDocuments.BillingDocumentLetter":               "read",
+	"care.BillingDocuments.ListBillingDocuments":                "read",
+	"care.BillingDocuments.FamilyChildren":                      "read",
+	"care.BillingDocuments.StateFamilyChildren":                 "write",
+	"care.CareExceptions":                                       "read",
+	"care.CareOfferingReads":                                    "read",
+	"care.CarePeriodReads":                                      "read",
+	"care.CarePlanPolicy":                                       "read",
+	"care.ChildDataAccessLog":                                   "write",
+	"care.ChildEvents":                                          "notice",
+	"care.ChildReads":                                           "read",
+	"care.ContractDocuments.ContractDocumentFile":               "read",
+	"care.ContractDocuments.ContractSigningView":                "read",
+	"care.ContractDocuments.FamilyEmail":                        "read",
+	"care.ContractDocuments.ListContractDocuments":              "read",
+	"care.ContractDocuments.SignContract":                       "write",
+	"care.ContractInboxNotices":                                 "read",
+	"care.ContractNotices.ContractNoticeOptions":                "read",
+	"care.ContractNotices.DeclareContractNotice":                "write",
+	"care.DataRequestReads":                                     "read",
+	"care.DeparturePolicy":                                      "read",
+	"care.EnrollablePhaseReads":                                 "read",
+	"care.EnrollmentRequestReads":                               "read",
+	"care.EnrollmentSettings":                                   "read",
+	"care.ExcusedAbsenceRequests.EditRequest":                   "write",
+	"care.ExcusedAbsenceRequests.ListForStudent":                "read",
+	"care.ExcusedAbsenceRequests.Submit":                        "write",
+	"care.GuardianAbsenceReports":                               "write",
+	"care.GuardianAccess":                                       "write",
+	"care.GuardianChangeLog":                                    "write",
+	"care.GuardianChangeSource":                                 "write",
+	"care.GuardianInvitationReads":                              "read",
+	"care.GuardianPhoneReads":                                   "read",
+	"care.GuardianPickupExceptions":                             "write",
+	"care.GuardianPolicy":                                       "read",
+	"care.GuardianProfileReads":                                 "read",
+	"care.GuardianRecords":                                      "write",
+	"care.GuardianRecords.ListGuardianProfileTenants":           "read",
+	"care.GuardianSource":                                       "write",
+	"care.HolidayWishStatements":                                "write",
+	"care.Locales":                                              "read",
+	"care.MealPlan":                                             "read",
+	"care.MealPlan.ClearParticipationForDay":                    "write",
+	"care.MealPlan.ReplaceParticipationSchedule":                "write",
+	"care.MealPlan.SetParticipationForDay":                      "write",
+	"care.MealPlan.SetParticipationForWeek":                     "write",
+	"care.MealPlanSource":                                       "read",
+	"care.MealPlanSource.ClearParticipationForDay":              "write",
+	"care.MealPlanSource.ReplaceParticipationSchedule":          "write",
+	"care.MealPlanSource.SetParticipationForDay":                "write",
+	"care.MealPlanSource.SetParticipationForWeek":               "write",
+	"care.OfferingChangeRequests":                               "read",
+	"care.OfferingChangeRequests.CreateCourseRequest":           "write",
+	"care.OfferingChangeRequests.Edit":                          "write",
+	"care.OfferingChangeRequests.SubmitOfferingChange":          "write",
+	"care.OfferingChangeRequests.WithdrawCourseRequest":         "write",
+	"care.OfferingHistoryReads":                                 "read",
+	"care.ParentAccounts":                                       "read",
+	"care.PersonReads":                                          "read",
+	"care.PickupPermissionWrite":                                "write",
+	"care.PickupSchedules":                                      "read",
+	"care.PickupSignatureLedger.PickupSignatures":               "read",
+	"care.PickupSignatureLedger.RecordPickupSignature":          "write",
+	"care.ReleaseFanOut":                                        "write",
+	"care.ReleaseNotices":                                       "read",
+	"care.ReleaseRecipients":                                    "read",
+	"care.ReleaseSchools":                                       "read",
+	"care.RequestEventWriter":                                   "write",
+	"care.RequestShareVisibility":                               "read",
+	"care.RequestSharer.LoadRequestShareVisibility":             "read",
+	"care.RequestSharer.ShareRequestInTx":                       "write",
+	"care.Runtime":                                              "read",
+	"care.SEPAMandates":                                         "read",
+	"care.SEPAMandates.GrantSEPAMandate":                        "write",
+	"care.SEPAMandates.RevokeSEPAMandate":                       "write",
+	"care.SchoolMembershipLocks":                                "read",
+	"care.SchoolTraeger":                                        "read",
+	"care.SelfServiceEvents.EmitSelfServicePill":                "write",
+	"care.SelfServiceEvents.WakeChildGuardians":                 "notice",
+	"care.SettingsService":                                      "read",
+	"care.SettingsSnapshot":                                     "read",
+	"care.StaffParentMessageNotifier":                           "write",
+	"care.StatusDayReads":                                       "read",
+	"care.StudentCare":                                          "write",
+	"care.StudentChangeRecorder":                                "write",
+	"care.StudentConsentService.CurrentStates":                  "read",
+	"care.StudentConsentService.RecordTransitions":              "write",
+	"care.StudentDataRequestCommands":                           "write",
+	"care.StudentGuardianReads":                                 "read",
+	"care.StudentPeople":                                        "write",
+	"care.StudentPhotoUnlinker":                                 "write",
+	"care.StudentReads":                                         "read",
+	"care.StudentRecords":                                       "write",
+	"care.StudentUpdates":                                       "notice",
+	"care.TraegerDocumentNotifier":                              "write",
+	"care.TraegerRuntime":                                       "read",
+	"care.TraegerSharedDocuments":                               "read",
+	"care.Config.InvalidateInvites":                             "write",
+	"carerequests.Reads":                                        "read",
+	"carerequests.Service":                                      "read",
+	"carerequests.Service.CreatePickupChange":                   "write",
+	"carerequests.Service.CreatePickupPermission":               "write",
+	"carerequests.Service.CreateRequest":                        "write",
+	"carerequests.Service.EditRequest":                          "write",
+	"messaging.AnnouncementFeedAccess":                          "read",
+	"messaging.AnnouncementFeedAccess.MarkAcknowledged":         "write",
+	"messaging.AnnouncementFeedAccess.MarkRead":                 "write",
+	"messaging.AnnouncementFeedAccess.SetResponse":              "write",
+	"messaging.DeclarationCommands":                             "read",
+	"messaging.DeclarationCommands.InsertDeclarationSubmission": "write",
+	"messaging.DeclarationReads":                                "read",
+	"messaging.PermissionValues":                                "read",
+	"messaging.AttachmentAudience":                              "read",
+	"messaging.AttachmentFiles":                                 "read",
+	"messaging.CareRequestReads":                                "read",
+	"messaging.ChildResolver":                                   "read",
+	"messaging.ContentFingerprints":                             "read",
+	"messaging.ConversationCore":                                "read",
+	"messaging.ConversationCore.AppendMessage":                  "write",
+	"messaging.ConversationCore.Broadcast":                      "notice",
+	"messaging.ConversationCore.BroadcastRead":                  "notice",
+	"messaging.ConversationCore.MarkReadToNewest":               "write",
+	"messaging.DeclarationPolicy":                               "read",
+	"messaging.ExcusedRequestReads":                             "read",
+	"messaging.FamilyProtectionReads":                           "read",
+	"messaging.GroupThreads":                                    "read",
+	"messaging.GroupThreads.ReadGroupThread":                    "write",
+	"messaging.GuardianProfileReads":                            "read",
+	"messaging.MessageInboxReads":                               "read",
+	"messaging.MessageReads":                                    "read",
+	"messaging.MessageThreadAccess":                             "read",
+	"messaging.MessageThreadAccess.GetOrCreate":                 "write",
+	"messaging.OfferingChangeRequestReads":                      "read",
+	"messaging.RequestEvents":                                   "read",
+	"messaging.RequestSharePolicy":                              "read",
+	"messaging.RequestShareRecords":                             "read",
+	"messaging.RequestShareRecords.Create":                      "write",
+	"messaging.SignatureLedger.DeclarationSignatures":           "read",
+	"messaging.SignatureLedger.RecordDeclarationSignature":      "write",
+	"messaging.Surveys":                                         "read",
+	"messaging.Surveys.SubmitSurvey":                            "write",
+}
+
+// flowGraph is the call graph of the flow packages.
+type flowGraph struct {
+	decls map[*types.Func]*ast.FuncDecl
+	infos map[*types.Func]*types.Info
+}
+
+func newFlowGraph(pkgs []*packages.Package) *flowGraph {
+	g := &flowGraph{decls: map[*types.Func]*ast.FuncDecl{}, infos: map[*types.Func]*types.Info{}}
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Body == nil {
+					continue
+				}
+				obj, ok := pkg.TypesInfo.Defs[fn.Name].(*types.Func)
+				if !ok {
+					continue
+				}
+				g.decls[obj], g.infos[obj] = fn, pkg.TypesInfo
+			}
+		}
+	}
+	return g
+}
+
+// roots are the exported methods of the flow services.
+func (g *flowGraph) roots() []*types.Func {
+	var roots []*types.Func
+	for fn := range g.decls {
+		if !fn.Exported() {
+			continue
+		}
+		recv := fn.Type().(*types.Signature).Recv()
+		if recv == nil {
+			continue
+		}
+		if named := namedOf(recv.Type()); named != nil && named.Obj().Name() == "Service" {
+			roots = append(roots, fn)
+		}
+	}
+	sort.Slice(roots, func(i, j int) bool { return g.name(roots[i]) < g.name(roots[j]) })
+	return roots
+}
+
+// writesFrom returns the write sinks reachable from root outside guarded
+// write arguments, and the port methods without a class.
+func (g *flowGraph) writesFrom(root *types.Func) (sinks, unknown []string) {
+	seen := map[*types.Func]bool{root: true}
+	queue := []*types.Func{root}
+	found := map[string]bool{}
+	for len(queue) > 0 {
+		fn := queue[0]
+		queue = queue[1:]
+		info := g.infos[fn]
+		skip := map[ast.Node]bool{}
+		ast.Inspect(g.decls[fn].Body, func(n ast.Node) bool {
+			if n == nil || skip[n] {
+				return false
+			}
+			if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
+				if callee := calleeName(info, call.Fun); guardedOpeners[callee] {
+					skip[call.Args[len(call.Args)-1]] = true
+				}
+			}
+			var ident *ast.Ident
+			switch x := n.(type) {
+			case *ast.Ident:
+				ident = x
+			case *ast.SelectorExpr:
+				ident = x.Sel
+			default:
+				return true
+			}
+			switch obj := info.Uses[ident].(type) {
+			case *types.Func:
+				if _, local := g.decls[obj]; local {
+					if !seen[obj] {
+						seen[obj] = true
+						queue = append(queue, obj)
+					}
+					return true
+				}
+				port := interfaceMethodName(obj)
+				if port == "" {
+					return true
+				}
+				switch class := classify(port); class {
+				case "write":
+					found[port] = true
+				case "":
+					unknown = append(unknown, "unclassified port method "+port)
+				}
+			case *types.Var:
+				if obj.IsField() && isFunc(obj.Type()) {
+					if owner := fieldOwner(info, n); owner != "" {
+						port := owner + "." + obj.Name()
+						if classify(port) == "write" {
+							found[port] = true
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
+	for port := range found {
+		sinks = append(sinks, port)
+	}
+	sort.Strings(sinks)
+	return sinks, unknown
+}
+
+func classify(port string) string {
+	if class, ok := portClasses[port]; ok {
+		return class
+	}
+	if i := strings.LastIndex(port, "."); i > 0 {
+		return portClasses[port[:i]]
+	}
+	return ""
+}
+
+func (g *flowGraph) name(fn *types.Func) string {
+	return funcName(fn)
+}
+
+func funcName(fn *types.Func) string {
+	pkg := fn.Pkg().Name()
+	if recv := fn.Type().(*types.Signature).Recv(); recv != nil {
+		if named := namedOf(recv.Type()); named != nil {
+			return pkg + "." + named.Obj().Name() + "." + fn.Name()
+		}
+	}
+	return pkg + "." + fn.Name()
+}
+
+// calleeName names the function a call expression calls, as funcName or as
+// interface method.
+func calleeName(info *types.Info, fun ast.Expr) string {
+	var ident *ast.Ident
+	switch x := fun.(type) {
+	case *ast.Ident:
+		ident = x
+	case *ast.SelectorExpr:
+		ident = x.Sel
+	default:
+		return ""
+	}
+	fn, ok := info.Uses[ident].(*types.Func)
+	if !ok {
+		return ""
+	}
+	if port := interfaceMethodName(fn); port != "" {
+		return port
+	}
+	return funcName(fn)
+}
+
+// interfaceMethodName names a method of a module interface as
+// package.Interface.Method; "" for any other function.
+func interfaceMethodName(fn *types.Func) string {
+	recv := fn.Type().(*types.Signature).Recv()
+	if recv == nil || fn.Pkg() == nil || !strings.HasPrefix(fn.Pkg().Path(), "github.com/moto-nrw/project-phoenix/") {
+		return ""
+	}
+	named := namedOf(recv.Type())
+	if named == nil {
+		return ""
+	}
+	if _, ok := named.Underlying().(*types.Interface); !ok {
+		return ""
+	}
+	return named.Obj().Pkg().Name() + "." + named.Obj().Name() + "." + fn.Name()
+}
+
+// fieldOwner names the struct type a func-typed field is selected from.
+func fieldOwner(info *types.Info, n ast.Node) string {
+	sel, ok := n.(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	selection := info.Selections[sel]
+	if selection == nil {
+		return ""
+	}
+	index := selection.Index()
+	typ := selection.Recv()
+	for _, i := range index[:len(index)-1] {
+		st, ok := derefStruct(typ)
+		if !ok {
+			return ""
+		}
+		typ = st.Field(i).Type()
+	}
+	named := namedOf(typ)
+	if named == nil {
+		return ""
+	}
+	return named.Obj().Pkg().Name() + "." + named.Obj().Name()
+}
+
+func derefStruct(typ types.Type) (*types.Struct, bool) {
+	if ptr, ok := typ.(*types.Pointer); ok {
+		typ = ptr.Elem()
+	}
+	st, ok := typ.Underlying().(*types.Struct)
+	return st, ok
+}
+
+func namedOf(typ types.Type) *types.Named {
+	if ptr, ok := typ.(*types.Pointer); ok {
+		typ = ptr.Elem()
+	}
+	named, _ := typ.(*types.Named)
+	return named
+}
+
+func isFunc(typ types.Type) bool {
+	_, ok := typ.Underlying().(*types.Signature)
+	return ok
+}
+
+func compactStrings(values []string) []string {
+	out := values[:0]
+	for i, value := range values {
+		if i == 0 || value != values[i-1] {
+			out = append(out, value)
+		}
+	}
+	return out
+}

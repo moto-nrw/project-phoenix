@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // Elternsprechtag (#4801). The workflow resolves the child through its
@@ -48,18 +49,13 @@ func (rs *Resource) bookChildParentConference(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	child, ok := rs.parentConferenceChild(w, r, true)
-	if !ok {
-		return
-	}
 	var offer *calendarService.ParentConferenceOffer
-	err := withinTenant(r.Context(), child.TenantID, func(ctx context.Context) error {
+	ok = rs.withParentConferenceBooking(w, r, func(ctx context.Context, child calendarService.ParentConferenceChild) error {
 		var bookErr error
 		offer, bookErr = rs.Conferences.BookParentConference(ctx, child, conferenceID, req.StartTime)
 		return bookErr
 	})
-	if err != nil {
-		renderParentConferenceError(w, r, err)
+	if !ok {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, offer, "Parent conference booked")
@@ -70,15 +66,10 @@ func (rs *Resource) cancelChildParentConference(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	child, ok := rs.parentConferenceChild(w, r, true)
-	if !ok {
-		return
-	}
-	err := withinTenant(r.Context(), child.TenantID, func(ctx context.Context) error {
+	ok = rs.withParentConferenceBooking(w, r, func(ctx context.Context, child calendarService.ParentConferenceChild) error {
 		return rs.Conferences.CancelParentConferenceBooking(ctx, child, conferenceID)
 	})
-	if err != nil {
-		renderParentConferenceError(w, r, err)
+	if !ok {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"status": "cancelled"}, "Parent conference booking cancelled")
@@ -107,6 +98,41 @@ func (rs *Resource) parentConferenceChild(w http.ResponseWriter, r *http.Request
 	return calendarService.ParentConferenceChild{
 		TenantID: child.TenantID, StudentID: studentID, GuardianProfileID: child.GuardianProfileID,
 	}, true
+}
+
+// withParentConferenceBooking runs a booking change of the path's child in
+// the child's school unit behind the workflow's child write guard, and
+// renders a refusal: the guard's as a parent write error, the calendar's as
+// a conference error.
+func (rs *Resource) withParentConferenceBooking(w http.ResponseWriter, r *http.Request, write func(context.Context, calendarService.ParentConferenceChild) error) bool {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return false
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return false
+	}
+	if rs.Conferences == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent conferences are not configured")))
+		return false
+	}
+	var calendarErr error
+	err := rs.ParentService.WithParentConferenceBooking(r.Context(), accountID, studentID, func(ctx context.Context, child *parentService.Child) error {
+		calendarErr = write(ctx, calendarService.ParentConferenceChild{
+			TenantID: child.TenantID, StudentID: studentID, GuardianProfileID: child.GuardianProfileID,
+		})
+		return calendarErr
+	})
+	switch {
+	case err == nil:
+		return true
+	case calendarErr != nil && errors.Is(err, calendarErr):
+		renderParentConferenceError(w, r, err)
+	default:
+		renderParentWriteError(w, r, err)
+	}
+	return false
 }
 
 func renderParentConferenceError(w http.ResponseWriter, r *http.Request, err error) {

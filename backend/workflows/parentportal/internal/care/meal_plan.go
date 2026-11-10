@@ -145,9 +145,7 @@ func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountI
 }
 
 func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) error {
-	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
-		return s.MealPlan.SetParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date, Participating: participating})
-	})
+	return s.changeMealParticipationDay(ctx, accountID, studentID, date, &participating)
 }
 
 // SetMealParticipationWeek registers or cancels the remaining weekdays of the
@@ -188,12 +186,12 @@ func lastMealParticipationDay(currentMonday calendar.Date) calendar.Date {
 }
 
 func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date) error {
-	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
-		return s.MealPlan.ClearParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date})
-	})
+	return s.changeMealParticipationDay(ctx, accountID, studentID, date, nil)
 }
 
-func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, change func(context.Context) error) error {
+// changeMealParticipationDay sets the day's participation, or clears the
+// family's choice for the day when participating is nil.
+func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, participating *bool) error {
 	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
 	if err != nil {
 		return err
@@ -209,7 +207,12 @@ func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, stu
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
-		return change(txCtx)
+		change := MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date}
+		if participating == nil {
+			return s.MealPlan.ClearParticipationForDay(txCtx, change)
+		}
+		change.Participating = *participating
+		return s.MealPlan.SetParticipationForDay(txCtx, change)
 	})
 	return mapMealParticipationError(err)
 }
