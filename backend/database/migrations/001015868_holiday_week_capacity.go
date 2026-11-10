@@ -14,7 +14,7 @@ func init() {
 		Version:     holidayWeekCapacityVersion,
 		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz, Nachrück-Mail (#4699)",
 		DependsOn: []string{
-			guardianInvitationAddressBindingVersion,   // the newest migration on development
+			familyChildrenLinkAndEnrollmentVersion,    // the newest migration on development
 			demoVisitorErasureOutboxKindsVersion,      // the outbox CHECK this one extends
 			parentBillingCareInvoiceExclusionsVersion, // the erasure this one extends
 		},
