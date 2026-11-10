@@ -16,6 +16,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { foldForSearch } from "~/lib/search-fold";
 import { cn } from "~/lib/utils";
 import {
   selectTriggerClassName,
@@ -90,10 +91,6 @@ export function ListboxTriggerContent({
 // and the menu portals to the body as usual.
 const SEARCHABLE_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
 
-function normalizeSearch(value: string): string {
-  return value.trim().toLocaleLowerCase("de");
-}
-
 /**
  * The search field of `CustomSelect` and `MultiSelect`: filters the options
  * by label, empties itself when the menu closes, and says when nothing
@@ -106,12 +103,11 @@ export function useListboxSearch<O extends { readonly label: string }>(
   searchPlaceholder: string,
 ) {
   const [query, setQuery] = useState("");
-  const needle = normalizeSearch(query);
+  // Wie `SuggestInput`: „gomez“ findet „Gómez“ (#4949).
+  const needle = foldForSearch(query.trim());
   const visibleOptions =
     enabled && needle
-      ? options.filter((option) =>
-          normalizeSearch(option.label).includes(needle),
-        )
+      ? options.filter((option) => foldForSearch(option.label).includes(needle))
       : options;
   const listboxProps = enabled
     ? {

@@ -153,6 +153,40 @@ describe("AnchoredPopover", () => {
     expect(onAction).toHaveBeenCalledOnce();
   });
 
+  it("lies on the popover level, above a coach mark, with its menus above it", () => {
+    render(
+      <AnchoredPopover
+        open
+        onOpenChange={vi.fn()}
+        ariaLabel="Testauswahl"
+        renderTrigger={({ ref }) => (
+          <button ref={ref} type="button">
+            Öffnen
+          </button>
+        )}
+      >
+        {({ overflowMenuPortal }) => (
+          <OverflowMenu
+            items={[{ label: "Bearbeiten", onClick: vi.fn() }]}
+            portalOwnerId={overflowMenuPortal.ownerId}
+            portalZIndex={overflowMenuPortal.zIndex}
+          />
+        )}
+      </AnchoredPopover>,
+    );
+
+    const panel = screen.getByRole("dialog", { name: "Testauswahl" });
+    // Die Tour-Markierung liegt auf 10000; ein Popover darf nicht gleichauf
+    // liegen, sonst entscheidet die DOM-Reihenfolge.
+    expect(panel).toHaveStyle({ zIndex: "10001" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    const menu = screen
+      .getByRole("menuitem", { name: "Bearbeiten" })
+      .closest<HTMLElement>("[data-overflow-menu-owner]");
+    expect(menu).toHaveStyle({ zIndex: "10002" });
+  });
+
   it("uses a preferred panel width independently from the trigger", () => {
     render(<TestPopover preferredWidth={380} />);
     fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));

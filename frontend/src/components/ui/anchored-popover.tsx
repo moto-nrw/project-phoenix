@@ -144,7 +144,7 @@ export function AnchoredPopover<
 
     const style: CSSProperties = {
       position: scope ? "absolute" : "fixed",
-      zIndex: Z_INDEX.menu,
+      zIndex: Z_INDEX.popover,
       left: coordinateLeft,
       width,
       maxHeight: Math.min(DEFAULT_MAX_HEIGHT, availableHeight),
@@ -270,7 +270,7 @@ export function AnchoredPopover<
     open && portalContainer
       ? children({
           close: () => close(),
-          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popover },
+          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popoverMenu },
         })
       : null;
 

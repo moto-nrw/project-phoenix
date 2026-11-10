@@ -14,6 +14,7 @@ vi.mock("react-day-picker", () => ({
 }));
 
 import { DateRangePicker, RangeCalendarInline } from "./date-range-picker";
+import { Modal } from "./modal";
 
 describe("DateRangePicker", () => {
   it("collapses the label when both dates share month and year", () => {
@@ -107,6 +108,52 @@ describe("DateRangePicker", () => {
 
     expect(document.querySelectorAll("[data-range-panel]")).toHaveLength(1);
     expect(document.querySelector("[data-range-panel]")).toBe(panels[1]!);
+  });
+});
+
+describe("DateRangePicker in a dialog", () => {
+  function renderInModal(onClose = vi.fn()) {
+    render(
+      <Modal isOpen onClose={onClose} title="Termine absagen">
+        <DateRangePicker
+          value={undefined}
+          onChange={vi.fn()}
+          presets={[
+            {
+              label: "Letzte 7 Tage",
+              range: () => ({
+                from: new Date(2026, 8, 3),
+                to: new Date(2026, 8, 9),
+              }),
+            },
+          ]}
+        />
+      </Modal>,
+    );
+    const trigger = screen.getByRole("button", { name: "Zeitraum wählen" });
+    fireEvent.click(trigger);
+    return { trigger, onClose };
+  }
+
+  it("closes only the calendar on Escape and returns focus to its trigger", async () => {
+    const { trigger, onClose } = renderInModal();
+    const preset = await screen.findByRole("button", { name: "Letzte 7 Tage" });
+
+    fireEvent.keyDown(preset, { key: "Escape" });
+
+    expect(document.querySelector("[data-range-panel]")).toBeNull();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("keeps the calendar reachable by keyboard inside the dialog's focus trap", async () => {
+    renderInModal();
+    const preset = await screen.findByRole("button", { name: "Letzte 7 Tage" });
+
+    preset.focus();
+
+    expect(preset).toHaveFocus();
   });
 });
 

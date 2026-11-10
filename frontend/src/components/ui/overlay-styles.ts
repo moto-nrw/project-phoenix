@@ -74,6 +74,9 @@ export const Z_INDEX = {
   menu: 10000,
   /** Anchored popover panels and calendars. */
   popover: 10001,
-  /** Menus opened from inside a popover (month/year select in the calendar). */
+  /**
+   * Menus opened from inside a popover or calendar (overflow menu in an
+   * `AnchoredPopover`, month/year select in the calendar).
+   */
   popoverMenu: 10002,
 } as const;
