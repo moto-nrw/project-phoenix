@@ -445,8 +445,14 @@ function FormStackedRow<T>({
 const STACKED_ROW_PADDING: Record<"lines" | "row" | "form", string> = {
   lines: "p-4",
   row: "px-4 py-2",
-  form: "py-4 first:pt-0 last:pb-0",
+  form: "py-4",
 };
+
+// The padding sits on the row's inner wrapper, which is always the first and
+// last child of its <li>: the list trims the outer rows itself, so a "form"
+// row keeps its space on both sides of a divider.
+const FORM_LIST_EDGES =
+  "[&>li:first-child>div]:pt-0 [&>li:last-child>div]:pb-0";
 
 // A control inside a stacked row (the selection checkbox) that must not
 // also trigger the row's own click.
@@ -672,7 +678,9 @@ function StackedRows<T>({
           fields; a second frame inside the card only costs width (#4807). */}
       <div className={layout === "form" ? "" : `${surfaceClass} grow`}>
         {heading ? <SurfaceHeading heading={heading} /> : null}
-        <ul className="divide-y divide-gray-100">
+        <ul
+          className={`divide-y divide-gray-100 ${layout === "form" ? FORM_LIST_EDGES : ""}`}
+        >
           {rows.map((row) => {
             const active =
               activeRowKey != null && getRowKey(row) === activeRowKey;
