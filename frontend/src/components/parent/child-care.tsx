@@ -1373,6 +1373,8 @@ export function PickupTimeModal({
 
   // Refetches replace record objects even when their values have not changed.
   // Keep an active edit attached to its request and never refill its draft.
+  // Saved values belong to their date; empty days keep the current draft.
+  const prefillDate = request || existing ? date : "";
   const prefillTime = request?.pickup_time ?? existing?.pickup_time ?? "";
   const prefillMode =
     request?.departure_mode && request.departure_mode !== "accompanied"
@@ -1392,6 +1394,7 @@ export function PickupTimeModal({
   }, [
     clearForm,
     editing,
+    prefillDate,
     prefillTime,
     prefillMode,
     prefillReason,
