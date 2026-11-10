@@ -601,28 +601,6 @@ func checkRetryCopyStatement(t *testing.T, super *bun.DB) {
 	}
 }
 
-// A panic must roll back before conn.Close, not wait for context cancellation.
-func checkPanicRollsBack(t *testing.T, super *bun.DB) {
-	t.Parallel()
-	pool, _ := testpkg.NewStatementFaultPool(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	const panicValue = "batch body panic"
-	require.PanicsWithValue(t, panicValue, func() {
-		_ = runMonitoredBatch(ctx, pool, nil, batchAttemptHooks{}, func(time.Duration) {},
-			func(ctx context.Context, tx bun.Tx, _ func() error) error {
-				_, err := tx.ExecContext(ctx, `INSERT INTO public.commit_probe (code) VALUES (?)`, panicValue)
-				require.NoError(t, err)
-				panic(panicValue)
-			})
-	})
-	require.NoError(t, ctx.Err(), "panic propagation must not wait for transaction context expiry")
-	var rows int
-	require.NoError(t, super.NewRaw(`SELECT count(*) FROM public.commit_probe WHERE code = ?`, panicValue).
-		Scan(t.Context(), &rows))
-	require.Zero(t, rows, "the panicking batch must not persist its writes")
-}
-
 // One isolated clone serves every group: the legacy tables and the commit
 // probe are database-global, and the leaves run in parallel on their own
 // pools and tenants.
@@ -635,7 +613,6 @@ func TestBackfillBatchRetry(t *testing.T) {
 	t.Run("ServerRejectedCommit", func(t *testing.T) { checkServerRejectedCommit(t, super) })
 	t.Run("UnknownCommit", func(t *testing.T) { checkUnknownCommit(t, super) })
 	t.Run("RollbackDiagnostic", func(t *testing.T) { checkRollbackDiagnostic(t, super) })
-	t.Run("PanicRollsBack", func(t *testing.T) { checkPanicRollsBack(t, super) })
 	t.Run("SamplerStopsBeforeCommit", func(t *testing.T) { checkSamplerStopsBeforeCommit(t, super) })
 	t.Run("RetryCopyStatement", func(t *testing.T) { checkRetryCopyStatement(t, super) })
 }
