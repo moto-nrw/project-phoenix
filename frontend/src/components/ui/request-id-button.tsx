@@ -32,6 +32,9 @@ export function RequestIdButton({
     setFeedback(copied ? copiedLabel : copyFailedLabel);
   };
 
+  const text = label?.replace("{requestId}", requestId) ?? requestId;
+  const at = text.lastIndexOf(requestId);
+
   return (
     <>
       {feedback ? <span role="status">{feedback}</span> : null}
@@ -45,7 +48,18 @@ export function RequestIdButton({
         // or toast instead of running past its edge.
         className="max-w-full min-w-0 self-center text-left break-all whitespace-normal"
       >
-        {label?.replace("{requestId}", requestId) ?? requestId}
+        {at > 0 ? (
+          // One flow inside the flex button: on a phone the label takes its
+          // own line, so the ID below it stays whole instead of leaving its
+          // last characters alone.
+          <span className="min-w-0">
+            <span className="max-sm:block">{text.slice(0, at).trimEnd()}</span>{" "}
+            <span>{requestId}</span>
+            {text.slice(at + requestId.length)}
+          </span>
+        ) : (
+          text
+        )}
       </Button>
     </>
   );
