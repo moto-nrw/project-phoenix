@@ -80,7 +80,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
           <span className="block font-medium text-gray-900">
             {familyName(family)}
           </span>
-          <span className="block truncate text-sm text-gray-500">
+          <span className="block max-w-56 truncate text-sm text-gray-500">
             {family.recipientEmail}
           </span>
         </span>
@@ -102,28 +102,34 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
       ),
   },
   {
+    // Who pays and how in one column: all four sums keep their own
+    // sortable column and still fit beside the family on a laptop.
     key: "payment",
     header: "Wer zahlt",
-    render: (family) =>
-      family.payments.length > 0 ? (
-        <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
-          {family.payments.map((payment) => (
-            <StatusBadge
-              key={`${payment.kind}-${payment.costBearerName}`}
-              label={paymentLabel(payment)}
-              tone={PAYMENT_TONES[payment.kind]}
-              truncate
-            />
-          ))}
+    render: (family) => {
+      const method = paymentMethodsText(family.paymentMethods);
+      return (
+        <span className="block min-w-0">
+          {family.payments.length > 0 ? (
+            <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
+              {family.payments.map((payment) => (
+                <StatusBadge
+                  key={`${payment.kind}-${payment.costBearerName}`}
+                  label={paymentLabel(payment)}
+                  tone={PAYMENT_TONES[payment.kind]}
+                  truncate
+                />
+              ))}
+            </span>
+          ) : (
+            "–"
+          )}
+          {method ? (
+            <span className="mt-1 block text-sm text-gray-600">{method}</span>
+          ) : null}
         </span>
-      ) : (
-        "–"
-      ),
-  },
-  {
-    key: "method",
-    header: "Zahlungsweg",
-    render: (family) => paymentMethodsText(family.paymentMethods) ?? "–",
+      );
+    },
   },
   {
     key: "issued",
@@ -295,9 +301,12 @@ export default function TraegerBillingFamiliesPage() {
             rows={shown}
             getRowKey={(family) => family.id}
             defaultSortKey="family"
+            // Seven columns with four sums: narrower cells keep the charged
+            // sum in view beside the family on a laptop and a tablet.
+            dense
             stackedOnMobile
             stackedLayout="row"
-            // On a phone who pays stands under the name.
+            // On a phone who pays and how stands under the name.
             stackedDetailKey="payment"
             onRowClick={(family) =>
               router.push(
