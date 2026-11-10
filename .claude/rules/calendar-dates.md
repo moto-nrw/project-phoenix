@@ -53,7 +53,8 @@ math.
 | School today as `"YYYY-MM-DD"` (defaults, validity, attendance, backend DATE comparisons) | `berlinTodayISO()`; `useBerlinToday()` for views that stay mounted across midnight | `todayISO()`, `new Date().toISOString()...` |
 | Browser-local today (birthdate input maxima; not backend Berlin-day filters) | `todayISO()` | using the browser day for school dates |
 | `"YYYY-MM-DD"` → `Date` (local midnight) | `parseISODate(s)` | `new Date("YYYY-MM-DD")` (UTC midnight) |
-| Render a date string in German | `formatDate(s)` from `~/lib/date-helpers` (handles date-only and timestamps) | new file-local `formatDate` duplicates |
+| Render a date string in German | `formatDate(s)` from `~/lib/date-helpers`: a `"YYYY-MM-DD"` stays that day, a timestamp shows its Berlin day | new file-local `formatDate` duplicates |
+| Render the clock time of an instant | `formatTime(iso)` (Berlin wall clock, same as time tracking) | `toLocaleTimeString` without `timeZone` |
 
 `.toISOString()` returns the UTC date — one day behind Berlin between 00:00
 and 02:00. The oxlint rule `date-safety/no-utc-date-extraction`
