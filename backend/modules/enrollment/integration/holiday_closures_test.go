@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,11 +28,46 @@ import (
 const closureToday = calendar.Date("2027-06-01")
 
 // capturedMails is the Träger's outbox of a test.
-type capturedMails struct{ mails []enrollment.TraegerMail }
+type capturedMails struct {
+	mails    []enrollment.TraegerMail
+	outcomes map[string]string
+	retried  []string
+}
 
 func (c *capturedMails) EnqueueTraegerMail(_ context.Context, mail enrollment.TraegerMail) error {
 	c.mails = append(c.mails, mail)
 	return nil
+}
+
+// TraegerMailStates reports every captured mail as outcome, or as queued.
+func (c *capturedMails) TraegerMailStates(_ context.Context, _ int64, keys []string) ([]enrollment.TraegerMailState, error) {
+	var states []enrollment.TraegerMailState
+	for _, mail := range c.mails {
+		if slices.Contains(keys, mail.IdempotencyKey) {
+			states = append(states, enrollment.TraegerMailState{IdempotencyKey: mail.IdempotencyKey, Outcome: c.outcome(mail.IdempotencyKey)})
+		}
+	}
+	return states, nil
+}
+
+func (c *capturedMails) outcome(key string) string {
+	if outcome, ok := c.outcomes[key]; ok {
+		return outcome
+	}
+	return enrollment.TraegerMailQueued
+}
+
+// RetryTraegerMails counts the failed mails of keys as retried.
+func (c *capturedMails) RetryTraegerMails(_ context.Context, _ int64, keys []string) (int, error) {
+	retried := 0
+	for _, key := range keys {
+		if c.outcomes[key] == enrollment.TraegerMailFailed {
+			c.outcomes[key] = enrollment.TraegerMailQueued
+			c.retried = append(c.retried, key)
+			retried++
+		}
+	}
+	return retried, nil
 }
 
 // closureCalendar names the same days without care at every host school.
@@ -55,7 +91,23 @@ func (closureTraeger) HolidayTraeger(context.Context, int64) (enrollment.Holiday
 	return enrollment.HolidayTraeger{Name: "Träger Ferien"}, nil
 }
 
+// closureOperation is a school operation over the week of newPlacesWeek
+// that reads days as the school's calendar.
+func closureOperation(school int64, days closureCalendar) enrollment.HolidayClosureOperation {
+	return enrollment.HolidayClosureOperation{
+		OperationID: "8c1b0c2e-6a59-4c3f-9a65-3c5f0d0a2b11", SchoolID: school,
+		From: calendar.NewDate(2027, 7, 5), To: calendar.NewDate(2027, 7, 9),
+		NoCareDays: func(ctx context.Context, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
+			byDay, err := days.HolidayNoCareDays(ctx, []int64{school}, from, to)
+			return byDay[school], err
+		},
+	}
+}
+
 func newClosures(mail *capturedMails, days closureCalendar) enrollment.HolidayClosures {
+	if mail.outcomes == nil {
+		mail.outcomes = map[string]string{}
+	}
 	return compose.NewHolidayClosures(days, closureTraeger{}, mail, func() calendar.Date { return closureToday })
 }
 
@@ -217,33 +269,43 @@ func TestHolidayClosureRefusesANoticeTheBueroDidNotSee(t *testing.T) {
 	assert.Zero(t, told)
 }
 
-// TestHolidayClosurePendingListsTheSchoolsOwnClosingDays pins the safety net
-// of #6434: a closing day the school entered itself, which its transaction
-// cannot tell the Träger's families about, stays pending for the Büro until
-// it tells them, and then is gone.
-func TestHolidayClosurePendingListsTheSchoolsOwnClosingDays(t *testing.T) {
+// TestHolidayClosureOperationTellsTheSchoolsOwnClosingDays pins the school
+// path of ADR 0196: a confirmed operation of a school closing day tells the
+// parents of the closed days nobody told, once; the plan the school and
+// the Büro see counts exactly the families the notice tells.
+func TestHolidayClosureOperationTellsTheSchoolsOwnClosingDays(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	w := newPlacesWeek(t, db, "Träger Schließtag C")
+	addSibling(t, db, w, "zweite@example.org", "placed")
 	mail := &capturedMails{}
-	closures := newClosures(mail, closureCalendar{
+	closures := newClosures(mail, nil)
+	operation := closureOperation(hostSchoolOf(t, db, w.week), closureCalendar{
 		{Date: calendar.NewDate(2027, 7, 7), Kind: enrollment.HolidayNoCareClosingDay, Name: "Pädagogischer Tag"},
 		{Date: calendar.NewDate(2027, 7, 8), Kind: enrollment.HolidayNoCareHoliday, Name: "Feiertag"},
 	})
 	withinTraeger(t, db, w.organization, func(ctx context.Context) {
-		pending, err := closures.PendingHolidayClosures(ctx, w.organization)
+		plan, err := closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
 		require.NoError(t, err)
-		require.Len(t, pending.Weeks, 1)
-		assert.Equal(t, []enrollment.HolidayClosedDay{{Date: calendar.NewDate(2027, 7, 7), Reason: "Pädagogischer Tag"}}, pending.Weeks[0].ClosedDays)
+		require.Len(t, plan.Weeks, 1)
+		assert.Equal(t, []enrollment.HolidayClosedDay{{Date: calendar.NewDate(2027, 7, 7), Reason: "Pädagogischer Tag"}}, plan.Weeks[0].ClosedDays)
+		assert.Empty(t, mail.mails, "a plan sends nothing")
 
-		notice, err := closures.NotifyPendingHolidayClosures(ctx, w.organization, pending.Token)
+		result, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
 		require.NoError(t, err)
-		assert.Equal(t, 1, notice.Families)
-		pending, err = closures.PendingHolidayClosures(ctx, w.organization)
+		assert.Equal(t, plan.Families, result.Families, "the count the school sees is the families the click tells")
+		assert.Equal(t, 2, result.Families)
+		assert.Len(t, mail.mails, plan.Families, "one mail per counted family")
+
+		again, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
 		require.NoError(t, err)
-		assert.Empty(t, pending.Weeks)
+		assert.Zero(t, again.Families, "a second click of the same operation tells nobody again")
+		assert.Equal(t, 2, again.Mails, "but still follows the operation's two mails")
+		plan, err = closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
+		require.NoError(t, err)
+		assert.Zero(t, plan.Families, "nothing waits any more")
 	})
-	assert.Len(t, mail.mails, 1)
+	assert.Len(t, mail.mails, 2)
 }
 
 // TestHolidayClosuresKeepTheirTraegerBeneathRLS pins the Träger filter of
@@ -322,12 +384,26 @@ func (m *heldClosureMail) EnqueueTraegerMail(ctx context.Context, _ enrollment.T
 	return nil
 }
 
-func TestHolidayClosureSerializesOverlappingPendingNotices(t *testing.T) {
+func (m *heldClosureMail) TraegerMailStates(context.Context, int64, []string) ([]enrollment.TraegerMailState, error) {
+	return nil, nil
+}
+
+func (m *heldClosureMail) RetryTraegerMails(context.Context, int64, []string) (int, error) {
+	return 0, nil
+}
+
+// TestHolidayClosureSerializesOverlappingNotices pins the lock of the
+// notices: a school operation that overlaps a running Träger save waits
+// before it reads what was told, so it tells only the day the save did not.
+func TestHolidayClosureSerializesOverlappingNotices(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	w := newPlacesWeek(t, db, "Träger Schließtag gleichzeitig")
 	mail := &heldClosureMail{entered: make(chan struct{}), release: make(chan struct{})}
+	// The calendar after the save: the Träger's closing day on Tuesday and
+	// Wednesday, the school's on Wednesday and Thursday.
 	days := closureCalendar{
+		{Date: calendar.NewDate(2027, 7, 6), Kind: enrollment.HolidayNoCareClosingDay},
 		{Date: calendar.NewDate(2027, 7, 7), Kind: enrollment.HolidayNoCareClosingDay},
 		{Date: calendar.NewDate(2027, 7, 8), Kind: enrollment.HolidayNoCareClosingDay},
 	}
@@ -335,17 +411,13 @@ func TestHolidayClosureSerializesOverlappingPendingNotices(t *testing.T) {
 	closure := enrollment.HolidayClosure{SchoolIDs: []int64{hostSchoolOf(t, db, w.week)}, StartsOn: calendar.NewDate(2027, 7, 6), EndsOn: calendar.NewDate(2027, 7, 7)}
 	ctx, cancel := context.WithTimeout(testpkg.ContextWithTenantRuntime(t.Context(), testpkg.TenantRuntime(t, db)), 10*time.Second)
 	defer cancel()
-	var token, pendingToken string
+	var token string
 	require.NoError(t, testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {
 		impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
-		if err != nil {
-			return err
-		}
 		token = impact.Token
-		pending, err := closures.PendingHolidayClosures(ctx, w.organization)
-		pendingToken = pending.Token
 		return err
 	}))
+	operation := closureOperation(hostSchoolOf(t, db, w.week), days)
 	firstDone := make(chan error, 1)
 	go func() {
 		firstDone <- testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {
@@ -371,7 +443,7 @@ func TestHolidayClosureSerializesOverlappingPendingNotices(t *testing.T) {
 				return err
 			}
 			pidReady <- pid
-			_, err = closures.NotifyPendingHolidayClosures(ctx, w.organization, pendingToken)
+			_, err = closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
 			return err
 		})
 	}()
@@ -393,8 +465,12 @@ func TestHolidayClosureSerializesOverlappingPendingNotices(t *testing.T) {
 	assert.EqualValues(t, 1, mail.calls.Load(), "an overlapping notification must wait before reading unnotified days")
 	close(mail.release)
 	require.NoError(t, <-firstDone)
-	require.ErrorIs(t, <-secondDone, enrollment.ErrHolidayClosureChanged)
-	assert.EqualValues(t, 1, mail.calls.Load(), "a stale overlapping preview cannot enqueue duplicate mail")
+	require.NoError(t, <-secondDone)
+	var told []string
+	require.NoError(t, db.NewRaw(`SELECT closed_on::text || ':' || state FROM enrollment.holiday_closure_notices
+		WHERE organization_id = ? ORDER BY closed_on, holiday_registration_id`, w.organization).Scan(ctx, &told))
+	assert.Equal(t, []string{"2027-07-06:closed", "2027-07-06:closed", "2027-07-07:closed", "2027-07-07:closed", "2027-07-08:closed", "2027-07-08:closed"}, told)
+	assert.EqualValues(t, 2, mail.calls.Load(), "the waiting operation tells only the day the save did not: one more mail, not a duplicate")
 }
 
 // TestHolidayClosureTellsABookingOfDaysOnlyAboutItsBookedDays pins the join

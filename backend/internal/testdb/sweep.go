@@ -178,6 +178,9 @@ var tenantIdentityTables = map[string]string{
 	// How far the attendance retention deleted (#4686) is keyed by the
 	// school, without tenant_id, like the Mensa months.
 	"active.attendance_retention_marks": "school_id",
+	// The key of a Träger's family fingerprints (ADR 0196) is keyed by the
+	// organization alone: the organization ID is the tenant identity.
+	"enrollment.holiday_closure_family_keys": "organization_id",
 }
 
 // mappedTenantTables reach their tenant through a join table.

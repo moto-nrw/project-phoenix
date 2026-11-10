@@ -7,25 +7,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// Closing days in booked holiday weeks (#6434). A closing day the Träger or a
-// school plans after parents booked a holiday week takes the care of that day
-// from every booking of the week at the closed school. The bookings stay as
-// they are: no booking is deleted or changed, no place is freed and nobody
+// Closing days in booked holiday weeks (#6434, #6442, #6457, ADR 0196). A
+// closing day the Träger or a school plans after parents booked a holiday
+// week takes the care of that day from every booking of the week at the
+// closed school; a deleted or shortened one gives it back. The bookings stay
+// as they are: no booking is deleted or changed, no place is freed and nobody
 // moves up the waiting list; only a new booking of the week is refused
-// (#4702). What the parents of such a booking learn, and when:
+// (#4702). What the parents learn is kept per registration, week and day as
+// the state they were last told: closed or open again.
 //
-//   - Before a Träger closing day is saved, the Träger-Büro sees the weeks and
-//     bookings it affects (HolidayClosureImpact). The save sends the token of
-//     that preview; a save whose bookings differ from it is refused, so the
-//     mails the save sends are those the Büro saw.
-//   - The save enqueues one mail per family (recipient address) with all its
-//     children, weeks and closed days, in the Träger transaction of the
-//     closing day, and records each told day per registration and week. A day
-//     already told is never told again, so saving unchanged sends nothing.
-//   - A closing day the school enters itself is written in the school's
-//     transaction, which cannot reach the Träger's families. Its days, and any
-//     other closed day of a booked week nobody told yet, stay pending for the
-//     Träger-Büro (PendingHolidayClosures) until it tells the parents.
+//   - Before a Träger closing day is saved, changed or deleted, the
+//     Träger-Büro sees the weeks and bookings it affects, the days it closes
+//     and the days it opens again (HolidayClosureImpact). The save confirms
+//     the token of that preview and tells the parents in the same Träger
+//     transaction.
+//   - A change of a school closing day only proposes a notice. A click of the
+//     school admin or of the Träger-Büro confirms it; the Träger's worker
+//     then tells the parents (NotifyHolidayClosureOperation) under the
+//     operation of the proposal, with the same rules.
+//   - Each family (recipient address) gets one mail per operation with all
+//     its children, weeks and days: "closed" and "open again" in two
+//     sections when a closing day moved. A day told before is not told
+//     again, so saving unchanged sends nothing; a day closed after it was
+//     opened again is told again.
 //
 // Statutory holidays are no closing days: a week with one was never bookable
 // (#4702), so its parents are not told about it.
@@ -47,16 +51,87 @@ const HolidayClosureKeepsContribution = true
 // are no longer those of the preview the caller confirmed.
 var ErrHolidayClosureChanged = errors.New("the holiday bookings a closing day affects changed since the preview")
 
-// HolidayClosure is a closing day range of some host schools as Enrollment
-// sees it: the schools, the days and the reason the parents read.
+// HolidayClosure is a Träger closing day as Enrollment sees it: the schools,
+// the days and the reason the parents read. TraegerClosingDayID names the
+// saved closing day it replaces, whose stored version no longer counts, and
+// Previous that stored version, whose days may open again. Deleted removes
+// the closing day: SchoolIDs and the dates then name nothing new.
 type HolidayClosure struct {
-	SchoolIDs []int64
-	StartsOn  calendar.Date
-	EndsOn    calendar.Date
-	Reason    string
+	SchoolIDs           []int64
+	StartsOn            calendar.Date
+	EndsOn              calendar.Date
+	Reason              string
+	TraegerClosingDayID int64
+	Previous            *HolidayClosureSpan
+	Deleted             bool
 }
 
-// HolidayClosedDay is a day without care in a booked week with its reason.
+// HolidayClosureSpan is the stored version of a Träger closing day.
+type HolidayClosureSpan struct {
+	SchoolIDs []int64       `json:"school_ids"`
+	StartsOn  calendar.Date `json:"start_date"`
+	EndsOn    calendar.Date `json:"end_date"`
+}
+
+// HolidayClosureOperation is a confirmed or proposed change of a school
+// closing day (ADR 0196): the operation of its proposal, the school and the
+// days it touches. NoCareDays reads the school's days without care in
+// [from, to] as the current calendar names them; a notice reads it under
+// Enrollment's lock, so a Träger closing day saved meanwhile counts.
+type HolidayClosureOperation struct {
+	OperationID string
+	SchoolID    int64
+	From        calendar.Date
+	To          calendar.Date
+	NoCareDays  func(ctx context.Context, from, to calendar.Date) ([]HolidayNoCareDay, error)
+}
+
+// HolidayClosureOperationResult is what the worker learns of a processed
+// operation: how many families it told now and how many mails the
+// operation holds in all.
+type HolidayClosureOperationResult struct {
+	Families int
+	Mails    int
+	Retried  int
+}
+
+// HolidayClosureDelivery sums the mails of an operation up by their
+// transport outcome.
+type HolidayClosureDelivery struct {
+	Queued  int
+	Sent    int
+	Failed  int
+	Unknown int
+}
+
+// Transport outcomes of a Träger mail as Enrollment reads them back.
+const (
+	TraegerMailQueued  = "queued"
+	TraegerMailSent    = "sent"
+	TraegerMailFailed  = "failed"
+	TraegerMailUnknown = "unknown"
+)
+
+// TraegerMailState is the transport outcome of a Träger mail.
+type TraegerMailState struct {
+	IdempotencyKey string
+	Outcome        string
+}
+
+// TraegerMailDelivery is the outbox of the closing day notices with the
+// transport outcomes of their mails and the protected repetition of a known
+// failure (ADR 0196 section 5). The root binds it to Delivery; every
+// operation runs in the caller's Träger transaction.
+type TraegerMailDelivery interface {
+	TraegerMailOutbox
+	TraegerMailStates(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]TraegerMailState, error)
+	// RetryTraegerMails makes the mails with a known transport failure due
+	// again; a mail sent, waiting or with an unknown outcome stays as it is.
+	RetryTraegerMails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int, error)
+}
+
+// HolidayClosedDay is a day of a booked week with its reason: without care,
+// or open again.
 type HolidayClosedDay struct {
 	Date   calendar.Date `json:"date"`
 	Reason string        `json:"reason"`
@@ -74,6 +149,7 @@ type HolidayClosureWeek struct {
 	EndsOn       calendar.Date      `json:"ends_on"`
 	HostSchoolID int64              `json:"host_school_id"`
 	ClosedDays   []HolidayClosedDay `json:"closed_days"`
+	ReopenedDays []HolidayClosedDay `json:"reopened_days"`
 	Children     int                `json:"children"`
 	Waitlisted   int                `json:"waitlisted"`
 	Families     int                `json:"families"`
@@ -114,8 +190,9 @@ type HolidayClosureMailChild struct {
 }
 
 // HolidayClosureMail is the payload of the notice: the family's children
-// with their weeks and closed days, the reasons, and what happens to the
-// contribution. No date of birth, no health information.
+// with their weeks and closed days, those with days open again, the
+// reasons, and what happens to the contribution. No date of birth, no
+// health information.
 type HolidayClosureMail struct {
 	// RegistrationIDs links every included registration for demo erasure.
 	RegistrationIDs   []int64                   `json:"registration_ids"`
@@ -124,12 +201,13 @@ type HolidayClosureMail struct {
 	TraegerName       string                    `json:"traeger_name"`
 	Reasons           []string                  `json:"reasons"`
 	Children          []HolidayClosureMailChild `json:"children"`
+	ReopenedChildren  []HolidayClosureMailChild `json:"reopened_children,omitempty"`
 	KeepsContribution bool                      `json:"keeps_contribution"`
 }
 
 // HolidayClosures lets the Träger tell the parents of holiday bookings about
-// closing days in their weeks. Every operation runs in the Träger
-// transaction of organizationID, which the caller opens.
+// closing days in their weeks and days that open again. Every operation runs
+// in the Träger transaction of organizationID, which the caller opens.
 type HolidayClosures interface {
 	// HolidayClosureImpact previews which bookings closure affects. A
 	// school that is not an undeleted school of the Träger is refused with
@@ -140,12 +218,16 @@ type HolidayClosures interface {
 	// that of the preview the caller confirmed; a differing impact with
 	// bookings is ErrHolidayClosureChanged.
 	NotifyHolidayClosure(ctx context.Context, organizationID int64, closure HolidayClosure, token string) (HolidayClosureNotice, error)
-	// PendingHolidayClosures lists the closed days of booked weeks that no
-	// parent was told about yet, those a school entered itself included.
-	PendingHolidayClosures(ctx context.Context, organizationID int64) (HolidayClosureImpact, error)
-	// NotifyPendingHolidayClosures tells the parents of the pending days;
-	// token is that of the pending list the caller saw.
-	NotifyPendingHolidayClosures(ctx context.Context, organizationID int64, token string) (HolidayClosureNotice, error)
+	// PlanHolidayClosureOperation previews what telling the parents of
+	// operation would do now, without writing anything: the same
+	// computation NotifyHolidayClosureOperation sends.
+	PlanHolidayClosureOperation(ctx context.Context, organizationID int64, operation HolidayClosureOperation) (HolidayClosureImpact, error)
+	// NotifyHolidayClosureOperation tells the parents of operation once per
+	// family and makes the operation's mails with a known transport failure
+	// due again.
+	NotifyHolidayClosureOperation(ctx context.Context, organizationID int64, operation HolidayClosureOperation) (HolidayClosureOperationResult, error)
+	// HolidayClosureOperationDelivery sums the mails of the operation up.
+	HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (HolidayClosureDelivery, error)
 }
 
 // HolidayClosureBookingRecord is a booking as the store reads it for a
@@ -175,10 +257,26 @@ type HolidayClosureBookingRecord struct {
 	Days []calendar.Date
 }
 
-// HolidayClosureNoticeRecord is a closed day of a week the parents of a
-// registration were told about.
+// Notice states of a day.
+const (
+	HolidayClosureDayClosed = "closed"
+	HolidayClosureDayOpen   = "open"
+)
+
+// HolidayClosureNoticeRecord is a day of a week the parents of a
+// registration were last told about: closed or open again.
 type HolidayClosureNoticeRecord struct {
 	RegistrationID int64
 	WeekID         int64
 	ClosedOn       calendar.Date
+	State          string
+}
+
+// HolidayClosureSendRecord is one registration a family's mail of an
+// operation names, under the mail's idempotency key.
+type HolidayClosureSendRecord struct {
+	OperationID    string
+	FamilyKey      string
+	RegistrationID int64
+	IdempotencyKey string
 }

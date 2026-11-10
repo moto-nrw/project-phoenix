@@ -2,6 +2,9 @@ package application
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,22 +14,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// Closing days in booked holiday weeks (#6434); the rules are on
-// enrollment.HolidayClosures. Preview and notice share one computation, so
-// what the Büro saw is what the parents are told: the save confirms the
-// token of the preview and is refused when the bookings moved in between.
+// Closing days in booked holiday weeks (#6434, ADR 0196); the rules are on
+// enrollment.HolidayClosures. Preview, count and notice share one
+// computation (changes), so what the Büro or the school saw is what the
+// parents are told.
 
-// HolidayClosureStore reads the bookings of a closure and records the
-// closed days the parents were told about.
+// HolidayClosureStore reads the bookings of a closure and records what the
+// parents were told.
 type HolidayClosureStore interface {
 	LockHolidayClosureNotices(ctx context.Context, organizationID int64) error
 	HolidayClosureBookings(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date) ([]enrollment.HolidayClosureBookingRecord, error)
 	HolidayClosureNotices(ctx context.Context, organizationID int64, registrationIDs []int64) ([]enrollment.HolidayClosureNoticeRecord, error)
-	RecordHolidayClosureNotices(ctx context.Context, organizationID int64, notices []enrollment.HolidayClosureNoticeRecord) error
+	SetHolidayClosureNotices(ctx context.Context, organizationID int64, operationID string, notices []enrollment.HolidayClosureNoticeRecord) error
+	HolidayClosureFamilyKey(ctx context.Context, organizationID int64) ([]byte, error)
+	RecordHolidayClosureSends(ctx context.Context, organizationID int64, sends []enrollment.HolidayClosureSendRecord) error
+	HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationID string) ([]string, error)
 }
 
 // errHolidayClosureMailRequired reports a notice without the outbox.
@@ -37,7 +45,7 @@ type HolidayClosures struct {
 	store    HolidayClosureStore
 	calendar enrollment.HolidaySchoolCalendar
 	traeger  enrollment.HolidayTraegerDirectory
-	mail     enrollment.TraegerMailOutbox
+	mail     enrollment.TraegerMailDelivery
 	today    func() calendar.Date
 }
 
@@ -47,7 +55,7 @@ var _ enrollment.HolidayClosures = (*HolidayClosures)(nil)
 // holidays and closing days of the host schools, traeger the Träger and its
 // schools in the mail, mail the outbox; today defaults to the Berlin day.
 func NewHolidayClosures(store HolidayClosureStore, schoolCalendar enrollment.HolidaySchoolCalendar, traeger enrollment.HolidayTraegerDirectory,
-	mail enrollment.TraegerMailOutbox, today func() calendar.Date,
+	mail enrollment.TraegerMailDelivery, today func() calendar.Date,
 ) *HolidayClosures {
 	if store == nil || schoolCalendar == nil || traeger == nil || mail == nil {
 		panic("enrollment: the holiday closure store, the host schools' calendar, the Träger directory and the mail outbox are required")
@@ -58,15 +66,21 @@ func NewHolidayClosures(store HolidayClosureStore, schoolCalendar enrollment.Hol
 	return &HolidayClosures{store: store, calendar: schoolCalendar, traeger: traeger, mail: mail, today: today}
 }
 
-// closedBooking is a booking with its closed days nobody told its parents.
-type closedBooking struct {
+// changedBooking is a booking with the days its parents learn about now:
+// newly closed ones and ones open again.
+type changedBooking struct {
 	enrollment.HolidayClosureBookingRecord
-	closed []enrollment.HolidayClosedDay
+	closed   []enrollment.HolidayClosedDay
+	reopened []enrollment.HolidayClosedDay
 }
+
+// closedOn names whether day is closed at school by a closing day, with its
+// reason, and whether it is a statutory holiday, about which nobody is told.
+type closedOn func(schoolID int64, day calendar.Date) (closed bool, reason string, holiday bool)
 
 // HolidayClosureImpact previews the bookings closure affects.
 func (h *HolidayClosures) HolidayClosureImpact(ctx context.Context, organizationID int64, closure enrollment.HolidayClosure) (enrollment.HolidayClosureImpact, error) {
-	bookings, err := h.proposed(ctx, organizationID, closure)
+	bookings, err := h.traegerChanges(ctx, organizationID, closure)
 	if err != nil {
 		return enrollment.HolidayClosureImpact{}, err
 	}
@@ -75,120 +89,254 @@ func (h *HolidayClosures) HolidayClosureImpact(ctx context.Context, organization
 
 // NotifyHolidayClosure tells the parents of the bookings closure affects.
 func (h *HolidayClosures) NotifyHolidayClosure(ctx context.Context, organizationID int64, closure enrollment.HolidayClosure, token string) (enrollment.HolidayClosureNotice, error) {
-	return h.notify(ctx, organizationID, token, func() ([]closedBooking, error) {
-		return h.proposed(ctx, organizationID, closure)
-	})
+	operationID, err := uuid.NewV4()
+	if err != nil {
+		return enrollment.HolidayClosureNotice{}, fmt.Errorf("enrollment: name the closure operation: %w", err)
+	}
+	if err := h.store.LockHolidayClosureNotices(ctx, organizationID); err != nil {
+		return enrollment.HolidayClosureNotice{}, err
+	}
+	bookings, err := h.traegerChanges(ctx, organizationID, closure)
+	if err != nil {
+		return enrollment.HolidayClosureNotice{}, err
+	}
+	if len(bookings) == 0 {
+		return enrollment.HolidayClosureNotice{}, nil
+	}
+	if token != holidayClosureToken(bookings) {
+		return enrollment.HolidayClosureNotice{}, enrollment.ErrHolidayClosureChanged
+	}
+	return h.notify(ctx, organizationID, operationID.String(), bookings)
 }
 
-// PendingHolidayClosures lists the closed days of booked weeks nobody told.
-func (h *HolidayClosures) PendingHolidayClosures(ctx context.Context, organizationID int64) (enrollment.HolidayClosureImpact, error) {
-	bookings, err := h.pending(ctx, organizationID)
+// PlanHolidayClosureOperation previews the notice of a school closing day
+// change without writing anything.
+func (h *HolidayClosures) PlanHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureImpact, error) {
+	bookings, err := h.operationChanges(ctx, organizationID, operation)
 	if err != nil {
 		return enrollment.HolidayClosureImpact{}, err
 	}
 	return holidayClosureImpact(bookings), nil
 }
 
-// NotifyPendingHolidayClosures tells the parents of the pending days.
-func (h *HolidayClosures) NotifyPendingHolidayClosures(ctx context.Context, organizationID int64, token string) (enrollment.HolidayClosureNotice, error) {
-	return h.notify(ctx, organizationID, token, func() ([]closedBooking, error) {
-		return h.pending(ctx, organizationID)
-	})
+// NotifyHolidayClosureOperation tells the parents of a confirmed school
+// closing day change and takes the operation's failed mails up again.
+func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureOperationResult, error) {
+	if _, err := uuid.FromString(operation.OperationID); err != nil {
+		return enrollment.HolidayClosureOperationResult{}, fmt.Errorf("enrollment: the closure operation is required: %w", err)
+	}
+	if err := h.store.LockHolidayClosureNotices(ctx, organizationID); err != nil {
+		return enrollment.HolidayClosureOperationResult{}, err
+	}
+	bookings, err := h.operationChanges(ctx, organizationID, operation)
+	if err != nil {
+		return enrollment.HolidayClosureOperationResult{}, err
+	}
+	var result enrollment.HolidayClosureOperationResult
+	if len(bookings) > 0 {
+		notice, err := h.notify(ctx, organizationID, operation.OperationID, bookings)
+		if err != nil {
+			return enrollment.HolidayClosureOperationResult{}, err
+		}
+		result.Families = notice.Families
+	}
+	keys, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operation.OperationID)
+	if err != nil {
+		return enrollment.HolidayClosureOperationResult{}, err
+	}
+	result.Mails = len(keys)
+	if len(keys) > 0 {
+		if result.Retried, err = h.mail.RetryTraegerMails(ctx, organizationID, keys); err != nil {
+			return enrollment.HolidayClosureOperationResult{}, fmt.Errorf("enrollment: take the failed closure mails up again: %w", err)
+		}
+	}
+	return result, nil
 }
 
-// proposed are the bookings at the closure's schools with a day of the
-// closure in their week that is a weekday from today on, no statutory
-// holiday of the host school and not told before.
-func (h *HolidayClosures) proposed(ctx context.Context, organizationID int64, closure enrollment.HolidayClosure) ([]closedBooking, error) {
+// HolidayClosureOperationDelivery sums the operation's mails up.
+func (h *HolidayClosures) HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (enrollment.HolidayClosureDelivery, error) {
+	keys, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operationID)
+	if err != nil || len(keys) == 0 {
+		return enrollment.HolidayClosureDelivery{}, err
+	}
+	states, err := h.mail.TraegerMailStates(ctx, organizationID, keys)
+	if err != nil {
+		return enrollment.HolidayClosureDelivery{}, fmt.Errorf("enrollment: read the closure mails: %w", err)
+	}
+	var delivery enrollment.HolidayClosureDelivery
+	seen := map[string]bool{}
+	for _, state := range states {
+		seen[state.IdempotencyKey] = true
+		switch state.Outcome {
+		case enrollment.TraegerMailSent:
+			delivery.Sent++
+		case enrollment.TraegerMailFailed:
+			delivery.Failed++
+		case enrollment.TraegerMailUnknown:
+			delivery.Unknown++
+		default:
+			delivery.Queued++
+		}
+	}
+	// A recorded mail the outbox no longer holds is a known failure: it can
+	// only have been deleted, never accepted.
+	for _, key := range keys {
+		if !seen[key] {
+			delivery.Failed++
+		}
+	}
+	return delivery, nil
+}
+
+// traegerChanges are the changes a Träger closing day makes: its stored
+// version no longer counts, the new one counts from the save on.
+func (h *HolidayClosures) traegerChanges(ctx context.Context, organizationID int64, closure enrollment.HolidayClosure) ([]changedBooking, error) {
 	if organizationID <= 0 {
 		return nil, errors.New("enrollment: the Träger is required")
 	}
-	schools := slices.Compact(slices.Sorted(slices.Values(closure.SchoolIDs)))
-	if len(schools) == 0 || closure.StartsOn.IsZero() || closure.EndsOn.IsZero() || closure.EndsOn.Before(closure.StartsOn) {
+	var schools []int64
+	var from, to calendar.Date
+	widen := func(ids []int64, start, end calendar.Date) {
+		if start.IsZero() || end.IsZero() || end.Before(start) {
+			return
+		}
+		schools = append(schools, ids...)
+		if from.IsZero() || start.Before(from) {
+			from = start
+		}
+		if to.IsZero() || end.After(to) {
+			to = end
+		}
+	}
+	if !closure.Deleted {
+		widen(closure.SchoolIDs, closure.StartsOn, closure.EndsOn)
+	}
+	if closure.Previous != nil {
+		widen(closure.Previous.SchoolIDs, closure.Previous.StartsOn, closure.Previous.EndsOn)
+	}
+	schools = slices.Compact(slices.Sorted(slices.Values(schools)))
+	if len(schools) == 0 {
 		return nil, nil
 	}
-	from := max(closure.StartsOn, h.today())
-	if closure.EndsOn.Before(from) {
+	start := max(from, h.today())
+	if to.Before(start) {
 		// Authorize the schools all the same: a refusal must not depend on
 		// the dates.
-		_, err := h.calendar.HolidayNoCareDays(ctx, schools, closure.StartsOn, closure.StartsOn)
+		_, err := h.calendar.HolidayNoCareDays(ctx, schools, from, from)
 		return nil, err
 	}
 	// The calendar authorizes every school before it reads anything.
-	noCare, err := h.calendar.HolidayNoCareDays(ctx, schools, from, closure.EndsOn)
-	if err != nil {
-		return nil, err
-	}
-	records, err := h.store.HolidayClosureBookings(ctx, organizationID, schools, from, closure.EndsOn)
-	if err != nil {
-		return nil, err
-	}
-	told, err := h.told(ctx, organizationID, records)
+	noCare, err := h.calendar.HolidayNoCareDays(ctx, schools, start, to)
 	if err != nil {
 		return nil, err
 	}
 	reason := strings.TrimSpace(closure.Reason)
-	return closedBookings(records, func(record enrollment.HolidayClosureBookingRecord) []enrollment.HolidayClosedDay {
-		var days []enrollment.HolidayClosedDay
-		for day := max(from, record.StartsOn); !day.After(min(closure.EndsOn, record.EndsOn)); day = day.AddDays(1) {
-			if isCareWeekday(day) && bookedDay(record, day) && !isHoliday(noCare[record.HostSchoolID], day) && !told[noticeKey(record, day)] {
-				days = append(days, enrollment.HolidayClosedDay{Date: day, Reason: reason})
-			}
+	index := noCareIndex(noCare, closure.TraegerClosingDayID)
+	return h.changes(ctx, organizationID, schools, start, to, func(schoolID int64, day calendar.Date) (bool, string, bool) {
+		closed, name, holiday := index(schoolID, day)
+		if holiday {
+			return false, "", true
 		}
-		return days
-	}), nil
+		if !closure.Deleted && slices.Contains(closure.SchoolIDs, schoolID) && !day.Before(closure.StartsOn) && !day.After(closure.EndsOn) {
+			return true, reason, false
+		}
+		return closed, name, false
+	})
 }
 
-// pending are the bookings whose week has a closing day of its host school,
-// from today on, that nobody told the parents about.
-func (h *HolidayClosures) pending(ctx context.Context, organizationID int64) ([]closedBooking, error) {
-	if organizationID <= 0 {
-		return nil, errors.New("enrollment: the Träger is required")
+// operationChanges are the changes of a school closing day operation
+// against the calendar the caller read.
+func (h *HolidayClosures) operationChanges(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) ([]changedBooking, error) {
+	if organizationID <= 0 || operation.SchoolID <= 0 {
+		return nil, errors.New("enrollment: the Träger and the school are required")
 	}
-	today := h.today()
-	records, err := h.store.HolidayClosureBookings(ctx, organizationID, nil, today, calendar.Date("9999-12-31"))
+	from, to := max(operation.From, h.today()), operation.To
+	if to.IsZero() || to.Before(from) {
+		return nil, nil
+	}
+	if operation.NoCareDays == nil {
+		return nil, errors.New("enrollment: the calendar of the closure operation is required")
+	}
+	noCare, err := operation.NoCareDays(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}
-	if len(records) == 0 {
-		return nil, nil
+	index := noCareIndex(map[int64][]enrollment.HolidayNoCareDay{operation.SchoolID: noCare}, 0)
+	return h.changes(ctx, organizationID, []int64{operation.SchoolID}, from, to, index)
+}
+
+// noCareIndex answers closedOn from the days without care; a Träger closing
+// day named by exclude does not count.
+func noCareIndex(noCare map[int64][]enrollment.HolidayNoCareDay, exclude int64) closedOn {
+	type key struct {
+		school int64
+		day    calendar.Date
 	}
-	spans := make([]holidayWeekSpan, 0, len(records))
-	for _, record := range records {
-		spans = append(spans, holidayWeekSpan{StartsOn: max(record.StartsOn, today), EndsOn: record.EndsOn, HostSchoolID: record.HostSchoolID})
+	days := map[key]enrollment.HolidayNoCareDay{}
+	for school, list := range noCare {
+		for _, day := range list {
+			days[key{school, day.Date}] = day
+		}
 	}
-	noCare, err := holidayNoCareDays(ctx, h.calendar, spans)
-	if err != nil {
+	return func(schoolID int64, date calendar.Date) (bool, string, bool) {
+		day, ok := days[key{schoolID, date}]
+		switch {
+		case !ok:
+			return false, "", false
+		case day.Kind == enrollment.HolidayNoCareHoliday:
+			return false, "", true
+		case len(day.ClosingDays) == 0:
+			return true, day.Name, false
+		}
+		for _, ref := range day.ClosingDays {
+			if !ref.Traeger || ref.ID != exclude {
+				return true, day.Name, false
+			}
+		}
+		return false, "", false
+	}
+}
+
+// changes compares, for every booked care day of the bookings at schools in
+// [from, to], what the calendar says with what the parents were last told.
+func (h *HolidayClosures) changes(ctx context.Context, organizationID int64, schools []int64, from, to calendar.Date, closed closedOn) ([]changedBooking, error) {
+	records, err := h.store.HolidayClosureBookings(ctx, organizationID, schools, from, to)
+	if err != nil || len(records) == 0 {
 		return nil, err
 	}
 	told, err := h.told(ctx, organizationID, records)
 	if err != nil {
 		return nil, err
 	}
-	return closedBookings(records, func(record enrollment.HolidayClosureBookingRecord) []enrollment.HolidayClosedDay {
-		var days []enrollment.HolidayClosedDay
-		for _, day := range noCare[record.HostSchoolID] {
-			if day.Kind == enrollment.HolidayNoCareClosingDay && !day.Date.Before(max(record.StartsOn, today)) && !day.Date.After(record.EndsOn) &&
-				isCareWeekday(day.Date) && bookedDay(record, day.Date) && !told[noticeKey(record, day.Date)] {
-				days = append(days, enrollment.HolidayClosedDay{Date: day.Date, Reason: day.Name})
+	var result []changedBooking
+	for _, record := range records {
+		booking := changedBooking{HolidayClosureBookingRecord: record}
+		for day := max(from, record.StartsOn); !day.After(min(to, record.EndsOn)); day = day.AddDays(1) {
+			if !isCareWeekday(day) || !bookedDay(record, day) {
+				continue
+			}
+			isClosed, reason, holiday := closed(record.HostSchoolID, day)
+			if holiday {
+				continue
+			}
+			state := told[noticeKey(record, day)]
+			switch {
+			case isClosed && state != enrollment.HolidayClosureDayClosed:
+				booking.closed = append(booking.closed, enrollment.HolidayClosedDay{Date: day, Reason: reason})
+			case !isClosed && state == enrollment.HolidayClosureDayClosed:
+				booking.reopened = append(booking.reopened, enrollment.HolidayClosedDay{Date: day})
 			}
 		}
-		return days
-	}), nil
-}
-
-func closedBookings(records []enrollment.HolidayClosureBookingRecord, closed func(enrollment.HolidayClosureBookingRecord) []enrollment.HolidayClosedDay) []closedBooking {
-	var result []closedBooking
-	for _, record := range records {
-		if days := closed(record); len(days) > 0 {
-			result = append(result, closedBooking{HolidayClosureBookingRecord: record, closed: days})
+		if len(booking.closed) > 0 || len(booking.reopened) > 0 {
+			result = append(result, booking)
 		}
 	}
-	return result
+	return result, nil
 }
 
-// told are the days told before, keyed by registration, week and day.
-func (h *HolidayClosures) told(ctx context.Context, organizationID int64, records []enrollment.HolidayClosureBookingRecord) (map[string]bool, error) {
+// told are the states the parents were last told, keyed by registration,
+// week and day.
+func (h *HolidayClosures) told(ctx context.Context, organizationID int64, records []enrollment.HolidayClosureBookingRecord) (map[string]string, error) {
 	var registrations []int64
 	for _, record := range records {
 		registrations = append(registrations, record.RegistrationID)
@@ -197,9 +345,9 @@ func (h *HolidayClosures) told(ctx context.Context, organizationID int64, record
 	if err != nil {
 		return nil, err
 	}
-	told := make(map[string]bool, len(notices))
+	told := make(map[string]string, len(notices))
 	for _, notice := range notices {
-		told[fmt.Sprintf("%d:%d:%s", notice.RegistrationID, notice.WeekID, notice.ClosedOn)] = true
+		told[fmt.Sprintf("%d:%d:%s", notice.RegistrationID, notice.WeekID, notice.ClosedOn)] = notice.State
 	}
 	return told, nil
 }
@@ -221,25 +369,26 @@ func bookedDay(record enrollment.HolidayClosureBookingRecord, day calendar.Date)
 	return len(record.Days) == 0 || slices.Contains(record.Days, day)
 }
 
-func isHoliday(days []enrollment.HolidayNoCareDay, day calendar.Date) bool {
-	return slices.ContainsFunc(days, func(none enrollment.HolidayNoCareDay) bool {
-		return none.Date == day && none.Kind == enrollment.HolidayNoCareHoliday
-	})
-}
-
 // familyOf is the recipient address that groups the bookings of one family.
-func familyOf(booking closedBooking) string {
+func familyOf(booking changedBooking) string {
 	return strings.ToLower(strings.TrimSpace(booking.GuardianEmail))
 }
 
 // holidayClosureImpact sums the bookings up per week and names the token of
 // exactly these bookings and days.
-func holidayClosureImpact(bookings []closedBooking) enrollment.HolidayClosureImpact {
+func holidayClosureImpact(bookings []changedBooking) enrollment.HolidayClosureImpact {
 	impact := enrollment.HolidayClosureImpact{Weeks: []enrollment.HolidayClosureWeek{}, Token: holidayClosureToken(bookings),
 		KeepsContribution: enrollment.HolidayClosureKeepsContribution}
 	weeks := map[int64]int{}
 	weekFamilies := map[int64]map[string]bool{}
 	children, families := map[int64]bool{}, map[string]bool{}
+	addDays := func(into *[]enrollment.HolidayClosedDay, days []enrollment.HolidayClosedDay) {
+		for _, day := range days {
+			if !slices.ContainsFunc(*into, func(d enrollment.HolidayClosedDay) bool { return d.Date == day.Date }) {
+				*into = append(*into, day)
+			}
+		}
+	}
 	for _, booking := range bookings {
 		i, ok := weeks[booking.WeekID]
 		if !ok {
@@ -249,6 +398,7 @@ func holidayClosureImpact(bookings []closedBooking) enrollment.HolidayClosureImp
 			impact.Weeks = append(impact.Weeks, enrollment.HolidayClosureWeek{
 				WeekID: booking.WeekID, PeriodID: booking.PeriodID, PeriodName: booking.PeriodName, StartsOn: booking.StartsOn,
 				EndsOn: booking.EndsOn, HostSchoolID: booking.HostSchoolID, ClosedDays: []enrollment.HolidayClosedDay{},
+				ReopenedDays: []enrollment.HolidayClosedDay{},
 			})
 		}
 		week := &impact.Weeks[i]
@@ -256,35 +406,38 @@ func holidayClosureImpact(bookings []closedBooking) enrollment.HolidayClosureImp
 		if booking.Placement == enrollment.HolidayPlacementWaitlisted {
 			week.Waitlisted++
 		}
-		for _, day := range booking.closed {
-			if !slices.ContainsFunc(week.ClosedDays, func(d enrollment.HolidayClosedDay) bool { return d.Date == day.Date }) {
-				week.ClosedDays = append(week.ClosedDays, day)
-			}
-		}
+		addDays(&week.ClosedDays, booking.closed)
+		addDays(&week.ReopenedDays, booking.reopened)
 		weekFamilies[booking.WeekID][familyOf(booking)] = true
 		week.Families = len(weekFamilies[booking.WeekID])
 		children[booking.ChildID] = true
 		families[familyOf(booking)] = true
 	}
+	byDate := func(a, b enrollment.HolidayClosedDay) int { return a.Date.Compare(b.Date) }
 	for i := range impact.Weeks {
-		slices.SortFunc(impact.Weeks[i].ClosedDays, func(a, b enrollment.HolidayClosedDay) int { return a.Date.Compare(b.Date) })
+		slices.SortFunc(impact.Weeks[i].ClosedDays, byDate)
+		slices.SortFunc(impact.Weeks[i].ReopenedDays, byDate)
 	}
 	impact.Children, impact.Families = len(children), len(families)
 	return impact
 }
 
 // holidayClosureToken fingerprints the bookings with their placement and
-// closed days; any change of who is told what changes it. It detects a
+// changed days; any change of who is told what changes it. It detects a
 // change between preview and save and guards nothing secret, so a 64-bit
 // FNV hash suffices.
-func holidayClosureToken(bookings []closedBooking) string {
+func holidayClosureToken(bookings []changedBooking) string {
 	lines := make([]string, 0, len(bookings))
-	for _, booking := range bookings {
-		days := make([]string, 0, len(booking.closed))
-		for _, day := range booking.closed {
-			days = append(days, day.Date.String())
+	dates := func(days []enrollment.HolidayClosedDay) string {
+		list := make([]string, 0, len(days))
+		for _, day := range days {
+			list = append(list, day.Date.String())
 		}
-		lines = append(lines, fmt.Sprintf("%d:%d:%d:%s:%q:%s", booking.RegistrationID, booking.ChildID, booking.WeekID, booking.Placement, familyOf(booking), strings.Join(days, ",")))
+		return strings.Join(list, ",")
+	}
+	for _, booking := range bookings {
+		lines = append(lines, fmt.Sprintf("%d:%d:%d:%s:%q:%s:%s", booking.RegistrationID, booking.ChildID, booking.WeekID, booking.Placement,
+			familyOf(booking), dates(booking.closed), dates(booking.reopened)))
 	}
 	slices.Sort(lines)
 	hash := fnv.New64a()
@@ -292,24 +445,9 @@ func holidayClosureToken(bookings []closedBooking) string {
 	return strconv.FormatUint(hash.Sum64(), 16)
 }
 
-// notify checks token against the bookings, enqueues one mail per family
-// and records every told day.
-func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, token string, load func() ([]closedBooking, error)) (enrollment.HolidayClosureNotice, error) {
-	// Hold the owner-local gate until the caller's transaction ends. Read
-	// told days only after earlier notifications have committed.
-	if err := h.store.LockHolidayClosureNotices(ctx, organizationID); err != nil {
-		return enrollment.HolidayClosureNotice{}, err
-	}
-	bookings, err := load()
-	if err != nil {
-		return enrollment.HolidayClosureNotice{}, err
-	}
-	if len(bookings) == 0 {
-		return enrollment.HolidayClosureNotice{}, nil
-	}
-	if token != holidayClosureToken(bookings) {
-		return enrollment.HolidayClosureNotice{}, enrollment.ErrHolidayClosureChanged
-	}
+// notify enqueues one mail per family under operationID, records it and
+// records every told day; the caller holds the notice lock.
+func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, operationID string, bookings []changedBooking) (enrollment.HolidayClosureNotice, error) {
 	if h.mail == nil {
 		return enrollment.HolidayClosureNotice{}, errHolidayClosureMailRequired
 	}
@@ -317,8 +455,12 @@ func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, toke
 	if err != nil {
 		return enrollment.HolidayClosureNotice{}, fmt.Errorf("enrollment: read the Träger of a closure notice: %w", err)
 	}
+	secret, err := h.store.HolidayClosureFamilyKey(ctx, organizationID)
+	if err != nil {
+		return enrollment.HolidayClosureNotice{}, err
+	}
 	var order []string
-	byFamily := map[string][]closedBooking{}
+	byFamily := map[string][]changedBooking{}
 	var notices []enrollment.HolidayClosureNoticeRecord
 	children := map[int64]bool{}
 	for _, booking := range bookings {
@@ -329,24 +471,47 @@ func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, toke
 		byFamily[family] = append(byFamily[family], booking)
 		children[booking.ChildID] = true
 		for _, day := range booking.closed {
-			notices = append(notices, enrollment.HolidayClosureNoticeRecord{RegistrationID: booking.RegistrationID, WeekID: booking.WeekID, ClosedOn: day.Date})
+			notices = append(notices, enrollment.HolidayClosureNoticeRecord{RegistrationID: booking.RegistrationID, WeekID: booking.WeekID,
+				ClosedOn: day.Date, State: enrollment.HolidayClosureDayClosed})
+		}
+		for _, day := range booking.reopened {
+			notices = append(notices, enrollment.HolidayClosureNoticeRecord{RegistrationID: booking.RegistrationID, WeekID: booking.WeekID,
+				ClosedOn: day.Date, State: enrollment.HolidayClosureDayOpen})
 		}
 	}
+	var sends []enrollment.HolidayClosureSendRecord
 	for _, family := range order {
-		if err := h.enqueue(ctx, organizationID, traeger, byFamily[family]); err != nil {
+		familyKey := familyFingerprint(secret, organizationID, family)
+		key := "holiday-closure-op:" + operationID + ":" + familyKey
+		if err := h.enqueue(ctx, organizationID, traeger, key, byFamily[family]); err != nil {
 			return enrollment.HolidayClosureNotice{}, err
 		}
+		for _, booking := range byFamily[family] {
+			sends = append(sends, enrollment.HolidayClosureSendRecord{OperationID: operationID, FamilyKey: familyKey,
+				RegistrationID: booking.RegistrationID, IdempotencyKey: key})
+		}
 	}
-	if err := h.store.RecordHolidayClosureNotices(ctx, organizationID, notices); err != nil {
+	if err := h.store.RecordHolidayClosureSends(ctx, organizationID, sends); err != nil {
+		return enrollment.HolidayClosureNotice{}, err
+	}
+	if err := h.store.SetHolidayClosureNotices(ctx, organizationID, operationID, notices); err != nil {
 		return enrollment.HolidayClosureNotice{}, err
 	}
 	return enrollment.HolidayClosureNotice{Families: len(order), Children: len(children)}, nil
 }
 
-// enqueue writes the one mail of a family: its children with their weeks
-// and closed days. It preserves every registration for erasure, and its key
-// the bookings and days, so the same notice never goes out twice.
-func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, traeger enrollment.HolidayTraeger, bookings []closedBooking) error {
+// familyFingerprint keys a family with the Träger's secret: no address in
+// logs or keys, and no guessable digest of one (ADR 0196 section 4).
+func familyFingerprint(secret []byte, organizationID int64, family string) string {
+	mac := hmac.New(sha256.New, secret)
+	_, _ = mac.Write([]byte(strconv.FormatInt(organizationID, 10) + ":" + family))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// enqueue writes the one mail of a family: its children with their weeks,
+// the days closed and the days open again. It preserves every registration
+// for erasure; key makes the mail of an operation and family unique.
+func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, traeger enrollment.HolidayTraeger, key string, bookings []changedBooking) error {
 	schools := map[int64]string{}
 	for _, school := range traeger.Schools {
 		schools[school.ID] = school.Name
@@ -355,30 +520,25 @@ func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, tra
 	related := first.RegistrationID
 	var registrations []int64
 	var reasons []string
-	var mailChildren []enrollment.HolidayClosureMailChild
-	index := map[int64]int{}
+	closed, reopened := mailChildren{}, mailChildren{}
 	for _, booking := range bookings {
 		related = min(related, booking.RegistrationID)
 		registrations = append(registrations, booking.RegistrationID)
-		i, ok := index[booking.ChildID]
-		if !ok {
-			i = len(mailChildren)
-			index[booking.ChildID] = i
-			mailChildren = append(mailChildren, enrollment.HolidayClosureMailChild{Name: booking.FirstName + " " + booking.LastName, Guest: booking.Guest})
-		}
-		week := enrollment.HolidayClosureMailWeek{Week: holidayClosureWeekLine(booking, schools), Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted}
+		line := holidayClosureWeekLine(booking, schools)
+		waitlisted := booking.Placement == enrollment.HolidayPlacementWaitlisted
+		closed.add(booking, line, waitlisted, booking.closed)
+		reopened.add(booking, line, waitlisted, booking.reopened)
 		for _, day := range booking.closed {
-			week.ClosedDays = append(week.ClosedDays, germanDay(day.Date))
 			if day.Reason != "" && !slices.Contains(reasons, day.Reason) {
 				reasons = append(reasons, day.Reason)
 			}
 		}
-		mailChildren[i].Weeks = append(mailChildren[i].Weeks, week)
 	}
 	payload, err := json.Marshal(enrollment.HolidayClosureMail{
 		Recipient: first.GuardianEmail, GuardianName: first.GuardianFirstName + " " + first.GuardianLastName, TraegerName: traeger.Name,
 		RegistrationIDs: slices.Compact(slices.Sorted(slices.Values(registrations))),
-		Reasons:         reasons, Children: mailChildren, KeepsContribution: enrollment.HolidayClosureKeepsContribution,
+		Reasons:         reasons, Children: closed.children, ReopenedChildren: reopened.children,
+		KeepsContribution: enrollment.HolidayClosureKeepsContribution,
 	})
 	if err != nil {
 		return fmt.Errorf("enrollment: encode holiday closure mail: %w", err)
@@ -387,16 +547,42 @@ func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, tra
 		OrganizationID: organizationID, Kind: enrollment.MailKindHolidayClosureNotice,
 		Recipient: first.GuardianEmail, Payload: payload,
 		RelatedType: enrollment.MailRelatedHolidayRegistration, RelatedID: related,
-		IdempotencyKey: "holiday-closure:" + strconv.FormatInt(related, 10) + ":" + holidayClosureToken(bookings),
+		IdempotencyKey: key,
 	}); err != nil {
 		return fmt.Errorf("enrollment: enqueue holiday closure mail: %w", err)
 	}
 	return nil
 }
 
+// mailChildren collects the children of one section of the mail.
+type mailChildren struct {
+	children []enrollment.HolidayClosureMailChild
+	index    map[int64]int
+}
+
+func (m *mailChildren) add(booking changedBooking, line string, waitlisted bool, days []enrollment.HolidayClosedDay) {
+	if len(days) == 0 {
+		return
+	}
+	if m.index == nil {
+		m.index = map[int64]int{}
+	}
+	i, ok := m.index[booking.ChildID]
+	if !ok {
+		i = len(m.children)
+		m.index[booking.ChildID] = i
+		m.children = append(m.children, enrollment.HolidayClosureMailChild{Name: booking.FirstName + " " + booking.LastName, Guest: booking.Guest})
+	}
+	week := enrollment.HolidayClosureMailWeek{Week: line, Waitlisted: waitlisted}
+	for _, day := range days {
+		week.ClosedDays = append(week.ClosedDays, germanDay(day.Date))
+	}
+	m.children[i].Weeks = append(m.children[i].Weeks, week)
+}
+
 // holidayClosureWeekLine names a booked week in the mail like the other
 // holiday mails: dates, host school and time model.
-func holidayClosureWeekLine(booking closedBooking, schools map[int64]string) string {
+func holidayClosureWeekLine(booking changedBooking, schools map[int64]string) string {
 	place := booking.TimeModelName
 	if school := schools[booking.HostSchoolID]; school != "" {
 		place = school + ", " + booking.TimeModelName

@@ -269,6 +269,40 @@ func (s *Service) TraegerEmailStatuses(ctx context.Context, organizationID int64
 	return intentStatuses(deliveryContract.TransportEmail, rows)
 }
 
+// TraegerEmailStatusesByKey reports the mails of a Träger by idempotency
+// key (ADR 0196) in the caller's Träger transaction of that Träger.
+func (s *Service) TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, keys []string) (statuses []deliveryContract.Status, err error) {
+	if organizationID <= 0 {
+		return nil, errors.New("delivery: Träger is required")
+	}
+	if len(keys) == 0 {
+		return []deliveryContract.Status{}, nil
+	}
+	started := time.Now()
+	var rows []domain.Intent
+	defer func() {
+		s.observe(domain.Observation{Operation: "status_query", Transport: string(domain.TransportEmail), Duration: time.Since(started), Count: len(rows), Err: err})
+	}()
+	rows, err = s.store.TraegerEmailStatusesByKey(ctx, organizationID, keys)
+	if err != nil {
+		return nil, err
+	}
+	return intentStatuses(deliveryContract.TransportEmail, rows)
+}
+
+// RetryFailedTraegerEmails makes the Träger's dead letters of keys with a
+// known failure due again; it keeps their idempotency keys, so each stays
+// the same mail.
+func (s *Service) RetryFailedTraegerEmails(ctx context.Context, organizationID int64, keys []string) (int64, error) {
+	if organizationID <= 0 {
+		return 0, errors.New("delivery: Träger is required")
+	}
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	return s.store.RetryFailedTraegerEmails(ctx, organizationID, keys)
+}
+
 // intentStatuses reports stored intents in the public status shape.
 func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) ([]deliveryContract.Status, error) {
 	statuses := make([]deliveryContract.Status, 0, len(rows))

@@ -35,6 +35,7 @@ type TraegerClosingDayStore interface {
 	InsertTraegerClosingDay(ctx context.Context, organizationID int64, input domain.TraegerClosingDayFields) (domain.TraegerClosingDay, error)
 	UpdateTraegerClosingDay(ctx context.Context, organizationID, id int64, input domain.TraegerClosingDayFields) (domain.TraegerClosingDay, error)
 	DeleteTraegerClosingDay(ctx context.Context, organizationID, id int64) error
+	LockTraegerClosingDay(ctx context.Context, organizationID, id int64) (domain.TraegerClosingDay, error)
 }
 
 // TraegerClosingDays serves traegercalendar.ClosingDays.
@@ -128,6 +129,12 @@ func (t *TraegerClosingDays) save(ctx context.Context, organizationID, id int64,
 	if id == 0 {
 		day, err = storedTraegerClosingDay(t.store.InsertTraegerClosingDay(ctx, organizationID, fields))
 	} else {
+		previous, lockErr := t.store.LockTraegerClosingDay(ctx, organizationID, id)
+		if lockErr != nil {
+			return traegercalendar.ClosingDay{}, traegerClosingDayError(lockErr)
+		}
+		input.ClosingDayID = id
+		input.Previous = &traegercalendar.ClosingDaySpan{StartDate: previous.StartDate, EndDate: previous.EndDate, SchoolIDs: previous.SchoolIDs}
 		day, err = storedTraegerClosingDay(t.store.UpdateTraegerClosingDay(ctx, organizationID, id, fields))
 	}
 	if err != nil {
@@ -140,19 +147,27 @@ func (t *TraegerClosingDays) save(ctx context.Context, organizationID, id int64,
 }
 
 // DeleteClosingDay removes a closing day of the Träger. The named schools
-// count it no longer from the next read on.
-func (t *TraegerClosingDays) DeleteClosingDay(ctx context.Context, organizationID, id int64) error {
+// count it no longer from the next read on; the parents of the holiday
+// bookings whose days open again learn it in the same Träger transaction
+// (#6457), so a refused notice rolls the deletion back.
+func (t *TraegerClosingDays) DeleteClosingDay(ctx context.Context, organizationID, id int64, holidayBookingsToken string) (int, error) {
 	if organizationID <= 0 {
-		return errTraegerRequired
+		return 0, errTraegerRequired
 	}
 	if id <= 0 {
-		return traegercalendar.ErrClosingDayNotFound
+		return 0, traegercalendar.ErrClosingDayNotFound
 	}
-	return t.remove(ctx, organizationID, id)
-}
-
-func (t *TraegerClosingDays) remove(ctx context.Context, organizationID, id int64) error {
-	return traegerClosingDayError(t.store.DeleteTraegerClosingDay(ctx, organizationID, id))
+	previous, err := t.store.LockTraegerClosingDay(ctx, organizationID, id)
+	if err != nil {
+		return 0, traegerClosingDayError(err)
+	}
+	if err := traegerClosingDayError(t.store.DeleteTraegerClosingDay(ctx, organizationID, id)); err != nil {
+		return 0, err
+	}
+	return t.notices.NotifyHolidayBookings(ctx, organizationID, traegercalendar.ClosingDayInput{
+		Reason: previous.Reason, HolidayBookingsToken: holidayBookingsToken, ClosingDayID: id, Deleted: true,
+		Previous: &traegercalendar.ClosingDaySpan{StartDate: previous.StartDate, EndDate: previous.EndDate, SchoolIDs: previous.SchoolIDs},
+	})
 }
 
 func traegerClosingDay(day domain.TraegerClosingDay) traegercalendar.ClosingDay {

@@ -29,3 +29,12 @@ type Capability interface {
 	AttachEmailOutbox(context.Context, int64, int64, int64) error
 	ClaimFailedEmailDelivery(context.Context, int64, int64) (bool, error)
 }
+
+// TraegerMails reads Träger mails back by idempotency key and takes those
+// with a known transport failure up again (ADR 0196). Both run in the
+// caller's Träger transaction of organizationID. A repetition is another
+// attempt of the same mail, never a new one.
+type TraegerMails interface {
+	TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]deliveryContract.Status, error)
+	RetryFailedTraegerEmails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int64, error)
+}

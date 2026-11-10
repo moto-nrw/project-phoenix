@@ -84,6 +84,6 @@ func NewContractApplications(fingerprint func([]byte) string) enrollment.Contrac
 }
 
 // NewHolidayClosures builds the notices of closing days in booked holiday weeks (#6434) in the Träger transaction; nil today: Berlin day.
-func NewHolidayClosures(schoolCalendar enrollment.HolidaySchoolCalendar, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, today func() calendar.Date) enrollment.HolidayClosures {
+func NewHolidayClosures(schoolCalendar enrollment.HolidaySchoolCalendar, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailDelivery, today func() calendar.Date) enrollment.HolidayClosures {
 	return applicationNative.NewHolidayClosures(postgres.NewHolidayRegistrationStore(), schoolCalendar, traeger, mail, today)
 }
