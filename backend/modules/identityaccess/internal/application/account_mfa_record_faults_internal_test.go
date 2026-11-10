@@ -277,7 +277,7 @@ func TestAccountMFA_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	fixture := newAccountMFAFixture(t, failingMFARecords{AccountMFARecords: native, consumeChallenge: stub.consume})
 	svc := fixture.capability
 
-	require.NoError(t, svc.EnrollMFA(ctx, 1))
+	require.NoError(t, svc.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: 1}))
 
 	// The test writes its own challenge with a known hash so VerifyShortCode
 	// succeeds and the flow reaches MarkConsumed.

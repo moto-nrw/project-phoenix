@@ -173,7 +173,10 @@ type AccountMFAChallenges interface {
 
 // AccountMFAEnrollment is the enrollment and its cascade.
 type AccountMFAEnrollment interface {
-	EnrollMFA(ctx context.Context, accountID int64) error
+	// EnrollMFA records the e-mail factor from the code the enrollment confirm
+	// redeemed. It writes nothing and answers ErrInvalidCredentials when the
+	// account's credential generation moved past the proof's since (#6518).
+	EnrollMFA(ctx context.Context, proof VerifiedMFAChallenge) error
 	// DisableMFA removes the enrollment, revokes every trusted device and
 	// resets the lockout counter in one transaction.
 	DisableMFA(ctx context.Context, accountID int64) error
