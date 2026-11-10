@@ -16,10 +16,13 @@ import (
 // are on enrollment.HolidayChildDayLimitRefusal and holiday_days.go.
 
 // holidayBookingKept reports whether kept, the child's bookings so far,
-// books the time model of booking in its week.
+// books the time model of booking in its week and every requested day.
 func holidayBookingKept(kept []enrollment.HolidayBookingInput, booking enrollment.HolidayBookingInput) bool {
 	return slices.ContainsFunc(kept, func(k enrollment.HolidayBookingInput) bool {
-		return k.WeekID == booking.WeekID && k.TimeModelID == booking.TimeModelID
+		return k.WeekID == booking.WeekID && k.TimeModelID == booking.TimeModelID &&
+			!slices.ContainsFunc(booking.Days, func(day calendar.Date) bool {
+				return !slices.Contains(k.Days, day)
+			})
 	})
 }
 
