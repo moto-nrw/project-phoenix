@@ -53,15 +53,6 @@ export function holidayWishView(
   return null;
 }
 
-export function HolidayWishBadge({
-  child,
-  wishRule,
-}: Readonly<{ child: HolidayRegistrationChild; wishRule: boolean }>) {
-  const view = holidayWishView(child, wishRule);
-  if (!view) return null;
-  return <StatusBadge tone={view.tone} label={view.label} icon={view.icon} />;
-}
-
 /** Woher der bekannte Ferienwunsch stammt, in einem Satz. */
 function holidayWishSourceText(child: HolidayRegistrationChild): string {
   if (child.holidayWishCheck) {

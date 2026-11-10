@@ -246,6 +246,7 @@ func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
 			DateOfBirth:       string(c.DateOfBirth),
 			TargetGradeLevel:  c.TargetGradeLevel,
 			TargetSchoolClass: c.TargetSchoolClass,
+			HolidayCareWish:   c.HolidayCareWish,
 			Status:            c.Status,
 			StatusReason:      c.StatusReason,
 			ReviewedAt:        c.ReviewedAt,

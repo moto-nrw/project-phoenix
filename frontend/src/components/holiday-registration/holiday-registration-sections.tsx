@@ -7,7 +7,6 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -713,27 +712,4 @@ function knownChildWish(
       : { tone: "gray", label: "wishKnownNo", hint: "wishHintNo" };
   }
   return { tone: "gray", label: "wishKnownUnknown", hint: "wishHintUnknown" };
-}
-
-/**
- * The rule of the period about the holiday care wish (#4703), for every
- * parent: it names a rule of the Träger, never a child.
- */
-export function HolidayWishRuleNotice({
-  offer,
-}: Readonly<{ offer: HolidayRegistrationOffer }>) {
-  const t = useTranslations("holidayRegistration");
-  if (offer.holidayWishMode === "off") return null;
-  return (
-    <Alert
-      type="info"
-      announce="off"
-      title={t("wishRuleTitle")}
-      message={t(
-        offer.holidayWishMode === "wish_only"
-          ? "wishRuleWishOnly"
-          : "wishRulePriority",
-      )}
-    />
-  );
 }

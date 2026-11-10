@@ -176,6 +176,7 @@ func (s *ChangeRequests) validateProposal(ctx context.Context, req *enrollmentNa
 	if err != nil {
 		return err
 	}
+	dropUnaskedHolidayCareWish(schema, editReq.Children)
 	legalBlocks, err := s.legalBlocksForRequest(ctx, schema)
 	if err != nil {
 		return err

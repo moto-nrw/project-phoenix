@@ -126,6 +126,7 @@ type EditDraftChildResponse struct {
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
+	HolidayCareWish   *bool                          `json:"holiday_care_wish,omitempty"`
 	CustomData        capability.FormValues          `json:"custom_data"`
 	OfferingIDs       []string                       `json:"offering_ids"`
 	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
@@ -464,6 +465,7 @@ func toEditDraftChildResponse(child *capability.RequestChild, offeringLinks []*R
 		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
+		HolidayCareWish:   child.HolidayCareWish,
 		CustomData:        child.CustomData,
 		OfferingIDs:       []string{},
 		Locked:            ChildTakenOver(child),

@@ -26,6 +26,18 @@ func mkChild(id int64) *capability.RequestChild {
 	}
 }
 
+func TestToAdminRequestSummary_PreservesHolidayCareWish(t *testing.T) {
+	t.Parallel()
+	for _, wish := range []*bool{nil, new(true), new(false)} {
+		out := toAdminRequestSummary(&RequestSummary{
+			Request:  &capability.Request{},
+			Children: []*capability.RequestChild{{HolidayCareWish: wish}},
+		})
+		require.Len(t, out.Children, 1)
+		assert.Equal(t, wish, out.Children[0].HolidayCareWish)
+	}
+}
+
 // toAdminRequestSummary is the response-shaping helper between the
 // decision service and the admin list/detail endpoints. It must
 // stringify int64 IDs (per CLAUDE.md rule 4), preserve optional

@@ -31,7 +31,7 @@ import {
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import {
   HOLIDAY_WISH_FILTER_OPTIONS,
-  HolidayWishBadge,
+  holidayWishView,
 } from "~/components/traeger/holiday-wish";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
@@ -215,40 +215,49 @@ function columns(
       header: "Kinder und Wochen",
       render: (registration) => (
         <ul className="space-y-2">
-          {registration.children.map((child) => (
-            <li key={child.id}>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-gray-900">
-                  {child.firstName} {child.lastName}
-                </span>
-                <span className="text-gray-500">
-                  {childSchoolLabel(child, names)}
-                </span>
-                <HolidayWishBadge child={child} wishRule={wishRule} />
-                {child.duplicateRegistrationIds.length > 0 ? (
-                  <StatusBadge
-                    tone="warning"
-                    label="Mögliche Doppelanmeldung"
-                    title={`Auch in Anmeldung Nr. ${child.duplicateRegistrationIds.join(", ")}`}
-                  />
-                ) : null}
-              </div>
-              <ul className="text-xs text-gray-500">
-                {child.bookings.map((booking) => (
-                  <li key={booking.weekId}>
-                    {formatHolidayWeek(
-                      booking.weekStartsOn,
-                      booking.weekEndsOn,
-                    )}
-                    ,{" "}
-                    {names.get(booking.hostSchoolId) ??
-                      "Schule nicht mehr vorhanden"}
-                    : {booking.timeModelName}
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
+          {registration.children.map((child) => {
+            const wish = holidayWishView(child, wishRule);
+            return (
+              <li key={child.id}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-gray-900">
+                    {child.firstName} {child.lastName}
+                  </span>
+                  <span className="text-gray-500">
+                    {childSchoolLabel(child, names)}
+                  </span>
+                  {wish ? (
+                    <StatusBadge
+                      tone={wish.tone}
+                      label={wish.label}
+                      icon={wish.icon}
+                    />
+                  ) : null}
+                  {child.duplicateRegistrationIds.length > 0 ? (
+                    <StatusBadge
+                      tone="warning"
+                      label="Mögliche Doppelanmeldung"
+                      title={`Auch in Anmeldung Nr. ${child.duplicateRegistrationIds.join(", ")}`}
+                    />
+                  ) : null}
+                </div>
+                <ul className="text-xs text-gray-500">
+                  {child.bookings.map((booking) => (
+                    <li key={booking.weekId}>
+                      {formatHolidayWeek(
+                        booking.weekStartsOn,
+                        booking.weekEndsOn,
+                      )}
+                      ,{" "}
+                      {names.get(booking.hostSchoolId) ??
+                        "Schule nicht mehr vorhanden"}
+                      : {booking.timeModelName}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
         </ul>
       ),
       stacked: "field",

@@ -101,6 +101,22 @@ func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
 	assert.Equal(t, float64(13), decoded["grade_level_max"])
 }
 
+func TestEditDraftChildResponse_PreservesHolidayCareWish(t *testing.T) {
+	t.Parallel()
+	for _, wish := range []*bool{nil, new(true), new(false)} {
+		response := toEditDraftChildResponse(&capability.RequestChild{HolidayCareWish: wish}, nil)
+		payload, err := json.Marshal(response)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, json.Unmarshal(payload, &decoded))
+		if wish == nil {
+			assert.NotContains(t, decoded, "holiday_care_wish")
+		} else {
+			assert.Equal(t, *wish, decoded["holiday_care_wish"])
+		}
+	}
+}
+
 func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *testing.T) {
 	t.Parallel()
 
