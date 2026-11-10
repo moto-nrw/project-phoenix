@@ -30,20 +30,19 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
 	// The review of the holiday registrations (#4663) belongs to the
 	// Träger, not to a school: no school to count it for.
-	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}:                     notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}:                     notCaptured,
-	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings"}: notCaptured,
-	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}:                     notCaptured,
-	{http.MethodPost, "/traeger/school-sessions/"}:                                                               notCaptured,
-	{http.MethodDelete, "/traeger/settings/values/{key}"}:                                                        notCaptured,
-	{http.MethodPut, "/traeger/settings/values/{key}"}:                                                           notCaptured,
-	{http.MethodPut, "/traeger/master-data/contact"}:                                                             notCaptured,
-	{http.MethodPut, "/traeger/master-data/withdrawal-contact"}:                                                  notCaptured,
-	{http.MethodPut, "/traeger/master-data/logo"}:                                                                notCaptured,
-	{http.MethodDelete, "/traeger/master-data/logo"}:                                                             notCaptured,
-	{http.MethodPost, "/traeger/master-data/bank-accounts"}:                                                      notCaptured,
-	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:                                                  notCaptured,
-	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:                                               notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}: notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}: notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}: notCaptured,
+	{http.MethodPost, "/traeger/school-sessions/"}:                                           notCaptured,
+	{http.MethodDelete, "/traeger/settings/values/{key}"}:                                    notCaptured,
+	{http.MethodPut, "/traeger/settings/values/{key}"}:                                       notCaptured,
+	{http.MethodPut, "/traeger/master-data/contact"}:                                         notCaptured,
+	{http.MethodPut, "/traeger/master-data/withdrawal-contact"}:                              notCaptured,
+	{http.MethodPut, "/traeger/master-data/logo"}:                                            notCaptured,
+	{http.MethodDelete, "/traeger/master-data/logo"}:                                         notCaptured,
+	{http.MethodPost, "/traeger/master-data/bank-accounts"}:                                  notCaptured,
+	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:                              notCaptured,
+	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:                           notCaptured,
 	// The document templates (#4677) belong to the Träger: no school to
 	// count them for. The preview stores nothing.
 	{http.MethodPost, "/traeger/master-data/document-templates/{kind}/versions"}: notCaptured,
@@ -77,6 +76,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The cancellation of a holiday registration moved to the
 	// Elternabrechnung, which computes the sibling group again (#5662).
 	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel"}: notCaptured,
+	// The rebooking moved to the Elternabrechnung too, and the capacity of a
+	// holiday week lives beside it (#4699): both can move children up the
+	// waiting list and compute their contribution again. Like the rest of
+	// the Träger portal, not captured.
+	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/children/{childId}/bookings"}: notCaptured,
+	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/weeks/{weekId}/capacity"}:                                    notCaptured,
 	// The billing run of a holiday period (#4668, ADR 0119) belongs to the
 	// Träger: no school to count it for.
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,

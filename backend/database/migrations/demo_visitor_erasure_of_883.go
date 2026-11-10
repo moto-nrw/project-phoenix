@@ -8,10 +8,10 @@ import (
 )
 
 // demoVisitorErasureCareNoticeLettersSQL is platform.erase_closed_demo_visitors
-// of 1.15.864 with the copies of the sent originals of the Jahresbescheide
-// (#6347): the erasure of 1.15.864 with careNoticeLetterErasureStatement
+// of 1.15.878 with the copies of the sent originals of the Jahresbescheide
+// (#6347): the erasure of 1.15.878 with careNoticeLetterErasureStatement
 // before careNoticeLetterErasureAnchor. The rest of the function is
-// unchanged; TestCareNoticeLetterErasureIsTheErasureOf864WithTheOriginals
+// unchanged; TestCareNoticeLetterErasureIsTheErasureOf878WithTheOriginals
 // keeps it that way.
 const demoVisitorErasureCareNoticeLettersSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
@@ -516,7 +516,7 @@ const demoVisitorErasureCareNoticeLettersSQL = `
 					USING enrollment.holiday_registration_children AS child
 					WHERE child.home_school_id = ANY (hidden_schools)
 						AND outbox.organization_id = child.organization_id
-						AND outbox.kind = 'holiday_registration_received'
+						AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted')
 						AND outbox.related_entity_type = 'holiday_registration'
 						AND outbox.related_entity_id = child.holiday_registration_id;
 					DELETE FROM enrollment.holiday_registrations AS registration

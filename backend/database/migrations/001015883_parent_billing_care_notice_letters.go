@@ -7,16 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCareNoticeLettersVersion = "1.15.877"
+const parentBillingCareNoticeLettersVersion = "1.15.883"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingCareNoticeLettersVersion,
 		Description: "Elternabrechnung: gespeichertes Original, Versand und Elternpostfach der Jahresbescheide (#6347)",
 		DependsOn: []string{
-			parentBillingExportFilesVersion,           // the newest migration before this one
-			parentBillingCareNoticesVersion,           // the notices whose originals these are
-			parentBillingCareInvoiceExclusionsVersion, // the erasure this one extends
+			holidayWeekCapacityVersion,      // the newest migration before this one and the erasure it extends
+			parentBillingCareNoticesVersion, // the notices whose originals these are
 		},
 	})
 	Migrations.MustRegister(parentBillingCareNoticeLettersUp, parentBillingCareNoticeLettersDown)
@@ -122,7 +121,7 @@ ALTER TABLE parent_billing.care_notice_run_events ADD CONSTRAINT chk_care_notice
 	CHECK (action IN ('create', 'read', 'release', 'letter'));
 `
 
-// careNoticeLetterErasureAnchor is where 1.15.864 deletes the notices of a
+// careNoticeLetterErasureAnchor is where 1.15.878 deletes the notices of a
 // retired demo school; the originals and their sends still exist there.
 const careNoticeLetterErasureAnchor = `					-- A Jahresbescheid of the school copies child, recipient and
 					-- mail address (#6219); it goes with the school, its months
@@ -131,7 +130,7 @@ const careNoticeLetterErasureAnchor = `					-- A Jahresbescheid of the school co
 					WHERE school_id = ANY (hidden_schools);
 `
 
-// careNoticeLetterErasureStatement is what 1.15.877 adds before it. The
+// careNoticeLetterErasureStatement is what 1.15.883 adds before it. The
 // original and its sends go with the notice by cascade, but the mail on
 // Delivery's outbox carries the PDF with child, recipient and address, its
 // delivery result names the address, and the push names the letter and the
@@ -188,7 +187,7 @@ func parentBillingCareNoticeLettersUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentBillingCareNoticeLettersDown(ctx context.Context, db *bun.DB) error {
-	if err := installCareInvoiceExclusionErasure(ctx, db); err != nil {
+	if err := installHolidayPlaceErasure(ctx, db); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, parentBillingCareNoticeLettersDownSQL); err != nil {

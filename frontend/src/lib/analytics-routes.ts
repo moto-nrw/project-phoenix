@@ -243,6 +243,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/ferien/:id/anmeldungen",
   "/ferien/:id/anmeldungen/:registrationId",
   "/ferien/:id/formular",
+  "/ferien/:id/plaetze",
   "/ferien/neu",
   "/invite",
   "/login",

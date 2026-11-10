@@ -82,10 +82,10 @@ Eintrag im Elternpostfach fehlten (#6243, „Risiken“).
 
 ## Register
 
-- Migration `1.15.877`: zwei Tabellen mit RLS, Triggern gegen Änderungen und
+- Migration `1.15.883`: zwei Tabellen mit RLS, Triggern gegen Änderungen und
   Rechten nur zum Lesen und Anlegen; Aktionen `letters` und `mail` der Spur; die
   Demo-Löschung `platform.erase_closed_demo_visitors` löscht Mail, Zustellergebnis
-  und Push der Originale einer ausgemusterten Demo-Schule vor den Bescheiden, auf der Fassung von 1.15.864
+  und Push der Originale einer ausgemusterten Demo-Schule vor den Bescheiden, auf der Fassung von 1.15.878
   (`TestDemoSchoolQueueErasesTheNoticeLettersOfTheRetiredSchool`).
 - `policy.json`: zwei `data_objects` für `parent-billing`; keine neue Regel.
 - `command-effects`: zwei geprüfte Bindungen auf Delivery (Mail durable,

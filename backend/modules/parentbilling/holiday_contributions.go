@@ -87,6 +87,11 @@ var (
 	// registration an issued invoice already bills: the invoice keeps its
 	// copy (#5621, ADR 0119).
 	ErrDebtorNumberLocked = errors.New("an issued invoice keeps the debtor number of the registration")
+	// ErrInvalidHolidayPlaces reports bookings of a rebooking or a capacity
+	// that Enrollment refuses (#4699); it wraps the refused fields.
+	ErrInvalidHolidayPlaces = errors.New("invalid holiday bookings or capacity")
+	// ErrHolidayWeekNotFound reports a week that is not a week of the period.
+	ErrHolidayWeekNotFound = errors.New("holiday week not found")
 )
 
 // HolidayContributionLine is one position of a contribution. A base line
@@ -106,6 +111,10 @@ type HolidayContributionLine struct {
 	Note                string         `json:"note"`
 	CostBearerID        *int64         `json:"cost_bearer_id"`
 	CostBearerName      string         `json:"cost_bearer_name"`
+	// WeekID names the week a base line prices (#4699), so a booking is
+	// priced at most once even after its week moved; zero for a line frozen
+	// before whose week has moved since, which is matched by its dates.
+	WeekID int64 `json:"-"`
 }
 
 // HolidayChildContribution is the contribution of one child. ChildID names
@@ -166,6 +175,9 @@ type IssuedContribution struct {
 type HolidayCancellation struct {
 	RegistrationID int64  `json:"id"`
 	Status         string `json:"status"`
+	// MovedUp names the registrations whose bookings got the freed places
+	// (#4699).
+	MovedUp []int64 `json:"moved_up"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -174,6 +186,13 @@ type HolidayConfirmation struct {
 	RegistrationID int64               `json:"id"`
 	Status         string              `json:"status"`
 	Contribution   HolidayContribution `json:"contribution"`
+}
+
+// HolidayBookingReplacement is a week whose frozen charge a rebooking retains.
+type HolidayBookingReplacement struct {
+	WeekID       int64
+	WeekStartsOn calendar.Date
+	WeekEndsOn   calendar.Date
 }
 
 // HolidayBooking is the time model a child books in one week, with the
@@ -185,6 +204,13 @@ type HolidayBooking struct {
 	TimeModelID   int64
 	TimeModelName string
 	PriceCents    int64
+	// Waitlisted marks a booking that waits for a place (#4699). It costs
+	// nothing and gives the child no sibling rank until it moves up.
+	Waitlisted bool
+	// Promoted distinguishes waiting-list admissions from direct rebookings.
+	Promoted bool
+	// ReplacedWeeks preserves the lineage of replacements admitted later.
+	ReplacedWeeks []HolidayBookingReplacement
 }
 
 // HolidayChild is a child of a registration with its bookings. Position is
@@ -212,6 +238,32 @@ type HolidayRegistration struct {
 	BenefitsDeclared bool
 	DebtorNumber     string
 	Children         []HolidayChild
+	// MovedUp names the other registrations whose bookings moved up from
+	// the waiting list because of the change that answers with this
+	// registration: a cancellation or a rebooking (#4699).
+	MovedUp []int64
+	// View is the registration as Enrollment shows it to the Träger-Büro;
+	// the rebooking route answers with it unchanged (#4699).
+	View any
+}
+
+// HolidayBookingChoice is one week and time model a rebooking gives a
+// child (#4699).
+type HolidayBookingChoice struct {
+	WeekID      int64 `json:"week_id"`
+	TimeModelID int64 `json:"time_model_id"`
+}
+
+// HolidayPlaceChange is what a rebooking or a new capacity changed in the
+// places (#4699): the registrations whose bookings moved up from the waiting
+// list and got their contribution computed again.
+type HolidayPlaceChange struct {
+	// Registration is the rebooked registration as Enrollment shows it.
+	Registration   any     `json:"-"`
+	RegistrationID int64   `json:"registration_id,omitempty"`
+	WeekID         int64   `json:"week_id,omitempty"`
+	Capacity       *int    `json:"capacity"`
+	MovedUp        []int64 `json:"moved_up"`
 }
 
 // HolidayTimeModel is a bookable time model of a week with its price.
@@ -265,6 +317,14 @@ type HolidayRegistrations interface {
 	// CancelHolidayRegistration cancels the registration (#5662); a
 	// registration after the deadline is ErrHolidayRegistrationFrozen.
 	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistration, error)
+	// RebookHolidayChild replaces the bookings of one child (#4699); a week
+	// it leaves gives its place to the waiting list. MovedUp names the
+	// registrations that moved up.
+	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingChoice) (HolidayRegistration, error)
+	// SetHolidayWeekCapacity sets the places of a week, nil for unlimited,
+	// and moves bookings up into the places it frees; it returns the
+	// registrations that moved up.
+	SetHolidayWeekCapacity(ctx context.Context, reviewer HolidayReviewer, periodID, weekID int64, capacity *int) ([]int64, error)
 	// HoldHolidayPeriod locks the period until the transaction ends, so no
 	// registration of it changes while a sibling group is read and decided
 	// on (#5628). A period of another Träger is ErrHolidayPeriodNotFound.
@@ -370,6 +430,15 @@ type HolidayContributions interface {
 	// ErrHolidayRegistrationStateConflict, one after the deadline
 	// ErrHolidayRegistrationFrozen.
 	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayCancellation, error)
+	// RebookHolidayChild replaces the bookings of a child through Enrollment
+	// (#4699). A week the child leaves gives its place to the waiting list;
+	// every confirmed registration that moves up gets its contribution
+	// computed again, with its sibling group, in the same transaction.
+	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingChoice) (HolidayPlaceChange, error)
+	// SetHolidayWeekCapacity sets the places of a week through Enrollment,
+	// nil for unlimited, and computes the contribution of every confirmed
+	// registration that moves up again (#4699).
+	SetHolidayWeekCapacity(ctx context.Context, reviewer HolidayReviewer, periodID, weekID int64, capacity *int) (HolidayPlaceChange, error)
 	// HolidayConfirmationSettings reports what a confirmation of the
 	// session's Träger needs (#5621).
 	HolidayConfirmationSettings(ctx context.Context, reviewer HolidayReviewer) (HolidayConfirmationSettings, error)

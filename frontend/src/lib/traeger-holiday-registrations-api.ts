@@ -46,7 +46,8 @@ type HolidayRegistrationEventAction =
   | "proof_upload"
   | "sibling_merge"
   | "sibling_split"
-  | "sibling_cancel";
+  | "sibling_cancel"
+  | "promote";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -65,6 +66,9 @@ export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
   timeModel: "",
 };
 
+/** Whether a booking has a place in its week or waits for one (#4699). */
+type HolidayPlacement = "placed" | "waitlisted";
+
 interface HolidayRegistrationBooking {
   readonly weekId: string;
   /** Calendar dates "YYYY-MM-DD". */
@@ -73,6 +77,11 @@ interface HolidayRegistrationBooking {
   readonly hostSchoolId: string;
   readonly timeModelId: string;
   readonly timeModelName: string;
+  readonly placement: HolidayPlacement;
+  /** Place on the waiting list of the week, from 1; null with a place. */
+  readonly waitlistPosition: number | null;
+  /** When the booking moved up from the waiting list; null otherwise. */
+  readonly promotedAt: string | null;
 }
 
 export interface HolidayRegistrationChild {
@@ -248,6 +257,9 @@ interface BackendBooking {
   host_school_id: number;
   time_model_id: number;
   time_model_name: string;
+  placement?: HolidayPlacement;
+  waitlist_position?: number | null;
+  promoted_at?: string | null;
 }
 
 interface BackendChild {
@@ -371,6 +383,9 @@ function summaryFromBackend(
         hostSchoolId: String(booking.host_school_id),
         timeModelId: String(booking.time_model_id),
         timeModelName: booking.time_model_name,
+        placement: booking.placement ?? "placed",
+        waitlistPosition: booking.waitlist_position ?? null,
+        promotedAt: booking.promoted_at ?? null,
       })),
       duplicateRegistrationIds: (child.duplicate_registration_ids ?? []).map(
         String,
@@ -810,4 +825,96 @@ export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirm
       name: bearer.name,
     })),
   };
+}
+
+/** One booking on the waiting list of a week, in its order (#4699). */
+interface HolidayWaitlistEntry {
+  readonly position: number;
+  readonly registrationId: string;
+  readonly registrationStatus: HolidayRegistrationStatus;
+  readonly submittedAt: string;
+  readonly childId: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly timeModelName: string;
+}
+
+/**
+ * The places of one week of a holiday period (#4699): its capacity, null for
+ * unlimited, the children with a place and the waiting list.
+ */
+export interface HolidayWeekPlaces {
+  readonly weekId: string;
+  /** Calendar dates "YYYY-MM-DD". */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly hostSchoolId: string;
+  readonly capacity: number | null;
+  readonly placed: number;
+  readonly waitlist: readonly HolidayWaitlistEntry[];
+}
+
+interface BackendWeekPlaces {
+  week_id: number;
+  starts_on: string;
+  ends_on: string;
+  host_school_id: number;
+  capacity: number | null;
+  placed: number;
+  waitlist?:
+    | {
+        position: number;
+        registration_id: number;
+        registration_status: HolidayRegistrationStatus;
+        submitted_at: string;
+        child_id: number;
+        child_first_name: string;
+        child_last_name: string;
+        time_model_name: string;
+      }[]
+    | null;
+}
+
+/** The places and waiting lists of every week of a period (#4699). */
+export async function fetchHolidayWeekPlaces(
+  periodId: string,
+): Promise<readonly HolidayWeekPlaces[]> {
+  const weeks = await traegerRequest<BackendWeekPlaces[] | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/places`,
+  );
+  return (weeks ?? []).map((week) => ({
+    weekId: String(week.week_id),
+    startsOn: week.starts_on,
+    endsOn: week.ends_on,
+    hostSchoolId: String(week.host_school_id),
+    capacity: week.capacity,
+    placed: week.placed,
+    waitlist: (week.waitlist ?? []).map((entry) => ({
+      position: entry.position,
+      registrationId: String(entry.registration_id),
+      registrationStatus: entry.registration_status,
+      submittedAt: entry.submitted_at,
+      childId: String(entry.child_id),
+      childFirstName: entry.child_first_name,
+      childLastName: entry.child_last_name,
+      timeModelName: entry.time_model_name,
+    })),
+  }));
+}
+
+/**
+ * Sets the places of a week, null for unlimited (#4699). Freed places go to
+ * the waiting list at once; the answer names the registrations that moved
+ * up.
+ */
+export async function setHolidayWeekCapacity(
+  periodId: string,
+  weekId: string,
+  capacity: number | null,
+): Promise<{ readonly movedUp: readonly string[] }> {
+  const change = await traegerRequest<{ moved_up?: number[] | null }>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/weeks/${encodeURIComponent(weekId)}/capacity`,
+    { method: "PUT", body: { capacity } },
+  );
+  return { movedUp: (change.moved_up ?? []).map(String) };
 }
