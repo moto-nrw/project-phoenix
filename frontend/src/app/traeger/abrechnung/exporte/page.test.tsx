@@ -284,11 +284,13 @@ it("lists the invoices a refused DATEV download names", async () => {
       "Keine DATEV-Datei für Monatsbeiträge Oktober 2026",
     ),
   ).toBeInTheDocument();
+  // One line per reason, with every invoice it names; the malformed entry
+  // is left out.
   expect(
-    screen.getByText("MB-2026-0001: Debitorennummer fehlt"),
+    screen.getByText("Debitorennummer fehlt: MB-2026-0001, MB-2026-0002"),
   ).toBeInTheDocument();
   expect(
-    screen.getByText("ST-2026-0001: liegt in einem anderen Wirtschaftsjahr"),
+    screen.getByText("Liegt in einem anderen Wirtschaftsjahr: ST-2026-0001"),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("listitem")).toHaveLength(2);
   expect(files.downloadBlob).not.toHaveBeenCalled();
