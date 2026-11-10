@@ -100,6 +100,10 @@
   "doneTitle": "Kaydınız alındı",
   "doneText": "{email} adresine bir onay göndereceğiz.",
   "doneNext": "Bu henüz kesin bir yer değildir. Kurum kaydı kontrol eder ve çocuğunuzun yer alıp almadığını size yazar.",
+  "placementHeading": "Yerler",
+  "placementPlaced": "Yer ayrıldı",
+  "placementWaitlisted": "Bekleme listesi",
+  "waitlistNote": "Bazı haftalar dolu. Bu haftalarda çocuğunuz bekleme listesinde. Bir yer boşalırsa çocuğunuz onu otomatik olarak alır. O zaman size e-posta göndeririz.",
   "errors": {
     "phone": "Lütfen geçerli bir telefon numarası girin.",
     "required": "Lütfen bu alanı doldurun.",

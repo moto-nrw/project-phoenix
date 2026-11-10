@@ -3,6 +3,7 @@ GET /traeger/holiday-periods/ -> basis
 GET /traeger/holiday-periods/{id} -> basis
 GET /traeger/holiday-periods/{id}/form -> basis
 GET /traeger/holiday-periods/{id}/form/documents/{documentId} -> basis
+GET /traeger/holiday-periods/{id}/places -> basis
 GET /traeger/holiday-periods/{id}/registrations -> basis
 GET /traeger/holiday-periods/{id}/registrations/export -> basis
 GET /traeger/holiday-periods/{id}/registrations/{registrationId} -> basis
@@ -16,5 +17,4 @@ POST /traeger/holiday-periods/{id}/registrations/{registrationId}/proofs -> basi
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen -> basis
 PUT /traeger/holiday-periods/{id} -> basis
 PUT /traeger/holiday-periods/{id}/form -> basis
-PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings -> basis
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/details -> basis

@@ -32,6 +32,7 @@ const ACTION_LABELS: Readonly<
   sibling_merge: "Als Geschwister zusammengeführt",
   sibling_split: "Von Geschwistern getrennt",
   sibling_cancel: "Aus Geschwistergruppe gelöst (storniert)",
+  promote: "Von der Warteliste nachgerückt",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {

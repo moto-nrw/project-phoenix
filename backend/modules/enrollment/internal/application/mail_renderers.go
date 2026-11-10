@@ -42,6 +42,7 @@ func NewMailRenderers() enrollment.MailRenderers {
 			phaseFullSubject: "Anmeldung verlängert: %s - %s",
 		})),
 		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
+		HolidayPlaceGranted:         renderHolidayPlaceGranted,
 	}
 }
 
@@ -60,8 +61,12 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 		subject = "Ferienanmeldung eingegangen: " + payload.PeriodName
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
 	for _, child := range payload.Children {
-		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+		children = append(children, map[string]any{
+			"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks,
+		})
+		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -74,7 +79,41 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 			"PeriodName":   payload.PeriodName,
 			"Binding":      payload.Binding,
 			"Children":     children,
+			"Waitlisted":   waitlisted,
 			"Declaration":  holidayDeclarationContent(payload.Declaration),
+		},
+	}, nil
+}
+
+// renderHolidayPlaceGranted renders the mail that a child moved up from the
+// waiting list of a holiday week (#4699). The Träger is the sender.
+func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayPlaceGrantedMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday place mail: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	subject := "Ferienplatz frei geworden"
+	if payload.PeriodName != "" {
+		subject = "Ferienplatz frei geworden: " + payload.PeriodName
+	}
+	children := make([]map[string]any, 0, len(payload.Children))
+	for _, child := range payload.Children {
+		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    subject,
+		Template:   "holiday-place-granted.html",
+		Content: map[string]any{
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"Binding":      payload.Binding,
+			"Children":     children,
 		},
 	}, nil
 }

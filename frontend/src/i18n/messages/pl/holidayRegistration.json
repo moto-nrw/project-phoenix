@@ -100,6 +100,10 @@
   "doneTitle": "Twoje zgłoszenie dotarło",
   "doneText": "Wyślemy potwierdzenie na adres {email}.",
   "doneNext": "To jeszcze nie jest potwierdzenie miejsca. Organizator sprawdzi zgłoszenie i napisze, czy dziecko dostanie miejsce.",
+  "placementHeading": "Miejsca",
+  "placementPlaced": "Miejsce zarezerwowane",
+  "placementWaitlisted": "Lista oczekujących",
+  "waitlistNote": "Niektóre tygodnie są już pełne. W tych tygodniach dziecko jest na liście oczekujących. Gdy zwolni się miejsce, dziecko dostanie je automatycznie. Wtedy wyślemy Państwu e-mail.",
   "errors": {
     "phone": "Proszę podać prawidłowy numer telefonu.",
     "required": "Wypełnij to pole.",
