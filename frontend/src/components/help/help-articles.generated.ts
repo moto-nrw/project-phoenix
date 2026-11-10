@@ -6052,7 +6052,7 @@ export const parentEnrollStatusTopic =
       differences: [
         "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab. Stehen darüber Bedingungen? Lesen Sie sie und setzen Sie die Häkchen. Ohne Häkchen klappt die Bestätigung nicht.",
         "Steht dort `Anmeldung wurde verlängert` mit Bedingungen zum Ankreuzen? Die Betreuung läuft weiter. Für den Vertrag im neuen Zeitraum setzen Sie die Häkchen und tippen auf `Vertragsbedingungen bestätigen`.",
-        "Steht dort `Vertragsbedingungen bestätigen`, solange die Schule noch prüft? Lesen Sie die Bedingungen und die PDF-Anhänge. Setzen Sie die Häkchen und bestätigen Sie. Die Schule entscheidet danach über die Anmeldung.",
+        "Steht dort `Zustimmung für den neuen Zeitraum`, solange die Schule noch prüft? Lesen Sie die Bedingungen und die PDF-Anhänge. Setzen Sie die Häkchen und bestätigen Sie. Die Schule entscheidet danach über die Anmeldung.",
         "Steht dort `Anmeldung wurde verlängert` ohne Bedingungen? Dann müssen Sie nichts tun.",
         "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
         "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",

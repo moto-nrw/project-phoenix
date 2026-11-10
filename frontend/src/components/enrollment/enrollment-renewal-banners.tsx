@@ -157,11 +157,13 @@ export function RenewalBanners({
         </SectionCard>
       ) : (
         <SectionCard
-          title={t(mode === "submitted" ? "confirmTerms" : "autoRenewedTitle")}
+          title={t(
+            mode === "submitted" ? "submittedTermsTitle" : "autoRenewedTitle",
+          )}
         >
           <p className="text-sm text-gray-700">
             {mode === "submitted"
-              ? t(confirmedAt === null ? "childPendingText" : "termsConfirmed")
+              ? t("submittedTermsText")
               : blocks.length === 0
                 ? t("autoRenewedText")
                 : confirmedAt === null
@@ -182,16 +184,20 @@ export function RenewalBanners({
                 {confirmingRenewal ? t("confirming") : t("confirmTerms")}
               </Button>
             ) : null}
-            {adjustLink}
-            <Button
-              type="button"
-              onClick={() => onWithdraw()}
-              disabled={withdrawingAll}
-              variant="surface"
-              size="md"
-            >
-              {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
-            </Button>
+            {mode !== "submitted" ? (
+              <>
+                {adjustLink}
+                <Button
+                  type="button"
+                  onClick={() => onWithdraw()}
+                  disabled={withdrawingAll}
+                  variant="surface"
+                  size="md"
+                >
+                  {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
+                </Button>
+              </>
+            ) : null}
           </div>
           {mode !== "submitted" ? (
             <p className="mt-3 text-xs text-gray-500">

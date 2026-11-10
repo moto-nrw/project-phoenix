@@ -52,6 +52,8 @@
   "autoRenewedTermsConfirmedText": "Zgłoszenie na kolejny okres zostało przejęte automatycznie. Zgodę na warunki wyrazili Państwo {date}. Nie muszą Państwo nic więcej robić.",
   "confirmTerms": "Potwierdź warunki umowy",
   "termsConfirmed": "Państwa zgoda została zapisana.",
+  "submittedTermsTitle": "Zgoda na nowy okres",
+  "submittedTermsText": "Szkoła nadal sprawdza Państwa zgłoszenie. Do umowy na nowy okres potrzebujemy Państwa zgody na warunki.",
   "childApprovedText": "Ten zapis został już potwierdzony.",
   "childPendingText": "Nie podjęto jeszcze ostatecznej decyzji.",
   "childLockedText": "Tego zapisu nie można już zmienić online.",

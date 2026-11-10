@@ -572,7 +572,10 @@ function EnrollmentStatusContent({
       ? "opt_in"
       : autoRenewedCount > 0
         ? "opt_out"
-        : status.renewal_terms &&
+        : // A renewal past its deadline still waits for the school; its
+          // terms stay open until the parents accept them (#6456).
+          (status.renewal_terms?.blocks.length ?? 0) > 0 &&
+            !status.renewal_terms?.confirmed_at &&
             status.children.some((child) => child.status === "submitted")
           ? "submitted"
           : null;

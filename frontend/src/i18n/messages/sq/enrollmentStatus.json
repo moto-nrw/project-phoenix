@@ -52,6 +52,8 @@
   "autoRenewedTermsConfirmedText": "Regjistrimi juaj për periudhën e ardhshme u vazhdua automatikisht. Kushtet i pranuat më {date}. Nuk keni nevojë të bëni asgjë tjetër.",
   "confirmTerms": "Konfirmo kushtet e kontratës",
   "termsConfirmed": "Pëlqimi juaj u ruajt.",
+  "submittedTermsTitle": "Pëlqimi për periudhën e re",
+  "submittedTermsText": "Shkolla po e shqyrton ende regjistrimin tuaj. Për kontratën e periudhës së re na duhet pëlqimi juaj për kushtet.",
   "childApprovedText": "Ky regjistrim është konfirmuar tashmë.",
   "childPendingText": "Ende nuk ka vendim përfundimtar.",
   "childLockedText": "Ky regjistrim nuk mund të ndryshohet më online.",

@@ -1173,6 +1173,36 @@ describe("EnrollmentStatusView renewal terms (#6456)", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows no terms card for a submitted renewal the parents already accepted", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        renewal_terms: {
+          ...RENEWAL_TERMS,
+          confirmed_at: "2026-09-08T10:00:00Z",
+        },
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "submitted",
+          },
+        ],
+      }),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Zustimmung für den neuen Zeitraum",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Vertragsbedingungen bestätigen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("requires new ticks after reloading changed terms", async () => {
     mockFetchStatus
       .mockResolvedValueOnce(renewal("auto_renewed"))

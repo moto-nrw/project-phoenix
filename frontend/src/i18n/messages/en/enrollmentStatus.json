@@ -52,6 +52,8 @@
   "autoRenewedTermsConfirmedText": "Your enrollment for the next period was carried over automatically. You agreed to the terms on {date}. You do not need to do anything else.",
   "confirmTerms": "Confirm contract terms",
   "termsConfirmed": "Your agreement has been saved.",
+  "submittedTermsTitle": "Agreement for the new period",
+  "submittedTermsText": "The school is still reviewing your enrollment. For the contract in the new period, we need your agreement to the terms.",
   "childApprovedText": "This enrollment has already been confirmed.",
   "childPendingText": "No final decision has been made yet.",
   "childLockedText": "This enrollment can no longer be changed online.",

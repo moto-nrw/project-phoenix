@@ -52,6 +52,8 @@
   "autoRenewedTermsConfirmedText": "Bir sonraki dönem için kaydınız otomatik olarak devralındı. Koşulları {date} tarihinde onayladınız. Başka bir şey yapmanız gerekmez.",
   "confirmTerms": "Sözleşme koşullarını onayla",
   "termsConfirmed": "Onayınız kaydedildi.",
+  "submittedTermsTitle": "Yeni dönem için onay",
+  "submittedTermsText": "Okul kaydınızı hâlâ inceliyor. Yeni dönemin sözleşmesi için koşullara onayınız gerekiyor.",
   "childApprovedText": "Bu kayıt zaten onaylandı.",
   "childPendingText": "Henüz kesin bir karar verilmedi.",
   "childLockedText": "Bu kayıt artık çevrimiçi değiştirilemez.",
