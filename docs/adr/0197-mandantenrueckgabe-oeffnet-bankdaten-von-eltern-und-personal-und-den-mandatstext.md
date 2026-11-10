@@ -65,7 +65,11 @@ nur die exportierte Zeile.
   Runbook; ohne den Bankring bricht auch der Export einer Schule ab.
 - Die Compose-Budgets steigen um die Konstruktoren
   `NewGuardianBankExportFields` von People Directory (+5 LOC) und
-  `NewStaffBankExportFields` von Workforce (+5 LOC).
+  `NewStaffBankExportFields` von Workforce (+5 LOC). Ohne Konstruktor in
+  `compose` ginge es nicht sauber: Das öffentliche Owner-Paket kann
+  `internal/application` nicht importieren (Zyklus), der vorhandene
+  Rekey-Konstruktor gäbe dem Opener `Rewrap`, und die AAD-Bildung ins
+  öffentliche Paket zu ziehen wäre ein Umbau ohne Bezug zu #6412.
 - Eine weitere Bindung über Tabellen hinweg braucht nur einen Katalogeintrag;
   der Stolperdraht prüft, dass ihre Spalten bestehen, keine Spalte der Tabelle
   verdecken und die Tabelle etwas öffnet.
