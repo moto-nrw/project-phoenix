@@ -118,32 +118,37 @@ type datevBatch struct {
 func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbilling.DatevSettings) datevBatch {
 	batch := datevBatch{}
 	for _, invoice := range invoices {
-		if invoice.TotalCents == 0 {
-			continue
-		}
-		booking := DatevBooking{AmountCents: invoice.TotalCents, Side: DatevDebit, Account: invoice.DebtorNumber,
-			CounterAccount: settings.RevenueAccount.Value, DocumentDate: invoice.IssuedOn, DocumentNumber: invoice.Number,
-			Text: datevBookingText(invoice)}
-		if invoice.TotalCents < 0 {
-			booking.AmountCents, booking.Side = -invoice.TotalCents, DatevCredit
-		}
-		batch.bookings = append(batch.bookings, booking)
-		batch.numbers = append(batch.numbers, invoice.Number)
-		batch.totalCents += invoice.TotalCents
-		if invoice.CareInvoiceID > 0 && !slices.Contains(batch.careInvoices, invoice.CareInvoiceID) {
-			batch.careInvoices = append(batch.careInvoices, invoice.CareInvoiceID)
-		}
-		if invoice.DocumentID > 0 {
-			batch.documents = append(batch.documents, invoice.DocumentID)
-		}
-		if batch.first.IsZero() || invoice.IssuedOn.Before(batch.first) {
-			batch.first = invoice.IssuedOn
-		}
-		if batch.last.IsZero() || invoice.IssuedOn.After(batch.last) {
-			batch.last = invoice.IssuedOn
+		if invoice.TotalCents != 0 {
+			batch.add(invoice, settings.RevenueAccount.Value)
 		}
 	}
 	return batch
+}
+
+// add books one document: an invoice charges the debtor, a negative
+// document (Storno, credit) relieves it.
+func (b *datevBatch) add(invoice parentbilling.ExportInvoice, revenueAccount string) {
+	booking := DatevBooking{AmountCents: invoice.TotalCents, Side: DatevDebit, Account: invoice.DebtorNumber,
+		CounterAccount: revenueAccount, DocumentDate: invoice.IssuedOn, DocumentNumber: invoice.Number,
+		Text: datevBookingText(invoice)}
+	if invoice.TotalCents < 0 {
+		booking.AmountCents, booking.Side = -invoice.TotalCents, DatevCredit
+	}
+	b.bookings = append(b.bookings, booking)
+	b.numbers = append(b.numbers, invoice.Number)
+	b.totalCents += invoice.TotalCents
+	if invoice.CareInvoiceID > 0 && !slices.Contains(b.careInvoices, invoice.CareInvoiceID) {
+		b.careInvoices = append(b.careInvoices, invoice.CareInvoiceID)
+	}
+	if invoice.DocumentID > 0 {
+		b.documents = append(b.documents, invoice.DocumentID)
+	}
+	if b.first.IsZero() || invoice.IssuedOn.Before(b.first) {
+		b.first = invoice.IssuedOn
+	}
+	if b.last.IsZero() || invoice.IssuedOn.After(b.last) {
+		b.last = invoice.IssuedOn
+	}
 }
 
 // datevBookingText names the document and the child; datevPersonText

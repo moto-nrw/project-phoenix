@@ -34,7 +34,7 @@ function settingLabel(key: string): string {
 }
 
 /** What is wrong with each DATEV value, in the order of the settings. */
-export function datevSettingLines(readiness: DatevReadiness): string[] {
+function datevSettingLines(readiness: DatevReadiness): string[] {
   const order = Object.keys(DATEV_SETTING_LABELS);
   const rank = (key: string) => {
     const index = order.indexOf(key);
@@ -88,7 +88,7 @@ export function DatevReadinessNotice({
 }
 
 /** Why DATEV would refuse an invoice, in the words of the screen. */
-export function datevProblemText(problem: DatevBookingProblem): string {
+function datevProblemText(problem: DatevBookingProblem): string {
   switch (problem.field) {
     case "debtor_number":
       return problem.reason === "missing"
@@ -107,9 +107,7 @@ export function datevProblemText(problem: DatevBookingProblem): string {
  * One line per reason with the invoices it names, so a reason that applies
  * to many invoices stands once.
  */
-export function datevProblemLines(
-  problems: readonly DatevBookingProblem[],
-): string[] {
+function datevProblemLines(problems: readonly DatevBookingProblem[]): string[] {
   const byReason = new Map<string, string[]>();
   for (const problem of problems) {
     const text = datevProblemText(problem);
