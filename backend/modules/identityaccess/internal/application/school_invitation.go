@@ -39,40 +39,42 @@ const baseRoleUser = "user"
 // policy, the identity chain, the owner-token check and the mail arrive
 // through the ports the composition binds.
 type SchoolInvitation struct {
-	employmentReset *identityPorts.EmploymentResetCommands
-	store           ports.SchoolInvitationStore
-	logins          ports.AccountLoginStore
-	roles           ports.RoleStore
-	policy          ports.RoleAssignmentPolicy
-	grants          ports.InvitationGrantPolicy
-	identity        ports.InvitationIdentity
-	schools         ports.SchoolDirectory
-	owners          ports.InvitationOwnerTokens
-	passwords       ports.PasswordPolicy
-	delivery        ports.SchoolInvitationDelivery
-	mailStates      SchoolInvitationMailStateReader
-	runtime         ports.Runtime
-	attach          func(context.Context) context.Context
-	expiry          time.Duration
-	now             func() time.Time
-	logger          *slog.Logger
+	permissionGranted func(string, []string) bool
+	employmentReset   *identityPorts.EmploymentResetCommands
+	store             ports.SchoolInvitationStore
+	logins            ports.AccountLoginStore
+	roles             ports.RoleStore
+	policy            ports.RoleAssignmentPolicy
+	grants            ports.InvitationGrantPolicy
+	identity          ports.InvitationIdentity
+	schools           ports.SchoolDirectory
+	owners            ports.InvitationOwnerTokens
+	passwords         ports.PasswordPolicy
+	delivery          ports.SchoolInvitationDelivery
+	mailStates        SchoolInvitationMailStateReader
+	runtime           ports.Runtime
+	attach            func(context.Context) context.Context
+	expiry            time.Duration
+	now               func() time.Time
+	logger            *slog.Logger
 }
 
 // SchoolInvitationDependencies are the ports the flows consume.
 type SchoolInvitationDependencies struct {
-	EmploymentReset *identityPorts.EmploymentResetCommands
-	Store           ports.SchoolInvitationStore
-	Logins          ports.AccountLoginStore
-	Roles           ports.RoleStore
-	Policy          ports.RoleAssignmentPolicy
-	Grants          ports.InvitationGrantPolicy
-	Identity        ports.InvitationIdentity
-	Schools         ports.SchoolDirectory
-	Owners          ports.InvitationOwnerTokens
-	Passwords       ports.PasswordPolicy
-	Delivery        ports.SchoolInvitationDelivery
-	MailStates      SchoolInvitationMailStateReader
-	Runtime         ports.Runtime
+	PermissionGranted func(string, []string) bool
+	EmploymentReset   *identityPorts.EmploymentResetCommands
+	Store             ports.SchoolInvitationStore
+	Logins            ports.AccountLoginStore
+	Roles             ports.RoleStore
+	Policy            ports.RoleAssignmentPolicy
+	Grants            ports.InvitationGrantPolicy
+	Identity          ports.InvitationIdentity
+	Schools           ports.SchoolDirectory
+	Owners            ports.InvitationOwnerTokens
+	Passwords         ports.PasswordPolicy
+	Delivery          ports.SchoolInvitationDelivery
+	MailStates        SchoolInvitationMailStateReader
+	Runtime           ports.Runtime
 	// Attach binds the composed unit of work ahead of every public flow.
 	Attach func(context.Context) context.Context
 	Expiry time.Duration
@@ -83,7 +85,7 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	switch {
 	case deps.Store == nil, deps.Logins == nil, deps.Roles == nil:
 		return nil, fmt.Errorf("identity access school invitation: stores are required")
-	case deps.Policy == nil, deps.Grants == nil, deps.Identity == nil, deps.Schools == nil:
+	case deps.PermissionGranted == nil, deps.Policy == nil, deps.Grants == nil, deps.Identity == nil, deps.Schools == nil:
 		return nil, fmt.Errorf("identity access school invitation: role policy, grant policy, school identity and school directory are required")
 	case deps.Owners == nil, deps.Passwords == nil, deps.Delivery == nil, deps.Runtime == nil:
 		return nil, fmt.Errorf("identity access school invitation: owner tokens, password policy, delivery and tenant runtime are required")
@@ -95,7 +97,7 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 		logger = slog.Default()
 	}
 	return &SchoolInvitation{
-		employmentReset: deps.EmploymentReset, store: deps.Store, logins: deps.Logins, roles: deps.Roles, policy: deps.Policy, grants: deps.Grants,
+		permissionGranted: deps.PermissionGranted, employmentReset: deps.EmploymentReset, store: deps.Store, logins: deps.Logins, roles: deps.Roles, policy: deps.Policy, grants: deps.Grants,
 		identity: deps.Identity, schools: deps.Schools, owners: deps.Owners, passwords: deps.Passwords,
 		delivery: deps.Delivery, mailStates: deps.MailStates, runtime: deps.Runtime, attach: deps.Attach, expiry: deps.Expiry, now: time.Now, logger: logger,
 	}, nil
@@ -205,7 +207,7 @@ func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.S
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, err)
 	}
 	switch {
-	case (request.ResetMasterData || request.ResetQualifications || request.ResetWorkTime) && (request.OperatorGrant || !domain.HasPermissionMatch(request.ActorPermissions, "users:manage")):
+	case (request.ResetMasterData || request.ResetQualifications || request.ResetWorkTime) && (request.OperatorGrant || !s.permissionGranted("users:manage", request.ActorPermissions)):
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, domain.ErrRoleGrantNotPermitted)
 	case request.RoleID <= 0:
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("role id is required"))

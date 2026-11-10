@@ -174,17 +174,6 @@ func TestMFAPolicyRequiredFor(t *testing.T) {
 	}
 }
 
-// The permission gate honours the area and admin wildcards.
-func TestHasPermissionMatch(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, HasPermissionMatch([]string{"users:manage"}, "users:manage"))
-	assert.True(t, HasPermissionMatch([]string{"users:*"}, "users:manage"))
-	assert.True(t, HasPermissionMatch([]string{"admin:*"}, "users:manage"))
-	assert.False(t, HasPermissionMatch([]string{"users:read"}, "users:manage"))
-	assert.False(t, HasPermissionMatch(nil, "users:manage"))
-}
-
 // The lockout decision left the model in #586 (Rule 12): it is a pure read
 // of the stamp with the clock injected. Moved here with the flows (#3331).
 func TestMFALocked(t *testing.T) {

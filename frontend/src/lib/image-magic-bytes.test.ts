@@ -10,7 +10,6 @@ import {
   JPEG_SIGNATURE,
   PNG_SIGNATURE,
   WEBP_SIGNATURE,
-  GIF_SIGNATURE,
   validateImageMagicBytes,
 } from "./image-magic-bytes";
 
@@ -53,7 +52,6 @@ describe("validateImageMagicBytes", () => {
         JPEG_SIGNATURE,
         PNG_SIGNATURE,
         WEBP_SIGNATURE,
-        GIF_SIGNATURE,
       ]),
     ).toBe(false);
   });
@@ -61,10 +59,5 @@ describe("validateImageMagicBytes", () => {
   it("returns false when signatures list is empty", () => {
     const buf = bufferOf([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(validateImageMagicBytes(buf, [])).toBe(false);
-  });
-
-  it("accepts a GIF signature when included in the allow-list", () => {
-    const buf = bufferOf([0x47, 0x49, 0x46, 0x38, 0, 0, 0, 0, 0, 0, 0, 0]);
-    expect(validateImageMagicBytes(buf, [GIF_SIGNATURE])).toBe(true);
   });
 });

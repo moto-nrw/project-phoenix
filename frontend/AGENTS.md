@@ -21,13 +21,7 @@ six `better-*` skills for a full review pass.
 # Frontend rules
 
 This file is not a symlink to `frontend/CLAUDE.md` (the root and `backend/`
-AGENTS.md are). Read `frontend/CLAUDE.md` for the frontend context, and these
-two rules before any user-visible change:
-
-- `.claude/rules/frontend-ui-kit.md` — build from the shared UI kit, brand
-  colors from `LOCATION_COLORS` only.
-- `.claude/rules/verstaendlichkeit.md` — the Missverständnis-Check: every
-  visible block explains its purpose in one sentence, read-only blocks carry no
-  button/chevron/pointer affordance, a function with a precondition states it in
-  the product, no two labels share a word stem without a visible boundary. All
-  user-facing German copy follows the `moto-einfache-sprache` skill.
+AGENTS.md are). Read `frontend/CLAUDE.md` for the frontend rules before
+changing code. User-visible changes also require
+`.claude/rules/frontend-ui-kit.md` and `.claude/rules/verstaendlichkeit.md`;
+`frontend/CLAUDE.md` owns the checklist and German-copy guidance.

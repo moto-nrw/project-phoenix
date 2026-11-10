@@ -4121,14 +4121,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
-      "binding_digest": "2986ee28f8a7982af6dc34085156bc78",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectGradeLevel",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.CollectSchoolClass",
       "binding_digest": "b2876ea32736f2d90d7fbc22b0456285",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectSchoolClass",
@@ -4145,14 +4137,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectSchoolClass",
-      "binding_digest": "825dc7fe347eff98e027fd9b120f2f60",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectSchoolClass",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.GradeLevelMax",
       "binding_digest": "7fce11f7338b9ea9e823c459f2445c56",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.GradeLevelMax",
@@ -4166,14 +4150,6 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.GradeLevelMax",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
-      "binding_digest": "763179e38fda00ab66caf3d4b50e13c9",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.GradeLevelMax",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform"
     },
     {
@@ -5367,6 +5343,30 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
+      "binding_digest": "2986ee28f8a7982af6dc34085156bc78",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
+      "binding_digest": "763179e38fda00ab66caf3d4b50e13c9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.StatusTokenTTLDays",
+      "binding_digest": "5d87b8c580f934359c760560f309e021",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",

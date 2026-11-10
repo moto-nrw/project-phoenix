@@ -79,11 +79,6 @@ func (b *RecordingBroadcaster) BroadcastToTenantAdmins(tenantID int64, event rea
 	return b.record(BroadcastCall{Method: "admin", TenantID: tenantID, Event: event})
 }
 
-// BroadcastToAll implements realtime.Broadcaster.
-func (b *RecordingBroadcaster) BroadcastToAll(event realtime.Event) error {
-	return b.record(BroadcastCall{Method: "all", Event: event})
-}
-
 // BroadcastParentMessage implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastParentMessage(tenantID, guardianAccountID int64, event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "parent", TenantID: tenantID, GuardianID: guardianAccountID, Event: event})

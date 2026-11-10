@@ -187,9 +187,8 @@ func TestGuardianInvitationApproval_IssuesLinkForTheCorrectedAddress(t *testing.
 	assert.Equal(t, newEmail, account.Email)
 }
 
-// A repeated invite for the same child reuses the open invitation. Only the
-// hash of its link is stored (#4902), so the mail must carry a new link for
-// the address on file, not an empty one.
+// A sibling invitation supersedes the first link. Repeating the original
+// child request must still mail a usable new link, never an empty token.
 func TestInviteToStudent_RepeatedInviteMailsRedeemableLink(t *testing.T) {
 	t.Parallel()
 	outbox := api.NewCapturingOutbox()
@@ -210,7 +209,7 @@ func TestInviteToStudent_RepeatedInviteMailsRedeemableLink(t *testing.T) {
 	second, err := env.service.InviteToStudent(ctx, request)
 	require.NoError(t, err)
 	require.NotNil(t, second.InvitationID)
-	assert.Equal(t, *first.InvitationID, *second.InvitationID, "the open invitation is reused")
+	assert.NotEqual(t, *first.InvitationID, *second.InvitationID, "the sibling invitation superseded the first link; the repeated request issues a new one")
 
 	token := mailedToken(t, outbox, email)
 	preview, err := env.service.ValidateGuardianInvitation(context.Background(), token)
@@ -240,11 +239,15 @@ func TestInviteToStudent_EmailChangeEndsTheLinksOfEveryChild(t *testing.T) {
 	}
 	env.changeGuardianEmail(t, profileID, fmt.Sprintf("two-children-corrected-%d@example.test", time.Now().UnixNano()))
 
-	for _, token := range tokens {
+	for i, token := range tokens {
 		_, err := env.service.AcceptGuardianInvitation(context.Background(), token, identityaccess.GuardianRegistration{
 			Password: strongTestPassword, ConfirmPassword: strongTestPassword,
 		})
-		require.ErrorIs(t, err, identityaccess.ErrGuardianInvitationAddressChanged)
+		if i == 0 {
+			require.ErrorIs(t, err, identityaccess.ErrInvitationExpired, "the sibling invitation already ended the first link")
+		} else {
+			require.ErrorIs(t, err, identityaccess.ErrGuardianInvitationAddressChanged)
+		}
 	}
 	assert.Zero(t, accountCountByEmail(t, env.db, email))
 }
@@ -518,4 +521,20 @@ func TestGuardianInvitationAccept_RefusesDeletedSchoolWithoutAccount(t *testing.
 	require.ErrorIs(t, err, identityaccess.ErrInvitationTenantDeleted)
 	assert.Zero(t, accountCountByEmail(t, db, *profile.Email), "the provisioned account rolls back")
 	assert.Nil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}
+
+func TestGuardianInvitationNewIssueEndsOlderLinks(t *testing.T) {
+	t.Parallel()
+	env := setupGuardianInvitationTest(t)
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "superseded-link")
+	creator := env.inviterAccountID(t)
+	request := identityaccess.GuardianInvitationRequest{GuardianProfileID: profile.ID, CreatedBy: creator}
+	first, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), request)
+	require.NoError(t, err)
+	second, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), request)
+	require.NoError(t, err)
+	_, err = env.service.ValidateGuardianInvitation(context.Background(), first.Token)
+	require.Error(t, err, "only the latest invitation may be redeemed")
+	_, err = env.service.ValidateGuardianInvitation(context.Background(), second.Token)
+	require.NoError(t, err)
 }

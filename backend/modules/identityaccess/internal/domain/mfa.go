@@ -287,25 +287,6 @@ func ShortenUserAgent(userAgent string) string {
 	return browser + " auf " + osName
 }
 
-// HasPermissionMatch reports whether a granted permission set contains the
-// required permission, honouring the "area:*" and "admin:*" wildcards.
-func HasPermissionMatch(granted []string, required string) bool {
-	for _, permission := range granted {
-		if permission == required || wildcardMatches(permission, required) {
-			return true
-		}
-	}
-	return false
-}
-
-func wildcardMatches(granted, required string) bool {
-	if !strings.HasSuffix(granted, ":*") {
-		return false
-	}
-	prefix := strings.TrimSuffix(granted, ":*") + ":"
-	return strings.HasPrefix(required, prefix) || granted == "admin:*"
-}
-
 // MFAEvidence carries the metadata of one mfa_* authentication event. Each
 // field belongs to one event shape; the recorder writes only the keys the
 // shape set.

@@ -251,10 +251,11 @@ func (s *Intake) editInTenant(ctx context.Context, token string, patch enrollmen
 	if err != nil {
 		return err
 	}
-	for _, c := range children {
-		if c.Status != enrollmentNative.ChildStatusSubmitted {
-			return enrollmentNative.ErrEditNotAllowed
-		}
+	if err := s.ensureRequestEditable(ctx, lockedReq, children); err != nil {
+		return err
+	}
+	if _, err := s.loadPhaseForEditableRequest(ctx, lockedReq.PhaseID); err != nil {
+		return err
 	}
 	if err := applyEditPatch(lockedReq, patch); err != nil {
 		return err
@@ -369,7 +370,9 @@ func (s *Intake) withdrawInTenant(ctx context.Context, token string, childID int
 	if err != nil || !anyWithdrawn {
 		return err
 	}
-	if childID == 0 {
+	if childID == 0 && !slices.ContainsFunc(children, func(child *enrollmentNative.RequestChild) bool {
+		return child.Status == enrollmentNative.ChildStatusApproved || !child.IsTerminal()
+	}) {
 		withdrawnAt := time.Now()
 		if err := s.deps.Requests.SetRequestWithdrawal(ctx, lockedReq.ID, &withdrawnAt); err != nil {
 			return err

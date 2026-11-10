@@ -63,6 +63,13 @@ type (
 	}
 )
 
+// RolloverSettings resolves the grade policy and renewal link lifetime.
+type RolloverSettings interface {
+	CollectGradeLevel(ctx context.Context) (bool, error)
+	GradeLevelMax(ctx context.Context) (int, error)
+	StatusTokenTTLDays(ctx context.Context) (int, error)
+}
+
 // RolloverDependencies bind the rollover to its owners. Bookings, Catalog,
 // Notifications, PhaseEligibility, Outbox and Decisions are optional where
 // the rollover degrades without them.
@@ -82,7 +89,7 @@ type RolloverDependencies struct {
 	// collect before the rollover activates it.
 	PhaseEligibility PhaseEligibilityGuard
 	Outbox           MailOutbox
-	Settings         CollectionSettings
+	Settings         RolloverSettings
 	// Decisions approves auto-renewed rows on a rollover_auto_approve phase;
 	// without it the deadline worker promotes them to submitted.
 	Decisions  RolloverDecider

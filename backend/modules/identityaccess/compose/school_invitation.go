@@ -8,10 +8,7 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
-// The school invitation flows (#2722) need three seams the root binds: the
-// role-grant decision of Security Runtime, the access token that proves an
-// invitee owns the invited account, and the mail.
-
+// Invitation flows consume root-bound authorization, account proof and mail.
 func newSchoolInvitation(
 	store *postgres.Store,
 	roles *application.RoleAdministration,
@@ -36,7 +33,8 @@ func newSchoolInvitation(
 		return nil, errors.New("identity access compose: every invitation dependency is required")
 	}
 	return application.NewSchoolInvitation(application.SchoolInvitationDependencies{
-		EmploymentReset: deps.EmploymentReset, Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
+		PermissionGranted: deps.PermissionGranted,
+		EmploymentReset:   deps.EmploymentReset, Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
 		Policy:    application.RoleAssignmentPolicy{},
 		Grants:    application.InvitationGrantPolicy{Source: deps.Grants},
 		Identity:  lifecycle,

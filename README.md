@@ -14,7 +14,6 @@ NFC-based student attendance and room management for schools.
 [![License](https://img.shields.io/badge/License-Source--Available-blue?style=flat-square)](LICENSE)
 [Privacy implementation and operational limits](SECURITY.md#gdpr-compliance)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-4baaaa?style=flat-square)](CODE_OF_CONDUCT.md)
 
 [![Go](https://img.shields.io/badge/Go-1.27.3-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)

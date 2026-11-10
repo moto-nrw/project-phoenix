@@ -47,6 +47,7 @@ func mountServeMiddleware(
 	router chi.Router, unit tenant.UnitOfWork, logger *slog.Logger, config ServeConfig, tracer *observability.Tracer,
 	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService, policy analytics.CollectionPolicy,
 	consent identityaccess.AccountAnalyticsConsent, guardianSchools identityaccess.GuardianSchools, sessions identityaccess.AccessSessions,
+	rateLimitEnabled bool,
 ) (*sessiontoken.TokenAuth, error) {
 	router.Use(requestIDs(tracer))
 	router.Use(apiCommon.ProblemResponseMiddleware)
@@ -85,7 +86,7 @@ func mountServeMiddleware(
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	router.Use(sessionAuth.Verifier(), sessiontoken.ParseVerified)
-	setupRateLimiting(router, securityLogger, demoLoopbackExempt())
+	setupRateLimiting(router, securityLogger, rateLimitEnabled, demoLoopbackExempt())
 	// Every verified access token must still rest on a live refresh-token
 	// family, so logout ends it at once on every instance (#5194).
 	router.Use(RequireLiveAccessSession(sessions))

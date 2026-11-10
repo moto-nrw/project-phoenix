@@ -334,7 +334,7 @@ func (s *service) ensureCapacityForStudentMove(
 	// The participant limit counts the session, not the room: a child moving
 	// between two sessions of one room enters the target activity (#3632).
 	// All or nothing, like the room check.
-	return s.ensureActivityParticipantLimit(ctx, targetGroup, countStudentsEnteringSession(targetGroup, openAttendance, currentVisits, studentIDs))
+	return s.ensureActivityParticipantLimit(ctx, targetGroup, countStudentsEnteringSession(targetGroup, openAttendance, currentVisits, studentIDs), nil)
 }
 
 // countStudentsEnteringSession counts the present children a move adds to

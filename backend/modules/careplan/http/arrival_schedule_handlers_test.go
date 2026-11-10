@@ -1164,7 +1164,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 		for _, c := range tc.broadcaster.CallsByMethod("tenant") {
 			if c.Event.Type == realtime.EventArrivalScheduleChanged {
 				assert.Equal(t, testpkg.Tenant(t), c.TenantID)
-				assert.Empty(t, tc.broadcaster.CallsByMethod("all"), "arrival changes must never use unscoped fan-out")
 				return true
 			}
 		}

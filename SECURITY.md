@@ -54,7 +54,7 @@ We will not pursue civil or criminal action against researchers who:
 
 ### For Users
 
-- **SSL/TLS**: Always use SSL-encrypted database connections (`sslmode=require` or higher)
+- **SSL/TLS**: Verify the transport mode for each environment and client path; see [Database Connections](#database-connections) and the open transport finding below.
 - **Secrets**: Never commit real secrets, API keys, or credentials to the repository
 - **Environment Files**: Use `.env` files for local configuration (they are gitignored)
 - **Password Security**: Use strong passwords (minimum 8 characters, mixed case, numbers, special characters)
@@ -96,39 +96,31 @@ All external traffic uses TLS/HTTPS encryption:
 
 #### Internal Container Traffic (Risk Assessment)
 
-**Architecture**: Frontend and backend containers communicate via HTTP within Docker's internal network.
-
-**Risk Assessment per GDPR Article 32**:
-
-| Factor | Assessment |
-|--------|------------|
-| **Network Isolation** | Docker internal network is isolated from external access; traffic does not traverse public networks |
-| **Host Boundary** | All container traffic remains within a single host machine |
-| **External Exposure** | None - internal network not routable from outside |
-| **Data Sensitivity** | Student PII (names, attendance) - medium sensitivity |
-| **Threat Model** | Attacker would need host-level access (root/Docker socket) |
-| **Compensating Controls** | UFW firewall (deny incoming by default), SSH access, Docker socket not exposed on TCP |
-
-**Conclusion**: Internal HTTP traffic is acceptable under GDPR Article 32's risk-based approach because:
-
-1. Traffic is isolated within Docker's internal network
-2. No data traverses public or untrusted networks
-3. Host-level security controls provide the security boundary
-4. The cost/benefit of internal TLS does not justify the complexity for single-host deployments
-
-**Reference**: [GDPR Article 32](https://gdpr-info.eu/art-32-gdpr/) requires "appropriate technical measures" based on risk assessment, not absolute encryption requirements.
+The checked-in Compose environments use bridge networks, not Docker
+`internal: true` networks. Frontend-to-backend traffic uses HTTP. Published
+ports and other containers on the same network are additional access paths;
+"Docker-internal" alone does not prove isolation or adequate transport protection.
+Runtime firewall rules and host topology have not been verified by this document.
 
 #### Database Connections
 
-PostgreSQL connections use SSL encryption:
+These are the modes in the checked-in configuration, not a production audit:
 
-```bash
-# Connection string requires SSL
-DB_DSN=postgres://user:pass@host:5432/db?sslmode=require
-```
+| Client path | Configured mode |
+|-------------|-----------------|
+| Production app and embedded worker | `sslmode=require`; PostgreSQL TLS is enabled, minimum TLS 1.2. No server identity verification is configured in the app DSN. |
+| Staging and demo app | `sslmode=disable`; no database TLS is configured on these paths. |
+| Local development app templates | `sslmode=require`, without server identity verification. The local test DSN uses `sslmode=disable`. |
+| Migration/preflight and demo-runtime jobs | DSNs come from SOPS; their effective TLS modes cannot be established from the plaintext repository configuration. |
+| Backup and restore in the PostgreSQL container | Local Unix socket, not TCP; TLS does not apply to that socket path. |
 
-- Development: `sslmode=require` (encrypted, no cert verification)
-- Production: `sslmode=require` with valid certificates
+The [DB transport assessment and operational evidence](docs/operations/db-transportschutz-3842.md)
+records the remaining finding, each client path, and the missing operational
+proof. `require` demands encryption but does not verify server identity.
+The documented remedy for TCP paths is `verify-full` with a trusted CA and a
+matching server name, or a demonstrated equivalent same-host protection with
+a recorded risk decision. This document does not approve the current transport
+configuration or claim GDPR compliance.
 
 ## Acknowledgments
 

@@ -1,19 +1,7 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { apiGet } from "~/lib/api-helpers.server";
 import { buildQueryString } from "~/lib/route-wrapper-utils.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
-
-/**
- * Type definition for visit creation request
- */
-interface VisitCreateRequest {
-  student_id: string;
-  active_group_id: string;
-  start_time?: string;
-}
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {
@@ -27,16 +15,5 @@ export const GET = createGetHandler(
     }
 
     return response;
-  },
-);
-
-export const POST = createPostHandler<unknown, VisitCreateRequest>(
-  async (
-    _request: NextRequest,
-    body: VisitCreateRequest,
-    token: string,
-    _params,
-  ) => {
-    return await apiPost("/api/active/visits", token, body);
   },
 );

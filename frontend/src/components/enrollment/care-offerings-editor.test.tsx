@@ -18,9 +18,37 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("vaul", async () =>
-  (await import("~/test/enrollment-editors")).vaulMock(),
-);
+vi.mock("vaul", async () => {
+  const original = await (await import("~/test/enrollment-editors")).vaulMock();
+  return {
+    Drawer: {
+      ...original.Drawer,
+      Root: ({
+        children,
+        open,
+        dismissible,
+        onOpenChange,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+        dismissible?: boolean;
+        onOpenChange?: (open: boolean) => void;
+      }) =>
+        open === false ? null : (
+          <div>
+            <button
+              type="button"
+              disabled={dismissible === false}
+              onClick={() => onOpenChange?.(false)}
+            >
+              Dismiss panel
+            </button>
+            {children}
+          </div>
+        ),
+    },
+  };
+});
 
 const mocks = await vi.hoisted(async () =>
   (await import("~/test/enrollment-editors")).createEditorMocks(),
@@ -183,6 +211,38 @@ beforeEach(() => {
 });
 
 describe("CareOfferingsEditor", () => {
+  it("keeps the editor open while saving through outside dismissal", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    let finish!: (value: ReturnType<typeof offering>) => void;
+    mocks.updateCareOffering.mockImplementation(
+      () =>
+        new Promise<ReturnType<typeof offering>>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mocks.updateCareOffering).toHaveBeenCalled());
+    expect(
+      screen.getByRole("button", { name: "Dismiss panel" }),
+    ).toBeDisabled();
+    finish(offering());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Dismiss panel" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("creates, edits, deletes, and clones offerings", async () => {
     mocks.listPhases.mockResolvedValue([
       phase(),

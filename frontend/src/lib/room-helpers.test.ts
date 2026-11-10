@@ -3,7 +3,6 @@ import type { BackendRoom, Room } from "./room-helpers";
 import {
   mapRoomResponse,
   mapRoomsResponse,
-  mapSingleRoomResponse,
   prepareRoomForBackend,
   getRoomCategoryColor,
   isColorLockedRoom,
@@ -160,17 +159,6 @@ describe("mapRoomsResponse", () => {
     const result = mapRoomsResponse([]);
 
     expect(result).toEqual([]);
-  });
-});
-
-describe("mapSingleRoomResponse", () => {
-  it("extracts and maps room from { data: room } wrapper", () => {
-    const response = { data: sampleBackendRoom };
-
-    const result = mapSingleRoomResponse(response);
-
-    expect(result.id).toBe("1");
-    expect(result.name).toBe("Room 101");
   });
 });
 

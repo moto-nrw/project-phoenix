@@ -76,7 +76,5 @@
   "registerWeekDone": "Die Woche ist angemeldet.",
   "registerWeekLocked": "Für diese Tage ist die Anmeldefrist vorbei, sie bleiben abgemeldet: {days}.",
   "errorObjectWeekCancel": "die Abmeldung für die Woche",
-  "errorObjectWeekRegister": "die Anmeldung für die Woche",
-  "participationCutoffLead": "Sie können die Anmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} ändern.",
-  "participationSicknessLead": "Eine bestätigte Krankmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen."
+  "errorObjectWeekRegister": "die Anmeldung für die Woche"
 }

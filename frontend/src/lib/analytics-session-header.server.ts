@@ -20,18 +20,3 @@ export function analyticsSessionHeaders(
     ? { [ANALYTICS_SESSION_HEADER]: sessionId }
     : {};
 }
-
-/**
- * The session header of the request being handled, for helpers that do not
- * receive the request. Outside a request scope there is none.
- */
-export async function incomingAnalyticsSessionHeaders(): Promise<
-  Record<string, string>
-> {
-  try {
-    const { headers } = await import("next/headers");
-    return analyticsSessionHeaders(await headers());
-  } catch {
-    return {};
-  }
-}

@@ -1,7 +1,6 @@
 // lib/auth-service.ts
 import { isAxiosError } from "axios";
 import api from "./api-transport";
-import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for auth service
@@ -225,7 +224,7 @@ async function authFetch<TBackend, TFrontend = void>(
   } = options;
 
   const useProxyApi = globalThis.window !== undefined;
-  const url = await resolveApiUrl(`/api${endpoint}`, endpoint);
+  const url = `/api${endpoint}`;
 
   try {
     let backendData: TBackend;
@@ -354,10 +353,7 @@ export const authService = {
     data: PasswordResetConfirmRequest,
   ): Promise<PasswordResetResponse> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(
-      "/api/auth/password-reset/confirm",
-      "/auth/password-reset/confirm",
-    );
+    const url = "/api/auth/password-reset/confirm";
     const fallbackMessage = "Fehler beim Zurücksetzen des Passworts";
     const payload = {
       token: data.token,

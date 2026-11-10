@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PUT, DELETE } from "./route";
+import { DELETE } from "./route";
 import {
   type ExtendedSession,
   createMockContext,
@@ -32,17 +32,6 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-// ============================================================================
-// Test Helpers
-// ============================================================================
-
-function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 /** The backend call: method, bearer, and Content-Type only with a body. */
 function backendInit(method: string, token: string, body?: unknown) {
   return expect.objectContaining({
@@ -68,126 +57,6 @@ function expectBearer(call: number, token: string) {
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
-
-// ============================================================================
-// Tests
-// ============================================================================
-
-describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockFetch.mockReset();
-    mockAuth.mockResolvedValue(defaultSession);
-    mockUncachedAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("updates supervisor role successfully", async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ status: "success" }));
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/activities/1/supervisors/2",
-      backendInit("PUT", "test-token", { is_primary: true }),
-    );
-    expect(response.status).toBe(200);
-    // No refetch after the update: the PUT is the only backend call.
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-
-    const json = await parseJsonResponse<{ success: boolean }>(response);
-    expect(json.success).toBe(true);
-  });
-
-  it("does not fail a successful update on refetch errors", async () => {
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse({ status: "success" }))
-      .mockRejectedValueOnce(new Error("Transient list refresh failure"));
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-
-    const json = await parseJsonResponse<{ success: boolean }>(response);
-    expect(json.success).toBe(true);
-  });
-
-  it("uses the numeric id extracted from the URL when activityId context is empty", async () => {
-    mockFetch.mockRejectedValueOnce(
-      new Error("Fallback activity id was extracted from URL"),
-    );
-
-    const request = createMockRequest("/api/activities//supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "", supervisorId: "2" }),
-    );
-
-    // A network failure answers 503 general.unavailable (was 500).
-    expect(response.status).toBe(503);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/activities/2/supervisors/2",
-      backendInit("PUT", "test-token", { is_primary: true }),
-    );
-    const json = await parseJsonResponse<{ detail: string; code: string }>(
-      response,
-    );
-    expect(json.code).toBe("general.unavailable");
-    expect(JSON.stringify(json)).not.toContain(
-      "Fallback activity id was extracted from URL",
-    );
-  });
-
-  it("returns 400 when supervisorId is missing", async () => {
-    const request = createMockRequest("/api/activities/1/supervisors/", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "" }),
-    );
-
-    // A missing route param is the request's mistake: 400 before any call.
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Invalid supervisorId parameter");
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 when is_primary is missing", async () => {
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: {},
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    // The route refuses the body itself (bffError 400), before any call.
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("is_primary parameter is required");
-  });
-});
 
 describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
   beforeEach(() => {

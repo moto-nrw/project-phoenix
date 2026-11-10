@@ -4802,11 +4802,27 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.UpdateGuardian",
+      "binding_digest": "62a164d91d3371c1b81659535acc799d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.UpdateGuardian",
       "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
+      "binding_digest": "62a164d91d3371c1b81659535acc799d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
@@ -5255,6 +5271,14 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GuardianDirectory.UpdateGuardian",
+      "binding_digest": "62a164d91d3371c1b81659535acc799d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProvider.UpdateGuardian",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GuardianDirectory.UpdateGuardianPayment",
@@ -7679,6 +7703,14 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.UpdateGuardian",
+      "binding_digest": "62a164d91d3371c1b81659535acc799d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.UpdateGuardian",
@@ -12807,6 +12839,14 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedGuardianService.UpdateGuardian",
+      "binding_digest": "62a164d91d3371c1b81659535acc799d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianService.UpdateGuardian",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedGuardianService.UpdateGuardianPayment",

@@ -73,8 +73,8 @@ func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, l
 // is the credential and the school comes from the matched mail.
 const emailWebhookPath = "/webhooks"
 
-func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest) {
-	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit()).Router())
+func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest, rateLimitEnabled bool) {
+	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit(rateLimitEnabled)).Router())
 }
 
 // emailWebhookFailureRules answer by what the provider should do next: it
