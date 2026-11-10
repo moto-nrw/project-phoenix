@@ -250,7 +250,7 @@ function HolidayWeekPlacesReadout({
                 title={`${entry.childFirstName} ${entry.childLastName}`}
                 subtitle={`Eingegangen am ${formatBerlinDate(entry.submittedAt)} · ${entry.timeModelName}${(entry.days ?? []).length > 0 ? ` · ${holidayDayList(entry.days ?? [])}` : ""}`}
                 badge={
-                  <span className="inline-flex flex-wrap gap-1">
+                  <span className="inline-flex flex-col items-end gap-1 sm:flex-row">
                     {entry.deferred ? (
                       <StatusBadge
                         label="Ohne Ferienwunsch"
