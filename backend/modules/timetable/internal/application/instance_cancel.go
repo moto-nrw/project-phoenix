@@ -162,20 +162,25 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 	return nil
 }
 
-// deletableInstance loads a planned or cancelled block, takes its day lock
-// and decides on the block re-read under it (#6499), the protocol Start,
-// Cancel and UpdatePlanned share. A start that committed after the first
-// read made the block history: deleting it would cascade into its session
-// and attendance. A move that committed meanwhile vacated the slot whose
-// exception the delete writes, so the delete is refused with
-// ErrInstanceMoved. A start or move still running holds the day lock, and
-// the delete decides after it committed.
+// deletableInstance loads a planned or cancelled block, takes the recurrence
+// gate and its day lock, and decides on the block re-read under them
+// (#6499), the protocol Start, Cancel and UpdatePlanned share. A start that
+// committed after the first read made the block history: deleting it would
+// cascade into its session and attendance. A move that committed meanwhile
+// vacated the slot whose exception the delete writes, so the delete is
+// refused with ErrInstanceMoved. A start or move still running holds the
+// day lock, and the delete decides after it committed. The recurrence gate
+// keeps a running materialization, which loads the exceptions before the
+// existing blocks, from recreating the deleted occurrence.
 func (s *InstanceLifecycleService) deletableInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
 	if err := checkDeletable(instance); err != nil {
+		return nil, err
+	}
+	if err := s.lockRecurrence(ctx, "delete instance"); err != nil {
 		return nil, err
 	}
 	instance, err = s.lockDayAndReload(ctx, instance, "delete instance")
