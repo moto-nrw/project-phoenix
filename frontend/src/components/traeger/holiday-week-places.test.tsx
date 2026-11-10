@@ -34,6 +34,7 @@ const FULL_WEEK: HolidayWeekPlaces = {
       childFirstName: "Tom",
       childLastName: "Platz",
       timeModelName: "bis 13 Uhr",
+      deferred: false,
     },
   ],
 };

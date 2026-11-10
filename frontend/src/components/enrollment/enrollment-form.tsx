@@ -39,9 +39,11 @@ import {
   type SubmitEnrollmentPayload,
   type SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
-import type {
-  PublicFormSchema,
-  PublicLegalBlock,
+import {
+  holidayCareWishAsked,
+  type FormField,
+  type PublicFormSchema,
+  type PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import {
   EmailContactNotice,
@@ -198,12 +200,11 @@ interface Props {
   readonly lockedGuardianEmail?: boolean;
   readonly lockChildStructure?: boolean;
   /**
-   * Reduced Halbjahreswechsel flow (#2251): render ONLY the per-child
-   * care-offering selection. Guardian data, child identity, custom
-   * fields, and consents stay hidden but travel unchanged in the
-   * submit payload (seeded from initialDraft), so the resulting change
-   * request diffs exactly the offerings. Callers must also lock the
-   * child structure.
+   * Reduced Halbjahreswechsel flow (#2251): render per-child care offerings
+   * and the holiday care question when the target form asks it.
+   * Guardian data, child identity, custom fields and consents stay hidden
+   * and travel unchanged from initialDraft. The change request captures
+   * bookings and the current year's wish. Callers must lock child structure.
    */
   readonly restrictToOfferings?: boolean;
   readonly submitLabel?: string;
@@ -355,6 +356,22 @@ export function EnrollmentForm({
   const legalBlocks = useMemo(
     () => localizeLegalBlocks(config.legalTexts?.blocks ?? [], contentLocale),
     [config.legalTexts, contentLocale],
+  );
+  // The holiday care question is a fixed field of the form (#4703), not a
+  // custom field: its answer has its own column and counts for the
+  // holiday registration of the Träger once the child is approved.
+  const askHolidayCareWish = holidayCareWishAsked(config.schema);
+  const holidayCareWishField = useMemo<FormField>(
+    () => ({
+      key: "holiday_care_wish",
+      label: tr("fields.holidayCareWish"),
+      help_text: tr("fields.holidayCareWishHint"),
+      type: "boolean",
+      required: true,
+      sort_order: 0,
+      applies_to_child: true,
+    }),
+    [tr],
   );
   // A "new_students" phase rejects any already-enrolled child at submit
   // (#1663), so the prefilled linked children get a notice instead of the
@@ -1452,6 +1469,23 @@ export function EnrollmentForm({
                       />
                     )}
                   </div>
+                )}
+                {askHolidayCareWish && !child.locked && (
+                  <CustomFieldInput
+                    field={holidayCareWishField}
+                    inputName={formFieldName.child(i, "holiday_care_wish")}
+                    value={child.holiday_care_wish}
+                    onChange={(v) =>
+                      updateChild(i, {
+                        holiday_care_wish:
+                          typeof v === "boolean" ? v : undefined,
+                      })
+                    }
+                    error={fieldError(
+                      formFieldName.child(i, "holiday_care_wish"),
+                    )}
+                    tr={tr}
+                  />
                 )}
                 {availabilityNotices[child.clientId] ? (
                   <Alert

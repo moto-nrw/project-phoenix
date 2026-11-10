@@ -100,6 +100,11 @@ func submitChildSnapshot(child SubmitChild) map[string]any {
 	if class := trimmedOptionalString(child.TargetSchoolClass); class != "" {
 		row["target_school_class"] = class
 	}
+	// Like the class, an unasked holiday care wish (#4703) stays absent, so
+	// older snapshots compare equal.
+	if child.HolidayCareWish != nil {
+		row["holiday_care_wish"] = *child.HolidayCareWish
+	}
 	if child.ID > 0 {
 		row["id"] = strconv.FormatInt(child.ID, 10)
 	}
@@ -120,7 +125,7 @@ func persistedSnapshot(req *enrollment.Request, children []*enrollment.RequestCh
 	for _, child := range children {
 		next := SubmitChild{
 			FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
-			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, CustomData: formMap(child.CustomData),
+			TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass, HolidayCareWish: child.HolidayCareWish, CustomData: formMap(child.CustomData),
 		}
 		for _, link := range linksByChild[child.ID] {
 			next.OfferingIDs = append(next.OfferingIDs, link.CareOfferingID)
@@ -268,6 +273,9 @@ func snapshotChild(i int, row map[string]any) (SubmitChild, error) {
 		ID: int64FromAny(row["id"]), FirstName: stringFromAny(row["first_name"]), LastName: stringFromAny(row["last_name"]),
 		DateOfBirth: dob, TargetGradeLevel: int16PtrFromAny(row["target_grade_level"]),
 		TargetSchoolClass: optionalStringFromAny(row["target_school_class"]), CustomData: mapFromAny(row["custom_data"]),
+	}
+	if wish, ok := row["holiday_care_wish"].(bool); ok {
+		child.HolidayCareWish = &wish
 	}
 	for _, rawID := range sliceFromAny(row["offering_ids"]) {
 		if id := int64FromAny(rawID); id > 0 {

@@ -72,6 +72,7 @@ export const categoryLabels: Record<string, string> = {
   elternportal: "Elternportal",
   essensplan: "Speiseplan",
   feedback: "Feedback der Kinder",
+  "ferien-anmeldung": "Ferienanmeldung",
   "ferien-beitrag": "Ferienbeitrag",
   "ferien-bestaetigung": "Bestätigen einer Ferienanmeldung",
   "ferien-schreiben": "Schreiben an die Familien",

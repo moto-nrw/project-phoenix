@@ -23,9 +23,7 @@ describe("StickyActionBar", () => {
       </StickyActionBar>,
     );
 
-    expect(container.querySelector('[aria-hidden="true"]')).toHaveClass(
-      "h-20",
-    );
+    expect(container.querySelector('[aria-hidden="true"]')).toHaveClass("h-20");
   });
 
   it("names what the actions refer to", () => {

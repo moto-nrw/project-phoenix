@@ -55,8 +55,10 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.Form.Get("response") != failingCaptcha})
 	}))
 	t.Cleanup(turnstile.Close)
+	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
+	require.NoError(t, err)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, testHealthCipher(), owners.HolidayTestSchoolCalendar{}, slog.Default())
+		turnstile.URL, testHealthCipher(), owners.HolidayTestSchoolCalendar{}, settings, slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

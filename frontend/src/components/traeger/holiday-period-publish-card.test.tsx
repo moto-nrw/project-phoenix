@@ -21,6 +21,7 @@ const complete: HolidayPeriod = {
   registrationOpensOn: "2027-01-11",
   registrationClosesOn: "2027-02-26",
   binding: true,
+  holidayWishRule: false,
   notes: "",
   status: "draft",
   publishedAt: null,

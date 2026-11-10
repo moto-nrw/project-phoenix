@@ -11,10 +11,14 @@ import { ISODateInput } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { SwitchRow } from "~/components/ui/switch";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { TRAEGER_HOLIDAY_TAB } from "~/lib/traeger-payment-text";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   createHolidayPeriod,
   type HolidayPeriod,
@@ -266,6 +270,28 @@ export function HolidayPeriodForm({
               error={fieldError("max_days_per_child") ?? undefined}
               onChange={(event) =>
                 setDraft({ ...draft, maxDaysPerChild: event.target.value })
+              }
+            />
+            <SwitchRow
+              label="Ferienwunsch aus der OGS-Anmeldung berücksichtigen"
+              description={
+                <>
+                  Kinder Ihrer Schulen ohne Ferienwunsch warten hinter den
+                  anderen. Was ohne Ferienwunsch gilt, legen Sie in den{" "}
+                  <NavigationLink
+                    href={traegerPath(
+                      `/traeger/einstellungen?bereich=${TRAEGER_HOLIDAY_TAB}`,
+                    )}
+                    className="font-medium text-gray-900 underline underline-offset-2"
+                  >
+                    Einstellungen
+                  </NavigationLink>{" "}
+                  fest. Feriengäste sind nicht betroffen.
+                </>
+              }
+              checked={draft.holidayWishRule}
+              onCheckedChange={(holidayWishRule) =>
+                setDraft({ ...draft, holidayWishRule })
               }
             />
             <Textarea

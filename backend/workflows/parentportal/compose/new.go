@@ -59,8 +59,7 @@ type Dependencies struct {
 	CareOfferingRepo care.CareOfferingReads
 	OfferingChanges  care.OfferingChangeRequests
 
-	// CareProfiles writes the child's care profile (health information, live
-	// absence flags).
+	// CareProfiles writes the child's care profile (health information, live absence flags).
 	CareProfiles careplan.StudentProfileCommands
 	// People is People Directory: the guardian rows and the child's photo
 	// consent the flows write.
@@ -70,6 +69,7 @@ type Dependencies struct {
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       care.StudentPhotoUnlinker
 	ChildDataAccess     care.ChildDataAccessLog
+	HolidayWishes       care.HolidayWishStatements
 	ParentRequestEvents messaging.RequestEvents
 
 	// Document inbox (#4671, ADR 0126).
@@ -134,7 +134,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ExcusedRequests: deps.ExcusedRequests, CarePlanPolicy: deps.CarePlanPolicy,
 		CarePeriods: deps.CarePeriods, OfferingHistory: deps.OfferingHistory,
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
-		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess, ParentRequestEvents: deps.ParentRequestEvents,
+		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess, HolidayWishes: deps.HolidayWishes, ParentRequestEvents: deps.ParentRequestEvents,
 		BillingDocuments: deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, SEPAMandates: deps.SEPAMandates, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,

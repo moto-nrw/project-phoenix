@@ -55,6 +55,7 @@ export function parentEnrollStatusTopic(): HelpTopic {
     result:
       "Sobald die OGS entschieden hat, sehen Sie das unter `Kinder` und bekommen eine E-Mail.",
     notes: [
+      "Nach einer Verlängerung kann das Formular nach dem Ferienwunsch fragen. Wählen Sie je Kind `Ja` oder `Nein`.",
       "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
       "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
       "Die Kinderzahl können Sie ändern, bis ein Kind angenommen ist. Sie kommt dann mit in Ihren Betreuungsvertrag. Dort ändern Sie sie später.",

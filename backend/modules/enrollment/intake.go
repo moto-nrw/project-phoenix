@@ -71,9 +71,12 @@ type SubmitChild struct {
 	DateOfBirth       calendar.Date
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	CustomData        FormValues
-	OfferingIDs       []int64
-	OfferingDays      []SubmitOfferingDays
+	// HolidayCareWish answers whether the child needs care in the holidays
+	// (#4703); nil when the form does not ask.
+	HolidayCareWish *bool
+	CustomData      FormValues
+	OfferingIDs     []int64
+	OfferingDays    []SubmitOfferingDays
 	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
 	// target offerings (#2370). Only the staff review decision sets it.
 	ExcludedAutoAddTargetIDs map[int64]bool

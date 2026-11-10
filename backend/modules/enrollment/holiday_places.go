@@ -80,6 +80,9 @@ type HolidayWaitlistEntry struct {
 	ChildFirstName     string    `json:"child_first_name"`
 	ChildLastName      string    `json:"child_last_name"`
 	TimeModelName      string    `json:"time_model_name"`
+	// Deferred marks a booking that waits behind the others because the
+	// child has no holiday care wish (#4703).
+	Deferred bool `json:"deferred"`
 	// Days are the wanted days of a booking of a week by days (#4701).
 	Days []calendar.Date `json:"days,omitempty"`
 }

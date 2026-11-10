@@ -55,6 +55,7 @@ describe("holiday places summary", () => {
           registrationStatus: "received",
           submittedAt: "2026-11-09T13:12:00Z",
           timeModelName: "bis 13 Uhr",
+          deferred: false,
           position: 1,
         },
       ],

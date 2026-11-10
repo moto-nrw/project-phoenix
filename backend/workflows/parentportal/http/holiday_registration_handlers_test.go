@@ -24,11 +24,11 @@ type holidayLinksStub struct {
 	schoolIDs      []int64
 }
 
-func (s holidayLinksStub) ResolveHolidayRegistrationSchools(_ context.Context, token string) (int64, []int64, error) {
+func (s holidayLinksStub) ResolveHolidayRegistrationSchools(_ context.Context, token string) (parentService.HolidayRegistrationScope, error) {
 	if token != s.token {
-		return 0, nil, ErrHolidayRegistrationLinkNotFound
+		return parentService.HolidayRegistrationScope{}, ErrHolidayRegistrationLinkNotFound
 	}
-	return s.organizationID, s.schoolIDs, nil
+	return parentService.HolidayRegistrationScope{OrganizationID: s.organizationID, SchoolIDs: s.schoolIDs}, nil
 }
 
 func serveHolidayRegistrationFamily(t *testing.T, rs *Resource, token string) *httptest.ResponseRecorder {

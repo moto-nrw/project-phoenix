@@ -33,13 +33,13 @@ func TestParentHolidayRegistrationLinksNameTheLinksTraegerOnly(t *testing.T) {
 		DB: f.db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), slog.Default())
+	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), nil, slog.Default())
 	resolve := func(token string) (int64, []int64, error) {
 		var organizationID int64
 		var schoolIDs []int64
 		err := tenant.WithinAdmin(tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db)), func(ctx context.Context) error {
-			var resolveErr error
-			organizationID, schoolIDs, resolveErr = links.ResolveHolidayRegistrationSchools(ctx, token)
+			scope, resolveErr := links.ResolveHolidayRegistrationSchools(ctx, token)
+			organizationID, schoolIDs = scope.OrganizationID, scope.SchoolIDs
 			return resolveErr
 		})
 		return organizationID, schoolIDs, err

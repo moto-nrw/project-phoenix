@@ -123,7 +123,11 @@ type HolidayPeriod struct {
 	PublishedAt *time.Time `json:"published_at"`
 	// MaxDaysPerChild bounds the care days one child books in the period,
 	// nil for no bound (#4701).
-	MaxDaysPerChild *int      `json:"max_days_per_child"`
+	MaxDaysPerChild *int `json:"max_days_per_child"`
+	// HolidayWishRule takes the holiday care wish of the online
+	// registration into account (#4703); the Träger setting
+	// holiday_registration.wish_mode says how.
+	HolidayWishRule bool      `json:"holiday_wish_rule"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	// PublicToken is the key of the period's one public registration link
 	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
@@ -168,6 +172,7 @@ type HolidayPeriodInput struct {
 	RegistrationClosesOn calendar.Date
 	Binding              bool
 	Notes                string
+	HolidayWishRule      bool
 	// MaxDaysPerChild bounds the care days per child, nil for no bound.
 	MaxDaysPerChild *int
 	Weeks           []HolidayWeekInput
