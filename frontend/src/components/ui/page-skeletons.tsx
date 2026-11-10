@@ -52,6 +52,27 @@ export function SkeletonRegion({
   );
 }
 
+// Maße wie im Kopf von `TenantPage`: dieselben Ränder je Bildschirm, eine
+// Titelzeile in der Höhe der Überschrift (Schriftgrad mal `leading-tight`) und
+// eine 20-px-Statuszeile 4 px darunter. Das Elternportal lädt mit einem
+// anderen Kopf (`ParentPageHeader`) und behält bis #6613 die Maße von vor
+// #6568: 20 px Rand, ein 28-px-Titelbalken, 8 px darunter die Statuszeile.
+// Der Layouttest `page-header-skeleton.spec.ts` misst beide Varianten nach.
+const HEAD_GEOMETRY = {
+  "tenant-page": {
+    surface: "compact:p-4 p-5 max-sm:p-4",
+    titleLine: "compact:text-xl h-lh text-2xl leading-tight max-sm:text-xl",
+    titleBar: "h-[1em]",
+    statusLine: "mt-1 h-5",
+  },
+  "parent-page": {
+    surface: "p-5",
+    titleLine: "",
+    titleBar: "h-7",
+    statusLine: "mt-2",
+  },
+} as const;
+
 /**
  * Die Kopfkarte von `TenantPage` als Platzhalter: dieselbe Fläche, dieselben
  * Ränder, dieselbe Zeilenfolge (Titel, Statuszeile, optional Bedienzeile).
@@ -64,6 +85,7 @@ export function TenantPageHeaderSkeleton({
   info = false,
   controls = false,
   back,
+  matches = "tenant-page",
 }: Readonly<{
   /** Platz für Avatar oder Konzept-Symbol links vom Titel. */
   leading?: boolean;
@@ -78,27 +100,36 @@ export function TenantPageHeaderSkeleton({
   back?: React.ReactNode;
   /** Zweite Zeile für Suche, Filter oder Zeitnavigation. */
   controls?: boolean;
+  /**
+   * Welcher Kopf danach kommt. `parent-page` hält Rand, Titel und
+   * Statuszeile des Elternportals auf den bisherigen Maßen (#6613).
+   */
+  matches?: keyof typeof HEAD_GEOMETRY;
 }> = {}) {
-  // Maße wie im Kopf von `TenantPage`: dieselben Ränder je Bildschirm, eine
-  // Titelzeile in der Höhe der Überschrift (Schriftgrad mal `leading-tight`),
-  // eine 20-px-Statuszeile 4 px darunter und Bedienelemente mit 40 px, auf
-  // dem Telefon 44 px. Der Layouttest `page-header-skeleton.spec.ts` misst
-  // beide Köpfe mit Statuszeile, Info-Knopf und Suchzeile nach; `leading`
-  // hängt an der Größe, die die Seite für Avatar oder Symbol wählt.
+  const geometry = HEAD_GEOMETRY[matches];
+  // Bedienelemente mit 40 px, auf dem Telefon 44 px; `leading` hängt an der
+  // Größe, die die Seite für Avatar oder Symbol wählt.
   return (
-    <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4">
+    <header
+      className={`moto-content-surface rounded-2xl border ${geometry.surface}`}
+    >
       {back}
       <div className="flex min-w-0 items-center gap-3">
         {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <div className="compact:text-xl flex h-lh w-52 max-w-3/4 items-center text-2xl leading-tight max-sm:text-xl">
-              <Skeleton shape="round" className="h-[1em] w-full" />
+            <div
+              className={`flex w-52 max-w-3/4 items-center ${geometry.titleLine}`}
+            >
+              <Skeleton
+                shape="round"
+                className={`w-full ${geometry.titleBar}`}
+              />
             </div>
             {info && <Skeleton className="h-8 w-8 shrink-0" />}
           </div>
           {stats && (
-            <div className="mt-1 flex h-5 items-center">
+            <div className={`flex items-center ${geometry.statusLine}`}>
               <Skeleton shape="round" className="h-4 w-64 max-w-full" />
             </div>
           )}
