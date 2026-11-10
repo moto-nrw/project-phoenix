@@ -10453,7 +10453,7 @@ export const traegerCareContractsTopic =
           title: "Später verschicken: Entwürfe erstellen",
           steps: [
             "Wählen Sie den Reiter `Verträge`.",
-            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag; sie steht nur, wenn mindestens ein Kind einen Entwurf bekommen kann.",
+            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag. Kann ein Kind noch keinen Entwurf bekommen, steht im Fenster der Grund.",
             "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Beginn und je Wochentag die gebuchten Module mit ihrer Endzeit, zum Beispiel `Mo bis 14:00 · Di bis 16:30`.",
             "Wählen Sie die Kinder aus. Ein Vertrag umfasst alle Module eines Kindes. Fehlen bei einem Modul die Bedingungen, oder weichen sie zwischen den Modulen ab, legen Sie sie zuerst fest.",
             "Wählen Sie `Entwürfe erstellen`.",
