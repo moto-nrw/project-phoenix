@@ -162,7 +162,9 @@ export default function TraegerAccountsPage() {
         <>
           {roleNames(member.roles)}
           {isLastLeader(member) ? (
-            <span className="block text-sm text-gray-600">
+            // text-balance: two even lines break after the comma, not
+            // inside „Träger-Büro“ at its hyphen.
+            <span className="block text-sm text-balance text-gray-600">
               Einzige Leitung, bleibt im Träger-Büro
             </span>
           ) : null}

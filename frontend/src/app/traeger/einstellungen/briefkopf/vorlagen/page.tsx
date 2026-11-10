@@ -29,8 +29,9 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
   {
     key: "kind",
     header: "Dokument",
+    // From the tablet on a name keeps one line; the purpose beside it wraps.
     render: (template) => (
-      <span className="font-medium text-gray-900">
+      <span className="font-medium text-gray-900 md:whitespace-nowrap">
         {DOCUMENT_TEMPLATE_KIND_LABELS[template.kind]}
       </span>
     ),
@@ -46,13 +47,8 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
         {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
       </span>
     ),
-    // On a phone two lines are enough to tell the templates apart; all seven
-    // stay close together. The template's page carries the whole sentence.
-    stackedRender: (template) => (
-      <span className="line-clamp-2 text-sm text-gray-600">
-        {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
-      </span>
-    ),
+    // On a phone the whole sentence too: its condition („wenn unter
+    // Dokumentarten …“) is what tells two templates apart.
     stackedLabel: false,
   },
   {
@@ -72,6 +68,7 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
   {
     key: "updated",
     header: "Gespeichert am",
+    headerClassName: "whitespace-nowrap",
     render: (template) =>
       template.updatedAt ? formatDate(template.updatedAt) : "–",
     stacked: "meta",

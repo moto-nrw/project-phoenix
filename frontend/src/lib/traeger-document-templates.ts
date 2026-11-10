@@ -37,9 +37,9 @@ export const DOCUMENT_TEMPLATE_KIND_USE: Record<DocumentTemplateKind, string> =
     bestaetigung:
       "Für die Bestätigung der Ferienanmeldung mit Rechnung, die ein freigegebener Ferien-Lauf verschickt.",
     rechnung:
-      "Für Rechnungen eines Laufs, wenn unter „Dokumentarten“ „Rechnung“ gewählt ist.",
+      "Für Rechnungen eines Laufs, wenn unter Dokumentarten die Art „Rechnung“ gewählt ist.",
     bescheid:
-      "Für Gebührenbescheide eines Laufs, wenn unter „Dokumentarten“ „Gebührenbescheid“ gewählt ist.",
+      "Für Gebührenbescheide eines Laufs, wenn unter Dokumentarten die Art „Gebührenbescheid“ gewählt ist.",
     vertrag: "Für die Betreuungsverträge, die Sie an Eltern senden.",
     kuendigung:
       "Für einen Brief zur Kündigung. Noch nicht in Gebrauch. Den Text der E-Mail an die Eltern legen Sie unter Allgemein › Betreuungsverträge fest.",

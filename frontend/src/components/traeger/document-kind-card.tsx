@@ -105,7 +105,9 @@ export function DocumentKindCard({
         <div
           role="radiogroup"
           aria-label={`Dokumentart für ${BILLING_SERVICE_LABEL[service.service]}`}
-          className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
+          // items-start: each tile keeps its own height; a chosen short tile
+          // does not stretch into a tall empty green block.
+          className="grid items-start gap-2 sm:grid-cols-2 xl:grid-cols-3"
         >
           {service.choices.map((kind) => (
             <ChoiceTile
