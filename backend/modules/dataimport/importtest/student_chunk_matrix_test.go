@@ -293,10 +293,11 @@ func savepointOwner(next string) string {
 }
 
 // chunkStatements lists the statements of the chunk in the batch recording
-// by position: one per kind for each place (segment, phase, class), so the
-// two segments, both bounds and each set and reset stay apart while the
-// same statement of the next row in the same place, which the executor
-// cannot tell apart, is represented once (the last). Every one but the
+// by position: one per kind for each place (phase, class), and for the
+// resolver and every bound set and reset one per segment, so both bounds and
+// each set and reset stay apart while the same statement of another row or
+// segment in the same place, which the executor cannot tell apart, is
+// represented once (the last). Every one but the
 // resolver's and the bounds' is mapped to the same statement on the row
 // path: the person statement to the first person insert, a bundled statement
 // to the first single statement of its table, every other one to its
@@ -385,7 +386,19 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		if class != classResolverRead && class != classResolverControl {
 			occurrence[kind]++
 		}
-		record(key{segment, phase, kind, class}, matrixStatement{kind: kind, index: i, class: class, row: occurrence[kind], segment: segment, phase: phase})
+		// Only the resolver and the bounds differ per segment for the executor;
+		// any other statement of the same place, class and kind stands for
+		// both segments (the last occurrence, so segment 2 when it has one).
+		keySegment, keyKind := 0, kind
+		if class == classResolverRead || class == classResolverControl {
+			keySegment = segment
+		}
+		if phase == "after" {
+			// The card row between the batch segments is written on the row
+			// path: the executor tells its statements apart by class only.
+			keyKind = ""
+		}
+		record(key{keySegment, phase, keyKind, class}, matrixStatement{kind: kind, index: i, class: class, row: occurrence[kind], segment: segment, phase: phase})
 	}
 	require.True(t, done, "the recording holds a whole batch attempt")
 	statements := make([]matrixStatement, 0, len(order))
@@ -557,7 +570,16 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 			bounds++
 		}
 	}
-	require.Equal(t, map[int]int{1: len(bundledStatements), 2: len(bundledStatements)}, bundled, "each segment bundles consents, consent history and the five guardian statements")
+	require.GreaterOrEqual(t, bundled[1]+bundled[2], len(bundledStatements), "every bundled kind is in the matrix")
+	perKind := map[string]int{}
+	for _, query := range batchRecording.statements {
+		if table, ok := bundledLeafTable(statementKind(query)); ok {
+			perKind[table]++
+		}
+	}
+	for _, statement := range bundledStatements {
+		require.Equal(t, 2, perKind[statement.rowPath], "each segment bundles %s once", statement.rowPath)
+	}
 	require.Equal(t, 8, bounds, "two segments × two bounds × set and reset")
 	require.Len(t, classes, len(cleanupPoints), "every class is in the recording")
 
@@ -637,15 +659,15 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 			indices := members[class]
 			for position, at := range indices {
 				statement := statements[at]
-				mains := minimumCleanupFailures
+				mains, cleanups := minimumCleanupFailures, minimumCleanupErrors
 				if position == 0 || position == len(indices)-1 || statement.class == classBoundControl {
 					// First and last of each class, and every set and reset of
 					// every bound, get the whole cross.
-					mains = matrixFailures
+					mains, cleanups = matrixFailures, matrixFailures
 				}
 				for _, err := range mains {
 					for _, point := range cleanupPoints[statement.class] {
-						for _, err2 := range matrixFailures {
+						for _, err2 := range cleanups {
 							cases++
 							t.Run(fmt.Sprintf("%d %s %s %s × %v, cleanup %d × %v", statement.segment, statement.phase, statement.class, statement.kind, err, point, err2), func(t *testing.T) {
 								t.Parallel()
@@ -659,6 +681,13 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	})
 	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(classOrder), len(statements)*len(matrixFailures), cases)
 }
+
+// minimumCleanupErrors are the cleanup errors every statement that does not
+// stand first or last for its class meets at each cleanup point: a failed
+// cleanup ends the upload whatever its error (E19), except E13′, which rests
+// on the main error; a retryable SQLSTATE and a broken connection stand for
+// the rest (#6514, to keep the package inside CI's ten minutes).
+var minimumCleanupErrors = []error{injectedSQLState("40P01"), driver.ErrBadConn}
 
 // minimumCleanupFailures are the main errors every statement that does not
 // stand first or last for its class is crossed with.
