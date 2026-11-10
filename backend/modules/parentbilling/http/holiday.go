@@ -49,6 +49,8 @@ func (rs *HolidayResource) TraegerRouter(protectedTraegerRoutes func(chi.Router,
 		manage.Get("/{periodId}/registrations/{registrationId}", rs.contribution)
 		manage.Post("/{periodId}/registrations/{registrationId}/confirm", rs.confirm)
 		manage.Post("/{periodId}/registrations/{registrationId}/cancel", rs.cancel)
+		manage.Put("/{periodId}/registrations/{registrationId}/children/{childId}/bookings", rs.rebookChild)
+		manage.Put("/{periodId}/weeks/{weekId}/capacity", rs.setWeekCapacity)
 		manage.Put("/{periodId}/registrations/{registrationId}/debtor-number", rs.changeDebtorNumber)
 		manage.Get("/{periodId}/sibling-groups", rs.listSiblingGroups)
 		manage.Post("/{periodId}/sibling-groups", rs.mergeSiblings)
@@ -217,6 +219,83 @@ func (rs *HolidayResource) cancel(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, cancellation, "Holiday registration cancelled successfully")
 }
 
+// HolidayRebookingRequest is the body of a rebooking (#4699): the new
+// bookings of the child, one time model per week.
+type HolidayRebookingRequest struct {
+	Bookings []capability.HolidayBookingChoice `json:"bookings"`
+}
+
+// Bind accepts the body; Enrollment validates the bookings.
+func (req *HolidayRebookingRequest) Bind(*http.Request) error { return nil }
+
+// rebookChild rebooks a child (#4699) and answers with the registration as
+// the review shows it. A week it leaves frees its place for the waiting
+// list; whoever moves up gets the contribution again. Any refusal rolls the
+// Träger transaction back.
+func (rs *HolidayResource) rebookChild(w http.ResponseWriter, r *http.Request) {
+	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+	if !ok {
+		return
+	}
+	childID, err := common.ParseIDParam(r, "childId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	req := &HolidayRebookingRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	change, err := rs.contributions.RebookHolidayChild(r.Context(), reviewer, periodID, registrationID, childID, req.Bookings)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderHolidayError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, change.Registration, "Holiday registration rebooked successfully")
+}
+
+// HolidayCapacityRequest is the body of a new capacity of a week (#4699);
+// a null capacity is unlimited.
+type HolidayCapacityRequest struct {
+	Capacity *int `json:"capacity"`
+}
+
+// Bind accepts the body; Enrollment validates the capacity.
+func (req *HolidayCapacityRequest) Bind(*http.Request) error { return nil }
+
+// setWeekCapacity sets the places of a week and moves bookings up into the
+// places it frees (#4699).
+func (rs *HolidayResource) setWeekCapacity(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	periodID, err := common.ParseIDParam(r, "periodId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	weekID, err := common.ParseIDParam(r, "weekId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	req := &HolidayCapacityRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	change, err := rs.contributions.SetHolidayWeekCapacity(r.Context(), reviewer, periodID, weekID, req.Capacity)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderHolidayError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, change, "Holiday week capacity changed successfully")
+}
+
 // previewChoice reads the exemption and the cost bearer of a preview from
 // the query; both are optional.
 func previewChoice(r *http.Request) (*bool, int64, error) {
@@ -320,6 +399,10 @@ func (rs *HolidayResource) resolveLink(ctx context.Context, token string) (capab
 func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	switch {
+	case errors.Is(err, capability.ErrInvalidHolidayPlaces):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
+	case errors.Is(err, capability.ErrHolidayWeekNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayWeekNotFound))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingDebtorNumberInvalid))
 	case errors.Is(err, capability.ErrDebtorNumberLocked):

@@ -69,6 +69,13 @@ func holidayContributionPath(periodID, registrationID int64) string {
 	return fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d", periodID, registrationID)
 }
 
+// holidayRebookPath rebooks a child: a week it leaves frees its place for
+// the waiting list, so the Elternabrechnung serves it like the
+// cancellation (#4699).
+func holidayRebookPath(periodID, registrationID, childID int64) string {
+	return fmt.Sprintf("%s/children/%d/bookings", holidayContributionPath(periodID, registrationID), childID)
+}
+
 func holidayConfirmPath(periodID, registrationID int64) string {
 	return holidayContributionPath(periodID, registrationID) + "/confirm"
 }

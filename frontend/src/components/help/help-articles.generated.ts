@@ -358,6 +358,8 @@ import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from
 
 import type { traegerHolidayPeriodTopic as authored_traegerHolidayPeriodTopic } from "./articles/traeger-holiday-period";
 
+import type { traegerHolidayPlacesTopic as authored_traegerHolidayPlacesTopic } from "./articles/traeger-holiday-places";
+
 import type { traegerHolidayRegistrationReviewTopic as authored_traegerHolidayRegistrationReviewTopic } from "./articles/traeger-holiday-registration-review";
 
 import type { traegerHolidayRegistrationTopic as authored_traegerHolidayRegistrationTopic } from "./articles/traeger-holiday-registration";
@@ -6406,6 +6408,7 @@ export const parentHolidayRegistrationTopic =
         "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf.",
       notes: [
         "Ein Elternkonto brauchen Sie nicht.",
+        "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
         "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
         "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
@@ -11734,6 +11737,79 @@ export const traegerHolidayPeriodTopic =
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;
 
+/** `/traeger/ferien/[id]/plaetze` (#4699): Plätze, Warteliste, Nachrücken. */
+export const traegerHolidayPlacesTopic =
+  function traegerHolidayPlacesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayPlaces,
+      title: "Plätze und Warteliste in den Ferien",
+      question: "Wie lege ich Plätze je Ferienwoche fest?",
+      summary:
+        "Sie legen je Woche fest, wie viele Kinder mitmachen können. Plätze gehen in der Reihenfolge der Anmeldung. Ist eine Woche voll, kommt das Kind auf die Warteliste und rückt automatisch nach.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Hourglass",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+        "Der Ferienzeitraum hat Wochen. Die legen Sie im Reiter `Planung` an.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Plätze festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Ferienbetreuung`.",
+            "Öffnen Sie den Ferienzeitraum.",
+            "Wählen Sie den Reiter `Plätze`.",
+            "Wählen Sie bei der Woche `Plätze ändern`.",
+            "Schalten Sie `Plätze begrenzen` ein und stellen Sie die Zahl ein.",
+            "Wählen Sie `Plätze speichern`.",
+          ],
+        },
+        {
+          title: "Warteliste ansehen",
+          steps: [
+            "Unter jeder Woche steht `Warteliste` mit allen Kindern, die auf einen Platz warten.",
+            "Die Zahl vorne ist der Rang. Das Kind mit der 1 bekommt den nächsten freien Platz.",
+            "Wählen Sie ein Kind, um seine Anmeldung zu öffnen.",
+          ],
+        },
+        {
+          title: "Wann ein Kind nachrückt",
+          steps: [
+            "Sie stornieren eine Anmeldung mit Platz.",
+            "Sie buchen ein Kind aus der Woche heraus.",
+            "Sie geben der Woche mehr Plätze oder heben die Grenze auf.",
+          ],
+          ordered: false,
+        },
+      ],
+      result:
+        "Das nächste Kind der Warteliste hat sofort einen Platz. Die Anmeldung gilt dann auch für diese Woche. Ist die Anmeldung verbindlich, ist es der Platz auch. Die Eltern bekommen eine E-Mail. Ist die Anmeldung bestätigt, rechnet moto den Ferienbeitrag mit der neuen Woche neu.",
+      notes: [
+        "Die Plätze gelten für alle Zeitmodelle einer Woche zusammen.",
+        "Eingegangene und bestätigte Anmeldungen zählen. Stornierte zählen nicht.",
+        "Geschwister bekommen ihre Plätze einzeln. Ein Kind kann einen Platz haben und das andere auf der Warteliste stehen.",
+        "Weniger Plätze nehmen niemandem den Platz weg. Neue Anmeldungen kommen dann auf die Warteliste.",
+        "Kinder auf der Warteliste zahlen nichts. Sie stehen auch nicht auf der Teilnehmerliste der ausrichtenden OGS.",
+        "Eltern sehen nach dem Absenden und in der E-Mail, in welchen Wochen ihr Kind einen Platz hat und wo es auf der Warteliste steht.",
+        "Ohne Grenze bekommt jedes angemeldete Kind einen Platz. So ist jede neue Woche eingestellt.",
+      ],
+      differences: [
+        "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
+        "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
+      ],
+      troubleshootingDetails: [
+        "Die Warteliste rückt nicht nach, obwohl Sie mehr Plätze eingetragen haben? Laden Sie die Seite neu. Steht das Kind noch auf der Warteliste, ist die Zahl nicht höher als die vergebenen Plätze.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayContribution,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayPlacesTopic;
+
 /** `/traeger/ferien/[id]/anmeldungen` (#4663): Anmeldungen prüfen. */
 export const traegerHolidayRegistrationReviewTopic =
   function traegerHolidayRegistrationReviewTopic(): HelpTopic {
@@ -11826,6 +11902,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Wählen Sie beim Kind `Umbuchen`.",
             "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
             "Wählen Sie `Speichern`.",
+            "Eine Woche, die das Kind nicht mehr bucht, gibt ihren Platz frei. Das nächste Kind der Warteliste rückt sofort nach. Eine neue Woche bekommt einen Platz, wenn einer frei ist. Sonst kommt das Kind dort auf die Warteliste.",
           ],
         },
         {
@@ -11847,7 +11924,8 @@ export const traegerHolidayRegistrationReviewTopic =
       result:
         "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
-        "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
+        "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
+        "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
@@ -11855,7 +11933,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
         "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
-        "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
+        "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
         "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
         "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
         "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
@@ -11883,6 +11961,7 @@ export const traegerHolidayRegistrationReviewTopic =
       related: [
         HELP_TOPICS.traegerHolidayRegistration,
         HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayPlaces,
         HELP_TOPICS.traegerHolidayContribution,
       ],
     };

@@ -75,6 +75,7 @@ type holidayWeekRow struct {
 	StartsOn        calendar.Date `bun:"starts_on"`
 	EndsOn          calendar.Date `bun:"ends_on"`
 	HostSchoolID    int64         `bun:"host_school_id"`
+	Capacity        *int          `bun:"capacity"`
 }
 
 type holidayTimeModelRow struct {
@@ -100,7 +101,7 @@ const (
 	findHolidayPeriodQuery = `SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods
 		WHERE organization_id = ? AND id = ?`
 	lockHolidayPeriodQuery = findHolidayPeriodQuery + ` FOR UPDATE`
-	listHolidayWeeksQuery  = `SELECT id, holiday_period_id, starts_on, ends_on, host_school_id
+	listHolidayWeeksQuery  = `SELECT id, holiday_period_id, starts_on, ends_on, host_school_id, capacity
 		FROM enrollment.holiday_period_weeks
 		WHERE organization_id = ? AND holiday_period_id = ANY(?)
 		ORDER BY starts_on, id`
@@ -192,6 +193,7 @@ func (s *HolidayPeriodStore) withWeeks(ctx context.Context, db bun.IDB, organiza
 		}
 		weeks[row.HolidayPeriodID] = append(weeks[row.HolidayPeriodID], enrollment.HolidayWeek{
 			ID: row.ID, StartsOn: row.StartsOn, EndsOn: row.EndsOn, HostSchoolID: row.HostSchoolID, TimeModels: timeModels,
+			Capacity: row.Capacity,
 		})
 	}
 	for _, row := range rows {

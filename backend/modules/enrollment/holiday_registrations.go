@@ -186,6 +186,10 @@ type HolidayRegistrationInput struct {
 type HolidayRegistrationReceipt struct {
 	ID          int64
 	SubmittedAt time.Time
+	// Placements say for every booking whether the child got a place or
+	// waits for one (#4699). They name the child by its position in the
+	// form, not by its name.
+	Placements []HolidayReceiptPlacement
 }
 
 // HolidayRegistrations serves the public holiday registration.
@@ -240,6 +244,9 @@ type HolidayRegistrationMailChild struct {
 	Name  string   `json:"name"`
 	Guest bool     `json:"guest"`
 	Weeks []string `json:"weeks"`
+	// WaitlistWeeks are the weeks the child waits for a place in (#4699);
+	// Weeks then are the weeks with a place. A mail enqueued before has none.
+	WaitlistWeeks []string `json:"waitlist_weeks,omitempty"`
 }
 
 // HolidayRegistrationMail is the payload of the receipt mail. It carries no

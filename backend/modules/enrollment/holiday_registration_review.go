@@ -97,6 +97,14 @@ type HolidayRegistrationFilter struct {
 	TimeModel string
 }
 
+// HolidayBookingReplacement identifies a week replaced by a rebooking.
+// The review reconstructs these ranges from its durable audit trail.
+type HolidayBookingReplacement struct {
+	WeekID       int64
+	WeekStartsOn calendar.Date
+	WeekEndsOn   calendar.Date
+}
+
 // HolidayRegistrationBooking is the time model a child books in one week.
 type HolidayRegistrationBooking struct {
 	WeekID        int64         `json:"week_id"`
@@ -108,6 +116,14 @@ type HolidayRegistrationBooking struct {
 	// PriceCents is the price the time model has now. The contribution a
 	// confirmation freezes is the Elternabrechnung's (#4664).
 	PriceCents int64 `json:"price_cents"`
+	// Placement is HolidayPlacementPlaced or HolidayPlacementWaitlisted
+	// (#4699); WaitlistPosition is the place in the waiting list of the
+	// week, from 1, for a waitlisted booking of a registration that counts.
+	Placement        string     `json:"placement"`
+	WaitlistPosition *int       `json:"waitlist_position,omitempty"`
+	PromotedAt       *time.Time `json:"promoted_at,omitempty"`
+	// ReplacedWeeks is an internal projection for contribution calculation.
+	ReplacedWeeks []HolidayBookingReplacement `json:"-"`
 }
 
 // HolidayRegistrationChild is one child of a reviewed registration. A nil
@@ -183,6 +199,11 @@ type HolidayRegistrationContact struct {
 type HolidayBookingChange struct {
 	WeekID      int64 `json:"week_id"`
 	TimeModelID int64 `json:"time_model_id"`
+	// Waitlisted marks a booking the rebooking replaced while it waited for
+	// a place (#4699); the host school's care windows skip it.
+	Waitlisted bool `json:"waitlisted,omitempty"`
+	// PromotedAt preserves the earliest care day when rebooking removes the booking.
+	PromotedAt *time.Time `json:"promoted_at,omitempty"`
 }
 
 // HolidayDebtorNumberChange is the debtor number before and after a
@@ -269,6 +290,10 @@ type HolidayRegistrationDetail struct {
 	// recipients of the Elternabrechnung carry it (#5627), no answer does.
 	BenefitsProofAttached bool                       `json:"-"`
 	History               []HolidayRegistrationEvent `json:"history"`
+	// Promotions are the bookings of other registrations that moved up from
+	// the waiting list because of the change that answers with this detail:
+	// a cancellation or a rebooking (#4699). A read has none.
+	Promotions []HolidayPromotion `json:"promotions,omitempty"`
 }
 
 // HolidayRegistrationExportRow is one booking of the export: one row per

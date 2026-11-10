@@ -75,6 +75,9 @@ const child: HolidayRegistrationChild = {
       hostSchoolId: "32",
       timeModelId: "63",
       timeModelName: "bis 13 Uhr",
+      placement: "placed",
+      waitlistPosition: null,
+      promotedAt: null,
     },
   ],
 };
