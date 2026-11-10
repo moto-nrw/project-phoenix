@@ -195,7 +195,9 @@ export function HolidayPeriodForm({
       >
         {/* Locked while saving: the answer replaces the draft, so an edit made
             meanwhile would be lost. */}
-        <fieldset disabled={saving} className="min-w-0 space-y-6">
+        {/* pb-4: the last control („Woche hinzufügen“) ends above the
+            sticky save bar, not under its edge. */}
+        <fieldset disabled={saving} className="min-w-0 space-y-6 pb-4">
           <div className="space-y-4">
             <Input
               controlSize="touch"
