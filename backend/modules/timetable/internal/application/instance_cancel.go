@@ -124,13 +124,9 @@ func (s *InstanceLifecycleService) lockCancellationState(ctx context.Context, in
 // DeleteCancelled permanently removes a planned or cancelled block (the
 // historical name stays for the handlers). Running and completed blocks
 // stay protected. A materialized occurrence first gets a cancelled
-// exception, so the materialization cannot resurrect it.
+// exception, so the materialization cannot resurrect it. It runs in the
+// caller's tenant transaction, which holds the day lock until commit.
 func (s *InstanceLifecycleService) DeleteCancelled(ctx context.Context, instanceID int64) error {
-	if !s.hasTx(ctx) {
-		return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-			return s.DeleteCancelled(txCtx, instanceID)
-		})
-	}
 	return s.deleteInstance(ctx, instanceID, deletedSlotReason, true)
 }
 

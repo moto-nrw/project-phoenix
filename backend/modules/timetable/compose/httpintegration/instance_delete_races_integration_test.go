@@ -80,9 +80,7 @@ func TestDeleteCancelled_WaitsForRunningStart(t *testing.T) {
 
 	deleteDone := make(chan error, 1)
 	go func() {
-		deleteDone <- testpkg.WithTenantTx(t, s.ctx, s.db, tenant.FromContext(s.ctx), func(ctx context.Context, _ bun.Tx) error {
-			return s.svc.DeleteCancelled(ctx, ai.ID)
-		})
+		deleteDone <- deleteInTenantTx(t, s.ctx, s.db, s.svc, ai.ID)
 	}()
 	awaitBlockedBy(t, s, startPID, deleteDone)
 	release()
@@ -124,7 +122,7 @@ func TestStart_RefusesBlockDeletedAfterItsRead(t *testing.T) {
 	}()
 	<-parked
 
-	require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
+	require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, s.svc, ai.ID))
 	release()
 
 	require.ErrorIs(t, <-startDone, timetable.ErrInstanceNotFound)
@@ -186,9 +184,7 @@ func parkedDelete(t *testing.T, s *lifecycleSetup, instanceID int64) (<-chan err
 	deleter := newLifecycle(t, deps)
 	done := make(chan error, 1)
 	go func() {
-		done <- testpkg.WithTenantTx(t, s.ctx, s.db, tenant.FromContext(s.ctx), func(ctx context.Context, _ bun.Tx) error {
-			return deleter.DeleteCancelled(ctx, instanceID)
-		})
+		done <- deleteInTenantTx(t, s.ctx, s.db, deleter, instanceID)
 	}()
 	select {
 	case <-parked:
@@ -263,4 +259,15 @@ func (p pausingStartConflicts) DetectStartConflicts(ctx context.Context, subject
 		return nil, err
 	}
 	return p.StartConflictQuery.DetectStartConflicts(ctx, subject)
+}
+
+// deleteInTenantTx runs DeleteCancelled in the tenant transaction its route
+// opens: the delete holds the block's day lock until commit.
+func deleteInTenantTx(t *testing.T, ctx context.Context, db *bun.DB, svc interface {
+	DeleteCancelled(context.Context, int64) error
+}, instanceID int64) error {
+	t.Helper()
+	return testpkg.WithTenantTx(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		return svc.DeleteCancelled(txCtx, instanceID)
+	})
 }
