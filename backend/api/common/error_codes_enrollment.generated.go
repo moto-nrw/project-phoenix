@@ -64,6 +64,8 @@ const CodeEnrollmentDuplicateDetected = "enrollment.duplicate_detected"
 const CodeEnrollmentEditNotAllowed = "enrollment.edit_not_allowed"
 const CodeEnrollmentExistingChildChoiceInvalid = "enrollment.existing_child_choice_invalid"
 const CodeEnrollmentExportTooLarge = "enrollment.export_too_large"
+const CodeEnrollmentFamilyChildrenClosed = "enrollment.family_children_closed"
+const CodeEnrollmentFamilyChildrenInvalid = "enrollment.family_children_invalid"
 const CodeEnrollmentFieldRequired = "enrollment.field_required"
 const CodeEnrollmentFormAttachmentInvalid = "enrollment.form_attachment_invalid"
 const CodeEnrollmentFormFieldAllowedTimesInvalid = "enrollment.form_field_allowed_times_invalid"
@@ -214,6 +216,8 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentEditNotAllowed, "permission"},
 	{CodeEnrollmentExistingChildChoiceInvalid, "business_rejection"},
 	{CodeEnrollmentExportTooLarge, "input"},
+	{CodeEnrollmentFamilyChildrenClosed, "business_rejection"},
+	{CodeEnrollmentFamilyChildrenInvalid, "input"},
 	{CodeEnrollmentFieldRequired, "input"},
 	{CodeEnrollmentFormAttachmentInvalid, "input"},
 	{CodeEnrollmentFormFieldAllowedTimesInvalid, "input"},

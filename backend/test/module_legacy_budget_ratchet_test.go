@@ -257,7 +257,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 5 LOC.
 // ADR 0193: the export openers of health information (+5) and setting
 // values (+3).
-const moduleComposeBudgetTotal = 13194
+const moduleComposeBudgetTotal = 13186
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -303,7 +303,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0153: the contract applications constructor (+5).
 	// ADR 0154: the booked children constructor (+6).
 	// ADR 0193: the export opener of the holiday health information (+5).
-	"modules/enrollment/compose":                   607,
+	"modules/enrollment/compose":                   606,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -333,7 +333,7 @@ var moduleComposeBudgets = map[string]int{
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
 	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5);
 	// ADR 0184: the contract retention of the Belege (+4).
-	"modules/carecontract/compose": 182,
+	"modules/carecontract/compose": 175,
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);

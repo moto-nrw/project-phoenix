@@ -532,7 +532,7 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
       "Die Krankmeldung oder Entschuldigung ist gespeichert. Das Kind erscheint am gewählten Tag mit dem passenden Status.",
     notes: [
       "Die heutige Meldung aufheben ändert geplante Tage in der Zukunft nicht.",
-      "Ist das Kind trotzdem da, zählt es als anwesend. Die Meldung bleibt als Hinweis beim Kind sichtbar.",
+      "Ist das Kind trotzdem da, zählt es als anwesend. Seine geplante Gehzeit gilt weiter. Ist sie vorbei, wird sie als überfällig markiert. Die Meldung bleibt als Hinweis beim Kind sichtbar.",
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
@@ -5915,7 +5915,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
         description:
           "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
         steps: [
-          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`.",
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben` oder `Kinder in der Familie angeben`. Ohne Konto öffnen Sie den Link aus der Vertragsmail.",
           "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
           "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
           "Wählen Sie `Angabe senden`.",
@@ -5947,6 +5947,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
       "Sie dürfen Anmeldungen nur ansehen? Wählen Sie beim Vertrag `Kinder in Ihrer Familie`. Dort sehen Sie die Angabe und die bestätigte Zahl. Sie können die Zahl nicht ändern.",
+      "Über den Link aus der Vertragsmail ändern Sie die Kinderzahl bis zur Unterschrift. Danach geht das in der Eltern-App unter `Dokumente`.",
       "Ihre Angabe zur Kinderzahl prüft der Träger. Bis dahin steht `Wird geprüft`. Hat er sie bestätigt, steht `Bestätigt`. Erst dann zählt sie für die Ermäßigung.",
       "Nach dem Mandat steht beim Vertrag `Lastschrift erteilt`. Unter `Lastschrift` sehen Sie Ihr Konto, die Mandatsreferenz und den Text. Mit `Als Datei speichern` legen Sie den Text bei Ihren Unterlagen ab.",
       "Sie möchten ein anderes Konto nutzen oder keine Lastschrift mehr? Wählen Sie unter `Lastschrift` den Knopf `Mandat widerrufen`. Ab der nächsten Rechnung bucht Ihr Träger nichts mehr ab. Danach können Sie ein neues Mandat erteilen.",
@@ -6008,6 +6009,17 @@ export const parentEnrollStatusTopic =
           ],
         },
         {
+          title: "Kinder in der Familie angeben",
+          description:
+            "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
+          steps: [
+            "Öffnen Sie die Statusseite.",
+            "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
+            "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
+            "Tippen Sie auf `Angabe senden`.",
+          ],
+        },
+        {
           title: "Eine Anmeldung zurückziehen",
           steps: [
             "Öffnen Sie die Statusseite.",
@@ -6021,6 +6033,7 @@ export const parentEnrollStatusTopic =
       notes: [
         "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
         "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
+        "Die Kinderzahl können Sie ändern, bis ein Kind angenommen ist. Sie kommt dann mit in Ihren Betreuungsvertrag. Dort ändern Sie sie später.",
         "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
       ],
       differences: [
@@ -6029,6 +6042,7 @@ export const parentEnrollStatusTopic =
         "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
         "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
         "Steht dort `Zugang zur Eltern-App nicht möglich`? Dann wenden Sie sich an die OGS.",
+        "Sie sehen keine Karte `Kinder in Ihrer Familie`? Dann braucht Ihr Träger die Zahl nicht.",
       ],
       troubleshootingDetails: [
         "moto sagt, der Status-Link sei ungültig? Prüfen Sie die Adresse aus der E-Mail oder fragen Sie bei der OGS nach.",
@@ -11082,7 +11096,7 @@ export const traegerCareReductionsTopic =
         {
           title: "Kinderzahl der Familie prüfen",
           description:
-            "Eltern geben im Vertrag an, wie viele Kinder ihre Familie hat. Sie bestätigen die Zahl. Erst dann zählt sie.",
+            "Eltern geben an, wie viele Kinder ihre Familie hat: bei der Anmeldung, über den Link aus der Vertragsmail oder im Vertrag in der Eltern-App. Die Zahl aus der Anmeldung kommt mit dem Vertrag. Sie bestätigen die Zahl. Erst dann zählt sie.",
           steps: [
             "Wählen Sie `Abrechnung` und dann den Reiter `Kinderzahl`.",
             "Unter `Zu prüfen` stehen neue Angaben der Eltern und Zahlen, die bald ablaufen.",

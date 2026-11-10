@@ -236,6 +236,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0189",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolDatabaseStore.DueDemoSchoolDatabases",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0189",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolDatabaseStore.EraseDemoSchoolDatabase",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0148",
       "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolFileStore.RecordDemoSchoolFileErasure",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

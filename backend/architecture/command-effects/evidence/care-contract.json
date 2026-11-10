@@ -17,6 +17,22 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractFamilyNumbers.FamilyChildren",
+      "binding_digest": "bfa878157d473502118954e2f5f36d55",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.FamilyNumbers.FamilyChildren",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractFamilyChildren.ContractFamilyChildren",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractFamilyNumbers.StateFamilyChildren",
+      "binding_digest": "18df0a3ac4bf51d5666087db5e7b3a8d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.FamilyNumbers.StateFamilyChildren",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractFamilyChildren.StateContractFamilyChildren",
+      "target_owner": "parent-billing"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "binding_digest": "1029ea83f3210311773fabd29175489a",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
@@ -226,7 +242,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.AcceptedApplications",
-      "binding_digest": "9abb44e18752b63309b13714804d10f1",
+      "binding_digest": "c79992393f0504fad2280152ab91c939",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",

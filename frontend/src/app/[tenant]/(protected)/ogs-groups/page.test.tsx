@@ -870,6 +870,64 @@ describe("OGSGroupPage", () => {
     ).toBeInTheDocument();
   });
 
+  // Ort vor Status, Entscheidung A (#6407): Ein eingechecktes, krank
+  // gemeldetes Kind behält seine geplante Gehzeit samt Verspätungsmarkierung.
+  // Ein krank gemeldetes Kind zu Hause bleibt „Kommt heute nicht“.
+  it("keeps the planned pickup of a checked-in child despite a sick note", async () => {
+    const pickup = { pickupTime: "11:00", isException: false, dayNotes: [] };
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Anwesend - Raum 101",
+            actual_arrival_time: "08:00",
+            sick: true,
+          }),
+          wireStudent({
+            id: 3,
+            first_name: "Ben",
+            last_name: "Beispiel",
+            current_location: "Zuhause",
+            sick: true,
+          }),
+        ],
+        roomStatus: {
+          "1": { in_group_room: true },
+          "3": { in_group_room: false },
+        },
+        pickupTimes: new Map([
+          ["1", pickup],
+          ["3", pickup],
+        ]),
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    // Die Zeilen sind hier gemockt; die Überfälligkeit selbst prüft
+    // student-time-status.test.ts.
+    const cards = await screen.findAllByTestId("student-card");
+    const max = cards.find((card) => card.textContent?.includes("Max"));
+    const ben = cards.find((card) => card.textContent?.includes("Ben"));
+    expect(within(max!).getByTestId("pickup-time-row")).toHaveAttribute(
+      "data-pickup-time",
+      "11:00",
+    );
+    expect(
+      within(max!).queryByTestId("student-absence-row"),
+    ).not.toBeInTheDocument();
+    expect(within(ben!).getByTestId("student-absence-row")).toHaveTextContent(
+      "Kommt heute nicht (krank gemeldet)",
+    );
+  });
+
   it("renders the student card with pickup time from the aggregated pickupTimes Map", async () => {
     // Array→Map wire conversion is tested in ogs-group-live-api.test.ts;
     // the page only ever sees the already-mapped Map.

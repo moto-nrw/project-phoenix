@@ -231,6 +231,9 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 			return err
 		}
 		session.TenantID = req.tenantID
+		if err := s.requireLiveSessionSchool(txCtx, req.tenantID); err != nil {
+			return refused(err)
+		}
 		created, err := s.sessions.CreateAccountSession(txCtx, ports.AccountSession(session))
 		if err != nil {
 			return err

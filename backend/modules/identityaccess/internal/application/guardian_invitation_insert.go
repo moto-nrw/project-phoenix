@@ -12,9 +12,12 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 	studentID := req.StudentID
 	var invitation domain.GuardianInvitation
 	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		// Account before profile, as acceptance locks them (40P01 otherwise);
-		// the address is checked again under the profile lock.
+		// Account, school, profile, as acceptance locks them (40P01
+		// otherwise); the address is checked again under the profile lock.
 		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
+			return failed(opGuardianInviteToStudent, lockErr)
+		}
+		if lockErr := l.lockInvitingSchool(txCtx); lockErr != nil {
 			return failed(opGuardianInviteToStudent, lockErr)
 		}
 		readAddress := domain.GuardianInvitationAddress(profile.Email)

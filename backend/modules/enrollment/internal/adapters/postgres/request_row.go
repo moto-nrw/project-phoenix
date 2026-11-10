@@ -32,6 +32,10 @@ type requestRow struct {
 	SubmittedAt              time.Time       `bun:"submitted_at,notnull,default:current_timestamp"`
 	WithdrawnAt              *time.Time      `bun:"withdrawn_at"`
 	DecisionNotificationMode *string         `bun:"decision_notification_mode"`
+	// FamilyChildren and its time are read here and written only by
+	// SetRequestFamilyChildren (#6335).
+	FamilyChildren         *int       `bun:"family_children"`
+	FamilyChildrenStatedAt *time.Time `bun:"family_children_stated_at"`
 	// ParentChangedAt is the read-state anchor (#3778). It stays out of the
 	// value: inserts take the column default and only MarkRequestParentChanged
 	// moves it.
@@ -41,7 +45,8 @@ type requestRow struct {
 // value decodes the row into the owner's request. The JSON columns decode
 // exactly here (ADR 0173); a decode error names the request and column.
 func (r requestRow) value() (*enrollment.Request, error) {
-	value := &enrollment.Request{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode}
+	value := &enrollment.Request{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode,
+		FamilyChildren: r.FamilyChildren, FamilyChildrenStatedAt: r.FamilyChildrenStatedAt}
 	for _, field := range []struct {
 		name string
 		raw  json.RawMessage

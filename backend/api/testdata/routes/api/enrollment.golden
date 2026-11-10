@@ -39,6 +39,7 @@ GET /api/enrollment/phases/{id}/rollover-preview
 GET /api/enrollment/requests/{statusToken}
 GET /api/enrollment/requests/{statusToken}/change-requests
 GET /api/enrollment/requests/{statusToken}/edit-bootstrap
+GET /api/enrollment/requests/{statusToken}/family-children
 GET /api/enrollment/requests/{statusToken}/form-labels
 GET /api/enrollment/schema/
 GET /api/enrollment/schema/preview
@@ -77,4 +78,5 @@ PUT /api/enrollment/admin/requests/{id}/read
 PUT /api/enrollment/care-offerings/{id}/
 PUT /api/enrollment/phases/{id}/
 PUT /api/enrollment/requests/{statusToken}
+PUT /api/enrollment/requests/{statusToken}/family-children
 PUT /api/enrollment/schema/{id}

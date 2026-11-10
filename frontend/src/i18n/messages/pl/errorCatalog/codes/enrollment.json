@@ -146,5 +146,7 @@
   "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "holiday_form_field_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "holiday_registration_form_changed": "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz.",
-  "holiday_proof_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "holiday_proof_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "family_children_closed": "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
+  "family_children_invalid": "Proszę podać liczbę od 1 do 20."
 }
