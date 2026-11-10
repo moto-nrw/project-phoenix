@@ -237,6 +237,24 @@ func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {
 	return nil
 }
 
+// writeOperatorCredential writes the operator's password through the one
+// credential writer on the caller's transaction (#6308) and reports whether
+// the compare-and-swap found the expected state.
+func (s *Service) writeOperatorCredential(ctx context.Context, id int64, write domain.CredentialWrite) (bool, error) {
+	var written bool
+	err := s.run(ctx, s.tx.RunAdmin, "write_operator_credential", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var err error
+		written, queryStats, err = s.operators.WriteOperatorCredential(txCtx, id, write)
+		stats.Add(queryStats)
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("identity access: write operator credential: %w", MapError(err))
+	}
+	return written, nil
+}
+
 func (s *Service) IncrementOperatorMFAAttempts(ctx context.Context, id int64, threshold int, lockout time.Duration) (identityaccess.OperatorMFAAttempts, error) {
 	var result domain.OperatorMFAAttempts
 	err := s.run(ctx, s.tx.RunAdmin, "increment_operator_mfa_attempts", func(txCtx context.Context, stats *domain.OperationStats) error {

@@ -73,7 +73,7 @@ func TestMFACodeOutboxCommitsWithChallengeBeforeSynchronousDelivery(t *testing.T
 			})
 			trigger := func() (string, error) {
 				if operator {
-					return module.OperatorMFA.StartOperatorMFAChallenge(ctx, identityID, net.ParseIP("203.0.113.77"))
+					return module.OperatorMFA.StartOperatorMFAChallenge(ctx, identityID, net.ParseIP("203.0.113.77"), nil)
 				}
 				return module.MFA.StartMFAChallenge(ctx, identityID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.77"), 0)
 			}
@@ -196,7 +196,8 @@ func TestTrustedDeviceNoticeOutboxIsAtomicWithDevice(t *testing.T) {
 			}
 			trigger := func() (string, time.Time, error) {
 				if operator {
-					return module.OperatorMFA.IssueOperatorTrustedDevice(ctx, id, "Outbox test", net.ParseIP("203.0.113.78"))
+					// A new operator holds credential generation 1 (#6308).
+					return module.OperatorMFA.IssueOperatorTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: id, CredentialGeneration: 1}, "Outbox test", net.ParseIP("203.0.113.78"))
 				}
 				return module.MFA.IssueTrustedDevice(ctx, id, testpkg.Tenant(t), "Outbox test", net.ParseIP("203.0.113.78"))
 			}

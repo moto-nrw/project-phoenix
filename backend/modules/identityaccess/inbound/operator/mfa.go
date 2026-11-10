@@ -81,12 +81,12 @@ func (rs *MFAResource) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	operatorID, err := rs.mfaService.VerifyOperatorMFAChallenge(r.Context(), req.ChallengeToken, req.Code)
+	proof, err := rs.mfaService.VerifyOperatorMFAChallenge(r.Context(), req.ChallengeToken, req.Code)
 	if err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
-	rs.completeMFAExchange(w, r, operatorID, req.RememberDevice)
+	rs.completeMFAExchange(w, r, proof, req.RememberDevice)
 }
 
 // ----- /auth/mfa/resend -----
@@ -121,7 +121,8 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 
 // EnrollStart mails the code the operator echoes back at
 // /auth/mfa/enroll/confirm. The route admits only an operator enrollment
-// token, which names the operator.
+// token, which names the operator and the credential generation its password
+// check read: a token from before a password change starts nothing (#6308).
 func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -131,7 +132,7 @@ func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
-	if _, err := rs.mfaService.StartOperatorMFAChallenge(r.Context(), claims.AccountID, common.ParseClientIP(r)); err != nil {
+	if _, err := rs.mfaService.StartOperatorMFAChallenge(r.Context(), claims.AccountID, common.ParseClientIP(r), &claims.CredentialGeneration); err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
@@ -166,7 +167,7 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 
 	operatorID := claims.AccountID
 
-	if err := rs.mfaService.VerifyOperatorMFACode(r.Context(), operatorID, req.Code); err != nil {
+	if err := rs.mfaService.VerifyOperatorMFACode(r.Context(), operatorID, req.Code, &claims.CredentialGeneration); err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
@@ -179,7 +180,7 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rs.completeMFAExchange(w, r, operatorID, req.RememberDevice)
+	rs.completeMFAExchange(w, r, identityaccess.OperatorMFAProof{OperatorID: operatorID, CredentialGeneration: claims.CredentialGeneration}, req.RememberDevice)
 }
 
 // ----- /auth/mfa/trusted-devices -----
@@ -244,21 +245,23 @@ func (rs *MFAResource) RevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 
 // completeMFAExchange mints the operator session of a proven second factor
 // and remembers the device when asked. Operator MFA has no per-school device
-// policy and no reset generation that a mint could evict: an operator's
-// factor is reset only by the operator. Preparing therefore reads nothing and
-// the device is stored after the mint, like on the account portals.
-func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Request, operatorID int64, rememberDevice bool) {
+// policy, so preparing reads nothing and the device is stored after the mint,
+// like on the account portals. Both are bound to the proof's credential
+// generation: after a password change the mint refuses and no device is
+// stored (#6308).
+func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Request, proof identityaccess.OperatorMFAProof, rememberDevice bool) {
+	operatorID := proof.OperatorID
 	ipAddress := ""
 	if clientIP := common.ParseClientIP(r); clientIP != nil {
 		ipAddress = clientIP.String()
 	}
 	prepare := portalauth.RememberDevice(rememberDevice, func(context.Context) (identityaccess.TrustedDeviceIssue, error) {
 		return func(ctx context.Context) (string, time.Time, error) {
-			return rs.mfaService.IssueOperatorTrustedDevice(ctx, operatorID, r.UserAgent(), common.ParseClientIP(r))
+			return rs.mfaService.IssueOperatorTrustedDevice(ctx, proof, r.UserAgent(), common.ParseClientIP(r))
 		}, nil
 	})
 	tokens, err := portalauth.Exchange(w, r, operatorID, prepare, func(ctx context.Context) (string, string, error) {
-		return rs.authService.IssueTokensForAuthenticatedOperator(ctx, operatorID, ipAddress, r.UserAgent())
+		return rs.authService.IssueTokensForAuthenticatedOperator(ctx, operatorID, &proof.CredentialGeneration, ipAddress, r.UserAgent())
 	})
 	if err != nil {
 		common.RenderError(w, r, common.RenderWithRules(err, exchangeRules, func(error) render.Renderer {
@@ -273,5 +276,7 @@ func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Reques
 // refused credential like the tenant exchange, not an expired session.
 var exchangeRules = []common.ErrorRule{
 	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
+	// The password the proof stems from changed meanwhile (#6308).
+	{Target: identityaccess.ErrOperatorInvalidCredentials, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
 	{Target: identityaccess.ErrOperatorNotFound, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
 }

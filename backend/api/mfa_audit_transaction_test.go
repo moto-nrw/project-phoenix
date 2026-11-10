@@ -34,9 +34,11 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 			if action == "mfa_verified" || action == "mfa_failed" || action == "mfa_locked" {
 				hash, err := securityruntime.HashPassword("123456")
 				require.NoError(t, err)
-				// An active, delivered code; the e-mail step is not under test.
-				_, err = db.NewRaw(`INSERT INTO platform.operator_mfa_email_challenges (operator_id, code_hash, expires_at) VALUES (?, ?, ?)`,
-					operator.ID, hash, time.Now().Add(time.Hour)).Exec(ctx)
+				// An active, delivered code of the operator's current password
+				// (#6308); the e-mail step is not under test.
+				_, err = db.NewRaw(`INSERT INTO platform.operator_mfa_email_challenges (operator_id, code_hash, expires_at, credential_generation)
+					VALUES (?, ?, ?, (SELECT credential_generation FROM platform.operators WHERE id = ?))`,
+					operator.ID, hash, time.Now().Add(time.Hour), operator.ID).Exec(ctx)
 				require.NoError(t, err)
 				if action == "mfa_locked" {
 					_, err = db.NewRaw(`UPDATE platform.operators SET mfa_attempts=? WHERE id=?`, identityaccess.MFALockoutThreshold-1, operator.ID).Exec(ctx)
@@ -61,9 +63,9 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 					case "mfa_admin_override":
 						err = module.MFA.OperatorSetGlobalMFAOverride(txCtx, operator.ID, targetID, identityaccess.MFAAdminOverrideForceOn, "atomic audit test")
 					case "mfa_verified":
-						err = module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "123456")
+						err = module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "123456", nil)
 					default:
-						require.ErrorIs(t, module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "000000"), identityaccess.ErrMFACodeInvalid)
+						require.ErrorIs(t, module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "000000", nil), identityaccess.ErrMFACodeInvalid)
 					}
 					if err != nil {
 						return err
