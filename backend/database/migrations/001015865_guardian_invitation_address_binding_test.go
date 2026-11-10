@@ -96,6 +96,7 @@ func TestGuardianInvitationAddressBinding(t *testing.T) {
 	// Expiry is written by PostgreSQL. Compare on that same clock: a local
 	// container's clock and the host clock can differ by milliseconds.
 	databaseNow := func() time.Time {
+		t.Helper()
 		var now time.Time
 		require.NoError(t, db.NewRaw(`SELECT clock_timestamp()`).Scan(ctx, &now))
 		return now

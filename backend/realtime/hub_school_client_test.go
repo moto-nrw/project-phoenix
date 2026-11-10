@@ -29,13 +29,6 @@ func TestSchoolClientReceivesOnlyAccountAddressedEvents(t *testing.T) {
 		t.Fatal("a tenant-wide refresh must not reach a school client")
 	}
 
-	if err := hub.BroadcastToAll(Event{Type: EventNotification}); err != nil {
-		t.Fatalf("broadcast to all: %v", err)
-	}
-	if received(t, teacher) {
-		t.Fatal("a global refresh must not reach a school client")
-	}
-
 	if err := hub.BroadcastToStaffAccounts(200, []int64{11}, Event{Type: EventStaffMessage}); err != nil {
 		t.Fatalf("staff broadcast: %v", err)
 	}

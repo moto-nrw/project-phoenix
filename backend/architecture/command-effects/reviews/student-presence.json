@@ -29182,28 +29182,6 @@
     },
     {
       "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "classification": "platform",
-      "effect": "notice",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Hub.BroadcastToAll (delivery-platform) through realtime.Hub.BroadcastToAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "student-presence",
-      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "classification": "platform",
-      "effect": "notice",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastToAll (delivery-platform) through realtime.Broadcaster.BroadcastToAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToGroup",
       "classification": "platform",
       "effect": "notice",

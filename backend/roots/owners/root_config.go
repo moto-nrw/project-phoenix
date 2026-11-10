@@ -52,8 +52,6 @@ type ServiceConfig struct {
 	AppEnv                     string
 	InvitationTokenExpiryHours int
 	PasswordResetExpiryMinutes int
-	PostHogAPIKey              string
-	PostHogHost                string
 	RateLimitEnabled           bool
 	JWTSecret                  string
 	JWTExpiry                  time.Duration
@@ -63,7 +61,6 @@ type ServiceConfig struct {
 	VAPIDPublicKey             string
 	VAPIDPrivateKey            string
 	VAPIDSubscriber            string
-	StudentDailyCheckoutTime   string
 	// HealthDataKeys is the key ring the health information of the holiday
 	// registrations is sealed with (#4722): "id:base64key[,id:base64key]".
 	HealthDataKeys     string

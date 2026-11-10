@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// Production producers must name a school. BroadcastToAll remains available on
-// the local hub for compatibility tests, not as an unaddressed producer port.
+// Production producers must name a school. Unscoped BroadcastToAll calls are
+// forbidden even if a future hub or broadcaster reintroduces that method.
 func TestRealtimeProducersRequireSchool(t *testing.T) {
 	t.Parallel()
 	root, err := findBackendRoot()

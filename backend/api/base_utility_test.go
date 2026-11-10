@@ -603,7 +603,7 @@ func adminClaimsForCallback() sessiontoken.AppClaims {
 //
 // We register a fake SSE client on the real Hub (the type is concrete and
 // can't be mocked through an interface) and read events off its channel.
-// Empty subscribed-groups slice still receives BroadcastToAll events, which
+// An empty subscribed-groups slice still receives school-scoped events, which
 // is the path the post-commit closure uses.
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	t.Parallel()
@@ -611,8 +611,8 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	route := setupSettingsCallbackRoute(t)
 
 	// Subscribe a fake SSE client to the real Hub so we can observe
-	// BroadcastToAll without mocking. UserID/TenantID are arbitrary —
-	// BroadcastToAll fan-outs ignore both.
+	// school-scoped delivery without mocking. The client and event belong
+	// to the same school.
 	client := &realtime.Client{
 		Channel:          make(chan realtime.Event, 4),
 		UserID:           1,
