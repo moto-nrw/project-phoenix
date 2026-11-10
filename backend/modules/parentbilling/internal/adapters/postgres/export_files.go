@@ -197,15 +197,17 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	return row.entry(), nil
 }
 
-// The inserts of insertDatevBookings, one per kind of booking.
-const (
-	insertDatevBookedInvoices = `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_invoice_id)
-		SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`
-	insertDatevBookedCancellations = `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_cancellation_id)
-		SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`
-	insertDatevBookedDocuments = `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, document_id)
-		SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`
-)
+// insertDatevBookedDocuments records the bookings of a DATEV file, one
+// array per kind of booking, in one statement.
+const insertDatevBookedDocuments = `INSERT INTO parent_billing.datev_booked_documents
+		(organization_id, export_file_id, care_invoice_id, care_cancellation_id, document_id)
+	SELECT ?0, ?1, booking.care_invoice_id, booking.care_cancellation_id, booking.document_id
+	FROM (
+		SELECT unnest(?2::bigint[]) AS care_invoice_id, NULL::bigint AS care_cancellation_id, NULL::bigint AS document_id
+		UNION ALL SELECT NULL::bigint, unnest(?3::bigint[]), NULL::bigint
+		UNION ALL SELECT NULL::bigint, NULL::bigint, unnest(?4::bigint[])
+	) AS booking
+	ON CONFLICT DO NOTHING`
 
 // insertDatevBookings records the first DATEV file of each booking of a
 // DATEV file (#6433). A booking an earlier or a concurrent file recorded
@@ -217,8 +219,26 @@ func insertDatevBookings(ctx context.Context, db bun.IDB, organizationID, fileID
 	if record.Format != parentbilling.ExportFormatDatev || len(record.DatevBookings) == 0 {
 		return nil
 	}
-	var invoices, cancellations, documents []int64
-	for _, booking := range record.DatevBookings {
+	invoices, cancellations, documents := datevBookingIDs(record.DatevBookings)
+	result, err := db.ExecContext(ctx, insertDatevBookedDocuments, organizationID, fileID,
+		pgdialect.Array(invoices), pgdialect.Array(cancellations), pgdialect.Array(documents))
+	if err != nil {
+		return fmt.Errorf("record the DATEV bookings of the file: %w", err)
+	}
+	recorded, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count the DATEV bookings of the file: %w", err)
+	}
+	if !record.DatevAll && recorded != int64(len(record.DatevBookings)) {
+		return parentbilling.ErrDatevBookingsTaken
+	}
+	return nil
+}
+
+// datevBookingIDs splits the bookings by kind.
+func datevBookingIDs(bookings []parentbilling.DatevBookingRef) (invoices, cancellations, documents []int64) {
+	invoices, cancellations, documents = []int64{}, []int64{}, []int64{}
+	for _, booking := range bookings {
 		switch {
 		case booking.CareCancellationID > 0:
 			cancellations = append(cancellations, booking.CareCancellationID)
@@ -228,37 +248,7 @@ func insertDatevBookings(ctx context.Context, db bun.IDB, organizationID, fileID
 			documents = append(documents, booking.DocumentID)
 		}
 	}
-	var recorded int64
-	count := func(result sql.Result, err error) error {
-		if err != nil {
-			return fmt.Errorf("record the DATEV bookings of the file: %w", err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("count the DATEV bookings of the file: %w", err)
-		}
-		recorded += affected
-		return nil
-	}
-	if len(invoices) > 0 {
-		if err := count(db.ExecContext(ctx, insertDatevBookedInvoices, organizationID, fileID, pgdialect.Array(invoices))); err != nil {
-			return err
-		}
-	}
-	if len(cancellations) > 0 {
-		if err := count(db.ExecContext(ctx, insertDatevBookedCancellations, organizationID, fileID, pgdialect.Array(cancellations))); err != nil {
-			return err
-		}
-	}
-	if len(documents) > 0 {
-		if err := count(db.ExecContext(ctx, insertDatevBookedDocuments, organizationID, fileID, pgdialect.Array(documents))); err != nil {
-			return err
-		}
-	}
-	if !record.DatevAll && recorded != int64(len(record.DatevBookings)) {
-		return parentbilling.ErrDatevBookingsTaken
-	}
-	return nil
+	return invoices, cancellations, documents
 }
 
 // insertExportFileInvoices links the invoices, holiday documents,

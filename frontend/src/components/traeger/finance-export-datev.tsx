@@ -190,7 +190,7 @@ export function DatevNothingNewNotice({
  * The name of a fiscal year by its first day: the year, or both years when
  * it does not start in January ("2026/27").
  */
-export function fiscalYearLabel(start: string): string {
+function fiscalYearLabel(start: string): string {
   const [year, month] = start.split("-");
   if (!year || month === "01") return year ?? start;
   return `${year}/${String(Number(year) + 1).slice(-2)}`;

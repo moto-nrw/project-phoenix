@@ -38,27 +38,39 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 	}
 	var envelope struct {
 		Data struct {
-			Invoices []struct {
-				ContractID  int64  `json:"contract_id"`
-				FamilyEmail string `json:"family_email"`
-				Recipient   struct {
-					LastName string `json:"last_name"`
-				} `json:"recipient"`
-			} `json:"invoices"`
+			Invoices []seedRunInvoice `json:"invoices"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return fmt.Errorf("read the monthly run: %w", err)
 	}
 	invoices := envelope.Data.Invoices
+	if err := seedFamilyBilling(client, auth, invoices); err != nil {
+		return err
+	}
+	return seedSEPAMandates(client, auth, invoices)
+}
+
+// seedRunInvoice is an invoice of the monthly run as the seed reads it.
+type seedRunInvoice = struct {
+	ContractID  int64  `json:"contract_id"`
+	FamilyEmail string `json:"family_email"`
+	Recipient   struct {
+		LastName string `json:"last_name"`
+	} `json:"recipient"`
+}
+
+// seedFamilyBilling keeps the deviations of two families (one invoice to
+// another payer, one to both parents with its own due day) and gives every
+// family its debtor number (#4693), so the DATEV file of the run takes each
+// invoice (#6433).
+func seedFamilyBilling(client *Client, auth AuthRef, invoices []seedRunInvoice) error {
 	deviations := []map[string]any{
 		{"recipient_kind": "payer", "payer_first_name": "Helga", "payer_last_name": "Großmann", "payer_email": "helga.grossmann@example.org",
 			"payer_address":  map[string]any{"street": "Lindenweg 4", "postal_code": "75175", "city": "Pforzheim"},
 			"payment_method": "transfer"},
 		{"recipient_kind": "both", "second_first_name": "Jonas", "due_day": 15},
 	}
-	// Every family has its debtor number (#4693), so the DATEV file of the
-	// run takes each invoice (#6433).
 	for i := len(deviations); i < len(invoices); i++ {
 		deviations = append(deviations, map[string]any{"recipient_kind": "applicant"})
 	}
@@ -75,7 +87,7 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 			return fmt.Errorf("keep the deviation of a family: %w", err)
 		}
 	}
-	return seedSEPAMandates(client, auth, invoices)
+	return nil
 }
 
 // seedSEPAMandates gives the demo Träger its creditor identifier (the
@@ -83,13 +95,7 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 // pay by direct debit (#4695): one family's first mandate was revoked and
 // replaced, one family has none, so the review shows its hint and the
 // invoice goes as a transfer. The first family pays by transfer anyway.
-func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
-	ContractID  int64  `json:"contract_id"`
-	FamilyEmail string `json:"family_email"`
-	Recipient   struct {
-		LastName string `json:"last_name"`
-	} `json:"recipient"`
-}) error {
+func seedSEPAMandates(client *Client, auth AuthRef, invoices []seedRunInvoice) error {
 	if _, err := client.PutWithAuth(auth, "/traeger/sepa-creditor/", map[string]any{
 		"creditor_id": "DE98ZZZ09999999999", "prenotification_days": 5, "missing_mandate": "transfer",
 	}); err != nil {

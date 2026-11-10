@@ -188,5 +188,5 @@ func TestDatevBookingsGoIntoOneOfTwoConcurrentFiles(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT file.file_number FROM parent_billing.datev_booked_documents AS booked
 		JOIN parent_billing.export_files AS file ON file.id = booked.export_file_id
 		WHERE booked.organization_id = ? AND booked.document_id = ?`, scope.organization, document).Scan(context.Background(), &firstFile))
-	assert.Equal(t, int64(1), firstFile)
+	assert.Equal(t, files[0], firstFile, "the first standard file keeps the booking")
 }

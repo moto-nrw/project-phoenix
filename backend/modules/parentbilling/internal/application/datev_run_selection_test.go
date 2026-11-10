@@ -152,7 +152,7 @@ func TestDatevSelectionPairsAHolidayStornoByItsReference(t *testing.T) {
 	}
 	selection := selectDatevDocuments(invoices, datevDebtorAccount(4), time.January, false)
 	require.Len(t, selection.bookable, 1)
-	assert.Equal(t, int64(9), selection.bookable[0].DocumentID)
+	assert.Equal(t, invoices[2].DocumentID, selection.bookable[0].DocumentID)
 
 	// Once the invoice went to DATEV its Storno has to follow it.
 	invoices[0].DatevBooked = true

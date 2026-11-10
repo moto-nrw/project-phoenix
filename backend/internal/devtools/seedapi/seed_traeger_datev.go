@@ -30,9 +30,29 @@ func seedDatevFile(client *Client, auth AuthRef, month calendar.Date) error {
 			return fmt.Errorf("set the DATEV value %s: %w", setting.key, err)
 		}
 	}
+	runID, err := seedReleasedCareRun(client, auth, month)
+	if err != nil || runID == 0 {
+		return err
+	}
+	file, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/finance-exports/runs/care-runs/%d/datev", runID))
+	if seedConflictCode(err, seedDatevNoNewBookings) || seedConflictCode(err, seedDatevBookingsTaken) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("download the DATEV file: %w", err)
+	}
+	if len(file) == 0 {
+		return fmt.Errorf("the DATEV file is empty")
+	}
+	fmt.Println("  Exporte: DATEV file of the first monthly run downloaded")
+	return nil
+}
+
+// seedReleasedCareRun is the released monthly run of month, 0 without one.
+func seedReleasedCareRun(client *Client, auth AuthRef, month calendar.Date) (int64, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/care-billing-runs/")
 	if err != nil {
-		return fmt.Errorf("read the monthly runs: %w", err)
+		return 0, fmt.Errorf("read the monthly runs: %w", err)
 	}
 	var envelope struct {
 		Data struct {
@@ -44,26 +64,14 @@ func seedDatevFile(client *Client, auth AuthRef, month calendar.Date) error {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("read the monthly runs: %w", err)
+		return 0, fmt.Errorf("read the monthly runs: %w", err)
 	}
 	for _, run := range envelope.Data.Runs {
-		if run.BillingMonth != month || run.Status != "released" {
-			continue
+		if run.BillingMonth == month && run.Status == "released" {
+			return run.ID, nil
 		}
-		file, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/finance-exports/runs/care-runs/%d/datev", run.ID))
-		if seedConflictCode(err, seedDatevNoNewBookings) || seedConflictCode(err, seedDatevBookingsTaken) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("download the DATEV file: %w", err)
-		}
-		if len(file) == 0 {
-			return fmt.Errorf("the DATEV file is empty")
-		}
-		fmt.Println("  Exporte: DATEV file of the first monthly run downloaded")
-		return nil
 	}
-	return nil
+	return 0, nil
 }
 
 // The registered codes of a DATEV download another seed of the Träger made.

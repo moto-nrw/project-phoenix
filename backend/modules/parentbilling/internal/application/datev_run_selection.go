@@ -85,30 +85,29 @@ func (s datevSelection) inFiscalYear(start calendar.Date, fiscalYearMonth time.M
 // and its Storno, while neither is in a DATEV file. A monthly Storno shares
 // the invoice's CareInvoiceID; a holiday Storno refers to its invoice.
 func datevSettledPairs(invoices []parentbilling.ExportInvoice, validDebtor func(string) bool) map[int]bool {
-	original := func(cancellation parentbilling.ExportInvoice) int {
-		for i, invoice := range invoices {
-			if invoice.Kind != "invoice" {
-				continue
-			}
-			if cancellation.CareCancellationID > 0 && invoice.CareInvoiceID == cancellation.CareInvoiceID ||
-				cancellation.ReferenceDocumentID > 0 && invoice.DocumentID == cancellation.ReferenceDocumentID {
-				return i
-			}
-		}
-		return -1
-	}
 	settled := map[int]bool{}
 	for i, cancellation := range invoices {
 		if cancellation.Kind != "cancellation" || cancellation.DatevBooked {
 			continue
 		}
-		o := original(cancellation)
+		o := slices.IndexFunc(invoices, func(invoice parentbilling.ExportInvoice) bool { return cancels(cancellation, invoice) })
 		if o < 0 || invoices[o].DatevBooked || validDebtor(invoices[o].DebtorNumber) {
 			continue
 		}
 		settled[i], settled[o] = true, true
 	}
 	return settled
+}
+
+// cancels says whether cancellation is the Storno of invoice.
+func cancels(cancellation, invoice parentbilling.ExportInvoice) bool {
+	if invoice.Kind != "invoice" {
+		return false
+	}
+	if cancellation.CareCancellationID > 0 {
+		return invoice.CareInvoiceID == cancellation.CareInvoiceID
+	}
+	return cancellation.ReferenceDocumentID > 0 && invoice.DocumentID == cancellation.ReferenceDocumentID
 }
 
 // datevSelectionRules are the parts of the DATEV settings the selection
