@@ -52,12 +52,17 @@ func TestRolloverHolidayWishCanBeAnsweredWithBookingAdjustment(t *testing.T) {
 				db: env.db, repos: env.repos, reposCare: env.reposCare, reposSchools: env.reposSchools,
 				settings: env.settings, outbox: env.outbox, creatorID: env.creatorID,
 			})
+			confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
+			proposedFlags := map[string]any{"photo": true}
+			for key := range confirmation.ConsentFlags.All() {
+				proposedFlags[key] = false
+			}
 			created, err := svc.Create(ctx, request.StatusToken, enrollmentAPI.CreateChangeRequestInput{
 				ParentNote: "Bitte Montag statt Dienstag buchen.",
 				Submission: enrollmentAPI.SubmitRequest{
 					GuardianFirstName: request.GuardianFirstName, GuardianLastName: request.GuardianLastName,
 					GuardianEmail: request.GuardianEmail, GuardianPhone: request.GuardianPhone,
-					ConsentFlags: testFormValues(map[string]any{"photo": true}), CustomData: request.CustomData,
+					ConsentFlags: testFormValues(proposedFlags), CustomData: request.CustomData,
 					Children: []enrollmentAPI.SubmitChild{{
 						ID: rolled[0].ID, FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
 						TargetGradeLevel: rolled[0].TargetGradeLevel, HolidayCareWish: &wish,
@@ -67,7 +72,6 @@ func TestRolloverHolidayWishCanBeAnsweredWithBookingAdjustment(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
 			_, err = env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
 			require.NoError(t, err)
 			_, err = testpkg.TenantQuery2(t, ctx, env.db, svc.Approve, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
