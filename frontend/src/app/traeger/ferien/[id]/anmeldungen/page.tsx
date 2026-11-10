@@ -40,9 +40,7 @@ import {
   ExportMenu,
   type ExportMenuOption,
   exportFormatOptions,
-  exportMenuItems,
 } from "~/components/ui/export-menu";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -241,10 +239,10 @@ function columns(
                       booking.weekEndsOn,
                     )}
                     ,{" "}
-                    {/* The week first, school and time below: a narrow
-                        column breaks there or between school and time,
-                        never inside the school name or the time. */}
-                    <br />
+                    {/* Week, school and time on one line where the column
+                        has room; a narrow column breaks after the week or
+                        between school and time, never inside the school
+                        name or the time. */}
                     {`${unbroken(names.get(booking.hostSchoolId) ?? "Schule nicht mehr vorhanden")}: ${unbroken(booking.timeModelName)}`}
                   </li>
                 ))}
@@ -654,8 +652,8 @@ export default function TraegerHolidayRegistrationsPage() {
         period?.registrationCount,
       )}
       actions={
-        billingHref ? (
-          <>
+        <>
+          {billingHref ? (
             <ButtonLink href={billingHref} variant="outline" size="md">
               <MotoConceptIcon
                 concept={billingConcept}
@@ -664,20 +662,9 @@ export default function TraegerHolidayRegistrationsPage() {
               />
               Zur Abrechnung
             </ButtonLink>
-            {/* One visible action; the download formats wait in the menu
-                (TENANT-PAGE-SPEC rule 4). */}
-            <OverflowMenu
-              ariaLabel="Anmeldungen herunterladen"
-              disabled={loading || Boolean(loadError)}
-              items={exportMenuItems({
-                options: EXPORT_FORMATS,
-                busyKey: exporting,
-                unavailable: loading || Boolean(loadError),
-                onSelect: selectExport,
-              })}
-            />
-          </>
-        ) : (
+          ) : null}
+          {/* The download keeps its name in the head: the office exports
+              the list for the schools and the kitchen. */}
           <ExportMenu
             ariaLabel="Anmeldungen herunterladen"
             options={EXPORT_FORMATS}
@@ -685,7 +672,7 @@ export default function TraegerHolidayRegistrationsPage() {
             unavailable={loading || Boolean(loadError)}
             onSelect={selectExport}
           />
-        )
+        </>
       }
       filters={filters}
       activeFilters={activeFilters}
@@ -703,6 +690,9 @@ export default function TraegerHolidayRegistrationsPage() {
         />
       ) : null}
       <DataTable
+        // Eight columns: narrower cells give the children and their weeks
+        // the room to stand on one line each.
+        dense
         columns={columns(periodId, names, debtorNumberColumn, siblings)}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}
