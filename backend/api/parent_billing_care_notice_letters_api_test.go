@@ -115,7 +115,7 @@ func storedSHA256(t *testing.T, f careBillingFixture, runID int64) string {
 
 // The original of a Jahresbescheid is stored once and stays byte for byte
 // what it was, after the letterhead, the template of the fee notice, the
-// address of the family and the contract changed. Without the stored PDF a
+// address of the family, the contract and the bank account changed. Without the stored PDF a
 // download would render the letterhead of today.
 func TestCareNoticeOriginalStaysByteIdenticalAfterEveryLaterChange(t *testing.T) {
 	t.Parallel()
@@ -136,7 +136,7 @@ func TestCareNoticeOriginalStaysByteIdenticalAfterEveryLaterChange(t *testing.T)
 		Scan(context.Background(), &stored))
 	assert.Equal(t, stored, original, "the download is the stored PDF")
 
-	// Letterhead, template, address and contract change afterwards.
+	// Letterhead, template, address, contract and bank account change afterwards.
 	rec = traegerJSON(t, f.traeger, administration.token, http.MethodPut, "/traeger/settings/values/"+configModels.KeyBrandingLetterheadText,
 		map[string]any{"value": "Neuer Träger e.V.\nNeue Straße 1\n75175 Pforzheim"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -152,6 +152,15 @@ func TestCareNoticeOriginalStaysByteIdenticalAfterEveryLaterChange(t *testing.T)
 		SELECT organization_id, id, 'wed', ?, 'Betreuung bis 16:30 Uhr', '16:30'::time FROM care_contract.contract_versions
 		WHERE contract_id = ?`, careModuleUntil1630, contract)
 	require.NoError(t, err)
+
+	var accountID int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM platform.traeger_bank_accounts WHERE organization_id = ? ORDER BY id LIMIT 1`,
+		f.office.organization).Scan(ctx, &accountID))
+	rec = traegerJSON(t, f.traeger, administration.token, http.MethodPut,
+		"/traeger/master-data/bank-accounts/"+strconv.FormatInt(accountID, 10), masterDataBankAccount{
+			Label: "Elternbeiträge", AccountHolder: "Neuer Träger e.V.", IBAN: traegerTestIBAN, BankName: "Andere Bank", IsDefault: true,
+		})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunPath(run.ID, "/letters"), nil)
 	assert.Equal(t, http.StatusConflict, rec.Code, "the original is stored once: %s", rec.Body.String())
@@ -408,4 +417,30 @@ func TestCareNoticeLettersQueryBudgetIsFlat(t *testing.T) {
 	one := read(run.ID)
 	assert.Len(t, read(second.ID).Statements, len(one.Statements), fmt.Sprintf("flat for any number of notices (%d)", len(one.Statements)))
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_notice_run_letters", one)
+}
+
+// A notice paid by transfer names the account to pay to: without a bank
+// account of the Träger no original is stored, so no family gets a notice
+// that asks for a transfer without saying where to. Once the account exists,
+// the original is stored with it.
+func TestCareNoticeOriginalByTransferNeedsTheBankAccount(t *testing.T) {
+	t.Parallel()
+	f, contract := newNoticeFixture(t, "Träger Bescheid ohne Konto")
+	writeLegalRemedy(t, f.db, f.office.organization)
+	run := f.releaseNoticeRun(t, f.noticeRun(t, f.startNoticeRun(t, "2030-09-01", "2030-09-24").ID))
+	require.Len(t, run.Notices, 1)
+	var method string
+	require.NoError(t, f.db.NewRaw(`SELECT payment_method FROM parent_billing.care_notices WHERE id = ?`, run.Notices[0].ID).
+		Scan(context.Background(), &method))
+	require.NotEqual(t, "direct_debit", method, "the fixture pays by transfer")
+
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunPath(run.ID, "/letters"), nil)
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.bank_account_missing")
+	assert.False(t, noticeLetters(t, f, run.ID).Notices[0].HasLetter, "no original without the account")
+
+	brandedAdministration(t, f)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunPath(run.ID, "/letters"), nil)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	noticePDF(t, f, run.ID, contract)
 }

@@ -160,6 +160,11 @@ func (l *CareNoticeLetters) CreateCareNoticeLetters(ctx context.Context, reviewe
 	if err != nil {
 		return parentbilling.CareNoticeLetters{}, fmt.Errorf("parent billing: read letterhead: %w", err)
 	}
+	// A notice paid by transfer names the account to pay to. The original
+	// never changes, so without an account it is not stored at all.
+	if head.BankAccount == nil && anyByTransfer(missing) {
+		return parentbilling.CareNoticeLetters{}, parentbilling.ErrBankAccountMissing
+	}
 	created := make([]int64, 0, len(missing))
 	for _, notice := range missing {
 		file, err := l.renderer.RenderLetter(feeNoticeLetter(notice, head), careNoticeFilename(notice))
@@ -178,6 +183,17 @@ func (l *CareNoticeLetters) CreateCareNoticeLetters(ctx context.Context, reviewe
 		return parentbilling.CareNoticeLetters{}, fmt.Errorf("parent billing: record notice letters: %w", err)
 	}
 	return l.overview(ctx, reviewer, current)
+}
+
+// anyByTransfer tells whether a notice asks the family to transfer the
+// rates, so its original has to name the account.
+func anyByTransfer(notices []parentbilling.CareNotice) bool {
+	for _, notice := range notices {
+		if notice.PaymentMethod != parentbilling.PaymentDirectDebit && notice.TotalCents > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // CareNoticePDF reads the stored original of the notice of a contract and

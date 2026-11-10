@@ -20,6 +20,10 @@ import {
 } from "~/components/traeger/billing-mail-status";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
+import {
+  LetterSendState,
+  lettersToSend,
+} from "~/components/traeger/letter-send-state";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -30,9 +34,7 @@ import {
   type OverflowMenuItem,
   OverflowMenu,
 } from "~/components/ui/page-header/OverflowMenu";
-import { ProgressBar } from "~/components/ui/progress-bar";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -77,7 +79,7 @@ function familyCount(count: number): string {
 
 /** The notices „An alle senden“ sends: stored, unsent, with an address. */
 function noticesToSend(summary: CareNoticeLetterSummary): number {
-  return Math.max(0, summary.notSent - summary.withoutEmail);
+  return lettersToSend(summary);
 }
 
 /** The success toast of „An alle senden“. */
@@ -96,56 +98,10 @@ function seriesMessage(series: CareNoticeSeries): string {
   }
   if (series.recipientChanged > 0) {
     parts.push(
-      `${series.recipientChanged === 1 ? "1 Bescheid ging" : `${series.recipientChanged} Bescheide gingen`} nicht raus: Die Person zahlt nicht mehr für diesen Vertrag. Ein neuer Jahreslauf stellt einen Änderungsbescheid aus.`,
+      `${series.recipientChanged === 1 ? "1 Bescheid ging" : `${series.recipientChanged} Bescheide gingen`} nicht raus: Die Person zahlt nicht mehr für diesen Vertrag. Drucken Sie diesen Bescheid und geben Sie ihn der Familie auf Papier.`,
     );
   }
   return parts.join(" ");
-}
-
-/** The figures of the send state, each notice in exactly one of them. */
-function SendState({
-  summary,
-}: Readonly<{ summary: CareNoticeLetterSummary }>) {
-  const open = noticesToSend(summary);
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-gray-900 tabular-nums">
-          {summary.sent} von {summary.letters}{" "}
-          {summary.letters === 1 ? "Bescheid" : "Bescheiden"} gesendet
-        </p>
-        <ProgressBar
-          value={summary.sent}
-          max={Math.max(summary.letters, 1)}
-          tone="green"
-          size="md"
-          label={`${summary.sent} von ${summary.letters} Bescheiden gesendet`}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard variant="tile" label="Gesendet" value={summary.sent} />
-        <StatCard
-          variant="tile"
-          label="Wird gesendet"
-          value={summary.queued}
-          tone={summary.queued > 0 ? "blue" : undefined}
-        />
-        <StatCard
-          variant="tile"
-          label="Nicht angekommen"
-          value={summary.failed}
-          tone={summary.failed > 0 ? "red" : undefined}
-        />
-        <StatCard variant="tile" label="Noch nicht gesendet" value={open} />
-        <StatCard
-          variant="tile"
-          label="Ohne E-Mail"
-          value={summary.withoutEmail}
-          tone={summary.withoutEmail > 0 ? "orange" : undefined}
-        />
-      </div>
-    </div>
-  );
 }
 
 /** „An die Familie“: what reached the family. */
@@ -578,7 +534,10 @@ export default function TraegerCareNoticeDeliveryPage() {
           }
         >
           <div className="space-y-5">
-            <SendState summary={summary} />
+            <LetterSendState
+              summary={summary}
+              noun={{ one: "Bescheid", many: "Bescheiden" }}
+            />
             <Alert
               type="info"
               title="Keine förmliche Zustellung"

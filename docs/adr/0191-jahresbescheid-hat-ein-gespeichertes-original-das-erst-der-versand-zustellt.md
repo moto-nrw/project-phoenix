@@ -34,7 +34,9 @@ Eintrag im Elternpostfach fehlten (#6243, „Risiken“).
    sich danach Briefkopf, Vorlage, Anschrift oder Vertrag, bleibt das Original
    byte-identisch; die Übersicht zeigt seinen SHA-256. Das PDF druckt Seite 1
    wie ADR 0182 Punkt 8 und die kopierte Belehrung. Von Seite 2 aus MK-007 wird
-   nichts nachgebaut.
+   nichts nachgebaut. Verlangt ein Bescheid eine Überweisung, steht
+   das Konto des Trägers im Original; ohne Konto wird kein Original
+   gespeichert (409 `parent_billing.bank_account_missing`).
 2. **Änderungsbescheid ist ein eigener Beleg.** Er hat ein eigenes Original mit
    Bezug auf den Vorgänger („Ändert Bescheid … vom …“, bisher/neu/Zu-/Abgang).
    Das Original des Vorgängers bleibt unverändert.
