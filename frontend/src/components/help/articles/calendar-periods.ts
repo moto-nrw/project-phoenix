@@ -42,6 +42,7 @@ export function calendarPeriodsTopic(): HelpTopic {
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
+          "Richtet Ihre OGS in dieser Zeit Ferienbetreuung für den Träger aus, zeigt der Dialog die Woche und wie viele Kinder gebucht haben. Die Buchungen bleiben. Der Träger informiert die Eltern.",
           "Wählen Sie `Speichern`.",
           "Stehen an diesen Tagen schon Termine, fragt moto nach. Sagen Sie sie ab wie im nächsten Abschnitt.",
         ],

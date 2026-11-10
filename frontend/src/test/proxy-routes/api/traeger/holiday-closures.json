@@ -1,0 +1,11 @@
+{
+  "api/traeger/holiday-closures/pending": [
+    "GET traeger /traeger/holiday-closures/pending"
+  ],
+  "api/traeger/holiday-closures/pending/notify": [
+    "POST traeger /traeger/holiday-closures/pending/notify"
+  ],
+  "api/traeger/holiday-closures/preview": [
+    "POST traeger /traeger/holiday-closures/preview"
+  ]
+}

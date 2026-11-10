@@ -252,6 +252,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.holiday_registration_audit":                 own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteHolidayRegistrationsEndedBefore (92 days after the last week of the period, #4663); entries of a registration also go with it; actor_account_id SET NULL on account delete"),
 	"enrollment.holiday_registration_deletions":             own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteExpiredHolidayRegistrationDeletions (3 years after deleted_at, #4667, ADR 0118); counts per period without names; rows go with platform.organizations"),
 	"enrollment.holiday_registration_bookings":              parent("enrollment.holiday_registration_children"),
+	"enrollment.holiday_closure_notices":                    parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_children":              parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_contacts":              parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_proofs":                own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteUnclaimedHolidayProofs (unclaimed after 24 hours, #5238); claimed proofs go with their registration, period or Träger"),

@@ -1,0 +1,41 @@
+{{define "holiday-closure-notice.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>An einem gebuchten Ferientag ist geschlossen</h1>
+
+    <p>Guten Tag {{.GuardianName}},</p>
+
+    <p>Sie haben Ferienbetreuung gebucht. An den Tagen unten ist die OGS geschlossen. An diesen Tagen gibt es keine Betreuung.</p>
+
+    {{if .Reasons}}
+    <p style="font-size: 14px;"><strong>Grund:</strong> {{range $i, $reason := .Reasons}}{{if $i}}, {{end}}{{$reason}}{{end}}</p>
+    {{end}}
+
+    {{range .Children}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
+        {{range .Weeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">{{.Week}}{{if .Waitlisted}} (Warteliste){{end}}</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .ClosedDays}}
+            <li>Geschlossen: {{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+    </div>
+    {{end}}
+
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Was heißt das für Sie?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für diese Tage eine andere Betreuung.</p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre anderen gebuchten Tage bleiben. Sie müssen nichts ändern.</p>
+        {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Steht Ihr Kind auf der Warteliste, bleibt es dort.</p>{{end}}
+        {{if .KeepsContribution}}<p style="margin: 8px 0 0 0; font-size: 14px;">Der Beitrag bleibt gleich.</p>{{end}}
+    </div>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

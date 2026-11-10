@@ -276,7 +276,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 // Träger with every other school seeded under it at the same time, so they
 // run one school at a time.
 func traegerSteps(seeder *Seeder) []Step {
-	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedTestTraegerStep{})
+	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedHolidayClosuresStep{}, seedTestTraegerStep{})
 }
 
 func appendPayrollRuleSteps(steps []Step, seeder *Seeder) []Step {

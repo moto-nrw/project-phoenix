@@ -31,6 +31,10 @@ var (
 	// ErrInvalidClosingDay reports a closing day without dates,
 	// reason or schools, or with its end before its start.
 	ErrInvalidClosingDay = errors.New("invalid closing day of the Träger")
+	// ErrHolidayBookingsChanged reports a save whose affected holiday
+	// bookings are no longer those of the preview the Büro confirmed
+	// (#6434); nothing is saved.
+	ErrHolidayBookingsChanged = errors.New("the holiday bookings of the closing day changed since the preview")
 )
 
 // ClosingDay is one closing day range of a Träger with the schools it
@@ -42,14 +46,20 @@ type ClosingDay struct {
 	Reason    string        `json:"reason"`
 	SchoolIDs []int64       `json:"school_ids"`
 	UpdatedAt time.Time     `json:"updated_at"`
+	// NotifiedFamilies counts the families a save told about the closing
+	// day in their booked holiday weeks (#6434); zero on a read.
+	NotifiedFamilies int `json:"notified_families"`
 }
 
 // ClosingDayInput is a closing day as the Träger-Büro writes it.
+// HolidayBookingsToken is the token of the preview of the holiday bookings
+// it affects that the Büro confirmed (#6434), empty when it saw none.
 type ClosingDayInput struct {
-	StartDate calendar.Date
-	EndDate   calendar.Date
-	Reason    string
-	SchoolIDs []int64
+	StartDate            calendar.Date
+	EndDate              calendar.Date
+	Reason               string
+	SchoolIDs            []int64
+	HolidayBookingsToken string
 }
 
 // School is a school of the Träger with the federal state its
@@ -100,4 +110,14 @@ type SchoolState struct {
 // the schools' settings.
 type Schools interface {
 	TraegerSchools(ctx context.Context, organizationID int64) ([]SchoolState, error)
+}
+
+// HolidayNotices is School Calendar's port onto the parents of the holiday
+// bookings a closing day takes care from (#6434). The root binds it to
+// Enrollment. NotifyHolidayBookings runs in the caller's Träger transaction
+// after the closing day is written: it tells each affected family once,
+// returns how many it told and refuses with ErrHolidayBookingsChanged when
+// the bookings differ from the confirmed preview, so the save rolls back.
+type HolidayNotices interface {
+	NotifyHolidayBookings(ctx context.Context, organizationID int64, day ClosingDayInput) (int, error)
 }
