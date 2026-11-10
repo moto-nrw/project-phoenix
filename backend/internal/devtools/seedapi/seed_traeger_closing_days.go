@@ -138,8 +138,53 @@ func seedHolidayClosures(rt *Runtime, auth AuthRef) error {
 	}); err != nil {
 		return fmt.Errorf("plan the school's closing day in the booked holiday week: %w", err)
 	}
-	fmt.Printf("  Ausrichtende OGS: closing day %s in a booked holiday week, parents not told yet\n", pedagogical)
+	notified, err := seedNotifySchoolHolidayClosures(rt)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  Ausrichtende OGS: closing day %s in a booked holiday week, %d notice(s) sent by one click\n", pedagogical, notified)
+	// A second closing day of the school stays a proposal: the school and
+	// the Träger-Büro both see it waiting for the click (ADR 0196).
+	training := week.StartsOn.AddDays(4)
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/timetable/closing-days", map[string]any{
+		"start_date": training.String(), "end_date": training.String(), "reason": "Teamfortbildung",
+	}); err != nil {
+		return fmt.Errorf("plan the school's second closing day in the booked holiday week: %w", err)
+	}
+	fmt.Printf("  Ausrichtende OGS: closing day %s in a booked holiday week, parents not told yet\n", training)
 	return nil
+}
+
+// seedNotifySchoolHolidayClosures clicks "Eltern informieren" on every
+// notice of the school that waits for it, as the school admin does
+// (ADR 0196), and returns how many it confirmed.
+func seedNotifySchoolHolidayClosures(rt *Runtime) (int, error) {
+	raw, err := rt.Client.GetWithAuth(rt.TenantAuth, "/api/holiday-closure-notices")
+	if err != nil {
+		return 0, fmt.Errorf("read the school's holiday closure notices: %w", err)
+	}
+	var notices struct {
+		Data []struct {
+			ID        int64 `json:"id"`
+			Revision  int64 `json:"revision"`
+			CanNotify bool  `json:"can_notify"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &notices); err != nil {
+		return 0, fmt.Errorf("read the school's holiday closure notices: %w", err)
+	}
+	confirmed := 0
+	for _, notice := range notices.Data {
+		if !notice.CanNotify {
+			continue
+		}
+		if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-closure-notices/%d/notify", notice.ID),
+			map[string]any{"revision": notice.Revision}); err != nil {
+			return confirmed, fmt.Errorf("tell the parents about the school's closing day: %w", err)
+		}
+		confirmed++
+	}
+	return confirmed, nil
 }
 
 // seedBridgeDay names the Friday after the next Christi Himmelfahrt and every
