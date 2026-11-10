@@ -33,14 +33,19 @@ function settingLabel(key: string): string {
   return DATEV_SETTING_LABELS[key] ?? key;
 }
 
-/** What is wrong with each DATEV value, one line per value. */
+/** What is wrong with each DATEV value, in the order of the settings. */
 export function datevSettingLines(readiness: DatevReadiness): string[] {
+  const order = Object.keys(DATEV_SETTING_LABELS);
+  const rank = (key: string) => {
+    const index = order.indexOf(key);
+    return index === -1 ? order.length : index;
+  };
   return [
-    ...readiness.missingSettings.map((key) => `${settingLabel(key)}: fehlt`),
-    ...readiness.invalidSettings.map(
-      (key) => `${settingLabel(key)}: passt nicht`,
-    ),
-  ];
+    ...readiness.missingSettings.map((key) => ({ key, state: "fehlt" })),
+    ...readiness.invalidSettings.map((key) => ({ key, state: "passt nicht" })),
+  ]
+    .sort((a, b) => rank(a.key) - rank(b.key))
+    .map(({ key, state }) => `${settingLabel(key)}: ${state}`);
 }
 
 function BulletList({ lines }: Readonly<{ lines: readonly string[] }>) {
@@ -88,14 +93,35 @@ export function datevProblemText(problem: DatevBookingProblem): string {
     case "debtor_number":
       return problem.reason === "missing"
         ? "Debitorennummer fehlt"
-        : "Debitorennummer passt nicht. Erlaubt sind nur Ziffern, eine mehr als bei den Sachkonten.";
+        : "Debitorennummer passt nicht";
     case "document_date":
-      return "liegt in einem anderen Wirtschaftsjahr";
+      return "Liegt in einem anderen Wirtschaftsjahr";
     case "document_number":
       return "Rechnungsnummer passt nicht zu DATEV";
     case "amount":
       return "Betrag passt nicht zu DATEV";
   }
+}
+
+/**
+ * One line per reason with the invoices it names, so a reason that applies
+ * to many invoices stands once.
+ */
+export function datevProblemLines(
+  problems: readonly DatevBookingProblem[],
+): string[] {
+  const byReason = new Map<string, string[]>();
+  for (const problem of problems) {
+    const text = datevProblemText(problem);
+    const numbers = byReason.get(text) ?? [];
+    if (!numbers.includes(problem.documentNumber)) {
+      numbers.push(problem.documentNumber);
+    }
+    byReason.set(text, numbers);
+  }
+  return [...byReason].map(
+    ([text, numbers]) => `${text}: ${numbers.join(", ")}`,
+  );
 }
 
 /**
@@ -111,9 +137,6 @@ export function DatevRefusedNotice({
   problems: readonly DatevBookingProblem[];
   onDismiss: () => void;
 }>) {
-  const lines = problems.map(
-    (problem) => `${problem.documentNumber}: ${datevProblemText(problem)}`,
-  );
   const debtor = problems.some((problem) => problem.field === "debtor_number");
   return (
     <Alert
@@ -121,10 +144,10 @@ export function DatevRefusedNotice({
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
         debtor
-          ? "DATEV nimmt diese Rechnungen so nicht an. Tragen Sie die Debitorennummer bei der Familie ein. Eine ausgestellte Rechnung behält ihre Nummer: Stornieren Sie sie und stellen Sie sie neu aus."
+          ? "DATEV nimmt diese Rechnungen so nicht an. Eine Debitorennummer hat nur Ziffern, eine mehr als Ihre Sachkonten. Tragen Sie sie bei der Familie ein. Eine ausgestellte Rechnung behält ihre Nummer: Stornieren Sie sie und stellen Sie sie neu aus."
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
       }
-      details={<BulletList lines={lines} />}
+      details={<BulletList lines={datevProblemLines(problems)} />}
       onDismiss={onDismiss}
       dismissLabel="Hinweis schließen"
     />

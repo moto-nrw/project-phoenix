@@ -267,6 +267,11 @@ it("lists the invoices a refused DATEV download names", async () => {
             field: "document_date",
             reason: "out_of_period",
           },
+          {
+            document_number: "MB-2026-0002",
+            field: "debtor_number",
+            reason: "missing",
+          },
           { document_number: 7, field: "debtor_number", reason: "missing" },
         ],
       },

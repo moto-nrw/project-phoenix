@@ -43,10 +43,20 @@ export function runFileKey(format: RunFileFormat, run: ExportRun): string {
   return `${format}/${run.pathKind}/${run.runId}`;
 }
 
-/** The last file of one format of a run, or that there is none yet. */
-function LastFile({ entry }: Readonly<{ entry: ExportProtocolEntry | null }>) {
+/**
+ * The last file of one format of a run, or that there is none yet. `waiting`
+ * names a format whose file is not possible yet (DATEV without its values).
+ */
+function LastFile({
+  entry,
+  waiting = false,
+}: Readonly<{ entry: ExportProtocolEntry | null; waiting?: boolean }>) {
   if (!entry) {
-    return <StatusBadge label="Noch nicht exportiert" tone="warning" />;
+    return waiting ? (
+      <StatusBadge label="Wartet auf DATEV-Werte" tone="gray" />
+    ) : (
+      <StatusBadge label="Noch nicht exportiert" tone="warning" />
+    );
   }
   return (
     <span className="min-w-0">
@@ -108,7 +118,7 @@ function runColumns(
       key: "datev",
       header: "Letzte DATEV-Datei",
       sortValue: (run) => run.lastDatev?.fileNumber ?? null,
-      render: (run) => <LastFile entry={run.lastDatev} />,
+      render: (run) => <LastFile entry={run.lastDatev} waiting={!datevReady} />,
     },
     {
       key: "download",
@@ -117,7 +127,7 @@ function runColumns(
       align: "right",
       stackedLabel: false,
       render: (run) => (
-        <span className="flex flex-wrap justify-end gap-2">
+        <span className="flex justify-end gap-2 whitespace-nowrap max-sm:flex-wrap max-sm:justify-start">
           <Button
             type="button"
             variant="surface"

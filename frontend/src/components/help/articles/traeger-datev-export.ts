@@ -46,6 +46,7 @@ export function traegerDatevExportTopic(): HelpTopic {
       "Die Debitorennummer tragen Sie bei `Empfänger und Zahlung` der Familie ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
       "Jeder Download ist eine neue Datei mit neuer Nummer. Geben Sie Ihrem Steuerbüro einen Lauf nur einmal, sonst stehen die Buchungen doppelt in DATEV.",
       "Die DATEV-Datei und die Sollstellung zählen in derselben Reihe von Dateinummern.",
+      "Eine Rechnung über 0 € steht nicht in der DATEV-Datei. Sie bewegt kein Geld.",
     ],
     differences: [
       "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",

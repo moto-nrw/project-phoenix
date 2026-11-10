@@ -213,18 +213,25 @@ export default function TraegerFinanceExportsPage() {
       downloadBlob(file.blob, file.filename);
       success(`${file.filename} ist heruntergeladen.`);
     } catch (err) {
-      logger.error("traeger_finance_export_download_failed", {
-        format,
-        error: err instanceof Error ? err.message : String(err),
-      });
       const problems =
         format === "datev" && err instanceof ApiError
           ? datevBookingProblems(err.details)
           : [];
       if (problems.length > 0) {
+        // A refusal of the content, not a fault: the notice above the list
+        // names every refused invoice and what to do; a toast would repeat
+        // it without the names.
+        logger.warn("traeger_datev_download_refused", {
+          documents: problems.length,
+        });
         setRefusal({ runLabel: run.label, problems });
+      } else {
+        logger.error("traeger_finance_export_download_failed", {
+          format,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void errors.show(err, { object: FILE_NAMES[format] });
       }
-      void errors.show(err, { object: FILE_NAMES[format] });
     } finally {
       setDownloading(null);
       void load(data?.runs.items.length, data?.protocol.items.length);
