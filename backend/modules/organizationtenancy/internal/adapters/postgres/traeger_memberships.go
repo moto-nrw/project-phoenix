@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Träger memberships (ADR 0084, #4649). platform.organization_accounts has no
@@ -162,4 +163,25 @@ func (s *Store) DeactivateTraegerMembership(ctx context.Context, organizationID,
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats.Rows == 1, stats, nil
+}
+
+// HasRetainedTraegerMembership uses the narrow tenant capability for school
+// callers. Administrative callers already have the table grant (ADR 0084).
+func (s *Store) HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	var retained bool
+	started := time.Now()
+	if tenant.IsAdminTx(ctx) {
+		err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.organization_accounts WHERE account_id = ? AND status IN ('pending', 'active'))`, accountID).Scan(ctx, &retained)
+	} else {
+		err = db.NewRaw(`SELECT platform.account_has_retained_traeger_membership(?)`, accountID).Scan(ctx, &retained)
+	}
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: 1}
+	if err != nil {
+		return false, stats, fmt.Errorf("organization tenancy postgres: retained Träger membership: %w", err)
+	}
+	return retained, stats, nil
 }

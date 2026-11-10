@@ -57,6 +57,10 @@ type StudentOwnerBackfillOptions struct {
 	afterBatch func(tenantID int64, batch studentOwnerBatch) error
 	// injectFault runs inside the batch transaction before commit.
 	injectFault func(ctx context.Context, tx bun.Tx, tenantID int64, attempt int) error
+	// copyRows replaces the copy statement, whose legacy source the Contract
+	// dropped; it scans Scanned, LastID, Rejected and Copied.
+	copyRows     func(ctx context.Context, tx bun.Tx, dest ...any) error
+	attemptHooks batchAttemptHooks
 	// afterSourceVerification permits a deterministic concurrent source edit.
 	afterSourceVerification func(context.Context, bun.Tx) error
 }
@@ -502,22 +506,14 @@ func (r *studentOwnerTenantRun) copyPass(ctx context.Context, cp *StudentOwnerBa
 // the orphaned profile of their deleted predecessor has been removed.
 func (r *studentOwnerTenantRun) copyBatch(ctx context.Context, cp *StudentOwnerBackfillCheckpoint) (result studentOwnerBatch, resultErr error) {
 	var pending studentOwnerRetries
+	commitUnknown := false
 	defer func() {
-		if resultErr == nil {
-			return
-		}
 		// Failed attempts rolled back their data checkpoint, not their observed
-		// contention. A graceful cancellation still gets a bounded flush.
-		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_, err := r.db.ExecContext(flushCtx, `UPDATE platform.storage_backfill_checkpoints SET
-			batches_retried = batches_retried + ?, deadlocks = deadlocks + ?,
-			serialization_failures = serialization_failures + ?, lock_timeouts = lock_timeouts + ?,
-			lock_wait_ms = lock_wait_ms + ?, updated_at = now()
-			WHERE backfill = ? AND tenant_id = ?`, pending.retried, pending.deadlocks, pending.serialization,
-			pending.lockTimeouts, float64(pending.lockWait)/float64(time.Millisecond), StudentOwnerBackfillName, r.tenantID)
-		if err != nil {
-			resultErr = errors.Join(resultErr, fmt.Errorf("persist failed batch telemetry: %w", err))
+		// contention. A batch whose COMMIT outcome is unknown may already hold
+		// these counters, so they are not booked again (#6449).
+		if resultErr != nil && !commitUnknown {
+			resultErr = flushOwnerBatchTelemetry(ctx, r.db, StudentOwnerBackfillName, r.tenantID, pending.retried, pending.deadlocks,
+				pending.serialization, pending.lockTimeouts, pending.lockWait, resultErr)
 		}
 	}()
 	attempt, restarts := 1, 0
@@ -538,8 +534,9 @@ func (r *studentOwnerTenantRun) copyBatch(ctx context.Context, cp *StudentOwnerB
 			cp.LockWaitMs += float64(pending.lockWait) / float64(time.Millisecond)
 			return batch, nil
 		}
-		code := sqlState(err)
+		code := batchRetryState(err)
 		if !pending.record(code) {
+			commitUnknown = isBatchCommitUnknown(err)
 			return studentOwnerBatch{}, fmt.Errorf("student owner backfill: tenant %d batch after id %d: %w", r.tenantID, cp.HighWaterID, err)
 		}
 		restart := code == sqlStateUniqueViolation
@@ -612,46 +609,31 @@ func (r *studentOwnerTenantRun) rewindPass(ctx context.Context, cp *StudentOwner
 
 func (r *studentOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StudentOwnerBackfillCheckpoint, attempt int, pending *studentOwnerRetries) (studentOwnerBatch, error) {
 	var batch studentOwnerBatch
-	conn, err := r.db.Conn(ctx)
-	if err != nil {
-		return batch, err
-	}
-	defer func() { _ = conn.Close() }()
-	var pid int
-	if err := conn.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &pid); err != nil {
-		return batch, err
-	}
-	stopMonitor, _, err := monitorBackfillLocks(ctx, r.db, pid)
-	if err != nil {
-		return batch, err
-	}
-	defer func() { _, _ = stopMonitor() }()
-	observed := false
-	err = conn.RunInTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead}, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `SELECT tenant_id FROM platform.storage_backfill_checkpoints
-			WHERE backfill = ? AND tenant_id = ? FOR UPDATE`, StudentOwnerBackfillName, r.tenantID); err != nil {
-			return err
-		}
-		if err := tx.NewRaw(studentOwnerCopyBatch, r.tenantID, cp.HighWaterID, r.opts.BatchSize, cp.HighWaterID).
-			Scan(ctx, &batch.Scanned, &batch.LastID, &batch.Rejected, &batch.Copied); err != nil {
-			return err
-		}
-		batch.Skipped = batch.Scanned - batch.Rejected - batch.Copied
-		if r.opts.injectFault != nil {
-			if err := r.opts.injectFault(ctx, tx, r.tenantID, attempt); err != nil {
+	err := runMonitoredBatch(ctx, r.db, &sql.TxOptions{Isolation: sql.LevelRepeatableRead}, r.opts.attemptHooks,
+		func(wait time.Duration) { pending.lockWait += wait },
+		func(ctx context.Context, tx bun.Tx, observe func() error) error {
+			if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
 				return err
 			}
-		}
-		lockWait, monitorErr := stopMonitor()
-		pending.lockWait += lockWait
-		observed = true
-		if monitorErr != nil {
-			return monitorErr
-		}
-		if _, err := tx.ExecContext(ctx, `
+			if _, err := tx.ExecContext(ctx, `SELECT tenant_id FROM platform.storage_backfill_checkpoints
+			WHERE backfill = ? AND tenant_id = ? FOR UPDATE`, StudentOwnerBackfillName, r.tenantID); err != nil {
+				return err
+			}
+			if err := scanBackfillCopy(ctx, tx, r.opts.copyRows,
+				tx.NewRaw(studentOwnerCopyBatch, r.tenantID, cp.HighWaterID, r.opts.BatchSize, cp.HighWaterID),
+				&batch.Scanned, &batch.LastID, &batch.Rejected, &batch.Copied); err != nil {
+				return err
+			}
+			batch.Skipped = batch.Scanned - batch.Rejected - batch.Copied
+			if r.opts.injectFault != nil {
+				if err := r.opts.injectFault(ctx, tx, r.tenantID, attempt); err != nil {
+					return err
+				}
+			}
+			if err := observe(); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `
 			UPDATE platform.storage_backfill_checkpoints SET
 				high_water_id = ?, pass_writes = pass_writes + ?, stable = false,
 				rows_scanned = rows_scanned + ?, rows_copied = rows_copied + ?,
@@ -660,18 +642,13 @@ func (r *studentOwnerTenantRun) tryCopyBatch(ctx context.Context, cp *StudentOwn
 				deadlocks = deadlocks + ?, serialization_failures = serialization_failures + ?,
 				lock_timeouts = lock_timeouts + ?, lock_wait_ms = lock_wait_ms + ?, updated_at = now()
 			WHERE backfill = ? AND tenant_id = ?`,
-			batch.LastID, batch.Copied, batch.Scanned, batch.Copied, batch.Skipped, batch.Rejected,
-			pending.retried, pending.deadlocks, pending.serialization, pending.lockTimeouts,
-			float64(pending.lockWait)/float64(time.Millisecond), StudentOwnerBackfillName, r.tenantID); err != nil {
-			return err
-		}
-		return nil
-	})
-	if !observed {
-		lockWait, monitorErr := stopMonitor()
-		pending.lockWait += lockWait
-		err = errors.Join(err, monitorErr)
-	}
+				batch.LastID, batch.Copied, batch.Scanned, batch.Copied, batch.Skipped, batch.Rejected,
+				pending.retried, pending.deadlocks, pending.serialization, pending.lockTimeouts,
+				float64(pending.lockWait)/float64(time.Millisecond), StudentOwnerBackfillName, r.tenantID); err != nil {
+				return err
+			}
+			return nil
+		})
 	if err != nil {
 		return studentOwnerBatch{}, err
 	}

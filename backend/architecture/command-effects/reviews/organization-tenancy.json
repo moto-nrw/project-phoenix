@@ -180,6 +180,16 @@
       "target_owner": "parent-billing"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianBankExportFields.OpenExportField",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "reason": "#6412: the administrative tenant-export CLI opens the sealed IBAN and account holder of an exported guardian bank row in memory, bound to the row's field, school and guardian. Pure value decryption; no database access, write, locking read or audit mutation. Never bound to HTTP.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianBankExportFields.OpenExportField",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
       "classification": "query",
       "effect": "query",
@@ -188,6 +198,16 @@
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenExportField",
       "target_owner": "student-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffBankExportFields.OpenExportField",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "reason": "#6412: the administrative tenant-export CLI opens the sealed IBAN, tax ID and social security number of an exported staff bank row in memory, bound to the row's field, school and staff member. Pure value decryption; no database access, write, locking read or audit mutation. Never bound to HTTP.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffBankExportFields.OpenExportField",
+      "target_owner": "workforce"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",

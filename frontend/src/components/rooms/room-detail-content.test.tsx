@@ -127,7 +127,10 @@ vi.mock("./students-in-room-section", () => ({
   ),
 }));
 
-vi.mock("~/lib/date-helpers", () => ({
+vi.mock("~/lib/date-helpers", async (importOriginal) => ({
+  // Day grouping uses the real Berlin day; only the labels are stubbed.
+  berlinTodayISO: (await importOriginal<typeof import("~/lib/date-helpers")>())
+    .berlinTodayISO,
   formatDate: (ts: string) => `D:${ts}`,
   formatTime: (ts: string) => `T:${ts}`,
   calculateDuration: () => 30,

@@ -193,8 +193,9 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	// A retried confirm must still produce a session.
-	if err := rs.MFAService.Enroll(ctx, claims.AccountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+	// A retried confirm must still produce a session. The enrollment holds
+	// the redeemed code's credential generation (#6518).
+	if err := rs.MFAService.Enroll(ctx, verified); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}

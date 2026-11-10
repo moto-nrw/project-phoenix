@@ -26,7 +26,7 @@ func TestOperatorMFAAuditsPersistRequestIP(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "audit-request-ip")
 	schoolID := testpkg.Tenant(t)
 	testpkg.EnsureAccountTenant(t, db, account.ID, schoolID)
-	require.NoError(t, identity.EnrollMFA(ctx, account.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, identity, account.ID))
 	resource := &identityAPI.SchoolAccountMFAResource{TenantMFAService: identity}
 	router := chi.NewRouter()
 	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))

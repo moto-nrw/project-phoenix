@@ -256,6 +256,12 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 
 	commitErr := tx.Commit()
 	finished = true
+	// database/sql may finish its automatic rollback before Commit observes
+	// cancellation. Preserve the context error in either ordering; other commit
+	// failures can still have an unknown durable outcome after cancellation.
+	if errors.Is(commitErr, sql.ErrTxDone) && ctx.Err() != nil {
+		commitErr = ctx.Err()
+	}
 	if commitErr == nil || IsRetryableTransactionError(commitErr) {
 		return commitErr
 	}

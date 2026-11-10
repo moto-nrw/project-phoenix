@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -275,6 +276,36 @@ type matrixStatement struct {
 	// where in it (resolve, bound 1, loop, bound 2, after it).
 	segment int
 	phase   string
+}
+
+// matrixLabelBytes bounds the statement text in a subtest name. A statement
+// reaches 2,000 bytes; with it, the test framing lines of `go test -json`
+// exceeded PIPE_BUF (512 bytes on macOS), so a concurrent write to stderr
+// split them and the run lost its "run" event (#6488).
+const matrixLabelBytes = 60
+
+// label names the statement in a subtest name: its segment, phase, class,
+// batch-path index and the start of its kind. logStatementOnFailure logs the whole kind.
+func (s matrixStatement) label() string {
+	kind := s.kind
+	if len(kind) > matrixLabelBytes {
+		cut := matrixLabelBytes
+		for cut > 0 && !utf8.RuneStart(kind[cut]) {
+			cut--
+		}
+		kind = kind[:cut] + "…"
+	}
+	return fmt.Sprintf("%d %s %s %d %s", s.segment, s.phase, s.class, s.index, kind)
+}
+
+// logStatementOnFailure names the whole statement of a failed case, which
+// the subtest name only starts.
+func logStatementOnFailure(t *testing.T, statement matrixStatement) {
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("statement %d: %s", statement.index, statement.kind)
+		}
+	})
 }
 
 // savepointOwner names the savepoint a SAVEPOINT opens from the statement
@@ -588,8 +619,9 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	t.Run("main error", func(t *testing.T) {
 		for _, statement := range statements {
 			for _, err := range matrixFailures {
-				t.Run(fmt.Sprintf("%d %s %s %s × %v", statement.segment, statement.phase, statement.class, statement.kind, err), func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s × %v", statement.label(), err), func(t *testing.T) {
 					t.Parallel()
+					logStatementOnFailure(t, statement)
 					// Each upload runs in a subtest of its own: OwnTenant gives it a
 					// tenant of its own.
 					var batch, rowPath matrixUpload
@@ -669,7 +701,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 					for _, point := range cleanupPoints[statement.class] {
 						for _, err2 := range cleanups {
 							cases++
-							t.Run(fmt.Sprintf("%d %s %s %s × %v, cleanup %d × %v", statement.segment, statement.phase, statement.class, statement.kind, err, point, err2), func(t *testing.T) {
+							t.Run(fmt.Sprintf("%s × %v, cleanup %d × %v", statement.label(), err, point, err2), func(t *testing.T) {
 								t.Parallel()
 								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2)
 							})
@@ -698,6 +730,7 @@ var minimumCleanupFailures = []error{
 // runCleanupCase is one cell of part 2 (tables A and B of the PR).
 func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error) {
 	t.Helper()
+	logStatementOnFailure(t, statement)
 	got := runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2})
 	require.True(t, got.primary, "the fault fired")
 	if err != injectedSQLState("40P01") {

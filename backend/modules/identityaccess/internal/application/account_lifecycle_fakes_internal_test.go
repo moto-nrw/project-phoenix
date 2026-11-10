@@ -806,12 +806,12 @@ func (s *lifecycleInvitations) ListRedeemableGuardianInvitations(_ context.Conte
 	}), nil
 }
 
-func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id int64, acceptedAt time.Time) (bool, error) {
+func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id int64, token string, acceptedAt time.Time) (bool, error) {
 	if s.updateErr != nil {
 		return false, s.updateErr
 	}
 	invitation, ok := s.rows[id]
-	if !ok || invitation.AcceptedAt != nil || invitation.Redeemable(acceptedAt) != nil {
+	if !ok || invitation.Token != token || invitation.AcceptedAt != nil || invitation.Redeemable(acceptedAt) != nil {
 		return false, nil
 	}
 	invitation.AcceptedAt = &acceptedAt
@@ -932,7 +932,7 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	schools.add(lifecycleTenant, lifecycleTenant*10, "lifecycle", true, false)
 	persons := newFakePersons(runtime)
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{}, PortalModules: &fakePortalModules{},
+		Store: store, Schools: schools, Traeger: traegerMembershipsStub{}, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{}, PortalModules: &fakePortalModules{},
 		MFA: &fakeMFA{}, MFALock: &fakeMFALock{store: store.fakeStore}, Audit: &fakeAudit{}, Push: &fakePush{},
 		Runtime: runtime, Rotation: fakeRotation{}, Logger: logger,
 	})

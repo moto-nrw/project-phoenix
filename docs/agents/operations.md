@@ -292,10 +292,12 @@ that worktree and continue in a new managed sibling:
    original T3 thread remains bound to its original checkout.
 
 Keep the original worktree, its changes, services and persistent data until
-their owner decides otherwise. `wt remove` runs `.wtconfig` teardown, which
-deletes the managed target's Compose and test-server volumes; it is not an
-adoption or harmless handoff step. Never prune or remove another worktree's
-networks or volumes to make setup succeed.
+their owner decides otherwise. `wt remove` runs `.wtconfig` teardown,
+`scripts/worktree-teardown.sh`: it deletes the containers, networks and volumes
+of the target's own Compose project from `.wt.env`, including its databases;
+it is not an adoption or harmless handoff step. `--dry-run` lists them first.
+Fixed-name caches and networks and the [test servers](#test-database) stay.
+Never prune or remove another worktree's networks or volumes to make setup succeed.
 
 For **tests only**, no app setup or sibling is needed: supply `TEST_DB_DSN`
 through a private process environment, pointing to a local test server, then
@@ -455,6 +457,11 @@ Tests start a postgres-test server for the configured `TEST_DB_PORT`, prepare
 migration-hash templates, and clone a database per package. Package exit drops
 its clone; generation GC cleans interrupted runs. The wrapper also sweeps at
 exit. Worktrees using the same port share a server; different ports are isolated.
+Test servers belong to the harness, not to a worktree: `wt add` keeps the
+source checkout's `TEST_DB_PORT` and `TEST_DB_DSN`, and `wt remove` neither
+stops a test server nor deletes its volume. A per-port server that no checkout
+uses any more is removed only by its owner, as in
+[Rebuild a disposable test cluster](#rebuild-a-disposable-test-cluster).
 
 ### Test DSN source and credential drift
 

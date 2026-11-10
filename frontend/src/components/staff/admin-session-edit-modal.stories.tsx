@@ -40,3 +40,22 @@ export const Edit: Story = {
     session: sampleSession,
   },
 };
+
+const recordedBreaks = [
+  {
+    id: "81",
+    started_at: "2026-06-10T10:00:00Z",
+    ended_at: "2026-06-10T10:15:00Z",
+    duration_minutes: 15,
+  },
+  {
+    id: "82",
+    started_at: "2026-06-10T12:00:00Z",
+    ended_at: "2026-06-10T12:15:00Z",
+    duration_minutes: 15,
+  },
+];
+
+export const RecordedBreaks: Story = {
+  args: { mode: "edit", session: { ...sampleSession, breaks: recordedBreaks } },
+};

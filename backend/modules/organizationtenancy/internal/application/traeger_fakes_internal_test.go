@@ -79,3 +79,7 @@ func (fakeOwnerStore) UpdateTraegerErasureOrderRecords(context.Context, int64, o
 func (fakeOwnerStore) WithdrawTraegerErasureOrder(context.Context, int64, int64) (bool, domain.OperationStats, error) {
 	return false, domain.OperationStats{}, nil
 }
+
+func (fakeOwnerStore) HasRetainedTraegerMembership(context.Context, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}

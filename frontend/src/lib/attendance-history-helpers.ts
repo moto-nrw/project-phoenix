@@ -3,6 +3,7 @@
 // The backend returns ISO timestamps in snake_case; this module normalises
 // them to camelCase `Date`-friendly shapes used by the UI.
 
+import { formatBerlinTime } from "~/lib/date-helpers";
 import {
   parseAttendanceActor,
   type AttendanceActor,
@@ -259,8 +260,11 @@ function mapAttendanceStatusEntry(
 
 // --- Formatting helpers ---
 
+/** School wall-clock time ("08:15") in Europe/Berlin, whatever the browser's zone (#6471). */
 export function formatTime(d: Date): string {
-  return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  // toISOString() throws on an invalid Date; the row shows the empty glyph.
+  if (Number.isNaN(d.getTime())) return "–";
+  return formatBerlinTime(d.toISOString());
 }
 
 export function formatAttendanceSlotStatus(

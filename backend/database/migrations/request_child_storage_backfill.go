@@ -200,8 +200,10 @@ type RequestChildStorageBackfillOptions struct {
 	// BeforeCommit runs inside the batch transaction after every statement and
 	// before the checkpoint update. Returning an error aborts that attempt.
 	BeforeCommit func(tenantID int64, attempt int) error
-	// Test seam for a source commit between verification statements.
+	// Test seams; applySource replaces the source statements (gone after the Contract).
 	afterVerificationCounts func() error
+	applySource             func(context.Context, bun.Tx, *RequestChildStorageBatch) (requestChildSourceCounts, error)
+	attemptHooks            batchAttemptHooks
 }
 
 func (o RequestChildStorageBackfillOptions) withDefaults() RequestChildStorageBackfillOptions {
@@ -819,9 +821,10 @@ func selectionMismatches(ctx context.Context, db bun.IDB, tenantID int64) ([][2]
 // cancellation-free context (bounded by batch size and lock_timeout) so the
 // checkpoint always lands on a batch boundary.
 func (run *tenantBackfillRun) commitBatch(ctx context.Context, batch *RequestChildStorageBatch) (resultErr error) {
+	commitUnknown := false
 	defer func() {
 		if resultErr != nil {
-			resultErr = errors.Join(resultErr, run.flushFailureTelemetry(ctx))
+			resultErr = errors.Join(resultErr, run.flushFailureTelemetry(ctx, !commitUnknown))
 		}
 	}()
 	started := time.Now()
@@ -849,7 +852,7 @@ func (run *tenantBackfillRun) commitBatch(ctx context.Context, batch *RequestChi
 			run.retried, run.deadlocks, run.serializationFailures, run.lockTimeouts = 0, 0, 0, 0
 			return nil
 		}
-		kind, retryable := classifyRetryableSQLError(err)
+		kind, retryable := classifyRetryableSQLError(batchDirectError(err))
 		switch kind {
 		case "40P01":
 			run.deadlocks++
@@ -859,6 +862,7 @@ func (run *tenantBackfillRun) commitBatch(ctx context.Context, batch *RequestChi
 			run.lockTimeouts++
 		}
 		if !retryable || attempt > run.options.MaxRetries {
+			commitUnknown = isBatchCommitUnknown(err)
 			return fmt.Errorf("request child storage backfill: tenant %d pass %d batch ending at id %d after %d attempts: %w", run.tenantID, batch.Pass, batch.HighWaterMark, attempt, err)
 		}
 		run.logger.Warn("request child storage backfill batch retried",
@@ -872,21 +876,6 @@ func (run *tenantBackfillRun) commitBatch(ctx context.Context, batch *RequestChi
 		case <-time.After(requestChildStorageRetryBackoff * time.Duration(attempt)):
 		}
 		run.retried++
-	}
-}
-
-// classifyRetryableSQLError reports the SQLSTATE of a deadlock (40P01),
-// serialization failure (40001), or lock timeout (55P03) anywhere in the chain.
-func classifyRetryableSQLError(err error) (string, bool) {
-	var state interface{ Field(byte) string }
-	if !errors.As(err, &state) {
-		return "", false
-	}
-	switch code := state.Field('C'); code {
-	case "40P01", "40001", "55P03":
-		return code, true
-	default:
-		return code, false
 	}
 }
 
@@ -961,34 +950,14 @@ func (run *tenantBackfillRun) applyBatch(ctx context.Context, tx bun.Tx, batch *
 	if _, err := tx.NewRaw("SET LOCAL lock_timeout = ?", run.options.LockTimeout.Milliseconds()).Exec(ctx); err != nil {
 		return fmt.Errorf("set lock timeout: %w", err)
 	}
-	ids := sqlBigintArray(batch.IDs)
-	childIDs, offeringIDs := pairArrays(batch.Pairs)
-	children, offerings := sqlBigintArray(childIDs), sqlBigintArray(offeringIDs)
-
-	var scannedSource int64
-	if err := tx.NewRaw(`SELECT count(*) FROM enrollment.request_child_offerings WHERE tenant_id = ?0 AND id = ANY(?1)`, run.tenantID, ids).Scan(ctx, &scannedSource); err != nil {
-		return fmt.Errorf("count batch source rows: %w", err)
-	}
-	deletedBookings, err := rowsAffected(tx.NewRaw(staleBookingDelete, run.tenantID, ids, children, offerings).Exec(ctx))
+	counts, err := run.applySource(ctx, tx, batch)
 	if err != nil {
-		return fmt.Errorf("delete stale bookings: %w", err)
-	}
-	insertedBookings, err := rowsAffected(tx.NewRaw(missingBookingInsert, run.tenantID, ids).Exec(ctx))
-	if err != nil {
-		return fmt.Errorf("insert bookings: %w", err)
-	}
-	deletedSelections, err := rowsAffected(tx.NewRaw(staleSelectionDelete, run.tenantID, ids, children, offerings).Exec(ctx))
-	if err != nil {
-		return fmt.Errorf("delete stale selections: %w", err)
-	}
-	insertedSelections, err := rowsAffected(tx.NewRaw(missingSelectionInsert, run.tenantID, ids, children, offerings).Exec(ctx))
-	if err != nil {
-		return fmt.Errorf("insert selections: %w", err)
+		return err
 	}
 	batch.Scanned = int64(len(batch.IDs)) + int64(len(batch.Pairs))
-	batch.Copied = insertedBookings + insertedSelections
-	batch.Skipped = scannedSource - insertedBookings
-	batch.Deleted = deletedBookings + deletedSelections
+	batch.Copied = counts.insertedBookings + counts.insertedSelections
+	batch.Skipped = counts.scannedSource - counts.insertedBookings
+	batch.Deleted = counts.deletedBookings + counts.deletedSelections
 	if run.options.BeforeCommit != nil {
 		if err := run.options.BeforeCommit(run.tenantID, attempt); err != nil {
 			return err
@@ -1003,6 +972,35 @@ func (run *tenantBackfillRun) applyBatch(ctx context.Context, tx bun.Tx, batch *
 		return fmt.Errorf("update checkpoint: %w", err)
 	}
 	return nil
+}
+
+// applySource runs the statements of one batch that read the legacy source:
+// they are read once per statement and compared in SQL, never modified.
+func (run *tenantBackfillRun) applySource(ctx context.Context, tx bun.Tx, batch *RequestChildStorageBatch) (requestChildSourceCounts, error) {
+	if run.options.applySource != nil {
+		return run.options.applySource(ctx, tx, batch)
+	}
+	var counts requestChildSourceCounts
+	ids := sqlBigintArray(batch.IDs)
+	childIDs, offeringIDs := pairArrays(batch.Pairs)
+	children, offerings := sqlBigintArray(childIDs), sqlBigintArray(offeringIDs)
+	if err := tx.NewRaw(`SELECT count(*) FROM enrollment.request_child_offerings WHERE tenant_id = ?0 AND id = ANY(?1)`, run.tenantID, ids).Scan(ctx, &counts.scannedSource); err != nil {
+		return counts, fmt.Errorf("count batch source rows: %w", err)
+	}
+	var err error
+	if counts.deletedBookings, err = rowsAffected(tx.NewRaw(staleBookingDelete, run.tenantID, ids, children, offerings).Exec(ctx)); err != nil {
+		return counts, fmt.Errorf("delete stale bookings: %w", err)
+	}
+	if counts.insertedBookings, err = rowsAffected(tx.NewRaw(missingBookingInsert, run.tenantID, ids).Exec(ctx)); err != nil {
+		return counts, fmt.Errorf("insert bookings: %w", err)
+	}
+	if counts.deletedSelections, err = rowsAffected(tx.NewRaw(staleSelectionDelete, run.tenantID, ids, children, offerings).Exec(ctx)); err != nil {
+		return counts, fmt.Errorf("delete stale selections: %w", err)
+	}
+	if counts.insertedSelections, err = rowsAffected(tx.NewRaw(missingSelectionInsert, run.tenantID, ids, children, offerings).Exec(ctx)); err != nil {
+		return counts, fmt.Errorf("insert selections: %w", err)
+	}
+	return counts, nil
 }
 
 func rowsAffected(result sql.Result, err error) (int64, error) {

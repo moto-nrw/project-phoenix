@@ -44,7 +44,7 @@ func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
 	scenario := newMFATestScenario(t)
 	svc, accID := scenario.MFA, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.EnrollMFA(ctx, accID))
+	require.NoError(t, enrollMFA(ctx, t, scenario.DB, svc, accID))
 
 	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestResendChallengeForScope_ForeignScope_Refused(t *testing.T) {
 	scenario := newMFATestScenario(t)
 	svc, accID := scenario.MFA, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.EnrollMFA(ctx, accID))
+	require.NoError(t, enrollMFA(ctx, t, scenario.DB, svc, accID))
 
 	schoolToken, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
