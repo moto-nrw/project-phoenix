@@ -160,22 +160,37 @@ describe("StatCard", () => {
 
     it("hebt sich beim Überfahren wie TileCard, ohne eigenes Verschieben", () => {
       const { statLink } = renderBoth();
-      const surface = statLink.firstElementChild;
-
-      expect(surface).toHaveClass("moto-hover-elevated");
-      expect(
-        classesWith(surface as Element, ["group-hover:", "transition-"]),
-      ).toEqual([]);
-    });
-
-    it("hat auf dem Telefon denselben Innenabstand", () => {
-      const { statLink, tileLink } = renderBoth();
       const surface = statLink.firstElementChild as Element;
-      const padding = ["p-", "max-sm:p-", "compact:p-"];
 
-      expect(classesWith(surface, padding)).toEqual(
-        classesWith(tileLink, padding),
-      );
+      // Anker: die Fläche trägt die Hover-Hervorhebung von TileCard.
+      expect(surface).toHaveClass("moto-hover-elevated");
+      expect(classesWith(surface, ["group-hover:", "transition-"])).toEqual([]);
     });
+  });
+
+  it("hat auf dem Telefon den Innenabstand von TileCard, mit und ohne Link (#6565)", () => {
+    render(
+      <>
+        <StatCard label="Kinder anwesend" value={12} href="/students" />
+        <StatCard label="Auslastung" value="80 %" />
+        <TileCard href="/rooms" ariaLabel="Räume">
+          Räume
+        </TileCard>
+      </>,
+    );
+    const padding = ["p-", "max-sm:p-", "compact:p-"];
+    const tile = classesWith(
+      screen.getByRole("link", { name: "Räume" }),
+      padding,
+    );
+    const linked = screen.getByRole("link", { name: /Kinder anwesend/ })
+      .firstElementChild as Element;
+    const unlinked = screen
+      .getByText("Auslastung")
+      .closest(".moto-content-surface") as Element;
+
+    expect(tile).not.toHaveLength(0);
+    expect(classesWith(linked, padding)).toEqual(tile);
+    expect(classesWith(unlinked, padding)).toEqual(tile);
   });
 });
