@@ -810,25 +810,58 @@ func countKind(statements []string, prefix string) int {
 func TestStudentBatchQuotaRefusalMatchesTheRowPath(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	run := func(t *testing.T, options api.ImportTestOptions) (string, studentOutcome, error) {
-		testpkg.OwnTenant(t)
-		testpkg.SetTestChildQuota(t, db, 1, 3)
-		module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
-		require.NoError(t, err)
-		actor := newImporter(t, db)
-		upload := awaitStudents(t, uploadStudents(t, module, db, actor, namedStudentBatch("Kontingent", matrixRows), "quota.csv"))
-		return uploadStatus(upload.err), studentOutcomeOf(t, db, upload.result), upload.err
+	// The quota is reached at row k of six: places and existing children
+	// fixed per case, so the refused row and its details are known in
+	// advance (#5552 step 7: the profiles are created before the rows, the
+	// memberships still per row).
+	for _, c := range []struct {
+		name             string
+		places, existing int
+		refused          int
+	}{
+		{"first row", 1, 1, 1},
+		{"row 4", 3, 0, 4},
+		{"last row", 5, 0, 6},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			run := func(t *testing.T, options api.ImportTestOptions) (string, studentOutcome, error) {
+				testpkg.OwnTenant(t)
+				testpkg.SetTestChildQuota(t, db, 1, c.places)
+				for i := range c.existing {
+					testpkg.CreateTestStudent(t, db, fmt.Sprintf("Schon%d", i), "Da", "4A")
+				}
+				module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
+				require.NoError(t, err)
+				actor := newImporter(t, db)
+				upload := awaitStudents(t, uploadStudents(t, module, db, actor, namedStudentBatch("Kontingent", matrixRows), "quota.csv"))
+				return uploadStatus(upload.err), studentOutcomeOf(t, db, upload.result), upload.err
+			}
+			var batchStatus, rowStatus string
+			var batch, rowPath studentOutcome
+			var batchErr, rowErr error
+			t.Run("batch", func(t *testing.T) { batchStatus, batch, batchErr = run(t, api.ImportTestOptions{}) })
+			t.Run("row path", func(t *testing.T) { rowStatus, rowPath, rowErr = run(t, api.ImportTestOptions{RowPathOnly: true}) })
+			require.Equal(t, "409 students.child_quota_reached", rowStatus)
+			require.Equal(t, rowStatus, batchStatus)
+			require.Equal(t, rowPath, batch)
+			var batchDetails, rowDetails interface{ ErrorDetails() any }
+			require.ErrorAs(t, batchErr, &batchDetails)
+			require.ErrorAs(t, rowErr, &rowDetails)
+			require.Equal(t, rowDetails.ErrorDetails(), batchDetails.ErrorDetails())
+			require.Contains(t, fmt.Sprint(rowDetails.ErrorDetails()), fmt.Sprintf("%d", c.places), "the details name the booked places")
+			require.Equal(t, []string{fmt.Sprintf("%d error", c.refused+1)}, quotaRowErrors(batch), "the refused row")
+		})
 	}
-	var batchStatus, rowStatus string
-	var batch, rowPath studentOutcome
-	var batchErr, rowErr error
-	t.Run("batch", func(t *testing.T) { batchStatus, batch, batchErr = run(t, api.ImportTestOptions{}) })
-	t.Run("row path", func(t *testing.T) { rowStatus, rowPath, rowErr = run(t, api.ImportTestOptions{RowPathOnly: true}) })
-	require.Equal(t, "409 students.child_quota_reached", rowStatus)
-	require.Equal(t, rowStatus, batchStatus)
-	require.Equal(t, rowPath, batch)
-	var batchDetails, rowDetails interface{ ErrorDetails() any }
-	require.ErrorAs(t, batchErr, &batchDetails)
-	require.ErrorAs(t, rowErr, &rowDetails)
-	require.Equal(t, rowDetails.ErrorDetails(), batchDetails.ErrorDetails())
+}
+
+// quotaRowErrors are the row number and severity of an outcome's blocking
+// row errors.
+func quotaRowErrors(outcome studentOutcome) []string {
+	var rows []string
+	for _, e := range outcome.RowErrors {
+		if parts := strings.SplitN(e, " ", 3); len(parts) >= 2 && parts[1] == "error" {
+			rows = append(rows, parts[0]+" "+parts[1])
+		}
+	}
+	return rows
 }
