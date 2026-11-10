@@ -68,7 +68,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/simulate/demo_day.go": 818,
 	// ADR 0087.
-	"observability/prometheus.go": 1722,
+	"observability/prometheus.go": 1662,
 	// ADR 0087.
 	"test/fixtures.go": 3067,
 }

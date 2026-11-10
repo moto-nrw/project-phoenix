@@ -3054,7 +3054,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {\n\terr := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrInvalidTraegerRole):\n\t\treturn organizationtenancy.ErrInvalidTraegerRole\n\tcase errors.Is(err, identityaccess.ErrAccountNotFound):\n\t\treturn organizationtenancy.ErrTraegerAccountNotFound\n\t}\n\treturn err\n}",
+      "evidence": "func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {\n\terr := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrInvalidTraegerRole):\n\t\treturn organizationtenancy.ErrInvalidTraegerRole\n\tcase errors.Is(err, identityaccess.ErrAccountNotFound):\n\t\treturn organizationtenancy.ErrTraegerAccountNotFound\n\tcase errors.Is(err, identityaccess.ErrAccountInactive):\n\t\treturn organizationtenancy.ErrTraegerAccountInactive\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ProvisioningIdentity.AssignTraegerRole",
       "owner": "roots"

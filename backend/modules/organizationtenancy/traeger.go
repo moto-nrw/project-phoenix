@@ -73,6 +73,10 @@ type TraegerMembershipCommand interface {
 // the person needs an account before the operator assigns them to a Träger.
 var ErrTraegerAccountNotFound = errors.New("no account with this e-mail address")
 
+// ErrTraegerAccountInactive reports a deactivated account: the assignment
+// does not reactivate it, so the person gets no Träger access (#6535).
+var ErrTraegerAccountInactive = errors.New("the account is deactivated")
+
 // ErrTraegerMemberNotFound reports an account that is no member of the
 // Träger-Büro the operator acts on.
 var ErrTraegerMemberNotFound = errors.New("account is no member of this Träger-Büro")

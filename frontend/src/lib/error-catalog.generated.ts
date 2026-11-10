@@ -944,6 +944,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.cost_bearer_not_found":
         "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.cost_center_date_taken":
+        "Ab diesem Tag gibt es schon eine Kostenstelle. Wählen Sie einen anderen Tag oder löschen Sie die alte.",
       "parent_billing.cost_takeover_with_exemption":
         "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
       "parent_billing.datev_bookings_invalid":
@@ -1062,6 +1064,8 @@ export const ERROR_CATALOG = {
         "Für diese Anmeldung gibt es schon eine Rechnung. Geschwister können Sie jetzt nicht mehr ändern.",
       "parent_billing.sibling_group_not_found":
         "Diese Anmeldung gehört nicht mehr zu Geschwistern. Bitte laden Sie die Seite neu.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "Bei {count} Rechnungen fehlt das Erlöskonto. Tragen Sie in den DATEV-Werten ein Standard-Erlöskonto ein.",
       "pickup.bulk_exception_confirmation_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "pickup.invalid":
@@ -1671,6 +1675,8 @@ export const ERROR_CATALOG = {
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
       "traeger.access_log_export_too_large":
         "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
+      "traeger.account_inactive":
+        "Das Konto dieser Person ist ausgeschaltet. Deshalb können Sie die Person nicht dem Träger-Büro zuordnen.",
       "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
       "traeger.bank_account_label_taken":
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
@@ -2373,6 +2379,8 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.care_amendment_disabled":
         "{object} could not be changed. Please check its current status.",
+      "parent_billing.cost_center_date_taken":
+        "There is already a cost center from this day. Choose another day or delete the old one.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
       "parent_billing.datev_bookings_taken":
@@ -2415,6 +2423,8 @@ export const ERROR_CATALOG = {
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "parent_billing.sepa_mandate_text_changed":
         "The mandate text has changed. Please read and confirm it again.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2481,6 +2491,8 @@ export const ERROR_CATALOG = {
         "The booking has changed. Please reload the page.",
       "traeger.access_log_export_too_large":
         "The export has more than {limit} entries. Please choose a shorter period or more filters.",
+      "traeger.account_inactive":
+        "This person's account is switched off. You cannot assign the person to the Träger office.",
       "traeger.already_member":
         "This person already belongs to the Träger office.",
       "traeger.bank_account_label_taken":
@@ -2986,6 +2998,8 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.care_amendment_disabled":
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.cost_center_date_taken":
+        "There is already a cost center from this day. Choose another day or delete the old one.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
       "parent_billing.datev_bookings_taken":
@@ -3028,6 +3042,8 @@ export const ERROR_CATALOG = {
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "parent_billing.sepa_mandate_text_changed":
         "Текст мандата изменился. Пожалуйста, прочитайте и подтвердите его ещё раз.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
       "school.parent_conference_change_closed":
         "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
       "school.parent_conference_slot_taken":
@@ -3545,6 +3561,8 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.care_amendment_disabled":
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.cost_center_date_taken":
+        "There is already a cost center from this day. Choose another day or delete the old one.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
       "parent_billing.datev_bookings_taken":
@@ -3587,6 +3605,8 @@ export const ERROR_CATALOG = {
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "parent_billing.sepa_mandate_text_changed":
         "Teksti i mandatit ka ndryshuar. Ju lutemi lexojeni dhe konfirmojeni përsëri.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
       "school.parent_conference_change_closed":
         "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
       "school.parent_conference_slot_taken":
@@ -4092,6 +4112,8 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.care_amendment_disabled":
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.cost_center_date_taken":
+        "There is already a cost center from this day. Choose another day or delete the old one.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
       "parent_billing.datev_bookings_taken":
@@ -4134,6 +4156,8 @@ export const ERROR_CATALOG = {
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "parent_billing.sepa_mandate_text_changed":
         "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
       "school.parent_conference_change_closed":
         "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
       "school.parent_conference_slot_taken":
@@ -4644,6 +4668,8 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.care_amendment_disabled":
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.cost_center_date_taken":
+        "There is already a cost center from this day. Choose another day or delete the old one.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
       "parent_billing.datev_bookings_taken":
@@ -4686,6 +4712,8 @@ export const ERROR_CATALOG = {
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "parent_billing.sepa_mandate_text_changed":
         "Talimat metni değişti. Lütfen tekrar okuyup onaylayın.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
       "school.parent_conference_change_closed":
         "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
       "school.parent_conference_slot_taken":
@@ -5189,6 +5217,8 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.care_amendment_disabled":
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.cost_center_date_taken":
+        "There is already a cost center from this day. Choose another day or delete the old one.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
       "parent_billing.datev_bookings_taken":
@@ -5231,6 +5261,8 @@ export const ERROR_CATALOG = {
         "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "parent_billing.sepa_mandate_text_changed":
         "Текст мандата змінився. Будь ласка, прочитайте й підтвердьте його ще раз.",
+      "parent_billing.sollstellung_revenue_account_missing":
+        "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
       "school.parent_conference_change_closed":
         "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
       "school.parent_conference_slot_taken":

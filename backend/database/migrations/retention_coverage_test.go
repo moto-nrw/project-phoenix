@@ -333,6 +333,8 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.export_file_invoices":                   parent("parent_billing.export_files"),
 	"parent_billing.export_files":                           own("the export protocol stays with the issued invoices whose files it documents (#4693, ADR 0119); it goes with platform.organizations when the Träger is erased (#4657); its invoice links go with their invoice (export_file_invoices, also in the demo erasure and the Beleg retention of 1.15.862); exported_by_account_id and submitted_by_account_id SET NULL on account delete"),
 	"parent_billing.export_mappings":                        notPersonal("field mapping of the Sollstellung of a Träger (#4693): columns, separators, date format and file name, no person"),
+	"parent_billing.revenue_accounts":                       notPersonal("revenue account of a Leistung or Angebot of a Träger (#4821), no person"),
+	"parent_billing.cost_centers":                           notPersonal("cost center of a school, the holiday care or an Angebot of a Träger (#4821), no person"),
 	"parent_billing.family_billing":                         parent("care_contract.contracts"),
 	"parent_billing.family_billing_events":                  parent("care_contract.contracts"),
 	"parent_billing.holiday_contribution_lines":             parent("parent_billing.holiday_contributions"),

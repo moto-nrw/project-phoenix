@@ -57,23 +57,33 @@ func TestIsolatedTestDatabaseLimiterBoundsConcurrentClones(t *testing.T) {
 	t.Parallel()
 
 	limiter := newIsolatedTestDatabaseLimiter(1)
-	releaseFirst := limiter.acquire()
+	releaseFirst, err := limiter.acquire(t.Context(), "first")
+	require.NoError(t, err)
 	t.Cleanup(releaseFirst)
 
-	secondAcquired := make(chan func(), 1)
-	go func() { secondAcquired <- limiter.acquire() }()
+	type acquisition struct {
+		release func()
+		err     error
+	}
+	secondAcquired := make(chan acquisition, 1)
+	go func() {
+		release, err := limiter.acquire(t.Context(), "second")
+		secondAcquired <- acquisition{release, err}
+	}()
 
 	select {
-	case releaseSecond := <-secondAcquired:
-		releaseSecond()
+	case second := <-secondAcquired:
+		require.NoError(t, second.err)
+		second.release()
 		t.Fatal("second isolated database must wait for an available slot")
 	case <-time.After(25 * time.Millisecond):
 	}
 
 	releaseFirst()
 	select {
-	case releaseSecond := <-secondAcquired:
-		releaseSecond()
+	case second := <-secondAcquired:
+		require.NoError(t, second.err)
+		second.release()
 	case <-time.After(time.Second):
 		t.Fatal("second isolated database did not acquire the released slot")
 	}

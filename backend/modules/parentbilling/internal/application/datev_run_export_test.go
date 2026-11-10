@@ -40,6 +40,12 @@ type datevRunStore struct {
 	content  parentbilling.ExportRunContent
 	reserved int
 	records  []parentbilling.ExportFileRecord
+	// assignments are the revenue accounts and cost centers of today (#4821).
+	assignments parentbilling.BookingAssignments
+}
+
+func (s *datevRunStore) BookingAssignments(context.Context, int64) (parentbilling.BookingAssignments, error) {
+	return s.assignments, nil
 }
 
 func (s *datevRunStore) ExportRunContent(_ context.Context, _ int64, _ string, _ int64) (parentbilling.ExportRunContent, error) {

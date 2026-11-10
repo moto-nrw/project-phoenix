@@ -2183,7 +2183,7 @@
     {
       "decision": "0090",
       "id": "roots/owners/ProvisioningIdentity.AssignTraegerRole",
-      "reason": "ADR 0084 (#4649): root translation of the Identity \u0026 Access Träger role refusal and of an account erased before the grant onto the Organisation \u0026 Tenancy provisioning contract."
+      "reason": "ADR 0084 (#4649): root translation of the Identity \u0026 Access Träger role refusal, of an account erased before the grant and of a deactivated account (#6535) onto the Organisation \u0026 Tenancy provisioning contract."
     },
     {
       "decision": "0090",

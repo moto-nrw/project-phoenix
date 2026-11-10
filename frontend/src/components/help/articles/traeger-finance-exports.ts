@@ -56,6 +56,7 @@ export function traegerFinanceExportsTopic(): HelpTopic {
       "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
       "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
       "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
+      "Wählen Sie als Inhalt `Erlöskonto`, `Kostenstelle (KOST1)` oder `Zweite Kostenstelle (KOST2)`, hat die Datei eine Zeile je Konto einer Rechnung. Der `Betrag` ist dann der Teil der Rechnung auf diesem Konto. Die Konten legen Sie unter `Konten und Kostenstellen` fest.",
     ],
     differences: [
       "Der Reiter `Exporte` fehlt? Ihnen fehlt das Recht `Finanz-Export`.",
