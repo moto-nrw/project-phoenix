@@ -9,6 +9,12 @@
       "legacy": "traeger.access_log_export_too_large"
     },
     {
+      "code": "traeger.account_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.account_inactive"
+    },
+    {
       "code": "traeger.already_member",
       "class": "business_rejection",
       "parameters": [],
