@@ -207,10 +207,11 @@ export function Alert({
         <div className={action ? "min-w-0 flex-1" : undefined}>{message}</div>
       )}
       {/* basis-full: die Aktion rutscht auf schmalen Bildschirmen unter die
-          Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
-          steht sie wieder rechts in derselben Zeile. max-w-full hält eine
-          lange Aktion (Vorgangskennung) in der Fläche, statt sie über den
-          Rand laufen zu lassen. */}
+          Meldung, statt den Text in eine schmale Spalte zu quetschen, und
+          beginnt dort wie bei `stacked` bündig mit dem Text, nicht unter dem
+          Symbol. Ab sm steht sie wieder rechts in derselben Zeile.
+          max-w-full hält eine lange Aktion (Vorgangskennung) in der Fläche,
+          statt sie über den Rand laufen zu lassen. */}
       {action ? (
         <div
           className={
@@ -219,7 +220,7 @@ export function Alert({
               : actionLayout === "stacked"
                 ? // pl-7 = icon (h-5 w-5) plus its mr-2: flush with the text.
                   `max-w-full min-w-0 basis-full ${compact ? "pl-6" : "pl-7"}`
-                : "max-w-full min-w-0 shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
+                : `max-w-full min-w-0 shrink-0 basis-full ${compact ? "pl-6" : "pl-7"} sm:ml-auto sm:basis-auto sm:pl-4`
           }
         >
           {action}
