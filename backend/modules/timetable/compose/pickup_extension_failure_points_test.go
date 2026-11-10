@@ -566,11 +566,16 @@ func (f *pickupChainFixture) waitForLockWaiters(t *testing.T, n int) {
 }
 
 // Pickup against the other multi-row writers of the same blocks (#6232):
-// offboarding (one statement, id order) and the planned-block delete (one
-// DELETE over the ids). Every writer runs inside an outer transaction, so a
-// deadlock surfaces as 40P01 instead of a replay. With ids in date order the
-// writers serialise without a deadlock; with ids against the date order the
-// pair deadlocks once, as it did before the chain (#6232, not fixed here).
+// offboarding (one statement), the planned-block delete and the list-kind
+// propagation (one statement over the ids each). The writers over ids run
+// with the smallest id moved to the end of the heap and a sequential scan, so
+// a statement that took its row locks in scan order would not take them by
+// id. Every writer runs inside an outer transaction, so a deadlock
+// surfaces as 40P01 instead of a replay. Every writer locks blocks by
+// ascending id, so with ids in date order, against it, and across two
+// chosen templates the pair serialises without a deadlock. Before #6232 the
+// resolve locked in planned (date, id) order per template and deadlocked
+// once against offboarding and the planned delete.
 func TestPickupChainCreatesNoNewDeadlockPairs(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -590,58 +595,163 @@ func TestPickupChainCreatesNoNewDeadlockPairs(t *testing.T) {
 			}
 		},
 		"planned delete": func(t *testing.T, f *pickupChainFixture) func(context.Context) error {
+			f.moveSmallestBlockToHeapEnd(t)
 			return func(ctx context.Context) error {
+				if err := scanSequentially(ctx); err != nil {
+					return err
+				}
 				_, err := f.module.DeletePlannedActivityInstances(ctx, "2099-03-01", nil, &f.templateID, false)
 				return err
 			}
 		},
+		"list kind": func(t *testing.T, f *pickupChainFixture) func(context.Context) error {
+			f.moveSmallestBlockToHeapEnd(t)
+			kind := timetable.ListKindMensa
+			return func(ctx context.Context) error {
+				if err := scanSequentially(ctx); err != nil {
+					return err
+				}
+				_, err := f.module.PropagateActivityInstanceListKind(ctx, f.templateID, nil, &kind, "2099-03-01")
+				return err
+			}
+		},
 	}
-	for _, name := range []string{"offboarding", "planned delete"} {
-		for _, order := range []struct {
-			name      string
-			creation  []string
-			deadlocks int
-		}{{name: "ids in date order", deadlocks: 0}, {name: "ids against date order", creation: against, deadlocks: 1}} {
-			t.Run(name+", "+order.name, func(t *testing.T) {
-				f := newPickupChainFixture(t, db, pickupChainOptions{creation: order.creation})
-				write := writers[name](t, f)
-				holder := f.holdInstance(t, f.instances[1], "")
-				resolved := make(chan error, 1)
+	type pair struct {
+		name     string
+		writer   string
+		creation []string
+	}
+	pairs := []pair{
+		{name: "offboarding, ids in date order", writer: "offboarding"},
+		{name: "offboarding, ids against date order", writer: "offboarding", creation: against},
+		{name: "planned delete, ids in date order", writer: "planned delete"},
+		{name: "planned delete, ids against date order", writer: "planned delete", creation: against},
+		{name: "list kind, ids in date order", writer: "list kind"},
+		{name: "list kind, ids against date order", writer: "list kind", creation: against},
+	}
+	for _, p := range pairs {
+		t.Run(p.name, func(t *testing.T) {
+			f := newPickupChainFixture(t, db, pickupChainOptions{creation: p.creation})
+			write := writers[p.writer](t, f)
+			holder := f.holdInstance(t, f.instances[1], "")
+			resolve := func() <-chan error {
+				done := make(chan error, 1)
 				go func() {
-					resolved <- testpkg.TenantCommand0(t, f.ctx, f.db, func(txCtx context.Context) error {
+					done <- testpkg.TenantCommand0(t, f.ctx, f.db, func(txCtx context.Context) error {
 						_, err := f.module.ResolvePickupExtension(txCtx, f.taskID, []int64{f.templateID})
 						return err
 					})
 				}()
-				f.waitForLockWaiters(t, 1)
-				written := make(chan error, 1)
-				go func() { written <- testpkg.TenantCommand0(t, f.ctx, f.db, write) }()
-				f.waitForLockWaiters(t, 2)
-				require.NoError(t, holder.Rollback())
+				return done
+			}
+			writeAsync := func() <-chan error {
+				done := make(chan error, 1)
+				go func() { done <- testpkg.TenantCommand0(t, f.ctx, f.db, write) }()
+				return done
+			}
+			resolved := resolve()
+			f.waitForLockWaiters(t, 1)
+			written := writeAsync()
+			f.waitForLockWaiters(t, 2)
+			require.NoError(t, holder.Rollback())
 
-				var errs []error
-				for range 2 {
-					select {
-					case err := <-resolved:
-						errs = append(errs, err)
-					case err := <-written:
-						errs = append(errs, err)
-					case <-time.After(20 * time.Second):
-						t.Fatal("a writer never finished")
-					}
-				}
-				deadlocks := 0
-				for _, err := range errs {
-					if sqlState(err) == "40P01" {
-						deadlocks++
-						continue
-					}
+			for range 2 {
+				select {
+				case err := <-resolved:
+					assert.NotEqual(t, "40P01", sqlState(err), "the resolve is no deadlock victim: %v", err)
 					require.NoError(t, err)
+				case err := <-written:
+					assert.NotEqual(t, "40P01", sqlState(err), "the %s is no deadlock victim: %v", p.writer, err)
+					require.NoError(t, err)
+				case <-time.After(20 * time.Second):
+					t.Fatal("a writer never finished")
 				}
-				assert.Equal(t, order.deadlocks, deadlocks)
-			})
+			}
+		})
+	}
+}
+
+// moveSmallestBlockToHeapEnd gives the block with the smallest id a new row
+// version at the end of the heap: a sequential scan visits it last.
+func (f *pickupChainFixture) moveSmallestBlockToHeapEnd(t *testing.T) {
+	t.Helper()
+	_, err := f.db.ExecContext(context.Background(), `UPDATE schedule.activity_instances SET title = title || ' ' WHERE id = ?`, slices.Min(f.instances))
+	require.NoError(t, err)
+}
+
+// scanSequentially makes the ambient transaction scan tables in heap order.
+func scanSequentially(ctx context.Context) error {
+	value, ok := testpkg.TransactionFromContext(ctx)
+	if !ok {
+		return errors.New("no ambient transaction")
+	}
+	idb, ok := value.(bun.IDB)
+	if !ok {
+		return fmt.Errorf("transaction %T", value)
+	}
+	_, err := idb.ExecContext(ctx, `SET LOCAL enable_indexscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_indexonlyscan = off`)
+	return err
+}
+
+// Two chosen templates (#6232): the first template gained a block after the
+// second template's blocks were planned, so its ids are not contiguous. The
+// resolve locks the blocks of both templates in one ascending pass before it
+// writes, so offboarding the second template's staff (ascending ids) waits
+// instead of closing a cycle. Before #6232 the resolve locked and wrote one
+// template after the other and deadlocked here once.
+func TestPickupChainLocksBlocksAcrossTemplatesByAscendingID(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	f := newPickupChainFixture(t, db, pickupChainOptions{second: true})
+	late := pickupExtensionInstance(t, f.module, f.ctx, ownedActivityInstanceFixture{roomID: f.roomOf(t, f.instances[0]), groupID: f.templateID},
+		pickupChainTuesdays[3], "14:45:00", "16:00:00", "Freies Spiel")
+	require.Greater(t, late.ID, slices.Max(f.second), "the late block of the first template has the largest id")
+	for _, instance := range append(slices.Clone(f.second), late.ID) {
+		createOwnedInstanceStaff(t, f.module, f.ctx, instance, f.staffID, true, false)
+	}
+	offboarding, err := NewOffboarding(OffboardingDependencies{DB: f.db, Sessions: &fixedSessions{}, Observe: func(Observation) {}})
+	require.NoError(t, err)
+	preview, err := offboarding.Preview(f.ctx, f.staffID, "2099-03-01")
+	require.NoError(t, err)
+
+	holder := f.holdInstance(t, late.ID, "")
+	resolved := make(chan error, 1)
+	go func() {
+		resolved <- testpkg.TenantCommand0(t, f.ctx, f.db, func(txCtx context.Context) error {
+			_, err := f.module.ResolvePickupExtension(txCtx, f.taskID, []int64{f.templateID, f.secondTemplate})
+			return err
+		})
+	}()
+	f.waitForLockWaiters(t, 1)
+	written := make(chan error, 1)
+	go func() {
+		written <- testpkg.TenantCommand0(t, f.ctx, f.db, func(ctx context.Context) error {
+			_, err := offboarding.Execute(ctx, f.staffID, "2099-03-01", preview.Revision)
+			return err
+		})
+	}()
+	f.waitForLockWaiters(t, 2)
+	require.NoError(t, holder.Rollback())
+	for range 2 {
+		select {
+		case err := <-resolved:
+			assert.NotEqual(t, "40P01", sqlState(err), "the resolve is no deadlock victim: %v", err)
+			require.NoError(t, err)
+		case err := <-written:
+			assert.NotEqual(t, "40P01", sqlState(err), "offboarding is no deadlock victim: %v", err)
+			require.NoError(t, err)
+		case <-time.After(20 * time.Second):
+			t.Fatal("a writer never finished")
 		}
 	}
+}
+
+// roomOf reads the planned room of a block.
+func (f *pickupChainFixture) roomOf(t *testing.T, instanceID int64) int64 {
+	t.Helper()
+	var roomID int64
+	require.NoError(t, f.db.NewRaw(`SELECT room_id FROM schedule.activity_instances WHERE id = ?`, instanceID).Scan(context.Background(), &roomID))
+	return roomID
 }
 
 // The driver gives up a read that waits longer than its read timeout
@@ -660,8 +770,9 @@ func TestPickupResolveWaitsForEachBlockWithinOneRead(t *testing.T) {
 	pool := privateClonePool(t, map[string]string{"read_timeout": readTimeout.String()})
 	f := newPickupChainFixture(t, pool, pickupChainOptions{})
 	f.ctx = testpkg.WithTenantRuntime(t, f.ctx, pool)
-	_, err := f.db.ExecContext(context.Background(), `UPDATE schedule.activity_instances SET start_time = '16:00', end_time = '16:30' WHERE id = ?`, f.instances[2])
-	require.NoError(t, err)
+	// The third block changes while the resolve waits: a block whose
+	// committed state no longer fits refuses before any wait (#6232).
+	changer := f.holdWith(t, `UPDATE schedule.activity_instances SET start_time = '16:00', end_time = '16:30' WHERE id = ?`, f.instances[2])
 
 	first := f.holdInstance(t, f.instances[0], "")
 	second := f.holdInstance(t, f.instances[1], "")
@@ -679,6 +790,12 @@ func TestPickupResolveWaitsForEachBlockWithinOneRead(t *testing.T) {
 	f.waitForInstanceLockWait(t)
 	time.Sleep(hold)
 	require.NoError(t, second.Rollback())
+	for !f.instanceLockedElsewhere(t, f.instances[1]) {
+		require.True(t, time.Now().Before(deadline), "the resolve never locked the second block")
+		time.Sleep(20 * time.Millisecond)
+	}
+	f.waitForInstanceLockWait(t)
+	require.NoError(t, changer.Commit())
 
 	outcome := f.awaitOutcome(t, done)
 	assert.Greater(t, time.Since(waitStarted), readTimeout, "the waits together exceed the read timeout")

@@ -97,7 +97,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLock(ctx context.Context,
 }
 
 func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, tenantID int64, date calendar.Date) error {
-	return s.deps.Database.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, date))
+	return lockScheduleDays(ctx, s.deps.Database.AcquireTransactionLock, tenantID, date)
 }
 
 // LockDeviationDays takes the substitute day lock of every date in

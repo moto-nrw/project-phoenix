@@ -52,6 +52,10 @@ type PickupExtensionInstance struct {
 	Date Date
 	// OwnParticipantID is the child's roster row on the block, when any.
 	OwnParticipantID *int64
+	// StartTime and EndTime are the block's committed clock times when it
+	// was listed, for the refusal before any lock.
+	StartTime string
+	EndTime   string
 }
 
 // OpenPickupExtensionBlocks decides which blocks the Leitung can still pick.

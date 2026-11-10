@@ -33,6 +33,9 @@ func (l RecurrenceWriteLock) LockRecurrenceWrites(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockRecurrence, tenant.LockIDKey(tenantID)); err != nil {
+		return fmt.Errorf("lock template recurrence writes: %w", err)
+	}
 	if err := l.Store.AcquireTransactionLock(ctx, schedule.TenantRecurrenceLockKey(tenantID)); err != nil {
 		return fmt.Errorf("lock template recurrence writes: %w", err)
 	}
@@ -51,6 +54,9 @@ func (l RecurrenceWriteLock) LockRecurrenceWritesThenGradeTransitions(ctx contex
 	tenantID, err := LockTenant(ctx, "grade transition lock requires a transaction")
 	if err != nil {
 		return err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockGradeTransitions, tenant.LockIDKey(tenantID)); err != nil {
+		return fmt.Errorf("lock tenant grade transitions: %w", err)
 	}
 	if err := l.Store.AcquireTransactionLock(ctx, l.GradeTransitionLockKey(tenantID)); err != nil {
 		return fmt.Errorf("lock tenant grade transitions: %w", err)
