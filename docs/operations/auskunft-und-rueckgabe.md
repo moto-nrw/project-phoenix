@@ -1,10 +1,11 @@
 # Interne Auskunft und Datenrückgabe
 
-Stand: 10.11.2026, Refs #3838, Teil von #3846.
+Stand: 10.11.2026, Refs #3838, #6412, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
 [ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
-[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
+[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md),
+[ADR 0197](../adr/0197-mandantenrueckgabe-oeffnet-bankdaten-von-eltern-und-personal-und-den-mandatstext.md)
 und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
 Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
 und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
@@ -31,9 +32,11 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
-**Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten
-(Bankring) und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im
-Paket, nie als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
+**Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten, der
+bestätigte Text eines Online-Mandats, IBAN und Kontoinhaber der Eltern sowie
+IBAN, Steuer-ID und Sozialversicherungsnummer des Personals (alle Bankring)
+und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im Paket, nie
+als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
 `password`-Definitionen und unbekannte Schlüssel als `null`. Zustellprotokolle
 (Sperrliste, Zustellereignisse, Push-Inhalte) gehen mit. Ein Wert, der nicht
 öffnet, oder ein Container ohne Besitzer bricht den Export ab.
@@ -113,7 +116,8 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    und den Gesundheitsring `HEALTH_DATA_KEYS` derselben Installation
    ([ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
    Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
-   -Lastschriften sowie die Gesundheitsangaben; ohne passende Ringe bricht er
+   -Lastschriften, den Mandatstext, die Bankdaten der Eltern, Bank- und
+   Steuerdaten des Personals sowie die Gesundheitsangaben; ohne passende Ringe bricht er
    ab, statt Chiffrat oder eine Lücke zu übergeben, auch für Schulen ohne
    solche Daten. Die Werte nur per SOPS in die Umgebung des Exportprozesses
    geben, nie als Datei, Shell-Literal oder CLI-Argument.
@@ -236,9 +240,15 @@ Exportformat, Version 1:
   einschließlich vorhandener Soft-Delete-Daten; keine Roh-Geheimnisspalten.
   Feldverschlüsselte Werte, die der Katalog unter `openSealedColumns` führt,
   stehen geöffnet in eigenen Spalten (`iban`, `account_holder` bei SEPA-
-  Mandaten und -Lastschriften, `health_info` bei Betreuungsprofilen, `health`
-  als JSON-Text bei Ferienanmeldungen, -kindern und -gästen), ihr Chiffrat
-  nicht. Container unter `projectedColumns` stehen projiziert in eigenen
+  Mandaten und -Lastschriften, `text` beim bestätigten Mandatstext,
+  `iban_opened`, `account_holder_opened` bei Bankdaten der Eltern,
+  `iban_opened`, `tax_id_opened`, `social_security_number_opened` bei Bank-
+  und Steuerdaten des Personals, `health_info` bei Betreuungsprofilen,
+  `health` als JSON-Text bei Ferienanmeldungen, -kindern und -gästen), ihr
+  Chiffrat nicht. Bei Eltern und Personal tragen `iban`, `account_holder`,
+  `tax_id` und `social_security_number` nur noch Klartext von Zeilen, die der
+  Backfill (#6332) nicht versiegelt hat; maßgeblich ist der geöffnete Wert,
+  sonst dieser Klartext. Container unter `projectedColumns` stehen projiziert in eigenen
   Spalten (`exported_value`, `exported_old_value`/`exported_new_value` bei
   Einstellungen, `exported_settings` bei Schulen), ihr Rohwert nicht.
   PostgreSQL-JSON stellt Zahlen numerisch dar. Empfänger müssen `bigint`
@@ -414,6 +424,7 @@ im gefilterten JSONL) mit `third-party-review`. Zusätzlich gelten:
 | `free-text-snapshots-and-embedded-persons` | Freitexte, Nachrichten, frühere/neue Werte, JSON und Formulare auf eingebettete Drittpersonen und Geheimnisse prüfen. Keine bloße Suche nach Spaltennamen. |
 | `audit-actors-and-historical-values` | Akteure und historische Werte prüfen; den erforderlichen Auskunftskontext nicht pauschal als „intern“ zurückhalten. |
 | `special-category-health-data` | Geöffnete Gesundheitsangaben (Art. 9 DSGVO): nur die der betroffenen Person und nur an den von der Schule bestätigten Empfänger. Zeilen von Geschwistern oder anderen Gästen entfernen. |
+| `especially-sensitive-tax-and-social-security-ids` | Geöffnete Steuer-ID und Sozialversicherungsnummer: lebenslange Kennungen mit hohem Missbrauchsrisiko. Nur die der betroffenen Beschäftigten, nur an den von der Schule bestätigten Empfänger, verschlüsselt übergeben; Zeilen anderer Beschäftigter entfernen. |
 | `original-content-and-group-photos` | Jede markierte Originaldatei ansehen. Gruppenfotos und Mehrpersonen-Dokumente redigieren oder begründet zurückhalten; das Original bleibt nur im internen Paket. |
 
 Die Markierungen sind bewusst konservativ, keine automatische juristische

@@ -1,6 +1,9 @@
 package peopledirectory
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // BankDataCipher seals and opens the bank values of a guardian bound to their
 // row (#6332). The root binds Security Runtime's independent bank ring
@@ -32,4 +35,11 @@ type BankDataRekeyResult struct {
 // never bind it to HTTP. Resume by replaying from zero.
 type GuardianBankDataRekey interface {
 	Batch(ctx context.Context, schoolID, afterID int64, limit int) (BankDataRekeyResult, error)
+}
+
+// GuardianBankExportFields opens the sealed IBAN and account holder of an
+// exported users.guardian_financial_data row for the return export of a
+// school (#6412). Only the administrative export CLI binds it, never HTTP.
+type GuardianBankExportFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
 }

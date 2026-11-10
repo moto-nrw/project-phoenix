@@ -1,6 +1,9 @@
 package workforce
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // BankDataCipher seals and opens the bank and tax values of a staff member
 // bound to their row (#6332). The root binds Security Runtime's independent
@@ -32,4 +35,12 @@ type BankDataRekeyResult struct {
 // batch; never bind it to HTTP. Resume by replaying from zero.
 type StaffBankDataRekey interface {
 	Batch(ctx context.Context, schoolID, afterID int64, limit int) (BankDataRekeyResult, error)
+}
+
+// StaffBankExportFields opens the sealed IBAN, tax ID and social security
+// number of an exported users.staff_financial_data row for the return export
+// of a school (#6412). Only the administrative export CLI binds it, never
+// HTTP.
+type StaffBankExportFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
 }

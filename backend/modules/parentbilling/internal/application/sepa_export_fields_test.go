@@ -52,3 +52,39 @@ func TestSEPAExportFieldsOpenOnlyTheirOwnRow(t *testing.T) {
 		require.NotContains(t, err.Error(), "DE89", name)
 	}
 }
+
+// #6412: the confirmed text of an online mandate opens with the reference of
+// its mandate, which the export binds into the consent row; the text of
+// another mandate or Träger does not open.
+func TestSEPAExportFieldsOpenTheMandateTextOfItsOwnMandate(t *testing.T) {
+	t.Parallel()
+	cipher := prefixCipher{}
+	text, _ := cipher.Seal([]byte("Synthetischer Mandatstext"), consentTextContext(7, "M-1"))
+	iban, _ := cipher.Seal([]byte("DE89370400440532013000"), ibanContext(7, "M-1"))
+	fields := NewSEPAExportFields(cipher)
+	const table = "parent_billing.sepa_mandate_consents"
+	consent := map[string]json.RawMessage{"organization_id": json.RawMessage("7"), "mandate_id": json.RawMessage("3"), "mandate_reference": json.RawMessage(`"M-1"`)}
+
+	value, err := fields.OpenExportField(table, "text_sealed", consent, text)
+	require.NoError(t, err)
+	require.Equal(t, "Synthetischer Mandatstext", value)
+
+	for name, call := range map[string]func() (string, error){
+		"other mandate": func() (string, error) {
+			return fields.OpenExportField(table, "text_sealed", map[string]json.RawMessage{"organization_id": json.RawMessage("7"), "mandate_reference": json.RawMessage(`"M-2"`)}, text)
+		},
+		"other Träger": func() (string, error) {
+			return fields.OpenExportField(table, "text_sealed", map[string]json.RawMessage{"organization_id": json.RawMessage("8"), "mandate_reference": json.RawMessage(`"M-1"`)}, text)
+		},
+		"without the bound reference": func() (string, error) {
+			return fields.OpenExportField(table, "text_sealed", map[string]json.RawMessage{"organization_id": json.RawMessage("7"), "mandate_id": json.RawMessage("3")}, text)
+		},
+		"IBAN as text": func() (string, error) { return fields.OpenExportField(table, "text_sealed", consent, iban) },
+		"IBAN column":  func() (string, error) { return fields.OpenExportField(table, "iban_sealed", consent, iban) },
+	} {
+		value, err := call()
+		require.Error(t, err, name)
+		require.Empty(t, value, name)
+		require.NotContains(t, err.Error(), "Mandatstext", name)
+	}
+}
