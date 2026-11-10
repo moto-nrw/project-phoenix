@@ -303,6 +303,7 @@ export default function TraegerFinanceExportsPage() {
         logger.warn("traeger_datev_download_refused", {
           documents: problems.length,
         });
+        setRepeat(null);
         setRefusal({ runLabel: run.label, problems });
       } else {
         logger.error("traeger_finance_export_download_failed", {

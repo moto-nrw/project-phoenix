@@ -123,7 +123,7 @@ function DatevState({
       <span className="block">{badge}</span>
       <span
         id={datevStateId(run)}
-        className="mt-1 block text-sm whitespace-nowrap text-gray-500"
+        className="mt-1 block text-sm text-gray-500 md:whitespace-nowrap"
       >
         {line}
       </span>

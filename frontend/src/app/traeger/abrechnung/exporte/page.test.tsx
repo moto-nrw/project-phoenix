@@ -422,6 +422,53 @@ it("repeats every DATEV booking only after the warning", async () => {
   ).toBeInTheDocument();
 });
 
+it("closes the repeat dialog when DATEV refuses a booking", async () => {
+  api.fetchExportRuns.mockResolvedValue({
+    items: [{ ...RUN, lastDatev: LAST_DATEV }],
+    total: 1,
+    notExported: 1,
+    nextOffset: null,
+  });
+  api.fetchDatevRunStates.mockResolvedValue(datevStates(0, ["2026-01-01"]));
+  api.downloadDatevBatch.mockRejectedValue(
+    new ApiError("Request failed (409)", 409, {
+      code: "parent_billing.datev_bookings_invalid",
+      details: {
+        documents: [
+          {
+            document_number: "MB-2026-0001",
+            field: "debtor_number",
+            reason: "invalid",
+          },
+        ],
+      },
+    }),
+  );
+  renderPage();
+  fireEvent.click(
+    (
+      await screen.findAllByRole("button", {
+        name: "Weitere DATEV-Aktionen für Monatsbeiträge Oktober 2026",
+      })
+    )[0]!,
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: /Alle Buchungen erneut/ }),
+  );
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Erneut herunterladen" }));
+  // Anker: Der abgelehnte Download nennt die betroffene Rechnung.
+  expect(
+    await screen.findByText("Debitorennummer passt nicht: MB-2026-0001"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(api.downloadDatevBatch).toHaveBeenCalledWith("care-runs", "7", {
+    all: true,
+    fiscalYear: "2026-01-01",
+  });
+  expect(files.downloadBlob).not.toHaveBeenCalled();
+});
+
 // A download that found nothing new (another person took the bookings a
 // moment earlier) is no fault: a notice says no file and no number.
 it("says when a DATEV download found no new booking", async () => {
