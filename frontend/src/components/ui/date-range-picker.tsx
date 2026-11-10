@@ -419,14 +419,6 @@ export function RangeCalendarInline({
   const today = useBerlinToday();
   const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
-  // A phone shows one month: the one where the chosen range ends, so its
-  // end day is in view when the calendar opens.
-  const showedEnd = useRef(false);
-  useEffect(() => {
-    if (!isSingleMonth || showedEnd.current || !value?.to) return;
-    showedEnd.current = true;
-    setMonth(value.to);
-  }, [isSingleMonth, value?.to]);
   // Manual draft state. We use `mode="single"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
