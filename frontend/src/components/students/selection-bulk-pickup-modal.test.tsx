@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
 
 const { bulkUpsert } = vi.hoisted(() => ({ bulkUpsert: vi.fn() }));
@@ -121,5 +122,77 @@ describe("SelectionBulkPickupModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(bulkUpsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps every close path locked while the save runs (#6503)", async () => {
+    let finish!: (value: { students_affected: number }) => void;
+    bulkUpsert.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const onClose = vi.fn();
+    render(
+      <SelectionBulkPickupModal
+        isOpen
+        onClose={onClose}
+        studentIds={["4", "9"]}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "16:10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Für 2 setzen" }));
+
+    // Anker: das Speichern läuft, der Dialog ist offen.
+    expect(
+      await screen.findByRole("button", { name: "Speichern..." }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeDisabled();
+    // Escape schließt sonst nach der Ausblend-Animation (250 ms).
+    vi.useFakeTimers();
+    fireEvent.keyDown(document, { key: "Escape" });
+    vi.advanceTimersByTime(1000);
+    releaseFakeTimers();
+    expect(onClose).not.toHaveBeenCalled();
+
+    finish({ students_affected: 2 });
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("does not close the next dialog when a save finishes after unmount (#6503)", async () => {
+    let finish!: (value: { students_affected: number }) => void;
+    bulkUpsert.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+    const { unmount } = render(
+      <SelectionBulkPickupModal
+        isOpen
+        onClose={onClose}
+        onSuccess={onSuccess}
+        studentIds={["4", "9"]}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "16:10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Für 2 setzen" }));
+    expect(
+      await screen.findByRole("button", { name: "Speichern..." }),
+    ).toBeDisabled();
+
+    unmount();
+    finish({ students_affected: 2 });
+
+    // Anker: die Speicherung hat stattgefunden, die Liste lädt neu …
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+    // … aber das Schließen gehört dem Dialog von damals, nicht dem nächsten.
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
