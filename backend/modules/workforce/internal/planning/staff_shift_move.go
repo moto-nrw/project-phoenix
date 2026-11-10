@@ -210,12 +210,14 @@ func (s *staffShiftService) applyMoveSeriesRules(ctx context.Context, existing, 
 	}
 	if existing.StaffID == moved.StaffID {
 		moved.Detached = true
+		moved.SeriesOverride = true
 		return nil
 	}
 	// A series belongs to its original staff member. The moved target row is
 	// standalone; the exception above keeps the original occurrence consumed.
 	moved.SeriesID = nil
 	moved.Detached = false
+	moved.SeriesOverride = false
 	moved.SeriesOccurrenceDate = nil
 	return nil
 }

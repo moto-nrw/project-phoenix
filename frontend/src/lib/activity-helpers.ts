@@ -536,23 +536,6 @@ export function mapTimeframeResponse(
   };
 }
 
-export function prepareActivityScheduleForBackend(
-  schedule: Partial<ActivitySchedule>,
-): Partial<BackendActivitySchedule> {
-  return {
-    id: schedule.id ? Number.parseInt(schedule.id, 10) : undefined,
-    activity_group_id: schedule.activity_id
-      ? Number.parseInt(schedule.activity_id, 10)
-      : undefined,
-    weekday: schedule.weekday
-      ? Number.parseInt(schedule.weekday, 10)
-      : undefined,
-    timeframe_id: schedule.timeframe_id
-      ? Number.parseInt(schedule.timeframe_id, 10)
-      : undefined,
-  };
-}
-
 // Request/Response types
 export interface CreateActivityRequest {
   name: string;

@@ -83,6 +83,10 @@ type ShiftReplacement struct {
 // replacement set in one unit of work. ApplyOriginEdits applies the window,
 // break and type below to the origin instead of preserving the stored ones.
 type CancelStaffShift struct {
+	// PreserveSeriesOverride is for the sick cascade: flipping sickness state
+	// must not turn a sickness-only detachment into an administrator edit.
+	PreserveSeriesOverride bool
+
 	ShiftID          int64
 	Cancelled        bool
 	ChangeReason     *string
