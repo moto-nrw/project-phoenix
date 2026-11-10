@@ -195,6 +195,8 @@ Umgesetzt sind nur die vier freigegebenen Einheiten:
    dataimport. Er folgt benannten lokalen Funktionen über Dateien sowie
    Inline-/benannten Run-Callbacks und den expliziten Clone-Einstiegen,
    einschließlich verschachtelter Clone-haltender Parent-Callbacks.
+   Direktes `PerTestDatabases()` in TestMain ist slotfrei und deshalb kein
+   Slot-/Scheduler-Zyklus; dieser bestehende Modus wird nicht beanstandet.
    Nicht aufgelöst: dynamische Funktionswerte, Interface-/Methodendispatch und
    fremde Helfergraphen; die endliche Slotfrist begrenzt übersehene Muster.
 4. Scheduler-Regression: dieselbe echte, dependency-freie Slot-Implementierung
@@ -267,14 +269,14 @@ ein 10-min-Pakettimeout sind weiterhin nicht reproduziert. Refs #6452.
 `test-perf backend-full`, je `-count=1`, gleicher eigener Postgres und dieselben
 Wrapper. Ergebnis- und Testinventar validiert. Bestehende 30 Environment-Skips
 unverändert; zwölf zusätzliche Test-/Subtest-Ergebnisse im Messlauf. Kein neuer
-Skip. Danach wurden zwei verschachtelte Scanner-Fixtures ergänzt; diese
+Skip. Danach wurden verschachtelte und slotfreie Scanner-Fixtures ergänzt; diese
 DB-freien Fälle werden im abschließenden Changed-Gate geprüft und verändern
 keinen Clone-Lifecycle.
 
 | Stand | Wall s | Gate-Queue s | Host-CPU-s | Peak MB | Pakete | bestanden / Skips |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | development-Code | 1105,600 | 0,000 | 1358,600 | 2863 | 523 | 41023 / 30 |
-| Fix einschließlich Klasse 17, vor zwei weiteren Scanner-Fixtures | 623,400 | 141,900 | 499,100 | 2442 | 523 | 41035 / 30 |
+| Fix einschließlich Klasse 17, vor den abschließenden Scanner-Fixtures | 623,400 | 141,900 | 499,100 | 2442 | 523 | 41035 / 30 |
 
 Erhaltene Caches, aber unterschiedliche Link-/Cachezustände und Hostlast:
 keine behauptete Vollsuite-Beschleunigung. Ein Peak-Unterschied ist ausgewiesen,
@@ -289,3 +291,20 @@ compose: 153 → 153 einschließlich Paket-Clone, also isoliert **152 → 152**.
 `backend/test`: **13 → 13** durch Wiederverwendung des bestehenden Fehler-
 Kindprozesses. Der zusätzliche fehlgeschlagene CREATE-Versuch erzeugt keinen
 Clone. CI ist nur Plausibilitätsvergleich, kein Ersatz für diese Kostenkriterien.
+
+## CI-Integrationskorrektur
+
+Der erste CI-Lauf meldete vier nicht inventarisierte neue Testfunktionen.
+Die drei Slot-Tests sind nun mit ihrer kopierten Quelltextabhängigkeit im
+Source-Input-Inventar registriert; der Scanner-Unitfall ist als synthetischer
+Fixture-Test ausgewiesen. Kein realer Befund wird ausgenommen. Lokal: der
+Inventartest vorher rot, anschließend alle neun Script-Unitprüfungen grün.
+
+Der Merge-Testbaum enthielt außerdem den inzwischen gemergten
+`TestBackfillBatchRetry`: ein Parent mit parallelen Nachfahren im bestehenden
+`PerTestDatabases()`-Modus. Dieser Modus umgeht den Limiter, auch für explizite
+Clones. Der Scanner beanstandete deshalb irrtümlich einen nicht vorhandenen
+Slot-Zyklus. Zwei unabhängig mit Sollwert 0 definierte Fixtures sind vor der
+Korrektur rot und danach grün; normale und verschachtelte slotbegrenzte
+Positivfälle bleiben erkannt. Keine Migration, kein DB-Routing und kein
+Clone-Lifecycle verändert.

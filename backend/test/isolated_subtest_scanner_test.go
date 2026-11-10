@@ -18,6 +18,8 @@ import (
 // callbacks, plus the public SetupIsolatedTestDB/NewFaultProbe entry points.
 // Function values, interface/method dispatch and other packages' helper graphs
 // are not resolved. The deadline on slot acquisition bounds missed patterns.
+// PerTestDatabases packages never acquire this limiter, so their clone-holding
+// parents cannot cause the slot/parallel-scheduler cycle checked here.
 func checkIsolatedParallelSubtests(t *testing.T, root string) []string {
 	t.Helper()
 	var files []sourceFile
@@ -38,8 +40,8 @@ type isolatedSubtestNode struct {
 func isolatedParallelSubtestFindings(t *testing.T, files []sourceFile) []string {
 	t.Helper()
 	// Only packages containing an explicit clone entry point need an AST walk.
-	// Ordinary SetupTestDB packages stay outside the scan unless TestMain opts
-	// into PerTestDatabases. Reuse the shared parser cache in candidate packages.
+	// Reuse the shared parser cache in candidate packages. TestMain's direct
+	// PerTestDatabases opt-in is recognized to exclude that slot-free mode.
 	dirs := map[string]bool{}
 	for _, file := range files {
 		for _, marker := range []string{"SetupIsolatedTestDB", "NewFaultProbe", "PerTestDatabases"} {
@@ -91,7 +93,7 @@ func isolatedParallelSubtestFindings(t *testing.T, files []sourceFile) []string 
 				return true
 			}
 			called := isolatedCallName(call)
-			if called == "SetupIsolatedTestDB" || called == "NewFaultProbe" || (called == "SetupTestDB" && perDatabase[file.pkg]) {
+			if called == "SetupIsolatedTestDB" || called == "NewFaultProbe" {
 				node.clone = true
 			}
 			if called == "Parallel" {
@@ -115,6 +117,9 @@ func isolatedParallelSubtestFindings(t *testing.T, files []sourceFile) []string 
 		return node
 	}
 	for _, file := range parsedFiles {
+		if perDatabase[file.pkg] {
+			continue
+		}
 		for _, decl := range file.file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Body == nil || fn.Recv != nil {
@@ -161,7 +166,7 @@ func isolatedParallelSubtestFindings(t *testing.T, files []sourceFile) []string 
 	seen := map[*isolatedSubtestNode]bool{}
 	for _, node := range tests {
 		if !seen[node] && node.clone && node.parallelChild {
-			findings = append(findings, fmt.Sprintf("%s: %s holds an isolated clone with parallel descendants", node.location, node.name))
+			findings = append(findings, fmt.Sprintf("%s: %s holds a slot-limited isolated clone with parallel descendants", node.location, node.name))
 		}
 		seen[node] = true
 	}
@@ -191,7 +196,8 @@ func TestIsolatedParallelSubtestScanner(t *testing.T) {
 		{name: "nested descendant", findings: 1, source: `func TestParent(t *testing.T) { testpkg.SetupIsolatedTestDB(t); t.Run("child", func(t *testing.T) { t.Run("grandchild", func(t *testing.T) { t.Parallel() }) }) }`},
 		{name: "nested clone parent", findings: 1, source: `func TestRoot(t *testing.T) { t.Run("parent", func(t *testing.T) { testpkg.SetupIsolatedTestDB(t); t.Run("child", func(t *testing.T) { t.Parallel() }) }) }`},
 		{name: "named nested clone parent", findings: 1, source: `func TestRoot(t *testing.T) { t.Run("parent", parent) }`, helper: `func parent(t *testing.T) { testpkg.SetupIsolatedTestDB(t); t.Run("child", func(t *testing.T) { t.Parallel() }) }`},
-		{name: "per database mode", findings: 1, source: `func TestMain(m *testing.M) { testpkg.PerTestDatabases() }; func TestParent(t *testing.T) { testpkg.SetupTestDB(t); t.Run("child", func(t *testing.T) { t.Parallel() }) }`},
+		{name: "per database mode has no limiter", source: `func TestMain(m *testing.M) { testpkg.PerTestDatabases() }; func TestParent(t *testing.T) { testpkg.SetupTestDB(t); t.Run("child", func(t *testing.T) { t.Parallel() }) }`},
+		{name: "explicit clone in per database mode has no limiter", source: `func TestMain(m *testing.M) { testpkg.PerTestDatabases() }; func TestParent(t *testing.T) { testpkg.SetupIsolatedTestDB(t); t.Run("child", func(t *testing.T) { t.Parallel() }) }`},
 		{name: "ordinary package database", source: `func TestParent(t *testing.T) { testpkg.SetupTestDB(t); t.Run("child", func(t *testing.T) { t.Parallel() }) }`},
 		{name: "only parent parallel", source: `func TestParent(t *testing.T) { t.Parallel(); testpkg.SetupIsolatedTestDB(t); t.Run("child", func(t *testing.T) {}) }`},
 		{name: "only child clones", source: `func TestParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Parallel(); testpkg.SetupIsolatedTestDB(t) }) }`},

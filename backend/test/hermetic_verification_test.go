@@ -142,7 +142,7 @@ func TestHermeticTestPatterns(t *testing.T) {
 	t.Run("no_isolated_parent_parallel_children", func(t *testing.T) {
 		findings := checkIsolatedParallelSubtests(t, backendRoot)
 		t.Logf("isolated parent/parallel-child findings: %v", findings)
-		assert.Empty(t, findings, "isolated parent clones cannot coexist with parallel descendants: %v", findings)
+		assert.Empty(t, findings, "slot-limited isolated parent clones cannot coexist with parallel descendants: %v", findings)
 	})
 
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
