@@ -3,6 +3,7 @@ package timetable
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -92,9 +93,10 @@ func ValidateBulkCancelRange(from, to string) error {
 // ones dated in [from, to] and not before today, except occurrences of series
 // that include closing days unless opts.IncludeClosingDaySeries asks for
 // them. Running, finished, cancelled and past
-// occurrences stay untouched. The IDs come back ordered by date so the
-// caller takes its per-day locks in ascending order; the per-day counts feed
-// the confirmation dialog.
+// occurrences stay untouched. The IDs come back in ascending order, the
+// canonical block lock order (#6232); the caller holds every day of the
+// range already. The per-day counts, in date order, feed the confirmation
+// dialog.
 func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string, opts BulkCancelOptions) ([]int64, BulkCancelResult) {
 	lower := max(from, today)
 	selected := make([]BulkCancelCandidate, 0, len(candidates))
@@ -132,6 +134,9 @@ func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string, 
 		}
 		result.Days = append(result.Days, BulkCancelDay{Date: candidate.Date, Count: 1})
 	}
+	// The cancellation locks each block in turn: ascending id is the
+	// canonical order every multi-block writer shares (#6232).
+	slices.Sort(ids)
 	return ids, result
 }
 

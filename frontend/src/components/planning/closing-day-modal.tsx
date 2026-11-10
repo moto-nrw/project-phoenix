@@ -20,6 +20,7 @@ import { FormFieldset } from "~/components/ui/form-fieldset";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -50,7 +51,8 @@ export function ClosingDayModal({
   const [reason, setReason] = useState("");
   const [schoolIds, setSchoolIds] = useState<readonly string[]>([]);
   const initializedRecord = useRef<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const clearErrors = formErrors.clear;
@@ -104,37 +106,44 @@ export function ClosingDayModal({
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
-    setSaving(true);
-    formErrors.clear();
     const body = {
       start_date: startDate,
       end_date: endDate,
       reason: reason.trim(),
     };
-    try {
-      if (onSave) {
-        await onSave({ startDate, endDate, reason: reason.trim(), schoolIds });
-      } else if (initial) {
-        await closingDayService.update(initial.id, body);
-      } else {
-        await closingDayService.create(body);
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        if (onSave) {
+          await onSave({
+            startDate,
+            endDate,
+            reason: reason.trim(),
+            schoolIds,
+          });
+        } else if (initial) {
+          await closingDayService.update(initial.id, body);
+        } else {
+          await closingDayService.create(body);
+        }
+        onSaved();
+        // Eine späte Antwort schließt keinen inzwischen neuen Dialog (#6533).
+        if (!op.isCurrent()) return;
+        onClose();
+        // #3594: Termine, die vor dem Schließtag geplant waren, bleiben im Plan.
+        // Stehen noch welche im Zeitraum, bietet der Editor das Absagen an.
+        await offerCancel(onOfferCancel, startDate, endDate);
+      } catch (err) {
+        logger.error("closing_day_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Speichern des Schließtags",
+          retry: () => latestSaveRef.current(),
+        });
       }
-      onSaved();
-      onClose();
-      // #3594: Termine, die vor dem Schließtag geplant waren, bleiben im Plan.
-      // Stehen noch welche im Zeitraum, bietet der Editor das Absagen an.
-      await offerCancel(onOfferCancel, startDate, endDate);
-    } catch (err) {
-      logger.error("closing_day_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Speichern des Schließtags",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   // „Wiederholen“ sendet den Stand, der dann im Formular steht.
   useLayoutEffect(() => {
@@ -147,6 +156,7 @@ export function ClosingDayModal({
       onClose={onClose}
       title={initial ? "Schließtag bearbeiten" : "Schließtag anlegen"}
       size="md"
+      pending={save}
       error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">

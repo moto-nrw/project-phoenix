@@ -8,6 +8,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -49,7 +50,8 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [sending, setSending] = useState(false);
+  const save = useFormModalPending(inviteOpen);
+  const sending = save.pending;
   const [revokeTarget, setRevokeTarget] =
     useState<MealCatererInvitation | null>(null);
   const [endOpen, setEndOpen] = useState(false);
@@ -96,19 +98,21 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (sending || !form.email.trim() || !form.catererName.trim()) return;
-    setSending(true);
-    formErrors.clear();
-    try {
-      await inviteMealCaterer(form);
-      toast.success(`Die Einladung ist unterwegs an ${form.email.trim()}.`);
-      setInviteOpen(false);
-      setForm(EMPTY_FORM);
-      await load();
-    } catch (cause) {
-      void formErrors.show(cause, { object: "die Einladung" });
-    } finally {
-      setSending(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await inviteMealCaterer(form);
+        toast.success(`Die Einladung ist unterwegs an ${form.email.trim()}.`);
+        if (op.isCurrent()) {
+          setInviteOpen(false);
+          setForm(EMPTY_FORM);
+        }
+        await load();
+      } catch (cause) {
+        if (!op.isCurrent()) return;
+        void formErrors.show(cause, { object: "die Einladung" });
+      }
+    });
   }
 
   async function confirmRevoke() {
@@ -264,7 +268,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         onClose={() => setInviteOpen(false)}
         title="Caterer einladen"
         size="md"
-        closeDisabled={sending}
+        pending={save}
         isBackdropDismissDisabled
         error={formErrors.error}
         footer={

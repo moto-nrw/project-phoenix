@@ -16,21 +16,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestScheduleStatusFlagClearTask_DisabledByEnvVar — the new env kill-switch
-// stops the status-flag task from registering, matching the pattern of every
-// other per-tenant scheduler task.
-func TestScheduleStatusFlagClearTask_DisabledByEnvVar(t *testing.T) {
+// TestScheduleStatusFlagClearTask_IgnoresEnvironment — the status-flag task
+// has no process switch (#6463): no deployment ever set one, and the sick /
+// excused flag lifecycle is configured per school through
+// operations.sick_clear_mode and operations.excused_clear_mode. The task
+// registers its minute poll whatever the environment holds.
+func TestScheduleStatusFlagClearTask_IgnoresEnvironment(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-		s.getenv = testEnv("STATUS_FLAG_CLEAR_ENABLED", "false")
+		s.getenv = envEverywhere("false")
 		s.scheduleStatusFlagClearTask()
 		synctest.Wait()
 
 		s.mu.RLock()
-		_, exists := s.tasks["status-flag-clear"]
+		task, exists := s.tasks["status-flag-clear"]
 		s.mu.RUnlock()
-		assert.False(t, exists, "task must not register when env var is set to false")
+		require.True(t, exists, "task must register regardless of the environment")
+		assert.Equal(t, "1m-poll", task.Schedule)
+		close(s.done)
 	})
 }
 

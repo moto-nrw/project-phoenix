@@ -338,9 +338,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (result int64, err error) {\n\terr = s.runWrite(ctx, \"delete_completed_visits_before\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 || cutoff.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid visit retention request\")\n\t\t}\n\t\tstats, writeErr := s.store.DeleteCompletedVisitsBefore(txCtx, studentID, policy, cutoff)\n\t\tresult = stats.Rows\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
+      "evidence": "func (s *Service) DeleteExpiredVisits(ctx context.Context, students []studentpresence.VisitRetentionCount, now time.Time) (result map[int64]int64, err error) {\n\texpiries, err := visitExpiries(students, now)\n\tif err != nil || len(expiries) == 0 {\n\t\treturn map[int64]int64{}, err\n\t}\n\terr = s.runWrite(ctx, \"delete_expired_visits\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tvar writeErr error\n\t\tresult, stats, writeErr = s.store.DeleteExpiredVisits(txCtx, expiries)\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
-      "id": "modules/studentpresence/internal/application/Service.DeleteCompletedVisitsBefore",
+      "id": "modules/studentpresence/internal/application/Service.DeleteExpiredVisits",
       "owner": "modules/studentpresence"
     },
     {

@@ -18,6 +18,8 @@ type Store interface {
 	TransitionStudentStatus(ctx context.Context, id int64, expected, next, today string) (bool, domain.OperationStats, error)
 	EnrollStudent(context.Context, schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error)
 	RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment, today string) (int64, domain.OperationStats, error)
+	// LockStudentWindow reads the child's membership under a row lock.
+	LockStudentWindow(ctx context.Context, id int64) (schoolmembership.StudentEnrollment, bool, domain.OperationStats, error)
 	AssignStudentGroup(context.Context, int64, *int64) (bool, domain.OperationStats, error)
 	LockStudentClassWrites(context.Context, bool) (domain.OperationStats, error)
 	EndStudentCare(context.Context, []int64, string) (int64, domain.OperationStats, error)

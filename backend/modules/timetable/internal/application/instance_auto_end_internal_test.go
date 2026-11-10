@@ -52,7 +52,7 @@ func TestAutoEnd_RunForTenant_CompletesOnlyDueActivePlannedInstances(t *testing.
 	assert.Equal(t, 1, result.SkippedBeforeDeadline)
 	assert.Equal(t, 1, result.SkippedSpontaneous)
 	assert.Equal(t, 2, result.SkippedNonActive)
-	assert.Equal(t, []int64{101, 102, 107}, completer.completedIDs)
+	assert.Equal(t, []int64{107, 101, 102}, completer.completedIDs, "older days must complete first in the shared transaction")
 }
 
 func TestAutoEnd_RunForTenant_UsesZeroGrace(t *testing.T) {

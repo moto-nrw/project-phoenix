@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// MaxSickAbsenceRangeDays bounds the synchronous sick-report plan cascade.
+// Workflows use the same limit before expanding its lock scope.
+const MaxSickAbsenceRangeDays = 366
+
 // Canonical staff absence types. A school-defined Abwesenheitsart never
 // changes the arithmetic: the row still carries one of these, and every
 // calculation keeps reading it.

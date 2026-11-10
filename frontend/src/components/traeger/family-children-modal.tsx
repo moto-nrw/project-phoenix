@@ -11,6 +11,7 @@ import { DataField, DataGrid } from "~/components/ui/data-field";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { NumberStepper } from "~/components/ui/number-stepper";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -67,7 +68,8 @@ export function FamilyChildrenModal({
     validFrom: monthStart,
     validUntil: "",
   });
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(family !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -108,25 +110,24 @@ export function FamilyChildrenModal({
     }
     const contract = family.count?.contractId ?? family.children[0]?.contractId;
     if (!contract) return;
-    setSaving(true);
-    try {
-      onSaved(
-        await confirmFamilyChildren({
+    await save.run(async (op) => {
+      try {
+        const result = await confirmFamilyChildren({
           contractId: contract,
           children: draft.children,
           validFrom: draft.validFrom,
           validUntil: draft.validUntil || null,
-        }),
-      );
-      success(`Die Kinderzahl von ${name} ist bestätigt.`);
-    } catch (err) {
-      logger.error("family_children_confirm_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Kinderzahl" });
-    } finally {
-      setSaving(false);
-    }
+        });
+        if (op.isCurrent()) onSaved(result);
+        success(`Die Kinderzahl von ${name} ist bestätigt.`);
+      } catch (err) {
+        logger.error("family_children_confirm_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Kinderzahl" });
+      }
+    });
   };
 
   const count = family?.count ?? null;
@@ -135,7 +136,7 @@ export function FamilyChildrenModal({
     <FormModal
       isOpen={family !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={family ? `Kinderzahl: ${name}` : "Kinderzahl"}
       error={formErrors.error}
