@@ -1,9 +1,25 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import type { AnchorHTMLAttributes } from "react";
+import { describe, expect, it, vi } from "vitest";
 
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 
 import { StatCard } from "./stat-card";
+import { TileCard } from "./tile-card";
+
+vi.mock("~/components/ui/navigation-link", () => ({
+  default: ({
+    children,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>,
+}));
+
+/** Klassen eines Elements, die mit einem der Präfixe beginnen. */
+function classesWith(element: Element, prefixes: readonly string[]) {
+  return [...element.classList]
+    .filter((name) => prefixes.some((prefix) => name.startsWith(prefix)))
+    .sort();
+}
 
 describe("StatCard", () => {
   it("zeigt Beschriftung, Wert und Hinweis", () => {
@@ -114,6 +130,52 @@ describe("StatCard", () => {
       expect(screen.getByText("3")).toHaveStyle({
         color: getAccessibleTextColor(LOCATION_COLORS.DANGER),
       });
+    });
+  });
+
+  describe("mit Link wie TileCard (#6565)", () => {
+    function renderBoth() {
+      render(
+        <>
+          <StatCard label="Kinder anwesend" value={12} href="/students" />
+          <TileCard href="/rooms" ariaLabel="Räume">
+            Räume
+          </TileCard>
+        </>,
+      );
+      const statLink = screen.getByRole("link", { name: /Kinder anwesend/ });
+      const tileLink = screen.getByRole("link", { name: "Räume" });
+      return { statLink, tileLink };
+    }
+
+    it("zeigt beim Tastaturfokus denselben Fokusring", () => {
+      const { statLink, tileLink } = renderBoth();
+
+      const focus = classesWith(tileLink, ["focus-visible:"]);
+      expect(focus).not.toHaveLength(0);
+      expect(classesWith(statLink, ["focus-visible:", "focus:"])).toEqual(
+        focus,
+      );
+    });
+
+    it("hebt sich beim Überfahren wie TileCard, ohne eigenes Verschieben", () => {
+      const { statLink } = renderBoth();
+      const surface = statLink.firstElementChild;
+
+      expect(surface).toHaveClass("moto-hover-elevated");
+      expect(
+        classesWith(surface as Element, ["group-hover:", "transition-"]),
+      ).toEqual([]);
+    });
+
+    it("hat auf dem Telefon denselben Innenabstand", () => {
+      const { statLink, tileLink } = renderBoth();
+      const surface = statLink.firstElementChild as Element;
+      const padding = ["p-", "max-sm:p-", "compact:p-"];
+
+      expect(classesWith(surface, padding)).toEqual(
+        classesWith(tileLink, padding),
+      );
     });
   });
 });
