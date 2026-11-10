@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -117,13 +116,13 @@ func TestArchivedTimeModelIsNoLongerBookable(t *testing.T) {
 
 	onto := map[string]any{"bookings": []map[string]any{{"week_id": week.ID, "time_model_id": booked}}}
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut,
-		f.registrationPath(f.siblings, fmt.Sprintf("/children/%d/bookings", lia.ID)), onto)
+		holidayRebookPath(f.period.ID, f.siblings, lia.ID), onto)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "nor does a rebooking onto it: %s", rec.Body.String())
 
 	// Ben keeps his booking on it and gives up the second week.
 	keep := map[string]any{"bookings": []map[string]any{{"week_id": week.ID, "time_model_id": booked}}}
 	f.detail(t, traegerJSON(t, f.traeger, f.office.token, http.MethodPut,
-		f.registrationPath(f.siblings, fmt.Sprintf("/children/%d/bookings", ben.ID)), keep))
+		holidayRebookPath(f.period.ID, f.siblings, ben.ID), keep))
 
 	// A period written without it, or with it no longer archived, keeps it
 	// archived: there is no way back.

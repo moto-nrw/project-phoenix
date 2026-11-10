@@ -25,6 +25,8 @@ const (
 	// itself when it deletes the Träger root (migration 1.15.533).
 	AuditActionRecordErasureOrder   = "record_erasure_order"
 	AuditActionWithdrawErasureOrder = "withdraw_erasure_order"
+	// The hint and the choice recorded on an older open order (#4720).
+	AuditActionRecordErasureOrderRecords = "record_erasure_order_records"
 
 	AuditResourceOrganization  = "organization"
 	AuditResourceSchool        = "school"

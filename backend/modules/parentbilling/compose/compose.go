@@ -91,9 +91,21 @@ func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.Bank
 	return application.NewBankDataRekey(postgres.NewBankDataRekeyStore(), cipher)
 }
 
+// NewSEPAReturn builds the bank data of the Rückgabe of a Träger (#6314)
+// over its creditor account and the field cipher the root binds. Internal
+// procedure only; never bind it to HTTP.
+func NewSEPAReturn(creditors parentbilling.SEPACreditorAccounts, cipher parentbilling.BankDataCipher, fingerprint func([]byte) string) parentbilling.SEPAReturn {
+	return application.NewSEPAReturn(postgres.NewStore(), creditors, cipher, fingerprint)
+}
+
+// NewSEPADebitDownloadRetention builds the hourly expiry of the unsubmitted PAIN.008 downloads (ADR 0187).
+func NewSEPADebitDownloadRetention() parentbilling.SEPADebitDownloadRetention {
+	return postgres.NewStore()
+}
+
 // NewSEPADebits builds the SEPA direct debit file of the issued runs (#4697, ADR 0181) over the letterhead with the bank account of the Träger and the field cipher the root binds.
-func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher) parentbilling.SEPADebits {
-	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
+func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher, fingerprint func([]byte) string) parentbilling.SEPADebits {
+	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now, fingerprint)
 }
 
 // NewBelegRetention builds the retention of the Belege of every Träger

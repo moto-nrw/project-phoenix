@@ -457,6 +457,14 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RebookHolidayChild",
+      "binding_digest": "8c8b89255f8b3f6b27d78e39c43f1c84",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RebookHolidayChild",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RebookHolidayChild",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "binding_digest": "d3df29bf15223626937d4d04464be1a8",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RecordHolidaySiblings",
@@ -478,6 +486,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayDebtorNumber",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
+      "binding_digest": "55a5b64478cbea8ead4b7457716c361d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayWeekCapacity",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPlaces.SetHolidayWeekCapacity",
       "target_owner": "enrollment"
     },
     {
@@ -527,6 +543,14 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractRetention.DeleteEndedContracts",
       "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerCreditorAccounts.CreditorAccount",
+      "binding_digest": "0465291704f2efe6eb58b86733889d3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPACreditorAccounts.CreditorAccount",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",

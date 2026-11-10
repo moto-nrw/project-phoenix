@@ -17,9 +17,11 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import {
   type HolidayKnownFamily,
+  type HolidayReceiptPlacement,
   type HolidayRegistrationOffer,
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
+import { HolidayRegistrationPlacements } from "./holiday-registration-placements";
 import { createLogger } from "~/lib/logger";
 import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
@@ -86,6 +88,9 @@ export function HolidayRegistrationForm({
   const [step, setStep] = useState<HolidayRegistrationStep>("form");
   const [captchaToken, setCaptchaToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [placements, setPlacements] = useState<
+    readonly HolidayReceiptPlacement[]
+  >([]);
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
 
   useEffect(() => {
@@ -116,10 +121,11 @@ export function HolidayRegistrationForm({
   const submit = async () => {
     setSubmitting(true);
     try {
-      await submitHolidayRegistration(
+      const placed = await submitHolidayRegistration(
         token,
         payloadFromDraft(draft, offer, captchaToken),
       );
+      setPlacements(placed ?? []);
       setStep("done");
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -152,9 +158,16 @@ export function HolidayRegistrationForm({
   if (step === "done") {
     return (
       <SectionCard title={t("doneTitle")}>
-        <div className="space-y-2 text-sm text-gray-700">
-          <p>{t("doneText", { email: draft.guardian.email.trim() })}</p>
-          <p>{t("doneNext")}</p>
+        <div className="space-y-5">
+          <div className="space-y-2 text-sm text-gray-700">
+            <p>{t("doneText", { email: draft.guardian.email.trim() })}</p>
+            <p>{t("doneNext")}</p>
+          </div>
+          <HolidayRegistrationPlacements
+            childDrafts={draft.children}
+            weeks={offer.weeks}
+            placements={placements}
+          />
         </div>
       </SectionCard>
     );

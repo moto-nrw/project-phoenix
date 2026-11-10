@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_places",
+  "max": 6,
+  "exact": true,
+  "description": "GET holiday places: organization binding, period with weeks and time models, placed counts and waiting lists. Flat across weeks and waiting children; the audit entry only writes.",
+  "route": "GET /traeger/holiday-periods/{id}/places"
+}

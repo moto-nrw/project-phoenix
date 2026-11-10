@@ -255,10 +255,22 @@ export function uploadHolidayProof(
   return postUpload(`${registrationPath(token)}/uploads`, body, file, signal);
 }
 
+/**
+ * Whether one booking of the sent registration got a place or waits on the
+ * waiting list of its week (#4699). The child is named by its position in
+ * the form, from 1.
+ */
+export interface HolidayReceiptPlacement {
+  readonly childPosition: number;
+  readonly weekId: string;
+  readonly placement: "placed" | "waitlisted";
+}
+
+/** Sends the registration and answers with the place of every booking. */
 export async function submitHolidayRegistration(
   token: string,
   payload: HolidayRegistrationPayload,
-): Promise<void> {
+): Promise<readonly HolidayReceiptPlacement[]> {
   const response = await request(registrationPath(token), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -270,6 +282,17 @@ export async function submitHolidayRegistration(
       "Ferienanmeldung konnte nicht gesendet werden",
     );
   }
+  const body = (await response.json().catch(() => null)) as {
+    data?: {
+      placements?:
+        { child_position: number; week_id: number; placement: string }[] | null;
+    };
+  } | null;
+  return (body?.data?.placements ?? []).map((entry) => ({
+    childPosition: entry.child_position,
+    weekId: String(entry.week_id),
+    placement: entry.placement === "waitlisted" ? "waitlisted" : "placed",
+  }));
 }
 
 /** The bookings of one child of the form, for its contribution (#4664). */

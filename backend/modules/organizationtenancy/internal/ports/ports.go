@@ -42,6 +42,7 @@ type TraegerErasureOrderStore interface {
 	FindOpenTraegerErasureOrder(ctx context.Context, organizationID int64, lock string) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error)
 	InsertTraegerErasureOrder(ctx context.Context, order organizationtenancy.NewTraegerErasureOrder) (organizationtenancy.TraegerErasureOrder, domain.OperationStats, error)
 	WithdrawTraegerErasureOrder(ctx context.Context, orderID, operatorID int64) (bool, domain.OperationStats, error)
+	UpdateTraegerErasureOrderRecords(ctx context.Context, orderID int64, records organizationtenancy.RecordsHandover) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error)
 }
 
 // TraegerMembershipStore persists platform.organization_accounts (ADR 0084).

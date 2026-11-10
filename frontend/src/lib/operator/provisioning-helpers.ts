@@ -912,7 +912,16 @@ export interface BackendTraegerErasureOrder {
   recorded_by: number;
   recorded_at: string;
   started_at?: string | null;
+  records_choice?: TraegerRecordsChoice | "";
+  records_handed_over_on?: string | null;
+  records_export_sha256?: string | null;
 }
+
+/**
+ * Choice of the customer after the hint on records subject to retention
+ * (#4720, AVV Ziff. 8.4): Rückgabe handed over, or lawful erasure chosen.
+ */
+export type TraegerRecordsChoice = "handed_over" | "erasure_chosen";
 
 export interface TraegerErasureOrder {
   id: string;
@@ -923,6 +932,10 @@ export interface TraegerErasureOrder {
   recordedAt: string;
   /** Set once the internal erasure began; then the order stays. */
   startedAt: string | null;
+  /** Null on orders recorded before #4720. */
+  recordsChoice: TraegerRecordsChoice | null;
+  recordsHandedOverOn: string | null;
+  recordsExportSha256: string | null;
 }
 
 export function mapTraegerErasureOrder(
@@ -936,6 +949,9 @@ export function mapTraegerErasureOrder(
     eraseNotBefore: data.erase_not_before,
     recordedAt: data.recorded_at,
     startedAt: data.started_at ?? null,
+    recordsChoice: data.records_choice || null,
+    recordsHandedOverOn: data.records_handed_over_on ?? null,
+    recordsExportSha256: data.records_export_sha256 || null,
   };
 }
 
@@ -954,7 +970,23 @@ export interface RecordTraegerErasureOrderRequest {
   order_reference: string;
   confirmed_on: string;
   erase_not_before: string;
+  records_notice_acknowledged: boolean;
+  records_choice: TraegerRecordsChoice;
+  records_handed_over_on?: string;
+  records_export_sha256?: string;
 }
+
+/**
+ * The hint and the customer's choice recorded afterwards on an open order
+ * that was recorded without them (#4720), also once the erasure started.
+ */
+export type RecordTraegerErasureOrderRecordsRequest = Pick<
+  RecordTraegerErasureOrderRequest,
+  | "records_notice_acknowledged"
+  | "records_choice"
+  | "records_handed_over_on"
+  | "records_export_sha256"
+>;
 
 /** Wire shape of GET /operator/caterers (#4497): one row per caterer account. */
 export interface BackendOperatorCaterer {

@@ -7,6 +7,9 @@
     "GET traeger /traeger/holiday-periods/id%2F1",
     "PUT traeger /traeger/holiday-periods/id%2F1"
   ],
+  "api/traeger/holiday-periods/[id]/places": [
+    "GET traeger /traeger/holiday-periods/id%2F1/places"
+  ],
   "api/traeger/holiday-periods/[id]/publish": [
     "POST traeger /traeger/holiday-periods/id%2F1/publish"
   ],
@@ -20,7 +23,7 @@
     "POST traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/cancel"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/bookings": [
-    "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings"
+    "PUT traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/details": [
     "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/details"
@@ -53,5 +56,8 @@
   "api/traeger/holiday-periods/[id]/sibling-groups": [
     "GET traeger /traeger/holiday-contributions/id%2F1/sibling-groups",
     "POST traeger /traeger/holiday-contributions/id%2F1/sibling-groups"
+  ],
+  "api/traeger/holiday-periods/[id]/weeks/[weekId]/capacity": [
+    "PUT traeger /traeger/holiday-contributions/id%2F1/weeks/weekId%2F1/capacity"
   ]
 }

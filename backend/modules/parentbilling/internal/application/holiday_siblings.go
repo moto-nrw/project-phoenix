@@ -37,6 +37,10 @@ var _ parentbilling.HolidaySiblingGroups = (*HolidayContributions)(nil)
 type siblingMember struct {
 	registration parentbilling.HolidayRegistration
 	frozen       *parentbilling.HolidayContribution
+	// movedUp marks a confirmed registration whose bookings moved up from
+	// the waiting list (#4699): it ranks with the base prices it froze and
+	// the newly placed weeks at their current price.
+	movedUp bool
 }
 
 func (m siblingMember) id() int64 { return m.registration.ID }
@@ -73,9 +77,12 @@ func (m siblingMember) chainMember() holidayMember {
 				continue
 			}
 			children[i].Bookings = append(children[i].Bookings, parentbilling.HolidayBooking{
-				WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
+				WeekID: line.WeekID, WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
 			})
 		}
+	}
+	if m.movedUp {
+		children = withMovedUpBookings(children, m.registration.Children)
 	}
 	member := holidayMember{children: children, exemption: m.frozen.BenefitsExemption}
 	if m.frozen.CostBearerID != nil {
@@ -294,6 +301,7 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	var ranked []siblingMember
 	var chain []holidayMember
 	var children []parentbilling.HolidayChild
+	var requested []parentbilling.HolidayChild
 	for _, member := range sentOrder(slices.Clone(members)) {
 		if member.cancelled() {
 			continue
@@ -305,6 +313,7 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 		ranked = append(ranked, member)
 		chain = append(chain, next)
 		children = append(children, next.children...)
+		requested = append(requested, member.registration.Children...)
 	}
 	rules, err := h.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceHoliday)
 	if err != nil {
@@ -314,7 +323,8 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	if err != nil {
 		return nil, err
 	}
-	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid := validHolidayRules(rules, firstHolidayDay(placedHolidayChildren(children)))
+	valid.exemption = validHolidayRules(rules, firstHolidayDay(requested)).exemption
 	valid.chain = groupChain(ranked, current)
 	results := computeHolidaySiblings(chain, valid)
 	computed := make(map[int64]parentbilling.HolidayContribution, len(ranked))

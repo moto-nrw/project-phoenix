@@ -13,6 +13,7 @@
   "traeger_erasure_order_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "traeger_erasure_order_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "traeger_erasure_started": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_erasure_records_recorded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "school_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "school_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "school_already_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

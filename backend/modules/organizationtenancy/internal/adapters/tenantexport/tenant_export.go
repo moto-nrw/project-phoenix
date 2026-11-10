@@ -20,10 +20,13 @@ type tenantExporter struct {
 	fingerprints organizationtenancy.ExportFingerprints
 	sealed       organizationtenancy.TenantExportSealedFields
 	projected    organizationtenancy.TenantExportProjectedFields
+	sepaFiles    organizationtenancy.TenantExportSEPADebitFiles
+	audit        organizationtenancy.TenantExportAudit
 }
 
-func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints, sealed organizationtenancy.TenantExportSealedFields, projected organizationtenancy.TenantExportProjectedFields) organizationtenancy.TenantExporter {
-	return &tenantExporter{db: db, fingerprints: fingerprints, sealed: sealed, projected: projected}
+func NewTenantExporter(db *bun.DB, dependencies organizationtenancy.TenantExportDependencies) organizationtenancy.TenantExporter {
+	return &tenantExporter{db: db, fingerprints: dependencies.Fingerprints, sealed: dependencies.Sealed, projected: dependencies.Projected,
+		sepaFiles: dependencies.SEPADebitFiles, audit: dependencies.Audit}
 }
 
 type exportRun struct {
@@ -40,47 +43,77 @@ type exportRun struct {
 	person       *personSelection
 }
 
-func (e *tenantExporter) Export(ctx context.Context, options organizationtenancy.TenantExportOptions) (err error) {
-	options, err = validateExportOptions(options)
+func (e *tenantExporter) Export(ctx context.Context, options organizationtenancy.TenantExportOptions) error {
+	options, err := validateExportOptions(options)
 	if err != nil {
 		return err
 	}
+	if options.OrganizationID > 0 {
+		return e.exportOrganization(ctx, options)
+	}
+	_, _, err = e.run(ctx, options, nil)
+	return err
+}
+
+// run exports into the new output directory. step names what failed,
+// created whether this run created the output directory. complete records
+// a Träger package in the operator audit before its COMPLETE marker.
+func (e *tenantExporter) run(ctx context.Context, options organizationtenancy.TenantExportOptions,
+	complete func(organizationtenancy.TenantExportRecord) error,
+) (step string, created bool, err error) {
 	run, err := e.start(ctx, options)
 	if err != nil {
-		return err
+		return "snapshot", false, err
 	}
 	defer func() { _ = run.tx.Rollback() }()
 	if err = os.Mkdir(options.Output, 0o700); err != nil {
-		return errors.New("tenant export: cannot create new private output directory")
+		return "filesystem", false, errors.New("tenant export: cannot create new private output directory")
 	}
 	defer func() {
 		if err != nil {
 			_ = os.Remove(filepath.Join(options.Output, "COMPLETE"))
 		}
 	}()
-	if err = run.exportTables(ctx); err != nil {
+	if err = run.exportSnapshot(ctx); err != nil {
+		return "snapshot", true, err
+	}
+	if options.OrganizationID > 0 {
+		if err = run.writeDocumentFiles(ctx); err != nil {
+			return "document_files", true, err
+		}
+		if err = run.writeSEPADebitFiles(ctx, e.sepaFiles); err != nil {
+			return "sepa_debit_files", true, err
+		}
+	}
+	step, err = run.finish(complete)
+	return step, true, err
+}
+
+// exportSnapshot writes everything the read-only snapshot holds and commits it.
+func (r *exportRun) exportSnapshot(ctx context.Context) error {
+	if err := r.exportTables(ctx); err != nil {
 		return err
 	}
-	if options.Person != "" {
-		if err = run.selectPerson(ctx); err != nil {
+	if r.options.Person != "" {
+		if err := r.selectPerson(ctx); err != nil {
 			return err
 		}
 	}
-	if err = run.exportFiles(ctx); err != nil {
+	if err := r.exportFiles(ctx); err != nil {
 		return err
 	}
-	if run.person != nil {
-		if err = run.writePersonReview(); err != nil {
+	if r.person != nil {
+		if err := r.writePersonReview(); err != nil {
 			return err
 		}
 	}
-	if err = run.writeJSON("model.json", run.models); err != nil {
+	if err := r.writeJSON("model.json", r.models); err != nil {
 		return err
 	}
-	if err = run.tx.Commit(); err != nil {
+	if err := r.tx.Commit(); err != nil {
 		return errors.New("tenant export: snapshot commit failed")
 	}
-	return run.finish()
+	return nil
 }
 
 func validateExportOptions(options organizationtenancy.TenantExportOptions) (organizationtenancy.TenantExportOptions, error) {
@@ -204,16 +237,25 @@ func (r *exportRun) writeArtifact(name string, data []byte) error {
 	return nil
 }
 
-func (r *exportRun) finish() error {
+// finish writes the manifest and, last, the COMPLETE marker. A Träger
+// package is in the operator audit before it is complete: a run whose record
+// fails can never be handed over (ADR 0187).
+func (r *exportRun) finish(complete func(organizationtenancy.TenantExportRecord) error) (string, error) {
 	data, err := json.MarshalIndent(r.manifest, "", "  ")
 	if err != nil {
-		return errors.New("tenant export: cannot encode manifest")
+		return "manifest", errors.New("tenant export: cannot encode manifest")
 	}
 	data = append(data, '\n')
 	if err := privateExportFile(filepath.Join(r.options.Output, "manifest.json"), data); err != nil {
-		return err
+		return "manifest", err
 	}
-	return privateExportFile(filepath.Join(r.options.Output, "COMPLETE"), []byte(r.fingerprints.Bytes(data)+"\n"))
+	checksum := r.fingerprints.Bytes(data)
+	if complete != nil {
+		if err := complete(r.auditRecord(checksum)); err != nil {
+			return "audit", err
+		}
+	}
+	return "complete_marker", privateExportFile(filepath.Join(r.options.Output, "COMPLETE"), []byte(checksum+"\n"))
 }
 
 func privateExportFile(path string, data []byte) error {

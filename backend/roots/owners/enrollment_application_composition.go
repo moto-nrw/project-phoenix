@@ -223,6 +223,9 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		// The receipt of a public holiday registration is a mail of the
 		// Träger, sent with the Träger's name (#4661).
 		enrollmentOwner.MailKindHolidayRegistrationReceived: render(renderers.HolidayRegistrationReceived),
+		// A child that moved up from the waiting list of a holiday week
+		// (#4699): a mail of the Träger like the receipt.
+		enrollmentOwner.MailKindHolidayPlaceGranted: render(renderers.HolidayPlaceGranted),
 	}
 }
 

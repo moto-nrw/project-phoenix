@@ -171,7 +171,7 @@ func composeServeRoot(
 		planExport       planexport.Service
 		workforce        owners.WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin
-		provisioning     organizationtenancy.Provisioning
+		provisioning     organizationtenancy.OperatorProvisioning
 		deliveryDevices  owners.DeliveryDevices
 		emergency        emergencysnapshot.Query
 		reminders        reminder.Module

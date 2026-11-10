@@ -852,6 +852,11 @@
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.RebookHolidayChild",
+      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it rebooks through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up from the waiting list again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it records a sibling merge or split through Enrollment's review, which locks the registration and appends the audit entry, in the caller's Träger transaction and translates Enrollment's refusals."
     },
@@ -864,6 +869,11 @@
       "decision": "0121",
       "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
+    },
+    {
+      "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
+      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it sets the capacity of a week through Enrollment's places in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up again in the same unit, and translates the moved-up registrations and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0126",
@@ -1359,6 +1369,16 @@
       "decision": "0090",
       "id": "cmd/settingOverrideRoot.StoredOverride",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0075",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "reason": "#6314: Consumer-port adapter that reads the Träger's master data in the caller's Träger transaction and translates its default bank account into the creditor account of the regenerated PAIN.008 files."
+    },
+    {
+      "decision": "0075",
+      "id": "cmd/traegerSEPADebitFiles.SEPADebitFiles",
+      "reason": "#6317: Consumer-port adapter that opens the Träger transaction of Parent Billing and hands each PAIN.008 file to the export's writer as it is read, translating the file type between the owners, so the Träger package holds one file in memory (ADR 0187)."
     },
     {
       "decision": "0090",
