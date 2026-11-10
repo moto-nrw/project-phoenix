@@ -24,7 +24,7 @@ func TestTraegerNameReadsOnlyTheOwnTraeger(t *testing.T) {
 		}).ID
 	}
 	own, foreign := newTraeger("Träger Eigener Name"), newTraeger("Träger Fremder Name")
-	names := NewTraegerNames()
+	names := NewTraegerMasterData()
 
 	require.NoError(t, testpkg.WithinTraeger(ctx, own, func(txCtx context.Context) error {
 		name, err := names.TraegerName(txCtx, own)

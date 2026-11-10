@@ -49,7 +49,7 @@ type holidayOfficeTraeger struct {
 }
 
 func newHolidayOfficeTraeger(organizations HolidayOrganizations) holidayOfficeTraeger {
-	return holidayOfficeTraeger{organizations: organizations, names: organizationTenancyCompose.NewTraegerNames()}
+	return holidayOfficeTraeger{organizations: organizations, names: organizationTenancyCompose.NewTraegerMasterData()}
 }
 
 func (d holidayOfficeTraeger) HolidayTraeger(ctx context.Context, organizationID int64) (enrollmentOwner.HolidayTraeger, error) {

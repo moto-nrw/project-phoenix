@@ -12,12 +12,6 @@ func NewTraegerMasterData() organizationtenancy.TraegerMasterData {
 	return application.NewTraegerMasterData(postgres.NewTraegerMasterDataStore())
 }
 
-// NewTraegerNames builds the read of a Träger's own name in its Träger
-// transaction (#6437).
-func NewTraegerNames() organizationtenancy.TraegerNames {
-	return postgres.NewTraegerMasterDataStore()
-}
-
 // NewTraegerDocumentTemplates builds the document templates of a Träger
 // (#4677, ADR 0152) in the Träger transaction the route opens.
 func NewTraegerDocumentTemplates() organizationtenancy.TraegerDocumentTemplates {

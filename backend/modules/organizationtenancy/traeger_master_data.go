@@ -128,6 +128,8 @@ type TraegerMasterData interface {
 	// document prints. Like LogoImage it serves a rendering, not a person, so
 	// it needs no account and writes no log; a public signing link reads it.
 	DocumentContact(ctx context.Context, organizationID int64) (TraegerDocumentContact, error)
+	// TraegerNames reads the Träger's own name for its mails (#6437).
+	TraegerNames
 	// ReplaceLogo checks the image and stores it in place of the old one.
 	ReplaceLogo(ctx context.Context, organizationID, accountID int64, data []byte) (TraegerLogo, error)
 	// RemoveLogo deletes the logo.
