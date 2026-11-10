@@ -21,7 +21,7 @@ export async function pickDate(page: Page, trigger: Locator, iso: string) {
     }
     await expect(grid).toBeVisible({ timeout: 2000 });
     if ((await day.count()) === 0) {
-      const firstDay = await grid.getAttribute("data-day");
+      const firstDay = await grid.getAttribute("data-day", { timeout: 2000 });
       if (firstDay === null)
         throw new Error("The visible calendar has no date marker");
       await page
