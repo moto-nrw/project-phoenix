@@ -237,6 +237,7 @@ const SlideOverContent = React.forwardRef<
       size,
       isBackdropDismissDisabled = false,
       onInteractOutside,
+      onEscapeKeyDown,
       children,
       ...props
     },
@@ -284,6 +285,17 @@ const SlideOverContent = React.forwardRef<
           ) => {
             onInteractOutside?.(event);
             if (isBackdropDismissDisabled || isInsideKitModal(event.target)) {
+              event.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(event) => {
+            onEscapeKeyDown?.(event);
+            // Radix handles Escape in capture, before nested controls close.
+            if (
+              document.querySelector(
+                '[role="combobox"][aria-expanded="true"], [role="listbox"], [data-date-picker-panel], [data-modal-focus-scope="true"]:not([aria-hidden="true"])',
+              )
+            ) {
               event.preventDefault();
             }
           }}

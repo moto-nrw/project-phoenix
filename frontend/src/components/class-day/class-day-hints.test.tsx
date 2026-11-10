@@ -280,6 +280,39 @@ describe("ClassDayClass day hints", () => {
     );
   });
 
+  it("retries a hint with the edited text", async () => {
+    saveDayHint.mockRejectedValueOnce(new ApiError("failed", 503));
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() =>
+          Promise.resolve(report({ can_write_day_hints: true }))
+        }
+        fetchClasses={classes}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hinweis für die OGS" }),
+    );
+    fireEvent.change(screen.getByLabelText("Hinweis"), {
+      target: { value: "first" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const retry = await screen.findByRole("button", { name: "Wiederholen" });
+    fireEvent.change(screen.getByLabelText("Hinweis"), {
+      target: { value: "edited" },
+    });
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(saveDayHint).toHaveBeenLastCalledWith(
+        "4a",
+        TODAY,
+        "edited",
+        undefined,
+      ),
+    );
+  });
+
   it("keeps a failed deletion in the dialog with its request ID and a retry", async () => {
     deleteDayHint.mockRejectedValueOnce(
       new ApiError("boom", 500, {

@@ -2737,6 +2737,26 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("ignores a second materialize click while the first request is in flight", async () => {
+    let finish!: (value: { instancesCreated: number; warnings: [] }) => void;
+    mockMaterialize.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    setUrl("view=serien");
+    render(<BetreuungsplanView />);
+    const apply = screen.getByText("apply-template");
+    fireEvent.click(apply);
+    fireEvent.click(apply);
+    expect(mockMaterialize).toHaveBeenCalledOnce();
+    finish({ instancesCreated: 1, warnings: [] });
+    await stateChange.waitFor(() =>
+      expect(mockTenantMutate).toHaveBeenCalled(),
+    );
+  });
+
   it("handles series create, edit, apply, delete and archive", async () => {
     setUrl("view=serien");
     render(<BetreuungsplanView />);

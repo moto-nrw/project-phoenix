@@ -1247,7 +1247,8 @@ export function PickupTimeModal({
     remove: () => undefined,
   });
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [editing, setEditing] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
+  const editing = editingRequestId !== null;
   // „Änderung zurücknehmen“ löscht die eigene Abholzeit des Tages: der Klick
   // im Footer öffnet erst die Rückfrage, entfernt wird im Dialog (#3109).
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -1263,8 +1264,11 @@ export function PickupTimeModal({
     [careExceptions, date],
   );
   const request = useMemo(
-    () => pickupChangeRequests.find((entry) => entry.date === date),
-    [date, pickupChangeRequests],
+    () =>
+      pickupChangeRequests.find((entry) =>
+        editingRequestId ? entry.id === editingRequestId : entry.date === date,
+      ),
+    [date, editingRequestId, pickupChangeRequests],
   );
   const pending = request?.status === "pending";
   const staffOwned = existing?.pickup_source === "staff";
@@ -1367,24 +1371,35 @@ export function PickupTimeModal({
     void target.show(err, { object: t("pickup.errorObject"), retry });
   };
 
-  // When the selected date already has an override, prefill the fields so the
-  // parent edits rather than blindly overwrites.
+  // Refetches replace record objects even when their values have not changed.
+  // Keep an active edit attached to its request and never refill its draft.
+  const prefillTime = request?.pickup_time ?? existing?.pickup_time ?? "";
+  const prefillMode =
+    request?.departure_mode && request.departure_mode !== "accompanied"
+      ? request.departure_mode
+      : "";
+  const prefillReason = request?.reason ?? existing?.reason ?? "";
+  const prefillPerson = request?.pickup_person_guardian_profile_id ?? "";
   useEffect(() => {
-    setPickupTime(request?.pickup_time ?? existing?.pickup_time ?? "");
-    setDepartureMode(
-      request?.departure_mode && request.departure_mode !== "accompanied"
-        ? request.departure_mode
-        : "",
-    );
-    setReason(request?.reason ?? existing?.reason ?? "");
-    setPickupPersonId(request?.pickup_person_guardian_profile_id ?? "");
+    if (editing) return;
+    setPickupTime(prefillTime);
+    setDepartureMode(prefillMode);
+    setReason(prefillReason);
+    setPickupPersonId(prefillPerson);
     setSignature(null);
     clearForm();
     setInvalidField(null);
-  }, [clearForm, existing, request]);
+  }, [
+    clearForm,
+    editing,
+    prefillTime,
+    prefillMode,
+    prefillReason,
+    prefillPerson,
+  ]);
 
-  // A date is part of the signed declaration even when neither date has an
-  // existing override, so the prefill effect above does not run.
+  // The date remains part of the signed declaration while editing an existing
+  // request, when prefill deliberately leaves the draft untouched.
   useEffect(() => {
     setSignature(null);
   }, [date]);
@@ -1715,7 +1730,7 @@ export function PickupTimeModal({
                 type="button"
                 variant="outline"
                 size="md"
-                onClick={() => setEditing(true)}
+                onClick={() => request && setEditingRequestId(request.id)}
               >
                 {t("pickup.edit")}
               </Button>

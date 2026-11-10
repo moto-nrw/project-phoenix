@@ -71,7 +71,16 @@ export function useScrollLock(isLocked: boolean) {
           "End",
           " ",
         ];
-        if (scrollKeys.includes(e.key) && !isInsideModalContent(e.target)) {
+        const interactive =
+          e.target instanceof Element &&
+          e.target.closest(
+            'button, a[href], input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="button"]',
+          );
+        if (
+          scrollKeys.includes(e.key) &&
+          !interactive &&
+          !isInsideModalContent(e.target)
+        ) {
           e.preventDefault();
         }
       };

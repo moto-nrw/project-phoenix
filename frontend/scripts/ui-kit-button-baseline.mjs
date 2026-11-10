@@ -126,7 +126,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1544],
+    lines: [1567],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -184,7 +184,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1501],
+    lines: [1524],
     reason: "Statustag-Karte, öffnet das Entfernen: Kachel",
   },
   {
