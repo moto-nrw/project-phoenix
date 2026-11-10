@@ -28,8 +28,10 @@ func TestDatabaseFailureAfterRequestDeadlineBeforeContextTimer(t *testing.T) {
 	t.Parallel()
 	ctx := pendingDeadlineContext{Context: context.Background(), deadline: time.Now().Add(-time.Second)}
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+		require.NoError(t, server.Close())
+	})
 	require.NoError(t, client.SetReadDeadline(ctx.deadline))
 	_, err := client.Read(make([]byte, 1))
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
