@@ -27,10 +27,8 @@ export interface FormModalPending {
   readonly pending: boolean;
   /**
    * Runs one save. A second call while one is running in the same session
-   * is ignored, and so is a call while the dialog is closed (a click during
-   * its closing animation). Closing or unmounting the dialog ends the
-   * session: the lock lifts for the next session, and `op.isCurrent()`
-   * turns false.
+   * is ignored. Closing or unmounting the dialog ends the session: the lock
+   * lifts for the next session, and `op.isCurrent()` turns false.
    */
   readonly run: <T>(
     task: (op: FormModalOperation) => Promise<T>,
@@ -51,7 +49,6 @@ export function useFormModalPending(
   const sessionRef = useRef(0);
   const runningSessionRef = useRef<number | null>(null);
   const contextRef = useRef(context);
-  const openRef = useRef(isOpen);
   const [pending, setPending] = useState(false);
 
   // A layout effect, so a session ends in the commit that closes the dialog
@@ -59,7 +56,6 @@ export function useFormModalPending(
   useLayoutEffect(() => {
     const switched = !Object.is(contextRef.current, context);
     contextRef.current = context;
-    openRef.current = isOpen;
     if (isOpen && !switched) return;
     sessionRef.current += 1;
     runningSessionRef.current = null;
@@ -81,10 +77,6 @@ export function useFormModalPending(
     async <T>(
       task: (op: FormModalOperation) => Promise<T>,
     ): Promise<T | undefined> => {
-      // A closed dialog has no session to save in: a click that lands
-      // during the closing animation must not start a request that the next
-      // opening would count as its own.
-      if (!openRef.current) return undefined;
       const session = sessionRef.current;
       if (runningSessionRef.current === session) return undefined;
       runningSessionRef.current = session;

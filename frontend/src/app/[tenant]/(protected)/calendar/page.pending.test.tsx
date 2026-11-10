@@ -163,6 +163,7 @@ describe("Kalender: Speichern sperrt das Panel (#6593)", () => {
       "Der Termin „Teamsitzung“ ist gespeichert.",
     );
     expect(mockMutate).toHaveBeenCalledOnce();
+    // Anker: die Seite ist wieder bedienbar.
     expect(screen.getByRole("button", { name: "Neuer Termin" })).toBeEnabled();
     expect(screen.queryByRole("heading", { name: TITLE })).toBeNull();
   });
@@ -173,6 +174,10 @@ describe("Kalender: Speichern sperrt das Panel (#6593)", () => {
     // Fällt das Recht weg, schließt das Panel; kommt es zurück, öffnet es neu.
     allowManage(false);
     rerender(<StaffCalendarPage />);
+    // Anker: die Kalenderseite ist ohne Verwaltungsrecht weiter gerendert.
+    expect(
+      screen.getByRole("heading", { name: "Mein Kalender" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: TITLE })).toBeNull();
     allowManage(true);
     rerender(<StaffCalendarPage />);

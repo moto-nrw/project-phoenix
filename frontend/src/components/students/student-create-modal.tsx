@@ -172,6 +172,10 @@ type CreateMode = "student" | "list-entry";
 interface StudentCreateModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  /**
+   * Creates the child and resolves once it is saved; the panel then closes
+   * itself through `onClose`, only while it is still the same session.
+   */
   readonly onCreate: (
     data: Partial<Student> & {
       guardians?: StudentGuardianPayload[];
@@ -521,7 +525,6 @@ export function StudentCreateModal({
     await save.run(async (op) => {
       errors.clear();
       try {
-        // Der Aufrufer schließt das Panel nach dem Anlegen selbst.
         await onCreate(payload);
       } catch (error) {
         logger.error("student_create_failed", {
@@ -535,7 +538,10 @@ export function StudentCreateModal({
           object: "das Kind",
           retry: () => void latestSubmitRef.current(),
         });
+        return;
       }
+      // Nur der Vorgang, der angelegt hat, schließt das Panel (#6593).
+      if (op.isCurrent()) onClose();
     });
   };
 

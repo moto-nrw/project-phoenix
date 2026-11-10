@@ -122,6 +122,8 @@ describe("InstanceDetailModal pending lock (#6593)", () => {
       });
 
       expectSlideOverUnlocked("Mensa");
+      // Anker: das Terminpanel ist wieder bedienbar.
+      expect(screen.getByRole("button", { name: "Beenden" })).toBeEnabled();
       expect(screen.queryByText("Termin beenden?")).not.toBeInTheDocument();
       expect(onClose).not.toHaveBeenCalled();
     });
@@ -171,6 +173,7 @@ describe("InstanceDetailModal pending lock (#6593)", () => {
         );
       });
 
+      // Anker: der Löschdialog ist offen und zeigt den Fehler.
       expect(
         await within(dialog).findByText(
           catalogText(
@@ -192,6 +195,10 @@ describe("InstanceDetailModal pending lock (#6593)", () => {
 
     it("schließt den Dialog nach dem Löschen", async () => {
       const { answer } = renderAndDelete();
+      // Anker: der Löschdialog ist offen, solange gelöscht wird.
+      expect(
+        screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+      ).toBeInTheDocument();
 
       await act(async () => {
         answer.resolve();
@@ -203,6 +210,33 @@ describe("InstanceDetailModal pending lock (#6593)", () => {
         ).not.toBeInTheDocument(),
       );
       expectSlideOverUnlocked("Mensa");
+    });
+
+    // Der gelöschte Termin ist weg: das Panel schließt sich selbst über
+    // onClose, der Aufrufer schließt nicht mehr (#6593).
+    it("schließt das Panel nach dem Löschen über onClose", async () => {
+      const { answer, onClose } = renderAndDelete();
+      expect(onClose).not.toHaveBeenCalled();
+
+      await act(async () => {
+        answer.resolve();
+      });
+
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it("schließt nach einem späten Löschen nicht das Panel eines anderen Termins", async () => {
+      const { answer, onClose, switchTo } = renderAndDelete();
+
+      switchTo(OTHER);
+      expectSlideOverUnlocked("Lernzeit");
+
+      await act(async () => {
+        answer.resolve();
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expectSlideOverUnlocked("Lernzeit");
     });
 
     it("zeigt einen späten Fehler nicht im Löschdialog eines anderen Termins", async () => {
@@ -221,6 +255,7 @@ describe("InstanceDetailModal pending lock (#6593)", () => {
         answer.reject(new ApiError("db down", 500, { code: "general.server" }));
       });
 
+      // Anker: der Löschdialog des anderen Termins ist offen und bedienbar.
       expect(
         within(dialog).getByRole("button", { name: "Löschen" }),
       ).toBeEnabled();

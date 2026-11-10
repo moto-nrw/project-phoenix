@@ -243,6 +243,7 @@ export function TransitionEditor({
         logger.error("draft_save_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // grade_transition.not_draft (jemand hat den Entwurf inzwischen
         // angewendet) erklärt der Katalog; Wiederholen bietet er nur bei

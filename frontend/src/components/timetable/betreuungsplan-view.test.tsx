@@ -16,6 +16,7 @@ import {
 import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 
@@ -2689,6 +2690,62 @@ describe("BetreuungsplanView", () => {
     );
     expect(mockToastError).not.toHaveBeenCalled();
     expect(mockShowActionError).not.toHaveBeenCalled();
+  });
+
+  // Das Detailpanel schließt sich nach dem Löschen selbst, nur im Vorgang,
+  // der gelöscht hat (#6593). Die View schließt aus der Antwort heraus
+  // nichts, sonst träfe eine späte Antwort den inzwischen neu geöffneten Block.
+  it("keeps a block opened again when an earlier delete answers late (#6593)", async () => {
+    const answer = deferred();
+    mockDeleteCancelled.mockReturnValueOnce(answer.promise);
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete"));
+    expect(mockDeleteCancelled).toHaveBeenCalledWith("42");
+    fireEvent.click(screen.getByText("detail-close"));
+    await waitFor(() => expect(urlParams().has("block")).toBe(false));
+    act(() => setUrl("view=woche&block=42"));
+    expect(await screen.findByText("detail-close")).toBeVisible();
+
+    await act(async () => answer.resolve());
+
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Termin ist gelöscht.");
+    expect(urlParams().get("block")).toBe("42");
+    expect(screen.getByText("detail-close")).toBeVisible();
+  });
+
+  it("keeps a block opened again when an earlier series end answers late (#6593)", async () => {
+    setTestClock(new Date("2026-05-04T08:00:00"));
+    const answer = deferred<{
+      templateId: string;
+      effectiveDate: string;
+      deletedInstances: number;
+    }>();
+    mockEndTemplate.mockReturnValueOnce(answer.promise);
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete-following"));
+    expect(mockEndTemplate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText("detail-close"));
+    await waitFor(() => expect(urlParams().has("block")).toBe(false));
+    act(() => setUrl("view=woche&block=42"));
+    expect(await screen.findByText("detail-close")).toBeVisible();
+
+    await act(async () =>
+      answer.resolve({
+        templateId: "7",
+        effectiveDate: "2026-05-04",
+        deletedInstances: 3,
+      }),
+    );
+
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Regeltermin ist ab 04.05.2026 beendet.",
+    );
+    expect(urlParams().get("block")).toBe("42");
+    expect(screen.getByText("detail-close")).toBeVisible();
   });
 
   it("ends following instances from the slide-over", async () => {

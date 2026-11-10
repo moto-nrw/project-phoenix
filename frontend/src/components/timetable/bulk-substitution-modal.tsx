@@ -338,6 +338,7 @@ export function BulkSubstitutionModal({
         logger.error("bulk_substitution_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void formErrors.show(err, {
           object: "die Sammel-Vertretung",

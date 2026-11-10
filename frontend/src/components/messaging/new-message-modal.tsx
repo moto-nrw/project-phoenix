@@ -252,6 +252,7 @@ export function NewMessageModal({
           error: err instanceof Error ? err.message : String(err),
           student_id: student.id,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void openError.show(err, {
           object: "die Unterhaltung",

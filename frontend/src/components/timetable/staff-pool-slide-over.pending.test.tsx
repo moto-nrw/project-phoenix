@@ -157,6 +157,7 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
 
     // Der Fehler steht in der offenen Rückfrage; nach ihrem Schließen ist
     // das Panel wieder frei.
+    // Anker: die Rückfrage ist offen und zeigt den Fehler.
     expect(
       await screen.findByText(
         catalogText(
@@ -175,6 +176,8 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
 
   it("schließt nach dem Move die Rückfrage und frischt auf", async () => {
     const { answer, onClose, onMoved } = renderAndMove();
+    // Anker: die Rückfrage ist offen, solange der Move läuft.
+    expect(screen.getByText("Person verschieben?")).toBeInTheDocument();
 
     await act(async () => {
       answer.resolve(MOVED);
@@ -194,6 +197,7 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
 
     switchBlock();
     expectSlideOverUnlocked(TITLE, "Schließen");
+    // Anker: das Panel zeigt den neuen Block.
     expect(screen.getByText(/Lernzeit/)).toBeInTheDocument();
     expect(screen.queryByText("Person verschieben?")).not.toBeInTheDocument();
 
@@ -205,6 +209,7 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
       "Ina Umzieherin wurde verschoben.",
     );
     expect(onMoved).toHaveBeenCalledOnce();
+    // Anker: das Panel zeigt weiter den neuen Block.
     expect(screen.getByText(/Lernzeit/)).toBeInTheDocument();
     expect(screen.queryByText("Person verschieben?")).not.toBeInTheDocument();
   });
@@ -217,6 +222,7 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
       answer.reject(new ApiError("down", 503, { code: "general.unavailable" }));
     });
 
+    // Anker: das Panel zeigt den neuen Block.
     expect(screen.getByText(/Lernzeit/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText("Person verschieben?")).not.toBeInTheDocument();

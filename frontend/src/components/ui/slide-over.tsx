@@ -101,6 +101,12 @@ const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
 );
 /** True while the panel's save runs (`pending`): every close path is locked. */
 const SlideOverBusyContext = React.createContext(false);
+/**
+ * False once the panel is closed. Vaul keeps it on screen while it slides
+ * out; its footer must not start a save then that the next opening would
+ * count as its own.
+ */
+const SlideOverOpenContext = React.createContext(true);
 
 type SlideOverProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
   /**
@@ -162,18 +168,20 @@ const SlideOver = ({
   return (
     <SlideOverDirectionContext.Provider value={direction}>
       <SlideOverBusyContext.Provider value={busy}>
-        <DrawerPrimitive.Root
-          // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
-          // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
-          // geänderten Breakpoint neu auf.
-          key={direction}
-          direction={direction}
-          shouldScaleBackground={shouldScaleBackground}
-          open={open}
-          onOpenChange={handleOpenChange}
-          dismissible={dismissible && !busy}
-          {...props}
-        />
+        <SlideOverOpenContext.Provider value={open}>
+          <DrawerPrimitive.Root
+            // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
+            // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
+            // geänderten Breakpoint neu auf.
+            key={direction}
+            direction={direction}
+            shouldScaleBackground={shouldScaleBackground}
+            open={open}
+            onOpenChange={handleOpenChange}
+            dismissible={dismissible && !busy}
+            {...props}
+          />
+        </SlideOverOpenContext.Provider>
       </SlideOverBusyContext.Provider>
     </SlideOverDirectionContext.Provider>
   );
@@ -434,8 +442,8 @@ SlideOverBody.displayName = "SlideOverBody";
 
 /**
  * The panel's action row. A disabled fieldset locks every action in it
- * (Abbrechen too) while the panel's save runs, without each caller wiring it
- * again (#6593). A link (`ButtonLink`) ignores the fieldset, so a busy footer
+ * (Abbrechen too) while the panel's save runs and while a closed panel
+ * slides out, without each caller wiring it again (#6593). A link (`ButtonLink`) ignores the fieldset, so a busy footer
  * also swallows its clicks: leaving the page would look like a cancel too.
  */
 const SlideOverFooter = ({
@@ -444,20 +452,23 @@ const SlideOverFooter = ({
   ...props
 }: React.FieldsetHTMLAttributes<HTMLFieldSetElement>) => {
   const busy = React.useContext(SlideOverBusyContext);
+  const open = React.useContext(SlideOverOpenContext);
+  const locked = busy || !open;
   return (
     <fieldset
-      disabled={busy}
-      onClickCapture={(event) => {
-        onClickCapture?.(event);
-        if (!busy) return;
-        event.preventDefault();
-        event.stopPropagation();
-      }}
       className={cn(
         "flex min-w-0 flex-row flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
         className,
       )}
       {...props}
+      // After the spread: no caller can lift the lock.
+      disabled={locked}
+      onClickCapture={(event) => {
+        onClickCapture?.(event);
+        if (!locked) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
     />
   );
 };

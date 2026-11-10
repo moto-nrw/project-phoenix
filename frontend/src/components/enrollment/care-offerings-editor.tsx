@@ -748,6 +748,7 @@ export function CareOfferingsEditor({
         logger.error("care_offering_save_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "das Betreuungsangebot",
@@ -803,6 +804,7 @@ export function CareOfferingsEditor({
         logger.error("care_offering_clone_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "das Betreuungsangebot",

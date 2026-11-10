@@ -2388,6 +2388,7 @@ function EditSessionModal({
           error: err instanceof Error ? err.message : String(err),
           session_id: session.id,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // No retry link: the handlers live below the early returns, so a
         // latest-ref is not possible; „Speichern“ resends the current draft.
@@ -2417,6 +2418,7 @@ function EditSessionModal({
           error: err instanceof Error ? err.message : String(err),
           absence_id: absence.id,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // „Speichern“ resends the current draft (see handleSave).
         await formErrors.show(err, { object: "die Abwesenheit" });
@@ -2439,6 +2441,7 @@ function EditSessionModal({
           error: err instanceof Error ? err.message : String(err),
           absence_id: absence.id,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "die Abwesenheit",

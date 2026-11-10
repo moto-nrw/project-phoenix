@@ -146,6 +146,7 @@ export function StaffPoolSlideOver({
           staff_id: move.entry.staffId,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void moveErrors.show(err, {
           object: move.assignment

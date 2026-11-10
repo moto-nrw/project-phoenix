@@ -322,6 +322,7 @@ describe("Zeiterfassung: Eintrag bearbeiten sperrt beim Speichern (#6593)", () =
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Die Arbeitszeit ist gespeichert.",
     );
+    // Anker: die Zeiterfassung ist wieder bedienbar.
     expect(
       screen.getByRole("button", { name: "Eintrag bearbeiten" }),
     ).toBeEnabled();

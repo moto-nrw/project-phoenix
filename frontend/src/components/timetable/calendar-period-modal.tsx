@@ -52,7 +52,13 @@ const logger = createLogger({ component: "CalendarPeriodModal" });
 interface CalendarPeriodModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Refreshes the caller's data after a write. Also called for a late answer
+   * after the dialog closed; it must not close or switch dialogs. The
+   * dialog closes itself through `onClose`.
+   */
   onSaved: (period: CalendarPeriod) => void;
+  /** Same contract as `onSaved`, after a delete. */
   onDeleted?: (period: CalendarPeriod) => void;
   /** Pass an existing period to enter edit mode. Omit/null for create. */
   initial?: CalendarPeriod | null;
@@ -289,6 +295,7 @@ export function CalendarPeriodModal({
           mode: isEdit ? "edit" : "create",
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void formErrors.show(err, {
           object: "das Speichern des Kalenderzeitraums",
@@ -311,6 +318,7 @@ export function CalendarPeriodModal({
           period_id: period.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Der Zeitraum ist gespeichert; offen sind nur die Verknüpfungen, die
         // noch im Entwurf stehen. Wiederholen speichert genau diese erneut.
@@ -392,6 +400,7 @@ export function CalendarPeriodModal({
           period_id: initial.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Der Dialog bleibt offen und nennt den Grund; ein Toast läge
         // darunter.

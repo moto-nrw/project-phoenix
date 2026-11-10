@@ -145,6 +145,7 @@ describe("PlannedStatusDaysModal pending lock (#6593)", () => {
       answer.resolve();
     });
 
+    // Anker: die Kinderseite ist wieder zu sehen.
     expect(screen.getByText("Kinderseite")).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: TITLE }),
@@ -199,6 +200,7 @@ describe("PlannedStatusDaysModal pending lock (#6593)", () => {
 
     expect(loadExistingDays).toHaveBeenCalledTimes(checksBefore);
 
+    // Anker: das neu geöffnete Panel ist leer und sichtbar.
     expect(screen.getByLabelText("Grund (optional)")).toHaveValue("");
     expect(screen.getByRole("heading", { name: TITLE })).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

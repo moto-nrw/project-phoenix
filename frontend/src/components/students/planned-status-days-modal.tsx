@@ -719,6 +719,7 @@ export function PlannedStatusDaysModal({
       try {
         await onDeleteStatusDay(statusDayId);
       } catch (error) {
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // The dialog stays open and says why; no „Wiederholen“, removing runs
         // only through the confirmation.
@@ -743,6 +744,7 @@ export function PlannedStatusDaysModal({
       try {
         await onDeletePartialAbsence(partialAbsenceId);
       } catch (error) {
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Kein „Wiederholen“: Entfernen läuft nur über die Rückfrage.
         await partialDeleteErrors.show(error, {
@@ -750,6 +752,7 @@ export function PlannedStatusDaysModal({
         });
         return;
       }
+      // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
       if (!op.isCurrent()) return;
       setPartialAbsencePendingDeletion(null);
       setCheckedPartialAbsences((current) =>

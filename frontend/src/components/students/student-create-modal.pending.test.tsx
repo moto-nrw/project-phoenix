@@ -108,6 +108,48 @@ describe("StudentCreateModal pending lock (#6593)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  async function createChild(onCreate: Props["onCreate"]) {
+    const view = renderModal({ onCreate });
+    const create = await screen.findByRole("button", { name: "Erstellen" });
+    fillName();
+    expect(create).toBeEnabled();
+    fireEvent.click(create);
+    expect(onCreate).toHaveBeenCalledOnce();
+    return view;
+  }
+
+  // Das Panel schließt sich nach dem Anlegen selbst; der Aufrufer schließt
+  // nicht mehr aus einer Antwort heraus (#6593).
+  it("closes the panel through onClose after a child was created", async () => {
+    const answer = deferred();
+    const { onClose } = await createChild(vi.fn(() => answer.promise));
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      answer.resolve();
+    });
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("does not close a reopened panel when the old child answers late", async () => {
+    const answer = deferred();
+    const { onClose, rerender, modal } = await createChild(
+      vi.fn(() => answer.promise),
+    );
+
+    rerender(modal({ isOpen: false }));
+    rerender(modal());
+    expectSlideOverUnlocked(TITLE, CLOSE);
+
+    await act(async () => {
+      answer.resolve();
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: TITLE })).toBeVisible();
+  });
+
   it("closes the panel after a class list entry was created", async () => {
     const answer = deferred();
     const onCreateListEntry = vi.fn(() => answer.promise);

@@ -153,6 +153,7 @@ describe("TransitionPreviewModal pending lock (#6593)", () => {
     await applyThroughConfirmation();
 
     // Ausgeblendet, solange die Bestätigung anwendet (#2774).
+    // Anker: die Bestätigung ist offen.
     expect(
       screen.getByRole("heading", { name: "Wirklich anwenden?" }),
     ).toBeInTheDocument();

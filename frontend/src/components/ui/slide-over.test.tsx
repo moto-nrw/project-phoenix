@@ -546,6 +546,8 @@ describe("SlideOver", () => {
       render(
         <PendingPanel onOpenChange={onOpenChange} task={() => save.promise} />,
       );
+      // Anker: das Panel ist gerendert und bereit zum Speichern.
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
       expect(screen.getByTestId("panel")).not.toHaveAttribute("aria-busy");
 
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -605,6 +607,7 @@ describe("SlideOver", () => {
         target: { value: "Entwurf" },
       });
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      // Anker: das Panel ist gesperrt, solange gespeichert wird.
       expectLocked(onOpenChange);
 
       await act(async () => {
@@ -679,6 +682,10 @@ describe("SlideOver", () => {
       rerender(
         <PendingPanel open={false} onOpenChange={vi.fn()} task={task} />,
       );
+      // Anker: das schließende Panel steht noch mit seiner Fußleiste da.
+      expect(
+        screen.getByRole("button", { name: "Speichern" }),
+      ).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
@@ -704,6 +711,7 @@ describe("SlideOver", () => {
           <PendingPanel context="a" onOpenChange={onOpenChange} task={task} />,
         );
         fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        // Anker: das Panel speichert.
         expect(screen.getByTestId("panel")).toHaveAttribute(
           "aria-busy",
           "true",

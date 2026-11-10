@@ -741,7 +741,11 @@ export function InstanceDetailModal({
       clearDeleteError();
       try {
         await remove(target);
-        if (op.isCurrent()) setDeleteOpen(false);
+        // The deleted block is gone: the panel closes, but only the one that
+        // started the delete, never a block opened since (#6593).
+        if (!op.isCurrent()) return;
+        setDeleteOpen(false);
+        onClose();
       } catch (err) {
         logger.warn("instance_delete_dialog_failed", {
           instance_id: target.id,

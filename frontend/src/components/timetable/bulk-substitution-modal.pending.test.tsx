@@ -197,6 +197,7 @@ describe("BulkSubstitutionModal pending lock (#6593)", () => {
       answer.reject(new ApiError("kaputt", 500, { code: "general.server" }));
     });
 
+    // Anker: das neu geöffnete Panel ist da.
     expect(screen.getByRole("heading", { name: TITLE })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

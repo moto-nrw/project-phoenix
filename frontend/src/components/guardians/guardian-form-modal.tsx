@@ -534,6 +534,7 @@ export default function GuardianFormModal({
           status: err instanceof ApiError ? err.status : undefined,
           mode,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object:

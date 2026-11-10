@@ -155,6 +155,7 @@ describe("Elternmitteilungen: Speichern sperrt das Panel (#6593)", () => {
     });
 
     expect(listMutate).toHaveBeenCalledOnce();
+    // Anker: die Seite ist wieder bedienbar.
     expect(
       screen.getByRole("button", { name: "Neue Elternmitteilung erstellen" }),
     ).toBeEnabled();
@@ -194,6 +195,7 @@ describe("Elternmitteilungen: Speichern sperrt das Panel (#6593)", () => {
     const remove = await screen.findByRole("button", {
       name: "Anhang entfernen: Plan.pdf",
     });
+    // Anker: die Anhangsliste zeigt Plan.pdf.
     expect(remove).toBeEnabled();
     fireEvent.click(remove);
 

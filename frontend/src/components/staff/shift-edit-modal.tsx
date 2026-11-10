@@ -630,6 +630,7 @@ export function ShiftEditModal({
           series_id: seriesRule.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "die Serie",
@@ -746,6 +747,7 @@ export function ShiftEditModal({
           date,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "die Serie",
@@ -822,6 +824,7 @@ export function ShiftEditModal({
           mode,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "die Schicht",
@@ -852,6 +855,7 @@ export function ShiftEditModal({
           date: shift.date,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "die Serie",
@@ -896,6 +900,7 @@ export function ShiftEditModal({
           shift_id: shift.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // The confirmation stays open and says why.
         await deleteErrors.show(err, {
@@ -925,6 +930,7 @@ export function ShiftEditModal({
           date: seriesEffectiveDate,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await deleteErrors.show(err, {
           object: "die Serie",

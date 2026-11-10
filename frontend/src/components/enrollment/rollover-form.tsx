@@ -222,6 +222,7 @@ export function RolloverForm({
           error: err instanceof Error ? err.message : String(err),
           code: (err as { code?: unknown } | undefined)?.code,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "die Anschlussphase",

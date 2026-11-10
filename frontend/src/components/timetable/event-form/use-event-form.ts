@@ -2612,6 +2612,7 @@ export function useEventForm({
       logger.error("event_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
       if (!op.isCurrent()) return;
       // Steht oben im Panel (SlideOverBody `error`), nicht als Toast:
       // Bauart 2 Regel 5.
@@ -3124,6 +3125,7 @@ export function useEventForm({
           scope,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Die Umfangsfrage ist noch offen und zeigt den Text an; erneut
         // versuchen heißt dort, den Umfang noch einmal zu wählen.
@@ -3303,6 +3305,7 @@ export function useEventForm({
         logger.error("series_delete_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Der Löschdialog ist offen: der Fehler bleibt in ihm.
         void deleteErrors.show(err, {

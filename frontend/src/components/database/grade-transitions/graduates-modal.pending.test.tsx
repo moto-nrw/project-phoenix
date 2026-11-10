@@ -165,6 +165,7 @@ describe("GraduatesModal pending lock (#6593)", () => {
     await purgeAlma();
 
     // Die Bestätigung löscht, das Panel ist ausgeblendet (#2774).
+    // Anker: die Bestätigung ist offen und löscht.
     expect(
       screen.getByRole("button", { name: "Wird gelöscht…" }),
     ).toBeDisabled();

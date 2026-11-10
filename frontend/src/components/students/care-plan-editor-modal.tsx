@@ -327,6 +327,7 @@ export function CarePlanEditorModal({
       try {
         await onResetPickupToOffering(weekday, date);
       } catch (err) {
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await errors.show(err, {
           object: "die Abholung",

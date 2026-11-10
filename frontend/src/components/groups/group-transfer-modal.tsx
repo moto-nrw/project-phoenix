@@ -116,6 +116,7 @@ export function GroupTransferModal({
           error: err instanceof Error ? err.message : String(err),
           group_id: group?.id,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void formErrors.show(err, {
           object: "die Übergabe",
@@ -140,6 +141,7 @@ export function GroupTransferModal({
           error: err instanceof Error ? err.message : String(err),
           substitution_id: substitutionId,
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Kein Wiederholen-Link: der Dialog ist dann schon zu, Zurücknehmen
         // startet man erneut über die Liste.

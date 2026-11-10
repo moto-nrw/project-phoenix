@@ -100,6 +100,7 @@ function RunStartModal({
         logger.error("billing_run_start_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object });
         return;

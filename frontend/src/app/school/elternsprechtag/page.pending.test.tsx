@@ -121,6 +121,7 @@ describe("Elternsprechtag: Speichern sperrt das Panel (#6593)", () => {
       "/school/elternsprechtag?sprechtag=6",
       { scroll: false },
     );
+    // Anker: die Seite ist wieder bedienbar.
     expect(
       screen.getByRole("button", { name: /Neuer Elternsprechtag/ }),
     ).toBeEnabled();

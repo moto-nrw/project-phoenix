@@ -199,6 +199,7 @@ export default function SchoolParentLettersPage() {
         logger.error("school_parent_letter_send_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "das Senden des Elternbriefs",

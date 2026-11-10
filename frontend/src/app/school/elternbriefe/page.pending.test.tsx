@@ -127,6 +127,7 @@ describe("Elternbriefe: Senden sperrt das Panel (#6593)", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       expect.stringContaining("Klasse 3b"),
     );
+    // Anker: die Seite ist wieder bedienbar.
     expect(
       screen.getByRole("button", { name: /Neuer Elternbrief/ }),
     ).toBeEnabled();

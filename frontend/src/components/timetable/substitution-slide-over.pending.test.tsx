@@ -154,6 +154,7 @@ describe("SubstitutionSlideOver pending lock (#6593)", () => {
       answer.reject(new ApiError("down", 503, { code: "general.unavailable" }));
     });
 
+    // Anker: das Panel zeigt den anderen Block.
     expect(
       screen.getByRole("heading", { name: "Lernzeit" }),
     ).toBeInTheDocument();

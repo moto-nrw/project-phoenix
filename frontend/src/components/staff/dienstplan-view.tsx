@@ -646,14 +646,11 @@ function DienstplanContent() {
           isOpen
           initial={null}
           onClose={() => setPeriodModalOpen(false)}
-          onSaved={() => {
-            setPeriodModalOpen(false);
-            void mutatePeriods();
-          }}
-          onDeleted={() => {
-            setPeriodModalOpen(false);
-            void mutatePeriods();
-          }}
+          // Nur neu laden: der Dialog schließt sich selbst, sobald auch die
+          // Verknüpfungen gespeichert sind und keine Überschneidung zu lesen
+          // ist, und nie aus einer späten Antwort heraus (#6593).
+          onSaved={() => void mutatePeriods()}
+          onDeleted={() => void mutatePeriods()}
         />
       )}
       {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:

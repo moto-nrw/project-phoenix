@@ -178,6 +178,7 @@ describe("Schulkalender: Speichern sperrt das Panel (#6593)", () => {
       "Der Termin „Wandertag“ ist gespeichert.",
     );
     expect(mockMutate).toHaveBeenCalledOnce();
+    // Anker: die Kalenderseite ist wieder bedienbar.
     expect(screen.getByRole("button", { name: "Neuer Termin" })).toBeEnabled();
     expect(
       screen.queryByRole("heading", { name: "Schultermin anlegen" }),

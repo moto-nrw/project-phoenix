@@ -1574,7 +1574,8 @@ function TimetablesContent() {
       try {
         await timetableService.deleteCancelled(instance.id);
         toast.success("Der Termin ist gelöscht.");
-        updateUrlParams({ block: null });
+        // Das Panel schließt sich selbst, nur solange es denselben Block
+        // zeigt (#6593).
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
       } catch (err) {
@@ -1585,7 +1586,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [gapsSWRKey, swrKey, tenantMutate, toast, updateUrlParams],
+    [gapsSWRKey, swrKey, tenantMutate, toast],
   );
 
   const handleDeleteFollowingInstances = useCallback(
@@ -1612,7 +1613,6 @@ function TimetablesContent() {
         toast.success(
           `Der Regeltermin ist ab ${formatDate(result.effectiveDate)} beendet.`,
         );
-        updateUrlParams({ block: null });
         if (templatePeriodID) {
           await tenantMutate(`timetable-templates-${templatePeriodID}`);
         }
@@ -1628,14 +1628,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [
-      gapsSWRKey,
-      swrKey,
-      templatePeriodID,
-      tenantMutate,
-      toast,
-      updateUrlParams,
-    ],
+    [gapsSWRKey, swrKey, templatePeriodID, tenantMutate, toast],
   );
 
   // „Liste so lassen“ und „Hinweis wieder zeigen“ (#5103). Kein

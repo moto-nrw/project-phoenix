@@ -1260,6 +1260,7 @@ function AnnouncementFormModal({
         logger.error("announcement_attachment_delete_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await attachmentErrors.show(err, {
           object: "das Entfernen des Anhangs",
@@ -1419,6 +1420,7 @@ function AnnouncementFormModal({
           mode: isEdit ? "update" : "create",
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         await formErrors.show(err, {
           object: "das Speichern der Mitteilung",

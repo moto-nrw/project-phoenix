@@ -141,6 +141,7 @@ export function TransitionPreviewModal({
           transition_id: transition.id,
           error: error instanceof Error ? error.message : String(error),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         // Den Text liefert der Katalog (grade_transition.*). Eine veraltete
         // Vorschau wird neu geladen, damit über den aktuellen Stand entschieden
