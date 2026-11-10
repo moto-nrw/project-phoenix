@@ -31,11 +31,7 @@ export function useTraegerSchoolsAlerts() {
     refreshInterval: ALERTS_REFRESH_MS,
     ...guard.callbacks,
   });
-  const alerts = useConfirmedResource(
-    response,
-    guard,
-    "die Übersicht der Schulzahlen",
-  );
+  const alerts = useConfirmedResource(response, guard, "die Schulübersicht");
   const confirmed = alerts.data !== null;
   return {
     alerts: alerts.data,
