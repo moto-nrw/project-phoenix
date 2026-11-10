@@ -361,6 +361,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.MovePendingWindow",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.Reactivate",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.Reactivate",
@@ -1036,6 +1044,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.LockStudentClassWrites",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.LockStudentClassWrites",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.MovePendingWindow",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
@@ -1860,6 +1876,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.LockStudentClassWrites",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.LockStudentClassWrites",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.LockStudentWindow",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.LockStudentWindow",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"

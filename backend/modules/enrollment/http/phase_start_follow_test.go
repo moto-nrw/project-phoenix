@@ -21,16 +21,18 @@ import (
 )
 
 // followingPhases is the phase administration as the root binds it for a
-// phase-start edit (#6505): the real recurrence gate, People Directory for
+// phase-start edit (#6505): the real recurrence gate, School Membership for
 // the pending students and a fixed school day.
 func followingPhases(t *testing.T, env *decisionTestEnv, today calendar.Date) enrollmentNative.PhaseAdministration {
 	t.Helper()
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, env.db))
+	require.NoError(t, err)
 	return NewTestPhases(TestPhaseDependencies{
 		Records:                env.repos.Enrollment(),
 		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(env.reposCare.CarePlan)},
 		LockTemplateRecurrence: owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites,
 		Resyncer:               &recordingSourcedTemplateResyncer{},
-		Students:               testStudentEnrollment(env.db),
+		Students:               owners.NewEnrollmentPhaseStudents(membership),
 		Logger:                 slog.Default(),
 		Today:                  func() calendar.Date { return today },
 	})
@@ -226,10 +228,10 @@ func TestPhaseService_Update_ActivationTickKeepsDueStart(t *testing.T) {
 	c.assertPlan(t, peopleValues.StudentStatusActive, c.start, "after the tick and the edit")
 }
 
-// A phase edit locks each pending student before it reads its status. A
-// status change committed while the edit waits is kept: the edit neither
-// moves the activated child's start nor writes the stale pending status back
-// (#6505).
+// School Membership locks each pending student before it reads its status
+// for a phase edit. A status change committed while the edit waits is kept:
+// the edit neither moves the activated child's start nor writes the stale
+// pending status back (#6505).
 func TestPhaseService_Update_WaitsForConcurrentActivation(t *testing.T) {
 	t.Parallel()
 
@@ -337,12 +339,12 @@ func TestPhaseService_Update_ClassSwitchTickWaitsForPhaseStartEdit(t *testing.T)
 	r.assertClassSwitch(t, r.start.AddDays(7), "2a", "after the tick on the old start")
 }
 
-// A phase edit that moves pending students takes the shared class-writes gate
-// before the recurrence gate, in the order of ADR 0162. A grade transition
-// holds the class gate exclusively and takes the recurrence gate next; an
-// edit that held the recurrence gate and then waited for the class gate in
-// the student read closed a deadlock with it (#6505).
-func TestPhaseService_Update_TakesClassGateBeforeRecurrenceGate(t *testing.T) {
+// A phase edit that moves pending students holds the recurrence gate and
+// never waits for the class-writes gate afterwards (ADR 0162). A grade
+// transition holds the class gate exclusively and takes the recurrence gate
+// next; an edit whose student move waited for the class gate closed a
+// deadlock with it (#6505).
+func TestPhaseService_Update_NeverWaitsForClassGateAfterRecurrenceGate(t *testing.T) {
 	t.Parallel()
 
 	env := setupDecisionTest(t)

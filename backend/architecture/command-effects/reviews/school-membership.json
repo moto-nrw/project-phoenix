@@ -451,6 +451,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.MovePendingWindow",
+      "reason": "Read-only target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership.Owner.MovePendingWindow. No persistent, lock or scope effect; the tenant scopes the pending-window move of #6505.",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.Reactivate",
       "classification": "query",
       "effect": "query",
@@ -1299,6 +1309,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.LockStudentClassWrites",
       "reason": "Read-only target already reviewed as query: school-membership reaches tenant.TenantFromContext (tenant-runtime) through *modules/schoolmembership/internal/application.Service.LockStudentClassWrites. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.MovePendingWindow",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
+      "reason": "Read-only target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/application.Service.MovePendingWindow. No persistent, lock or scope effect; the tenant scopes the pending-window move of #6505.",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
@@ -2330,6 +2350,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.LockStudentClassWrites",
       "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.LockStudentClassWrites. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.LockStudentWindow",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.LockStudentWindow",
+      "reason": "Read-only target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.LockStudentWindow. No persistent, lock or scope effect; the tenant scopes the pending-window move of #6505.",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"

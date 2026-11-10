@@ -77,3 +77,43 @@ func (s *Service) AssignGroup(ctx context.Context, studentID int64, groupID *int
 	})
 	return result, err
 }
+
+// MovePendingWindow moves the window of a still pending child (#6505). The
+// row lock comes first, so a status change committed meanwhile is seen and
+// the child is left alone. No class gate is taken: the move writes no class,
+// and a caller holding the recurrence gate must not wait for it afterwards.
+// The Kontingentzahl cannot rise: the counted pending children are those
+// whose start lies ahead, and the move keeps or ends that.
+func (s *Service) MovePendingWindow(ctx context.Context, move schoolmembership.PendingWindowMove) (moved bool, err error) {
+	if move.StudentID <= 0 {
+		return false, invalid("student ID is required")
+	}
+	err = s.runWrite(ctx, "move_pending_student_window", func(txCtx context.Context, stats *domain.OperationStats) error {
+		current, found, queryStats, readErr := s.store.LockStudentWindow(txCtx, move.StudentID)
+		stats.Add(queryStats)
+		if readErr != nil || !found || current.Status != "pending" {
+			return readErr
+		}
+		moved = true
+		next := current
+		if current.EnrolledFrom == move.FromBefore {
+			next.EnrolledFrom = move.FromAfter
+		}
+		if current.EnrolledUntil == move.UntilBefore {
+			next.EnrolledUntil = move.UntilAfter
+		}
+		if next.EnrolledFrom == current.EnrolledFrom && next.EnrolledUntil == current.EnrolledUntil {
+			return nil
+		}
+		if next.EnrolledFrom != "" && next.EnrolledUntil != "" && next.EnrolledFrom > next.EnrolledUntil {
+			return invalid("the moved enrollment window would end before it starts")
+		}
+		_, writeStats, writeErr := s.store.RenewStudentEnrollment(txCtx, next, s.today())
+		stats.Add(writeStats)
+		return writeErr
+	})
+	if err != nil {
+		return false, err
+	}
+	return moved, nil
+}

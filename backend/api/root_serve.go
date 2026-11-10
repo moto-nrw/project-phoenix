@@ -393,7 +393,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			notices = owners.BuildEnrollmentNotices(env, enrollment, settings.Service, delivery.Enqueuer(), organizations, audit, carePlan, owners.DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes)
-			phases, err = owners.BuildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service)
+			phases, err = owners.BuildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service, membership)
 			return
 		},
 		func() (err error) {

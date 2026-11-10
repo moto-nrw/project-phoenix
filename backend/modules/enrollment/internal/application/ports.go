@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Transactions opens a tenant transaction for a standalone caller or joins
@@ -105,13 +105,22 @@ type PhaseOfferings interface {
 	CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollment.OfferingBooking, error)
 }
 
-// PhaseStudents is the People Directory seam a phase-start edit moves the
-// enrollment window of still pending students through (#6505). The locked
-// read takes the shared class-writes gate before the student row.
+// PhaseStudents is the School Membership command a phase edit moves the
+// enrollment window of a still pending student with (#6505). The command
+// locks the student's row, decides under that lock and reports whether the
+// student was still pending; it takes no class gate.
 type PhaseStudents interface {
-	LockEnrollmentClassWrites(context.Context) error
-	ReadEnrollmentStudent(context.Context, int64, string) (peopleEnrollment.Record, error)
-	RenewEnrollmentStudent(context.Context, int64, peopleEnrollment.Input) error
+	MovePendingWindow(ctx context.Context, move PendingWindowMove) (bool, error)
+}
+
+// PendingWindowMove is the window a phase edit proposes for a pending
+// student: each bound moves only while it still equals its Before value.
+type PendingWindowMove struct {
+	StudentID   int64
+	FromBefore  calendar.Date
+	FromAfter   calendar.Date
+	UntilBefore calendar.Date
+	UntilAfter  calendar.Date
 }
 
 // CalendarPeriods is the slice of the School Calendar the phase link

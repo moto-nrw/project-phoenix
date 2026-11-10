@@ -234,14 +234,6 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 	if err := s.validatePhaseWrite(ctx, phase); err != nil {
 		return err
 	}
-	// The shared class-writes gate comes before the recurrence gate (ADR
-	// 0162): the edit locks pending students below, and their locked read
-	// takes this gate again.
-	if s.deps.Students != nil {
-		if err := s.deps.Students.LockEnrollmentClassWrites(ctx); err != nil {
-			return fmt.Errorf("lock class writes for phase update: %w", err)
-		}
-	}
 	existing, serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
 	if err != nil {
 		return err

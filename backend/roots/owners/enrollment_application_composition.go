@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -11,6 +12,7 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -244,4 +246,35 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 // EnrollmentMailBranding binds Enrollment's logo port to Delivery.
 func EnrollmentMailBranding(baseURL, schoolImageURL string) (string, string) {
 	return deliveryCompose.SchoolLogoURL(baseURL, schoolImageURL), deliveryCompose.MotoLogoURL(baseURL)
+}
+
+// EnrollmentPendingWindowMover is School Membership's guarded command a phase
+// edit moves a pending child's window with (#6505).
+type EnrollmentPendingWindowMover interface {
+	MovePendingWindow(context.Context, schoolmembership.PendingWindowMove) (bool, error)
+}
+
+// enrollmentPhaseStudents binds the phase edit's pending-window move to
+// School Membership's guarded command. A window the command refuses as
+// inverted is an invalid phase edit.
+type enrollmentPhaseStudents struct {
+	membership EnrollmentPendingWindowMover
+}
+
+// NewEnrollmentPhaseStudents binds the phase edit to School Membership.
+func NewEnrollmentPhaseStudents(membership EnrollmentPendingWindowMover) enrollmentCompose.PhaseStudents {
+	return enrollmentPhaseStudents{membership: membership}
+}
+
+func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentCompose.PendingWindowMove) (bool, error) {
+	moved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{
+		StudentID:  move.StudentID,
+		FromBefore: move.FromBefore.String(), FromAfter: move.FromAfter.String(),
+		UntilBefore: move.UntilBefore.String(), UntilAfter: move.UntilAfter.String(),
+	})
+	var invalid *schoolmembership.InvalidMembershipError
+	if errors.As(err, &invalid) {
+		return false, fmt.Errorf("%w: %v", enrollmentOwner.ErrInvalidPhase, err)
+	}
+	return moved, err
 }

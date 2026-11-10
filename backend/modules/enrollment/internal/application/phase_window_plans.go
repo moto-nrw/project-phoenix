@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,15 +19,17 @@ import (
 //     does (replanApprovedChildClass): the hourly activation tick may already
 //     have read the child as due. Only a start after today moves, which the
 //     tick cannot have selected, so it never activates a moved start.
-//   - A student that is no longer pending was activated or changed by hand
-//     and keeps its window.
+//   - School Membership moves a student only while it is pending, deciding
+//     under the student's row lock; an activated child keeps its window and
+//     the plan of an activated child stays as executed.
 //   - A bound that no longer equals the phase's old bound came from another
 //     enrollment or a manual edit and stays. A student with approvals in
 //     several phases starts with the earliest and ends with the latest plan
-//     inside its current window.
+//     inside its old window.
 //
-// Each student is locked, in ascending id order, before its status is read,
-// so a concurrent status change either commits first and is seen, or waits.
+// The edit holds the recurrence gate and the phase row; the command takes
+// only the student's row lock, no class gate, so the edit never waits for a
+// gate after its own (ADR 0162). Students are moved in ascending id order.
 func (s *Phases) followPendingActivations(ctx context.Context, before, after *enrollment.Phase) error {
 	if s.deps.Students == nil || !calendar.Date(before.ServiceStartDate).After(s.todayDate()) {
 		return nil
@@ -51,14 +52,19 @@ func (s *Phases) followPendingActivations(ctx context.Context, before, after *en
 }
 
 func (s *Phases) followStudentActivation(ctx context.Context, studentID int64, plans []enrollment.ActivationPlan, before, after *enrollment.Phase) error {
-	student, err := s.deps.Students.ReadEnrollmentStudent(ctx, studentID, "update")
-	if errors.Is(err, peopleEnrollment.ErrStudentNotFound) {
-		return nil
-	}
+	from, until := followedWindow(plans, before, after)
+	pending, err := s.deps.Students.MovePendingWindow(ctx, PendingWindowMove{
+		StudentID:  studentID,
+		FromBefore: calendar.Date(before.ServiceStartDate), FromAfter: from,
+		UntilBefore: calendar.Date(before.ServiceEndDate), UntilAfter: until,
+	})
 	if err != nil {
-		return fmt.Errorf("phase update: lock student %d: %w", studentID, err)
+		if errors.Is(err, enrollment.ErrInvalidPhase) && s.deps.Runtime.MarkRollback != nil {
+			s.deps.Runtime.MarkRollback(ctx)
+		}
+		return fmt.Errorf("phase update: move enrollment window of student %d: %w", studentID, err)
 	}
-	if student.Status != studentStatusPending {
+	if !pending {
 		return nil
 	}
 	newStart := after.ServiceStartDate
@@ -70,48 +76,28 @@ func (s *Phases) followStudentActivation(ctx context.Context, studentID int64, p
 			return fmt.Errorf("phase update: move activation plan of request child %d: %w", plan.RequestChildID, err)
 		}
 	}
-	from, until := followedWindow(student, plans, before, after)
-	if from == student.EnrolledFrom && until == student.EnrolledUntil {
-		return nil
-	}
-	if until != "" && from > until {
-		if s.deps.Runtime.MarkRollback != nil {
-			s.deps.Runtime.MarkRollback(ctx)
-		}
-		return fmt.Errorf("%w: the new service window leaves a pending child of the phase without a care day; adjust the child's enrollment first", enrollment.ErrInvalidPhase)
-	}
-	if err := s.deps.Students.RenewEnrollmentStudent(ctx, studentID, peopleEnrollment.Input{
-		PersonID: student.PersonID, SchoolClass: student.SchoolClass, Status: student.Status,
-		EnrolledFrom: from, EnrolledUntil: until,
-	}); err != nil {
-		return fmt.Errorf("phase update: move enrollment window of student %d: %w", studentID, err)
-	}
 	return nil
 }
 
-// followedWindow derives the pending student's enrollment window after the
-// edit. A bound follows only while it still equals the phase's old bound;
-// approvals in other phases that lie inside the current window keep theirs.
-func followedWindow(student peopleEnrollment.Record, plans []enrollment.ActivationPlan, before, after *enrollment.Phase) (string, string) {
-	from, until := student.EnrolledFrom, student.EnrolledUntil
-	oldStart, oldEnd := string(before.ServiceStartDate), string(before.ServiceEndDate)
-	if oldStart != string(after.ServiceStartDate) && from == oldStart {
-		from = string(after.ServiceStartDate)
-		for _, plan := range plans {
-			if plan.PhaseID != after.ID && string(plan.On) >= oldStart && string(plan.On) < from {
-				from = string(plan.On)
-			}
+// followedWindow derives the window the edit proposes for a pending student
+// whose bounds still equal the phase's old ones. Approvals in other phases
+// that lie inside the old window keep their day: the start becomes the
+// earliest, the end the latest of them and the new phase bound.
+func followedWindow(plans []enrollment.ActivationPlan, before, after *enrollment.Phase) (calendar.Date, calendar.Date) {
+	oldStart, oldEnd := before.ServiceStartDate, before.ServiceEndDate
+	from, until := after.ServiceStartDate, after.ServiceEndDate
+	for _, plan := range plans {
+		if plan.PhaseID == after.ID {
+			continue
+		}
+		if plan.On >= oldStart && plan.On < from {
+			from = plan.On
+		}
+		if plan.PhaseEnd <= oldEnd && plan.PhaseEnd > until {
+			until = plan.PhaseEnd
 		}
 	}
-	if oldEnd != string(after.ServiceEndDate) && until == oldEnd {
-		until = string(after.ServiceEndDate)
-		for _, plan := range plans {
-			if plan.PhaseID != after.ID && string(plan.PhaseEnd) <= oldEnd && string(plan.PhaseEnd) > until {
-				until = string(plan.PhaseEnd)
-			}
-		}
-	}
-	return from, until
+	return calendar.Date(from), calendar.Date(until)
 }
 
 // refuseEffectiveBookings rejects deleting a running or future phase while a

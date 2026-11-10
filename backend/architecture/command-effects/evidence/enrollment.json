@@ -5057,6 +5057,30 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "binding_digest": "1f3549beaed18301b09deffeb003ba04",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "binding_digest": "d02423fb32a8abe6418d1d632e692bf9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingBooking.EffectiveSelectedDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "binding_digest": "9eb8f0bf7618d495064a204c95956509",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CountOfferingsForPhase",
       "binding_digest": "f5d0e4ee8f1a4d16525eadcf22833494",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CountOfferingsForPhase",
@@ -5087,6 +5111,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListCareOfferings",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
+      "binding_digest": "599e2883b25b2c64d93e0408e4d61c15",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseStudents.MovePendingWindow",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetWeeklySchedulesByStudentIDsForDate",

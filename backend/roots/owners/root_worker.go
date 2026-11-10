@@ -471,7 +471,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			notices = BuildEnrollmentNotices(env, enrollment, settings.Service, delivery.Enqueuer(), organizations, audit, carePlan, DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes)
-			phases, err = BuildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service)
+			phases, err = BuildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service, membership)
 			return
 		},
 		func() error {

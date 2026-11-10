@@ -6745,6 +6745,36 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.Capability.CareOfferingBookingsForPhase. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.CareOfferingBooking.EffectiveSelectedDays. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingBooking.EffectiveSelectedDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.Owner.CareOfferingBookingsForPhase. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CountOfferingsForPhase",
       "classification": "query",
       "effect": "query",
@@ -6783,6 +6813,17 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListCareOfferings",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseStudents.MovePendingWindow",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/schoolmembership.Owner.MovePendingWindow (school-membership) through roots/owners.enrollmentPhaseStudents.MovePendingWindow. #6505, ADR 0162 addendum: a phase edit moves the window of a child its approval left pending in the edit's tenant transaction; School Membership locks only the child's row, decides under it whether the child is still pending and which bound still equals the phase's old one, and takes no class gate, so no cross-owner lock order or re-read is needed (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetWeeklySchedulesByStudentIDsForDate",

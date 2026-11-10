@@ -18,6 +18,7 @@ type (
 	PhaseRecords             = application.PhaseRecords
 	PhaseOfferings           = application.PhaseOfferings
 	PhaseStudents            = application.PhaseStudents
+	PendingWindowMove        = application.PendingWindowMove
 	CalendarPeriods          = application.CalendarPeriods
 	CollectionSettings       = application.CollectionSettings
 	FormSchemaRecords        = application.FormSchemaRecords
@@ -52,7 +53,7 @@ type PhaseDependencies struct {
 	// Resyncer keeps the templates sourcing the phase's offerings in step.
 	Resyncer enrollment.SourcedTemplateResyncer
 	// Students moves the window of still pending students with a phase-start
-	// edit; the root binds People Directory.
+	// edit; the root binds School Membership.
 	Students       PhaseStudents
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
