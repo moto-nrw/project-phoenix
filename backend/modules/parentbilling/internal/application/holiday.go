@@ -369,7 +369,7 @@ func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTi
 	}
 	return parentbilling.HolidayBooking{
 		WeekID: week.ID, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn,
-		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days,
+		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen,
 	}, ok
 }
 

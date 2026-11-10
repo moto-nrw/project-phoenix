@@ -200,6 +200,52 @@ describe("HolidayRegistrationChildCard", () => {
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Umbuchen" })).toBeNull();
   });
+  it("can reselect a saved day that has since closed", () => {
+    const child = HOLIDAY_REGISTRATION.children[0]!;
+    const registration = {
+      ...HOLIDAY_REGISTRATION,
+      children: [
+        {
+          ...child,
+          bookings: [
+            { ...child.bookings[0]!, days: ["2027-01-04", "2027-01-05"] },
+          ],
+        },
+      ],
+    };
+    const period = {
+      ...HOLIDAY_PERIOD,
+      weeks: [
+        {
+          ...HOLIDAY_PERIOD.weeks[0]!,
+          bookingUnit: "day" as const,
+          noCareDays: [
+            {
+              date: "2027-01-04",
+              kind: "closing_day" as const,
+              name: "Teamtag",
+            },
+          ],
+        },
+      ],
+    };
+    renderCard(registration, 0, vi.fn(), false, period);
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    const monday = screen.getByRole("button", { name: "Mo 04.01." });
+    expect(monday).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(monday);
+    expect(screen.getByRole("button", { name: "Mo 04.01." })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mo 04.01." }));
+    expect(screen.getByRole("button", { name: "Mo 04.01." })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
   it("can restore a saved booking on a closed week after changing the draft", async () => {
     const period = {
       ...HOLIDAY_PERIOD,

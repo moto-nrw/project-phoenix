@@ -142,3 +142,17 @@ func TestHolidayDayBookingLeavesOutTheDaysWithoutCare(t *testing.T) {
 	assert.NoError(t, refuseHolidayBookingsWithoutCare(tuesday, period, tuesday), "a day booked before stays")
 	assert.Error(t, refuseHolidayBookingsWithoutCare([]enrollment.HolidayBookingInput{{WeekID: 2}}, period, nil))
 }
+
+func TestDailyHolidayWeekNeedsASelectableWeekday(t *testing.T) {
+	t.Parallel()
+	week := enrollment.HolidayWeekInput{HostSchoolID: 1, StartsOn: calendar.NewDate(2027, 1, 9),
+		EndsOn: calendar.NewDate(2027, 1, 10), BookingUnit: enrollment.HolidayBookingUnitDay}
+	assert.Contains(t, validateHolidayWeek(week), "ends_on", "a weekend-only daily offer has no selectable day")
+	stored := enrollment.HolidayPeriod{Weeks: []enrollment.HolidayWeek{{StartsOn: week.StartsOn, EndsOn: week.EndsOn,
+		BookingUnit: week.BookingUnit, TimeModels: []enrollment.HolidayTimeModel{{ID: 1}}}}}
+	assert.False(t, holidayPeriodComplete(stored), "an existing weekend-only draft cannot be published")
+	week.StartsOn = calendar.NewDate(2027, 1, 8)
+	assert.Empty(t, validateHolidayWeek(week), "Friday remains selectable")
+	week.StartsOn, week.BookingUnit = calendar.NewDate(2027, 1, 9), enrollment.HolidayBookingUnitWeek
+	assert.Empty(t, validateHolidayWeek(week), "whole-week offers keep their existing date contract")
+}

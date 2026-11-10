@@ -232,6 +232,8 @@ type HolidayBooking struct {
 	// zero for a whole week; PriceCents is then the price of all of them
 	// (#4701).
 	BookedDays int
+	// Days retains the selected dates for rule eligibility; empty for a whole week.
+	Days []calendar.Date
 	// Waitlisted marks a booking that waits for a place (#4699). It costs
 	// nothing and gives the child no sibling rank until it moves up.
 	Waitlisted bool

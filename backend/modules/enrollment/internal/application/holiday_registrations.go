@@ -171,11 +171,11 @@ func offeredHolidayWeeks(weeks []enrollment.HolidayWeek) []enrollment.HolidayWee
 	return offered
 }
 
-func (h *HolidayRegistrations) publishedPeriod(ctx context.Context, link enrollment.HolidayRegistrationLink) (enrollment.HolidayPeriod, error) {
+func (h *HolidayRegistrations) publishedPeriod(ctx context.Context, link enrollment.HolidayRegistrationLink, lock bool) (enrollment.HolidayPeriod, error) {
 	if link.OrganizationID <= 0 || link.PeriodID <= 0 {
 		return enrollment.HolidayPeriod{}, enrollment.ErrHolidayRegistrationNotFound
 	}
-	return published(h.deps.Periods.FindHolidayPeriod(ctx, link.OrganizationID, link.PeriodID, false))
+	return published(h.deps.Periods.FindHolidayPeriod(ctx, link.OrganizationID, link.PeriodID, lock))
 }
 
 // published turns the store's answer into a published period; a draft is
@@ -224,15 +224,15 @@ func (h *HolidayRegistrations) countHolidayAttempt(ctx context.Context, organiza
 
 // SubmitHolidayRegistration checks and stores a registration, gives its
 // bookings their places and enqueues its receipt mail in the same Träger
-// transaction. The registration is inserted before the weeks are locked:
-// the Träger-Büro locks the period before the weeks, and the insert's
-// foreign key waits for that lock, so no lock order runs the other way
-// round (#4699). The answers are checked
+// transaction. It holds the period before reading its weeks and validating
+// the input, so a concurrent change of the booking unit cannot invalidate
+// the checked booking. The registration is inserted before locking weeks,
+// preserving the period-before-week order (#4699). The answers are checked
 // against the current version of the period's form, and the registration
 // keeps that version. A parent who filled in an older version is told the
 // form changed instead of being refused at fields the page did not show.
 func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, link enrollment.HolidayRegistrationLink, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
-	period, err := h.publishedPeriod(ctx, link)
+	period, err := h.publishedPeriod(ctx, link, true)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}

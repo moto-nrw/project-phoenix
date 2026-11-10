@@ -428,7 +428,11 @@ function RebookingEditor({
                   days={holidayCareDays(bookedWeek.startsOn, bookedWeek.endsOn)
                     .filter(
                       (day) =>
-                        weekDays.includes(day) ||
+                        savedBookings.some(
+                          (booking) =>
+                            booking.weekId === bookedWeek.id &&
+                            booking.days?.includes(day),
+                        ) ||
                         !bookedWeek.noCareDays?.some(
                           (none) => none.date === day,
                         ),

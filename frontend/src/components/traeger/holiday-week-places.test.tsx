@@ -216,12 +216,12 @@ describe("HolidayWeekPlacesCard of a week by days (#4701)", () => {
     expect(screen.getByText("2 Tage voll")).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", {
-        name: "Dienstag, 06.07.: 1 von 1 Plätzen vergeben, voll",
+        name: "Di 06.07.",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", {
-        name: "Mittwoch, 07.07.: 0 von 1 Plätzen vergeben",
+        name: "Mi 07.07.",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Di 06\.07\., Mi 07\.07\./)).toBeInTheDocument();

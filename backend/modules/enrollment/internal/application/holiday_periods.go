@@ -244,6 +244,9 @@ func holidayPeriodComplete(period enrollment.HolidayPeriod) bool {
 		return false
 	}
 	for _, week := range period.Weeks {
+		if week.BookingUnit == enrollment.HolidayBookingUnitDay && len(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)) == 0 {
+			return false
+		}
 		if !slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool { return !model.Archived }) {
 			return false
 		}
@@ -403,6 +406,9 @@ func validateHolidayWeek(week enrollment.HolidayWeekInput) validation.Errors {
 		errs["ends_on"] = errors.New("the last day is before the first day")
 	} else if week.StartsOn.DaysUntil(week.EndsOn) >= holidayMaxWeekDays {
 		errs["ends_on"] = fmt.Errorf("a week has at most %d days", holidayMaxWeekDays)
+	}
+	if week.BookingUnit == enrollment.HolidayBookingUnitDay && len(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)) == 0 {
+		errs["ends_on"] = errors.New("a week booked by days needs at least one weekday")
 	}
 	if len(week.TimeModels) > holidayMaxTimeModelsPerWeek {
 		errs["time_models"] = fmt.Errorf("a week has at most %d time models", holidayMaxTimeModelsPerWeek)

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -341,4 +342,85 @@ func TestHolidayDayBookingHoldsTheLastPlaceOfADayAgainstAConcurrentRegistration(
 	require.Len(t, receipt.Placements, 1)
 	assert.Equal(t, "waitlisted", receipt.Placements[0].Placement, "the second registration finds Tuesday taken")
 	assert.Equal(t, 1, d.placedOn(t)[dayTuesday], "Tuesday is not overbooked")
+}
+
+// Rules starting midweek must apply to both quotes and stored registrations
+// whose first requested day is later in that week (ADR 0115).
+func TestHolidayDailyBillingRulesStartOnTheFirstSelectedDay(t *testing.T) {
+	t.Parallel()
+	d := newDayFixture(t, "Träger Tage Regelbeginn")
+	f := reviewFixture{holidayRegistrationFixture: d.holidayRegistrationFixture, office: d.office}
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	for _, rule := range []map[string]any{siblingHalf(), benefitsExemption()} {
+		rule["valid_from"] = dayWednesday
+		createContributionRule(t, f, billing, rule)
+	}
+	quote := func(exempt bool) contributionBody {
+		rec := publicJSON(t, d.traeger, http.MethodPost, holidayQuotePath(d.period.PublicToken), map[string]any{
+			"children": []map[string]any{{"bookings": []map[string]any{d.days(dayFriday, dayThursday)}},
+				{"bookings": []map[string]any{d.days(dayThursday)}}}, "benefits_declared": exempt,
+		})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[contributionBody](t, rec.Body.Bytes())
+	}
+	quoted := quote(false)
+	assert.Equal(t, int64(3750), quoted.TotalCents, "3000 plus 1500 at half price")
+	assert.True(t, quoted.ExemptionAvailable)
+	assert.Equal(t, int64(0), quote(true).TotalCents)
+	receipt := d.submit(t, d.registration("rules.days@example.org", "Mia", d.days(dayFriday, dayThursday)))
+	rec := traegerJSON(t, d.traeger, d.office.token, http.MethodPost, holidayConfirmPath(d.period.ID, receipt.ID),
+		map[string]any{"benefits_exemption": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	confirmed := decodeSchoolPortalData[confirmationBody](t, rec.Body.Bytes()).Contribution
+	assert.True(t, confirmed.BenefitsExemption)
+	assert.Zero(t, confirmed.TotalCents)
+	require.Len(t, confirmed.Children, 1)
+	assert.Equal(t, dayMonday, *confirmed.Children[0].Lines[0].WeekStartsOn, "the invoice keeps the offered week range")
+}
+
+// The period lock must precede validation: a submission waiting for an
+// office change must validate the newly committed booking unit.
+func TestHolidaySubmissionValidatesAfterAConcurrentBookingUnitChange(t *testing.T) {
+	t.Parallel()
+	d := newDayFixture(t, "Träger Buchungsart Gleichzeitig")
+	ctx := context.Background()
+	week := d.offer.Weeks[0]
+	_, err := d.db.ExecContext(ctx, `UPDATE enrollment.holiday_period_weeks SET booking_unit = 'week'
+  WHERE organization_id = ? AND id = ?`, d.office.organization, week.ID)
+	require.NoError(t, err)
+	_, err = d.db.ExecContext(ctx, `UPDATE enrollment.holiday_periods SET max_days_per_child = NULL
+  WHERE organization_id = ? AND id = ?`, d.office.organization, d.period.ID)
+	require.NoError(t, err)
+	holder, err := d.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	var pid int
+	require.NoError(t, holder.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &pid))
+	_, err = holder.ExecContext(ctx, `SELECT id FROM enrollment.holiday_periods WHERE organization_id = ? AND id = ? FOR UPDATE`,
+		d.office.organization, d.period.ID)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(ctx, `UPDATE enrollment.holiday_period_weeks SET booking_unit = 'day'
+  WHERE organization_id = ? AND id = ?`, d.office.organization, week.ID)
+	require.NoError(t, err)
+	sent := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		sent <- publicJSON(t, d.public, http.MethodPost, registrationPath(d.period.PublicToken),
+			d.registration("unit.change@example.org", "Lea", map[string]any{"week_id": week.ID, "time_model_id": week.TimeModels[0].ID}))
+	}()
+	require.Eventually(t, func() bool {
+		var blocked int
+		err := d.db.NewRaw(`SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))`, pid).Scan(ctx, &blocked)
+		return err == nil && blocked > 0
+	}, 20*time.Second, 20*time.Millisecond, "the submission waits for the office transaction")
+	require.NoError(t, holder.Commit())
+	select {
+	case rec := <-sent:
+		assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	case <-time.After(20 * time.Second):
+		t.Fatal("the submission did not finish after the office committed")
+	}
+	var count int
+	require.NoError(t, d.db.NewRaw(`SELECT count(*) FROM enrollment.holiday_registrations WHERE organization_id = ? AND holiday_period_id = ?`,
+		d.office.organization, d.period.ID).Scan(ctx, &count))
+	assert.Zero(t, count, "a daily booking without selected days is never stored")
 }

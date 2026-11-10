@@ -20,12 +20,12 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FramedList } from "~/components/ui/framed-list";
 import { IconTile } from "~/components/ui/icon-tile";
-import { InsetPanel } from "~/components/ui/inset-panel";
 import { ListRowLink } from "~/components/ui/list-row-link";
 import { NumberStepper } from "~/components/ui/number-stepper";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
+import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -160,41 +160,28 @@ function HolidayDayPlacesGrid({ week }: Readonly<{ week: HolidayWeekPlaces }>) {
               ? `${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: ${day.placed} angemeldet`
               : `${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: ${day.placed} von ${capacity} Plätzen vergeben${full ? ", voll" : ""}`;
           return (
-            <li key={day.date}>
-              <InsetPanel
-                padding="sm"
-                tone={full ? "warning" : "muted"}
-                className="space-y-2"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-semibold text-gray-900">
-                    {holidayWeekdayShort(day.date)}
-                  </span>
-                  <span className="text-xs text-gray-500 tabular-nums">
-                    {holidayDayDate(day.date)}
-                  </span>
-                </div>
-                <p
-                  className="text-sm text-gray-700 tabular-nums"
-                  aria-hidden="true"
-                >
-                  <span className="font-semibold text-gray-900">
-                    {day.placed}
-                  </span>
-                  {capacity === null ? " Kinder" : ` von ${capacity}`}
-                </p>
-                {capacity === null ? (
-                  <span className="sr-only">{label}</span>
-                ) : (
-                  <ProgressBar
-                    value={Math.min(day.placed, capacity)}
-                    max={Math.max(capacity, 1)}
-                    label={label}
-                    tone={full ? "orange" : "green"}
-                    size="sm"
-                  />
-                )}
-              </InsetPanel>
+            <li key={day.date} aria-label={label}>
+              <StatCard
+                label={`${holidayWeekdayShort(day.date)} ${holidayDayDate(day.date)}`}
+                value={
+                  capacity === null
+                    ? day.placed
+                    : `${day.placed} von ${capacity}`
+                }
+                hint={
+                  capacity === null
+                    ? "Kinder angemeldet"
+                    : full
+                      ? "Voll"
+                      : "Plätze vergeben"
+                }
+                tone={full ? "orange" : "green"}
+                progressPct={
+                  capacity === null
+                    ? undefined
+                    : Math.min(100, (day.placed / Math.max(capacity, 1)) * 100)
+                }
+              />
             </li>
           );
         })}

@@ -58,8 +58,12 @@ func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 	var first calendar.Date
 	for _, child := range children {
 		for _, booking := range child.Bookings {
-			if first == "" || booking.WeekStartsOn.Before(first) {
-				first = booking.WeekStartsOn
+			day := booking.WeekStartsOn
+			if len(booking.Days) > 0 {
+				day = slices.Min(booking.Days)
+			}
+			if first == "" || day.Before(first) {
+				first = day
 			}
 		}
 	}
