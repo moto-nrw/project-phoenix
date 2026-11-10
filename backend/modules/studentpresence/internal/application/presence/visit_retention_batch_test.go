@@ -70,22 +70,34 @@ func TestCleanupExpiredVisitsStatementsStayFlat(t *testing.T) {
 	}
 }
 
-// studentAuditFault fails the audit of one student after the real batch
-// append, so the failure follows written audit rows of every student.
+// studentAuditFault fails one student before or after the real batch append,
+// exercising rollback of deletions both with and without written audit rows.
 type studentAuditFault struct {
 	activeService.DeletionAudit
-	studentID int64
-	err       error
+	studentID    int64
+	err          error
+	beforeAppend bool
+	controlAt    int
+	calls        int
 }
 
 func (f *studentAuditFault) CreateAll(ctx context.Context, events []*activeService.DeletionEvent) error {
-	if err := f.DeletionAudit.CreateAll(ctx, events); err != nil {
-		return err
+	f.calls++
+	if f.calls == f.controlAt {
+		return testpkg.ErrSavepointControl
+	}
+	if !f.beforeAppend {
+		if err := f.DeletionAudit.CreateAll(ctx, events); err != nil {
+			return err
+		}
 	}
 	for _, event := range events {
-		if event.StudentID != nil && *event.StudentID == f.studentID {
+		if event.StudentID != nil && *event.StudentID == f.studentID && f.err != nil {
 			return f.err
 		}
+	}
+	if f.beforeAppend {
+		return f.DeletionAudit.CreateAll(ctx, events)
 	}
 	return nil
 }
@@ -95,6 +107,22 @@ func (f *studentAuditFault) CreateAll(ctx context.Context, events []*activeServi
 // that child's deletion; the others are deleted, audited and counted.
 func TestCleanupExpiredVisitsIsolatesFailingStudent(t *testing.T) {
 	t.Parallel()
+	for _, ambient := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ambient_%t", ambient), func(t *testing.T) {
+			t.Parallel()
+			for _, beforeAppend := range []bool{false, true} {
+				t.Run(fmt.Sprintf("before_append_%t", beforeAppend), func(t *testing.T) {
+					t.Parallel()
+					testpkg.OwnTenant(t)
+					testCleanupExpiredVisitsIsolatesFailingStudent(t, ambient, beforeAppend)
+				})
+			}
+		})
+	}
+}
+
+func testCleanupExpiredVisitsIsolatesFailingStudent(t *testing.T, ambient, beforeAppend bool) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	presence := testSchoolPresence(t, db)
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
@@ -111,10 +139,18 @@ func TestCleanupExpiredVisitsIsolatesFailingStudent(t *testing.T) {
 	require.NoError(t, err)
 	repos := api.NewRetentionCleanupRepositories(testpkg.NewDatabase(t, db), command)
 	injected := errors.New("synthetic audit failure")
-	fault := &studentAuditFault{DeletionAudit: owners.NewDeletionAudit(repos.Deletion), studentID: students[1], err: injected}
+	fault := &studentAuditFault{DeletionAudit: owners.NewDeletionAudit(repos.Deletion), studentID: students[1], err: injected, beforeAppend: beforeAppend}
 	cleanup := activeService.NewCleanupService(presence, sessionSupervisors(repos.Sessions), fault, visitRetentionSetting{days: 30})
 
-	result, err := cleanup.CleanupExpiredVisits(testpkg.Ctx(t))
+	var result *activeService.CleanupResult
+	if ambient {
+		err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ testpkg.Tx) error {
+			result, err = cleanup.CleanupExpiredVisits(ctx)
+			return err
+		})
+	} else {
+		result, err = cleanup.CleanupExpiredVisits(testpkg.Ctx(t))
+	}
 	require.NoError(t, err, "per-student failures are reported in the cleanup result")
 	assert.False(t, result.Success)
 	assert.Equal(t, 3, result.StudentsProcessed)
@@ -141,6 +177,45 @@ func TestCleanupExpiredVisitsIsolatesFailingStudent(t *testing.T) {
 	assert.EqualValues(t, 1, result.RecordsDeleted)
 	assert.False(t, visitExists(t, db, visits[1]))
 	require.Len(t, visitRetentionAudits(t, db, students[1]), 1)
+}
+
+// A nested savepoint-control failure is fatal in either the batch or replay.
+// Even children already processed in the ambient transaction must roll back.
+func TestCleanupExpiredVisitsAbortsOnSavepointControlFailure(t *testing.T) {
+	t.Parallel()
+	for _, controlAt := range []int{1, 3} {
+		t.Run(fmt.Sprintf("audit_call_%d", controlAt), func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
+			var students, visits []int64
+			for i := range 3 {
+				student := testpkg.CreateTestStudent(t, db, "Synthetisch", fmt.Sprintf("Savepoint%d", i), "3a")
+				students = append(students, student.ID)
+				visits = append(visits, insertRetentionVisit(t, db, student.ID, group.ID, 45, true))
+			}
+			command, err := api.NewCleanupAuditCommand(slog.Default())
+			require.NoError(t, err)
+			repos := api.NewRetentionCleanupRepositories(testpkg.NewDatabase(t, db), command)
+			fault := &studentAuditFault{
+				DeletionAudit: owners.NewDeletionAudit(repos.Deletion), studentID: students[1],
+				err: errors.New("synthetic audit failure"), controlAt: controlAt,
+			}
+			cleanup := activeService.NewCleanupService(testSchoolPresence(t, db), nil, fault, visitRetentionSetting{days: 30})
+			err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ testpkg.Tx) error {
+				result, err := cleanup.CleanupExpiredVisits(ctx)
+				assert.False(t, result.Success)
+				return err
+			})
+			require.ErrorIs(t, err, testpkg.ErrSavepointControl)
+			assert.Equal(t, controlAt, fault.calls, "no replay or next child after untrusted transaction state")
+			for i, id := range students {
+				assert.True(t, visitExists(t, db, visits[i]))
+				assert.Empty(t, visitRetentionAudits(t, db, id))
+			}
+		})
+	}
 }
 
 // TestDisabledVisitHistoryBatchKeepsDayBoundaryAudit deletes the completed

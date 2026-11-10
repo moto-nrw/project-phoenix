@@ -140,13 +140,13 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 
 	// Process students in batches
 	for i := 0; i < len(students); i += s.batchSize {
-		end := i + s.batchSize
-		if end > len(students) {
-			end = len(students)
+		batch := students[i:min(i+s.batchSize, len(students))]
+		batchResult, err := s.processBatch(ctx, batch)
+		if err != nil {
+			result.Success = false
+			result.CompletedAt = time.Now()
+			return result, err
 		}
-
-		batch := students[i:end]
-		batchResult := s.processBatch(ctx, batch)
 
 		// Aggregate results
 		result.StudentsProcessed += batchResult.processed
@@ -252,11 +252,11 @@ type batchResult struct {
 	errors    []CleanupError
 }
 
-// processBatch deletes and audits the batch in one transaction. When that
-// fails, it repeats the batch with one transaction per student, so a failing
+// processBatch deletes and audits the batch in one rollback unit. When that
+// fails, it repeats the batch with one rollback unit per student, so a failing
 // student rolls back only its own deletion and the others are still deleted,
 // counted and audited; the result names exactly the failing students.
-func (s *cleanupService) processBatch(ctx context.Context, students []studentpresence.VisitRetentionCount) batchResult {
+func (s *cleanupService) processBatch(ctx context.Context, students []studentpresence.VisitRetentionCount) (batchResult, error) {
 	result := batchResult{
 		errors: make([]CleanupError, 0),
 	}
@@ -266,13 +266,18 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentpre
 			for _, count := range deleted {
 				result.deleted += count
 			}
-			return result
+			return result, nil
+		} else if errors.Is(err, tenant.ErrSavepointControl) {
+			return result, err
 		}
 	}
 
 	for _, student := range students {
 		result.processed++
 		deleted, err := s.expireVisitsInTx(ctx, []studentpresence.VisitRetentionCount{student})
+		if errors.Is(err, tenant.ErrSavepointControl) {
+			return result, err
+		}
 		if err != nil {
 			result.errors = append(result.errors, CleanupError{
 				StudentID: student.StudentID,
@@ -284,7 +289,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentpre
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // Phase 3 deviation: RunInTx retained because the batch runs from the scheduler's forEachTenant loop,
@@ -292,11 +297,20 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentpre
 // because there is no HTTP handler or JWT involved in scheduled batch cleanup.
 func (s *cleanupService) expireVisitsInTx(ctx context.Context, students []studentpresence.VisitRetentionCount) (map[int64]int64, error) {
 	var deleted map[int64]int64
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
+	expire := func(ctx context.Context) error {
 		var err error
 		deleted, err = s.expireVisits(ctx, students)
 		return err
-	})
+	}
+	var err error
+	if _, ambient := tenant.TransactionFromContext(ctx); ambient {
+		// RunInTx joins an ambient transaction without rolling back errors.
+		// Isolate both the batch attempt and each per-child replay before
+		// continuing; savepoint-control errors must abort the outer unit.
+		err = tenant.WithSavepoint(ctx, expire)
+	} else {
+		err = s.txHandler.RunInTx(ctx, expire)
+	}
 	if err != nil {
 		return nil, err
 	}

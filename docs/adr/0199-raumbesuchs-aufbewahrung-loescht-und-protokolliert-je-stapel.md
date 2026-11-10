@@ -40,8 +40,11 @@ nannte genau die fehlgeschlagenen Kinder.
    den die Wurzel an den Audit-Owner bindet. Die Zeile eines Kindes behält
    Kind, gelöschte Anzahl, Frist oder Tagesgrenze, Grund und Mandant.
 3. **Fehlergrenze je Kind bleibt.** Ein Stapel (100 Kinder) läuft in einer
-   Transaktion. Scheitert sie, rollt sie ganz zurück, und derselbe Stapel
-   läuft Kind für Kind mit je eigener Transaktion erneut. Zählung, Fehlerliste
+   Transaktion, bei bestehender Aufrufer-Transaktion in einem Savepoint.
+   Scheitert der Versuch, rollt er ganz zurück, und derselbe Stapel läuft
+   Kind für Kind mit je eigener Transaktion beziehungsweise eigenem Savepoint
+   erneut. Ein Fehler beim Steuern eines Savepoints bricht den gesamten Lauf
+   ab und wird an die Aufrufer-Transaktion weitergegeben. Zählung, Fehlerliste
    und Löschstand sind danach dieselben wie vorher. Ein Stapel aus einem Kind
    läuft nur einmal. Das Abschalten des Protokolls
    (`ApplyAttendanceLogSetting`) bleibt in der Transaktion der Einstellung:
