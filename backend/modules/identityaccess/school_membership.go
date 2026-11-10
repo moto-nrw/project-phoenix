@@ -19,6 +19,7 @@ type SchoolMembershipQuery interface {
 // active and, if so, pins it FOR SHARE until the caller's school transaction
 // ends, so a deactivation or deletion of the mapping waits for that write
 // instead of committing under it. It runs only inside the caller's school
-// transaction and takes no account or school lock; callers take it before any
-// lock of the school's own rows, the order of Konto → Schule → Profil.
+// transaction and locks only the mapping row, never the account or school
+// row; callers take it before any lock of the school's own rows (child,
+// profile, relationship), the order of Konto → Schule → Profil.
 type SchoolMembershipLock func(ctx context.Context, accountID int64) (bool, error)

@@ -150,9 +150,8 @@ func (s *Service) requestSharingConfigured() bool {
 		s.StudentGuardianRepo != nil && s.GuardianProfileRepo != nil
 }
 
-// requestSharingFacts locks the child and reads what a request's sharing
-// rests on: the request is the caller's own, the family protection and the
-// recipients.
+// requestSharingFacts is what a request's sharing rests on: the family
+// protection and the recipients of the caller's own request.
 type requestSharingFacts struct {
 	protected   bool
 	protectedAt time.Time

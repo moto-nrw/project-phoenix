@@ -22,7 +22,7 @@ type parentConferenceBookingRequest struct {
 }
 
 func (rs *Resource) listChildParentConferences(w http.ResponseWriter, r *http.Request) {
-	child, ok := rs.parentConferenceChild(w, r, false)
+	child, ok := rs.parentConferenceChild(w, r)
 	if !ok {
 		return
 	}
@@ -76,8 +76,9 @@ func (rs *Resource) cancelChildParentConference(w http.ResponseWriter, r *http.R
 }
 
 // parentConferenceChild resolves the child of the path for the account of
-// the session, with the permission the action needs.
-func (rs *Resource) parentConferenceChild(w http.ResponseWriter, r *http.Request, book bool) (calendarService.ParentConferenceChild, bool) {
+// the session with parent_portal.access, for reading the days; booking
+// changes go through withParentConferenceBooking.
+func (rs *Resource) parentConferenceChild(w http.ResponseWriter, r *http.Request) (calendarService.ParentConferenceChild, bool) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
 		return calendarService.ParentConferenceChild{}, false
@@ -90,7 +91,7 @@ func (rs *Resource) parentConferenceChild(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent conferences are not configured")))
 		return calendarService.ParentConferenceChild{}, false
 	}
-	child, err := rs.ParentService.ParentConferenceChild(r.Context(), accountID, studentID, book)
+	child, err := rs.ParentService.ParentConferenceChild(r.Context(), accountID, studentID, false)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return calendarService.ParentConferenceChild{}, false

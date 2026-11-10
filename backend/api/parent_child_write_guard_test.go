@@ -478,8 +478,8 @@ func changedTables(before, after map[string]string) []string {
 	return changed
 }
 
-// sendParked sends w, parks it at the gate g reached, and returns the channel
-// of its answer.
+// sendAsync sends w, or calls direct, without waiting and returns the
+// channel of its answer.
 func (r *guardRig) sendAsync(t *testing.T, w childWrite, direct func(context.Context) error, token string) <-chan *httptest.ResponseRecorder {
 	t.Helper()
 	done := make(chan *httptest.ResponseRecorder, 1)
@@ -558,7 +558,7 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 			require.Empty(t, changedTables(before, rig.fingerprint(t, f)), "a refused write changes nothing of the family")
 		})
 	}
-	for _, change := range []withdrawal{withdrawPermission(firstOr(w.permissions, guardPortalAccess)), withdrawMembership} {
+	for _, change := range []withdrawal{withdrawPermission(firstOr(w.permissions, guardPortalAccess)), removeRelationship, withdrawMembership, deleteMembership} {
 		t.Run(w.name+"/gesichert vor "+change.name, func(t *testing.T) {
 			// Subtests share the test's school; each has its own family and
 			// sets only switches every route here wants on.
@@ -955,4 +955,46 @@ func TestParentChildWritesHoldTheGuardUntilCommit(t *testing.T) {
 	for _, w := range guardedWrites() {
 		w.run(t, db)
 	}
+}
+
+// The guard keeps the rights per relationship: the same account's other child
+// with a narrower relationship, another guardian of the child, another family
+// and another school stay exactly as their relationships say.
+func TestParentChildWriteGuardKeepsRightsPerRelationship(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	rig := newGuardRig(t, db)
+	rig.set(t, map[string]any{"operations.parent_sick_note_enabled": true, "operations.parent_sick_reports_enabled": true, "operations.parent_sick_requires_approval": false})
+	first, second := rig.family(t), rig.family(t)
+	sickNote := func(studentID int64, token string) *httptest.ResponseRecorder {
+		path := fmt.Sprintf("/parent/me/children/%d/sick-note", studentID)
+		body := map[string]any{"dates": []string{"2026-09-02"}, "status": "sick", "reason": "Fieber"}
+		return testutil.ExecuteRequest(rig.router, testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body, testutil.WithJWTBearer(token)))
+	}
+	// The first account is also legal guardian of the second child, without
+	// the sick-note right there.
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, second.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return rig.linkGuardian(txCtx, peopledirectory.LinkGuardian{
+			StudentID: second.StudentID, GuardianProfileID: first.GuardianProfileID, RelationshipType: "parent", GuardianRole: "legal_guardian",
+		})
+	}))
+	firstOnSecond := childReadFamily{ParentChain: testpkg.ParentChain{
+		AccountID: first.AccountID, TenantID: second.TenantID, GuardianProfileID: first.GuardianProfileID, StudentID: second.StudentID,
+	}}
+	require.NoError(t, withdrawPermission(permSickNote).run(t, rig, firstOnSecond)())
+
+	rec := sickNote(second.StudentID, first.token)
+	require.Equal(t, http.StatusForbidden, rec.Code, "the narrower relationship refuses: %s", rec.Body.String())
+	require.Less(t, sickNote(first.StudentID, first.token).Code, 300, "the same account keeps the right on its own child")
+	require.Less(t, sickNote(second.StudentID, second.token).Code, 300, "the child's other guardian keeps the right")
+
+	t.Run("fremde Familie", func(t *testing.T) {
+		stranger := rig.family(t)
+		require.Equal(t, http.StatusForbidden, sickNote(first.StudentID, stranger.token).Code)
+	})
+	t.Run("fremde Schule", func(t *testing.T) {
+		testpkg.OwnTenant(t)
+		stranger := testpkg.CreateTestParentGuardianChain(t, db)
+		require.Equal(t, http.StatusForbidden, sickNote(first.StudentID, parentReadToken(t, stranger.AccountID)).Code)
+	})
 }
