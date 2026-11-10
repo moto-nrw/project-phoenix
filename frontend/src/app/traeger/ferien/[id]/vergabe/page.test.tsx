@@ -249,7 +249,7 @@ describe("holiday allocation page (#4700)", () => {
     await waitFor(() => expect(decide).toHaveBeenCalledTimes(1));
   });
 
-  it("takes more than 500 proposals in bounded batches using the refreshed board", async () => {
+  it("keeps the confirmed decisions across batches and excludes new bookings", async () => {
     const pending = Array.from({ length: 501 }, (_, i) =>
       allocationEntry({ bookingId: String(1000 + i), rank: i + 1 }),
     );
@@ -264,7 +264,7 @@ describe("holiday allocation page (#4700)", () => {
           weeks: [
             allocationWeek({
               pending: [
-                allocationEntry({ bookingId: "1500", proposal: "waitlisted" }),
+                allocationEntry({ bookingId: "1500" }),
                 allocationEntry({ bookingId: "9000" }),
               ],
             }),
@@ -285,11 +285,66 @@ describe("holiday allocation page (#4700)", () => {
     expect(decide.mock.calls[1]?.[1]).toEqual([
       {
         bookingId: "1500",
-        placement: "waitlisted",
-        proposal: "waitlisted",
+        placement: "placed",
+        proposal: "placed",
         reason: "",
       },
     ]);
+  });
+
+  it("stops for review when a later batch no longer matches the confirmed proposal", async () => {
+    const pending = Array.from({ length: 501 }, (_, i) =>
+      allocationEntry({ bookingId: String(1000 + i), rank: i + 1 }),
+    );
+    const changed = allocationBoard({
+      weeks: [
+        allocationWeek({
+          pending: [
+            allocationEntry({ bookingId: "1500", proposal: "waitlisted" }),
+          ],
+        }),
+      ],
+    });
+    fetchBoard
+      .mockResolvedValueOnce(
+        allocationBoard({
+          weeks: [allocationWeek({ capacity: null, free: null, pending })],
+        }),
+      )
+      .mockResolvedValue(changed);
+    decide
+      .mockResolvedValueOnce(changed)
+      .mockImplementationOnce(async (_id, choices) => {
+        if (choices[0].proposal === "placed") {
+          throw new ApiError("changed", 409, {
+            code: "enrollment.holiday_allocation_changed",
+          });
+        }
+        return allocationBoard({ weeks: [] });
+      });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Vorschlag für die Woche/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Vorschlag übernehmen" }),
+    );
+    await screen.findByText(
+      "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal.",
+    );
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(decide.mock.calls[1]?.[1]).toEqual([
+      {
+        bookingId: "1500",
+        placement: "placed",
+        proposal: "placed",
+        reason: "",
+      },
+    ]);
+    expect(
+      await screen.findByText("Vorschlag: Warteliste"),
+    ).toBeInTheDocument();
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
   });
 
   it("reads the list again when it changed meanwhile", async () => {

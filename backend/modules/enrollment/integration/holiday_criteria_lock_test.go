@@ -80,3 +80,74 @@ func TestHolidayCriterionScopeWaitsForTheFirstOfficeAnswer(t *testing.T) {
 	require.ErrorAs(t, saveErr, &fields)
 	assert.Contains(t, fields, "criteria.0.scope")
 }
+
+func TestHolidayCriteriaSerializesTheFirstCatalogSaves(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger erster Kriterienkatalog")
+	runtimeCtx, cancel := context.WithTimeout(testpkg.ContextWithTenantRuntime(t.Context(), testpkg.TenantRuntime(t, db)), 10*time.Second)
+	defer cancel()
+	store := postgres.NewHolidayRegistrationStore()
+	done := make(chan error, 1)
+	pidReady := make(chan int, 1)
+	var finished bool
+	var saveErr error
+	require.NoError(t, testpkg.WithinTraeger(runtimeCtx, w.organization, func(ctx context.Context) error {
+		if err := store.WriteHolidayCriteria(ctx, w.organization, []enrollment.HolidayCriterionInput{
+			{Name: "Erster Katalog", Question: "Sind Sie berufstätig?", Scope: enrollment.HolidayCriterionFamily, Active: true},
+		}, 0); err != nil {
+			return err
+		}
+		go func() {
+			done <- testpkg.WithinTraeger(runtimeCtx, w.organization, func(ctx context.Context) error {
+				tx, err := postgres.NewDatabase()(ctx)
+				if err != nil {
+					return err
+				}
+				var pid int
+				if err := tx.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &pid); err != nil {
+					return err
+				}
+				pidReady <- pid
+				return store.WriteHolidayCriteria(ctx, w.organization, []enrollment.HolidayCriterionInput{
+					{Name: "Zweiter Katalog", Question: "Sind Sie alleinerziehend?", Scope: enrollment.HolidayCriterionFamily, Active: true},
+				}, 0)
+			})
+		}()
+		var pid int
+		select {
+		case pid = <-pidReady:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		assert.Eventually(t, func() bool {
+			select {
+			case saveErr = <-done:
+				finished = true
+				return true
+			default:
+			}
+			var blocked bool
+			err := db.NewRaw(`SELECT cardinality(pg_blocking_pids(?)) > 0`, pid).Scan(ctx, &blocked)
+			return err == nil && blocked
+		}, 5*time.Second, 10*time.Millisecond)
+		assert.False(t, finished, "an initially empty catalog must serialize concurrent replacements")
+		return nil
+	}))
+	if !finished {
+		select {
+		case saveErr = <-done:
+		case <-runtimeCtx.Done():
+			t.Fatal(runtimeCtx.Err())
+		}
+	}
+	require.NoError(t, saveErr)
+	require.NoError(t, testpkg.WithinTraeger(runtimeCtx, w.organization, func(ctx context.Context) error {
+		criteria, err := store.ReadHolidayCriteria(ctx, w.organization)
+		require.NoError(t, err)
+		require.Len(t, criteria, 1, "only the last submitted catalog remains active")
+		assert.Equal(t, "Zweiter Katalog", criteria[0].Name)
+		assert.Equal(t, 1, criteria[0].Position)
+		return nil
+	}))
+}

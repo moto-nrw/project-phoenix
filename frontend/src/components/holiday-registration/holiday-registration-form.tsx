@@ -140,6 +140,15 @@ export function HolidayRegistrationForm({
       if (err instanceof ApiError && err.code === FORM_CHANGED) {
         setDraft((current) => ({ ...current, legalAcceptances: {} }));
         await onFormChanged?.();
+      } else if (
+        err instanceof ApiError &&
+        err.errors?.some(({ field }) =>
+          /^(children\.\d+\.)?criteria(?:\.|$)/.test(field),
+        )
+      ) {
+        // The catalog can change without a new form version. Reload its
+        // questions so parents can answer them, keeping the entire draft.
+        await onFormChanged?.();
       }
       // The parent uploads the proof again; the old token claims nothing.
       if (err instanceof ApiError && err.code === UPLOAD_EXPIRED) {

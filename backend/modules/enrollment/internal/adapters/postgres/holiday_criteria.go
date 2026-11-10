@@ -70,9 +70,10 @@ const (
 	insertHolidayCriterionQuery = `INSERT INTO enrollment.holiday_allocation_criteria
 			(organization_id, name, question, scope, active, position, updated_by_account_id)
 		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?::bigint, 0))`
-	// lockHolidayCriteriaQuery holds the criteria of the Träger while they
-	// are written, so two writes of the list run one after the other.
-	lockHolidayCriteriaQuery = `SELECT id FROM enrollment.holiday_allocation_criteria
+	// The catalog lock serializes replacements even before its first row
+	// exists. Row locks also coordinate with concurrent first answers.
+	lockHolidayCriteriaCatalogQuery = `SELECT pg_advisory_xact_lock(hashtextextended('enrollment.holiday_allocation_criteria:' || ?::text, 0))`
+	lockHolidayCriteriaQuery        = `SELECT id FROM enrollment.holiday_allocation_criteria
 		WHERE organization_id = ? AND archived_at IS NULL ORDER BY id FOR UPDATE`
 	insertHolidayCriterionAnswersQuery = `INSERT INTO enrollment.holiday_registration_criteria
 			(organization_id, holiday_period_id, holiday_registration_id, holiday_registration_child_id, criterion_id, stated)
@@ -149,6 +150,9 @@ func (s *HolidayRegistrationStore) WriteHolidayCriteria(ctx context.Context, org
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
+	}
+	if _, err := db.NewRaw(lockHolidayCriteriaCatalogQuery, organizationID).Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: lock holiday criteria catalog: %w", err)
 	}
 	var locked []int64
 	if err := db.NewRaw(lockHolidayCriteriaQuery, organizationID).Scan(ctx, &locked); err != nil {

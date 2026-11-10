@@ -146,19 +146,20 @@ export default function TraegerHolidayAllocationPage() {
     setTaking(true);
     try {
       if (!board) return;
-      // Keep the confirmed selection; newly submitted bookings need a new decision.
-      const remaining = new Set(
-        proposalDecisions(proposalWeeks).map((choice) => choice.bookingId),
-      );
-      let next = board;
-      while (remaining.size > 0) {
-        const choices = proposalDecisions(next.weeks)
-          .filter((choice) => remaining.has(choice.bookingId))
-          .slice(0, MAX_ALLOCATION_DECISIONS);
-        if (choices.length === 0) break;
-        next = await decideHolidayAllocation(id, choices);
-        for (const choice of choices) remaining.delete(choice.bookingId);
-        // Every response refreshes proposals and preserves completed batches on error.
+      // Keep the confirmed placements and expected proposals across all batches.
+      // The backend rejects stale proposals; new bookings need a new decision.
+      const confirmed = proposalDecisions(proposalWeeks);
+      for (
+        let offset = 0;
+        offset < confirmed.length;
+        offset += MAX_ALLOCATION_DECISIONS
+      ) {
+        const choices = confirmed.slice(
+          offset,
+          offset + MAX_ALLOCATION_DECISIONS,
+        );
+        const next = await decideHolidayAllocation(id, choices);
+        // Preserve completed batches even when a later batch needs review.
         setBoard(next);
       }
       setProposalScope(null);

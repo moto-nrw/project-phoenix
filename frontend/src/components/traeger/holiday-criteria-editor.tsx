@@ -23,7 +23,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { Switch } from "~/components/ui/switch";
+import { SwitchRow } from "~/components/ui/switch";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -165,17 +165,18 @@ function CriterionRow({
         </div>
       </div>
 
-      <label className="flex items-center gap-3 text-sm text-gray-700">
-        <Switch
-          checked={draft.active}
-          disabled={disabled}
-          ariaLabel={`„${label}“ eingeschaltet`}
-          onCheckedChange={(active) => onChange({ ...draft, active })}
-        />
-        {draft.active
-          ? "Eingeschaltet: Eltern sehen die Frage."
-          : "Ausgeschaltet: Eltern sehen die Frage nicht. Es zählt nicht."}
-      </label>
+      <SwitchRow
+        framed={false}
+        checked={draft.active}
+        disabled={disabled}
+        ariaLabel={`„${label}“ eingeschaltet`}
+        onCheckedChange={(active) => onChange({ ...draft, active })}
+        label={
+          draft.active
+            ? "Eingeschaltet: Eltern sehen die Frage."
+            : "Ausgeschaltet: Eltern sehen die Frage nicht. Es zählt nicht."
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <Input
