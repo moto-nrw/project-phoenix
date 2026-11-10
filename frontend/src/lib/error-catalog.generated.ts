@@ -428,6 +428,10 @@ export const ERROR_CATALOG = {
         "Ihre Auswahl passt nicht mehr zu diesem Kind. Bitte laden Sie die Seite neu.",
       "enrollment.export_too_large":
         "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
+      "enrollment.family_children_closed":
+        "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
+      "enrollment.family_children_invalid":
+        "Bitte geben Sie eine Zahl von 1 bis 20 an.",
       "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
       "enrollment.form_attachment_invalid":
         "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
@@ -2125,6 +2129,10 @@ export const ERROR_CATALOG = {
         "Online enrollment is not available at this school right now. Please contact the school.",
       "enrollment.edit_not_allowed":
         "This enrollment can no longer be changed. Please contact the school.",
+      "enrollment.family_children_closed":
+        "The number of children can no longer be changed here. You will find it in your care contract.",
+      "enrollment.family_children_invalid":
+        "Please enter a number from 1 to 20.",
       "enrollment.field_required": "Please fill in all required fields.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
@@ -2722,6 +2730,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запись в этой школе сейчас недоступна. Обратитесь в школу.",
       "enrollment.edit_not_allowed":
         "Эту запись больше нельзя изменить. Обратитесь в школу.",
+      "enrollment.family_children_closed":
+        "Количество детей здесь больше нельзя изменить. Вы найдёте его в договоре об уходе.",
+      "enrollment.family_children_invalid":
+        "Пожалуйста, укажите число от 1 до 20.",
       "enrollment.field_required": "Заполните все обязательные поля.",
       "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
       "enrollment.form_field_file_options_invalid":
@@ -3239,6 +3251,10 @@ export const ERROR_CATALOG = {
         "Regjistrimi online nuk është i mundur tani në këtë shkollë. Ju lutemi kontaktoni shkollën.",
       "enrollment.edit_not_allowed":
         "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.family_children_closed":
+        "Numri i fëmijëve nuk mund të ndryshohet më këtu. Do ta gjeni në kontratën e kujdesit.",
+      "enrollment.family_children_invalid":
+        "Ju lutemi shkruani një numër nga 1 deri në 20.",
       "enrollment.field_required":
         "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
       "enrollment.form_attachment_invalid":
@@ -3761,6 +3777,9 @@ export const ERROR_CATALOG = {
         "Zapis online w tej szkole jest teraz niedostępny. Skontaktuj się ze szkołą.",
       "enrollment.edit_not_allowed":
         "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.family_children_closed":
+        "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
+      "enrollment.family_children_invalid": "Proszę podać liczbę od 1 do 20.",
       "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
       "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
       "enrollment.form_field_file_options_invalid":
@@ -4277,6 +4296,10 @@ export const ERROR_CATALOG = {
         "Bu okulda çevrim içi kayıt şu anda mümkün değil. Lütfen okulla iletişime geçin.",
       "enrollment.edit_not_allowed":
         "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.family_children_closed":
+        "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
+      "enrollment.family_children_invalid":
+        "Lütfen 1 ile 20 arasında bir sayı girin.",
       "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
       "enrollment.form_attachment_invalid":
         "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -4790,6 +4813,10 @@ export const ERROR_CATALOG = {
         "Онлайн-запис у цій школі зараз недоступний. Зверніться до школи.",
       "enrollment.edit_not_allowed":
         "Цей запис більше не можна змінити. Зверніться до школи.",
+      "enrollment.family_children_closed":
+        "Кількість дітей тут більше не можна змінити. Ви знайдете її у договорі про догляд.",
+      "enrollment.family_children_invalid":
+        "Будь ласка, вкажіть число від 1 до 20.",
       "enrollment.field_required": "Заповніть усі обов'язкові поля.",
       "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
       "enrollment.form_field_file_options_invalid":

@@ -169,6 +169,7 @@ func BuildEnrollmentFlows(
 			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),
+			FamilyChildrenPurpose: NewEnrollmentFamilyChildrenPurpose(organizations),
 		}),
 		Reports: NewEnrollmentReports(EnrollmentReportSources{
 			Owner: records, Offerings: notices.CareOfferings, AccessLog: audit.Persistence.DataAccessLog,

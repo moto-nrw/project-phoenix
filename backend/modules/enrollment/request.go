@@ -31,6 +31,10 @@ type Request struct {
 	SubmittedAt              time.Time                  `json:"submitted_at"`
 	WithdrawnAt              *time.Time                 `json:"withdrawn_at,omitempty"`
 	DecisionNotificationMode *string                    `json:"-"`
+	// FamilyChildren is the number of children of the family the parents
+	// stated on the status page, with the time (#6335).
+	FamilyChildren         *int       `json:"-"`
+	FamilyChildrenStatedAt *time.Time `json:"-"`
 }
 
 type RequestListFilters struct {

@@ -903,6 +903,18 @@
         "max_files"
       ],
       "legacy": "enrollment.holiday_proof_limit"
+    },
+    {
+      "code": "enrollment.family_children_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.family_children_closed"
+    },
+    {
+      "code": "enrollment.family_children_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.family_children_invalid"
     }
   ]
 }

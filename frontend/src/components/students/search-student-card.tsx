@@ -157,6 +157,7 @@ export function searchStudentDay(
     sick: student.sick,
     classTrip: student.class_trip,
     excused: student.excused,
+    currentLocation: isToday ? student.current_location : null,
   });
   const absenceLabel =
     absence?.label ??
@@ -294,6 +295,7 @@ function SearchStudentCardImpl({
                 sick: student.sick,
                 classTrip: student.class_trip,
                 excused: student.excused,
+                currentLocation: isToday ? student.current_location : null,
               });
               const absenceWording = isToday ? undefined : "Kommt nicht";
               // Absence rows fill the arrival slot; a neutral "Gehzeit: –" row

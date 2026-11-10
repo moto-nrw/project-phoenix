@@ -200,6 +200,9 @@ func (c *Conclusions) concludeOne(ctx context.Context, organizationID int64, dra
 		if err := c.recordAcceptance(txCtx, organizationID, id, draft); err != nil {
 			return err
 		}
+		if err := adoptFamilyChildren(txCtx, c.intake.store, c.intake.families, organizationID, id, draft); err != nil {
+			return err
+		}
 		return c.concludeRecord(txCtx, organizationID, id,
 			carecontract.Concluded{Method: carecontract.MethodWithApplication, At: *draft.AcceptedAt})
 	})

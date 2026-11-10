@@ -94,7 +94,7 @@ func TestConcurrentSendsOfOneDraftLetExactlyOneTransitionWin(t *testing.T) {
 	school := schoolDouble{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t), accesses: &accesses}
 	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school,
-		Runtime: runtimeDouble{}, Modes: school, Mail: noMailBlocks{}, Letterheads: letterheadDouble{}})
+		Runtime: runtimeDouble{}, Modes: school, Mail: noMailBlocks{}, Letterheads: letterheadDouble{}, Families: familyNumbersDouble{}})
 	terms := carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd}
 	for _, offering := range []int64{school.offering, school.offering + 1, school.offering + 2} {
 		_, err := intake.SaveTemplate(ctx, reviewer, school.school.ID, offering, terms)

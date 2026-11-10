@@ -14,7 +14,7 @@ import (
 
 // The stored originals of the Jahresbescheide and their sends (#6347). The
 // request role reads and adds them and never changes them (triggers of
-// 1.15.872); every statement names the Träger in its own filter.
+// 1.15.877); every statement names the Träger in its own filter.
 
 type careNoticeLetterRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_notice_letters"`

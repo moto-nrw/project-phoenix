@@ -18,8 +18,9 @@ type enrollmentSubmission struct {
 // first approval switches the activation mode to immediate, and the first
 // open public request is withdrawn.
 type seedSubmissionProgress struct {
-	immediateSeeded bool
-	withdrawnSeeded bool
+	immediateSeeded      bool
+	withdrawnSeeded      bool
+	familyChildrenSeeded bool
 }
 
 // submitSeedEnrollments submits the requests in order, records each in the
@@ -82,6 +83,13 @@ func (s parentEnrollmentSeedStep) submitSeedEnrollment(rt *Runtime, adminAuth Au
 // settleSeedEnrollment decides the request as listed, or withdraws the first
 // open public one, and records the new status on the stored request.
 func (s parentEnrollmentSeedStep) settleSeedEnrollment(rt *Runtime, adminAuth AuthRef, submission enrollmentSubmission, request SeedEnrollmentRequest, stored *SeedEnrollmentRequest, progress *seedSubmissionProgress) error {
+	if !progress.familyChildrenSeeded && submission.source == "public" {
+		seeded, err := seedRegistrationFamilyChildren(rt, request.StatusToken)
+		if err != nil {
+			return err
+		}
+		progress.familyChildrenSeeded = seeded
+	}
 	if submission.status != "" {
 		if err := s.decideSeedSubmission(rt, adminAuth, request, submission.status, submission.reason, &progress.immediateSeeded); err != nil {
 			return err
@@ -111,4 +119,26 @@ func (s parentEnrollmentSeedStep) seedSubmissionFollowUps(rt *Runtime, adminAuth
 		}
 	}
 	return nil
+}
+
+// seedRegistrationFamilyChildren states the children of the family on the
+// status page of the first public registration (#6335), where the school
+// asks for them: a family of three, so the contract of an accepted child
+// takes the number over. It answers whether it stated one.
+func seedRegistrationFamilyChildren(rt *Runtime, token string) (bool, error) {
+	path := fmt.Sprintf("/api/enrollment/requests/%s/family-children", token)
+	raw, err := rt.Client.GetPublic(path)
+	if err != nil {
+		return false, fmt.Errorf("read the family children of the registration: %w", err)
+	}
+	read, err := seedReadData[struct {
+		CanState bool `json:"can_state"`
+	}](raw, "registration family children")
+	if err != nil || !read.CanState {
+		return false, err
+	}
+	if _, err := rt.Client.PutPublic(path, map[string]any{"children": 3}); err != nil {
+		return false, fmt.Errorf("state the family children of the registration: %w", err)
+	}
+	return true, nil
 }

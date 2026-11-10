@@ -33,6 +33,7 @@ import {
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
 import {
+  countedDayStatus,
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
@@ -839,6 +840,12 @@ function StudentDetailPageContent() {
     dialogErrors.clear();
     setPlannedStatusModal(status);
   };
+  // Ort vor Status (#6371, #6407): a checked-in child keeps today's planned
+  // arrival and pickup despite a sick or excused status, which then stays a
+  // hint at the location badge.
+  const todayCountedStatus = student ? countedDayStatus(student) : null;
+  const todaySick = todayCountedStatus === "sick";
+  const todayExcused = todayCountedStatus === "excused";
   // Today's pickup slot for the header. Mirrors todayArrival below: a failed
   // fetch (e.g. permission denied for non-full-access users) leaves pickupData
   // undefined, which renders the same empty header as "no pickup planned".
@@ -853,9 +860,9 @@ function StudentDetailPageContent() {
       parseISODate(berlinToday),
       pickupData.schedules,
       pickupData.exceptions,
-      student?.sick ?? false,
+      todaySick,
       pickupData.notes,
-      student?.excused ?? false,
+      todayExcused,
       null,
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
@@ -874,8 +881,8 @@ function StudentDetailPageContent() {
   }, [
     pickupData,
     hasFullAccess,
-    student?.sick,
-    student?.excused,
+    todaySick,
+    todayExcused,
     weekendFollowsFriday,
     berlinToday,
   ]);
@@ -888,8 +895,8 @@ function StudentDetailPageContent() {
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
-      student?.sick ?? false,
-      student?.excused ?? false,
+      todaySick,
+      todayExcused,
       null,
       weekendFollowsFriday,
       berlinToday,
@@ -914,8 +921,8 @@ function StudentDetailPageContent() {
   }, [
     arrivalData,
     hasFullAccess,
-    student?.excused,
-    student?.sick,
+    todayExcused,
+    todaySick,
     weekendFollowsFriday,
     berlinToday,
   ]);

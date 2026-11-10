@@ -104,13 +104,13 @@ func issueGuardianInvitationLink(invitation *domain.GuardianInvitation, profile 
 }
 
 // lockInvitationAccountThenProfile locks the account of the guardian's
-// address before the guardian's profile, the order acceptance takes:
-// holding the profile while waiting for the account would close a cycle with
-// an acceptance (40P01). The address is read again under the profile lock; a
+// address, then the school, then the guardian's profile: the order every
+// acceptance and sign-in takes (#6294, #6305). Holding the profile while
+// waiting for the account or the school would close a cycle with an
+// acceptance or with a transaction that holds the school and then the
+// profile (40P01). The address is read again under the profile lock; a
 // change in between refuses the invitation instead of binding it to an
-// account that was not locked. The school sits between account and profile in
-// the lock order; this tenant transaction only reaches it through the
-// invitation's foreign key, after the profile (left to #6333).
+// account that was not locked.
 func (l *AccountLifecycle) lockInvitationAccountThenProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
 	unlocked, found, err := l.guardians.FindGuardianProfile(ctx, profileID)
 	if err != nil {
@@ -123,6 +123,9 @@ func (l *AccountLifecycle) lockInvitationAccountThenProfile(ctx context.Context,
 		if _, _, _, err := l.logins.LockLoginAccountByEmail(ctx, unlocked.Email); err != nil {
 			return domain.GuardianProfile{}, err
 		}
+	}
+	if err := l.lockInvitingSchool(ctx); err != nil {
+		return domain.GuardianProfile{}, err
 	}
 	profile, err := l.lockInvitationProfile(ctx, profileID)
 	if err != nil {
@@ -488,6 +491,26 @@ func (l *AccountLifecycle) redeemableGuardianInvitation(ctx context.Context, tok
 		return domain.GuardianInvitation{}, failed(opGuardianInviteFetch, err)
 	}
 	return invitation, nil
+}
+
+// lockInvitingSchool holds the school of the inviting transaction under a
+// share lock, between the account and the profile (#6305). Without an
+// explicit lock the transaction would reach the school only through the
+// invitation's foreign key, after the profile. A school that is gone or
+// switched off invites nobody.
+func (l *AccountLifecycle) lockInvitingSchool(ctx context.Context) error {
+	tenantID := l.runtime.TenantID(ctx)
+	if tenantID <= 0 {
+		return nil
+	}
+	school, found, err := l.schools.LockSchoolShared(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("lock the inviting school: %w", err)
+	}
+	if !found || !school.Live() {
+		return domain.ErrInvitationTenantDeleted
+	}
+	return nil
 }
 
 func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invitation domain.GuardianInvitation) error {

@@ -82,7 +82,7 @@ Eintrag im Elternpostfach fehlten (#6243, „Risiken“).
 
 ## Register
 
-- Migration `1.15.872`: zwei Tabellen mit RLS, Triggern gegen Änderungen und
+- Migration `1.15.877`: zwei Tabellen mit RLS, Triggern gegen Änderungen und
   Rechten nur zum Lesen und Anlegen; Aktionen `letters` und `mail` der Spur; die
   Demo-Löschung `platform.erase_closed_demo_visitors` löscht Mail, Zustellergebnis
   und Push der Originale einer ausgemusterten Demo-Schule vor den Bescheiden, auf der Fassung von 1.15.864
@@ -97,7 +97,7 @@ Eintrag im Elternpostfach fehlten (#6243, „Risiken“).
   `notCaptured` (Träger, keine Schule). Query-Budget
   `api.traeger.care_notice_run_letters` (8, exact).
 - Compose-Budget: `modules/parentbilling/compose` 107 → 112 Zeilen
-  (`moduleComposeBudgetTotal` 13201 → 13206) für den Konstruktor
+  (`moduleComposeBudgetTotal` 13193 → 13198) für den Konstruktor
   `NewCareNoticeLetters`.
 - Mail-Vorlage `billing-care-change-notice-letter.html` für den
   Änderungsbescheid; der Jahresbescheid nutzt `billing-notice-letter.html`.

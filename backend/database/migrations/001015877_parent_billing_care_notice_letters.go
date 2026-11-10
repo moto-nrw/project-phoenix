@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCareNoticeLettersVersion = "1.15.872"
+const parentBillingCareNoticeLettersVersion = "1.15.877"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingCareNoticeLettersVersion,
 		Description: "Elternabrechnung: gespeichertes Original, Versand und Elternpostfach der Jahresbescheide (#6347)",
 		DependsOn: []string{
-			guardianInvitationAddressBindingVersion,   // the newest migration before this one
+			demoRetirementRevokesSessionsVersion,      // the newest migration before this one
 			parentBillingCareNoticesVersion,           // the notices whose originals these are
 			parentBillingCareInvoiceExclusionsVersion, // the erasure this one extends
 		},
@@ -131,7 +131,7 @@ const careNoticeLetterErasureAnchor = `					-- A Jahresbescheid of the school co
 					WHERE school_id = ANY (hidden_schools);
 `
 
-// careNoticeLetterErasureStatement is what 1.15.872 adds before it. The
+// careNoticeLetterErasureStatement is what 1.15.877 adds before it. The
 // original and its sends go with the notice by cascade, but the mail on
 // Delivery's outbox carries the PDF with child, recipient and address, its
 // delivery result names the address, and the push names the letter and the
