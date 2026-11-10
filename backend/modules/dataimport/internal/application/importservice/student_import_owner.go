@@ -45,7 +45,7 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	if err != nil {
 		return 0, err
 	}
-	return c.createStudentEntities(ctx, person.ID, row, nil)
+	return c.createStudentEntities(ctx, person.ID, row, nil, nil)
 }
 
 // studentLeafWrites collects, for a batch segment, the retention consents and
@@ -54,6 +54,7 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 // value carries the instant its row computed at the step the row path
 // computes it, so no row shares a time stamp the row path would not.
 type studentLeafWrites struct {
+	cares       []ports.EnrollmentCare
 	guardians   []ports.NewStudentGuardianLink
 	consents    []ports.PrivacyConsent
 	transitions []ports.ConsentTransition
@@ -65,8 +66,8 @@ type studentLeafWrites struct {
 // construction (guardianBatchRow) are collected instead of written; the schedules are still written here, in their place (their
 // created_by lock on the importing staff member stays where the row path
 // takes it, PR #6408, Befundklasse 6).
-func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites) (int64, error) {
-	student, err := c.createStudentFromRow(ctx, personID, row, leafs)
+func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites, prepared *preparedEnrollment) (int64, error) {
+	student, err := c.createStudentFromRow(ctx, personID, row, leafs, prepared)
 	if err != nil {
 		return 0, err
 	}
@@ -113,43 +114,34 @@ func personInputFromRow(row importModels.StudentImportRow) ports.CreatePerson {
 
 // createStudentFromRow creates the student under the owner's class-write
 // gate and then patches the profile columns the enrollment command does not
-// carry (health, notes, address, group, departure plan, consent dates).
-func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites) (ports.CreatedEnrollmentStudent, error) {
-	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
-	input := ports.EnrollmentStudent{
-		PersonID:      personID,
-		SchoolClass:   strings.TrimSpace(row.SchoolClass),
-		EnrolledFrom:  calendarDateString(enrolledFrom),
-		EnrolledUntil: calendarDateString(parseOptionalImportCalendarDate(row.EnrolledUntil)),
-	}
-	// A future enrollment start means the student isn't active yet. Mark them
-	// pending so the activate-students scheduler flips them to active once
-	// enrolled_from arrives (mirrors the parent-enrollment flow).
-	if enrollmentStartsInFuture(enrolledFrom) {
-		input.Status = ports.StudentStatusPending
-	}
-	departure, err := importDeparturePatch(ports.AllowedDepartureModesFromDeparture(departurePlanFromImportRow(row)), boundedNotePtr(row.DepartureCompanionNote))
-	if err != nil {
-		return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
-	}
-	patch := departure
-	patch.ExtraInfoSet, patch.ExtraInfo = true, importModels.OptionalCell(row.ExtraInfo)
-	patch.PermanentHint = importModels.OptionalCell(row.SupervisorNotes)
-	patch.HealthInfoSet, patch.HealthInfo = true, importModels.OptionalCell(row.HealthInfo)
-	patch.AddressSet = true
-	patch.AddressStreet = importModels.OptionalCell(row.AddressStreet)
-	patch.AddressCity = importModels.OptionalCell(row.AddressCity)
-	patch.AddressPostalCode = importModels.OptionalCell(row.AddressPostalCode)
-	patch.GroupIDSet, patch.GroupID = true, row.GroupID
-	patch.AGBAcceptedAtSet, patch.AGBAcceptedAt = true, parseOptionalImportDate(row.AGBAcceptedAt)
-	patch.DataProcessingAcceptedAtSet, patch.DataProcessingAcceptedAt = true, parseOptionalImportDate(row.DataProcessingAcceptedAt)
-	patch.EmailContactAcceptedAtSet, patch.EmailContactAcceptedAt = true, parseOptionalImportDate(row.EmailContactAcceptedAt)
-	// Photo consent date is set; "given_by" is intentionally left nil on import.
-	patch.PhotoConsentGivenAtSet, patch.PhotoConsentGivenAt = true, parseOptionalImportDate(row.PhotoConsentGivenAt)
-	input.InitialProfile = &patch
-	created, err := c.Students.CreateEnrollmentStudent(ctx, input)
-	if err != nil {
-		return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
+// carry (health, notes, address, group, departure plan, consent dates). With
+// a prepared enrollment (#5552 step 7) the profile exists already; the row
+// writes its membership here, in its place, and collects its care profile.
+func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites, prepared *preparedEnrollment) (ports.CreatedEnrollmentStudent, error) {
+	var input ports.EnrollmentStudent
+	var patch ports.EnrollmentProfilePatch
+	var created ports.CreatedEnrollmentStudent
+	if prepared != nil {
+		input, patch, created = prepared.input, prepared.patch, prepared.created
+		if !prepared.statusSet {
+			c.applyEnrollmentStatus(&input, row)
+		}
+		membershipID, err := c.EnrollmentBatches.EnrollCreatedStudent(ctx, created, input)
+		if err != nil {
+			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
+		}
+		leafs.cares = append(leafs.cares, ports.EnrollmentCare{MembershipID: membershipID, Student: created, Input: input})
+	} else {
+		var err error
+		input, patch, err = enrollmentInputFromRow(personID, row)
+		if err != nil {
+			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
+		}
+		c.applyEnrollmentStatus(&input, row)
+		created, err = c.Students.CreateEnrollmentStudent(ctx, input)
+		if err != nil {
+			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
+		}
 	}
 
 	if leafs != nil {
@@ -169,6 +161,57 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		}
 	}
 	return created, nil
+}
+
+// applyEnrollmentStatus sets the status a new child starts with: a future
+// enrollment start means the student isn't active yet. Mark them pending so
+// the activate-students scheduler flips them to active once enrolled_from
+// arrives (mirrors the parent-enrollment flow). It reads the import's
+// calendar day where the row path reads it (#5552 step 7, finding 1).
+func (c *StudentImportConfig) applyEnrollmentStatus(input *ports.EnrollmentStudent, row importModels.StudentImportRow) {
+	if enrollmentStartsAfter(parseOptionalImportCalendarDate(row.EnrolledFrom), c.todayDate()) {
+		input.Status = ports.StudentStatusPending
+	}
+}
+
+// todayDate is the calendar day of the import's clock.
+func (c *StudentImportConfig) todayDate() timezone.Date {
+	if c.Today != nil {
+		return c.Today()
+	}
+	return timezone.TodayDate()
+}
+
+// enrollmentInputFromRow is the enrollment a create row files, without its
+// status, which depends on the calendar day.
+func enrollmentInputFromRow(personID int64, row importModels.StudentImportRow) (ports.EnrollmentStudent, ports.EnrollmentProfilePatch, error) {
+	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
+	input := ports.EnrollmentStudent{
+		PersonID:      personID,
+		SchoolClass:   strings.TrimSpace(row.SchoolClass),
+		EnrolledFrom:  calendarDateString(enrolledFrom),
+		EnrolledUntil: calendarDateString(parseOptionalImportCalendarDate(row.EnrolledUntil)),
+	}
+	departure, err := importDeparturePatch(ports.AllowedDepartureModesFromDeparture(departurePlanFromImportRow(row)), boundedNotePtr(row.DepartureCompanionNote))
+	if err != nil {
+		return ports.EnrollmentStudent{}, ports.EnrollmentProfilePatch{}, err
+	}
+	patch := departure
+	patch.ExtraInfoSet, patch.ExtraInfo = true, importModels.OptionalCell(row.ExtraInfo)
+	patch.PermanentHint = importModels.OptionalCell(row.SupervisorNotes)
+	patch.HealthInfoSet, patch.HealthInfo = true, importModels.OptionalCell(row.HealthInfo)
+	patch.AddressSet = true
+	patch.AddressStreet = importModels.OptionalCell(row.AddressStreet)
+	patch.AddressCity = importModels.OptionalCell(row.AddressCity)
+	patch.AddressPostalCode = importModels.OptionalCell(row.AddressPostalCode)
+	patch.GroupIDSet, patch.GroupID = true, row.GroupID
+	patch.AGBAcceptedAtSet, patch.AGBAcceptedAt = true, parseOptionalImportDate(row.AGBAcceptedAt)
+	patch.DataProcessingAcceptedAtSet, patch.DataProcessingAcceptedAt = true, parseOptionalImportDate(row.DataProcessingAcceptedAt)
+	patch.EmailContactAcceptedAtSet, patch.EmailContactAcceptedAt = true, parseOptionalImportDate(row.EmailContactAcceptedAt)
+	// Photo consent date is set; "given_by" is intentionally left nil on import.
+	patch.PhotoConsentGivenAtSet, patch.PhotoConsentGivenAt = true, parseOptionalImportDate(row.PhotoConsentGivenAt)
+	input.InitialProfile = &patch
+	return input, patch, nil
 }
 
 // consentSnapshot is the minimal student view the consent-history recorder

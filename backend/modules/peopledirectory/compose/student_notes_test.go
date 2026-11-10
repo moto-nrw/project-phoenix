@@ -70,6 +70,10 @@ func (noteTestStudentOwners) SaveCare(context.Context, int64, peopledirectory.St
 	return nil
 }
 
+func (noteTestStudentOwners) SaveCareBatch(context.Context, []peopledirectory.StudentCareSave) error {
+	return nil
+}
+
 // noteAuthor creates an account with a person, so a read can resolve the
 // author's name the way the timeline renders it.
 func noteAuthor(t *testing.T, db *testpkg.DB, first, last string) int64 {

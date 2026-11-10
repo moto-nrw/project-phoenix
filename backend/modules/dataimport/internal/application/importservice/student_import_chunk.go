@@ -95,16 +95,22 @@ func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importMode
 		inputs[i] = personInputFromRow(row)
 	}
 	var persons []ports.Person
+	var prepared []*preparedEnrollment
 	if err := bounded(ctx, func(ctx context.Context) error {
 		var err error
-		persons, err = c.PersonBatches.CreatePersons(ctx, inputs)
-		return err
+		if persons, err = c.PersonBatches.CreatePersons(ctx, inputs); err != nil {
+			return fmt.Errorf("create persons: %w", err)
+		}
+		if prepared, err = c.createEnrollmentProfiles(ctx, rows, persons); err != nil {
+			return fmt.Errorf("create student profiles: %w", err)
+		}
+		return nil
 	}); err != nil {
-		return fmt.Errorf("create persons: %w", err)
+		return err
 	}
 	leafs := &studentLeafWrites{}
 	for i, row := range rows {
-		if _, err := c.createStudentEntities(ctx, persons[i].ID, row, leafs); err != nil {
+		if _, err := c.createStudentEntities(ctx, persons[i].ID, row, leafs, prepared[i]); err != nil {
 			return err
 		}
 	}
@@ -118,10 +124,15 @@ func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importMode
 // tables C and D). An empty kind issues no statement, and with none the
 // bound is not set.
 func (c *StudentImportConfig) writeLeafs(ctx context.Context, leafs *studentLeafWrites, bounded ports.BatchStatement) error {
-	if len(leafs.guardians) == 0 && len(leafs.consents) == 0 && !hasConsentEvents(leafs.transitions) {
+	if len(leafs.cares) == 0 && len(leafs.guardians) == 0 && len(leafs.consents) == 0 && !hasConsentEvents(leafs.transitions) {
 		return nil
 	}
 	return bounded(ctx, func(ctx context.Context) error {
+		if len(leafs.cares) > 0 {
+			if err := c.EnrollmentBatches.SaveEnrollmentCares(ctx, leafs.cares); err != nil {
+				return fmt.Errorf("create student care profiles: %w", err)
+			}
+		}
 		if len(leafs.guardians) > 0 {
 			if err := c.GuardianBatches.CreateNewStudentGuardians(ctx, leafs.guardians); err != nil {
 				return fmt.Errorf("create guardians: %w", err)

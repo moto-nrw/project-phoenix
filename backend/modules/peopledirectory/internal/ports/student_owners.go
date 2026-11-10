@@ -12,4 +12,5 @@ type StudentOwners interface {
 	Enroll(context.Context, domain.StudentRecord) (int64, error)
 	Renew(context.Context, domain.StudentRecord) (int64, error)
 	SaveCare(context.Context, int64, domain.StudentRecord, domain.DeparturePlan, *string, bool) error
+	SaveCareBatch(context.Context, []domain.StudentCareSave) error
 }

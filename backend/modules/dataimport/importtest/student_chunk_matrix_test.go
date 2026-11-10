@@ -535,6 +535,10 @@ var bundledStatements = []bundledStatement{
 	{bundledPrefix("WITH linked_guardian AS ", "= ANY("), "WITH linked_guardian AS "},
 	{bundledPrefix("INSERT INTO users.student_guardian_pickup_permissions ", " SELECT "), "INSERT INTO users.student_guardian_pickup_permissions "},
 	{bundledPrefix("INSERT INTO auth.guardian_student_access ", " SELECT "), "INSERT INTO auth.guardian_student_access "},
+	// The enrollment batch of step 7: the profiles before the rows, the care
+	// profiles after them.
+	{bundledPrefix(enrollmentWrite, " source AS ("), enrollmentWrite + " (SELECT pg_advisory_xact_lock_shared(#, #)), enrolled_person"},
+	{multiRow("INSERT INTO users.student_care_profiles ("), "INSERT INTO users.student_care_profiles AS care "},
 }
 
 // bundledLeafTable names the row-path statement a bundled statement stands

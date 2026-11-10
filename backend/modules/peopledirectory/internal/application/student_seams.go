@@ -98,3 +98,17 @@ func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record 
 		AllowedDepartureModes: plan.AllowedDepartureModes, DepartureDays: plan.DepartureDays, BusDays: plan.BusDays, PickupDays: plan.PickupDays,
 	}, note, touched)
 }
+
+func (s studentOwners) SaveCareBatch(ctx context.Context, saves []domain.StudentCareSave) error {
+	if s.owners == nil {
+		return errors.New("people directory: student owners are not bound")
+	}
+	public := make([]peopledirectory.StudentCareSave, len(saves))
+	for i, save := range saves {
+		public[i] = peopledirectory.StudentCareSave{
+			MembershipID: save.MembershipID, Record: peopledirectory.StudentRecord(save.Record),
+			Plan: save.Plan, Note: save.Note, Touched: save.Touched,
+		}
+	}
+	return s.owners.SaveCareBatch(ctx, public)
+}
