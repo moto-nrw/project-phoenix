@@ -412,7 +412,14 @@ groups:
           severity: high
         isPaused: false
       - uid: dfslb2pyr356ob
-        title: Postgres Connections High
+        # Backend connection pool, not the PostgreSQL cluster: the stack runs no
+        # postgres_exporter (#6465). The left side is the 5-minute mean of
+        # connections in use against DB_MAX_OPEN_CONNS. The right side keeps a
+        # scraped backend without these gauges from passing as OK: it yields
+        # 100 with reason="pool_metric_missing" for every env whose backend is
+        # up but exports no pool limit. A backend that is down already fires
+        # Scrape Target Down; no data at all fires through noDataState.
+        title: DB Pool Utilization High
         condition: C
         data:
           - refId: A
@@ -421,7 +428,7 @@ groups:
               to: 0
             datasourceUid: prometheus
             model:
-              expr: 100 * sum by (env) (pg_stat_activity_count) / sum by (env) (pg_settings_max_connections)
+              expr: '100 * max by (env) (avg_over_time(phoenix_db_in_use_connections[5m]) / phoenix_db_max_open_connections) or on (env) label_replace(100 * max by (env) (up{service="server"}), "reason", "pool_metric_missing", "", "")'
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -452,11 +459,16 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
-        noDataState: OK
-        execErrState: OK
+        noDataState: Alerting
+        execErrState: Alerting
         for: 10m
         annotations:
-          summary: More than 80% of PostgreSQL max_connections in use for 10 minutes.
+          summary: '{{ if $labels.reason }}The {{ $labels.env }} backend is scraped but
+            exports no DB pool gauges (phoenix_db_max_open_connections, phoenix_db_in_use_connections),
+            so its pool is unmonitored. Check the deployed backend version and /internal/metrics.{{
+            else }}The {{ $labels.env }} backend kept more than 80% of its DB pool (DB_MAX_OPEN_CONNS)
+            in use on average for 10+ minutes. Waits for a free connection follow; see
+            DB Pool Saturation and monitoring/README.md "DB pool utilization".{{ end }}'
         labels:
           severity: critical
         isPaused: false

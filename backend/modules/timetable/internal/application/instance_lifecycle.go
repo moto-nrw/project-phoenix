@@ -169,6 +169,19 @@ func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx contex
 	return nil
 }
 
+// lockRecurrence takes the tenant recurrence gate a materialization run
+// holds, before any day lock: writers of slot exceptions and template-backed
+// blocks must not interleave with a run (#6499).
+func (s *InstanceLifecycleService) lockRecurrence(ctx context.Context, op string) error {
+	if s.deps.Database == nil || s.deps.RecurrenceLock == nil {
+		return nil
+	}
+	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
+	}
+	return nil
+}
+
 // loadForTransition is the shared load and not-found branch of the
 // transitions. The retained repository wraps sql.ErrNoRows, so IsNoRows
 // unwraps it.

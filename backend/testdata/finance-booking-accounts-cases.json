@@ -1,0 +1,151 @@
+{
+  "comment": "One case list for both sides of the revenue accounts and cost centers of the Elternabrechnung (#4821): the save validation of the accounts page (BookingAccounts.SetRevenueAccount / AddCostCenter after trimming) and the DATEV booking batch that writes the value (counter account, KOST1, KOST2). save: whether the page stores the value. export: ok or invalid for the saved value in a booking with Sachkontenlänge 4. Invariant: a stored value the export refuses is a case with depends_on (the length of the Sachkonten, a second value). An empty account removes the account, an empty cost center ends it; both are no booking value.",
+  "cases": [
+    {
+      "kind": "revenue_account",
+      "value": "4400",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "85",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "0085",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "revenue_account",
+      "value": " 4400 ",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "0",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "0000",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "123456789",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "44-00",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "44 00",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "4400a",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "44000",
+      "save": true,
+      "export": "invalid",
+      "depends_on": "parent_billing.datev_account_length"
+    },
+    {
+      "kind": "revenue_account",
+      "value": "12345678",
+      "save": true,
+      "export": "invalid",
+      "depends_on": "parent_billing.datev_account_length"
+    },
+    {
+      "kind": "cost_center",
+      "value": "K100",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "cost_center",
+      "value": "GS Ispringen",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "cost_center",
+      "value": "KST_7",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "cost_center",
+      "value": " K100 ",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "cost_center",
+      "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "save": true,
+      "export": "ok"
+    },
+    {
+      "kind": "cost_center",
+      "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "cost_center",
+      "value": "K-100",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "cost_center",
+      "value": "Kostenstelle Öhringen",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "cost_center",
+      "value": "K/1",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "cost_center",
+      "value": "K1;2",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "cost_center",
+      "value": "K\"1",
+      "save": false,
+      "export": "invalid"
+    },
+    {
+      "kind": "cost_center",
+      "value": "K\t1",
+      "save": false,
+      "export": "invalid"
+    }
+  ]
+}

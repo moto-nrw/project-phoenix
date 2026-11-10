@@ -158,6 +158,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/finance-exports/settings/sollstellung"}:      notCaptured,
 	{http.MethodDelete, "/traeger/finance-exports/settings/sollstellung"}:   notCaptured,
 	{http.MethodPut, "/traeger/finance-exports/settings/file-number-start"}: notCaptured,
+	// The revenue accounts and cost centers (#4821) belong to the Träger,
+	// no school to count them for.
+	{http.MethodPut, "/traeger/finance-exports/booking-accounts/revenue-accounts"}:     notCaptured,
+	{http.MethodPost, "/traeger/finance-exports/booking-accounts/cost-centers"}:        notCaptured,
+	{http.MethodDelete, "/traeger/finance-exports/booking-accounts/cost-centers/{id}"}: notCaptured,
 	// The import of existing mandates (#6198) belongs to the Träger, not to
 	// a school; the preview stores nothing.
 	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,

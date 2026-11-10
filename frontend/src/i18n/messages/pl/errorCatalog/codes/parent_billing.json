@@ -113,5 +113,7 @@
   "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",
   "beleg_retention_basis_cites_statute": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "online_mandate_disabled": "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
-  "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie."
+  "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie.",
+  "cost_center_date_taken": "There is already a cost center from this day. Choose another day or delete the old one.",
+  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings."
 }

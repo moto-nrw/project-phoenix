@@ -1,4 +1,16 @@
 {
+  "api/traeger/finance-exports/booking-accounts": [
+    "GET traeger /traeger/finance-exports/booking-accounts"
+  ],
+  "api/traeger/finance-exports/booking-accounts/cost-centers": [
+    "POST traeger /traeger/finance-exports/booking-accounts/cost-centers"
+  ],
+  "api/traeger/finance-exports/booking-accounts/cost-centers/[id]": [
+    "DELETE traeger /traeger/finance-exports/booking-accounts/cost-centers/id%2F1"
+  ],
+  "api/traeger/finance-exports/booking-accounts/revenue-accounts": [
+    "PUT traeger /traeger/finance-exports/booking-accounts/revenue-accounts"
+  ],
   "api/traeger/finance-exports/datev-runs": [
     "GET traeger /traeger/finance-exports/datev-runs"
   ],

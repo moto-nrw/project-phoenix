@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -185,6 +186,8 @@ type exportInvoiceRow struct {
 	ServiceUntil        calendar.Date  `bun:"service_until,type:date"`
 	PaymentMethod       *string        `bun:"payment_method"`
 	MandateReference    *string        `bun:"mandate_reference"`
+
+	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb"`
 }
 
 func (r exportInvoiceRow) invoice() parentbilling.ExportInvoice {
@@ -192,7 +195,7 @@ func (r exportInvoiceRow) invoice() parentbilling.ExportInvoice {
 		TotalCents: r.TotalCents, DebtorNumber: textOf(r.DebtorNumber), RecipientName: r.RecipientName, Street: textOf(r.Street),
 		PostalCode: textOf(r.PostalCode), City: textOf(r.City), ChildName: textOf(r.ChildName), SchoolName: textOf(r.SchoolName),
 		ServiceFrom: r.ServiceFrom, ServiceUntil: r.ServiceUntil, PaymentMethod: textOf(r.PaymentMethod),
-		MandateReference: textOf(r.MandateReference), DatevBooked: r.DatevBooked}
+		MandateReference: textOf(r.MandateReference), DatevBooked: r.DatevBooked, CostShares: r.CostShares}
 	for _, id := range []struct {
 		from *int64
 		to   *int64
@@ -232,12 +235,20 @@ const careInvoicePeriod = `SELECT
 			WHERE meal.organization_id = ?0 AND meal.invoice_id = invoice.id)),
 		(invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date) AS service_until`
 
+// exportCostSharesColumn reads the funding snapshot of the invoice, also for
+// its Storno. Mutable cost bearer settings never affect an issued invoice.
+const exportCostSharesColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_object(
+	'scope', share.scope, 'share_basis_points', share.share_basis_points,
+	'share_cents', share.share_cents, 'amount_cents', share.amount_cents) ORDER BY share.position)
+	FROM parent_billing.care_invoice_cost_shares AS share
+	WHERE share.organization_id = ?0 AND share.invoice_id = invoice.id), '[]'::jsonb)`
+
 // careExportInvoicesQuery reads the invoices of a monthly run and the Storno
 // of each, in number order.
 const careExportInvoicesQuery = `SELECT care_invoice_id, care_cancellation_id, document_id, reference_document_id, datev_booked,
 	number, kind, issued_on, due_on, total_cents, debtor_number,
 	recipient_name, street, postal_code, city, child_name, school_name, service_from, service_until, payment_method,
-	mandate_reference
+	mandate_reference, cost_shares
 FROM (
 	SELECT invoice.id AS care_invoice_id, NULL::bigint AS care_cancellation_id, NULL::bigint AS document_id,
 		NULL::bigint AS reference_document_id, ` + datevBookedCareInvoice + ` AS datev_booked,
@@ -247,7 +258,7 @@ FROM (
 		invoice.recipient_address_street AS street, invoice.recipient_address_postal_code AS postal_code,
 		invoice.recipient_address_city AS city, BTRIM(invoice.child_first_name || ' ' || invoice.child_last_name) AS child_name,
 		invoice.school_name, period.service_from, period.service_until,
-		invoice.payment_method, invoice.mandate_reference, invoice.number_year, invoice.number_sequence
+		invoice.payment_method, invoice.mandate_reference, ` + exportCostSharesColumn + ` AS cost_shares, invoice.number_year, invoice.number_sequence
 	FROM parent_billing.care_invoices AS invoice
 	CROSS JOIN LATERAL (` + careInvoicePeriod + `) AS period
 	WHERE invoice.organization_id = ?0 AND invoice.run_id = ?1
@@ -258,7 +269,7 @@ FROM (
 		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name) || CASE WHEN COALESCE(invoice.recipient_second_name, '') <> '' THEN ' und ' || invoice.recipient_second_name ELSE '' END,
 		invoice.recipient_address_street, invoice.recipient_address_postal_code, invoice.recipient_address_city,
 		BTRIM(invoice.child_first_name || ' ' || invoice.child_last_name), invoice.school_name, period.service_from,
-		period.service_until, invoice.payment_method, invoice.mandate_reference,
+		period.service_until, invoice.payment_method, invoice.mandate_reference, ` + exportCostSharesColumn + `,
 		cancellation.number_year, cancellation.number_sequence
 	FROM parent_billing.care_invoice_cancellations AS cancellation
 	JOIN parent_billing.care_invoices AS invoice
@@ -319,13 +330,95 @@ func (s *Store) ExportRunContent(ctx context.Context, organizationID int64, runK
 	if err != nil {
 		return parentbilling.ExportRunContent{}, fmt.Errorf("read the run to export: %w", err)
 	}
+	parts, err := exportBookingParts(ctx, db, organizationID, runKind, runID)
+	if err != nil {
+		return parentbilling.ExportRunContent{}, err
+	}
 	content := parentbilling.ExportRunContent{Run: head.run(), Invoices: make([]parentbilling.ExportInvoice, len(rows))}
 	content.Run.InvoiceCount, content.Run.TotalCents = len(rows), 0
 	for i, row := range rows {
 		content.Invoices[i] = row.invoice()
+		if runKind == parentbilling.DebitRunCare {
+			// A Storno relieves the positions of its invoice.
+			content.Invoices[i].Parts = parts[row.invoice().CareInvoiceID]
+		} else {
+			content.Invoices[i].Parts = parts[row.invoice().DocumentID]
+		}
 		content.Run.TotalCents += row.TotalCents
 	}
 	return content, nil
+}
+
+// Where the positions of the documents of a run book (#4821): care and Mensa
+// positions by invoice, holiday positions by document. The Träger filter
+// stands on every table, also below row level security.
+const (
+	careBookingPartsQuery = `SELECT part.document_id, part.kind, part.school_id, part.care_offering_id, part.day, part.amount_cents,
+	part.revenue_account, part.cost_center, part.cost_center_2, part.accounts_frozen, part.removed
+FROM (
+	SELECT position.invoice_id AS document_id, 'care' AS kind, invoice.school_id, position.care_offering_id,
+		position.service_from AS day, COALESCE(position.payable_cents, position.amount_cents) AS amount_cents, position.revenue_account, position.cost_center,
+		position.cost_center_2, position.accounts_frozen, 1 AS part_order, position.position,
+		EXISTS (SELECT 1 FROM parent_billing.care_invoice_corrections AS correction
+			WHERE correction.organization_id = ?0 AND correction.invoice_id = invoice.id AND correction.kind = 'remove_position'
+				AND correction.position_key = 'care:' || position.care_offering_id || ':' || position.contract_version_number || ':' || position.service_from) AS removed
+	FROM parent_billing.care_invoice_positions AS position
+	JOIN parent_billing.care_invoices AS invoice
+		ON invoice.organization_id = position.organization_id AND invoice.id = position.invoice_id
+	WHERE position.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ?1
+	UNION ALL
+	SELECT meal.invoice_id, 'meal', meal.school_id, 0, meal.meal_month, meal.amount_cents, meal.revenue_account,
+		meal.cost_center, meal.cost_center_2, meal.accounts_frozen, 2, meal.position,
+		EXISTS (SELECT 1 FROM parent_billing.care_invoice_corrections AS correction
+			WHERE correction.organization_id = ?0 AND correction.invoice_id = invoice.id AND correction.kind = 'remove_position'
+				AND correction.position_key = 'meal:' || meal.student_id || ':' || meal.meal_month)
+	FROM parent_billing.care_meal_positions AS meal
+	JOIN parent_billing.care_invoices AS invoice
+		ON invoice.organization_id = meal.organization_id AND invoice.id = meal.invoice_id
+	WHERE meal.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ?1
+) AS part
+ORDER BY part.document_id, part.part_order, part.position`
+	holidayBookingPartsQuery = `SELECT position.document_id, 'holiday' AS kind, 0 AS school_id, 0 AS care_offering_id,
+	document.service_from AS day, position.amount_cents, position.revenue_account, position.cost_center,
+	position.cost_center_2, position.accounts_frozen
+FROM parent_billing.document_positions AS position
+JOIN parent_billing.documents AS document
+	ON document.organization_id = position.organization_id AND document.id = position.document_id
+WHERE position.organization_id = ?0 AND document.organization_id = ?0 AND document.run_id = ?1
+ORDER BY position.document_id, position.position`
+)
+
+type exportBookingPartRow struct {
+	DocumentID     int64         `bun:"document_id"`
+	Kind           string        `bun:"kind"`
+	SchoolID       int64         `bun:"school_id"`
+	CareOfferingID int64         `bun:"care_offering_id"`
+	Day            calendar.Date `bun:"day,type:date"`
+	AmountCents    int64         `bun:"amount_cents"`
+	Removed        bool          `bun:"removed"`
+	positionAccountsColumns
+}
+
+// exportBookingParts reads the positions of the documents of a run by
+// document: a monthly invoice by its ID, a holiday document by its own.
+func exportBookingParts(ctx context.Context, db bun.IDB, organizationID int64, runKind string, runID int64,
+) (map[int64][]parentbilling.ExportBookingPart, error) {
+	var rows []exportBookingPartRow
+	var err error
+	if runKind == parentbilling.DebitRunHoliday {
+		err = db.NewRaw(holidayBookingPartsQuery, organizationID, runID).Scan(ctx, &rows)
+	} else {
+		err = db.NewRaw(careBookingPartsQuery, organizationID, runID).Scan(ctx, &rows)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read where the positions of the run book: %w", err)
+	}
+	parts := map[int64][]parentbilling.ExportBookingPart{}
+	for _, row := range rows {
+		parts[row.DocumentID] = append(parts[row.DocumentID], parentbilling.ExportBookingPart{Kind: row.Kind, SchoolID: row.SchoolID,
+			CareOfferingID: row.CareOfferingID, Day: row.Day, AmountCents: row.AmountCents, Accounts: row.accounts(), Removed: row.Removed})
+	}
+	return parts, nil
 }
 
 // datevRunBookingsQuery reads the documents of monthly runs ?1 and holiday

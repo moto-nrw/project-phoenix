@@ -28,6 +28,8 @@ type DatevSettings struct {
 	FiscalYearStart  DatevSetting
 	RevenueAccount   DatevSetting
 	Locked           bool
+	// CostCenterRequired says every booking needs a KOST1 (#4821).
+	CostCenterRequired bool
 }
 
 // DatevBillingSettings reads the DATEV settings of a Träger: its own values
