@@ -630,6 +630,22 @@
       "legacy": "enrollment.holiday_wish_missing"
     },
     {
+      "code": "enrollment.holiday_booking_unit_booked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_booking_unit_booked"
+    },
+    {
+      "code": "enrollment.holiday_child_day_limit",
+      "class": "input",
+      "parameters": [
+        "limit",
+        "days",
+        "child"
+      ],
+      "legacy": "enrollment.holiday_child_day_limit"
+    },
+    {
       "code": "enrollment.holiday_weeks_booked_together",
       "class": "input",
       "parameters": [],

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The receipt mail of a submitted holiday registration (#4661, #4699,
@@ -67,23 +68,23 @@ func holidayMailDeclaration(period enrollment.HolidayPeriod, form enrollment.Hol
 
 // holidayReceiptChild lists the booked weeks of a child in the order of the
 // period, those with a place apart from those on the waiting list.
-func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64) string,
+func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64, days []calendar.Date) string,
 	waitlisted func(weekID int64) bool) enrollment.HolidayRegistrationMailChild {
 	mailChild := enrollment.HolidayRegistrationMailChild{
 		Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == 0, Weeks: []string{},
 	}
-	booked := map[int64]int64{}
+	booked := map[int64]enrollment.HolidayBookingInput{}
 	for _, booking := range child.Bookings {
-		booked[booking.WeekID] = booking.TimeModelID
+		booked[booking.WeekID] = booking
 	}
 	for _, week := range period.Weeks {
-		model, ok := booked[week.ID]
+		booking, ok := booked[week.ID]
 		switch {
 		case !ok:
 		case waitlisted(week.ID):
-			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, model))
+			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, booking.TimeModelID, booking.Days))
 		default:
-			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, model))
+			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, booking.TimeModelID, booking.Days))
 		}
 	}
 	return mailChild

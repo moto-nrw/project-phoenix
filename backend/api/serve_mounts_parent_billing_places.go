@@ -22,7 +22,7 @@ import (
 func (b parentBillingHolidayRegistrations) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64, bookings []parentbilling.HolidayBookingChoice) (parentbilling.HolidayRegistration, error) {
 	choices := make([]enrollmentOwner.HolidayBookingInput, len(bookings))
 	for i, booking := range bookings {
-		choices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
+		choices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
 	}
 	detail, err := b.review.RebookHolidayChild(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, childID, choices)
 	if err != nil {
@@ -47,8 +47,11 @@ func (b parentBillingHolidayRegistrations) SetHolidayWeekCapacity(ctx context.Co
 // Elternabrechnung's vocabulary (#4699).
 func parentBillingPlacesError(err error) error {
 	var fields validation.Errors
+	var dayLimit *enrollmentOwner.HolidayChildDayLimitRefusal
 	var noCareDay *enrollmentOwner.HolidayWeekNoCareDayRefusal
 	switch {
+	case errors.As(err, &dayLimit):
+		return &parentbilling.HolidayChildDayLimitRefusal{Limit: dayLimit.Limit, Days: dayLimit.Days, Err: err}
 	case errors.As(err, &noCareDay):
 		return &parentbilling.HolidayWeekNoCareDayRefusal{
 			Week: noCareDay.Week, WeekID: noCareDay.WeekID,

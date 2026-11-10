@@ -91,7 +91,13 @@ type HolidayRegistrationOffer struct {
 	Binding              bool
 	Notes                string
 	Weeks                []HolidayWeek
-	Open                 bool
+	// MaxDaysPerChild bounds the care days per child, nil for no bound
+	// (#4701).
+	MaxDaysPerChild *int
+	// FullDays are the days of each week by days without a free place, by
+	// week ID (#4701); a booking of such a day waits.
+	FullDays map[int64][]calendar.Date
+	Open     bool
 	// Form is the current version of the period's form (#5198).
 	Form HolidayPeriodForm
 	// ConsentTexts are the German texts of the fixed declarations the form
@@ -120,10 +126,13 @@ type HolidayAddress struct {
 	City       string `json:"city"`
 }
 
-// HolidayBookingInput is the time model a child books in one week.
+// HolidayBookingInput is the time model a child books in one week. Days
+// name the booked days of a week by days and are empty for a whole week
+// (#4701).
 type HolidayBookingInput struct {
 	WeekID      int64
 	TimeModelID int64
+	Days        []calendar.Date
 }
 
 // HolidayChildInput is one child of a registration. A zero HomeSchoolID

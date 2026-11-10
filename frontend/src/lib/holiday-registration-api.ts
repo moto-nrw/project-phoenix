@@ -32,7 +32,10 @@ export interface HolidayRegistrationTimeModel {
   readonly name: string;
   readonly startsAt: string;
   readonly endsAt: string;
-  /** Price per week in cent: the base line of the contribution (#5237). */
+  /**
+   * Price in cent: per week, or per day in a week by days (#4701); the base
+   * line of the contribution (#5237).
+   */
   readonly priceCents: number;
 }
 
@@ -42,7 +45,19 @@ export interface HolidayRegistrationWeek {
   readonly endsOn: string;
   readonly hostSchoolName: string;
   readonly timeModels: readonly HolidayRegistrationTimeModel[];
-  /** Days without care at the host school (#4702); such a week is not bookable. */
+  /** "day": parents choose single days and prices are per day (#4701). */
+  readonly bookingUnit?: "week" | "day";
+  /**
+   * The days a week by days offers, Monday to Friday without the days
+   * without care, "YYYY-MM-DD".
+   */
+  readonly careDays?: readonly string[];
+  /** Days of a week by days without a free place: a booking of them waits. */
+  readonly fullDays?: readonly string[];
+  /**
+   * Days without care at the host school (#4702); a week booked as a whole
+   * with such a day is not bookable, a week by days leaves the day out.
+   */
   readonly noCareDays?: readonly {
     readonly date: string;
     readonly name: string;
@@ -64,6 +79,8 @@ export interface HolidayRegistrationOffer {
   readonly notes: string;
   readonly open: boolean;
   readonly weeks: readonly HolidayRegistrationWeek[];
+  /** Care days one child may book over all weeks; null is no bound (#4701). */
+  readonly maxDaysPerChild?: number | null;
   readonly schools: readonly HolidayRegistrationSchool[];
   readonly captchaSiteKey: string;
   /** The questions of the Träger in their current version (#5198). */
@@ -107,8 +124,12 @@ interface BackendOffer {
               price_cents: number;
             }[]
           | null;
+        booking_unit?: "week" | "day";
+        care_days?: string[] | null;
+        full_days?: string[] | null;
       }[]
     | null;
+  max_days_per_child?: number | null;
   schools?: { id: number; name: string }[] | null;
   captcha_site_key: string;
   form?: {
@@ -148,6 +169,8 @@ export interface HolidayRegistrationPayload {
     readonly bookings: readonly {
       readonly week_id: number;
       readonly time_model_id: number;
+      /** The chosen days of a week by days (#4701). */
+      readonly days?: readonly string[];
     }[];
     /** Answers to the questions per child, by key (#5198). */
     readonly custom_data: Readonly<Record<string, unknown>>;
@@ -209,7 +232,11 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
         endsAt: model.ends_at,
         priceCents: model.price_cents,
       })),
+      bookingUnit: week.booking_unit ?? "week",
+      careDays: week.care_days ?? [],
+      fullDays: week.full_days ?? [],
     })),
+    maxDaysPerChild: offer.max_days_per_child ?? null,
     schools: (offer.schools ?? []).map((school) => ({
       id: String(school.id),
       name: school.name,
@@ -324,6 +351,7 @@ export async function submitHolidayRegistration(
 export type HolidayQuoteChild = readonly {
   readonly week_id: number;
   readonly time_model_id: number;
+  readonly days?: readonly string[];
 }[];
 
 /**

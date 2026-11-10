@@ -58,8 +58,12 @@ func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 	var first calendar.Date
 	for _, child := range children {
 		for _, booking := range child.Bookings {
-			if first == "" || booking.WeekStartsOn.Before(first) {
-				first = booking.WeekStartsOn
+			day := booking.WeekStartsOn
+			if len(booking.Days) > 0 {
+				day = slices.Min(booking.Days)
+			}
+			if first == "" || day.Before(first) {
+				first = day
 			}
 		}
 	}
@@ -195,10 +199,15 @@ func holidayBaseLines(child parentbilling.HolidayChild) parentbilling.HolidayChi
 	}
 	for _, booking := range bookings {
 		startsOn, endsOn := booking.WeekStartsOn, booking.WeekEndsOn
-		contribution.Lines = append(contribution.Lines, parentbilling.HolidayContributionLine{
+		line := parentbilling.HolidayContributionLine{
 			Kind: parentbilling.LineBase, AmountCents: booking.PriceCents,
 			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, TimeModelName: booking.TimeModelName, WeekID: booking.WeekID,
-		})
+		}
+		if booking.BookedDays > 0 {
+			days := booking.BookedDays
+			line.BookedDays = &days
+		}
+		contribution.Lines = append(contribution.Lines, line)
 		contribution.TotalCents += booking.PriceCents
 	}
 	return contribution

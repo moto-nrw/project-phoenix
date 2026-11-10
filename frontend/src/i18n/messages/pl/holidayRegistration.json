@@ -124,7 +124,9 @@
     "emergencyLimit": "Możesz podać najwyżej trzy osoby do kontaktu w nagłych wypadkach.",
     "pickupLimit": "Możesz upoważnić najwyżej pięć osób do odbioru dzieci.",
     "contactLimit": "Możesz podać najwyżej osiem osób.",
-    "postalCode": "Proszę podać kod pocztowy z 5 cyfr."
+    "postalCode": "Proszę podać kod pocztowy z 5 cyfr.",
+    "days": "Wybierz co najmniej jeden dzień.",
+    "dayLimit": "To więcej dni, niż jest możliwe w te ferie. Wybierz mniej dni."
   },
   "childQuestionsTitle": "Pytania i informacje o dziecku",
   "familyQuestionsTitle": "Pytania i informacje ogólne",
@@ -144,5 +146,18 @@
   "wishRefused": "Zapis niemożliwy",
   "wishHintNo": "Gdy tydzień jest pełny, Państwa dziecko czeka za dziećmi potrzebującymi opieki.",
   "wishHintRefused": "W zapisie do OGS podano: bez opieki w czasie ferii. Prosimy o kontakt z organizatorem.",
-  "wishHintUnknown": "Organizator sprawdzi tę informację."
+  "wishHintUnknown": "Organizator sprawdzi tę informację.",
+  "timeModelDayPrice": "{name} · {price} za dzień ({startsAt} do {endsAt})",
+  "weeksDayPriceText": "W tygodniach z pojedynczymi dniami cena dotyczy jednego dnia.",
+  "daysLabel": "Dni w tygodniu {week}",
+  "daysHint": "Wybierz dni, w które dziecko przyjdzie.",
+  "fullDaysHint": "Już pełne: {days}",
+  "fullDayAria": "{day}, już pełny",
+  "fullDaysChosen": "Te dni są już pełne: {days} Z nimi dziecko trafi na listę oczekujących na cały tydzień. Bez nich może od razu dostać miejsce.",
+  "dayLimitHint": "W te ferie każde dziecko może przyjść najwyżej {limit} dni. Dni mogą być w różnych tygodniach.",
+  "dayLimitCount": "Wybrano: {count, plural, one {# dzień} other {# dni}}.",
+  "dayLimitOver": "Wybrano: {count, plural, one {# dzień} other {# dni}}. To za dużo. Wybierz mniej dni.",
+  "summaryDays": "Dni: {days}",
+  "contributionDays": "{count, plural, one {# dzień} other {# dni}}",
+  "dayWithoutCare": "{date} nie ma opieki ({name})."
 }

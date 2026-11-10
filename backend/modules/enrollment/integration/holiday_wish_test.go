@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -134,7 +135,19 @@ func TestHolidayWishOrdersOnlyTheWaitingList(t *testing.T) {
 	two := 2
 	require.NoError(t, testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {
 		require.NoError(t, store.SetHolidayWeekCapacity(ctx, w.organization, w.period, w.week, &two))
-		placed, err := store.PlaceHolidayWaitlist(ctx, w.organization, w.week, 0, 0)
+		queue, found, err := store.ReadHolidayWeekQueue(ctx, w.organization, w.week)
+		require.NoError(t, err)
+		require.True(t, found)
+		var waiting []enrollment.HolidayQueuedBooking
+		for _, booking := range queue.Bookings {
+			if !booking.Placed {
+				waiting = append(waiting, booking)
+			}
+		}
+		require.Len(t, waiting, 2)
+		assert.Equal(t, []int64{unknown, declined}, []int64{waiting[0].ChildID, waiting[1].ChildID},
+			"the placement reads the child with precedence first")
+		placed, err := store.PlaceHolidayBookings(ctx, w.organization, w.week, []int64{waiting[0].ID}, nil)
 		require.NoError(t, err)
 		require.Len(t, placed, 1)
 		assert.Equal(t, unknown, placed[0].ChildID, "the free place goes to the child with precedence")

@@ -71,6 +71,11 @@ func TestHolidayWeekPlacesKeepTheirTraegerBeneathRLS(t *testing.T) {
 	_, err := db.ExecContext(context.Background(), `UPDATE enrollment.holiday_period_weeks SET capacity = NULL WHERE id = ?`, foreign.week)
 	require.NoError(t, err)
 
+	var foreignWaiting int64
+	require.NoError(t, db.NewRaw(`SELECT booking.id FROM enrollment.holiday_registration_bookings AS booking
+		JOIN enrollment.holiday_registration_children AS child ON child.id = booking.holiday_registration_child_id
+		WHERE child.holiday_registration_id = ?`, foreign.waiting).Scan(context.Background(), &foreignWaiting))
+
 	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
 	require.NoError(t, testpkg.WithinTraeger(ctx, own.organization, func(ctx context.Context) error {
 		require.NoError(t, testpkg.WithoutRequestRole(ctx))
@@ -83,7 +88,10 @@ func TestHolidayWeekPlacesKeepTheirTraegerBeneathRLS(t *testing.T) {
 		assert.Empty(t, locked, "A locks no week of B")
 
 		require.NoError(t, store.SetHolidayWeekCapacity(ctx, own.organization, foreign.period, foreign.week, &nine))
-		placed, err := store.PlaceHolidayWaitlist(ctx, own.organization, foreign.week, 0, 0)
+		_, found, err := store.ReadHolidayWeekQueue(ctx, own.organization, foreign.week)
+		require.NoError(t, err)
+		assert.False(t, found, "A reads no queue of a week of B")
+		placed, err := store.PlaceHolidayBookings(ctx, own.organization, foreign.week, []int64{foreignWaiting}, nil)
 		require.NoError(t, err)
 		assert.Empty(t, placed, "A moves no booking of B up")
 

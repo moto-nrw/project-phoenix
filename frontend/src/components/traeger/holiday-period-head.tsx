@@ -84,6 +84,9 @@ export function HolidayPeriodStatusLine({
           period.registrationClosesOn,
         )}
       </span>
+      {period.maxDaysPerChild == null ? null : (
+        <span>höchstens {period.maxDaysPerChild} Tage je Kind</span>
+      )}
       {children}
     </HolidayHeadFacts>
   );

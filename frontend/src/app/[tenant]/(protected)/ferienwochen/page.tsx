@@ -10,6 +10,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
+import { holidayDayList } from "~/lib/holiday-days";
 import { formatDate } from "~/lib/date-helpers";
 import {
   downloadHolidayParticipants,
@@ -116,6 +117,18 @@ const participantColumns = (
       render: (child) => names.get(child.timeModelId) ?? "–",
       sortValue: (child) => names.get(child.timeModelId) ?? null,
     },
+    ...(list.participants.some((child) => (child.days ?? []).length > 0)
+      ? [
+          {
+            key: "days",
+            header: "Tage",
+            render: (child: HolidayParticipant) =>
+              (child.days ?? []).length > 0
+                ? holidayDayList(child.days ?? [])
+                : "ganze Woche",
+          },
+        ]
+      : []),
     ...(withSecondGuardian
       ? [
           {

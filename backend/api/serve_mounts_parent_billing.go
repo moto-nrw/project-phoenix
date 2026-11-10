@@ -586,6 +586,7 @@ func (b parentBillingHolidayRegistrations) HolidayWeeks(ctx context.Context, lin
 			models[j] = parentbilling.HolidayTimeModel{ID: model.ID, Name: model.Name, PriceCents: model.PriceCents}
 		}
 		weeks[i] = parentbilling.HolidayWeek{ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, TimeModels: models}
+		weeks[i].CareDays = week.CareDays
 	}
 	return weeks, nil
 }
@@ -735,6 +736,8 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 			bookings[j] = parentbilling.HolidayBooking{
 				WeekID: booking.WeekID, WeekStartsOn: booking.WeekStartsOn, WeekEndsOn: booking.WeekEndsOn,
 				TimeModelID: booking.TimeModelID, TimeModelName: booking.TimeModelName, PriceCents: booking.PriceCents,
+				BookedDays:    len(booking.Days),
+				Days:          booking.Days,
 				Waitlisted:    booking.Placement == enrollmentOwner.HolidayPlacementWaitlisted,
 				Promoted:      booking.PromotedAt != nil,
 				ReplacedWeeks: replacements,

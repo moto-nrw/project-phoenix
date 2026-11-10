@@ -116,9 +116,13 @@ type HolidayRegistrationBooking struct {
 	HostSchoolID  int64         `json:"host_school_id"`
 	TimeModelID   int64         `json:"time_model_id"`
 	TimeModelName string        `json:"time_model_name"`
-	// PriceCents is the price the time model has now. The contribution a
-	// confirmation freezes is the Elternabrechnung's (#4664).
+	// PriceCents is the price the booking has now: the price of the time
+	// model, times the booked days in a week by days (#4701). The
+	// contribution a confirmation freezes is the Elternabrechnung's (#4664).
 	PriceCents int64 `json:"price_cents"`
+	// Days are the booked days of a week by days, empty for a whole week
+	// (#4701).
+	Days []calendar.Date `json:"days,omitempty"`
 	// Placement is HolidayPlacementPlaced or HolidayPlacementWaitlisted
 	// (#4699); WaitlistPosition is the place in the waiting list of the
 	// week, from 1, for a waitlisted booking of a registration that counts.
@@ -216,6 +220,9 @@ type HolidayBookingChange struct {
 	Waitlisted bool `json:"waitlisted,omitempty"`
 	// PromotedAt preserves the earliest care day when rebooking removes the booking.
 	PromotedAt *time.Time `json:"promoted_at,omitempty"`
+	// Days are the booked days of a week by days (#4701); the host school's
+	// care windows of the trail keep to them.
+	Days []calendar.Date `json:"days,omitempty"`
 }
 
 // HolidayDebtorNumberChange is the debtor number before and after a

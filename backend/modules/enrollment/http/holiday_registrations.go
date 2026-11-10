@@ -81,6 +81,11 @@ type HolidayRegistrationWeek struct {
 	EndsOn         calendar.Date                  `json:"ends_on"`
 	HostSchoolName string                         `json:"host_school_name"`
 	TimeModels     []HolidayRegistrationTimeModel `json:"time_models"`
+	// BookingUnit is "week" or "day"; a week by days lists its CareDays and
+	// the FullDays without a free place, and its prices are per day (#4701).
+	BookingUnit string          `json:"booking_unit"`
+	CareDays    []calendar.Date `json:"care_days"`
+	FullDays    []calendar.Date `json:"full_days"`
 	// NoCareDays are the days the host school gives no care (#4702); such
 	// a week takes no booking.
 	NoCareDays []capability.HolidayNoCareDay `json:"no_care_days"`
@@ -89,17 +94,20 @@ type HolidayRegistrationWeek struct {
 // HolidayRegistrationOfferResponse is the body of GET
 // /traeger/holiday-registrations/{token}.
 type HolidayRegistrationOfferResponse struct {
-	TraegerName          string                      `json:"traeger_name"`
-	Name                 string                      `json:"name"`
-	RegistrationOpensOn  calendar.Date               `json:"registration_opens_on"`
-	RegistrationClosesOn calendar.Date               `json:"registration_closes_on"`
-	Binding              bool                        `json:"binding"`
-	Notes                string                      `json:"notes"`
-	Open                 bool                        `json:"open"`
-	Weeks                []HolidayRegistrationWeek   `json:"weeks"`
-	Schools              []HolidayRegistrationSchool `json:"schools"`
-	CaptchaSiteKey       string                      `json:"captcha_site_key"`
-	Form                 HolidayRegistrationForm     `json:"form"`
+	TraegerName          string                    `json:"traeger_name"`
+	Name                 string                    `json:"name"`
+	RegistrationOpensOn  calendar.Date             `json:"registration_opens_on"`
+	RegistrationClosesOn calendar.Date             `json:"registration_closes_on"`
+	Binding              bool                      `json:"binding"`
+	Notes                string                    `json:"notes"`
+	Open                 bool                      `json:"open"`
+	Weeks                []HolidayRegistrationWeek `json:"weeks"`
+	// MaxDaysPerChild bounds the care days per child, null for no bound
+	// (#4701).
+	MaxDaysPerChild *int                        `json:"max_days_per_child"`
+	Schools         []HolidayRegistrationSchool `json:"schools"`
+	CaptchaSiteKey  string                      `json:"captcha_site_key"`
+	Form            HolidayRegistrationForm     `json:"form"`
 	// ConsentTexts are the German texts of the fixed declarations the form
 	// shows; they bind, a translation only helps reading (#5626).
 	ConsentTexts capability.HolidayConsentTexts `json:"consent_texts"`
@@ -133,8 +141,9 @@ type holidayAddressRequest struct {
 }
 
 type holidayBookingRequest struct {
-	WeekID      int64 `json:"week_id"`
-	TimeModelID int64 `json:"time_model_id"`
+	WeekID      int64           `json:"week_id"`
+	TimeModelID int64           `json:"time_model_id"`
+	Days        []calendar.Date `json:"days"`
 }
 
 type holidayChildRequest struct {
@@ -299,15 +308,21 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 				ID: model.ID, Name: model.Name, StartsAt: model.StartsAt, EndsAt: model.EndsAt, PriceCents: model.PriceCents,
 			})
 		}
+		careDays, fullDays := []calendar.Date{}, []calendar.Date{}
+		if week.BookingUnit == capability.HolidayBookingUnitDay {
+			careDays = append(careDays, week.CareDays...)
+			fullDays = append(fullDays, offer.FullDays[week.ID]...)
+		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
+			BookingUnit: week.BookingUnit, CareDays: careDays, FullDays: fullDays,
 			NoCareDays: noCareDaysOrEmpty(week.NoCareDays),
 		})
 	}
 	return HolidayRegistrationOfferResponse{
 		TraegerName: link.Traeger.Name, Name: offer.Name, RegistrationOpensOn: offer.RegistrationOpensOn,
 		RegistrationClosesOn: offer.RegistrationClosesOn, Binding: offer.Binding, Notes: offer.Notes, Open: offer.Open,
-		Weeks: weeks, Schools: schools, CaptchaSiteKey: siteKey,
+		Weeks: weeks, Schools: schools, CaptchaSiteKey: siteKey, MaxDaysPerChild: offer.MaxDaysPerChild,
 		Form: HolidayRegistrationForm{
 			Version: offer.Form.Version, Fields: holidayFormFields(offer.Form.Fields),
 			LegalBlocks: publicHolidayLegalBlocks(offer.Form.LegalBlocks), AddressRequirement: offer.Form.AddressRequirement,
@@ -387,6 +402,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	if renderHolidayWeekWithoutCare(w, r, err) {
 		return
 	}
+	var dayLimit *capability.HolidayChildDayLimitRefusal
 	switch {
 	case common.HasInputRejection(err):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -398,6 +414,8 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
+	case errors.As(err, &dayLimit):
+		common.RenderError(w, r, holidayChildDayLimitError(err, dayLimit))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):
@@ -429,4 +447,12 @@ func publicHolidayLegalBlocks(blocks []capability.FormLegalBlock) []capability.F
 		}
 	}
 	return visible
+}
+
+// holidayChildDayLimitError answers bookings of a child over the care days
+// of its period (#4701) with the bound, the days asked for and the child by
+// its position in the form, from 1.
+func holidayChildDayLimitError(err error, refusal *capability.HolidayChildDayLimitRefusal) render.Renderer {
+	return common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,
+		map[string]any{"limit": refusal.Limit, "days": refusal.Days, "child": refusal.Child + 1})
 }

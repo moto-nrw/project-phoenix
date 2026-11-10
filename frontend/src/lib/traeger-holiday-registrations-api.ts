@@ -96,6 +96,8 @@ interface HolidayRegistrationBooking {
   readonly waitlistPosition: number | null;
   /** When the booking moved up from the waiting list; null otherwise. */
   readonly promotedAt: string | null;
+  /** The booked days of a week by days (#4701); empty for a whole week. */
+  readonly days?: readonly string[];
 }
 
 export interface HolidayRegistrationChild {
@@ -188,6 +190,8 @@ export interface HolidayRegistrationContact {
 export interface HolidayBookingChange {
   readonly weekId: string;
   readonly timeModelId: string;
+  /** The days of a week by days (#4701). */
+  readonly days?: readonly string[];
 }
 
 export interface HolidayRegistrationEvent {
@@ -281,6 +285,7 @@ interface BackendBooking {
   placement?: HolidayPlacement;
   waitlist_position?: number | null;
   promoted_at?: string | null;
+  days?: string[] | null;
 }
 
 interface BackendChild {
@@ -320,6 +325,7 @@ interface BackendList {
 interface BackendBookingChange {
   week_id: number;
   time_model_id: number;
+  days?: string[] | null;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -411,6 +417,7 @@ function summaryFromBackend(
         placement: booking.placement ?? "placed",
         waitlistPosition: booking.waitlist_position ?? null,
         promotedAt: booking.promoted_at ?? null,
+        ...(booking.days?.length ? { days: booking.days } : {}),
       })),
       duplicateRegistrationIds: (child.duplicate_registration_ids ?? []).map(
         String,
@@ -428,6 +435,7 @@ function changesFromBackend(
   return (changes ?? []).map((change) => ({
     weekId: String(change.week_id),
     timeModelId: String(change.time_model_id),
+    ...(change.days?.length ? { days: change.days } : {}),
   }));
 }
 
@@ -687,6 +695,9 @@ export async function rebookHolidayChild(
           bookings: bookings.map((booking) => ({
             week_id: Number(booking.weekId),
             time_model_id: Number(booking.timeModelId),
+            ...(booking.days && booking.days.length > 0
+              ? { days: booking.days }
+              : {}),
           })),
         },
       },
@@ -887,6 +898,8 @@ interface HolidayWaitlistEntry {
   readonly timeModelName: string;
   /** Waits behind the others: no holiday care wish (#4703). */
   readonly deferred: boolean;
+  /** The wanted days of a booking of days (#4701); empty for a whole week. */
+  readonly days?: readonly string[];
 }
 
 /**
@@ -902,6 +915,10 @@ export interface HolidayWeekPlaces {
   readonly capacity: number | null;
   readonly placed: number;
   readonly waitlist: readonly HolidayWaitlistEntry[];
+  /** "day": the capacity holds for each day (#4701). */
+  readonly bookingUnit?: "week" | "day";
+  /** Placed bookings of each care day of a week by days, in order. */
+  readonly days?: readonly { readonly date: string; readonly placed: number }[];
 }
 
 interface BackendWeekPlaces {
@@ -911,6 +928,8 @@ interface BackendWeekPlaces {
   host_school_id: number;
   capacity: number | null;
   placed: number;
+  booking_unit?: "week" | "day";
+  days?: { date: string; placed: number }[] | null;
   waitlist?:
     | {
         position: number;
@@ -922,6 +941,7 @@ interface BackendWeekPlaces {
         child_last_name: string;
         time_model_name: string;
         deferred?: boolean;
+        days?: string[] | null;
       }[]
     | null;
 }
@@ -940,6 +960,8 @@ export async function fetchHolidayWeekPlaces(
     hostSchoolId: String(week.host_school_id),
     capacity: week.capacity,
     placed: week.placed,
+    bookingUnit: week.booking_unit ?? "week",
+    days: week.days ?? [],
     waitlist: (week.waitlist ?? []).map((entry) => ({
       position: entry.position,
       registrationId: String(entry.registration_id),
@@ -950,6 +972,7 @@ export async function fetchHolidayWeekPlaces(
       childLastName: entry.child_last_name,
       timeModelName: entry.time_model_name,
       deferred: entry.deferred ?? false,
+      ...(entry.days?.length ? { days: entry.days } : {}),
     })),
   }));
 }
