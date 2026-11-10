@@ -41,11 +41,12 @@ type HolidayContributions struct {
 var _ parentbilling.HolidayContributions = (*HolidayContributions)(nil)
 
 // NewHolidayContributions builds the holiday contribution.
-func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) *HolidayContributions {
+func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
 	if store == nil || registrations == nil || settings == nil {
 		panic("parent billing: the store, the holiday registrations and the settings are required")
 	}
-	return &HolidayContributions{store: store, registrations: registrations, settings: settings}
+	contributions := &HolidayContributions{store: store, registrations: registrations, settings: settings}
+	return contributions, contributions
 }
 
 // ResolveHolidayLink resolves a public link; an empty key names no link.

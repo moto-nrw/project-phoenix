@@ -467,6 +467,14 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_allocation_changed":
+        "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu.",
+      "enrollment.holiday_allocation_full":
+        "In dieser Woche ist kein Platz mehr frei. Bitte laden Sie die Liste neu.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Es gibt schon Anmeldungen. Darum bleibt die Platzvergabe so.",
+      "enrollment.holiday_allocation_pending":
+        "Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
       "enrollment.holiday_booking_unit_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
       "enrollment.holiday_care_wish_required":
@@ -2196,6 +2204,14 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_allocation_changed":
+        "The list has changed. Please check your decision again.",
+      "enrollment.holiday_allocation_full":
+        "There are no free places left in this week. Please reload the list.",
+      "enrollment.holiday_allocation_mode_locked":
+        "There are registrations already, so the allocation stays as it is.",
+      "enrollment.holiday_allocation_pending":
+        "Please give out the places in the “Vergabe” tab first.",
       "enrollment.holiday_booking_unit_booked":
         "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
       "enrollment.holiday_care_wish_required":
@@ -2839,6 +2855,14 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
+      "enrollment.holiday_allocation_changed":
+        "Список изменился. Проверьте решение ещё раз.",
+      "enrollment.holiday_allocation_full":
+        "На этой неделе свободных мест больше нет. Пожалуйста, загрузите список заново.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Заявки уже есть, способ распределения не меняется.",
+      "enrollment.holiday_allocation_pending":
+        "Сначала распределите места на вкладке «Vergabe».",
       "enrollment.holiday_booking_unit_booked":
         "На эту неделю уже есть заявки. Поэтому способ бронирования, а для отдельных дней и даты недели, остаются без изменений.",
       "enrollment.holiday_care_wish_required":
@@ -3397,6 +3421,14 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani emrin dhe mbiemrin.",
       "enrollment.guardian_phone_required":
         "Ju lutemi shkruani një numër telefoni.",
+      "enrollment.holiday_allocation_changed":
+        "Lista ndryshoi. Kontrolloni vendimin përsëri.",
+      "enrollment.holiday_allocation_full":
+        "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Ka tashmë regjistrime, ndaj ndarja e vendeve nuk ndryshon.",
+      "enrollment.holiday_allocation_pending":
+        "Ndani fillimisht vendet te skeda „Vergabe“.",
       "enrollment.holiday_booking_unit_booked":
         "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
       "enrollment.holiday_care_wish_required":
@@ -3949,6 +3981,14 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Wpisz adres e-mail.",
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
+      "enrollment.holiday_allocation_changed":
+        "Lista się zmieniła. Proszę ponownie sprawdzić decyzję.",
+      "enrollment.holiday_allocation_full":
+        "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Są już zgłoszenia, więc sposób przydziału pozostaje.",
+      "enrollment.holiday_allocation_pending":
+        "Najpierw przydziel miejsca w zakładce „Vergabe”.",
       "enrollment.holiday_booking_unit_booked":
         "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
       "enrollment.holiday_care_wish_required":
@@ -4503,6 +4543,14 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
+      "enrollment.holiday_allocation_changed":
+        "Liste değişti. Lütfen kararınızı yeniden kontrol edin.",
+      "enrollment.holiday_allocation_full":
+        "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Kayıtlar zaten var, dağıtım şekli değişmez.",
+      "enrollment.holiday_allocation_pending":
+        "Önce „Vergabe“ sekmesinde yerleri dağıtın.",
       "enrollment.holiday_booking_unit_booked":
         "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
       "enrollment.holiday_care_wish_required":
@@ -5050,6 +5098,14 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
+      "enrollment.holiday_allocation_changed":
+        "Список змінився. Перевірте рішення ще раз.",
+      "enrollment.holiday_allocation_full":
+        "На цьому тижні вільних місць більше немає. Будь ласка, завантажте список знову.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Заявки вже є, спосіб розподілу не змінюється.",
+      "enrollment.holiday_allocation_pending":
+        "Спершу розподіліть місця на вкладці «Vergabe».",
       "enrollment.holiday_booking_unit_booked":
         "На цей тиждень уже є заявки. Тому спосіб бронювання, а для окремих днів і дати тижня, залишаються без змін.",
       "enrollment.holiday_care_wish_required":

@@ -215,6 +215,10 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 		// to the Träger itself.
 		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_periods WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test holiday periods")
+		// The criteria of the allocation belong to the Träger (#4700); the
+		// answers and decisions went with the registrations.
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_allocation_criteria WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test holiday criteria")
 		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_deletions WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up the test holiday registration deletion log")
 		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_rate_limits WHERE organization_id = ?`, organizationID)

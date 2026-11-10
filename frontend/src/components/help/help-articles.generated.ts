@@ -356,6 +356,8 @@ import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplates
 
 import type { traegerFinanceExportsTopic as authored_traegerFinanceExportsTopic } from "./articles/traeger-finance-exports";
 
+import type { traegerHolidayAllocationTopic as authored_traegerHolidayAllocationTopic } from "./articles/traeger-holiday-allocation";
+
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
 import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from "./articles/traeger-holiday-form";
@@ -6432,6 +6434,7 @@ export const parentHolidayRegistrationTopic =
       notes: [
         "Achtet der Träger auf den Ferienwunsch aus der OGS-Anmeldung, steht das über den Kindern. Mit Elternkonto sehen Sie beim Kind, was in der OGS-Anmeldung steht.",
         "Ein Elternkonto brauchen Sie nicht.",
+        "Vergibt der Träger die Plätze nach festen Regeln? Dann steht im Formular `Fragen für die Platzvergabe`. Beantworten Sie jede Frage mit Ja oder Nein. Das Büro kann nach einem Nachweis fragen. Nach dem Absenden steht bei jeder Woche `Platz offen`. Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
         "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
         "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
@@ -11677,6 +11680,96 @@ export const traegerFinanceExportsTopic =
     };
   } satisfies typeof authored_traegerFinanceExportsTopic;
 
+/**
+ * `/traeger/ferien/kriterien` und `/traeger/ferien/[id]/vergabe` (#4700):
+ * Plätze nach Kriterien vergeben. moto sortiert vor, das Büro entscheidet.
+ */
+export const traegerHolidayAllocationTopic =
+  function traegerHolidayAllocationTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayAllocation,
+      title: "Ferienplätze nach Kriterien vergeben",
+      question: "Wie vergebe ich Ferienplätze nach Kriterien?",
+      summary:
+        "Eltern beantworten Ihre Fragen mit Ja oder Nein. moto sortiert die Anmeldungen danach vor. Ihr Büro entscheidet über jeden Platz.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CheckSquare",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+        "Der Ferienzeitraum hat noch keine Anmeldung. Danach bleibt die Art der Platzvergabe so.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Kriterien festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Ferienbetreuung`.",
+            "Wählen Sie oben `Kriterien der Platzvergabe`.",
+            "Wählen Sie eine Vorlage oder `Eigenes Kriterium`.",
+            "Geben Sie den Namen und die `Frage an die Eltern` ein. Wählen Sie bei `Gilt für`, ob die Frage für die Familie oder für jedes Kind gilt.",
+            "Bringen Sie die Kriterien mit den Pfeilen in die richtige Reihenfolge. Das oberste Kriterium zählt am meisten.",
+            "Wählen Sie `Kriterien speichern`.",
+          ],
+        },
+        {
+          title: "Ferienzeitraum nach Kriterien vergeben",
+          steps: [
+            "Öffnen Sie den Ferienzeitraum im Reiter `Planung`.",
+            "Wählen Sie bei `Wie werden die Plätze vergeben?` die Karte `Nach Kriterien`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Plätze vergeben",
+          steps: [
+            "Öffnen Sie den Ferienzeitraum und wählen Sie den Reiter `Vergabe`.",
+            "Je Woche stehen die offenen Anmeldungen in der Reihenfolge des Vorschlags. Die Linie zeigt, wo die freien Plätze enden.",
+            "Wählen Sie bei einem Kind `Platz geben` oder `Auf die Warteliste`. Weicht das vom Vorschlag ab, schreiben Sie eine `Begründung`.",
+            "Oder wählen Sie bei der Woche `Vorschlag übernehmen`. Mit mehreren Wochen gibt es oben `Vorschlag für alle Wochen übernehmen`.",
+            "Bestätigen Sie im Fenster.",
+          ],
+        },
+        {
+          title: "Angaben einer Familie prüfen",
+          steps: [
+            "Öffnen Sie die Anmeldung.",
+            "Wählen Sie bei `Angaben für die Vergabe` den Knopf `Prüfen`.",
+            "Wählen Sie je Kriterium `Trifft zu`, `Trifft nicht zu` oder `Nicht geprüft`.",
+            "Wählen Sie `Prüfung speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Die Eltern bekommen eine E-Mail mit dem Platz oder der Warteliste. Danach rücken Kinder von der Warteliste automatisch nach, wenn ein Platz frei wird. Die Warteliste ist nach Ihren Kriterien sortiert, dann nach Eingang.",
+      notes: [
+        "moto schlägt nur vor. Jede Entscheidung trifft Ihr Büro. Unter `Verlauf der Entscheidungen` steht jede Entscheidung mit Vorschlag und Begründung.",
+        "Bei gleichen Kriterien zählt, wer sich zuerst angemeldet hat.",
+        "Sobald Antworten vorliegen, bleibt `Gilt für` beim Kriterium fest.",
+        "Solange eine Woche offene Entscheidungen hat, rückt dort niemand nach. Nach der letzten Entscheidung können ältere Wartelisteneinträge nachrücken. Gerade auf die Warteliste gesetzte Kinder bleiben zunächst dort.",
+        "Eine Prüfung des Büros zählt vor der Angabe der Eltern. Sie ändert den Vorschlag für offene Plätze.",
+        "Fragen Sie nur, was Sie für die Vergabe brauchen. Fragen Sie nicht nach Gesundheit oder Förderbedarf.",
+        "Ein Kind mit offenem Platz zahlt nichts. Es steht auch nicht auf der Teilnehmerliste der OGS.",
+        "Eine Anmeldung mit offenem Platz können Sie erst bestätigen, wenn das Büro entschieden hat.",
+      ],
+      differences: [
+        "Bei einem Kriterium steht `ungeklärt`? Die Eltern haben dazu nichts gesagt, zum Beispiel weil das Kriterium später dazukam. Es zählt erst, wenn Ihr Büro es geprüft hat.",
+        "Der Reiter `Vergabe` fehlt? Der Ferienzeitraum vergibt die Plätze nach Eingang.",
+        "Die Karten bei `Wie werden die Plätze vergeben?` lassen sich nicht wählen? Es gibt schon Anmeldungen.",
+      ],
+      troubleshootingDetails: [
+        "Es erscheint, dass sich die Liste geändert hat? Jemand hat gerade entschieden oder eine Angabe geprüft. moto lädt die Liste neu. Prüfen Sie Ihre Entscheidung noch einmal.",
+        "Kein Platz für die gewünschten Tage frei? Erhöhen Sie im Reiter `Plätze` die Zahl der Plätze. Bei einzelnen Tagen prüft moto nur die gebuchten Tage.",
+        "Bei vielen Anmeldungen übernimmt moto den Vorschlag schrittweise. Bei einem Fehler bleiben gespeicherte Entscheidungen erhalten. Prüfen Sie die offenen Anmeldungen und versuchen Sie es erneut.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPlaces,
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayAllocationTopic;
+
 /** `/traeger/einstellungen/abrechnung` (#4664, #5627, #5685): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
   function traegerHolidayContributionTopic(): HelpTopic {
@@ -11915,6 +12008,7 @@ export const traegerHolidayPeriodTopic =
             "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
             "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
             "Soll ein Kind nur eine bestimmte Zahl an Tagen kommen? Tragen Sie die Zahl bei `Höchstens Tage je Kind` ein, zum Beispiel 5. Ohne Grenze lassen Sie das Feld leer.",
+            "Wählen Sie bei `Wie werden die Plätze vergeben?` die Karte `Nach Eingang` oder `Nach Kriterien`. Nach Eingang bekommt zuerst einen Platz, wer sich zuerst anmeldet. Nach Kriterien entscheidet Ihr Büro.",
           ],
         },
         {
@@ -11952,6 +12046,7 @@ export const traegerHolidayPeriodTopic =
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
+        "`Nach Eingang` und `Nach Kriterien` lassen sich nicht wählen? Es gibt schon Anmeldungen. Die Platzvergabe bleibt dann so.",
         "`Ganze Woche` und `Einzelne Tage` lassen sich nicht wählen? Für die Woche gibt es schon Anmeldungen. Die Buchungsart bleibt dann so. Bei einzelnen Tagen bleiben auch die Tage der Woche.",
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
@@ -11966,6 +12061,7 @@ export const traegerHolidayPeriodTopic =
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerClosingDays,
         HELP_TOPICS.traegerHolidayWish,
+        HELP_TOPICS.traegerHolidayAllocation,
       ],
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;
@@ -12031,6 +12127,7 @@ export const traegerHolidayPlacesTopic =
         "Ohne Grenze bekommt jedes angemeldete Kind einen Platz. So ist jede neue Woche eingestellt.",
       ],
       differences: [
+        "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann bekommt beim Anmelden niemand sofort einen Platz. Bei der Woche steht dann zum Beispiel `3 offen`. Die Plätze vergibt Ihr Büro im Reiter `Vergabe`. Danach gelten Warteliste und Nachrücken wie hier beschrieben.",
         "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
         "Bei einer Woche steht `2 Tage voll` oder `Alle Tage voll`? Die Woche wird tageweise gebucht. An diesen Tagen sind alle Plätze vergeben.",
         "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
@@ -12043,6 +12140,7 @@ export const traegerHolidayPlacesTopic =
         HELP_TOPICS.traegerHolidayPeriod,
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerHolidayWish,
+        HELP_TOPICS.traegerHolidayAllocation,
       ],
     };
   } satisfies typeof authored_traegerHolidayPlacesTopic;
@@ -12165,6 +12263,7 @@ export const traegerHolidayRegistrationReviewTopic =
       notes: [
         "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
+        "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
         "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
@@ -12202,6 +12301,7 @@ export const traegerHolidayRegistrationReviewTopic =
         HELP_TOPICS.traegerHolidayRegistration,
         HELP_TOPICS.traegerHolidayPeriod,
         HELP_TOPICS.traegerHolidayPlaces,
+        HELP_TOPICS.traegerHolidayAllocation,
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerHolidayWish,
       ],

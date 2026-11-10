@@ -49,6 +49,7 @@ import {
   SecondGuardianCard,
 } from "./holiday-registration-sections";
 import { HolidayQuestions } from "./holiday-registration-questions";
+import { HolidayRegistrationCriteria } from "./holiday-registration-criteria";
 import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
@@ -138,6 +139,15 @@ export function HolidayRegistrationForm({
       setCaptchaToken("");
       if (err instanceof ApiError && err.code === FORM_CHANGED) {
         setDraft((current) => ({ ...current, legalAcceptances: {} }));
+        await onFormChanged?.();
+      } else if (
+        err instanceof ApiError &&
+        err.errors?.some(({ field }) =>
+          /^(children\.\d+\.)?criteria(?:\.|$)/.test(field),
+        )
+      ) {
+        // The catalog can change without a new form version. Reload its
+        // questions so parents can answer them, keeping the entire draft.
         await onFormChanged?.();
       }
       // The parent uploads the proof again; the old token claims nothing.
@@ -384,6 +394,13 @@ export function HolidayRegistrationForm({
           />
         </SectionCard>
       ) : null}
+
+      <HolidayRegistrationCriteria
+        offer={offer}
+        draft={draft}
+        fieldError={fieldError}
+        onChange={setDraft}
+      />
 
       <ContactList
         contacts={draft.contacts}

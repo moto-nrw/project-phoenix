@@ -28,9 +28,12 @@ func (h *HolidayRegistrationReview) ConfirmHolidayRegistration(ctx context.Conte
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	return h.change(ctx, reviewer, periodID, registrationID, func(_ enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
+	return h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
 		if current.Status != enrollment.HolidayRegistrationReceived {
 			return "", nil, enrollment.ErrHolidayRegistrationStateConflict
+		}
+		if err := h.refusePendingAllocation(ctx, reviewer.OrganizationID, period, current.ID); err != nil {
+			return "", nil, err
 		}
 		if err := h.store.SetHolidayRegistrationStatus(ctx, reviewer.OrganizationID, current.ID, enrollment.HolidayRegistrationConfirmed); err != nil {
 			return "", nil, err
