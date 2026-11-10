@@ -5203,6 +5203,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a deletionAudit) CreateAll(ctx context.Context, events []*presenceservice.DeletionEvent) error {\n\tentries := make([]*audit.DataDeletion, len(events))\n\tfor i, event := range events {\n\t\tif event != nil {\n\t\t\tentries[i] = presenceDataDeletion(event)\n\t\t}\n\t}\n\treturn a.writer.CreateAll(ctx, entries)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/deletionAudit.CreateAll",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s deliveryOnDutyStaff) OnDutyStaffIDs(ctx context.Context) ([]int64, error) {\n\tpresence, err := s.presence.WorkPresenceMap(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn slices.Sorted(maps.Keys(workforce.OnDutyStaffIDs(presence))), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/deliveryOnDutyStaff.OnDutyStaffIDs",

@@ -3716,6 +3716,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "roots/owners/deletionAudit.CreateAll",
+      "reason": "Root binding of Student Presence's DeletionAudit port (#6455): maps each presence deletion event onto the Audit Platform data-deletion row before the one batch append (ADR 0067 consumer-port adapter)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/deliveryOnDutyStaff.OnDutyStaffIDs",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

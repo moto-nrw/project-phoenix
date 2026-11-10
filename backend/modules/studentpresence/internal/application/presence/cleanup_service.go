@@ -20,7 +20,7 @@ type AttendanceCleanup interface {
 type PresenceRetention interface {
 	AttendanceCleanup
 	studentpresence.VisitRetentionQuery
-	DeleteCompletedVisitsBefore(context.Context, int64, studentpresence.VisitRetentionPolicy, time.Time) (int64, error)
+	DeleteExpiredVisits(context.Context, []studentpresence.VisitRetentionCount, time.Time) (map[int64]int64, error)
 }
 
 // VisitRetentionSettings supplies the tenant's visit retention window for
@@ -103,8 +103,8 @@ func (s *cleanupService) ApplyAttendanceLogSetting(ctx context.Context, enabled 
 	if err != nil {
 		return err
 	}
-	for _, row := range rows {
-		if _, err := s.processStudent(ctx, row); err != nil {
+	for i := 0; i < len(rows); i += s.batchSize {
+		if _, err := s.expireVisits(ctx, rows[i:min(i+s.batchSize, len(rows))]); err != nil {
 			return err
 		}
 	}
@@ -252,16 +252,27 @@ type batchResult struct {
 	errors    []CleanupError
 }
 
+// processBatch deletes and audits the batch in one transaction. When that
+// fails, it repeats the batch with one transaction per student, so a failing
+// student rolls back only its own deletion and the others are still deleted,
+// counted and audited; the result names exactly the failing students.
 func (s *cleanupService) processBatch(ctx context.Context, students []studentpresence.VisitRetentionCount) batchResult {
 	result := batchResult{
 		errors: make([]CleanupError, 0),
 	}
+	if len(students) > 1 {
+		if deleted, err := s.expireVisitsInTx(ctx, students); err == nil {
+			result.processed = len(students)
+			for _, count := range deleted {
+				result.deleted += count
+			}
+			return result
+		}
+	}
 
 	for _, student := range students {
 		result.processed++
-
-		// Process each student
-		deleted, err := s.processStudent(ctx, student)
+		deleted, err := s.expireVisitsInTx(ctx, []studentpresence.VisitRetentionCount{student})
 		if err != nil {
 			result.errors = append(result.errors, CleanupError{
 				StudentID: student.StudentID,
@@ -269,51 +280,68 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentpre
 				Timestamp: time.Now(),
 			})
 		} else {
-			result.deleted += deleted
+			result.deleted += deleted[student.StudentID]
 		}
 	}
 
 	return result
 }
 
-// Phase 3 deviation: RunInTx retained because processStudent runs from the scheduler's forEachTenant loop,
+// Phase 3 deviation: RunInTx retained because the batch runs from the scheduler's forEachTenant loop,
 // which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
 // because there is no HTTP handler or JWT involved in scheduled batch cleanup.
-func (s *cleanupService) processStudent(ctx context.Context, student studentpresence.VisitRetentionCount) (int64, error) {
-	var deletedCount int64
-
+func (s *cleanupService) expireVisitsInTx(ctx context.Context, students []studentpresence.VisitRetentionCount) (map[int64]int64, error) {
+	var deleted map[int64]int64
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
-		// Delete expired visits
-		policy := studentpresence.VisitRetentionPolicy{DefaultDays: student.RetentionDays, CompletedBefore: student.CompletedBefore}
-		count, err := s.presence.DeleteCompletedVisitsBefore(ctx, student.StudentID, policy, time.Now().AddDate(0, 0, -student.RetentionDays))
-		if err != nil {
-			return err
-		}
-		deletedCount = count
-
-		if deletedCount > 0 {
-			// Create audit record
-			deletion := &DeletionEvent{
-				TenantID: tenant.FromContext(ctx), StudentID: &student.StudentID,
-				DeletionType: "visit_retention", RecordsDeleted: int(deletedCount),
-				DeletedBy: "system", DeletedAt: time.Now(),
-				DeletionReason: fmt.Sprintf("Automated retention policy: %d days", student.RetentionDays),
-				Metadata:       map[string]interface{}{"retention_days": student.RetentionDays, "batch_cleanup": true},
-			}
-
-			if student.CompletedBefore != nil {
-				deletion.DeletionReason = "Attendance log disabled: completed visits before today's Berlin midnight"
-				deletion.Metadata = map[string]interface{}{"attendance_log_enabled": false, "completed_before": student.CompletedBefore.Format(time.RFC3339), "batch_cleanup": true}
-			}
-			if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
-				return err
-			}
-		}
-
-		return nil
+		var err error
+		deleted, err = s.expireVisits(ctx, students)
+		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	return deleted, nil
+}
 
-	return deletedCount, err
+// expireVisits deletes the expired visits of students in one statement and
+// appends one audit row per student with deletions in one more, both in the
+// caller's transaction. Each row carries the student's actually deleted
+// count and its retention window or completed-day boundary.
+func (s *cleanupService) expireVisits(ctx context.Context, students []studentpresence.VisitRetentionCount) (map[int64]int64, error) {
+	now := time.Now()
+	deleted, err := s.presence.DeleteExpiredVisits(ctx, students, now)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]*DeletionEvent, 0, len(deleted))
+	for _, student := range students {
+		if count := deleted[student.StudentID]; count > 0 {
+			events = append(events, visitDeletionEvent(tenant.FromContext(ctx), student, count, now))
+		}
+	}
+	if len(events) == 0 {
+		return deleted, nil
+	}
+	if err := s.dataDeletionRepo.CreateAll(ctx, events); err != nil {
+		return nil, err
+	}
+	return deleted, nil
+}
+
+func visitDeletionEvent(tenantID int64, student studentpresence.VisitRetentionCount, count int64, at time.Time) *DeletionEvent {
+	studentID := student.StudentID
+	deletion := &DeletionEvent{
+		TenantID: tenantID, StudentID: &studentID,
+		DeletionType: "visit_retention", RecordsDeleted: int(count),
+		DeletedBy: "system", DeletedAt: at,
+		DeletionReason: fmt.Sprintf("Automated retention policy: %d days", student.RetentionDays),
+		Metadata:       map[string]interface{}{"retention_days": student.RetentionDays, "batch_cleanup": true},
+	}
+	if student.CompletedBefore != nil {
+		deletion.DeletionReason = "Attendance log disabled: completed visits before today's Berlin midnight"
+		deletion.Metadata = map[string]interface{}{"attendance_log_enabled": false, "completed_before": student.CompletedBefore.Format(time.RFC3339), "batch_cleanup": true}
+	}
+	return deletion
 }
 
 // staleAttendanceCheckOut returns the record's date and the check-out time

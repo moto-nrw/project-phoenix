@@ -1793,27 +1793,27 @@
       "target_owner": "student-presence"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "binding_digest": "7a01f0267662af54dafb47f6bc3d6b91",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "binding_digest": "49176fb1760c03dfa6a3ca82e0d52fa1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "binding_digest": "2a78dc4fd9cc54dcca0a352f7c97c816",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "binding_digest": "d630c659f28dea3583531e649dcef476",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "binding_digest": "2a78dc4fd9cc54dcca0a352f7c97c816",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "binding_digest": "d630c659f28dea3583531e649dcef476",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
@@ -4689,22 +4689,6 @@
       "target_owner": "student-presence"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "binding_digest": "0bc837325a40d1ef4bba4e9cc28eccb7",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "source_owner": "timetable-activities",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "target_owner": "student-presence"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "binding_digest": "2a78dc4fd9cc54dcca0a352f7c97c816",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "target_owner": "student-presence"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredAttendance",
       "binding_digest": "13aa7509def24f9ea7435632c06df91d",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredAttendance",
@@ -4734,6 +4718,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "binding_digest": "ecef2a71eb356fa341d40f9901f559a8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "binding_digest": "d630c659f28dea3583531e649dcef476",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "target_owner": "student-presence"
     },
     {
