@@ -55,18 +55,15 @@ export function ChoiceModal({
 }: ChoiceModalProps) {
   // While the caller is working, every dismiss path (backdrop, Escape,
   // close button, Abbrechen) must be inert — closing mid-save would let
-  // the user re-trigger an already-running mutation.
-  const handleClose = () => {
-    if (isBusy) return;
-    onClose();
-  };
-
+  // the user re-trigger an already-running mutation. The lock goes to Modal:
+  // a check in onClose alone ran Modal's exit animation and left the dialog
+  // open but invisible (#6567).
   const footer = (
     <Button
       type="button"
       variant="outline"
       size="md"
-      onClick={handleClose}
+      onClick={onClose}
       disabled={isBusy}
     >
       Abbrechen
@@ -74,7 +71,13 @@ export function ChoiceModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={title} footer={footer}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      footer={footer}
+      isDismissDisabled={isBusy}
+    >
       <FormErrorAlert message={error} className="mb-4" />
       {description && (
         <p className="mb-4 text-sm text-gray-600">{description}</p>
