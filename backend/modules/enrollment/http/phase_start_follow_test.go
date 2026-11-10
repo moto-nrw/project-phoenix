@@ -146,6 +146,50 @@ func TestPhaseService_Update_KeepsActivatedChildStart(t *testing.T) {
 	c.assertPlan(t, peopleValues.StudentStatusActive, c.start, "an activated child")
 }
 
+func TestPhaseService_Update_KeepsWindowFromSupersedingApproval(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	env.sourcePhase.Kind = enrollmentNative.PhaseKindHoliday
+	env.sourcePhase.ServiceStartDate = "2100-07-20"
+	env.sourcePhase.ServiceEndDate = "2100-07-31"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	holiday := approveScheduledNewChild(t, env, "Ersetzt")
+	oldHoliday := enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)
+
+	year := *env.sourcePhase
+	year.ID = 0
+	year.Name = "superseding-school-year"
+	year.Kind = enrollmentNative.PhaseKindSchoolYear
+	year.ServiceStartDate = "2100-08-01"
+	year.ServiceEndDate = "2101-07-31"
+	require.NoError(t, enrollmentAPI.InsertOwnerPhaseForTest(ctx, env.repos.Enrollment(), &year))
+	env.sourcePhase = &year
+	requestID, childID := submitOneChild(t, env, "superseding@example.com", "Neu", "Ersetzt")
+	matchChildToExistingStudent(t, env, childID, holiday.studentID)
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: requestID, ChildID: childID, Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	current := &scheduledNewChild{env: env, childID: childID, studentID: holiday.studentID, start: calendar.Date(year.ServiceStartDate)}
+	current.assertPlan(t, peopleValues.StudentStatusPending, current.start, "after the school-year approval")
+
+	// Editing the superseded holiday must not restore its earlier start,
+	// whether its new start is later or earlier than the old one.
+	phases := followingPhases(t, env, decisionTestToday)
+	for _, start := range []enrollmentNative.Date{"2100-07-21", "2100-07-15"} {
+		moved := *oldHoliday
+		moved.ServiceStartDate = start
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phases.UpdatePhase, &moved))
+		current.assertPlan(t, peopleValues.StudentStatusPending, current.start, "after editing the superseded holiday")
+		assert.Equal(t, calendar.Date(year.ServiceEndDate), *current.student(t).EnrolledUntil)
+		due, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindPendingDueForActivation, current.start.AddDays(-1))
+		require.NoError(t, err)
+		assert.NotContains(t, studentIDs(due), current.studentID, "the superseded phase cannot activate the child early")
+	}
+}
+
 func studentIDs(students []*peopleValues.StudentState) []int64 {
 	ids := make([]int64, 0, len(students))
 	for _, student := range students {

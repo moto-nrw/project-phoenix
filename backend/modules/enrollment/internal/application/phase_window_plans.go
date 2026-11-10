@@ -122,8 +122,9 @@ func (s *Phases) setActivationPlans(ctx context.Context, childIDs []int64, on en
 // followedWindow proposes the window of a pending student whose bounds still
 // equal the phase's old ones. Approvals in other phases that lie inside the
 // old window keep their days: the start becomes the earliest, the end the
-// latest of them and the new phase bound. Every other approval's bounds go
-// along, so School Membership can widen a window they shape.
+// latest of them and the new phase bound. Only other bounds outside the old
+// phase go along for widening: a phase whose old bound is already outside
+// the student's window has been superseded and must not restore that bound.
 func followedWindow(others []*enrollment.StudentCarePeriod, before, after *enrollment.Phase) enrollment.PendingWindowMove {
 	oldStart, oldEnd := calendar.Date(before.ServiceStartDate), calendar.Date(before.ServiceEndDate)
 	from, until := calendar.Date(after.ServiceStartDate), calendar.Date(after.ServiceEndDate)
@@ -136,8 +137,12 @@ func followedWindow(others []*enrollment.StudentCarePeriod, before, after *enrol
 		if !end.After(oldEnd) && end.After(until) {
 			until = end
 		}
-		move.OtherStarts = append(move.OtherStarts, other.ServiceStartDate)
-		move.OtherEnds = append(move.OtherEnds, other.ServiceEndDate)
+		if start.Before(oldStart) {
+			move.OtherStarts = append(move.OtherStarts, other.ServiceStartDate)
+		}
+		if end.After(oldEnd) {
+			move.OtherEnds = append(move.OtherEnds, other.ServiceEndDate)
+		}
 	}
 	move.FromAfter, move.UntilAfter = enrollment.Date(from), enrollment.Date(until)
 	return move
