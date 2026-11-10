@@ -389,3 +389,33 @@ func TestStudentEnrollmentBatchRealCancelReplaysInNewTransaction(t *testing.T) {
 		})
 	}
 }
+
+// TestStudentEnrollmentBatchWritesEachMembershipInPlace (Befundklasse 5): the
+// membership of row k, with its status and quota count, is written after row
+// k−1's pickup schedule, as on the row path; only the profiles go before the
+// rows and the care profiles after them.
+func TestStudentEnrollmentBatchWritesEachMembershipInPlace(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	ctx := counter.Context(testpkg.Ctx(t))
+	result, err := module.Import.ImportBatches(ctx, importModels.ImportRequest[importModels.StudentImportRow]{
+		Rows: namedStudentBatch("Reihe", studentChunkRows), Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true,
+	}, importModels.BatchAudit{EntityType: "student", Filename: "order.csv", AccountID: actor.accountID})
+	require.NoError(t, err)
+	require.Equal(t, studentChunkRows, result.CreatedCount)
+	require.Equal(t, 1, commandCount((*module.Observations)[0], enrollmentProfilesCommand), "the batch path ran")
+	var sequence strings.Builder
+	for _, query := range counter.Queries() {
+		switch kind := statementKind(query); {
+		case strings.Contains(kind, "INSERT INTO users.student_school_memberships"):
+			sequence.WriteString("M")
+		case strings.HasPrefix(kind, "INSERT INTO schedule.student_pickup_schedules"):
+			sequence.WriteString("S")
+		}
+	}
+	require.Equal(t, strings.Repeat("MS", studentChunkRows), sequence.String(), "each membership right before its own row's schedule, after the previous row's")
+}
