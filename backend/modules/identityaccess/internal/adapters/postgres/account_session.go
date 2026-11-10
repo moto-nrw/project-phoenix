@@ -485,7 +485,11 @@ func (s *Store) DeleteAccountSessionsByTenant(ctx context.Context, tenantID int6
 	}
 	var rows []accountSessionRow
 	started := time.Now()
-	err = db.NewDelete().Model((*accountSessionRow)(nil)).Where(`"token".tenant_id = ?`, tenantID).Returning("*").Scan(ctx, &rows)
+	// auth.revoke_school_sessions locks the sessions' accounts, then the
+	// school, before it deletes (#6305): a refresh that rotates meanwhile
+	// loses its successor too, and no sign-in mints a session at the school
+	// until the caller commits. The caller deletes the school afterwards.
+	err = db.NewRaw(`SELECT * FROM auth.revoke_school_sessions(?)`, tenantID).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: delete account sessions by tenant: %w", err)
