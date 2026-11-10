@@ -347,7 +347,7 @@ const (
 	part.revenue_account, part.cost_center, part.cost_center_2, part.accounts_frozen
 FROM (
 	SELECT position.invoice_id AS document_id, 'care' AS kind, invoice.school_id, position.care_offering_id,
-		position.service_from AS day, position.amount_cents, position.revenue_account, position.cost_center,
+		position.service_from AS day, COALESCE(position.payable_cents, position.amount_cents) AS amount_cents, position.revenue_account, position.cost_center,
 		position.cost_center_2, position.accounts_frozen, 1 AS part_order, position.position
 	FROM parent_billing.care_invoice_positions AS position
 	JOIN parent_billing.care_invoices AS invoice

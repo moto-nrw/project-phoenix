@@ -400,10 +400,10 @@ const (
 	BookingPartHoliday = "holiday"
 )
 
-// ExportBookingPart is one position of an exported document: its amount and
-// where its release booked it. A position issued before #4821 has no
-// frozen accounts; its kind, school, Angebot and day let the export resolve
-// them.
+// ExportBookingPart is one position of an exported document: its payable
+// amount after position-specific reductions and where its release booked it.
+// A position issued before #4821 has no frozen accounts; its kind, school,
+// Angebot and day let the export resolve them.
 type ExportBookingPart struct {
 	Kind           string
 	SchoolID       int64

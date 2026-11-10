@@ -168,3 +168,52 @@ func TestIssuedPositionsKeepWhereTheyBook(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// Export weights retain the reductions of each care position, including a
+// fully waived position. Older positions without payable_cents keep their
+// original amount; Mensa amounts are unaffected.
+func TestExportBookingPartsKeepPositionReductions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newCareScope(t, db, "Träger Ermäßigungen")
+	store := NewStore()
+	rollback := errors.New("roll the reduced positions back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		scope = seedCareScope(t, ctx, tx, scope, "Träger Ermäßigungen")
+		// Adapt the issued fixture below its immutability triggers; production
+		// writes payable_cents when issuing the invoice.
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_meal_positions (organization_id, invoice_id, position,
+			school_id, student_id, meal_month, mode, quantity, unit_cents, amount_cents, net_cents)
+			SELECT organization_id, id, 1, school_id, 1, billing_month, 'flat', 1, 4000, 4000, 4000
+			FROM parent_billing.care_invoices WHERE organization_id = ? AND run_id = ?`, scope.organization, scope.released)
+		require.NoError(t, err)
+		for _, c := range []struct {
+			name    string
+			payable any
+			want    int64
+		}{
+			{"legacy", nil, 10000}, {"reduced", int64(5000), 5000}, {"waived", int64(0), 0},
+		} {
+			t.Run(c.name, func(t *testing.T) {
+				_, err := tx.ExecContext(ctx, `UPDATE parent_billing.care_invoice_positions
+					SET amount_cents = 10000, net_cents = 10000, payable_cents = ? WHERE organization_id = ?`, c.payable, scope.organization)
+				require.NoError(t, err)
+				content, err := store.ExportRunContent(ctx, scope.organization, parentbilling.DebitRunCare, scope.released)
+				require.NoError(t, err)
+				require.Len(t, content.Invoices, 1)
+				parts := content.Invoices[0].Parts
+				require.Len(t, parts, 2)
+				assert.Equal(t, c.want, parts[0].AmountCents, "care uses the position's payable amount")
+				assert.Equal(t, int64(4000), parts[1].AmountCents, "Mensa keeps its own amount")
+			})
+		}
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}

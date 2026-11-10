@@ -10,9 +10,10 @@ import (
 // cost centers of its positions, the same lines in the DATEV file and in a
 // Sollstellung that maps an account field. The lines of a document sum to
 // its total: the total is split by the weight of each group of positions,
-// so the reductions, corrections and cost shares of a monthly invoice,
-// which are no positions, fall on its groups in proportion. A rounding cent
-// goes to the group with the largest remainder, the earlier one on a tie.
+// using each care position after its reductions and cost shares. Any
+// remaining invoice-wide adjustment falls on its groups in proportion. A
+// rounding cent goes to the group with the largest remainder, the earlier
+// one on a tie.
 //
 // A position issued before #4821, or one its release found no revenue
 // account for, books on the values of the day of the export; the file

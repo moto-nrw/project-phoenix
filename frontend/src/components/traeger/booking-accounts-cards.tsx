@@ -288,10 +288,10 @@ function CostCenterState({
   const current = costCenterOn(timeline, today);
   const next = nextCostCenter(timeline, today);
   return (
-    <span className="flex flex-col gap-1">
+    <span className="flex max-w-full min-w-0 flex-col gap-1">
       {current?.code ? (
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm font-semibold text-gray-900">
+        <span className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
+          <span className="max-w-full min-w-0 font-mono text-sm font-semibold break-all text-gray-900">
             {current.code}
           </span>
           <span className="text-sm text-gray-600">
@@ -307,7 +307,9 @@ function CostCenterState({
         <span className="text-sm text-gray-600">
           Ab {formatDate(next.validFrom)}:{" "}
           {next.code ? (
-            <span className="font-mono text-gray-900">{next.code}</span>
+            <span className="font-mono break-all text-gray-900">
+              {next.code}
+            </span>
           ) : (
             "keine Kostenstelle mehr"
           )}
@@ -415,50 +417,48 @@ function CostCenterRow({
   const timeline = costCenterTimeline(page.costCenters, scope, scopeId);
   const label = scope === "offering" ? "KOST2" : "KOST1";
   return (
-    <li className="py-3 first:pt-0 last:pb-0 sm:col-span-2">
-      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-        <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
-          <div className="min-w-0 sm:w-64">
-            <p className="text-sm font-semibold text-gray-900">{title}</p>
-            <p className="mt-0.5 text-sm text-gray-600">{hint}</p>
-          </div>
-          <div className="flex flex-col items-start gap-1">
-            <CostCenterState
-              timeline={timeline}
-              today={today}
-              required={required}
-            />
-            {timeline.length > 0 ? (
-              <Button
-                type="button"
-                variant="link"
-                size="compact"
-                aria-expanded={history}
-                aria-label={`Verlauf der Kostenstellen für ${title}`}
-                onClick={() => setHistory((shown) => !shown)}
-              >
-                {history
-                  ? "Verlauf ausblenden"
-                  : `Verlauf ansehen (${timeline.length})`}
-              </Button>
-            ) : null}
-          </div>
+    <li className={ROW}>
+      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-6">
+        <div className="min-w-0 sm:w-64">
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          <p className="mt-0.5 text-sm text-gray-600">{hint}</p>
         </div>
-        <div className={ACTIONS}>
-          <Button
-            type="button"
-            variant="surface"
-            size="compact"
-            aria-label={`Neue ${label} für ${title}`}
-            disabled={adding}
-            onClick={() => setAdding(true)}
-          >
-            Neue Kostenstelle
-          </Button>
+        <div className="flex max-w-full min-w-0 flex-col items-start gap-1">
+          <CostCenterState
+            timeline={timeline}
+            today={today}
+            required={required}
+          />
+          {timeline.length > 0 ? (
+            <Button
+              type="button"
+              variant="link"
+              size="compact"
+              aria-expanded={history}
+              aria-label={`Verlauf der Kostenstellen für ${title}`}
+              onClick={() => setHistory((shown) => !shown)}
+            >
+              {history
+                ? "Verlauf ausblenden"
+                : `Verlauf ansehen (${timeline.length})`}
+            </Button>
+          ) : null}
         </div>
       </div>
+      <div className={ACTIONS}>
+        <Button
+          type="button"
+          variant="surface"
+          size="compact"
+          aria-label={`Neue ${label} für ${title}`}
+          disabled={adding}
+          onClick={() => setAdding(true)}
+        >
+          Neue Kostenstelle
+        </Button>
+      </div>
       {adding ? (
-        <div className="mt-3">
+        <div className="mt-3 sm:col-span-2">
           <CostCenterForm
             title={title}
             today={today}
@@ -471,7 +471,7 @@ function CostCenterRow({
         </div>
       ) : null}
       {history && timeline.length > 0 ? (
-        <InsetPanel padding="sm" className="mt-3">
+        <InsetPanel padding="sm" className="mt-3 min-w-0 sm:col-span-2">
           <ol
             className="divide-y divide-gray-100"
             aria-label={`Verlauf für ${title}`}
@@ -486,7 +486,7 @@ function CostCenterRow({
                     ab {formatDate(center.validFrom)}
                   </span>
                   {center.code ? (
-                    <span className="font-mono text-gray-900">
+                    <span className="max-w-full min-w-0 font-mono break-all text-gray-900">
                       {center.code}
                     </span>
                   ) : (
@@ -631,7 +631,7 @@ export function CostCentersCard({
           Angebote stehen hier, sobald sie einen Preis haben.
         </p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ResponsiveActionList>
           {rows.map((row) => (
             <CostCenterRow
               key={row.key}
@@ -646,7 +646,7 @@ export function CostCentersCard({
               onDelete={(center, title) => setDeleting({ center, title })}
             />
           ))}
-        </ul>
+        </ResponsiveActionList>
       )}
       <ConfirmDeleteModal
         isOpen={deleting !== null}
