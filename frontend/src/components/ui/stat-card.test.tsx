@@ -166,6 +166,13 @@ describe("StatCard", () => {
       expect(statLink).toHaveClass("focus-visible:outline-moto-blue");
     });
 
+    it("zeigt den Zeiger für beide klickbaren Karten", () => {
+      const { statLink, tileLink } = renderBoth();
+
+      expect(statLink).toHaveClass("cursor-pointer");
+      expect(tileLink).toHaveClass("cursor-pointer");
+    });
+
     it("hebt sich beim Überfahren wie TileCard, ohne eigenes Verschieben", () => {
       const { statLink } = renderBoth();
       const surface = statLink.firstElementChild as Element;
