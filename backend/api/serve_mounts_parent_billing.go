@@ -68,7 +68,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/billing-document-kinds", documentKinds.Router(ProtectedTraegerRoutes))
-	billingFamilies, financeExports := parentBillingCompose.NewBillingFamilies(parentBillingLetterPost{delivery: delivery})
+	billingFamilies, financeExports := parentBillingCompose.NewBillingFamilies(parentBillingLetterPost{delivery: delivery}, parentBillingSettings{settings: settings})
 	families := parentBillingHTTP.NewBillingFamilyResource(billingFamilies, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
 	care, reductions, meals, familyChildren := NewCareBillingHTTP(organizations, settings, schoolSettings, marks, delivery, outcomes)

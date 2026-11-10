@@ -3,6 +3,7 @@ package parentbilling
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -18,14 +19,16 @@ import (
 // and name one file each. A repeated download is a new file with a new
 // number; the content hash or, for PAIN.008, its stable collection ID
 // identifies an earlier export of the same content. The Sollstellung is the general CSV whose columns the Träger maps;
-// the PAIN.008 file of the direct debits records itself here too (ADR 0181).
-// Further formats (DATEV #4694, CIP/SIMBA #4698) add a format constant and
-// record their file through FinanceExportLog.
+// the PAIN.008 file of the direct debits records itself here too (ADR 0181),
+// and so does the DATEV booking batch of a run (#4694). Further formats
+// (CIP/SIMBA #4698) add a format constant and record their file the same way.
 
 // Formats of the export protocol.
 const (
 	ExportFormatSollstellung = "sollstellung"
 	ExportFormatPain008      = "pain008"
+	// ExportFormatDatev is the DATEV booking batch (EXTF Buchungsstapel).
+	ExportFormatDatev = "datev"
 )
 
 // Fields a column of the Sollstellung can take.
@@ -97,6 +100,54 @@ var (
 	ErrExportInvoiceNotFound = errors.New("no invoice of the Träger")
 )
 
+// DatevNotReadyError refuses a DATEV file while the settings of the Träger
+// make no valid batch; it names the keys, never their values.
+type DatevNotReadyError struct {
+	Readiness DatevReadiness
+}
+
+func (e *DatevNotReadyError) Error() string {
+	return "the DATEV settings of the Träger are incomplete"
+}
+
+// DatevBookingProblem is a document of the run DATEV would refuse: its
+// number, the field (DatevBookingAccount, DatevBookingDate, …) and why.
+type DatevBookingProblem struct {
+	DocumentNumber string `json:"document_number"`
+	Field          string `json:"field"`
+	Reason         string `json:"reason"`
+}
+
+// Fields of a DatevBookingProblem.
+const (
+	// DatevBookingAccount is the debtor number of the family.
+	DatevBookingAccount = "debtor_number"
+	// DatevBookingDate is the date of the document, outside the fiscal
+	// year of the batch.
+	DatevBookingDate = "document_date"
+	// DatevBookingNumber is the number of the document.
+	DatevBookingNumber = "document_number"
+	// DatevBookingAmount is the amount of the document.
+	DatevBookingAmount = "amount"
+)
+
+// Reasons of a DatevBookingProblem.
+const (
+	DatevProblemMissing     = "missing"
+	DatevProblemInvalid     = "invalid"
+	DatevProblemOutOfPeriod = "out_of_period"
+)
+
+// DatevBookingsError refuses a DATEV file with documents DATEV would
+// refuse; no file number is taken.
+type DatevBookingsError struct {
+	Problems []DatevBookingProblem
+}
+
+func (e *DatevBookingsError) Error() string {
+	return fmt.Sprintf("%d documents of the run make no valid DATEV booking", len(e.Problems))
+}
+
 // SollstellungColumn is one column of the file: the field it takes, its
 // header, and the value of a constant column.
 type SollstellungColumn struct {
@@ -155,10 +206,12 @@ type ExportFileNumbers struct {
 	Started bool  `json:"started"`
 }
 
-// ExportSettings is what the export settings page shows.
+// ExportSettings is what the export settings page shows. Datev says
+// whether the DATEV settings of the Träger make a valid batch.
 type ExportSettings struct {
 	Sollstellung SollstellungSettings `json:"sollstellung"`
 	FileNumbers  ExportFileNumbers    `json:"file_numbers"`
+	Datev        DatevReadiness       `json:"datev"`
 }
 
 // ExportProtocolEntry is one entry of the export protocol.
@@ -199,9 +252,11 @@ type ExportRun struct {
 	IssuedOn     calendar.Date `json:"issued_on"`
 	InvoiceCount int           `json:"invoice_count"`
 	TotalCents   int64         `json:"total_cents"`
-	// LastSollstellung is the newest Sollstellung of the run, nil before
-	// the first; Exports counts every file of the run.
+	// LastSollstellung and LastDatev are the newest Sollstellung and DATEV
+	// batch of the run, nil before the first; Exports counts every file of
+	// the run.
 	LastSollstellung *ExportProtocolEntry `json:"last_sollstellung"`
+	LastDatev        *ExportProtocolEntry `json:"last_datev"`
 	Exports          int                  `json:"exports"`
 }
 
@@ -335,8 +390,9 @@ type InvoiceHistory struct {
 
 // FinanceExports lets a person with the Träger right "Finanz-Export" set
 // the field mapping and the start of the file numbers, list the released
-// runs with their exports and the protocol, and download the Sollstellung of
-// a run; with the right "Abrechnung" it reads the history of an invoice.
+// runs with their exports and the protocol, and download the Sollstellung or
+// the DATEV booking batch of a run; with the right "Abrechnung" it reads the
+// history of an invoice.
 // Every operation runs in the Träger transaction of the reviewer's Träger,
 // which the caller opens and rolls back when an operation fails.
 type FinanceExports interface {
@@ -347,6 +403,7 @@ type FinanceExports interface {
 	ExportRuns(ctx context.Context, reviewer HolidayReviewer, page ExportPage) (ExportRunPage, error)
 	ExportProtocol(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64, page ExportPage) (ExportProtocolPage, error)
 	SollstellungFile(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64) (ExportedFile, error)
+	DatevFile(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64) (ExportedFile, error)
 	InvoiceHistory(ctx context.Context, reviewer HolidayReviewer, kind string, id int64) (InvoiceHistory, error)
 }
 

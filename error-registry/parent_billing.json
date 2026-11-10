@@ -639,6 +639,18 @@
       "legacy": "parent_billing.export_run_empty"
     },
     {
+      "code": "parent_billing.datev_not_ready",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.datev_not_ready"
+    },
+    {
+      "code": "parent_billing.datev_bookings_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.datev_bookings_invalid"
+    },
+    {
       "code": "parent_billing.export_file_number_start_locked",
       "class": "business_rejection",
       "parameters": [],

@@ -103,6 +103,8 @@
   "sepa_import_changed": "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann.",
   "export_run_not_found": "Diesen Lauf gibt es nicht oder er ist noch nicht ausgestellt. Laden Sie die Seite neu.",
   "export_run_empty": "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
+  "datev_not_ready": "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
+  "datev_bookings_invalid": "Einige Rechnungen passen nicht in die DATEV-Datei. Bitte prüfen Sie die genannten Rechnungen.",
   "export_file_number_start_locked": "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
   "export_invoice_not_found": "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
   "export_mapping_invalid": "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",

@@ -39,7 +39,7 @@ func TestExportListsNameTheirNextPageUntilTheEnd(t *testing.T) {
 	size := parentbilling.ExportPageSize
 	for _, total := range []int{0, 1, size, size + 1, 2*size + 7} {
 		var offset, limit int
-		exports := NewFinanceExports(pageStore{total: total, offset: &offset, limit: &limit}, runPost{})
+		exports := newFinanceExportsForTest(pageStore{total: total, offset: &offset, limit: &limit}, runPost{})
 		read, page := 0, parentbilling.ExportPage{}
 		for pages := 0; ; pages++ {
 			require.Less(t, pages, 10, "total %d", total)

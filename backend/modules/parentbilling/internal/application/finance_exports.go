@@ -11,6 +11,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The finance exports of a Träger (#4693): settings, runs, protocol,
@@ -54,16 +55,20 @@ type FinanceExportStore interface {
 type FinanceExports struct {
 	store FinanceExportStore
 	post  parentbilling.InvoiceHistoryPost
+	datev *datevExport
 }
 
 var _ parentbilling.FinanceExports = (*FinanceExports)(nil)
 
-// NewFinanceExports builds the finance exports.
-func NewFinanceExports(store FinanceExportStore, post parentbilling.InvoiceHistoryPost) *FinanceExports {
+// NewFinanceExports builds the finance exports over the DATEV settings of
+// the Träger, which the DATEV booking batch (#4694) and its check read.
+func NewFinanceExports(store FinanceExportStore, post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings,
+	today func() calendar.Date, now func() time.Time,
+) *FinanceExports {
 	if store == nil || post == nil {
 		panic("parent billing: the export store and mail states are required")
 	}
-	return &FinanceExports{store: store, post: post}
+	return &FinanceExports{store: store, post: post, datev: newDatevExport(datev, today, now)}
 }
 
 // exportFile is a file about to leave moto: its content and the invoices.
@@ -117,7 +122,8 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 	return entry, data, nil
 }
 
-// ExportSettings answers the mapping and the file numbers of the Träger.
+// ExportSettings answers the mapping, the file numbers of the Träger and
+// whether its DATEV settings make a valid batch.
 func (f *FinanceExports) ExportSettings(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.ExportSettings, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.ExportSettings{}, err
@@ -134,7 +140,11 @@ func (f *FinanceExports) ExportSettings(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	return parentbilling.ExportSettings{Sollstellung: soll, FileNumbers: numbers}, nil
+	datev, err := f.datev.DatevReadiness(ctx, reviewer)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	return parentbilling.ExportSettings{Sollstellung: soll, FileNumbers: numbers, Datev: datev}, nil
 }
 
 // sollstellung reads the stored mapping, the default without one.
@@ -186,12 +196,7 @@ func (f *FinanceExports) ResetSollstellungMapping(ctx context.Context, reviewer 
 	if err := f.store.DeleteExportMapping(ctx, reviewer.OrganizationID, parentbilling.ExportFormatSollstellung); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	numbers, err := f.store.ExportFileNumbers(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.ExportSettings{}, err
-	}
-	return parentbilling.ExportSettings{Sollstellung: parentbilling.SollstellungSettings{Mapping: parentbilling.DefaultSollstellungMapping()},
-		FileNumbers: numbers}, nil
+	return f.ExportSettings(ctx, reviewer)
 }
 
 // SetExportFileNumberStart sets the number of the first file once, so the
@@ -207,15 +212,7 @@ func (f *FinanceExports) SetExportFileNumberStart(ctx context.Context, reviewer 
 	if err := f.store.StartExportFileNumbers(ctx, reviewer.OrganizationID, start); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	soll, err := f.sollstellung(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.ExportSettings{}, err
-	}
-	numbers, err := f.store.ExportFileNumbers(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.ExportSettings{}, err
-	}
-	return parentbilling.ExportSettings{Sollstellung: soll, FileNumbers: numbers}, nil
+	return f.ExportSettings(ctx, reviewer)
 }
 
 // ExportRuns reads one page of the released runs with their exports.
@@ -230,8 +227,10 @@ func (f *FinanceExports) ExportRuns(ctx context.Context, reviewer parentbilling.
 		return parentbilling.ExportRunPage{}, err
 	}
 	for i := range runs.Runs {
-		if last := runs.Runs[i].LastSollstellung; last != nil {
-			last.ExportedByYou = byAccount(last.ExportedBy, reviewer.AccountID)
+		for _, last := range []*parentbilling.ExportProtocolEntry{runs.Runs[i].LastSollstellung, runs.Runs[i].LastDatev} {
+			if last != nil {
+				last.ExportedByYou = byAccount(last.ExportedBy, reviewer.AccountID)
+			}
 		}
 	}
 	runs.NextOffset = nextOffset(offset, len(runs.Runs), runs.Total)
