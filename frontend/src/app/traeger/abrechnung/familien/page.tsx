@@ -130,6 +130,26 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
         </span>
       );
     },
+    // On a phone one line under the name: the pills name who pays, the
+    // payment method follows beside them; a family without both drops it.
+    stackedLabel: false,
+    stackedRender: (family) => {
+      const method = paymentMethodsText(family.paymentMethods);
+      if (family.payments.length === 0 && !method) return null;
+      return (
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          {family.payments.map((payment) => (
+            <StatusBadge
+              key={`${payment.kind}-${payment.costBearerName}`}
+              label={paymentLabel(payment)}
+              tone={PAYMENT_TONES[payment.kind]}
+              truncate
+            />
+          ))}
+          {method ? <span className="text-gray-600">{method}</span> : null}
+        </span>
+      );
+    },
   },
   {
     key: "issued",
