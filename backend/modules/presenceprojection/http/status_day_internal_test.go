@@ -166,6 +166,28 @@ func TestResolveDayPlanningActualAttendanceOverridesStatusDays(t *testing.T) {
 	assert.Equal(t, dayPlanningReasonUnplanned, reason)
 }
 
+// #6407 decision A: a checked-in child keeps its planned pickup despite a sick
+// note, so the list shows "Abholplan heute", not "ungeplant anwesend".
+func TestResolveDayPlanningCheckedInSickChildKeepsPlannedPickup(t *testing.T) {
+	t.Parallel()
+
+	checkInTime := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
+	pickupTime := time.Date(2026, 5, 25, 15, 30, 0, 0, time.UTC)
+
+	status, reason, label := resolveDayPlanningForDate(
+		StudentResponse{ID: 90, Sick: true},
+		nil,
+		&careplan.EffectivePickupTime{PickupTime: &pickupTime},
+		&studentpresence.DailyAttendanceStatus{Status: "checked_in", CheckInTime: &checkInTime},
+		map[int64]struct{}{},
+		true,
+	)
+
+	assert.Equal(t, DayPlanningStatusComesToday, status)
+	assert.Equal(t, dayPlanningReasonPickupSchedule, reason)
+	assert.Equal(t, "Abholplan heute", label)
+}
+
 type StatusDayRepositoryStub struct {
 	upsertErr           error
 	clearForDatesErr    error

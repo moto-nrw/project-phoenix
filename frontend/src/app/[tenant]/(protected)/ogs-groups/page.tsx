@@ -760,6 +760,7 @@ function OGSGroupPageContent() {
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
+          currentLocation: a.current_location,
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
@@ -768,6 +769,7 @@ function OGSGroupPageContent() {
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
+          currentLocation: b.current_location,
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -806,6 +808,7 @@ function OGSGroupPageContent() {
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
+          currentLocation: a.current_location,
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
@@ -816,6 +819,7 @@ function OGSGroupPageContent() {
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
+          currentLocation: b.current_location,
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -993,6 +997,7 @@ function OGSGroupPageContent() {
           sick: student.sick,
           classTrip: student.class_trip,
           excused: student.excused,
+          currentLocation: student.current_location,
         })?.label ?? getDayPlanningNotComingLabel(student);
       return absenceLabel
         ? { ...result, absence: { label: absenceLabel, note: pickupNote } }
@@ -1168,6 +1173,7 @@ function OGSGroupPageContent() {
                 sick: student.sick,
                 classTrip: student.class_trip,
                 excused: student.excused,
+                currentLocation: student.current_location,
               });
 
               const checkinState = deriveCheckinState(student.current_location);
