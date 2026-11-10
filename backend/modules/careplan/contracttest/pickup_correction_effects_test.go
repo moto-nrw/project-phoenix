@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
@@ -316,27 +315,4 @@ func TestPickupCorrectionDoesNotFallBackToAnOlderGeneration(t *testing.T) {
 	}))
 	require.ErrorContains(t, correctPickup(ctx, t, f, row, false), "cannot be corrected")
 	assertCorrectionEffects(t, f, date, slotID, true)
-}
-
-func TestPickupCorrectionRequiresExcusalForAutomaticAbsence(t *testing.T) {
-	t.Parallel()
-	f, date, slotID := pickupCorrectionFixture(t)
-	ctx := correctionContext(t, f)
-	row := correctionRequest(t, f, date, true)
-	b := &correctionBoundary{allowed: true, decisionBoundary: decisionBoundary{student: compose.ReviewStudent{ID: f.chain.StudentID}}}
-	service, err := compose.NewRequestCorrections(compose.RequestCorrectionDependencies{
-		Records: f.reposCare.CarePlan(), People: b, Plans: b, Effects: b,
-	})
-	require.NoError(t, err)
-	err = testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var err error
-		b.history, err = owners.NewParentRequestLedger(f.reposPeople.ParentRequestEvent).CorrectionHistory(txCtx, &row)
-		if err != nil {
-			return err
-		}
-		return service.Correct(txCtx, row.ID, false, careplan.ParentRequestVersion(row.UpdatedAt), "Korrektur", f.staffAccount)
-	})
-	require.ErrorContains(t, err, "pickup auto excusal not configured")
-	assertCorrectionEffects(t, f, date, slotID, true)
-	assert.Equal(t, row, currentCorrectionRequest(t, f, row.ID))
 }

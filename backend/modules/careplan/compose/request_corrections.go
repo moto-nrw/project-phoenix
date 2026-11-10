@@ -10,19 +10,17 @@ import (
 )
 
 type RequestCorrectionEvent = ports.RequestCorrectionEvent
-
 type RequestCorrectionDependencies struct {
 	Records careRecordPorts.RequestCorrectionRecords
 	People  ports.RequestCorrectionPeople
 	Plans   ports.RequestCorrectionPlans
 	Effects ports.RequestCorrectionEffects
-	// Excusal is required when reversing an automatically excused pickup.
 	Excusal ports.RequestCorrectionExcusal
 }
 
 func NewRequestCorrections(deps RequestCorrectionDependencies) (carerequests.Corrections, error) {
-	if deps.Records == nil || deps.People == nil || deps.Plans == nil || deps.Effects == nil {
-		return nil, errors.New("care request corrections: records, people, plans, and effects are required")
+	if deps.Records == nil || deps.People == nil || deps.Plans == nil || deps.Effects == nil || deps.Excusal == nil {
+		return nil, errors.New("care request corrections: records, people, plans, effects, and excusal are required")
 	}
 	return &application.RequestCorrections{Records: application.RequestCorrectionRecordsAdapter{RequestCorrectionRecords: deps.Records}, People: deps.People, Plans: deps.Plans, Effects: deps.Effects, Excusal: deps.Excusal}, nil
 }

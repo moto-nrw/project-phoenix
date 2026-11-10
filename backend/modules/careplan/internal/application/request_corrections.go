@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -138,9 +137,6 @@ func (s *RequestCorrections) revertPickupException(ctx context.Context, request 
 		return fmt.Errorf("%w: die Abholzeit am %s wurde nach der Entscheidung geändert", careplan.ErrParentRequestCorrectionUnsupported, row.ExceptionDate.Format("02.01.2006"))
 	}
 	if row.ExcusedAuto {
-		if s.Excusal == nil {
-			return errors.New("schedule: pickup auto excusal not configured")
-		}
 		if err := s.Excusal.ReleaseBeforeDelete(ctx, row); err != nil {
 			return err
 		}
