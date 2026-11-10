@@ -219,6 +219,13 @@ const (
 	classOwnerControl    matrixClass = "K4 owner savepoint statement"
 	classResolverRead    matrixClass = "K5 resolver read"
 	classResolverControl matrixClass = "K5 resolver savepoint statement"
+	// classBoundControl sets or resets a bound: not the batch command, so a
+	// failure behaves as the row path's first write (table A: R for 40P01
+	// and 40001, otherwise 500) and a failed cleanup after it ends the upload
+	// (E19). The recording keeps the last statement of each kind, so the
+	// second bound (consents and consent history, #5552 step 5b) stands for
+	// both.
+	classBoundControl matrixClass = "bound set or reset"
 )
 
 // cleanupPoints are the savepoint cleanup statements a failure of the class
@@ -230,6 +237,7 @@ var cleanupPoints = map[matrixClass][]int{
 	classOwnerControl:    {1, 2, outerRollback},       // the chunk's
 	classResolverRead:    {1, 2, outerRollback},       // the read's
 	classResolverControl: {1, 2, outerRollback},       // the chunk's
+	classBoundControl:    {1, 2, outerRollback},       // the chunk's
 }
 
 // matrixStatement is one statement of the chunk in the recording.
@@ -264,6 +272,12 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 	last := map[key]matrixStatement{}
 	occurrence := map[string]int{}
 	var order []key
+	recordStatement := func(k key, statement matrixStatement) {
+		if _, seen := last[k]; !seen {
+			order = append(order, k)
+		}
+		last[k] = statement
+	}
 	depth, phase, group := 0, "", ""
 	for i, query := range batch {
 		query = strings.TrimSpace(query)
@@ -285,9 +299,11 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 			phase = "done" // the chunk's own release ends it
 		case strings.HasPrefix(query, boundSet):
 			phase = "bound"
+			recordStatement(key{classBoundControl, kind}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1})
 			continue
 		case strings.HasPrefix(query, boundReset):
 			phase = "command"
+			recordStatement(key{classBoundControl, kind}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1})
 			continue
 		}
 		if phase == "done" {
@@ -319,23 +335,19 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		if phase != "resolve" {
 			occurrence[kind]++
 		}
-		k := key{class, kind}
-		if _, seen := last[k]; !seen {
-			order = append(order, k)
-		}
 		statement := matrixStatement{kind: kind, index: i, class: class, row: occurrence[kind]}
 		if class == classOwner {
 			statement.group = group
 		}
-		last[k] = statement
+		recordStatement(key{class, kind}, statement)
 	}
 	require.Equal(t, "done", phase, "the recording holds a whole batch attempt")
 	statements := make([]matrixStatement, 0, len(order))
 	for _, k := range order {
 		statement := last[k]
 		switch k.class {
-		case classResolverRead, classResolverControl:
-			statement.row = -1 // the row path has no resolver read
+		case classResolverRead, classResolverControl, classBoundControl:
+			statement.row = -1 // the row path has no resolver read and no bound
 		default:
 			statement.row = rowPathIndex(t, rowPath, firstPerson, statement.kind, statement.row)
 		}
@@ -476,6 +488,18 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 						require.Zero(t, batch.replays)
 						return
 					case classResolverControl:
+						requireLost(t, batch)
+						return
+					case classBoundControl:
+						// As the row path's first write: 40P01 and 40001 retry the
+						// chunk transaction, which then succeeds; anything else ends
+						// the upload. Never a replay.
+						require.Zero(t, batch.replays, "a bound statement is not the batch command")
+						if errors.Is(err, injectedSQLState("40P01")) || errors.Is(err, injectedSQLState("40001")) {
+							requireSameEnd(t, clean, batch)
+							require.Equal(t, 1, batch.retries)
+							return
+						}
 						requireLost(t, batch)
 						return
 					}
