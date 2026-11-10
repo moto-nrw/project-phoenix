@@ -1,13 +1,16 @@
 "use client";
 
 import {
-  lazy,
-  Suspense,
+  useEffect,
+  useState,
   type ComponentType,
   type CSSProperties,
   type ReactNode,
 } from "react";
 
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { unavailableApiError } from "~/lib/api-error";
 import {
   HOME_BOARD_COLUMNS,
   computeBoardCells,
@@ -97,24 +100,6 @@ function loadEditor(): Promise<EditorModule> {
 }
 
 /**
- * Ist das Modul schon geladen, bekommt `lazy` ein Thenable, das sofort
- * erfüllt: React zeichnet den Editor dann im selben Durchgang, statt einen
- * Moment lang den Platzhalter zu zeigen. Sonst wartet `lazy` auf den Abruf.
- */
-function editorThenable(): PromiseLike<EditorModule> {
-  const loaded = loadedEditor;
-  if (!loaded) return loadEditor();
-  return {
-    then: (onFulfilled) => {
-      onFulfilled?.(loaded);
-      return Promise.resolve() as never;
-    },
-  };
-}
-
-const HomeBoardEditor = lazy(editorThenable as () => Promise<EditorModule>);
-
-/**
  * Lädt das Anpassen vorab, etwa wenn der Zeiger auf „Anpassen“ liegt oder
  * der Knopf den Fokus bekommt. Ein gescheitertes Vorladen ist harmlos: das
  * Öffnen lädt erneut und meldet seinen eigenen Fehler.
@@ -127,6 +112,38 @@ export function preloadHomeBoardEditor(): Promise<void> {
 }
 
 export function HomeBoard({ editing, ...props }: HomeBoardProps) {
+  const [editor, setEditor] = useState<EditorModule | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const { error: loadError, show, clear } = useApiLoadError();
+  const Editor = (loadedEditor ?? editor)?.default;
+
+  useEffect(() => {
+    clear();
+    if (!editing || Editor) return;
+    let cancelled = false;
+    // Erst nach erfolgreichem Import einhängen: React.lazy würde eine
+    // Ablehnung dauerhaft speichern und auch nach Wiederholen werfen.
+    void loadEditor().then(
+      (module) => {
+        if (!cancelled) setEditor(module);
+      },
+      (error: unknown) => {
+        if (!cancelled) {
+          void show(unavailableApiError(error), {
+            object: "das Anpassen der Startseite",
+            retry: () => setAttempt((current) => current + 1),
+          });
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+      clear();
+    };
+  }, [editing, Editor, attempt, show, clear]);
+
+  if (editing && Editor) return <Editor {...props} />;
+
   const grid = (
     <HomeBoardGrid placements={props.placements}>
       {props.children}
@@ -136,9 +153,10 @@ export function HomeBoard({ editing, ...props }: HomeBoardProps) {
   // Bis das Anpassen geladen ist, bleibt die Leseansicht stehen: kein
   // Ladekreis und kein Sprung, die Kacheln wechseln an derselben Stelle.
   return (
-    <Suspense fallback={grid}>
-      <HomeBoardEditor {...props} />
-    </Suspense>
+    <>
+      <LoadErrorAlert error={loadError} className="mb-4" />
+      {grid}
+    </>
   );
 }
 

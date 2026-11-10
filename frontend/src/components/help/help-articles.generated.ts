@@ -975,6 +975,9 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
       "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
+    troubleshootingDetails: [
+      "Das Anpassen der Startseite lädt nicht? Ihre Karten bleiben lesbar. Wählen Sie bei der Fehlermeldung `Wiederholen`.",
+    ],
     notes: [
       "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein Kind, das da ist, zählt immer bei `Anwesend`, auch mit Krankmeldung.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
