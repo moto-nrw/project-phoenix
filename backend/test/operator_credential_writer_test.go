@@ -36,9 +36,9 @@ import (
 //
 // The rule itself is enforced at run time by the database for every writer:
 // the trigger platform.operator_credential_moves_generation (migration
-// 1.15.877) refuses a password change that does not move the generation on,
+// 1.15.882) refuses a password change that does not move the generation on,
 // tested in
-// database/migrations/001015877_operator_credential_generation_binding_test.go.
+// database/migrations/001015882_operator_credential_generation_binding_test.go.
 const operatorCredentialWriter = "modules/identityaccess/internal/adapters/postgres/operator_credential.go:(*Store).WriteOperatorCredential"
 
 // operatorCredentialStatement matches raw SQL that updates platform.operators,

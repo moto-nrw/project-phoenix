@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const operatorCredentialGenerationBindingVersion = "1.15.877"
+const operatorCredentialGenerationBindingVersion = "1.15.882"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
