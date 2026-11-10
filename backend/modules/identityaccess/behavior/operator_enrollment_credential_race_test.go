@@ -60,7 +60,7 @@ func (f operatorCredentialFixture) assertStaleExchangeRefused(t *testing.T, proo
 	_, _, err := f.module.Auth.IssueTokensForAuthenticatedOperator(ctx, f.operatorID, &proof.CredentialGeneration, operatorCredentialIP, "ua-test")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials, "the old proof mints no session")
 	cookie, _, err := f.module.OperatorMFA.IssueOperatorTrustedDevice(ctx, proof, "Mozilla/5.0 (Test)", net.ParseIP(operatorCredentialIP))
-	require.Error(t, err, "the old proof remembers no device")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials, "the old proof remembers no device")
 	assert.Empty(t, cookie)
 }
 

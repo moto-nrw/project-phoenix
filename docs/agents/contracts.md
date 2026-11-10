@@ -927,12 +927,12 @@ trigger `platform.operator_credential_moves_generation`, and the sign-in's
 generation in the enrollment and challenge tokens, the code rows and the
 remembered devices, compared under the operator lock at issue, redemption,
 the enrollment confirm's enrollment write (#6459), the exchange's session mint
-and the device it remembers. The exchange takes
-the redeemed code's `OperatorMFAProof`; a passkey sign-in checks no password
-and binds nothing. Operators start at generation 1: codes, devices and tokens
-from before the binding stand at 0 and are refused. A refused mint, resend or
-enrollment start answers 401 `identity.invalid_credentials`, as on the account
-portals; a code of an older password 401 `identity.mfa_code_invalid`.
+and the device it remembers. The exchange takes the redeemed code's
+`OperatorMFAProof`; a passkey sign-in checks no password and binds nothing.
+Operators start at generation 1: codes, devices and tokens from before the
+binding stand at 0 and are refused. A refused mint, resend, enrollment start
+or enrollment confirm answers 401 `identity.invalid_credentials`, as on the
+account portals; a code of an older password 401 `identity.mfa_code_invalid`.
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its

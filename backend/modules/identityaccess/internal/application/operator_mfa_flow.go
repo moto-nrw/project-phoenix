@@ -344,12 +344,8 @@ func (f *OperatorMFAFlows) handleFailedAttempt(ctx context.Context, operator dom
 func (f *OperatorMFAFlows) Enroll(ctx context.Context, proof identityaccess.OperatorMFAProof) error {
 	operatorID := proof.OperatorID
 	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := f.operators.findOperatorForUpdate(txCtx, operatorID)
-		if err != nil {
+		if err := f.holdProof(txCtx, proof); err != nil {
 			return err
-		}
-		if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
-			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		existing, found, _ := f.findCredential(txCtx, operatorID)
 		if found && existing.ID > 0 {
@@ -364,6 +360,20 @@ func (f *OperatorMFAFlows) Enroll(ctx context.Context, proof identityaccess.Oper
 		}
 		return f.recordAudit(txCtx, operatorID, domain.OperatorAuditActionMFAEnrolled, nil, nil, nil)
 	})
+}
+
+// holdProof takes the operator lock a password write takes and refuses a
+// proof whose credential generation the operator no longer holds. The caller
+// writes in the same transaction, so check and write commit together.
+func (f *OperatorMFAFlows) holdProof(txCtx context.Context, proof identityaccess.OperatorMFAProof) error {
+	operator, err := f.operators.findOperatorForUpdate(txCtx, proof.OperatorID)
+	if err != nil {
+		return err
+	}
+	if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
+		return identityaccess.ErrOperatorInvalidCredentials
+	}
+	return nil
 }
 
 // Disable wipes the enrollment, revokes every trusted device and resets the
@@ -417,12 +427,8 @@ func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, proof identit
 		device.UserAgent = &label
 	}
 	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		operator, err := f.operators.findOperatorForUpdate(txCtx, operatorID)
-		if err != nil {
+		if err := f.holdProof(txCtx, proof); err != nil {
 			return err
-		}
-		if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
-			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		stored, err := f.records.CreateTrustedDevice(txCtx, device)
 		if err != nil {

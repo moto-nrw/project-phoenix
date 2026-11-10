@@ -303,11 +303,11 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	assert.Equal(t, "op-refresh", body.Data.RefreshToken)
 }
 
-// TestOperatorMFAEnrollConfirm_StaleCredentialEnrollsAndMintsNothing: the
+// TestOperatorMFAEnrollConfirm_StaleCredentialRecordsAndMintsNothing: the
 // confirm hands the enrollment the generation its enrollment token names
 // (#6459). When a password change committed since, the enrollment refuses,
 // the confirm answers 401 identity.invalid_credentials and mints nothing.
-func TestOperatorMFAEnrollConfirm_StaleCredentialEnrollsAndMintsNothing(t *testing.T) {
+func TestOperatorMFAEnrollConfirm_StaleCredentialRecordsAndMintsNothing(t *testing.T) {
 	t.Parallel()
 
 	var enrolled identityaccess.OperatorMFAProof
