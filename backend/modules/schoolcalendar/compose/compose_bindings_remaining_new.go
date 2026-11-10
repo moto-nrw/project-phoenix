@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 )
 
-// NewTraegerClosingDays builds a Träger's closing days (#4702) in its Träger transaction (ADR 0105) over its schools.
-func NewTraegerClosingDays(schools traegercalendar.Schools) traegercalendar.ClosingDays {
-	return application.NewTraegerClosingDays(postgres.NewTraegerClosingDayStore(), schools)
+// NewTraegerClosingDays builds a Träger's closing days (#4702) in its Träger transaction (ADR 0105) over its schools; notices tells the parents of affected holiday bookings (#6434).
+func NewTraegerClosingDays(schools traegercalendar.Schools, notices traegercalendar.HolidayNotices) traegercalendar.ClosingDays {
+	return application.NewTraegerClosingDays(postgres.NewTraegerClosingDayStore(), schools, notices)
 }

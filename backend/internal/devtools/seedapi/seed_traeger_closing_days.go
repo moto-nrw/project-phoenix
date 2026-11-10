@@ -38,12 +38,107 @@ func (seedTraegerClosingDayStep) Run(_ context.Context, rt *Runtime) error {
 		fmt.Println("  Träger-Büro: no school or no Christi Himmelfahrt in the calendar, closing day skipped")
 		return nil
 	}
-	if _, err := rt.Client.PostWithAuth(auth, "/traeger/closing-days/", map[string]any{
-		"start_date": bridge.String(), "end_date": bridge.String(), "reason": "Brückentag", "school_ids": schools,
-	}); err != nil {
+	if _, err := seedPlanTraegerClosingDay(rt.Client, auth, bridge, bridge, "Brückentag", schools); err != nil {
 		return fmt.Errorf("plan the Träger closing day: %w", err)
 	}
 	fmt.Printf("  Träger-Büro: closing day %s for %d schools\n", bridge, len(schools))
+	return nil
+}
+
+// seedHolidayClosuresStep puts closing days into a booked holiday week
+// (#6434). It runs after every step that books the holiday weeks: a closing
+// day refuses each new booking of its week.
+type seedHolidayClosuresStep struct{}
+
+func (seedHolidayClosuresStep) Name() string { return "Seeding closing days in a booked holiday week" }
+
+func (seedHolidayClosuresStep) Run(_ context.Context, rt *Runtime) error {
+	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
+		return fmt.Errorf("the holiday closure seed prerequisites are not available")
+	}
+	auth, err := seedTraegerSession(rt)
+	if err != nil {
+		return err
+	}
+	return seedHolidayClosures(rt, auth)
+}
+
+// seedPlanTraegerClosingDay saves a closing day of the Träger the way the
+// Büro does (#6434): it previews the holiday bookings the day affects and
+// confirms that preview with the save, which tells their parents. It
+// returns how many families the save told.
+func seedPlanTraegerClosingDay(client *Client, auth AuthRef, from, to calendar.Date, reason string, schools []int64) (int, error) {
+	body := map[string]any{"start_date": from.String(), "end_date": to.String(), "reason": reason, "school_ids": schools}
+	raw, err := client.PostWithAuth(auth, "/traeger/holiday-closures/preview", body)
+	if err != nil {
+		return 0, fmt.Errorf("preview the holiday bookings of the closing day: %w", err)
+	}
+	var preview struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &preview); err != nil {
+		return 0, fmt.Errorf("read the holiday bookings of the closing day: %w", err)
+	}
+	body["holiday_bookings_token"] = preview.Data.Token
+	raw, err = client.PostWithAuth(auth, "/traeger/closing-days/", body)
+	if err != nil {
+		return 0, err
+	}
+	var saved struct {
+		Data struct {
+			NotifiedFamilies int `json:"notified_families"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		return 0, fmt.Errorf("read the saved closing day: %w", err)
+	}
+	return saved.Data.NotifiedFamilies, nil
+}
+
+// seedHolidayClosures puts closing days into the booked autumn week of the
+// seeded holiday period (#6434): the Träger's staff outing on its Wednesday,
+// whose save tells the parents, and the host school's own pedagogical day on
+// its Thursday, which the Träger-Büro then finds among the parents not told
+// yet. A run without registrations or without a school session plans
+// neither.
+func seedHolidayClosures(rt *Runtime, auth AuthRef) error {
+	published, ok := rt.Values[seedHolidayLegalPublishedKey].([]byte)
+	if !ok || rt.Values[seedHolidayRegistrationsSkippedKey] == true {
+		return nil
+	}
+	var period struct {
+		Data struct {
+			Weeks []struct {
+				StartsOn     calendar.Date `json:"starts_on"`
+				HostSchoolID int64         `json:"host_school_id"`
+			} `json:"weeks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(published, &period); err != nil {
+		return fmt.Errorf("read the holiday weeks: %w", err)
+	}
+	if len(period.Data.Weeks) == 0 {
+		return nil
+	}
+	week := period.Data.Weeks[0]
+	outing := week.StartsOn.AddDays(2)
+	families, err := seedPlanTraegerClosingDay(rt.Client, auth, outing, outing, "Betriebsausflug", []int64{week.HostSchoolID})
+	if err != nil {
+		return fmt.Errorf("plan the closing day in the booked holiday week: %w", err)
+	}
+	fmt.Printf("  Träger-Büro: closing day %s in a booked holiday week, %d famil(ies) told\n", outing, families)
+	if rt.TenantAuth.Token == "" {
+		return nil
+	}
+	pedagogical := week.StartsOn.AddDays(3)
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/timetable/closing-days", map[string]any{
+		"start_date": pedagogical.String(), "end_date": pedagogical.String(), "reason": "Pädagogischer Tag",
+	}); err != nil {
+		return fmt.Errorf("plan the school's closing day in the booked holiday week: %w", err)
+	}
+	fmt.Printf("  Ausrichtende OGS: closing day %s in a booked holiday week, parents not told yet\n", pedagogical)
 	return nil
 }
 

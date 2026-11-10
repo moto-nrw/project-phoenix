@@ -41,17 +41,19 @@ type TraegerClosingDayStore interface {
 type TraegerClosingDays struct {
 	store   TraegerClosingDayStore
 	schools traegercalendar.Schools
+	notices traegercalendar.HolidayNotices
 }
 
 var _ traegercalendar.ClosingDays = (*TraegerClosingDays)(nil)
 
 // NewTraegerClosingDays builds the Träger's closing days over store; schools
-// names the Träger's schools with their federal state.
-func NewTraegerClosingDays(store TraegerClosingDayStore, schools traegercalendar.Schools) *TraegerClosingDays {
-	if store == nil || schools == nil {
-		panic("school calendar: the Träger closing day store and the Träger's schools are required")
+// names the Träger's schools with their federal state, notices tells the
+// parents of the holiday bookings a saved closing day affects (#6434).
+func NewTraegerClosingDays(store TraegerClosingDayStore, schools traegercalendar.Schools, notices traegercalendar.HolidayNotices) *TraegerClosingDays {
+	if store == nil || schools == nil || notices == nil {
+		panic("school calendar: the Träger closing day store, the Träger's schools and the holiday notices are required")
 	}
-	return &TraegerClosingDays{store: store, schools: schools}
+	return &TraegerClosingDays{store: store, schools: schools, notices: notices}
 }
 
 // Calendar lists the Träger's closing days in [from, to], its schools
@@ -110,7 +112,9 @@ func (t *TraegerClosingDays) UpdateClosingDay(ctx context.Context, organizationI
 }
 
 // save checks input and writes it as a new closing day (id 0) or over the
-// closing day id of the Träger.
+// closing day id of the Träger, then tells the parents of the holiday
+// bookings it affects in the same Träger transaction (#6434). A refused
+// notice fails the save, so the caller's transaction rolls the write back.
 func (t *TraegerClosingDays) save(ctx context.Context, organizationID, id int64, input traegercalendar.ClosingDayInput) (traegercalendar.ClosingDay, error) {
 	if organizationID <= 0 {
 		return traegercalendar.ClosingDay{}, errTraegerRequired
@@ -119,11 +123,20 @@ func (t *TraegerClosingDays) save(ctx context.Context, organizationID, id int64,
 	if err != nil {
 		return traegercalendar.ClosingDay{}, err
 	}
-	fields := domain.TraegerClosingDayFields(input)
+	fields := domain.TraegerClosingDayFields{StartDate: input.StartDate, EndDate: input.EndDate, Reason: input.Reason, SchoolIDs: input.SchoolIDs}
+	var day traegercalendar.ClosingDay
 	if id == 0 {
-		return storedTraegerClosingDay(t.store.InsertTraegerClosingDay(ctx, organizationID, fields))
+		day, err = storedTraegerClosingDay(t.store.InsertTraegerClosingDay(ctx, organizationID, fields))
+	} else {
+		day, err = storedTraegerClosingDay(t.store.UpdateTraegerClosingDay(ctx, organizationID, id, fields))
 	}
-	return storedTraegerClosingDay(t.store.UpdateTraegerClosingDay(ctx, organizationID, id, fields))
+	if err != nil {
+		return traegercalendar.ClosingDay{}, err
+	}
+	if day.NotifiedFamilies, err = t.notices.NotifyHolidayBookings(ctx, organizationID, input); err != nil {
+		return traegercalendar.ClosingDay{}, err
+	}
+	return day, nil
 }
 
 // DeleteClosingDay removes a closing day of the Träger. The named schools
@@ -143,7 +156,7 @@ func (t *TraegerClosingDays) remove(ctx context.Context, organizationID, id int6
 }
 
 func traegerClosingDay(day domain.TraegerClosingDay) traegercalendar.ClosingDay {
-	return traegercalendar.ClosingDay(day)
+	return traegercalendar.ClosingDay{ID: day.ID, StartDate: day.StartDate, EndDate: day.EndDate, Reason: day.Reason, SchoolIDs: day.SchoolIDs, UpdatedAt: day.UpdatedAt}
 }
 
 func storedTraegerClosingDay(day domain.TraegerClosingDay, err error) (traegercalendar.ClosingDay, error) {

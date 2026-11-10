@@ -3585,6 +3585,22 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings",
+      "binding_digest": "01abdd3d47e585ba2e1a276dc9799be6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.HolidayNotices.NotifyHolidayBookings",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings",
+      "binding_digest": "df69223497cbc1b36b92b9a860db6d06",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.HolidayNotices.NotifyHolidayBookings",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
       "binding_digest": "78f106a848aae395633288694654cdb8",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",

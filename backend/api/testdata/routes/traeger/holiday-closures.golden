@@ -1,0 +1,3 @@
+GET /traeger/holiday-closures/pending
+POST /traeger/holiday-closures/pending/notify
+POST /traeger/holiday-closures/preview

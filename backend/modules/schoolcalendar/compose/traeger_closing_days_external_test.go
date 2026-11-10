@@ -17,6 +17,14 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// noHolidayNotices tells no parent: these tests save closing days without
+// holiday bookings (#6434).
+type noHolidayNotices struct{}
+
+func (noHolidayNotices) NotifyHolidayBookings(context.Context, int64, traegercalendar.ClosingDayInput) (int, error) {
+	return 0, nil
+}
+
 // fixedTraegerSchools names the schools of each Träger of a test.
 type fixedTraegerSchools map[int64][]traegercalendar.SchoolState
 
@@ -70,7 +78,7 @@ func TestTraegerClosingDaysStayWithTheirTraegerBelowRLS(t *testing.T) {
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	own := newClosingDayTraeger(t, db, "Träger Schließtag RLS", 1)
 	foreign := newClosingDayTraeger(t, db, "Träger Schließtag RLS Fremd", 1)
-	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{own.id: own.states(), foreign.id: foreign.states()})
+	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{own.id: own.states(), foreign.id: foreign.states()}, noHolidayNotices{})
 	bridge := calendar.NewDate(2027, 5, 7)
 	planClosingDay(t, ctx, days, own, bridge, "Brückentag", own.schools[0])
 	other := planClosingDay(t, ctx, days, foreign, bridge, "Betriebsausflug", foreign.schools[0])
@@ -109,7 +117,7 @@ func TestTraegerClosingDayRefusesAForeignSchoolBeforeWriting(t *testing.T) {
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	own := newClosingDayTraeger(t, db, "Träger Schließtag Schule", 1)
 	foreign := newClosingDayTraeger(t, db, "Träger Schließtag Schule Fremd", 1)
-	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{own.id: own.states()})
+	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{own.id: own.states()}, noHolidayNotices{})
 	day := calendar.NewDate(2027, 5, 7)
 
 	require.NoError(t, testpkg.WithinTraeger(ctx, own.id, func(ctx context.Context) error {
@@ -134,7 +142,7 @@ func TestSchoolReadsOnlyTheTraegerClosingDaysNamingItBelowRLS(t *testing.T) {
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	traeger := newClosingDayTraeger(t, db, "Träger Schließtag Schulsicht", 2)
 	named, unnamed := traeger.schools[0], traeger.schools[1]
-	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{traeger.id: traeger.states()})
+	days := schoolCalendarCompose.NewTraegerClosingDays(fixedTraegerSchools{traeger.id: traeger.states()}, noHolidayNotices{})
 	planClosingDay(t, ctx, days, traeger, calendar.NewDate(2027, 5, 7), "Brückentag", named)
 	planClosingDay(t, ctx, days, traeger, calendar.NewDate(2027, 5, 21), "Betriebsausflug", unnamed)
 	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{ClosingDayReads: owners.NewSchoolClosingDayReads(), DB: db, Observe: func(schoolCalendarCompose.Observation) {},

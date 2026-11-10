@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_closures_pending",
+  "max": 3,
+  "exact": true,
+  "description": "modules/enrollment — GET /traeger/holiday-closures/pending (#6434): the Träger\nbinding of the Träger transaction, the booked weeks of the Träger with their\nbookings in one statement, and the notices told before in one statement. The\nhost schools' closing days come from School Calendar outside the Träger\ntransaction. Flat in the number of weeks and bookings.",
+  "route": "GET /traeger/holiday-closures/pending"
+}

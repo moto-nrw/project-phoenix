@@ -3,6 +3,7 @@
   "already_member": "Diese Person gehört schon zum Träger-Büro.",
   "bank_account_label_taken": "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
   "bank_account_not_found": "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "closing_day_bookings_changed": "Die gebuchten Ferientage haben sich gerade geändert. Bitte prüfen Sie die betroffenen Buchungen noch einmal.",
   "closing_day_invalid": "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
   "closing_day_not_found": "Diesen Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "closing_day_school_outside": "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen aus der Liste.",

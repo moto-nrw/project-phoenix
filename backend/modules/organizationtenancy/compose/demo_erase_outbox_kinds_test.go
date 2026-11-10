@@ -28,6 +28,12 @@ var traegerOutboxRows = map[string]string{
 		SELECT organization_id, 'care_contract_notice', jsonb_build_object('address', 'eltern@example.org', 'name', '` + visitorFull + `'),
 			jsonb_build_object('guardian_name', '` + visitorFull + `'), 'care_contract', id
 		FROM care_contract.contracts WHERE school_id = ?0 RETURNING id`,
+	// The mail that a closing day falls into a booked holiday week (#6434).
+	"platform.email_outbox holiday_closure_notice": `INSERT INTO platform.email_outbox
+			(organization_id, kind, recipient, payload, related_entity_type, related_entity_id)
+		SELECT organization_id, 'holiday_closure_notice', jsonb_build_object('address', 'besuch@example.org'),
+			jsonb_build_object('guardian_name', '` + visitorFull + `'), 'holiday_registration', holiday_registration_id
+		FROM enrollment.holiday_registration_children WHERE home_school_id = ?0 RETURNING id`,
 	// The mail that a booking of the holiday registration moved up from the
 	// waiting list (#4699).
 	"platform.email_outbox holiday_place_granted": `INSERT INTO platform.email_outbox
@@ -162,12 +168,27 @@ func TestDemoErasureErasesEveryOutboxKindOfTheVisitor(t *testing.T) {
 
 	accounts := map[int64]visitorAccounts{}
 	rows := map[int64]map[string][]int64{}
-	for _, schoolID := range []int64{retiredID, otherVisitorID, regularID} {
+	// Create the surviving registration first, so it is the smallest ID
+	// the grouped notice uses as its primary link.
+	for _, schoolID := range []int64{otherVisitorID, retiredID, regularID} {
 		accounts[schoolID] = leaveVisitorTraces(t, db, schoolID)
 		onlyInSchools(t, db, accounts[schoolID].caregiver, schoolID)
 		onlyInSchools(t, db, accounts[schoolID].parent, schoolID)
 		rows[schoolID] = leaveOutboxRows(t, db, schoolID, accounts[schoolID].parent)
 	}
+	// A grouped notice is linked primarily to the surviving registration,
+	// but also contains the retired visitor's child. It must go in full.
+	var groupedID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox
+		(organization_id, kind, recipient, payload, related_entity_type, related_entity_id)
+		SELECT kept.organization_id, 'holiday_closure_notice', jsonb_build_object('address', 'familie@example.org'),
+			jsonb_build_object('guardian_name', '`+visitorFull+`', 'registration_ids',
+				jsonb_build_array(kept.holiday_registration_id, retired.holiday_registration_id)),
+			'holiday_registration', kept.holiday_registration_id
+		FROM enrollment.holiday_registration_children AS retired
+		JOIN enrollment.holiday_registration_children AS kept ON kept.organization_id = retired.organization_id
+		WHERE retired.home_school_id = ? AND kept.home_school_id = ? LIMIT 1 RETURNING id`, retiredID, otherVisitorID).Scan(t.Context(), &groupedID))
+	rows[retiredID]["platform.email_outbox holiday_closure_notice"] = append(rows[retiredID]["platform.email_outbox holiday_closure_notice"], groupedID)
 	// The other visitor's order is finished and still in use.
 	ctx := t.Context()
 	queue, err := NewDemoSchoolQueue(db)

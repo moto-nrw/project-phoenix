@@ -55,13 +55,16 @@ type TraegerClosingDayRequest struct {
 	EndDate   calendar.Date `json:"end_date"`
 	Reason    string        `json:"reason"`
 	SchoolIDs []int64       `json:"school_ids"`
+	// HolidayBookingsToken confirms the preview of the affected holiday
+	// bookings (#6434), empty when the preview showed none.
+	HolidayBookingsToken string `json:"holiday_bookings_token"`
 }
 
 // Bind accepts the body; the Owner validates the closing day.
 func (req *TraegerClosingDayRequest) Bind(*http.Request) error { return nil }
 
 func (req *TraegerClosingDayRequest) input() traegercalendar.ClosingDayInput {
-	return traegercalendar.ClosingDayInput{StartDate: req.StartDate, EndDate: req.EndDate, Reason: req.Reason, SchoolIDs: req.SchoolIDs}
+	return traegercalendar.ClosingDayInput{StartDate: req.StartDate, EndDate: req.EndDate, Reason: req.Reason, SchoolIDs: req.SchoolIDs, HolidayBookingsToken: req.HolidayBookingsToken}
 }
 
 func traegerOf(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -152,13 +155,15 @@ func (rs *TraegerClosingDayResource) delete(w http.ResponseWriter, r *http.Reque
 }
 
 // renderTraegerClosingDayError names a refusal. The Owner refuses before it
-// writes, so a refused request leaves the Träger transaction untouched.
+// writes, or the Träger transaction rolls the write back (#6434).
 func renderTraegerClosingDayError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, traegercalendar.ErrClosingDayNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeTraegerClosingDayNotFound))
 	case errors.Is(err, traegercalendar.ErrSchoolOutside):
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeTraegerClosingDaySchoolOutside, "school_ids"))
+	case errors.Is(err, traegercalendar.ErrHolidayBookingsChanged):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTraegerClosingDayBookingsChanged))
 	case errors.Is(err, traegercalendar.ErrInvalidClosingDay):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeTraegerClosingDayInvalid))
 	default:
