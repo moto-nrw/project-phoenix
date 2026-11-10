@@ -267,6 +267,34 @@ func TestApprovedHolidayCareWishIgnoresOfficeMatchedFamilies(t *testing.T) {
 	assert.False(t, *wish)
 }
 
+// The newest approved enrollment decides (#4703). When it did not ask, the
+// wish is unknown; an older answer must not become a proof that refuses.
+func TestApprovedHolidayCareWishTakesTheNewestEnrollmentEvenWithoutAnAnswer(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := approvedWithWish(t, db, false)
+	_, err := db.ExecContext(ctx, `UPDATE enrollment.request_children SET reviewed_at = NOW() - INTERVAL '30 days'
+		WHERE created_student_id = ?`, student)
+	require.NoError(t, err)
+	phase := testpkg.CreateTestEnrollmentPhaseAround(t, db, calendar.NewDate(2027, 1, 4))
+	request := testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, db, phase.ID, "wunsch@example.org", fmt.Sprintf("wish-new-%d", testpkg.UniqueTestTenantID(t)))
+	_, err = db.ExecContext(ctx, `INSERT INTO enrollment.request_children
+			(tenant_id, request_id, first_name, last_name, date_of_birth, status, matched_student_id, reviewed_at)
+		VALUES (?, ?, 'Wanda', 'Wunsch', '2018-03-04', 'approved', ?, NOW())`, testpkg.Tenant(t), request.ID, student)
+	require.NoError(t, err)
+
+	store := postgres.NewStore(postgres.NewDatabase(), func(ctx context.Context) (int64, error) { return tenant.FromContext(ctx), nil })
+	var wish *bool
+	id, err := tenant.NewTenantID(testpkg.Tenant(t))
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithinTenant(tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, db)), id, func(txCtx context.Context) error {
+		wish, err = store.ApprovedHolidayCareWish(txCtx, student, calendar.NewDate(2027, 1, 4))
+		return err
+	}))
+	assert.Nil(t, wish, "the newest enrollment did not ask, so the older no does not count")
+}
+
 // approvedWithWish approves a child of the test tenant in a school-year
 // phase around 04.01.2027 with the holiday care wish and returns its student.
 func approvedWithWish(t *testing.T, db *bun.DB, wish bool) int64 {

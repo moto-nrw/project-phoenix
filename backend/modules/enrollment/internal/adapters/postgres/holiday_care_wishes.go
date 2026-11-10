@@ -17,7 +17,9 @@ import (
 
 // approvedHolidayCareWishQuery reads the answer of the newest approved
 // enrollment of the student, new or re-enrolled, in a school-year phase of
-// the school whose service window holds the day.
+// the school whose service window holds the day. The newest enrollment is
+// chosen first: when it did not ask, the wish stays unknown, and an older
+// answer never stands in for it.
 const approvedHolidayCareWishQuery = `SELECT child.holiday_care_wish
 	FROM enrollment.request_children AS child
 	JOIN enrollment.requests AS request ON request.tenant_id = child.tenant_id AND request.id = child.request_id
@@ -25,7 +27,6 @@ const approvedHolidayCareWishQuery = `SELECT child.holiday_care_wish
 	WHERE child.tenant_id = ? AND child.status = ? AND NOT child.matched_by_office
 		AND (child.created_student_id = ? OR child.matched_student_id = ?)
 		AND phase.kind = ? AND phase.service_start_date <= ?::date AND phase.service_end_date >= ?::date
-		AND child.holiday_care_wish IS NOT NULL
 	ORDER BY phase.service_start_date DESC, child.reviewed_at DESC NULLS LAST, child.id DESC
 	LIMIT 1`
 
@@ -44,7 +45,7 @@ func (r *Store) ApprovedHolidayCareWish(ctx context.Context, studentID int64, on
 	if err != nil {
 		return nil, err
 	}
-	var wish bool
+	var wish sql.NullBool
 	err = db.NewRaw(approvedHolidayCareWishQuery, tenantID, enrollment.ChildStatusApproved, studentID, studentID,
 		enrollment.PhaseKindSchoolYear, on.String(), on.String()).Scan(ctx, &wish)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -53,7 +54,10 @@ func (r *Store) ApprovedHolidayCareWish(ctx context.Context, studentID int64, on
 	if err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read holiday care wish: %w", err)
 	}
-	return &wish, nil
+	if !wish.Valid {
+		return nil, nil
+	}
+	return &wish.Bool, nil
 }
 
 const setHolidayChildWishQuery = `UPDATE enrollment.holiday_registration_children
