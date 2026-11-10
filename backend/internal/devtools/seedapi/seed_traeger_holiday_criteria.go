@@ -141,7 +141,10 @@ func seedHolidayCriteriaRegistrations(rt *Runtime, link seedHolidayLink, criteri
 		{"Kai", "Geschwister", "Ella", "kai.geschwister@example.org", false, false, true},
 	}
 	for i, family := range families {
-		_, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+link.token, map[string]any{
+		// Each family sends from its own address, as real families do, so the
+		// four registrations leave the submission limit of one address to the
+		// steps after this one.
+		_, err := rt.Client.PostPublicWithHeaders("/traeger/holiday-registrations/"+link.token, map[string]any{
 			"guardian": map[string]any{"first_name": family.first, "last_name": family.last, "email": family.email, "phone": fmt.Sprintf("0151 000020%d", i)},
 			"criteria": map[string]bool{fmt.Sprint(criteria[0]): family.working, fmt.Sprint(criteria[1]): family.single},
 			"children": []map[string]any{{
@@ -152,7 +155,7 @@ func seedHolidayCriteriaRegistrations(rt *Runtime, link seedHolidayLink, criteri
 			"emergency_contacts": []map[string]any{{"name": "Oma " + family.last, "phone": "05402 000020", "relationship": "Großmutter"}},
 			"privacy_consent":    true, "binding_confirmed": true, "custody_confirmed": true,
 			"declaration_name": family.first + " " + family.last, "consent_version": 3, "captcha_token": seedTurnstileTestToken,
-		})
+		}, publicEnrollmentSeedHeaders(120+i))
 		var refused *APIError
 		if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
 			fmt.Printf("  Ferienanmeldung: registration by criteria refused (%s)\n", refused.Code)
