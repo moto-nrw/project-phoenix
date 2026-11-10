@@ -68,8 +68,9 @@ const webServerEnvPrefix = Object.entries(webServerEnv)
 export default defineConfig({
   globalSetup: SECURE_CHROME_SETUP,
   testDir: "./e2e",
-  // Serverlose Layouttests laufen über playwright.layout.config.ts.
-  testIgnore: ["layout/**", "network/**"],
+  // Serverlose Layouttests laufen über playwright.layout.config.ts, der
+  // Kit-Pixel-Vergleich über pnpm run kit-pixel (playwright.kit-pixel.config.ts).
+  testIgnore: ["layout/**", "network/**", "kit-pixel/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   workers: process.env.CI ? 1 : undefined,
