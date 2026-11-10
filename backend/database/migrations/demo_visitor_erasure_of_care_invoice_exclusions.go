@@ -57,7 +57,7 @@ const careInvoiceExclusionErasureStatement = `					-- A release names the invoic
 const demoVisitorErasureCareInvoiceExclusionsSQL = demoVisitorErasureBeforeReceiptKindSQL + holidayReceiptErasureKind + demoVisitorErasureAfterReceiptKindSQL
 
 // The erasure is split at the statement for the receipt of a holiday
-// registration, so 1.15.875 can name one more kind there (#4699); the parts
+// registration, so 1.15.878 can name one more kind there (#4699); the parts
 // are literals the architecture check can read. The value is unchanged.
 const holidayReceiptErasureKind = "AND outbox.kind = 'holiday_registration_received'"
 
@@ -712,7 +712,7 @@ func installCareInvoiceExclusionErasure(ctx context.Context, db bun.IDB) error {
 	return nil
 }
 
-// The erasure of 1.15.875 (#4699): that of 1.15.864 whose statement for the
+// The erasure of 1.15.878 (#4699): that of 1.15.864 whose statement for the
 // receipt also deletes the mail of a booking that moved up from the waiting
 // list; both name the registration.
 const (
