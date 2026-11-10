@@ -248,29 +248,23 @@ func EnrollmentMailBranding(baseURL, schoolImageURL string) (string, string) {
 	return deliveryCompose.SchoolLogoURL(baseURL, schoolImageURL), deliveryCompose.MotoLogoURL(baseURL)
 }
 
-// EnrollmentPendingWindowMover is School Membership's guarded command a phase
-// edit moves a pending child's window with (#6505).
-type EnrollmentPendingWindowMover interface {
-	MovePendingWindow(context.Context, schoolmembership.PendingWindowMove) (bool, error)
-}
-
 // enrollmentPhaseStudents binds the phase edit's pending-window move to
-// School Membership's guarded command. A window the command refuses as
-// inverted is an invalid phase edit.
+// School Membership's guarded command (#6505, ADR 0200). A window the command
+// refuses as inverted is an invalid phase edit.
 type enrollmentPhaseStudents struct {
-	membership EnrollmentPendingWindowMover
+	membership schoolmembership.PendingWindows
 }
 
 // NewEnrollmentPhaseStudents binds the phase edit to School Membership.
-func NewEnrollmentPhaseStudents(membership EnrollmentPendingWindowMover) enrollmentCompose.PhaseStudents {
+func NewEnrollmentPhaseStudents(membership schoolmembership.PendingWindows) enrollmentOwner.PhaseStudents {
 	return enrollmentPhaseStudents{membership: membership}
 }
 
-func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentCompose.PendingWindowMove) (bool, error) {
+func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {
 	moved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{
 		StudentID:  move.StudentID,
-		FromBefore: move.FromBefore.String(), FromAfter: move.FromAfter.String(),
-		UntilBefore: move.UntilBefore.String(), UntilAfter: move.UntilAfter.String(),
+		FromBefore: string(move.FromBefore), FromAfter: string(move.FromAfter),
+		UntilBefore: string(move.UntilBefore), UntilAfter: string(move.UntilAfter),
 	})
 	var invalid *schoolmembership.InvalidMembershipError
 	if errors.As(err, &invalid) {

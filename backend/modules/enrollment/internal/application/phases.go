@@ -30,7 +30,7 @@ type PhaseDependencies struct {
 	// Students moves the enrollment window of still pending students with
 	// a phase-start edit (#6505). Optional: nil leaves the students alone
 	// (focused tests); the root always binds it.
-	Students PhaseStudents
+	Students enrollment.PhaseStudents
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).

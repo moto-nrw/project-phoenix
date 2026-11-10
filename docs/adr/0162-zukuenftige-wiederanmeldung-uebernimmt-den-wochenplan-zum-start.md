@@ -102,7 +102,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 | Rollover-Lauf | `RunDeadlineWorker`, `LockApprovalGates` vor der ersten Sammelumstellung | Klasse, Wiederholung, Sammelumstellungen, Savepoints der Bestätigungen |
 | Fällige Klassenwechsel (#3917) | `ApplyDueClassSwitches` | Klasse, Wiederholung, Pläne, Kinder (`users.students`) |
 | Fällige Wochenpläne | `ApplyDueWeeklyPlans`, `LockApprovalGates` vor dem Lesen der Pläne | Klasse, Wiederholung, Pläne, Laufgemeinschaft, Kinder |
-| Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne, je vorgemerktes Kind dessen Zeile in School Membership (`MovePendingWindow`, keine Klassensperre), dann seine Aktivierungspläne |
+| Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne, je vorgemerktes Kind dessen Zeile in School Membership (`MovePendingWindow`, keine Klassensperre), dann seine Aktivierungspläne ([ADR 0200](0200-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md)) |
 | Phase löschen | `Phases.DeletePhase` → `refuseEffectiveBookings`, `detachPhaseSourcedTemplates` | Wiederholung, Buchungsprüfung, Vorlagen, Phase |
 | Rollover anlegen | `createRolloverPhase`, `LockApprovalGates` nach der Eignungsprüfung, vor dem Einfügen der neuen Phase | Klassenabfrage-Sperre (nur bei Klassenbeschränkung), Klasse, Wiederholung, Quellphase erneut, neue Phase (`KEY SHARE` auf die Quellphase), Katalogkopie ([ADR 0179](0179-rollover-anlegen-nimmt-die-wiederholungssperre-vor-der-neuen-phase.md)) |
 | Angebote anpassen | `UpdateChildOfferings` → Care Plan `AdjustOfferings` | Klasse, Wiederholung, Kind; die Anmeldung wird ungesperrt gelesen |
@@ -127,39 +127,12 @@ Migration der beiden Wochentabellen und eine Änderung aller ihrer Leser
 Übernahme zum Start bleiben die Tabellen und ihre Leser unverändert und lesen
 an jedem Tag den gültigen Plan.
 
-## Nachtrag: Phasenänderungen und offene Aktivierungen (#6505)
+## Nachtrag: offene Aktivierungen und Klassenwechsel (#6505)
 
-Vorschlag vom 10.11.2026 zu [#6505](https://github.com/moto-nrw/project-phoenix/issues/6505),
-Option B der fachlichen Entscheidung im Issue. Wie die Wochenpläne folgen
-alle noch offenen, aus der Phase abgeleiteten Pläne einer Phasenänderung in
-derselben Transaktion:
-
-- Geplante Klassenwechsel (`class_switch_on`) gehen mit den Wochenplänen auf
-  den neuen Start. Ausgeführte Wechsel entstehen nicht neu; eine inzwischen
-  geänderte Klasse schützt der Lauf wie bisher.
-- Eine geplante Aktivierung (`activate_on`) und der Betreuungszeitraum eines
-  noch vorgemerkten Kindes folgen dem neuen Start und Ende. School
-  Membership entscheidet unter der Zeilensperre des Kindes
-  (`MovePendingWindow`): Nur ein vorgemerktes Kind bewegt sich, und nur eine
-  Grenze, die noch der alten Phasengrenze entspricht. Eine Grenze aus einer
-  anderen Anmeldung oder einer Handänderung bleibt. Bei Anmeldungen in
-  mehreren Phasen beginnt das Kind mit der frühesten und endet mit der
-  spätesten Anmeldung innerhalb des alten Zeitraums. Ein Zeitraum, der vor
-  seinem Beginn enden würde, lehnt die Änderung vor dem Schreiben ab.
-- Eine Aktivierung, deren Tag gekommen ist, gilt als ausgeführt. Nur ein
-  Start nach heute bewegt sich; der stündliche Aktivierungslauf liest nur
-  Starts bis heute und aktiviert deshalb nie einen verschobenen Start.
-- Der Befehl nimmt keine Klassensperre. Die Phasenänderung hält die
-  Wiederholungssperre und wartet danach auf keine Sperre mehr außer den
-  Zeilen; die Kontingentzahl kann dabei nicht steigen.
-
-Eine Phase mit noch wirksamen Buchungen bestätigter Kinder lässt sich nicht
-mehr löschen (`enrollment.phase_has_effective_bookings`): Die Löschung würde
-die Betreuung ohne Betreuungsende oder Buchungsänderung beenden und ein Kind
-ohne Buchung und ohne Abschlussaufgabe zurücklassen. Die Prüfung läuft unter
-der Wiederholungssperre vor jedem Schreiben. Eine beendete Phase, beendete
-Buchungen und noch nicht bestätigte Anmeldungen blockieren nicht. Zum
-Ausblenden bleibt „Deaktivieren“.
+Wie die Wochenpläne folgen geplante Klassenwechsel, offene Aktivierungen und
+der Zeitraum vorgemerkter Kinder einer Phasenänderung in derselben
+Transaktion; eine Phase mit wirksamen Buchungen bestätigter Kinder wird nicht
+gelöscht. Entscheidung, Sperren und Grenzen: [ADR 0200](0200-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md).
 
 ## Freigegebene Effekte
 

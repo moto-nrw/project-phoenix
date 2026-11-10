@@ -23,9 +23,4 @@ type StudentEnrollmentCommands interface {
 	Graduate(context.Context, []int64) (int64, error)
 	Reactivate(context.Context, []int64, string, ChildQuotaCheck) ([]int64, error)
 	ChangeClass(context.Context, []int64, string, string) (int64, error)
-	// MovePendingWindow moves the window of a child that is still pending
-	// and reports whether it was pending (#6505). It locks only the child's
-	// row, takes no class gate and raises no Kontingentzahl: a pending start
-	// that lies ahead counts already, one that moves to the past no longer.
-	MovePendingWindow(context.Context, PendingWindowMove) (bool, error)
 }

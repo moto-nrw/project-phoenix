@@ -5553,7 +5553,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentCompose.PendingWindowMove) (bool, error) {\n\tmoved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{StudentID: move.StudentID, FromBefore: move.FromBefore.String(), FromAfter: move.FromAfter.String(), UntilBefore: move.UntilBefore.String(), UntilAfter: move.UntilAfter.String()})\n\tvar invalid *schoolmembership.InvalidMembershipError\n\tif errors.As(err, \u0026invalid) {\n\t\treturn false, fmt.Errorf(\"%w: %v\", enrollmentOwner.ErrInvalidPhase, err)\n\t}\n\treturn moved, err\n}",
+      "evidence": "func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {\n\tmoved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{StudentID: move.StudentID, FromBefore: string(move.FromBefore), FromAfter: string(move.FromAfter), UntilBefore: string(move.UntilBefore), UntilAfter: string(move.UntilAfter)})\n\tvar invalid *schoolmembership.InvalidMembershipError\n\tif errors.As(err, \u0026invalid) {\n\t\treturn false, fmt.Errorf(\"%w: %v\", enrollmentOwner.ErrInvalidPhase, err)\n\t}\n\treturn moved, err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseStudents.MovePendingWindow",
       "owner": "roots"

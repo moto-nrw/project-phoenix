@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Transactions opens a tenant transaction for a standalone caller or joins
@@ -86,8 +85,7 @@ type PhaseRecords interface {
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
 	RemovePhase(context.Context, int64) (int, error)
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error)
-	PhaseActivationPlans(ctx context.Context, phaseID int64, on enrollment.Date) ([]enrollment.ActivationPlan, error)
-	ChildrenByID(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error)
+	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*enrollment.StudentCarePeriod, error)
 	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *enrollment.Date) error
 }
 
@@ -103,24 +101,6 @@ type PhaseOfferings interface {
 	// CareOfferingBookingsForPhase lists the bookings of the phase's
 	// offerings, including ended ones.
 	CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollment.OfferingBooking, error)
-}
-
-// PhaseStudents is the School Membership command a phase edit moves the
-// enrollment window of a still pending student with (#6505). The command
-// locks the student's row, decides under that lock and reports whether the
-// student was still pending; it takes no class gate.
-type PhaseStudents interface {
-	MovePendingWindow(ctx context.Context, move PendingWindowMove) (bool, error)
-}
-
-// PendingWindowMove is the window a phase edit proposes for a pending
-// student: each bound moves only while it still equals its Before value.
-type PendingWindowMove struct {
-	StudentID   int64
-	FromBefore  calendar.Date
-	FromAfter   calendar.Date
-	UntilBefore calendar.Date
-	UntilAfter  calendar.Date
 }
 
 // CalendarPeriods is the slice of the School Calendar the phase link

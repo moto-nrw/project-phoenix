@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -34,29 +35,61 @@ func (s *Phases) followPendingActivations(ctx context.Context, before, after *en
 	if s.deps.Students == nil || !calendar.Date(before.ServiceStartDate).After(s.todayDate()) {
 		return nil
 	}
-	plans, err := s.deps.Records.PhaseActivationPlans(ctx, after.ID, before.ServiceStartDate)
-	if err != nil {
-		return fmt.Errorf("phase update: list activation plans: %w", err)
+	plans, err := s.pendingActivationPlans(ctx, after.ID, before.ServiceStartDate)
+	if err != nil || len(plans) == 0 {
+		return err
 	}
-	for start := 0; start < len(plans); {
-		end := start + 1
-		for end < len(plans) && plans[end].StudentID == plans[start].StudentID {
-			end++
+	studentIDs := make([]int64, 0, len(plans))
+	for studentID := range plans {
+		studentIDs = append(studentIDs, studentID)
+	}
+	slices.Sort(studentIDs)
+	periods, err := s.deps.Records.StudentCarePeriodsByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("phase update: list approvals of pending students: %w", err)
+	}
+	others := map[int64][]*enrollment.StudentCarePeriod{}
+	for _, period := range periods {
+		if period != nil && period.PhaseID != after.ID {
+			others[period.StudentID] = append(others[period.StudentID], period)
 		}
-		if err := s.followStudentActivation(ctx, plans[start].StudentID, plans[start:end], before, after); err != nil {
+	}
+	for _, studentID := range studentIDs {
+		if err := s.followStudentActivation(ctx, studentID, plans[studentID], others[studentID], before, after); err != nil {
 			return err
 		}
-		start = end
 	}
 	return nil
 }
 
-func (s *Phases) followStudentActivation(ctx context.Context, studentID int64, plans []enrollment.ActivationPlan, before, after *enrollment.Phase) error {
-	from, until := followedWindow(plans, before, after)
-	pending, err := s.deps.Students.MovePendingWindow(ctx, PendingWindowMove{
+// pendingActivationPlans maps each student to the approved request children
+// of the phase that plan its activation on the phase's old start.
+func (s *Phases) pendingActivationPlans(ctx context.Context, phaseID int64, oldStart enrollment.Date) (map[int64][]int64, error) {
+	children, err := s.deps.Records.PhaseResponseChildren(ctx, phaseID, []string{enrollment.ChildStatusApproved})
+	if err != nil {
+		return nil, fmt.Errorf("phase update: list approved children: %w", err)
+	}
+	plans := map[int64][]int64{}
+	for _, row := range children {
+		child := row.Child
+		if !row.IsPhaseChild || child == nil || child.CreatedStudentID == nil ||
+			child.ActivationMode != enrollment.ChildActivationScheduled || child.ActivateOn == nil ||
+			enrollment.Date(*child.ActivateOn) != oldStart {
+			continue
+		}
+		plans[*child.CreatedStudentID] = append(plans[*child.CreatedStudentID], child.ID)
+	}
+	return plans, nil
+}
+
+func (s *Phases) followStudentActivation(
+	ctx context.Context, studentID int64, childIDs []int64, others []*enrollment.StudentCarePeriod, before, after *enrollment.Phase,
+) error {
+	from, until := followedWindow(others, before, after)
+	pending, err := s.deps.Students.MovePendingWindow(ctx, enrollment.PendingWindowMove{
 		StudentID:  studentID,
-		FromBefore: calendar.Date(before.ServiceStartDate), FromAfter: from,
-		UntilBefore: calendar.Date(before.ServiceEndDate), UntilAfter: until,
+		FromBefore: before.ServiceStartDate, FromAfter: from,
+		UntilBefore: before.ServiceEndDate, UntilAfter: until,
 	})
 	if err != nil {
 		if errors.Is(err, enrollment.ErrInvalidPhase) && s.deps.Runtime.MarkRollback != nil {
@@ -64,16 +97,13 @@ func (s *Phases) followStudentActivation(ctx context.Context, studentID int64, p
 		}
 		return fmt.Errorf("phase update: move enrollment window of student %d: %w", studentID, err)
 	}
-	if !pending {
+	if !pending || after.ServiceStartDate == before.ServiceStartDate {
 		return nil
 	}
 	newStart := after.ServiceStartDate
-	for _, plan := range plans {
-		if plan.PhaseID != after.ID || plan.On != before.ServiceStartDate || plan.On == newStart {
-			continue
-		}
-		if err := s.deps.Records.UpdateChildActivationPlan(ctx, plan.RequestChildID, enrollment.ChildActivationScheduled, &newStart); err != nil {
-			return fmt.Errorf("phase update: move activation plan of request child %d: %w", plan.RequestChildID, err)
+	for _, childID := range childIDs {
+		if err := s.deps.Records.UpdateChildActivationPlan(ctx, childID, enrollment.ChildActivationScheduled, &newStart); err != nil {
+			return fmt.Errorf("phase update: move activation plan of request child %d: %w", childID, err)
 		}
 	}
 	return nil
@@ -81,23 +111,20 @@ func (s *Phases) followStudentActivation(ctx context.Context, studentID int64, p
 
 // followedWindow derives the window the edit proposes for a pending student
 // whose bounds still equal the phase's old ones. Approvals in other phases
-// that lie inside the old window keep their day: the start becomes the
+// that lie inside the old window keep their days: the start becomes the
 // earliest, the end the latest of them and the new phase bound.
-func followedWindow(plans []enrollment.ActivationPlan, before, after *enrollment.Phase) (calendar.Date, calendar.Date) {
+func followedWindow(others []*enrollment.StudentCarePeriod, before, after *enrollment.Phase) (enrollment.Date, enrollment.Date) {
 	oldStart, oldEnd := before.ServiceStartDate, before.ServiceEndDate
 	from, until := after.ServiceStartDate, after.ServiceEndDate
-	for _, plan := range plans {
-		if plan.PhaseID == after.ID {
-			continue
+	for _, other := range others {
+		if other.ServiceStartDate >= oldStart && other.ServiceStartDate < from {
+			from = other.ServiceStartDate
 		}
-		if plan.On >= oldStart && plan.On < from {
-			from = plan.On
-		}
-		if plan.PhaseEnd <= oldEnd && plan.PhaseEnd > until {
-			until = plan.PhaseEnd
+		if other.ServiceEndDate <= oldEnd && other.ServiceEndDate > until {
+			until = other.ServiceEndDate
 		}
 	}
-	return calendar.Date(from), calendar.Date(until)
+	return from, until
 }
 
 // refuseEffectiveBookings rejects deleting a running or future phase while a
@@ -120,31 +147,54 @@ func (s *Phases) refuseEffectiveBookings(ctx context.Context, phaseID int64) err
 	if calendar.Date(phase.ServiceEndDate).Before(today) {
 		return nil
 	}
-	bookings, err := s.deps.Offerings.CareOfferingBookingsForPhase(ctx, phaseID)
-	if err != nil {
-		return fmt.Errorf("phase delete: list care offering bookings: %w", err)
+	booked, err := s.effectivelyBookedChildren(ctx, phaseID, today)
+	if err != nil || len(booked) == 0 {
+		return err
 	}
-	booked := make([]int64, 0, len(bookings))
-	for _, booking := range bookings {
-		if booking.ValidUntil == nil || calendar.Date(*booking.ValidUntil).After(today) {
-			booked = append(booked, booking.RequestChildID)
+	approved, err := s.approvedChildren(ctx, phaseID)
+	if err != nil {
+		return err
+	}
+	count := 0
+	for childID := range booked {
+		if approved[childID] {
+			count++
 		}
 	}
-	if len(booked) == 0 {
-		return nil
-	}
-	children, err := s.deps.Records.ChildrenByID(ctx, booked)
-	if err != nil {
-		return fmt.Errorf("phase delete: load booked children: %w", err)
-	}
-	approved := 0
-	for _, child := range children {
-		if child != nil && child.Status == enrollment.ChildStatusApproved && child.CreatedStudentID != nil {
-			approved++
-		}
-	}
-	if approved > 0 {
-		return fmt.Errorf("%w: %d children", enrollment.ErrPhaseHasEffectiveBookings, approved)
+	if count > 0 {
+		return fmt.Errorf("%w: %d children", enrollment.ErrPhaseHasEffectiveBookings, count)
 	}
 	return nil
+}
+
+// effectivelyBookedChildren lists the request children with a booking of the
+// phase's offerings that applies on today or later.
+func (s *Phases) effectivelyBookedChildren(ctx context.Context, phaseID int64, today calendar.Date) (map[int64]bool, error) {
+	bookings, err := s.deps.Offerings.CareOfferingBookingsForPhase(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("phase delete: list care offering bookings: %w", err)
+	}
+	booked := map[int64]bool{}
+	for _, booking := range bookings {
+		if booking.ValidUntil == nil || calendar.Date(*booking.ValidUntil).After(today) {
+			booked[booking.RequestChildID] = true
+		}
+	}
+	return booked, nil
+}
+
+// approvedChildren lists the approved request children of the phase that are
+// linked to a child record.
+func (s *Phases) approvedChildren(ctx context.Context, phaseID int64) (map[int64]bool, error) {
+	children, err := s.deps.Records.PhaseResponseChildren(ctx, phaseID, []string{enrollment.ChildStatusApproved})
+	if err != nil {
+		return nil, fmt.Errorf("phase delete: list approved children: %w", err)
+	}
+	approved := map[int64]bool{}
+	for _, row := range children {
+		if row.IsPhaseChild && row.Child != nil && row.Child.CreatedStudentID != nil {
+			approved[row.Child.ID] = true
+		}
+	}
+	return approved, nil
 }

@@ -19,8 +19,11 @@ func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas(),
-		Today: func() calendar.Date { return "2099-12-07" }})
+	dependencies := Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas(),
+		Today: func() calendar.Date { return "2099-12-07" }}
+	module, err := New(dependencies)
+	require.NoError(t, err)
+	windows, err := NewPendingWindows(dependencies)
 	require.NoError(t, err)
 	enroll := func(name, status, from, until string) int64 {
 		t.Helper()
@@ -55,7 +58,7 @@ func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
 	}
 
 	both := enroll("Beide", "pending", "2100-08-01", "2101-07-31")
-	moved, err := module.MovePendingWindow(ctx, move(both, "2100-08-08", "2101-07-24"))
+	moved, err := windows.MovePendingWindow(ctx, move(both, "2100-08-08", "2101-07-24"))
 	require.NoError(t, err)
 	assert.True(t, moved)
 	status, from, until, firstCare := window(both)
@@ -63,21 +66,21 @@ func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
 		"both phase bounds and the first-care bound move")
 
 	manual := enroll("Hand", "pending", "2100-09-15", "2101-07-31")
-	moved, err = module.MovePendingWindow(ctx, move(manual, "2100-08-08", "2101-07-24"))
+	moved, err = windows.MovePendingWindow(ctx, move(manual, "2100-08-08", "2101-07-24"))
 	require.NoError(t, err)
 	assert.True(t, moved, "the child is still pending")
 	_, from, until, _ = window(manual)
 	assert.Equal(t, []string{"2100-09-15", "2101-07-24"}, []string{from, until}, "a start set by hand stays, the phase end moves")
 
 	active := enroll("Aktiv", "active", "2100-08-01", "2101-07-31")
-	moved, err = module.MovePendingWindow(ctx, move(active, "2100-08-08", "2101-07-24"))
+	moved, err = windows.MovePendingWindow(ctx, move(active, "2100-08-08", "2101-07-24"))
 	require.NoError(t, err)
 	assert.False(t, moved, "an active child is not moved")
 	status, from, until, _ = window(active)
 	assert.Equal(t, []string{"active", "2100-08-01", "2101-07-31"}, []string{status, from, until})
 
 	short := enroll("Kurz", "pending", "2100-08-01", "2100-08-05")
-	_, err = module.MovePendingWindow(ctx, move(short, "2100-08-08", "2101-07-24"))
+	_, err = windows.MovePendingWindow(ctx, move(short, "2100-08-08", "2101-07-24"))
 	var invalid *schoolmembership.InvalidMembershipError
 	require.ErrorAs(t, err, &invalid, "a window ending before its start is refused")
 	_, from, until, _ = window(short)

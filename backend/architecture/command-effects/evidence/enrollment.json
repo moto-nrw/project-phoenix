@@ -2385,6 +2385,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
+      "binding_digest": "7466a2c2767fb10d47898bb4c869427a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseStudents.MovePendingWindow",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.PendingWindows.MovePendingWindow",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RejectedCleanup.CleanupRejectedEnrollments",
       "binding_digest": "07832e19f0cfb11d964b78cbad7c3bfc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.RejectedEnrollmentCleaner.CleanupRejectedEnrollments",
@@ -5111,14 +5119,6 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListCareOfferings",
       "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
-      "binding_digest": "599e2883b25b2c64d93e0408e4d61c15",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseStudents.MovePendingWindow",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.MovePendingWindow",
-      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetWeeklySchedulesByStudentIDsForDate",

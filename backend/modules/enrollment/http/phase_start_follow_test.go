@@ -25,14 +25,14 @@ import (
 // the pending students and a fixed school day.
 func followingPhases(t *testing.T, env *decisionTestEnv, today calendar.Date) enrollmentNative.PhaseAdministration {
 	t.Helper()
-	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, env.db))
+	pendingWindows, err := owners.ComposePendingWindows(testpkg.NewDatabase(t, env.db))
 	require.NoError(t, err)
 	return NewTestPhases(TestPhaseDependencies{
 		Records:                env.repos.Enrollment(),
 		Offerings:              phaseOfferings{rows: newCareOfferingFixtures(env.reposCare.CarePlan)},
 		LockTemplateRecurrence: owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites,
 		Resyncer:               &recordingSourcedTemplateResyncer{},
-		Students:               owners.NewEnrollmentPhaseStudents(membership),
+		Students:               owners.NewEnrollmentPhaseStudents(pendingWindows),
 		Logger:                 slog.Default(),
 		Today:                  func() calendar.Date { return today },
 	})

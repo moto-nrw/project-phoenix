@@ -58,7 +58,6 @@ type Store interface {
 	StudentCarePeriods(context.Context, int64) ([]*enrollment.StudentCarePeriod, error)
 	StudentCarePeriodsByStudentIDs(context.Context, []int64) ([]*enrollment.StudentCarePeriod, error)
 	UpdateChildActivationPlan(context.Context, int64, string, *enrollment.Date) error
-	PhaseActivationPlans(context.Context, int64, enrollment.Date) ([]enrollment.ActivationPlan, error)
 	LinkCreatedStudent(context.Context, int64, int64) error
 	SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error
 	ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)

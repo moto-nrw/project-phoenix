@@ -604,6 +604,18 @@ func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// A phase whose bookings still apply is refused with 409 and its own code, so
+// the dialog names the reason (#6505).
+func TestDeletePhaseHandler_EffectiveBookingsReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{deleteErr: fmt.Errorf("%w: 2 children", capability.ErrPhaseHasEffectiveBookings)}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.phase_has_effective_bookings"`)
+}
+
 func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {
 	t.Parallel()
 

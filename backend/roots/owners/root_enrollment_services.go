@@ -64,12 +64,16 @@ func BuildEnrollmentNotices(
 func BuildEnrollmentPhases(
 	env RootEnvironment, enrollment EnrollmentRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	calendar enrollmentCompose.CalendarPeriods, owner TimetableOwner, offerings CarePlanOfferings, settings settingsCompose.BatchSettingsService,
-	membership EnrollmentPendingWindowMover,
+	db transactionruntime.Database,
 ) (*enrollmentCompose.Phases, error) {
+	pendingWindows, err := ComposePendingWindows(db)
+	if err != nil {
+		return nil, fmt.Errorf("compose enrollment phases: %w", err)
+	}
 	phases, err := enrollmentCompose.NewResyncingPhases(enrollmentCompose.PhaseDependencies{
 		Records: enrollment.Bookings, Offerings: enrollmentPhaseOfferings{carePlan: carePlan}, Calendar: calendar,
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites, ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(offerings.Catalog),
-		Resyncer: offerings.Bookings, Students: NewEnrollmentPhaseStudents(membership), Settings: EnrollmentCollectionSettings{Settings: settings},
+		Resyncer: offerings.Bookings, Students: NewEnrollmentPhaseStudents(pendingWindows), Settings: EnrollmentCollectionSettings{Settings: settings},
 		Roster: phaseResponseRoster{query: persons}, CareExits: phaseResponseCareExits{query: carePlan},
 		PortalAccounts: persons, Logger: env.Logger.With("service", "enrollment-phase"),
 	})

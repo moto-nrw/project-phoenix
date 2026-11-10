@@ -118,3 +118,21 @@ func (p *Phase) EnrollmentWindowOpen(now time.Time) bool {
 	}
 	return true
 }
+
+// PhaseStudents is the School Membership command a phase edit moves the
+// enrollment window of a still pending child with (#6505, ADR 0200). The
+// command locks the child's row, decides under that lock and reports whether
+// the child was still pending; it takes no class gate.
+type PhaseStudents interface {
+	MovePendingWindow(ctx context.Context, move PendingWindowMove) (bool, error)
+}
+
+// PendingWindowMove is the window a phase edit proposes for a pending child:
+// each bound moves only while it still equals its Before value.
+type PendingWindowMove struct {
+	StudentID   int64
+	FromBefore  Date
+	FromAfter   Date
+	UntilBefore Date
+	UntilAfter  Date
+}
