@@ -53,3 +53,47 @@ runtime authorization.
 - The database function remains the only caller-facing capability for this
   cleanup. Its migration tests verify execution rights and its queue test
   verifies both repeated seeds and equal visitor names.
+
+## Addendum 2026-11-09: the retirement ends the school's sessions (#6305)
+
+Vorgeschlagen am 09.11.2026 für
+[#6305](https://github.com/moto-nrw/project-phoenix/issues/6305).
+
+Every request checks the session family its access token names, not the
+school (#5194). A session the hourly run left behind therefore kept a hidden
+Demo-Schule open until its access token expired, and a school switch could
+start from it; the erasure removes only the visitor's own sessions, and a lock
+can defer it to a later run.
+
+`platform.retire_expired_demo_schools` now ends every session of a school, of
+every account and portal, in the subtransaction that hides it, through
+`auth.revoke_school_sessions`.
+That function belongs to Identity & Access; its `RevokeTokensByTenantID`
+(operator soft delete, demo restart) calls the same function, so the database
+holds one revocation. It takes its locks in the order of a sign-in: the
+accounts of the sessions first, as refresh, switch and logout do, then the
+school row, which it holds until the caller commits; only then does it delete.
+Every caller ends the sessions before it hides or deletes the school. Every
+sign-in and refresh, of every portal, locks the school its session row is kept
+at under a share lock after the account lock, right before the row is written,
+so none mints a session at a school whose sessions are ending. Creating a
+guardian invitation, and inviting a guardian to a child, take the same order
+in the school's own transaction: account, school, profile, before any child
+link, profile or school mapping is written. The tenant role may only read
+`platform.schools`, so Organisation & Tenancy's
+`platform.lock_tenant_school_for_share` holds the transaction's own school
+and no other.
+
+The function runs with its caller's rights. Only `phoenix_admin` may execute
+it; the demo role reaches it only through the retirement and gets no grant on
+`auth.tokens`. A lock in use defers the whole order under the retirement's
+`lock_timeout`, school and sessions unchanged. This is no new cross-owner
+workflow: it is a step of this one, limited to the school the run hides.
+Hiding with its revocation and the visitor erasure stay the two units of
+#5540, each with its own budget: an order whose erasure a lock defers stays
+hidden with its sessions ended, so ending access never waits for the locks of
+the erasure, and the next run erases it. The
+retirement writes no `token_revoked` audit event, because that evidence
+carries a keyed family fingerprint only the application can compute, and no
+log line of its own: an order keeps writing at most one line per run, that of
+its deferral (#5542).
