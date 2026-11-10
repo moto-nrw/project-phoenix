@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Siblings from separate holiday registrations (#5628, ADR 0115 addendum).
@@ -65,21 +64,14 @@ func (m siblingMember) chainMember() holidayMember {
 	if m.frozen == nil {
 		return holidayMember{children: m.registration.Children, exemption: m.registration.BenefitsDeclared}
 	}
-	birthDates := make(map[int64]calendar.Date, len(m.registration.Children))
+	registered := make(map[int64]parentbilling.HolidayChild, len(m.registration.Children))
 	for _, child := range m.registration.Children {
-		birthDates[child.ID] = child.BirthDate
+		registered[child.ID] = child
 	}
 	children := make([]parentbilling.HolidayChild, len(m.frozen.Children))
 	for i, child := range m.frozen.Children {
-		children[i] = parentbilling.HolidayChild{ID: child.ChildID, Position: child.Position, BirthDate: birthDates[child.ChildID]}
-		for _, line := range child.Lines {
-			if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
-				continue
-			}
-			children[i].Bookings = append(children[i].Bookings, parentbilling.HolidayBooking{
-				WeekID: line.WeekID, WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
-			})
-		}
+		children[i] = parentbilling.HolidayChild{ID: child.ChildID, Position: child.Position, BirthDate: registered[child.ChildID].BirthDate,
+			Bookings: frozenHolidayBookings(child.Lines, registered[child.ChildID].Bookings)}
 	}
 	if m.movedUp {
 		children = withMovedUpBookings(children, m.registration.Children)
@@ -89,6 +81,32 @@ func (m siblingMember) chainMember() holidayMember {
 		member.bearer = &parentbilling.CostBearer{ID: *m.frozen.CostBearerID, Name: m.frozen.CostBearerName}
 	}
 	return member
+}
+
+// frozenHolidayBookings are the bookings the base lines of a frozen
+// contribution price. A line of a week by days takes the days of the
+// current booking of its week, so the rules see the first booked day
+// (#4701).
+func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
+	var bookings []parentbilling.HolidayBooking
+	for _, line := range lines {
+		if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
+			continue
+		}
+		booking := parentbilling.HolidayBooking{
+			WeekID: line.WeekID, WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
+		}
+		if line.BookedDays != nil {
+			booking.BookedDays = *line.BookedDays
+			if i := slices.IndexFunc(current, func(b parentbilling.HolidayBooking) bool {
+				return pricesHolidayWeek(b, booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn)
+			}); i >= 0 {
+				booking.Days = current[i].Days
+			}
+		}
+		bookings = append(bookings, booking)
+	}
+	return bookings
 }
 
 // ListHolidaySiblingGroups lists the groups of the period. They name only

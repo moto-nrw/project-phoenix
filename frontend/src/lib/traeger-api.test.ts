@@ -451,12 +451,14 @@ describe("traeger-api holiday periods", () => {
       registration_closes_on: "2027-02-26",
       binding: false,
       notes: "",
+      max_days_per_child: null,
       weeks: [
         {
           id: 7,
           starts_on: "2027-03-22",
           ends_on: "2027-03-26",
           host_school_id: 31,
+          booking_unit: "week",
           time_models: [
             {
               name: "bis 16 Uhr",

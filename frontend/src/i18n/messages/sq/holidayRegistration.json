@@ -124,7 +124,9 @@
     "emergencyLimit": "Mund të shënoni deri në tre kontakte urgjence.",
     "pickupLimit": "Mund të autorizoni deri në pesë persona për të marrë fëmijët.",
     "contactLimit": "Mund të shënoni deri në tetë persona.",
-    "postalCode": "Ju lutemi shkruani një kod postar me 5 shifra."
+    "postalCode": "Ju lutemi shkruani një kod postar me 5 shifra.",
+    "days": "Ju lutemi zgjidhni të paktën një ditë.",
+    "dayLimit": "Këto janë më shumë ditë se sa lejohen në këto pushime. Ju lutemi zgjidhni më pak ditë."
   },
   "childQuestionsTitle": "Pyetje dhe informacione për fëmijën",
   "familyQuestionsTitle": "Pyetje dhe informacione të përgjithshme",
@@ -134,5 +136,18 @@
   "contactsTitle": "Kontaktet",
   "contactsText": "Shënoni çdo person tjetër vetëm një herë. Zgjidhni rolet e tij. Duhet të ketë të paktën një kontakt urgjence me numër telefoni.",
   "emergencyRole": "Kontakt urgjence",
-  "pickupRole": "Mund t’i marrë fëmijët"
+  "pickupRole": "Mund t’i marrë fëmijët",
+  "timeModelDayPrice": "{name} · {price} në ditë ({startsAt} deri {endsAt})",
+  "weeksDayPriceText": "Për javët me ditë të veçanta, çmimi vlen për një ditë.",
+  "daysLabel": "Ditët në javën {week}",
+  "daysHint": "Zgjidhni ditët kur vjen fëmija.",
+  "fullDaysHint": "Tashmë plot: {days}",
+  "fullDayAria": "{day}, tashmë plot",
+  "fullDaysChosen": "Këto ditë janë tashmë plot: {days} Me to fëmija hyn në listën e pritjes për gjithë javën. Pa to ndoshta merr menjëherë një vend.",
+  "dayLimitHint": "Në këto pushime çdo fëmijë mund të vijë më së shumti {limit} ditë. Ditët mund të jenë në java të ndryshme.",
+  "dayLimitCount": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}.",
+  "dayLimitOver": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}. Janë shumë. Ju lutemi zgjidhni më pak ditë.",
+  "summaryDays": "Ditët: {days}",
+  "contributionDays": "{count, plural, one {# ditë} other {# ditë}}",
+  "dayWithoutCare": "Më {date} nuk ka kujdes ({name})."
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -115,10 +116,12 @@ const (
 		WHERE organization_id = ? AND id = ?`
 	// insertHolidayBookingsQuery puts every booking on the waiting list:
 	// only the placement under the lock of its week gives it a place (#4699).
+	// A booking of days carries its days as an array literal, a booking of
+	// the whole week an empty text (#4701).
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
-			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement)
-		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, 'waitlisted'
-		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[]) AS booking(child_id, week_id, time_model_id)`
+			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days)
+		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, 'waitlisted', NULLIF(booking.days, '')::date[]
+		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[], ?::text[]) AS booking(child_id, week_id, time_model_id, days)`
 	insertHolidayContactsQuery = `INSERT INTO enrollment.holiday_registration_contacts
 			(organization_id, holiday_registration_id, kind, position, name, phone, relationship)
 		SELECT ?, ?, contact.kind, contact.position, contact.name, contact.phone, contact.relationship
@@ -233,6 +236,7 @@ func storeHolidayFamilyHealth(ctx context.Context, db bun.IDB, organizationID, r
 func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, periodID, registrationID int64,
 	children []enrollment.HolidayChildInput, sealed [][]byte) error {
 	var childIDs, weekIDs, modelIDs []int64
+	var days []string
 	for i, child := range children {
 		row := holidayChildRow{
 			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: registrationID, Position: i + 1,
@@ -250,10 +254,11 @@ func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, peri
 			childIDs = append(childIDs, row.ID)
 			weekIDs = append(weekIDs, booking.WeekID)
 			modelIDs = append(modelIDs, booking.TimeModelID)
+			days = append(days, holidayDaysLiteral(booking.Days))
 		}
 	}
 	if _, err := db.NewRaw(insertHolidayBookingsQuery, organizationID, periodID, pgdialect.Array(childIDs),
-		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs)).Exec(ctx); err != nil {
+		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days)).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: insert holiday registration bookings: %w", err)
 	}
 	return nil
@@ -419,4 +424,39 @@ func acceptedHolidayKeys(acceptances map[string]bool) []string {
 		}
 	}
 	return keys
+}
+
+// holidayDaysLiteral writes the days of a booking as a PostgreSQL array
+// literal; no days, a booking of the whole week, is an empty text (#4701).
+func holidayDaysLiteral(days []calendar.Date) string {
+	if len(days) == 0 {
+		return ""
+	}
+	parts := make([]string, len(days))
+	for i, day := range days {
+		parts[i] = day.String()
+	}
+	return "{" + strings.Join(parts, ",") + "}"
+}
+
+// holidayDaysOf reads the days of a booking scanned as text, in the form
+// PostgreSQL writes a date array; NULL or an empty text is none.
+func holidayDaysOf(raw *string) ([]calendar.Date, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	text := strings.Trim(*raw, "{}")
+	if text == "" {
+		return nil, nil
+	}
+	parts := strings.Split(text, ",")
+	days := make([]calendar.Date, len(parts))
+	for i, part := range parts {
+		day, err := calendar.ParseDate(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("enrollment postgres: read booked holiday day: %w", err)
+		}
+		days[i] = day
+	}
+	return days, nil
 }

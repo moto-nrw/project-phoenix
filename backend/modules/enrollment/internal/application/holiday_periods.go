@@ -140,11 +140,15 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 		return enrollment.HolidayPeriod{}, err
 	}
 	input = keepArchivedHolidayTimeModels(normalizeHolidayPeriod(input), current)
+	input = keepHolidayBookingUnits(input, current)
 	if err := validateHolidayPeriod(input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	if current.Status == enrollment.HolidayPeriodPublished && !holidayInputComplete(input) {
 		return enrollment.HolidayPeriod{}, enrollment.ErrHolidayPeriodIncomplete
+	}
+	if err := refuseBookedUnitChange(input.Weeks, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
 	}
 	if err := h.refuseBookedTogether(ctx, organizationID, periodID, input.Weeks); err != nil {
 		return enrollment.HolidayPeriod{}, err
@@ -240,6 +244,9 @@ func holidayPeriodComplete(period enrollment.HolidayPeriod) bool {
 		return false
 	}
 	for _, week := range period.Weeks {
+		if week.BookingUnit == enrollment.HolidayBookingUnitDay && len(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)) == 0 {
+			return false
+		}
 		if !slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool { return !model.Archived }) {
 			return false
 		}
@@ -325,6 +332,9 @@ func validateHolidayPeriod(input enrollment.HolidayPeriodInput, current enrollme
 		errs["notes"] = fmt.Errorf("notes are longer than %d characters", holidayNotesMaxLength)
 	}
 	validateRegistrationWindow(input, errs)
+	if limit := input.MaxDaysPerChild; limit != nil && (*limit < 1 || *limit > enrollment.HolidayMaxDaysPerChildMax) {
+		errs["max_days_per_child"] = fmt.Errorf("must be between 1 and %d", enrollment.HolidayMaxDaysPerChildMax)
+	}
 	if len(input.Weeks) > holidayMaxWeeks {
 		errs["weeks"] = fmt.Errorf("a period has at most %d weeks", holidayMaxWeeks)
 	} else if weekErrs := validateHolidayWeeks(input.Weeks, current); len(weekErrs) > 0 {
@@ -397,10 +407,44 @@ func validateHolidayWeek(week enrollment.HolidayWeekInput) validation.Errors {
 	} else if week.StartsOn.DaysUntil(week.EndsOn) >= holidayMaxWeekDays {
 		errs["ends_on"] = fmt.Errorf("a week has at most %d days", holidayMaxWeekDays)
 	}
+	if week.BookingUnit == enrollment.HolidayBookingUnitDay && len(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)) == 0 {
+		errs["ends_on"] = errors.New("a week booked by days needs at least one weekday")
+	}
 	if len(week.TimeModels) > holidayMaxTimeModelsPerWeek {
 		errs["time_models"] = fmt.Errorf("a week has at most %d time models", holidayMaxTimeModelsPerWeek)
 	}
+	switch week.BookingUnit {
+	case "", enrollment.HolidayBookingUnitWeek, enrollment.HolidayBookingUnitDay:
+	default:
+		errs["booking_unit"] = errors.New("the booking unit is week or day")
+	}
 	return errs
+}
+
+// refuseBookedUnitChange keeps the bookings of a week valid (#4701): a week
+// that bookings name keeps its booking unit, and a week by days keeps its
+// dates, which its bookings' days lie in. A week is booked when a booking
+// or a rebooking names one of its time models.
+func refuseBookedUnitChange(weeks []enrollment.HolidayWeekInput, current enrollment.HolidayPeriod) error {
+	stored := map[int64]enrollment.HolidayWeek{}
+	for _, week := range current.Weeks {
+		stored[week.ID] = week
+	}
+	for _, week := range weeks {
+		before, ok := stored[week.ID]
+		if week.ID == 0 || !ok || !slices.ContainsFunc(before.TimeModels, func(model enrollment.HolidayTimeModel) bool { return model.Protected }) {
+			continue
+		}
+		unit := week.BookingUnit
+		if unit == "" {
+			unit = enrollment.HolidayBookingUnitWeek
+		}
+		moved := before.StartsOn != week.StartsOn || before.EndsOn != week.EndsOn
+		if unit != before.BookingUnit || (unit == enrollment.HolidayBookingUnitDay && moved) {
+			return fmt.Errorf("%w: %w", enrollment.ErrHolidayWeekBooked, enrollment.ErrHolidayBookingUnitBooked)
+		}
+	}
+	return nil
 }
 
 // overlappingHolidayWeeks maps the index of each valid week that shares a day
@@ -486,4 +530,20 @@ func validateHolidayTimeModel(model enrollment.HolidayTimeModelInput) validation
 		errs["price_cents"] = fmt.Errorf("price must be between 0 and %d cent", holidayMaxPriceCents)
 	}
 	return errs
+}
+
+// keepHolidayBookingUnits keeps the booking unit of a stored week that the
+// written week does not name, so a client that does not know the unit
+// leaves it as it is (#4701).
+func keepHolidayBookingUnits(input enrollment.HolidayPeriodInput, current enrollment.HolidayPeriod) enrollment.HolidayPeriodInput {
+	stored := map[int64]string{}
+	for _, week := range current.Weeks {
+		stored[week.ID] = week.BookingUnit
+	}
+	for i, week := range input.Weeks {
+		if unit, ok := stored[week.ID]; ok && week.ID != 0 && week.BookingUnit == "" {
+			input.Weeks[i].BookingUnit = unit
+		}
+	}
+	return input
 }

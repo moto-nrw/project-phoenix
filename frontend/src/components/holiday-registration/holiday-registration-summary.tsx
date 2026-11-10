@@ -3,6 +3,7 @@
 // Zusammenfassung vor dem Absenden der Ferienanmeldung (#4661), mit dem
 // Beitrag aus den Regeln des Trägers (#4664).
 
+import { holidayDayList } from "~/lib/holiday-days";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useCallback } from "react";
 import {
@@ -157,6 +158,13 @@ export function HolidayRegistrationSummary({
                   label={labels.range(week)}
                 >
                   {`${labels.timeModel(model)} · ${week.hostSchoolName}`}
+                  {booking.days.length > 0 ? (
+                    <span className="block text-sm text-gray-600">
+                      {t("summaryDays", {
+                        days: holidayDayList(booking.days, locale),
+                      })}
+                    </span>
+                  ) : null}
                 </DataField>
               );
             })}

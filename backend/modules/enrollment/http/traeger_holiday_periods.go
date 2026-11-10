@@ -87,18 +87,23 @@ type holidayWeekRequest struct {
 	EndsOn       calendar.Date             `json:"ends_on"`
 	HostSchoolID int64                     `json:"host_school_id"`
 	TimeModels   []holidayTimeModelRequest `json:"time_models"`
+	// BookingUnit is "week" or "day"; empty is a week (#4701).
+	BookingUnit string `json:"booking_unit"`
 }
 
 // HolidayPeriodRequest is the body of POST /traeger/holiday-periods and PUT
 // /traeger/holiday-periods/{id}: the whole period with its weeks. Prices are
 // whole cent.
 type HolidayPeriodRequest struct {
-	Name                 string               `json:"name"`
-	RegistrationOpensOn  calendar.Date        `json:"registration_opens_on"`
-	RegistrationClosesOn calendar.Date        `json:"registration_closes_on"`
-	Binding              bool                 `json:"binding"`
-	Notes                string               `json:"notes"`
-	Weeks                []holidayWeekRequest `json:"weeks"`
+	Name                 string        `json:"name"`
+	RegistrationOpensOn  calendar.Date `json:"registration_opens_on"`
+	RegistrationClosesOn calendar.Date `json:"registration_closes_on"`
+	Binding              bool          `json:"binding"`
+	Notes                string        `json:"notes"`
+	// MaxDaysPerChild bounds the care days per child, null for no bound
+	// (#4701).
+	MaxDaysPerChild *int                 `json:"max_days_per_child"`
+	Weeks           []holidayWeekRequest `json:"weeks"`
 }
 
 // Bind accepts the body; the Owner validates the period as a whole.
@@ -113,11 +118,12 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 		}
 		weeks[i] = capability.HolidayWeekInput{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID, TimeModels: models,
+			BookingUnit: week.BookingUnit,
 		}
 	}
 	return capability.HolidayPeriodInput{
 		Name: req.Name, RegistrationOpensOn: req.RegistrationOpensOn, RegistrationClosesOn: req.RegistrationClosesOn,
-		Binding: req.Binding, Notes: req.Notes, Weeks: weeks,
+		Binding: req.Binding, Notes: req.Notes, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
 	}
 }
 
@@ -244,6 +250,8 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.As(err, &refusedDates):
 		field := fmt.Sprintf("weeks.%d.starts_on", refusedDates.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayWeeksBookedTogether, field))
+	case errors.Is(err, capability.ErrHolidayBookingUnitBooked):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayBookingUnitBooked))
 	case errors.Is(err, capability.ErrHolidayWeekBooked):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayWeekBooked))
 	case errors.Is(err, capability.ErrHolidayPeriodIncomplete):

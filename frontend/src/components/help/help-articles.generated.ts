@@ -3331,6 +3331,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
+      "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
@@ -6398,6 +6399,7 @@ export const parentHolidayRegistrationTopic =
         "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
         "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
+        "Steht bei der Zeit „je Tag“? Dann wählen Sie darunter die Tage, an denen Ihr Kind kommt. Der Preis gilt je Tag.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
         "Tragen Sie `Ihre Angaben` ein.",
         "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",
@@ -6421,6 +6423,8 @@ export const parentHolidayRegistrationTopic =
         "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
         "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
+        "Manche Ferien haben eine Grenze, zum Beispiel höchstens 5 Tage je Kind. Dann steht sie über den Wochen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag.",
+        "Steht unter den Tagen `Schon voll`? An diesen Tagen sind alle Plätze vergeben. Wählen Sie einen davon, kommt Ihr Kind für diese Woche auf die Warteliste.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
@@ -11641,6 +11645,7 @@ export const traegerHolidayContributionTopic =
           title: "Preis festlegen",
           steps: [
             "Den Preis jeder Woche legen Sie im Ferienzeitraum fest. Jedes Zeitmodell hat einen `Preis in Euro`.",
+            "Wird eine Woche tageweise gebucht, ist es ein `Preis je Tag in Euro`. Der Beitrag ist dann der Tagespreis mal die gebuchten Tage. Danach rechnet moto Geschwister und Befreiung wie bei ganzen Wochen.",
           ],
         },
         {
@@ -11856,6 +11861,7 @@ export const traegerHolidayPeriodTopic =
             "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
             "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
             "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
+            "Soll ein Kind nur eine bestimmte Zahl an Tagen kommen? Tragen Sie die Zahl bei `Höchstens Tage je Kind` ein, zum Beispiel 5. Ohne Grenze lassen Sie das Feld leer.",
           ],
         },
         {
@@ -11864,7 +11870,8 @@ export const traegerHolidayPeriodTopic =
             "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
             "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
             "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Wählen Sie dann andere Tage, zum Beispiel Dienstag bis Freitag.",
-            "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
+            "Wählen Sie bei `Buchung`, wie Eltern die Woche buchen: `Ganze Woche` oder `Einzelne Tage`. Bei einzelnen Tagen wählen Eltern Tage von Montag bis Freitag.",
+            "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und einen Preis. Bei `Ganze Woche` ist es der `Preis in Euro` für die Woche, bei `Einzelne Tage` der `Preis je Tag in Euro`.",
             "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
             "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
             "Wählen Sie `Speichern`.",
@@ -11886,9 +11893,12 @@ export const traegerHolidayPeriodTopic =
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
         "Ein Zeitmodell mit Anmeldungen lässt sich nicht entfernen. Wählen Sie dann `Archivieren`. Neu buchen kann es danach niemand mehr. Gebuchte Tage behalten es. Zurückholen lässt es sich nicht.",
+        "`Höchstens Tage je Kind` gilt für alle Wochen zusammen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag. Eltern dürfen die Tage auf mehrere Wochen verteilen. Senken Sie die Zahl später, behalten Kinder ihre gebuchten Tage.",
+        "Bei `Einzelne Tage` zahlt die Familie den Preis je Tag mal die gebuchten Tage.",
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
+        "`Ganze Woche` und `Einzelne Tage` lassen sich nicht wählen? Für die Woche gibt es schon Anmeldungen. Die Buchungsart bleibt dann so. Bei einzelnen Tagen bleiben auch die Tage der Woche.",
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
       troubleshootingDetails: [
@@ -11956,6 +11966,7 @@ export const traegerHolidayPlacesTopic =
         "Das nächste Kind der Warteliste hat sofort einen Platz. Die Anmeldung gilt dann auch für diese Woche. Ist die Anmeldung verbindlich, ist es der Platz auch. Die Eltern bekommen eine E-Mail. Ist die Anmeldung bestätigt, rechnet moto den Ferienbeitrag mit der neuen Woche neu.",
       notes: [
         "Die Plätze gelten für alle Zeitmodelle einer Woche zusammen.",
+        "Bei einer Woche mit einzelnen Tagen gelten die Plätze an jedem Tag. Unter `Plätze je Tag` sehen Sie, wie voll jeder Tag ist. Ein Kind bekommt seinen Platz, wenn alle seine Tage frei sind. Sonst wartet es mit allen Tagen dieser Woche. Ein Kind mit anderen Tagen kann dann vor ihm einen Platz bekommen.",
         "Eingegangene und bestätigte Anmeldungen zählen. Stornierte zählen nicht.",
         "Geschwister bekommen ihre Plätze einzeln. Ein Kind kann einen Platz haben und das andere auf der Warteliste stehen.",
         "Weniger Plätze nehmen niemandem den Platz weg. Neue Anmeldungen kommen dann auf die Warteliste.",
@@ -11965,6 +11976,7 @@ export const traegerHolidayPlacesTopic =
       ],
       differences: [
         "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
+        "Bei einer Woche steht `2 Tage voll` oder `Alle Tage voll`? Die Woche wird tageweise gebucht. An diesen Tagen sind alle Plätze vergeben.",
         "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
       ],
       troubleshootingDetails: [
@@ -12069,8 +12081,10 @@ export const traegerHolidayRegistrationReviewTopic =
           steps: [
             "Wählen Sie beim Kind `Umbuchen`.",
             "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
+            "Wird die Woche tageweise gebucht, wählen Sie darunter die Tage. Mehr Tage als `Höchstens Tage je Kind` nimmt moto nicht an.",
             "Wählen Sie `Speichern`.",
             "Eine Woche, die das Kind nicht mehr bucht, gibt ihren Platz frei. Das nächste Kind der Warteliste rückt sofort nach. Eine neue Woche bekommt einen Platz, wenn einer frei ist. Sonst kommt das Kind dort auf die Warteliste.",
+            "Kommt bei einer Woche mit einzelnen Tagen ein Tag dazu, braucht das Kind an jedem Tag einen Platz. Fehlt einer, wartet die ganze Woche wieder. Fallen nur Tage weg, behält das Kind seinen Platz.",
           ],
         },
         {

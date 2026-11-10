@@ -467,6 +467,10 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_booking_unit_booked":
+        "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
+      "enrollment.holiday_child_day_limit":
+        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Gewählt sind {days}. Bitte wählen Sie weniger Tage.",
       "enrollment.holiday_form_field_not_allowed":
         "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
@@ -2176,6 +2180,10 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_booking_unit_booked":
+        "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
+      "enrollment.holiday_child_day_limit":
+        "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
       "enrollment.holiday_guest_group_invalid":
         "This group no longer exists. Please choose another group.",
       "enrollment.holiday_guest_not_found":
@@ -2803,6 +2811,10 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
+      "enrollment.holiday_booking_unit_booked":
+        "На эту неделю уже есть заявки. Поэтому способ бронирования, а для отдельных дней и даты недели, остаются без изменений.",
+      "enrollment.holiday_child_day_limit":
+        "В эти каникулы ребёнок может прийти не больше {limit} дней. Выбрано: {days}. Выберите меньше дней.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -3349,6 +3361,10 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani emrin dhe mbiemrin.",
       "enrollment.guardian_phone_required":
         "Ju lutemi shkruani një numër telefoni.",
+      "enrollment.holiday_booking_unit_booked":
+        "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
+      "enrollment.holiday_child_day_limit":
+        "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Janë zgjedhur {days}. Ju lutemi zgjidhni më pak ditë.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -3889,6 +3905,10 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Wpisz adres e-mail.",
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
+      "enrollment.holiday_booking_unit_booked":
+        "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
+      "enrollment.holiday_child_day_limit":
+        "W te ferie dziecko może przyjść najwyżej {limit} dni. Wybrano {days}. Wybierz mniej dni.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -4431,6 +4451,10 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
+      "enrollment.holiday_booking_unit_booked":
+        "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
+      "enrollment.holiday_child_day_limit":
+        "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -4966,6 +4990,10 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
+      "enrollment.holiday_booking_unit_booked":
+        "На цей тиждень уже є заявки. Тому спосіб бронювання, а для окремих днів і дати тижня, залишаються без змін.",
+      "enrollment.holiday_child_day_limit":
+        "У ці канікули дитина може прийти не більше {limit} днів. Обрано: {days}. Оберіть менше днів.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":

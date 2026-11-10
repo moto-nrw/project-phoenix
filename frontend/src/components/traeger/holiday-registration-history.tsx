@@ -9,6 +9,7 @@
 
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
+import { holidayDayList } from "~/lib/holiday-days";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import type {
   HolidayBookingChange,
@@ -53,8 +54,11 @@ function bookingsText(
       const model = week?.timeModels.find(
         (entry) => entry.id === change.timeModelId,
       );
-      if (!week || !model) return "eine entfernte Woche";
-      return `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}: ${model.name}`;
+      const days = change.days?.length
+        ? ` · ${holidayDayList(change.days)}`
+        : "";
+      if (!week || !model) return `eine entfernte Woche${days}`;
+      return `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}: ${model.name}${days}`;
     })
     .join("; ");
 }

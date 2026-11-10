@@ -85,6 +85,8 @@ const CodeEnrollmentGuardianAccountMismatch = "enrollment.guardian_account_misma
 const CodeEnrollmentGuardianEmailRequired = "enrollment.guardian_email_required"
 const CodeEnrollmentGuardianNameRequired = "enrollment.guardian_name_required"
 const CodeEnrollmentGuardianPhoneRequired = "enrollment.guardian_phone_required"
+const CodeEnrollmentHolidayBookingUnitBooked = "enrollment.holiday_booking_unit_booked"
+const CodeEnrollmentHolidayChildDayLimit = "enrollment.holiday_child_day_limit"
 const CodeEnrollmentHolidayFormFieldNotAllowed = "enrollment.holiday_form_field_not_allowed"
 const CodeEnrollmentHolidayGuestGroupInvalid = "enrollment.holiday_guest_group_invalid"
 const CodeEnrollmentHolidayGuestNotFound = "enrollment.holiday_guest_not_found"
@@ -238,6 +240,8 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentGuardianEmailRequired, "input"},
 	{CodeEnrollmentGuardianNameRequired, "input"},
 	{CodeEnrollmentGuardianPhoneRequired, "input"},
+	{CodeEnrollmentHolidayBookingUnitBooked, "business_rejection"},
+	{CodeEnrollmentHolidayChildDayLimit, "input"},
 	{CodeEnrollmentHolidayFormFieldNotAllowed, "input"},
 	{CodeEnrollmentHolidayGuestGroupInvalid, "input"},
 	{CodeEnrollmentHolidayGuestNotFound, "business_rejection"},

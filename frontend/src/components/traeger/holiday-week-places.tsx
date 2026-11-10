@@ -4,6 +4,8 @@
 // Reihenfolge, in der die Anmeldungen eingegangen sind. Ist die Woche voll,
 // wartet ein Kind auf der Warteliste der Woche und rückt automatisch nach,
 // sobald ein Platz frei wird. Seine Eltern bekommen dann eine E-Mail.
+// Eine tageweise gebuchte Woche hat ihre Plätze an jedem Tag (#4701): ein
+// Kind bekommt seinen Platz, wenn alle seine Tage frei sind.
 
 import { Hourglass } from "lucide-react";
 import { useRef, useState } from "react";
@@ -23,10 +25,18 @@ import { NumberStepper } from "~/components/ui/number-stepper";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
+import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
+import {
+  holidayDayDate,
+  holidayDayList,
+  holidayDayPromotions,
+  holidayWeekdayLong,
+  holidayWeekdayShort,
+} from "~/lib/holiday-days";
 import {
   type HolidayWeekPlaces,
   setHolidayWeekCapacity,
@@ -43,6 +53,21 @@ export function holidayWeekFill(week: HolidayWeekPlaces): {
 } {
   if (week.capacity === null) {
     return { label: "Ohne Grenze", tone: "gray" };
+  }
+  if (week.bookingUnit === "day") {
+    const capacity = week.capacity;
+    const days = week.days ?? [];
+    const full = days.filter((day) => day.placed >= capacity).length;
+    if (days.length > 0 && full === days.length) {
+      return { label: "Alle Tage voll", tone: "warning" };
+    }
+    if (full > 0) {
+      return {
+        label: full === 1 ? "1 Tag voll" : `${full} Tage voll`,
+        tone: "warning",
+      };
+    }
+    return { label: "Plätze frei", tone: "green" };
   }
   const free = week.capacity - week.placed;
   if (free <= 0) {
@@ -114,13 +139,66 @@ export function HolidayWeekPlacesCard({
   );
 }
 
+/**
+ * Die Belegung jedes Tages einer tageweise gebuchten Woche: ein Feld je Tag
+ * mit vergebenen Plätzen und Balken. Ein voller Tag ist orange.
+ */
+function HolidayDayPlacesGrid({ week }: Readonly<{ week: HolidayWeekPlaces }>) {
+  const capacity = week.capacity;
+  return (
+    <div className="space-y-2">
+      <SectionLabel as="h3">
+        {capacity === null
+          ? "Angemeldete Kinder je Tag"
+          : `Plätze je Tag · ${capacity} ${capacity === 1 ? "Platz" : "Plätze"} an jedem Tag`}
+      </SectionLabel>
+      <ul className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-5">
+        {(week.days ?? []).map((day) => {
+          const full = capacity !== null && day.placed >= capacity;
+          const label =
+            capacity === null
+              ? `${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: ${day.placed} angemeldet`
+              : `${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: ${day.placed} von ${capacity} Plätzen vergeben${full ? ", voll" : ""}`;
+          return (
+            <li key={day.date} aria-label={label}>
+              <StatCard
+                label={`${holidayWeekdayShort(day.date)} ${holidayDayDate(day.date)}`}
+                value={
+                  capacity === null
+                    ? day.placed
+                    : `${day.placed} von ${capacity}`
+                }
+                hint={
+                  capacity === null
+                    ? "Kinder angemeldet"
+                    : full
+                      ? "Voll"
+                      : "Plätze vergeben"
+                }
+                tone={full ? "orange" : "green"}
+                progressPct={
+                  capacity === null
+                    ? undefined
+                    : Math.min(100, (day.placed / Math.max(capacity, 1)) * 100)
+                }
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function HolidayWeekPlacesReadout({
   periodId,
   week,
 }: Readonly<{ periodId: string; week: HolidayWeekPlaces }>) {
   return (
     <div className="space-y-5">
-      {week.capacity === null ? (
+      {week.bookingUnit === "day" ? (
+        <HolidayDayPlacesGrid week={week} />
+      ) : week.capacity === null ? (
         <p className="text-sm text-gray-700">
           <span className="font-semibold text-gray-900">{week.placed}</span>{" "}
           {week.placed === 1 ? "Kind ist" : "Kinder sind"} angemeldet. Es gibt
@@ -170,7 +248,7 @@ function HolidayWeekPlacesReadout({
                   />
                 }
                 title={`${entry.childFirstName} ${entry.childLastName}`}
-                subtitle={`Eingegangen am ${formatBerlinDate(entry.submittedAt)} · ${entry.timeModelName}`}
+                subtitle={`Eingegangen am ${formatBerlinDate(entry.submittedAt)} · ${entry.timeModelName}${(entry.days ?? []).length > 0 ? ` · ${holidayDayList(entry.days ?? [])}` : ""}`}
                 badge={
                   <StatusBadge
                     label={
@@ -254,9 +332,19 @@ function HolidayCapacityEditor({
     }
   }
 
-  const moving = limited
-    ? Math.min(waiting, Math.max(0, (valid ? capacity : placed) - placed))
-    : waiting;
+  const byDays = week.bookingUnit === "day";
+  const moving = byDays
+    ? holidayDayPromotions(
+        limited ? (valid ? capacity : null) : null,
+        new Map((week.days ?? []).map((day) => [day.date, day.placed])),
+        week.waitlist.map((entry) => entry.days ?? []),
+      )
+    : limited
+      ? Math.min(waiting, Math.max(0, (valid ? capacity : placed) - placed))
+      : waiting;
+  const mostPlaced = byDays
+    ? Math.max(0, ...(week.days ?? []).map((day) => day.placed))
+    : placed;
   return (
     <form
       ref={formRef}
@@ -278,7 +366,9 @@ function HolidayCapacityEditor({
       />
       {limited ? (
         <div className="space-y-2">
-          <SectionLabel as="p">Plätze in dieser Woche</SectionLabel>
+          <SectionLabel as="p">
+            {byDays ? "Plätze an jedem Tag" : "Plätze in dieser Woche"}
+          </SectionLabel>
           <NumberStepper
             id="holiday-week-capacity"
             name="capacity"
@@ -304,11 +394,15 @@ function HolidayCapacityEditor({
             incrementLabel="Einen Platz mehr"
             canDecrement={capacity > 0}
             canIncrement={capacity < HOLIDAY_WEEK_CAPACITY_MAX}
-            aria-label="Plätze in dieser Woche"
+            aria-label={
+              byDays ? "Plätze an jedem Tag" : "Plätze in dieser Woche"
+            }
             error={formErrors.fieldError("capacity")}
           />
           <p className="text-sm text-gray-600">
-            Die Plätze gelten für alle Zeitmodelle dieser Woche zusammen.
+            {byDays
+              ? "Die Zahl gilt für jeden Tag, für alle Zeitmodelle zusammen. Ein Kind bekommt seinen Platz, wenn alle seine Tage frei sind."
+              : "Die Plätze gelten für alle Zeitmodelle dieser Woche zusammen."}
           </p>
         </div>
       ) : null}
@@ -322,10 +416,14 @@ function HolidayCapacityEditor({
           }
         />
       ) : null}
-      {limited && valid && capacity < placed ? (
+      {limited && valid && capacity < mostPlaced ? (
         <Alert
           type="warning"
-          message={`${placed} Kinder haben schon einen Platz. Sie behalten ihn. Neue Anmeldungen kommen auf die Warteliste.`}
+          message={
+            byDays
+              ? `An einem Tag haben schon ${mostPlaced} Kinder einen Platz. Sie behalten ihn. Neue Anmeldungen für diesen Tag kommen auf die Warteliste.`
+              : `${placed} Kinder haben schon einen Platz. Sie behalten ihn. Neue Anmeldungen kommen auf die Warteliste.`
+          }
         />
       ) : null}
       <EditActions

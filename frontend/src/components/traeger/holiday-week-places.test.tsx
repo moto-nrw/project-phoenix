@@ -182,3 +182,70 @@ describe("HolidayWeekPlacesCard editing its places", () => {
     );
   });
 });
+
+describe("HolidayWeekPlacesCard of a week by days (#4701)", () => {
+  const DAY_WEEK: HolidayWeekPlaces = {
+    ...FULL_WEEK,
+    capacity: 1,
+    placed: 2,
+    bookingUnit: "day",
+    days: [
+      { date: "2027-07-05", placed: 1 },
+      { date: "2027-07-06", placed: 1 },
+      { date: "2027-07-07", placed: 0 },
+      { date: "2027-07-08", placed: 0 },
+      { date: "2027-07-09", placed: 0 },
+    ],
+    waitlist: [
+      { ...FULL_WEEK.waitlist[0]!, days: ["2027-07-06", "2027-07-07"] },
+    ],
+  };
+
+  it("shows the places of each day and the wanted days of a waiting child", () => {
+    render(
+      <HolidayWeekPlacesCard
+        periodId="7"
+        week={DAY_WEEK}
+        hostSchoolName="OGS am Berg"
+        editing={false}
+        onEdit={vi.fn()}
+        onCancel={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("2 Tage voll")).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", {
+        name: "Di 06.07.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", {
+        name: "Mi 07.07.",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Di 06\.07\., Mi 07\.07\./)).toBeInTheDocument();
+  });
+
+  it("names how many move up by the rule of the days", () => {
+    render(
+      <ToastProvider>
+        <HolidayWeekPlacesCard
+          periodId="7"
+          week={{ ...DAY_WEEK, capacity: 2 }}
+          hostSchoolName="OGS am Berg"
+          editing
+          onEdit={vi.fn()}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    expect(
+      screen.getByText(
+        "1 Kind rückt beim Speichern von der Warteliste nach. Seine Eltern bekommen eine E-Mail.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Die Zahl gilt für jeden Tag/)).toBeInTheDocument();
+  });
+});
