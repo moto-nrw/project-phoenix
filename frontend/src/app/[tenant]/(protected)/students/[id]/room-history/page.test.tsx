@@ -1230,5 +1230,44 @@ describe("StudentRoomHistoryPage", () => {
       expect(screen.getByText(/3 Tage erfasst/)).toBeInTheDocument();
       expect(screen.queryByText(/1 Tag erfasst/)).not.toBeInTheDocument();
     });
+
+    it("shows no error of the child shown before while the next one loads", async () => {
+      const nextChild = deferredHistory();
+      const failure = {
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "internal" }),
+      } as unknown as HistoryResponse;
+      const previousChild = [
+        Promise.resolve(snapshot(1)),
+        Promise.resolve(failure),
+      ];
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/attendance-history")) {
+          return url.includes("/42/")
+            ? (previousChild.shift() ?? Promise.reject(new Error("unerwartet")))
+            : nextChild.promise;
+        }
+        return Promise.resolve(mockStudentResponse());
+      });
+      const { rerender } = render(<StudentRoomHistoryPage />);
+      expect(await screen.findByText(/1 Tag erfasst/)).toBeInTheDocument();
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+      await correct();
+      const message =
+        "Das Anwesenheitsprotokoll konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.";
+      expect(await screen.findByText(message)).toBeInTheDocument();
+
+      routeParams.id = "43";
+      rerender(<StudentRoomHistoryPage />);
+
+      // Anker: das nächste Kind lädt noch (Lade-Skelett der Seite).
+      expect(
+        await screen.findByRole("status", { busy: true }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(message)).not.toBeInTheDocument();
+      nextChild.resolve(snapshot(3));
+      expect(await screen.findByText(/3 Tage erfasst/)).toBeInTheDocument();
+    });
   });
 });

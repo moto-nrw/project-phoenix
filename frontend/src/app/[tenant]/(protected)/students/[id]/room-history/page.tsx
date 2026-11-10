@@ -805,6 +805,10 @@ function StudentRoomHistoryPageContent() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    // Fehler und „nicht gefunden“ gehören zum vorigen Abruf, etwa des zuvor
+    // gezeigten Kindes; sie stehen nicht über dem nächsten (#6503).
+    setNotFound(false);
+    clearHistoryError();
 
     void (async () => {
       const [s] = await Promise.all([loadStudent(), fetchHistory()]);
@@ -816,7 +820,7 @@ function StudentRoomHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [loadStudent, fetchHistory, attempt]);
+  }, [loadStudent, fetchHistory, clearHistoryError, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
@@ -861,7 +865,7 @@ function StudentRoomHistoryPageContent() {
         // Exportieren steht im Kebab der Kopfkarte, wie auf jeder anderen
         // Werkzeugfläche; der Zeitraum wird im Export-Dialog gewählt.
         actions={
-          history && history.days.length > 0 ? (
+          hasDays ? (
             <OverflowMenu
               items={[
                 {

@@ -144,6 +144,7 @@ describe("SelectionBulkPickupModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Für 2 setzen" }));
 
+    // Anker: das Speichern läuft, der Dialog ist offen.
     expect(
       await screen.findByRole("button", { name: "Speichern..." }),
     ).toBeDisabled();
@@ -189,7 +190,7 @@ describe("SelectionBulkPickupModal", () => {
     unmount();
     finish({ students_affected: 2 });
 
-    // Die Speicherung hat stattgefunden: die Liste lädt neu …
+    // Anker: die Speicherung hat stattgefunden, die Liste lädt neu …
     await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
     // … aber das Schließen gehört dem Dialog von damals, nicht dem nächsten.
     expect(onClose).not.toHaveBeenCalled();

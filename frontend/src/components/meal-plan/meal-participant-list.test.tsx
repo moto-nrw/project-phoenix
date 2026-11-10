@@ -960,6 +960,7 @@ describe("MealParticipantList", () => {
 
       // Anker: das Mittwochsdatum ist gewählt, seine Liste lädt noch.
       expect(screen.getByText("Mittagessen am 09.09.2026")).toBeInTheDocument();
+      expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
       expect(screen.queryByText("Dienstag, Kind")).not.toBeInTheDocument();
 
       wednesday.resolve(dayList("2026-09-09", "Mittwoch"));

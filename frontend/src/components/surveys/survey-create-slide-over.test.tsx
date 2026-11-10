@@ -106,6 +106,7 @@ it("„Wiederholen“ prüft den geänderten Entwurf und sendet einen ungültige
   fireEvent.click(screen.getByRole("button", { name: "Titel leeren" }));
   fireEvent.click(retry);
 
+  // Anker: die Prüfung des geänderten Entwurfs meldet sich.
   expect(
     await screen.findByText(SURVEY_FORM_CHECK_MESSAGE),
   ).toBeInTheDocument();
