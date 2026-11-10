@@ -293,7 +293,7 @@ export function EnrollmentFormEditor({
       setName(updated.name);
     }
     toast.success(`Die Formularvorlage heißt jetzt „${updated.name}“.`);
-    setRenameTarget(null);
+    // Schließen übernimmt der Dialog, nur solange er derselbe ist (#6533).
   };
 
   const startNew = () => {

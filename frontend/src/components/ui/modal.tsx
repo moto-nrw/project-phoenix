@@ -389,7 +389,7 @@ export function Modal({
           {...dialogAriaProps}
           ref={panelRef}
           // Focus target while a busy dialog has disabled its own controls.
-          tabIndex={-1}
+          tabIndex={busy ? -1 : undefined}
           aria-labelledby={title ? titleId : undefined}
           aria-describedby={title && description ? descriptionId : undefined}
           aria-busy={busy || undefined}

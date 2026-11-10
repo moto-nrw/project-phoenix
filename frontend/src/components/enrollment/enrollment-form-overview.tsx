@@ -482,11 +482,12 @@ export function RenameSchemaDialog({
   const submit = async () => {
     if (!canSubmit) return;
     clearError();
-    // Das Umbenennen schließt beim Aufrufer; bis dahin bleibt der Dialog
-    // gesperrt (#6533).
     await save.run(async (op) => {
       try {
         await onConfirm(trimmed);
+        // Eine späte Antwort schließt nicht den Dialog einer anderen Vorlage
+        // (#6533).
+        if (op.isCurrent()) onClose();
       } catch (err) {
         logger.warn("schema_rename_failed", {
           error: err instanceof Error ? err.message : String(err),

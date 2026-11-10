@@ -399,9 +399,12 @@ export function ExternalCaregiverEntry({
     onAdded,
     containerRef: panelRef,
     canGrantView,
+    isOpen,
   });
 
   function close() {
+    // Ein laufendes Speichern lässt sich nicht scheinbar abbrechen (#6533).
+    if (form.isSaving) return;
     form.reset();
     setIsOpen(false);
   }

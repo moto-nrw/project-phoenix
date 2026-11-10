@@ -48,18 +48,19 @@ const EMPTY: CostBearerInput = {
 };
 
 type FormErrors = ReturnType<typeof useApiFormError>;
+type CostBearerSaveResult = "saved" | "late" | "failed";
 
 /**
  * Saves a cost bearer from a draft: a new one for a null id. The name is
- * required; the backend checks the rest. Returns whether it was saved in the
- * still open form; a late answer of a closed or reopened dialog returns
- * false, so it closes nothing (#6533).
+ * required; the backend checks the rest. Resolves to "saved", to "late"
+ * when the write succeeded after its form was closed or reopened (refresh
+ * the list, close nothing, #6533), or to "failed".
  */
 function useCostBearerSave(
   formRef: RefObject<HTMLFormElement | null>,
   isOpen = true,
 ): readonly [
-  (id: string | null, draft: CostBearerInput) => Promise<boolean>,
+  (id: string | null, draft: CostBearerInput) => Promise<CostBearerSaveResult>,
   FormModalPending,
   FormErrors,
 ] {
@@ -72,13 +73,13 @@ function useCostBearerSave(
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
         name: "Bitte geben Sie den Namen ein.",
       });
-      return false;
+      return "failed";
     }
-    const saved = await pending.run(async (op) => {
+    const result = await pending.run<CostBearerSaveResult>(async (op) => {
       try {
         await saveCostBearer(id, draft);
         success("Der Kostenträger ist gespeichert.");
-        return op.isCurrent();
+        return op.isCurrent() ? "saved" : "late";
       } catch (err) {
         logger.error("cost_bearer_save_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -86,10 +87,10 @@ function useCostBearerSave(
         if (op.isCurrent()) {
           void formErrors.show(err, { object: "der Kostenträger" });
         }
-        return false;
+        return "failed";
       }
     });
-    return saved === true;
+    return result ?? "failed";
   };
   return [save, pending, formErrors] as const;
 }
@@ -166,8 +167,9 @@ function CostBearerCreateModal({
   }, [isOpen, clearErrors]);
 
   const submit = async () => {
-    if (!(await save(null, draft))) return;
-    onClose();
+    const result = await save(null, draft);
+    if (result === "failed") return;
+    if (result === "saved") onClose();
     await onSaved();
   };
 
@@ -235,8 +237,9 @@ function CostBearerEditRow({
   }, [idPrefix]);
 
   const submit = async () => {
-    if (!(await save(bearer.id, draft))) return;
-    onDone();
+    const result = await save(bearer.id, draft);
+    if (result === "failed") return;
+    if (result === "saved") onDone();
     await onSaved();
   };
 

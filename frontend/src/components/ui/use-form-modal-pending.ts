@@ -35,8 +35,9 @@ export interface FormModalPending {
 /**
  * Creates the pending contract for one `FormModal`. `isOpen` is the dialog's
  * own `isOpen`; a dialog that is only mounted while open passes nothing.
- * `context` names what the open dialog works on (a block, a record); when it
- * changes while the dialog stays open, a new session starts as on reopening.
+ * `context` names what the open dialog works on, as a stable primitive (an
+ * id); when it changes while the dialog stays open, a new session starts as
+ * on reopening.
  */
 export function useFormModalPending(
   isOpen = true,
@@ -58,10 +59,13 @@ export function useFormModalPending(
     setPending(false);
   }, [isOpen, context]);
 
+  // Unmounting, or a Suspense boundary hiding the dialog, ends the session;
+  // the lock lifts with it so a dialog shown again is never stuck busy.
   useLayoutEffect(
     () => () => {
       sessionRef.current += 1;
       runningSessionRef.current = null;
+      setPending(false);
     },
     [],
   );
