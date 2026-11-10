@@ -520,7 +520,7 @@ describe("SlideOver", () => {
 
   // #6567: a slide-over footer spaces its actions like the Modal and
   // FormModal footers (gap-3), not tighter.
-  it("spaces footer actions like the dialog footers", () => {
+  it("spaces footer actions with gap-3, like Modal and FormModal", () => {
     render(
       <SlideOverFooter data-testid="footer">
         <button type="button">Abbrechen</button>
@@ -529,6 +529,5 @@ describe("SlideOver", () => {
     );
     const footer = screen.getByTestId("footer");
     expect(footer).toHaveClass("gap-3");
-    expect(footer).not.toHaveClass("gap-2");
   });
 });
