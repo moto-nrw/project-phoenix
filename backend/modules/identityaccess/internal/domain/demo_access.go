@@ -63,6 +63,9 @@ type DemoAccess struct {
 	// Role is the demo role a request preselects (#3467). It is not stored:
 	// it rides in the mailed link, and the entry page skips the role cards.
 	Role DemoRole
+	// Phone is the number the team may call back, kept only with the
+	// contact consent. It is not stored either: it reaches the lead mail only.
+	Phone string
 }
 
 // DemoRole is what a visitor of the public demo sees the demo school as
@@ -149,11 +152,17 @@ type DemoEntry struct {
 }
 
 // Normalize trims the prospect's fields and validates them. First and last
-// name are both required; runs of whitespace inside a name become one space.
+// name are both required; runs of whitespace inside a name or a phone number
+// become one space. A phone number without the contact consent is dropped,
+// not refused.
 func (a *DemoAccess) Normalize() error {
 	a.Email = strings.ToLower(strings.TrimSpace(a.Email))
 	a.FirstName = strings.Join(strings.Fields(a.FirstName), " ")
 	a.LastName = strings.Join(strings.Fields(a.LastName), " ")
+	a.Phone = strings.Join(strings.Fields(a.Phone), " ")
+	if !a.ContactOptIn {
+		a.Phone = ""
+	}
 	a.SchoolName = strings.TrimSpace(a.SchoolName)
 	a.Source = strings.TrimSpace(a.Source)
 	parsed, err := mail.ParseAddress(a.Email)
@@ -164,7 +173,7 @@ func (a *DemoAccess) Normalize() error {
 		return err
 	}
 	if a.FirstName == "" || len(a.FirstName) > 120 || a.LastName == "" || len(a.LastName) > 120 ||
-		a.SchoolName == "" || len(a.SchoolName) > 120 || len(a.Source) > 60 {
+		a.SchoolName == "" || len(a.SchoolName) > 120 || len(a.Source) > 60 || len(a.Phone) > 50 {
 		return ErrDemoAccessInvalid
 	}
 	return nil

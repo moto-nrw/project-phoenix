@@ -54,7 +54,8 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // answer tells nothing about the address. Every request stores its own
 // access: earlier links stay valid until they expire, and the prospect's
 // latest details are kept. An address inside its cooldown gets nothing new.
-// The team hears of a first access and of a changed contact consent. An
+// The team hears of a first access, of a changed contact consent and of
+// every request with a phone number, which no table keeps. An
 // address whose school did not fail gets no second school (#3463): the new
 // link leads into the school it already has.
 //
@@ -111,7 +112,7 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 		if err := d.mail.SendDemoAccessLink(txCtx, access, entryURL); err != nil {
 			return err
 		}
-		if !found || known.ContactOptIn != access.ContactOptIn {
+		if !found || known.ContactOptIn != access.ContactOptIn || access.Phone != "" {
 			return d.mail.SendDemoLead(txCtx, access)
 		}
 		return nil
@@ -460,7 +461,7 @@ type DemoAccessEngine struct{ Flows *DemoAccess }
 func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
 	return demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName,
-		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
+		Source: request.Source, ContactOptIn: request.ContactOptIn, Phone: request.Phone, Role: domain.DemoRole(request.Role),
 	}, request.ClientIP, request.EntryURLPrefix))
 }
 
@@ -500,7 +501,7 @@ func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessag
 	return identityaccess.DemoAccessMessage{
 		ExpiresAt: access.ExpiresAt,
 		AccessID:  access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
-		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
+		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn, Phone: access.Phone,
 	}
 }
 
