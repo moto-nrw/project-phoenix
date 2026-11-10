@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SickReportAbsences are Workforce's absence gate and absence rows the
@@ -50,11 +51,8 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 	if err != nil || subject <= 0 {
 		return err
 	}
-	days, staffIDs, err := s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
-	if err != nil || len(staffIDs) == 0 {
-		return err
-	}
-	if err := s.lockStaffSet(ctx, staffIDs); err != nil {
+	days, err := s.lockSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
+	if err != nil || len(days) == 0 {
 		return err
 	}
 	if err := s.timetableData.LockRecurrenceWrites(ctx); err != nil {
@@ -66,6 +64,56 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 		}
 	}
 	return nil
+}
+
+var errSickReportStaffScopeChanged = errors.New("sick report lock: cover owners changed while acquiring staff gates")
+
+// lockSickReportScope re-reads the cover owners under every discovered staff
+// gate. A cover writer can commit while we wait for those gates. If it adds
+// an owner, roll back the lock-only savepoint and discover the whole set again:
+// the new owner may sort before a gate already acquired. The absence gate stays
+// held outside the savepoint; no recurrence/day lock or absence write happens
+// until the staff set is stable. Allow three restarts, like transaction retries.
+func (s *sickCascade) lockSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, error) {
+	for attempt := 0; attempt < 4; attempt++ {
+		var days map[calendar.Date]bool
+		err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+			var err error
+			days, err = s.lockAndRevalidateSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
+			return err
+		})
+		if err == nil {
+			return days, nil
+		}
+		if !errors.Is(err, errSickReportStaffScopeChanged) || tenant.IsSavepointControlFailure(err) {
+			return nil, err
+		}
+	}
+	return nil, errSickReportStaffScopeChanged
+}
+
+func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, error) {
+	days, staffIDs, err := s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
+	if err != nil || len(staffIDs) == 0 {
+		return days, err
+	}
+	if err := s.lockStaffSet(ctx, staffIDs); err != nil {
+		return nil, err
+	}
+	held := make(map[int64]bool, len(staffIDs))
+	for _, id := range staffIDs {
+		held[id] = true
+	}
+	days, staffIDs, err = s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range staffIDs {
+		if !held[id] {
+			return nil, errSickReportStaffScopeChanged
+		}
+	}
+	return days, nil
 }
 
 // sickReportWriteScope reads, under the subject's absence gate, the days

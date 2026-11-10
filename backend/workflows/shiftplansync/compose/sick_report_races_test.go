@@ -471,3 +471,60 @@ func TestSickReport_OversizedRangeDoesNotWaitForPlanLocks(t *testing.T) {
 	})
 	require.ErrorIs(t, err, workforce.ErrAbsenceInvalid)
 }
+
+func TestSickReport_RevalidatesCoverOwnersAfterWaitingForStaffGates(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	for _, change := range []string{"create", "move"} {
+		for _, action := range []string{"delete", "shorten"} {
+			t.Run(change+"_cover_then_"+action, func(t *testing.T) {
+				testpkg.OwnTenant(t)
+				e := buildSickCascadeEnv(t)
+				// The new cover owner sorts before every gate the initial scope
+				// knows. Adding the missing gate in place cannot preserve the order.
+				e.subject, e.sub = e.sub, e.subject
+				origin := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "08:00", "10:00")
+				absenceID := e.createSickAbsence(t, stampWeekOne, stampWeekTwo)
+				var cover workforce.StaffShift
+				if change == "move" {
+					var err error
+					cover, err = e.planShift(t, e.admin.ID, stampWeekTwo, "08:00", "10:00", func(input *workforce.StaffShiftInput) {
+						input.OriginShiftID = &origin.ID
+					})
+					require.NoError(t, err)
+				}
+				var coverID int64
+				held := e.holdWrite(t, func(ctx context.Context) error {
+					var planned workforce.PlannedShift
+					var err error
+					if change == "move" {
+						planned, err = e.Planning.MoveShift(ctx, workforce.MoveStaffShift{
+							ShiftID: cover.ID, SourceStaffID: cover.StaffID, TargetStaffID: e.sub.ID,
+							Date: stampWeekTwo.String(), StartTime: clock("08:00"), EndTime: clock("10:00"), ActorStaffID: e.admin.ID,
+						})
+					} else {
+						planned, err = e.Planning.CreateShift(ctx, workforce.CreateStaffShift{StaffShiftInput: workforce.StaffShiftInput{
+							StaffID: e.sub.ID, Date: stampWeekTwo.String(), StartTime: clock("08:00"), EndTime: clock("10:00"),
+							OriginShiftID: &origin.ID, ActorStaffID: e.admin.ID,
+						}})
+					}
+					coverID = planned.ID
+					return err
+				})
+				c := e.startContender(t, func(ctx context.Context) error {
+					if action == "delete" {
+						return e.absences.SickReports.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
+					}
+					end := stampWeekOne.String()
+					_, err := e.absences.SickReports.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, workforce.UpdateAbsenceRequest{DateEnd: &end})
+					return err
+				})
+				e.requireWaitsForHeld(t, held, c, "sick report write")
+				kept := e.reloadShift(t, origin.ID)
+				require.Nil(t, kept.SickAbsenceID, "the removed sick day must release its stamp")
+				require.True(t, kept.Cancelled, "the committed cover keeps the origin cancelled")
+				require.Equal(t, e.sub.ID, e.reloadShift(t, coverID).StaffID)
+			})
+		}
+	}
+}
