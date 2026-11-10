@@ -24,9 +24,11 @@ const UNTYPED_LABEL = "Ohne Dienstart";
 const UNKNOWN_TYPE_LABEL = "Unbekannte Dienstart";
 const EMPTY_VALUE = "–";
 
+// Same text-safe steps as CoverageIndicator's delta tone: amber.base is no
+// text color on white (1.9:1), amber.strong reads at 7.1:1 (#5576).
 const DELTA_COLOR = {
   under: MOTO_COLOR_PALETTE.red.base,
-  over: MOTO_COLOR_PALETTE.amber.base,
+  over: MOTO_COLOR_PALETTE.amber.strong,
 } as const;
 
 interface HoursRow {

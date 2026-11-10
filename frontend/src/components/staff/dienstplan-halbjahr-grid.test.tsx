@@ -394,17 +394,17 @@ describe("DienstplanHalbjahrGrid", () => {
     expect(under).toHaveStyle({ color: "#DC2626" });
     expect(under.textContent).toContain("/");
 
-    expect(labelSpan("Bruno Yilmaz")).toHaveStyle({ color: "#EAB308" });
+    expect(labelSpan("Bruno Yilmaz")).toHaveStyle({ color: "#92400E" });
 
     const neutral = labelSpan("Carla Meyer");
     expect(neutral).not.toHaveStyle({ color: "#DC2626" });
-    expect(neutral).not.toHaveStyle({ color: "#EAB308" });
+    expect(neutral).not.toHaveStyle({ color: "#92400E" });
     expect(neutral.textContent).toContain("/");
 
     // No target → just the planned sum, no "/soll" separator, neutral tone.
     const noTarget = labelSpan("Dora Schmidt");
     expect(noTarget).not.toHaveStyle({ color: "#DC2626" });
-    expect(noTarget).not.toHaveStyle({ color: "#EAB308" });
+    expect(noTarget).not.toHaveStyle({ color: "#92400E" });
     expect(noTarget.textContent).not.toContain("/");
   });
 
@@ -507,7 +507,7 @@ describe("DienstplanHalbjahrGrid", () => {
     expect(screen.queryByText("7 h")).not.toBeInTheDocument();
     // Reduced path has no target → neutral, never red/amber.
     expect(cell).not.toHaveStyle({ color: "#DC2626" });
-    expect(cell).not.toHaveStyle({ color: "#EAB308" });
+    expect(cell).not.toHaveStyle({ color: "#92400E" });
   });
 
   it("shows the no-period empty state with a jump to the calendar periods", () => {

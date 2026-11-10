@@ -44,10 +44,12 @@ function toneClasses(
       );
     case "white":
       return cn("moto-content-surface", border, dash);
+    // Dieselbe `-soft`-Fläche und derselbe Rand wie `Alert` derselben
+    // Bedeutung (#6564).
     case "danger":
-      return cn(border, dash, "border-moto-red/20 bg-moto-red/5");
+      return cn(border, dash, "border-moto-red/20 bg-moto-red-soft");
     case "warning":
-      return cn(border, dash, "border-moto-orange/20 bg-moto-orange/5");
+      return cn(border, dash, "border-moto-orange/20 bg-moto-orange-soft");
   }
 }
 
