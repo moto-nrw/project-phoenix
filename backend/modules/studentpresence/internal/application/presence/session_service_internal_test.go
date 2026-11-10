@@ -241,7 +241,7 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 	}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 	}
 
-	result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
+	result, err := svc.ProcessSessionTimeoutByID(ctx, 100, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -273,7 +273,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 		}},
 		}
 
-		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
+		result, err := svc.ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -292,7 +292,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
+		result, err := svc.ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -339,7 +339,7 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 	t.Run("closes the timetable first", func(t *testing.T) {
 		var order []string
 
-		result, err := newService(&order, nil).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(&order, nil).ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -349,7 +349,7 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 	t.Run("a failing bridge leaves the session open", func(t *testing.T) {
 		var order []string
 
-		result, err := newService(&order, errors.New("bridge down")).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(&order, errors.New("bridge down")).ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -401,7 +401,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		result, err := newService(db, nil).ProcessSessionTimeoutByID(txCtx, 100)
+		result, err := newService(db, nil).ProcessSessionTimeoutByID(txCtx, 100, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -414,7 +414,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(txCtx, 100)
+		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(txCtx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -1788,7 +1788,7 @@ func TestProcessSessionTimeoutSkipsBeforeAnyWrite(t *testing.T) {
 		},
 	}}
 
-	result, err := svc.processSessionTimeout(ctx, 100, func(context.Context, *ports.ActiveGroup) error { return errSessionResumed })
+	result, err := svc.ProcessSessionTimeoutByID(ctx, 100, func(context.Context, *ports.ActiveGroup) error { return errSessionResumed })
 
 	require.ErrorIs(t, err, errSessionResumed)
 	assert.Nil(t, result)

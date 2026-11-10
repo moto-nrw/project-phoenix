@@ -20,7 +20,7 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 	}
 
 	// Delegate to ProcessSessionTimeoutByID with the session ID
-	return s.ProcessSessionTimeoutByID(ctx, session.ID)
+	return s.ProcessSessionTimeoutByID(ctx, session.ID, nil)
 }
 
 // collectActiveVisitsForSSE gathers visit and student data needed for SSE broadcasts
@@ -67,21 +67,15 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 	return result, nil
 }
 
-// ProcessSessionTimeoutByID handles session timeout by session ID directly.
-// This is the preferred method for cleanup operations to avoid TOCTOU race conditions.
-// It verifies the session is still active before ending it.
-func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
-	return s.processSessionTimeout(ctx, sessionID, nil)
-}
-
 // sessionTimeoutCheck judges the locked, still open session before the
 // timeout writes anything. A non-nil error skips the timeout.
 type sessionTimeoutCheck func(context.Context, *ports.ActiveGroup) error
 
-// processSessionTimeout ends the session as a timeout. The explicit device
-// timeout passes no check; the abandoned-session sweep passes one that
-// re-judges inactivity under the session lock (#6502).
-func (s *service) processSessionTimeout(ctx context.Context, sessionID int64, check sessionTimeoutCheck) (*TimeoutResult, error) {
+// ProcessSessionTimeoutByID handles session timeout by session ID directly.
+// It verifies under the session lock that the session is still active before
+// ending it. The explicit device timeout passes no check; the abandoned-session
+// sweep passes one that re-judges inactivity under the same lock (#6502).
+func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64, check sessionTimeoutCheck) (*TimeoutResult, error) {
 	// Collect visit data BEFORE transaction for SSE broadcasts
 	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, sessionID)
 	if err != nil {

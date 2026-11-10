@@ -584,7 +584,7 @@ func TestProcessSessionTimeoutLocksGroupBeforeEnding(t *testing.T) {
 		SupervisorRepo: &mockGroupSupervisorRepository{},
 	}}
 
-	result, err := svc.ProcessSessionTimeoutByID(context.Background(), 1)
+	result, err := svc.ProcessSessionTimeoutByID(context.Background(), 1, nil)
 	require.NoError(t, err)
 	require.True(t, locked)
 	require.True(t, ended)

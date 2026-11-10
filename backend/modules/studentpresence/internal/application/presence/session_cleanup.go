@@ -51,7 +51,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		// Without an ambient unit each timeout still commits independently, as
 		// before. An ended or resumed session is an expected skip after
 		// discovery.
-		_, err := s.processSessionTimeout(ctx, id, s.stillAbandoned(cutoffTime))
+		_, err := s.ProcessSessionTimeoutByID(ctx, id, s.stillAbandoned(cutoffTime))
 		switch {
 		case err == nil:
 			cleanedCount++
