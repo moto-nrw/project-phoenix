@@ -40,3 +40,20 @@ func TestErrorCodeIsStable(t *testing.T) {
 		})
 	}
 }
+
+func TestTopLevelRoutesCannotNameOrganizationsOrSchoolSubdomains(t *testing.T) {
+	t.Parallel()
+	for _, slug := range []string{"start", "invite", "onboarding", "reset-password", "monitoring"} {
+		t.Run(slug, func(t *testing.T) {
+			if err := organizationtenancy.ValidateSlug(slug); !errors.Is(err, organizationtenancy.ErrInvalidOrganization) {
+				t.Errorf("ValidateSlug(%q) = %v, want invalid organization", slug, err)
+			}
+			if err := organizationtenancy.ValidateSubdomain(slug); !errors.Is(err, organizationtenancy.ErrInvalidSchool) {
+				t.Errorf("ValidateSubdomain(%q) = %v, want invalid school", slug, err)
+			}
+		})
+	}
+	if err := organizationtenancy.ValidateSubdomain("linden-schule"); err != nil {
+		t.Fatalf("ordinary school subdomain rejected: %v", err)
+	}
+}

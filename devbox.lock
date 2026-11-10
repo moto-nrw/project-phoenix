@@ -956,41 +956,65 @@
         }
       }
     },
-    "graphviz@latest": {
-      "last_modified": "2026-10-08T19:21:32Z",
-      "resolved": "github:NixOS/nixpkgs/8edc0c72e3a38faf5434e40d1f19431125fe4b30#graphviz",
+    "imagemagick@7.1.2-31": {
+      "last_modified": "2026-10-05T00:52:30Z",
+      "resolved": "github:NixOS/nixpkgs/8c6b39505383e6d5dcb431f00cb3597b71f8045c#imagemagick",
       "source": "devbox-search",
-      "version": "15.1.1",
+      "version": "7.1.2-31",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/mc99a6bpbk2waym2cnw6ifmxli4ndb4x-graphviz-15.1.1",
+              "path": "/nix/store/w943n99gba8wqiznbvl3v1a5bz1aj1hs-imagemagick-7.1.2-31",
               "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/h5381l00wa4a8l42d5wf20f1i6nzsbdi-imagemagick-7.1.2-31-dev"
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/rqwrgqsbh8jgximpzd8cnixhpfscss1k-imagemagick-7.1.2-31-doc"
             }
           ],
-          "store_path": "/nix/store/mc99a6bpbk2waym2cnw6ifmxli4ndb4x-graphviz-15.1.1"
+          "store_path": "/nix/store/w943n99gba8wqiznbvl3v1a5bz1aj1hs-imagemagick-7.1.2-31"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/vz4zb8d1rfigzzdn3i0hd4kff28vk02l-graphviz-15.1.1",
+              "path": "/nix/store/jwa4dla37chizyjlhafhq5dz4bkfchgq-imagemagick-7.1.2-31",
               "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/mpd89rd3lxyjc4fpb9jzqr55ik57r8nk-imagemagick-7.1.2-31-dev"
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/8bm6yz8yy86sai52vnfcd4a6n7z7adnf-imagemagick-7.1.2-31-doc"
             }
           ],
-          "store_path": "/nix/store/vz4zb8d1rfigzzdn3i0hd4kff28vk02l-graphviz-15.1.1"
+          "store_path": "/nix/store/jwa4dla37chizyjlhafhq5dz4bkfchgq-imagemagick-7.1.2-31"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/f7r47nc0d13xa4c2xaaxa6dp3pzm9sp1-graphviz-15.1.1",
+              "path": "/nix/store/s13s3r3pi67vj27s6ca7pbrxs2z4zjf6-imagemagick-7.1.2-31",
               "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/6b18lsv6dy2vss0adl6n9zrjgx1r3ixg-imagemagick-7.1.2-31-dev"
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/pjx3bsd4p2qssg4gaph70x7qz9vzzb9p-imagemagick-7.1.2-31-doc"
             }
           ],
-          "store_path": "/nix/store/f7r47nc0d13xa4c2xaaxa6dp3pzm9sp1-graphviz-15.1.1"
+          "store_path": "/nix/store/s13s3r3pi67vj27s6ca7pbrxs2z4zjf6-imagemagick-7.1.2-31"
         }
       }
     },

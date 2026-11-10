@@ -1,5 +1,4 @@
 // lib/api-helpers.ts
-import { isBrowserContext } from "./api-url";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 import {
@@ -50,8 +49,6 @@ export function handleDomainApiError(error: unknown, context: string): never {
     500,
   );
 }
-
-export { isBrowserContext };
 
 /**
  * Options for authenticated fetch requests
@@ -247,113 +244,4 @@ export async function fetchWithRetry<T>(
 
   const data = (await response.json()) as T;
   return { response, data };
-}
-
-/**
- * Type for raw API response that may contain room data
- */
-interface RoomApiResponseData {
-  id?: number | string;
-  name?: string;
-  building?: string;
-  floor?: number | string;
-  capacity?: number | string;
-  category?: string;
-  color?: string;
-  device_id?: string;
-  is_occupied?: boolean;
-  activity_name?: string;
-  group_name?: string;
-  supervisor_name?: string;
-  student_count?: number;
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: unknown;
-}
-
-/**
- * BackendRoom interface for type conversion
- */
-interface BackendRoomType {
-  id: number;
-  name: string;
-  building?: string;
-  floor?: number | null;
-  capacity?: number | null;
-  category?: string | null;
-  color?: string | null;
-  device_id?: string;
-  is_occupied: boolean;
-  activity_name?: string;
-  group_name?: string;
-  supervisor_name?: string;
-  student_count?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * Parse a value that may be number, string, or undefined into a number
- * @param value - The value to parse
- * @param defaultValue - Default if parsing fails (default: 0)
- */
-function parseNumericField(
-  value: number | string | undefined,
-  defaultValue = 0,
-): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") return Number.parseInt(value, 10);
-  return defaultValue;
-}
-
-/**
- * Parse a value into a required string (empty string as fallback)
- * @param value - The value to parse
- */
-function parseRequiredString(value: string | undefined): string {
-  return typeof value === "string" ? value : "";
-}
-
-/**
- * Parse a value into an optional string (undefined as fallback)
- * @param value - The value to parse
- */
-function parseOptionalString(value: string | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-/**
- * Parse a value into an optional number (undefined as fallback)
- * @param value - The value to parse
- */
-function parseOptionalNumber(value: number | undefined): number | undefined {
-  return typeof value === "number" ? value : undefined;
-}
-
-/**
- * Safely convert a raw API response to BackendRoom type
- * Handles type coercion for all fields with proper defaults
- * @param responseData - Raw response data from API
- * @returns Properly typed BackendRoom object
- */
-export function convertToBackendRoom(
-  responseData: RoomApiResponseData,
-): BackendRoomType {
-  return {
-    id: parseNumericField(responseData.id),
-    name: parseRequiredString(responseData.name),
-    building: parseOptionalString(responseData.building),
-    floor: parseNumericField(responseData.floor),
-    capacity: parseNumericField(responseData.capacity),
-    category: parseRequiredString(responseData.category),
-    color: parseRequiredString(responseData.color),
-    device_id: parseOptionalString(responseData.device_id),
-    is_occupied: Boolean(responseData.is_occupied),
-    activity_name: parseOptionalString(responseData.activity_name),
-    group_name: parseOptionalString(responseData.group_name),
-    supervisor_name: parseOptionalString(responseData.supervisor_name),
-    student_count: parseOptionalNumber(responseData.student_count),
-    created_at: parseRequiredString(responseData.created_at),
-    updated_at: parseRequiredString(responseData.updated_at),
-  };
 }

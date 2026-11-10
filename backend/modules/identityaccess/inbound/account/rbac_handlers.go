@@ -155,6 +155,9 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 
 // renderRoleMutationError maps role administration errors to appropriate HTTP responses.
 func renderRoleMutationError(err error) render.Renderer {
+	if errors.Is(err, identityaccess.ErrRoleHoldersChanged) {
+		return common.ErrorConflict(err)
+	}
 	if errors.Is(err, identityaccess.ErrRoleNameTaken) {
 		return common.ErrorConflictOnField(err, common.CodeIdentityRoleNameTaken, "name")
 	}

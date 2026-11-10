@@ -562,6 +562,7 @@ export function SubstitutionSlideOver({
 
   return (
     <SlideOver
+      isDismissDisabled={saving}
       open={instance !== null}
       onOpenChange={(o) => {
         if (!o) onClose();

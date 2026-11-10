@@ -2,7 +2,6 @@
   "eyebrow": "Portali i prindërve",
   "title": "Mirë se vini",
   "description": "Këtu shihni çfarë është e rëndësishme sot.",
-  "childrenDescription": "Zgjidhni drejtpërdrejt veprimin që ju nevojitet.",
   "actions": {
     "sick": "Njofto mungesën",
     "pickup": "Ndrysho marrjen",
@@ -10,17 +9,7 @@
   },
   "open": "Në përpunim",
   "loadError": "Pamja e përgjithshme nuk u ngarkua. Rifreskoni faqen ose provoni më vonë.",
-  "unknownError": "Gabim i panjohur",
   "notSet": "Nuk është vendosur",
-  "status": {
-    "submitted": "Dorëzuar",
-    "under_review": "Në shqyrtim",
-    "approved": "Miratuar",
-    "waitlisted": "Listë pritjeje",
-    "rejected": "Refuzuar",
-    "withdrawn": "Tërhequr"
-  },
-  "newsNew": "Letër e re për prindërit",
   "newsOutstanding": "E hapur",
   "newsCareCancellation": "Kujdesi anulohet",
   "newsImportant": "E rëndësishme",

@@ -55,8 +55,9 @@ func InvitationDependencies(wiring *InvitationWiring, owners identityPorts.Invit
 	}
 	backoff := wiring.Backoff
 	return &identityPorts.SchoolInvitationDependencies{
-		Grants: RoleGrantPolicy{},
-		Owners: owners,
+		PermissionGranted: securityruntime.HasPermission,
+		Grants:            RoleGrantPolicy{},
+		Owners:            owners,
 		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
 			return invitationDelivery{
 				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,

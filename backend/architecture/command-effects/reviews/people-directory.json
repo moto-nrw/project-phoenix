@@ -6845,6 +6845,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.UpdateGuardian",
@@ -6855,6 +6866,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0083",
@@ -7488,6 +7510,17 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GuardianDirectory.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProvider.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0098",
@@ -10971,6 +11004,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0083",
@@ -18139,6 +18183,17 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedGuardianService.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianService.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0098",

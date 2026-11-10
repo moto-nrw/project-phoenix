@@ -17,6 +17,8 @@ import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
 
+const visibleModals: string[] = [];
+
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
   role: "dialog" as const,
@@ -204,6 +206,15 @@ export function Modal({
     }
   }, [closeModalRef, visible, openModalRef]);
 
+  useEffect(() => {
+    if (!visible) return;
+    visibleModals.push(titleId);
+    return () => {
+      const index = visibleModals.indexOf(titleId);
+      if (index !== -1) visibleModals.splice(index, 1);
+    };
+  }, [visible, titleId]);
+
   // Handle escape key and animations
   useEffect(() => {
     if (!visible) {
@@ -226,7 +237,11 @@ export function Modal({
     // undefined and the guard never triggers.
     const inFlightEvent = window.event;
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && event !== inFlightEvent) {
+      if (
+        event.key === "Escape" &&
+        event !== inFlightEvent &&
+        visibleModals.at(-1) === titleId
+      ) {
         handleClose();
       }
     };
@@ -242,7 +257,7 @@ export function Modal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [visible, handleClose, animationKey]);
+  }, [visible, handleClose, animationKey, titleId]);
 
   if (!isOpen) return null;
 

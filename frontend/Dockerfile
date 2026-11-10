@@ -3,7 +3,7 @@ FROM node:24-alpine AS base
 
 # Install timezone data and enable corepack for pnpm
 RUN apk add --no-cache tzdata && \
-    corepack enable && corepack prepare pnpm@10.34.4 --activate
+    corepack enable && corepack prepare pnpm@10.34.5 --activate
 
 # Development dependencies
 FROM base AS dev-deps

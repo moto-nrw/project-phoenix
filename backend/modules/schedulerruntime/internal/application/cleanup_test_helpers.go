@@ -16,15 +16,22 @@ func NewCleanupTestRunner(deps ports.WorkerDependencies) func() {
 		panic(err)
 	}
 	s := &Scheduler{
-		logger: deps.Logger, schoolRepo: deps.SchoolRepo, tenantRuntime: deps.TenantRuntime,
+		retentionCleanupJobs: newRetentionCleanupJobs(deps),
+		logger:               deps.Logger, schoolRepo: deps.SchoolRepo, tenantRuntime: deps.TenantRuntime,
 		retention: retention,
 		settings:  deps.Settings, cleanupRuns: deps.CleanupRuns, cleanupClock: deps.Now,
 		cleanupService: deps.ActiveCleanup, workerTracer: deps.Tracer,
-		workSessionCleanup: deps.WorkSessionCleanup, feedbackCleaner: deps.FeedbackCleaner,
+		workSessionCleanup:        deps.WorkSessionCleanup,
 		enrollmentRejectedCleanup: deps.EnrollmentRejectedCleanup,
 	}
 	return func() {
 		s.runJobCheck(&ScheduledTask{Name: "visit-cleanup"}, s.checkAndRunCleanup)
+		if s.pwaUsageCleanup != nil {
+			s.runJobCheck(&ScheduledTask{Name: "pwa-usage-cleanup"}, s.checkAndRunPWAUsageCleanup)
+		}
+		if s.staffMessageCleanup != nil {
+			s.runJobCheck(&ScheduledTask{Name: "staff-message-cleanup"}, s.checkAndRunStaffMessageCleanup)
+		}
 	}
 }
 

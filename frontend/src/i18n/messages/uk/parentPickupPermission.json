@@ -24,13 +24,6 @@
     "procedure": "Ви підписуєте простим електронним підписом з намальованим підписом.",
     "missing": "Будь ласка, підпишіться й натисніть «Підтвердити підпис»."
   },
-  "statement": {
-    "permissionAll": "Я дозволяю {person} забирати дитину з {careTerm} щодня.",
-    "permissionSome": "Я дозволяю {person} забирати дитину з {careTerm} у ці дні: {days}.",
-    "day": "Я дозволяю {person} забрати дитину з {careTerm} {date}.",
-    "aloneDay": "Я дозволяю дитині {date} піти додому самостійно.",
-    "aloneWeekly": "Я дозволяю дитині ходити додому самостійно в ці дні: {days}."
-  },
   "waitsForOgs": "{careTerm} підтверджує дозвіл. До того він не діє.",
   "pendingBadge": "Чекає на {careTerm}",
   "pending": "Чекає на {careTerm}: {days}",

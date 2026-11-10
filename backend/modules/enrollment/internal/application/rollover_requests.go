@@ -74,22 +74,29 @@ func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInp
 }
 
 func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *enrollmentNative.Request) (*enrollmentNative.Request, error) {
+	lifetime, err := resolveStatusTokenExpiry(ctx, s.deps.Settings)
+	if err != nil {
+		return nil, err
+	}
 	statusToken, err := enrollmentNative.NewStatusToken(s.deps.Random)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: generate status token: %w", err)
 	}
+	now := time.Now()
+	expiresAt := now.Add(lifetime)
 	request := &enrollmentNative.Request{
-		PhaseID:           input.newPhase.ID,
-		SchemaID:          input.newPhase.FormSchemaID,
-		GuardianFirstName: sourceRequest.GuardianFirstName,
-		GuardianLastName:  sourceRequest.GuardianLastName,
-		GuardianEmail:     sourceRequest.GuardianEmail,
-		GuardianPhone:     sourceRequest.GuardianPhone,
-		GuardianAccountID: sourceRequest.GuardianAccountID,
-		ConsentFlags:      sourceRequest.ConsentFlags.Clone(),
-		CustomData:        sourceRequest.CustomData.Clone(),
-		StatusToken:       statusToken,
-		SubmittedAt:       time.Now(),
+		PhaseID:            input.newPhase.ID,
+		SchemaID:           input.newPhase.FormSchemaID,
+		GuardianFirstName:  sourceRequest.GuardianFirstName,
+		GuardianLastName:   sourceRequest.GuardianLastName,
+		GuardianEmail:      sourceRequest.GuardianEmail,
+		GuardianPhone:      sourceRequest.GuardianPhone,
+		GuardianAccountID:  sourceRequest.GuardianAccountID,
+		ConsentFlags:       sourceRequest.ConsentFlags.Clone(),
+		CustomData:         sourceRequest.CustomData.Clone(),
+		StatusToken:        statusToken,
+		StatusTokenExpires: &expiresAt,
+		SubmittedAt:        now,
 	}
 	request.TenantID = input.tenantID
 	if err := s.deps.Requests.InsertRequest(ctx, request); err != nil {

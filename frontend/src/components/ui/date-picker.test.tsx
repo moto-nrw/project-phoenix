@@ -11,6 +11,7 @@ import {
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DatePicker, ISODateInput, ISODatePicker } from "./date-picker";
+import { useScrollLock } from "./hooks/useScrollLock";
 import { preloadDayPicker } from "./lazy-day-picker";
 
 // Mock react-day-picker
@@ -124,6 +125,37 @@ describe("DatePicker", () => {
 
     expect(screen.getByText("15.01.2024")).toBeInTheDocument();
   });
+
+  it.each(["single", "multiple"] as const)(
+    "allows wheel and touch scrolling in its %s portal while a modal locks the page",
+    async (mode) => {
+      function LockedPicker() {
+        useScrollLock(true);
+        return mode === "single" ? (
+          <DatePicker
+            value={null}
+            onChange={mockOnChange}
+            placeholder="Calendar"
+          />
+        ) : (
+          <DatePicker
+            mode="multiple"
+            values={[]}
+            onChangeDates={vi.fn()}
+            placeholder="Calendar"
+          />
+        );
+      }
+      render(<LockedPicker />);
+      fireEvent.click(screen.getByRole("button", { name: "Calendar" }));
+      const calendar = await screen.findByTestId("day-picker");
+      for (const type of ["wheel", "touchmove"]) {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        calendar.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+    },
+  );
 
   it("opens calendar when button is clicked", async () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);

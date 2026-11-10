@@ -1,5 +1,4 @@
-// Package compose wires the Identity & Access module over the shared tenant
-// runtime and the Bun database.
+// Package compose wires Identity & Access over the tenant runtime and database.
 package compose
 
 import (
@@ -137,14 +136,19 @@ func composeBesideEngine(dependencies Dependencies, auth *application.AccountAut
 	return demoAccess, traegerAccounts, caterers, err
 }
 
-// NewGuardianInvitationReads composes the guardian invitation lists over the
-// database alone, for a root that needs them before it composes the module.
-// They run on the caller's ambient transaction like the module's reads.
+// NewGuardianInvitationReads joins ambient transactions without the full owner.
 func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationReads, error) {
 	if db == nil {
 		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
 	return application.NewGuardianInvitationReads(postgres.NewStore(db), newCommandTransactions(nil).RunRead), nil
+}
+
+func NewGuardianInvitationInvalidation(db *bun.DB) (identityaccess.GuardianInvitationInvalidation, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: guardian invitation invalidation needs the database")
+	}
+	return application.NewGuardianInvitationInvalidation(postgres.NewStore(db)), nil
 }
 
 func newCommandTransactions(attach func(context.Context) context.Context) application.CommandTransactions {

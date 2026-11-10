@@ -59,6 +59,9 @@ const (
 	DeletionTypeDataAccessLogRetention       = "data_access_log_retention"
 	DeletionTypeDeletionLogRetention         = "deletion_log_retention"
 	DeletionTypeDeliveryRetention            = "delivery_retention"
+	DeletionTypeFeedbackRetention            = "feedback_retention"
+	DeletionTypePWAUsageRetention            = "pwa_usage_retention"
+	DeletionTypeStaffMessageRetention        = "staff_message_retention"
 	// The technical remains of #4046: finished cleanup and offboarding jobs,
 	// finished care-withdrawal completions and enrollment rate-limit buckets.
 	DeletionTypeFileCleanupRetention            = "file_cleanup_retention"
@@ -163,6 +166,9 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,
 		DeletionTypeDeliveryRetention,
+		DeletionTypeFeedbackRetention,
+		DeletionTypePWAUsageRetention,
+		DeletionTypeStaffMessageRetention,
 		DeletionTypeFileCleanupRetention,
 		DeletionTypeStaffCleanupRetention,
 		DeletionTypeStudentDocumentCleanupRetention,

@@ -13,6 +13,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
+import { ApiError } from "~/lib/api-error";
 import { todayISO } from "~/lib/date-helpers";
 
 // Die Klassenansicht zeigt die Klassen-Tagesausnahme als Zeile und bietet
@@ -506,6 +507,37 @@ describe("ClassDayClass", () => {
       );
     });
 
+    it("retries morning attendance with the current marks", async () => {
+      const record = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError("failed", 503))
+        .mockResolvedValue(undefined);
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(morningReport())}
+          recordMorningAttendance={record}
+        />,
+      );
+      const controls = within(
+        await screen.findByRole("group", {
+          name: "Anwesenheit von Klara Klassentag",
+        }),
+      );
+      fireEvent.click(controls.getByRole("button", { name: "Da" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anwesenheit speichern" }),
+      );
+      const retry = await screen.findByRole("button", { name: "Wiederholen" });
+      fireEvent.click(controls.getByRole("button", { name: "Fehlt" }));
+      fireEvent.click(retry);
+      await waitFor(() =>
+        expect(record).toHaveBeenLastCalledWith("4a", todayISO(), [
+          { student_id: 1, status: "absent" },
+        ]),
+      );
+    });
+
     it("keeps the draft and shows the error when saving fails", async () => {
       const record = vi
         .fn()
@@ -674,6 +706,38 @@ describe("ClassDayClass", () => {
     function choice(name: string) {
       return screen.getByRole("group", { name: `Übergabe von ${name}` });
     }
+
+    it("retries a handover with the current marks", async () => {
+      const save = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError("failed", 503))
+        .mockResolvedValue(undefined);
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(handoverReport())}
+          handOverClass={save}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Klasse übergeben" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+      const retry = await screen.findByRole("button", { name: "Wiederholen" });
+      fireEvent.click(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      );
+      fireEvent.click(retry);
+      await waitFor(() =>
+        expect(save).toHaveBeenLastCalledWith("4a", todayISO(), {
+          present: [],
+          absent: [1, 2],
+        }),
+      );
+    });
 
     it("prefills the children going to the OGS from the morning and hands the class over", async () => {
       const handOver = vi.fn(() => Promise.resolve());

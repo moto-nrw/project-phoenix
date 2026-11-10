@@ -1,7 +1,7 @@
 {
   "scenario": "api.enrollment.growth.public_changes",
-  "max": 65,
+  "max": 63,
   "exact": true,
-  "description": "Positive mounted handler with N3/N8 terminal cases and no writes. Terminal public messages use one batch after scalar child validation; per-case row, request, children, phase and tenant frames remain live. Exact ceiling pins N8, not a constant total bound.",
+  "description": "Positive mounted handler with N3/N8 terminal cases and no writes, including the status-token module gate. The listing shares the first case's tenant frame; subsequent cases retain independent live frames. Terminal messages use one batch after scalar child validation. Exact ceiling pins N8, not a constant total bound.",
   "route": "GET /api/enrollment/requests/{statusToken}/change-requests"
 }

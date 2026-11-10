@@ -93,6 +93,8 @@ func TestGuardianInvitationAddressBinding(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT expires_at FROM auth.guardian_invitations WHERE id = ?`, expired).Scan(ctx, &expiredBefore))
 
 	require.NoError(t, guardianInvitationAddressBindingUp(ctx, db))
+	// Expiry is written by PostgreSQL. Compare on that same clock: a local
+	// container's clock and the host clock can differ by milliseconds.
 	databaseNow := func() time.Time {
 		t.Helper()
 		var now time.Time
@@ -101,7 +103,6 @@ func TestGuardianInvitationAddressBinding(t *testing.T) {
 	}
 	assertBound := func() {
 		t.Helper()
-		// Expiry is written by PostgreSQL, so check it against that clock.
 		now := databaseNow()
 		for _, id := range []int64{unchanged, changed, approved, rehashed, overlap} {
 			row := read(id)

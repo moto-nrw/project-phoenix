@@ -76,7 +76,5 @@
   "registerWeekDone": "Записано на всю неделю.",
   "registerWeekLocked": "Срок записи на эти дни истёк, они остаются без записи: {days}.",
   "errorObjectWeekCancel": "отмену на неделю",
-  "errorObjectWeekRegister": "запись на неделю",
-  "participationCutoffLead": "Вы можете изменить запись до {time} {days, plural, one {за # рабочий день до обеда} few {за # рабочих дня до обеда} many {за # рабочих дней до обеда} other {за # рабочего дня до обеда}}.",
-  "participationSicknessLead": "Подтверждённое сообщение о болезни до {time} {days, plural, one {за # рабочий день до обеда} few {за # рабочих дня до обеда} many {за # рабочих дней до обеда} other {за # рабочего дня до обеда}} отменяет обед. После этого запись не меняется."
+  "errorObjectWeekRegister": "запись на неделю"
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,7 @@ func TestGuardianComposition_EmailCorrectionEndsTheMailedLink(t *testing.T) {
 	_, err = invitations.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password: password, ConfirmPassword: password,
 	})
-	require.ErrorIs(t, err, identityaccess.ErrGuardianInvitationAddressChanged)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationExpired, "the contact edit permanently invalidates its open invitations")
 	accounts, err := db.NewSelect().TableExpr("auth.accounts").Where("LOWER(email) = ?", corrected).Count(context.Background())
 	require.NoError(t, err)
 	assert.Zero(t, accounts, "the old link must not create the corrected address's account")
@@ -102,4 +103,31 @@ func TestGuardianComposition_ListMarksDeadInvitationLinks(t *testing.T) {
 		})
 		assert.Equal(t, "none", statusOf(studentID, guardianID))
 	})
+}
+
+func TestGuardianInvitationContactEditPermanentlyEndsOldLink(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service, err := NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), GuardianInvitationTestConfig{Outbox: NewCapturingOutbox()})
+	require.NoError(t, err)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "edited-link")
+	request := identityaccess.GuardianInvitationRequest{GuardianProfileID: profile.ID, CreatedBy: testpkg.CreateTestAccount(t, db, "contact-edit-inviter").ID}
+	password := testpkg.NewTestPassword()
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), request)
+	require.NoError(t, err)
+	directory, err := NewGuardianTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	newEmail := "corrected-" + *profile.Email
+	input := peopledirectory.GuardianInput{FirstName: profile.FirstName, LastName: profile.LastName, Email: &newEmail, PreferredContactMethod: profile.PreferredContactMethod, LanguagePreference: profile.LanguagePreference}
+	require.NoError(t, directory.PeopleDirectory.UpdateGuardian(testpkg.Ctx(t), profile.ID, input))
+	// Returning to the old address must not restore the old recipient's link.
+	input.Email = profile.Email
+	require.NoError(t, directory.PeopleDirectory.UpdateGuardian(testpkg.Ctx(t), profile.ID, input))
+	_, err = service.ValidateGuardianInvitation(context.Background(), invitation.Token)
+	require.Error(t, err)
+	_, err = service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{Password: password, ConfirmPassword: password})
+	require.Error(t, err)
+	accounts, err := db.NewSelect().TableExpr("auth.accounts").Where("LOWER(email) IN (?, ?)", *profile.Email, newEmail).Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, accounts)
 }

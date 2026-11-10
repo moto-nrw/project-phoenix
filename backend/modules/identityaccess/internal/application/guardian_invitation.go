@@ -78,6 +78,9 @@ func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request 
 		ExpiresAt:         expiresAt,
 		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
 	}
+	if err := l.invitations.InvalidateGuardianInvitations(ctx, profile.ID, time.Now(), false); err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+	}
 	issueGuardianInvitationLink(&draft, profile)
 	invitation, err := l.invitations.InsertGuardianInvitation(ctx, draft)
 	if err != nil {
@@ -431,7 +434,7 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 		issueGuardianInvitationLink(&invitation, profile)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
-		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus, invitation.ExpiresAt); err != nil {
 			return failed(opGuardianInviteResend, err)
 		}
 		l.logger.Info("guardian invitation resent",

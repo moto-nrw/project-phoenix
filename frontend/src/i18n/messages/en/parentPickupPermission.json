@@ -24,13 +24,6 @@
     "procedure": "You sign with a simple electronic signature with a drawn signature.",
     "missing": "Please sign and tap “Confirm signature”."
   },
-  "statement": {
-    "permissionAll": "I allow {person} to pick up the child from the {careTerm} on every day.",
-    "permissionSome": "I allow {person} to pick up the child from the {careTerm} on these days: {days}.",
-    "day": "I allow {person} to pick up the child from the {careTerm} on {date}.",
-    "aloneDay": "I allow the child to walk home alone on {date}.",
-    "aloneWeekly": "I allow the child to walk home alone on these days: {days}."
-  },
   "waitsForOgs": "The {careTerm} confirms the permission. Until then it does not apply.",
   "pendingBadge": "Waiting for the {careTerm}",
   "pending": "Waiting for the {careTerm}: {days}",

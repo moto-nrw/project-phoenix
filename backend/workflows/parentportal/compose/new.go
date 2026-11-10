@@ -1,8 +1,8 @@
-// Package compose binds guardian-portal read, command and policy ports (#3420).
-// It holds no database; every flow joins the request's tenant unit of work.
+// Package compose binds guardian-portal ports to the request's tenant unit.
 package compose
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -14,8 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
-// Dependencies requires Runtime; tests bind the ports their flows reach.
-// Optional notifiers may be nil.
+// Dependencies requires Runtime; only optional notifiers may be nil.
 type Dependencies struct {
 	GuardianChanges auditlog.GuardianChangeLog
 	Signatures      parentportal.Signatures
@@ -84,8 +83,8 @@ type Dependencies struct {
 	DocumentNotifier    care.BillingDocumentNotifier
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
+	InvalidateInvites   func(context.Context, int64) error
 
-	// Messaging: conversation, announcements, surveys, request-sharing reads.
 	MessageThreadRepo         messaging.MessageThreadAccess
 	MessageRepo               messaging.MessageReads
 	MessageReadRepo           messaging.MessageInboxReads
@@ -139,7 +138,8 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
 		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
-		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
+		InvalidateInvites: deps.InvalidateInvites,
+		Locales:           deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
 		RequestSharing: messagingFlows.ChildFlowSharing(),

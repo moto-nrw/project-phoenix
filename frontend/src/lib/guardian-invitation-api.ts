@@ -17,7 +17,7 @@ export interface GuardianInvitationValidation {
   schoolLogoUrl?: string;
 }
 
-interface BackendGuardianInvitationValidation {
+export interface BackendGuardianInvitationValidation {
   email: string;
   first_name?: string;
   last_name?: string;
@@ -82,7 +82,7 @@ const extractData = <T>(payload: unknown): T => {
   return payload as T;
 };
 
-const mapValidation = (
+export const mapValidation = (
   data: BackendGuardianInvitationValidation,
 ): GuardianInvitationValidation => ({
   email: data.email,
@@ -93,22 +93,6 @@ const mapValidation = (
   tenantSlug: data.tenant_slug,
   schoolLogoUrl: data.school_logo_url,
 });
-
-export async function validateGuardianInvitation(
-  token: string,
-): Promise<GuardianInvitationValidation> {
-  const response = await transportFetch(
-    `/api/guardian-invitations/${encodeURIComponent(token)}`,
-  );
-  if (!response.ok) {
-    throw await createApiError(
-      response,
-      "Einladung konnte nicht geprüft werden.",
-    );
-  }
-  const raw = (await response.json()) as unknown;
-  return mapValidation(extractData<BackendGuardianInvitationValidation>(raw));
-}
 
 export async function acceptGuardianInvitation(
   token: string,

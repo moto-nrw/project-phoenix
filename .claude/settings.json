@@ -83,7 +83,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash(git commit:*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

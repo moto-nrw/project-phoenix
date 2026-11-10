@@ -50,6 +50,10 @@ func NewSchedulerCleanupTestDependencies(db transactionruntime.Database, unit te
 	if err != nil {
 		return schedulerPorts.WorkerDependencies{}, err
 	}
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	if err != nil {
+		return schedulerPorts.WorkerDependencies{}, err
+	}
 	runtime, err := schedulerCompose.NewTenantRuntime(unit)
 	if err != nil {
 		return schedulerPorts.WorkerDependencies{}, err
@@ -61,6 +65,9 @@ func NewSchedulerCleanupTestDependencies(db transactionruntime.Database, unit te
 		SchoolRepo: schedulerTenantDirectory{schools: schools}, Settings: resolver,
 		TenantRuntime: runtime, CleanupRuns: schedulerCompose.NewCleanupRunLedger(),
 		ActiveCleanup: newSchedulerPresenceCleanup(cleanup),
+		RetentionLog: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
+			return command.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
+		},
 	}, nil
 }
 

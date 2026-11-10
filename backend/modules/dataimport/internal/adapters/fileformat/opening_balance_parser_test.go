@@ -8,9 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Opening balance file parsing (#2132). The parser uses encoding/csv with the
-// standard comma separator, so German decimals ("12,5") must be quoted in the
-// file; the fixtures below mirror that.
+// Opening balance file parsing (#2132). Comma-separated files quote German
+// decimals ("12,5"); semicolon-separated files can leave them unquoted.
 
 const openingBalanceCSVHeader = "Personalnummer,Vorname,Nachname,Stundensaldo,Jahresanspruch,Vorjahresübertrag,Resturlaub\n"
 

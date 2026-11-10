@@ -1,7 +1,8 @@
 # Backend architecture policy
 
-`policy.json` is the source for package and runtime write ownership, package
-roles, tenant-safe read projections, legacy-composition symbols, dependency
+`policy.json` and the owner fragments in `policy/` are the sources for package
+and runtime write ownership, package roles, tenant-safe read projections,
+legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
@@ -48,6 +49,13 @@ It keeps current gates and records separate typed-effect, source-coverage and
 method-level pass-through follow-ups; no new policy permission follows.
 
 ## Canonical module map
+
+> **Historical migration log.** The narrative below records intermediate
+> states of the completed architecture migration, including packages and
+> wiring files that have since been deleted. It is not the current module
+> inventory. Use `policy.json` and `policy/` for current ownership and allowed
+> dependencies. Architecture principles, Commands and Source ratchet budgets
+> below remain current guidance.
 
 [ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
 is the principle for this map.
@@ -930,13 +938,13 @@ scripts/backend-architecture.sh audit-issues \
   --api-url https://api.github.com
 scripts/backend-architecture.sh explain \
   --scope production \
-  --source github.com/moto-nrw/project-phoenix/services/mealplan \
-  --target github.com/moto-nrw/project-phoenix/models/mealplan
+  --source github.com/moto-nrw/project-phoenix/modules/mealplan/compose \
+  --target github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application
 scripts/backend-architecture.sh diagram
 scripts/backend-architecture.sh dependencies \
   --focus module:meal-plan
 scripts/backend-architecture.sh dependencies \
-  --focus package:services/mealplan
+  --focus package:modules/mealplan/compose
 scripts/backend-architecture.sh cycles
 ```
 

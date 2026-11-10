@@ -656,6 +656,7 @@ function DatePickerCalendar({
   return (
     <div
       data-date-picker-panel
+      data-modal-content="true"
       className={getCalendarContainerClass(calendarLayout, compact)}
     >
       <CalendarNavHeader
@@ -700,7 +701,11 @@ function MultipleDatePickerCalendar({
   const [month, setMonth] = useState(values[0] ?? parseISODate(today));
 
   return (
-    <div className={getCalendarContainerClass(calendarLayout, compact)}>
+    <div
+      data-date-picker-panel
+      data-modal-content="true"
+      className={getCalendarContainerClass(calendarLayout, compact)}
+    >
       <CalendarNavHeader month={month} onMonthChange={setMonth} />
       <Suspense fallback={<DayPickerSkeleton month={month} />}>
         <LazyDayPicker
