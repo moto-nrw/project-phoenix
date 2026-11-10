@@ -513,6 +513,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *Service) HasRetainedTraegerMembership(ctx context.Context, accountID int64) (retained bool, err error) {\n\tif accountID \u003c= 0 {\n\t\treturn false, organizationtenancy.ErrInvalidOrganization\n\t}\n\terr = s.runRead(ctx, \"has_retained_traeger_membership\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tretained, queryStats, err = s.store.HasRetainedTraegerMembership(txCtx, accountID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn retained, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Service.HasRetainedTraegerMembership",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) ListOrganizations(ctx context.Context) (result []organizationtenancy.Organization, err error) {\n\terr = s.run(ctx, \"list_organizations\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.List(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif result == nil {\n\t\tresult = []organizationtenancy.Organization{}\n\t}\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/internal/application/Service.ListOrganizations",

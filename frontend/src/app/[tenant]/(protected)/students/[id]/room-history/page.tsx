@@ -9,6 +9,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import dynamic from "next/dynamic";
@@ -22,6 +23,7 @@ import {
   type DataTableColumn,
   type DataTableExtraRow,
 } from "~/components/ui/data-table";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -730,7 +732,17 @@ function StudentRoomHistoryPageContent() {
   useSession();
 
   const [student, setStudent] = useState<Student | null>(null);
-  const [history, setHistory] = useState<AttendanceHistory | null>(null);
+  // Das Protokoll trägt das Kind, für das es geladen wurde; angezeigt wird
+  // es nur unter genau diesem Kind (#6503).
+  const [loadedHistory, setLoadedHistory] = useState<{
+    studentId: string;
+    history: AttendanceHistory;
+  } | null>(null);
+  const history =
+    loadedHistory?.studentId === studentId ? loadedHistory.history : null;
+  // Nur der jüngste Abruf darf das Protokoll oder einen Fehler setzen: Nach
+  // zwei Korrekturen überschreibt die ältere Antwort sonst die neuere.
+  const latestHistoryLoad = useRef(0);
   const [loading, setLoading] = useState(true);
   // A 404 is its own state, not an error to retry.
   const [notFound, setNotFound] = useState(false);
@@ -761,14 +773,19 @@ function StudentRoomHistoryPageContent() {
   }, [studentId]);
 
   const fetchHistory = useCallback(async (): Promise<void> => {
+    const request = ++latestHistoryLoad.current;
+    const isLatest = () => request === latestHistoryLoad.current;
     try {
-      setHistory(await fetchStudentAttendanceHistory(studentId));
+      const loaded = await fetchStudentAttendanceHistory(studentId);
+      if (!isLatest()) return;
+      setLoadedHistory({ studentId, history: loaded });
       setNotFound(false);
       clearHistoryError();
     } catch (err) {
+      if (!isLatest()) return;
       if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
-        setHistory(null);
+        setLoadedHistory(null);
         clearHistoryError();
         return;
       }
@@ -776,7 +793,8 @@ function StudentRoomHistoryPageContent() {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setHistory(null);
+      // Ein bereits geladenes Protokoll dieses Kindes bleibt stehen; der
+      // Fehler steht dann darüber.
       await showHistoryError(err, {
         object: "das Anwesenheitsprotokoll",
         retry: () => setAttempt((current) => current + 1),
@@ -787,6 +805,10 @@ function StudentRoomHistoryPageContent() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    // Fehler und „nicht gefunden“ gehören zum vorigen Abruf, etwa des zuvor
+    // gezeigten Kindes; sie stehen nicht über dem nächsten (#6503).
+    setNotFound(false);
+    clearHistoryError();
 
     void (async () => {
       const [s] = await Promise.all([loadStudent(), fetchHistory()]);
@@ -798,7 +820,7 @@ function StudentRoomHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [loadStudent, fetchHistory, attempt]);
+  }, [loadStudent, fetchHistory, clearHistoryError, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
@@ -819,9 +841,11 @@ function StudentRoomHistoryPageContent() {
   // Eine ausgeschaltete Funktion ist ein Zustand, kein Fehler. Erkannt wird
   // sie am Schalter im Datensatz des Kindes, nicht am Text der 403-Antwort.
   const featureDisabled = student?.attendance_log_enabled === false;
+  const hasDays = history !== null && history.days.length > 0;
+  // Der Fehler ersetzt die Seite nur, wenn kein Protokoll zu zeigen ist.
   const pageError = notFound
     ? "Kind nicht gefunden."
-    : featureDisabled
+    : featureDisabled || hasDays
       ? null
       : historyLoad.error;
   const back = studentHistoryBack(studentId, referrer, pageError !== null);
@@ -841,7 +865,7 @@ function StudentRoomHistoryPageContent() {
         // Exportieren steht im Kebab der Kopfkarte, wie auf jeder anderen
         // Werkzeugfläche; der Zeitraum wird im Export-Dialog gewählt.
         actions={
-          history && history.days.length > 0 ? (
+          hasDays ? (
             <OverflowMenu
               items={[
                 {
@@ -871,8 +895,11 @@ function StudentRoomHistoryPageContent() {
               : null
         }
       >
-        {history && history.days.length > 0 && (
+        {history && hasDays && (
           <>
+            {historyLoad.error ? (
+              <LoadErrorAlert error={historyLoad.error} />
+            ) : null}
             <HistoryCharts days={history.days} />
 
             <HistoryTable

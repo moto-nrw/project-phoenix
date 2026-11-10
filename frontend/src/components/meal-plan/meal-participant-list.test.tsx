@@ -868,4 +868,199 @@ describe("MealParticipantList", () => {
       within(screen.getByRole("table")).getAllByText("kein Essen").length,
     ).toBeGreaterThan(0);
   });
+
+  // #6503: Nur die Antwort für die aktuelle Auswahl und den jüngsten Abruf
+  // darf Liste, Fehler und Ladezustand setzen.
+  describe("späte Antworten", () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (reason: unknown) => void;
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    function dayList(date: string, lastName: string) {
+      return {
+        date,
+        cutoffTime: "09:00",
+        deadline: `${date}T07:00:00Z`,
+        closed: false,
+        participants: [
+          {
+            studentId: lastName,
+            firstName: "Kind",
+            lastName,
+            schoolClass: "1a",
+          },
+        ],
+        others: [],
+      };
+    }
+
+    async function pickDay(current: string, next: string) {
+      fireEvent.click(
+        screen.getByRole("button", { name: `Datum: ${current}` }),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: next }));
+    }
+
+    /** Montag geladen, dann Dienstag und Mittwoch gewählt, beide offen. */
+    async function tuesdayThenWednesday() {
+      const tuesday = deferred<ReturnType<typeof dayList>>();
+      const wednesday = deferred<ReturnType<typeof dayList>>();
+      mocks.getDailyMealParticipants.mockImplementation((date: string) =>
+        date === "2026-09-08"
+          ? tuesday.promise
+          : date === "2026-09-09"
+            ? wednesday.promise
+            : Promise.resolve(dayList(date, "Montag")),
+      );
+      render(<MealParticipantList canRegister={false} />);
+      expect(
+        (await screen.findAllByText("Montag, Kind")).length,
+      ).toBeGreaterThan(0);
+
+      await pickDay("07.09.2026", "Dienstag, 8. September 2026");
+      await pickDay("08.09.2026", "Mittwoch, 9. September 2026");
+      await waitFor(() =>
+        expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
+          "2026-09-09",
+          false,
+        ),
+      );
+      return { tuesday, wednesday };
+    }
+
+    it("keeps Wednesday when Tuesday answers last", async () => {
+      const { tuesday, wednesday } = await tuesdayThenWednesday();
+
+      wednesday.resolve(dayList("2026-09-09", "Mittwoch"));
+      expect(
+        (await screen.findAllByText("Mittwoch, Kind")).length,
+      ).toBeGreaterThan(0);
+      tuesday.resolve(dayList("2026-09-08", "Dienstag"));
+      await tuesday.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Anker: Mittwoch steht weiter unter dem Mittwochsdatum.
+      expect(screen.getByText("Mittagessen am 09.09.2026")).toBeInTheDocument();
+      expect(screen.getAllByText("Mittwoch, Kind").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Dienstag, Kind")).not.toBeInTheDocument();
+    });
+
+    it("shows no Tuesday children under Wednesday when Tuesday answers first", async () => {
+      const { tuesday, wednesday } = await tuesdayThenWednesday();
+
+      tuesday.resolve(dayList("2026-09-08", "Dienstag"));
+      await tuesday.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Anker: das Mittwochsdatum ist gewählt, seine Liste lädt noch.
+      expect(screen.getByText("Mittagessen am 09.09.2026")).toBeInTheDocument();
+      expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
+      expect(screen.queryByText("Dienstag, Kind")).not.toBeInTheDocument();
+
+      wednesday.resolve(dayList("2026-09-09", "Mittwoch"));
+      expect(
+        (await screen.findAllByText("Mittwoch, Kind")).length,
+      ).toBeGreaterThan(0);
+      expect(screen.queryByText("Dienstag, Kind")).not.toBeInTheDocument();
+    });
+
+    it("ignores a failure of an older request after the newer one succeeded", async () => {
+      const { tuesday, wednesday } = await tuesdayThenWednesday();
+
+      wednesday.resolve(dayList("2026-09-09", "Mittwoch"));
+      expect(
+        (await screen.findAllByText("Mittwoch, Kind")).length,
+      ).toBeGreaterThan(0);
+      tuesday.reject(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      await tuesday.promise.catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Anker: die Mittwochsliste steht weiter da.
+      expect(screen.getAllByText("Mittwoch, Kind").length).toBeGreaterThan(0);
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Tagesliste"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Wiederholen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("ignores a late week answer after switching back to the day", async () => {
+      const week = deferred<unknown>();
+      mocks.getWeeklyMealParticipants.mockReturnValue(week.promise);
+      render(<MealParticipantList canRegister={false} />);
+      expect(
+        (await screen.findAllByText("Muster, Mia")).length,
+      ).toBeGreaterThan(0);
+
+      fireEvent.click(screen.getByRole("button", { name: "Woche" }));
+      await waitFor(() =>
+        expect(mocks.getWeeklyMealParticipants).toHaveBeenCalledWith(
+          "2026-09-07",
+        ),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Tag" }));
+      await waitFor(() =>
+        expect(mocks.getDailyMealParticipants).toHaveBeenCalledTimes(2),
+      );
+      expect(
+        (await screen.findAllByText("Muster, Mia")).length,
+      ).toBeGreaterThan(0);
+
+      week.reject(new ApiError("down", 503, { code: "general.unavailable" }));
+      await week.promise.catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Anker: die Tagesliste steht weiter da.
+      expect(screen.getByText("Mittagessen am 07.09.2026")).toBeInTheDocument();
+      expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Wochenliste"),
+        ),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the loaded list of the same day when a reload fails", async () => {
+      render(<MealParticipantList canRegister />);
+
+      const dialog = await openChangeFromHead();
+      fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Muster, Mia · 2a · Isst mit",
+        }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Wie an festen Tagen" }),
+      );
+      mocks.getDailyMealParticipants.mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      expect(
+        await screen.findByText(
+          catalogText("general.unavailable", "die Tagesliste"),
+        ),
+      ).toBeInTheDocument();
+      // Die bestätigte Liste des Tages bleibt unter dem Fehler stehen.
+      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(
+        within(screen.getByRole("table")).getAllByText("Muster, Mia").length,
+      ).toBeGreaterThan(0);
+    });
+  });
 });

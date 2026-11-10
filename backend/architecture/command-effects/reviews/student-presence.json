@@ -16436,6 +16436,28 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.ValidateProfileStatusChange",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.ValidateProfileStatusChange",
+      "reason": "Care Plan provides the existing student/day gate in the ambient tenant transaction. Profile writes already hold the student row and acquire this day gate for the subsequent status upsert. The guard reads the same day after that gate, before status writes, and propagates refusal for outer rollback; no new owner, lock order, scope switch or side effect is introduced (#6498).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.ValidateProfileStatusChange",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.ValidateProfileStatusChange",
+      "reason": "Care Plan provides the existing student/day gate in the ambient tenant transaction. Profile writes already hold the student row and acquire this day gate for the subsequent status upsert. The guard reads the same day after that gate, before status writes, and propagates refusal for outer rollback; no new owner, lock order, scope switch or side effect is introduced (#6498).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetSlotAttendanceByStudentAndDateRange",
       "classification": "query",
       "effect": "query",

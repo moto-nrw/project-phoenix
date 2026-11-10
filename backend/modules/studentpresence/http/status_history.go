@@ -37,6 +37,9 @@ func (rs *Resource) PersistStudentStatusHistory(ctx context.Context, student *pe
 	}
 
 	today := calendar.DateFromTime(now)
+	if err := rs.StudentStatusDayService.ValidateProfileStatusChange(ctx, student.ID, today, requestedSick, requestedExcused); err != nil {
+		return err
+	}
 	// Only the sick status carries a free-text reason; excused stays note-less.
 	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDaySick, statusTransition{
 		wasActive: wasSick, isActive: boolPtrValue(student.Sick), clearRequested: clearRequested(requestedSick),

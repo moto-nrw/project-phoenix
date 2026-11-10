@@ -777,6 +777,16 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.BankDataCipher.BankDataRing",
+      "reason": "ADR 0188 (#6332, #6412): the tenant-export CLI binds Security Runtime's independent bank ring directly to People Directory's export opener. Pure in-memory authenticated sealing or opening bound to the row context; no database writes, locking reads or audit changes.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
       "classification": "query",
       "effect": "query",
@@ -787,6 +797,16 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.BankDataCipher.Open",
+      "reason": "ADR 0188 (#6332, #6412): the tenant-export CLI binds Security Runtime's independent bank ring directly to People Directory's export opener. Pure in-memory authenticated sealing or opening bound to the row context; no database writes, locking reads or audit changes.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "classification": "query",
       "effect": "query",
@@ -794,6 +814,16 @@
       "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the people-directory owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.BankDataCipher.Seal",
+      "reason": "ADR 0188 (#6332, #6412): the tenant-export CLI binds Security Runtime's independent bank ring directly to People Directory's export opener. Pure in-memory authenticated sealing or opening bound to the row context; no database writes, locking reads or audit changes.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
     },
     {

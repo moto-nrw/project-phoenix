@@ -75,7 +75,10 @@ und Mehrfachvorkommen. Bestehende Skips werden sichtbar konserviert; zusätzlich
 Skips, verlorene Tests und abweichende Inventare blockieren den Vergleich.
 Backendprofile schreiben stattdessen den originalen `go.jsonl`-Report und prüfen
 Run-/Terminalereignisse einschließlich Mehrfachvorkommen, Fehlern und Skips
-streamend. Ihre Kontextmetadaten enthalten Go-Version, Locks, Wrapper und die
+streamend. Testnamen, deren Rahmenzeile (`--- PASS: <Name> (…s)`) länger als
+512 Byte (PIPE_BUF) ist, lehnt der Report immer ab: Eine gleichzeitige
+stderr-Ausgabe kann solche Zeilen zerschneiden, dann fehlt ihr `run`-Ereignis
+nur gelegentlich (#6488). Ihre Kontextmetadaten enthalten Go-Version, Locks, Wrapper und die
 Git-Basisinputs: Auflösungserfolg des Targets und sämtliche unveränderlichen
 Merge-Basen zu HEAD. Target-Tips vor/nach dem Trial werden separat dokumentiert.
 Auch die tatsächlich gewählte Basis bleibt ein strikter Vergleichsinput, falls

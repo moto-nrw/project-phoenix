@@ -479,13 +479,16 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 
+	// A foreign and an unknown school answer 404 traeger.school_not_found,
+	// like the Absprung (#6461), so the route reveals no school.
 	foreignAnswer := traegerSchoolView(t, router, answer.AccessToken, foreignSchool)
-	assert.Equal(t, http.StatusForbidden, foreignAnswer.Code, foreignAnswer.Body.String())
+	assert.Equal(t, http.StatusNotFound, foreignAnswer.Code, foreignAnswer.Body.String())
 	assert.NotContains(t, foreignAnswer.Body.String(), "OGS Fremd")
 	assert.Contains(t, foreignAnswer.Body.String(), "traeger.school_not_found")
 
 	missing := traegerSchoolView(t, router, answer.AccessToken, foreignSchool+1_000_000)
-	assert.Equal(t, http.StatusForbidden, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+	assert.Equal(t, http.StatusNotFound, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+	assert.Contains(t, missing.Body.String(), "traeger.school_not_found")
 
 	withoutRole := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, own, withoutRole.ID)
@@ -493,6 +496,7 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	require.Equal(t, http.StatusOK, code)
 	withoutRight := traegerSchoolView(t, router, answer.AccessToken, ownSchool)
 	assert.Equal(t, http.StatusForbidden, withoutRight.Code, withoutRight.Body.String())
+	assert.NotContains(t, withoutRight.Body.String(), "traeger.school_not_found", "a missing right is no missing school")
 }
 
 func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {

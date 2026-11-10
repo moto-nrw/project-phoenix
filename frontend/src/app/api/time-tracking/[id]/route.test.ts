@@ -113,7 +113,7 @@ describe("PUT /api/time-tracking/[id]", () => {
       method: "PUT",
       body: {
         breaks: [
-          { id: "1", durationMinutes: 15 },
+          { id: "9007199254740993", durationMinutes: 15 },
           { id: "2", durationMinutes: 30 },
         ],
       },
@@ -130,8 +130,8 @@ describe("PUT /api/time-tracking/[id]", () => {
         status: undefined,
         notes: undefined,
         breaks: [
-          { id: 1, duration_minutes: 15 },
-          { id: 2, duration_minutes: 30 },
+          { id: "9007199254740993", duration_minutes: 15 },
+          { id: "2", duration_minutes: 30 },
         ],
       },
     );

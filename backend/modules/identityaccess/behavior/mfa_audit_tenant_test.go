@@ -39,7 +39,7 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 	acc := testpkg.CreateTestAccount(t, db, "mfa-audit-tenant")
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 
 	// Login-flow context: NO tenant on the context. The fix's whole point
 	// is that the explicit tenantID param makes the audit land regardless.
@@ -77,7 +77,7 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 
 	// Seed a real active challenge so VerifyCodeForAccount reaches the
 	// wrong-code branch (the path that emits mfa_failed with nil IP).
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	_, err := svc.StartMFAChallenge(ctx, acc.ID, tenantID, identityaccess.MFAChallengeScopeTenant,
 		net.ParseIP("203.0.113.55"), 0)
 	require.NoError(t, err)

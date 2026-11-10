@@ -280,7 +280,7 @@ func (c *CatererAccess) confirmMFA(ctx context.Context, confirmation identityacc
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
-	if err := c.mfa.Enroll(ctx, confirmation.AccountID); err != nil {
+	if err := c.mfa.Enroll(ctx, proof); err != nil {
 		return identityaccess.CatererSession{}, err
 	}
 	c.logger.Info("caterer second factor switched on", slog.Int64("account_id", confirmation.AccountID))

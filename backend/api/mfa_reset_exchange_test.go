@@ -11,11 +11,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// enrollMFA records the e-mail factor of a fixture account the way the
+// enrollment confirm does: with the proof of a redeemed code at the
+// account's current credential generation (#6518).
+func enrollMFA(ctx context.Context, t *testing.T, db bun.IDB, mfa identityaccess.AccountMFAEnrollment, accountID int64) error {
+	t.Helper()
+	var generation int64
+	require.NoError(t, db.NewRaw(`SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?`, accountID).Scan(ctx, &generation))
+	return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: accountID, MFAResetGeneration: generation})
+}
 
 type resetAfterVerification struct {
 	identityaccess.AccountMFA
@@ -73,7 +84,7 @@ func TestMFAResetBetweenVerificationAndExchangeRefusesBothPortals(t *testing.T) 
 				mail := testpkg.NewCapturingMailer()
 				module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), WithAuthTestMailer(mail))
 				require.NoError(t, err)
-				require.NoError(t, module.MFA.EnrollMFA(t.Context(), account.ID))
+				require.NoError(t, enrollMFA(t.Context(), t, db, module.MFA, account.ID))
 				token, err := module.MFA.StartMFAChallenge(t.Context(), account.ID, tenantID, scope, nil, 0)
 				require.NoError(t, err)
 				messages := mail.Messages()
@@ -87,7 +98,7 @@ func TestMFAResetBetweenVerificationAndExchangeRefusesBothPortals(t *testing.T) 
 						return err
 					}
 					// Even re-establishing enrollment cannot revive proof from the old generation.
-					return module.MFA.EnrollMFA(t.Context(), account.ID)
+					return enrollMFA(t.Context(), t, db, module.MFA, account.ID)
 				}
 				mfa := module.MFA
 				sessions := module.Auth

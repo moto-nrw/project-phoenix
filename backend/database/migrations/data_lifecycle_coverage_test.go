@@ -27,6 +27,12 @@ type lifecycleTable struct {
 	Parent                                                    *lifecycleParent
 	ExcludeSecretColumns, AllowedSensitiveColumns, PersonKeys map[string]string
 	OpenSealedColumns, ProjectedColumns                       map[string]string
+	SealedBindings                                            map[string]lifecycleSealedBinding
+}
+
+type lifecycleSealedBinding struct {
+	Table, Column string
+	Match         map[string]string
 }
 
 type lifecycleParent struct{ Table, Column, ParentColumn string }
@@ -108,6 +114,7 @@ func lifecycleClassificationProblems(entries []lifecycleTable, columns []lifecyc
 		}
 		problems = append(problems, lifecycleScopeProblems(entry, catalog, columns, cols)...)
 		problems = append(problems, lifecycleExportProblems(entry, cols)...)
+		problems = append(problems, lifecycleSealedBindingProblems(entry, cols, tables)...)
 		for col, target := range entry.PersonKeys {
 			if col == "tenant_id" || !strings.HasSuffix(target, ".id") {
 				problems = append(problems, entry.Name+"."+col+" is not a person ID reference")
@@ -124,6 +131,24 @@ func lifecycleClassificationProblems(entries []lifecycleTable, columns []lifecyc
 		}
 	}
 	sort.Strings(problems)
+	return problems
+}
+
+// lifecycleSealedBindingProblems keeps a lookup for opening (#6412) on real
+// columns: the bound value lets the owner open a sealed column of the row and
+// may neither shadow a column nor serve a table that opens nothing.
+func lifecycleSealedBindingProblems(entry lifecycleTable, cols map[string]bool, tables map[string]map[string]bool) []string {
+	var problems []string
+	for key, binding := range entry.SealedBindings {
+		target := tables[binding.Table]
+		ok := !cols[key] && len(entry.OpenSealedColumns) > 0 && target[binding.Column] && len(binding.Match) > 0
+		for local, remote := range binding.Match {
+			ok = ok && cols[local] && target[remote]
+		}
+		if !ok {
+			problems = append(problems, entry.Name+"."+key+" needs a sealed binding on existing columns")
+		}
+	}
 	return problems
 }
 
@@ -288,6 +313,20 @@ func TestLifecycleClassificationRejectsGaps(t *testing.T) {
 			v[0].OpenSealedColumns = map[string]string{"password_hash": "tenant_id"}
 			return v
 		}, "needs an export exclusion and a new plaintext column name"},
+		{"binding shadows a column", func(v []lifecycleTable) []lifecycleTable {
+			v[1].OpenSealedColumns = map[string]string{"parent_id": "plain_parent"}
+			v[1].SealedBindings = map[string]lifecycleSealedBinding{"parent_id": {Table: "sample.parent", Column: "tenant_id", Match: map[string]string{"parent_id": "id"}}}
+			return v
+		}, "needs a sealed binding on existing columns"},
+		{"binding names an absent column", func(v []lifecycleTable) []lifecycleTable {
+			v[0].OpenSealedColumns = map[string]string{"password_hash": "password_plain"}
+			v[0].SealedBindings = map[string]lifecycleSealedBinding{"parent_ref": {Table: "sample.child", Column: "absent", Match: map[string]string{"id": "parent_id"}}}
+			return v
+		}, "needs a sealed binding on existing columns"},
+		{"binding without an opened column", func(v []lifecycleTable) []lifecycleTable {
+			v[1].SealedBindings = map[string]lifecycleSealedBinding{"parent_tenant": {Table: "sample.parent", Column: "tenant_id", Match: map[string]string{"parent_id": "id"}}}
+			return v
+		}, "needs a sealed binding on existing columns"},
 		{"projected container not excluded", func(v []lifecycleTable) []lifecycleTable {
 			v[0].ProjectedColumns = map[string]string{"id": "projected_id"}
 			return v
