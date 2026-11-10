@@ -7,7 +7,7 @@
  * auf die Objektansicht, wo er veröffentlicht oder weiter bearbeitet wird.
  */
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -20,7 +20,6 @@ import {
 } from "~/components/ui/slide-over";
 import { useParentTargetLookups } from "~/components/announcements/parent-target-picker";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { createLogger } from "~/lib/logger";
 import {
   emptySurveyDraft,
@@ -51,6 +50,9 @@ export function SurveyCreateSlideOver({
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den vom
+  // Fehlversuch (#6503).
+  const latestSaveDraft = useRef<() => Promise<void>>(async () => undefined);
   const lookups = useParentTargetLookups(draft.audience === "parents");
 
   const change = (next: SurveyEditorDraft) => {
@@ -78,15 +80,15 @@ export function SurveyCreateSlideOver({
       });
       void formErrors.show(err, {
         object: "die Umfrage",
-        // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den
-        // vom Fehlversuch (#6503).
         retry: () => void latestSaveDraft.current(),
       });
     } finally {
       setSaving(false);
     }
   };
-  const latestSaveDraft = useLatest(saveDraft);
+  useLayoutEffect(() => {
+    latestSaveDraft.current = saveDraft;
+  });
 
   return (
     <SlideOver

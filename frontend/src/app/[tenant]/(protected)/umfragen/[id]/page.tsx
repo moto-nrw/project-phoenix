@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useLayoutEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -43,7 +43,6 @@ import {
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
-import { useLatest } from "~/lib/hooks/use-latest";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -436,6 +435,9 @@ function SurveyEditSection({
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den vom
+  // Fehlversuch (#6503).
+  const latestSave = useRef<() => Promise<void>>(async () => undefined);
   const lookups = useParentTargetLookups(draft.audience === "parents");
 
   const save = async () => {
@@ -456,15 +458,15 @@ function SurveyEditSection({
       });
       void formErrors.show(err, {
         object: "die Umfrage",
-        // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den
-        // vom Fehlversuch (#6503).
         retry: () => void latestSave.current(),
       });
     } finally {
       setSaving(false);
     }
   };
-  const latestSave = useLatest(save);
+  useLayoutEffect(() => {
+    latestSave.current = save;
+  });
 
   return (
     <SectionCard title="Entwurf bearbeiten">
