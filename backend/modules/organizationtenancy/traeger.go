@@ -180,3 +180,12 @@ type TraegerMemberProvisioning interface {
 	RevokeTraegerInvitation(ctx context.Context, input TraegerInvitationCommand) error
 	ResetTraegerMemberMFA(ctx context.Context, input ResetTraegerMemberMFA) error
 }
+
+// AccountRetention supplies only the membership fact needed by account
+// offboarding. It joins the caller's transaction; tenant scope exposes no
+// fact about an account without an active mapping to that school.
+type AccountRetention interface {
+	// HasRetainedTraegerMembership counts pending/active membership independently
+	// of the Träger state. This does not grant permission to sign in.
+	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error)
+}

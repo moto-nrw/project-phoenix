@@ -264,3 +264,12 @@ func (s *AccountAuthentication) EndTraegerSessions(ctx context.Context, organiza
 	}
 	return ended, nil
 }
+
+// hasRetainedTraegerMembership is an account lifecycle fact, independent of
+// the stricter membership and organization eligibility used by sign-in.
+func (s *AccountAuthentication) hasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error) {
+	if s.traeger == nil {
+		return false, errTraegerMembershipsUnavailable
+	}
+	return s.traeger.HasRetainedTraegerMembership(ctx, accountID)
+}
