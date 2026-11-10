@@ -410,7 +410,7 @@ export function CareRuleModal({
           />
           <p className="mt-1 text-sm text-gray-600">
             {draft.schoolIds.length === 0
-              ? "Wählen Sie zuerst die Schulen. Danach stehen hier ihre Module."
+              ? "Wählen Sie zuerst die Schulen. Ohne Auswahl gilt die Regel für alle Module."
               : moduleOptions.length === 0
                 ? "Die gewählten Schulen haben noch keine Module."
                 : "Leer lassen, dann gilt die Regel für alle Module."}
