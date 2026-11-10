@@ -297,8 +297,8 @@ export function StatCard(
         className={
           props.variant === "row"
             ? "focus-visible:ring-moto-blue group block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-            : // Der Fokusring von `TileCard` (#6565).
-              "group block h-full rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-300"
+            : // Derselbe Fokusring wie `TileCard`, in moto-blue für 3:1 Kontrast (#6565).
+              "group focus-visible:outline-moto-blue block h-full rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
         }
       >
         {card}

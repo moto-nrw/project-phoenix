@@ -158,6 +158,14 @@ describe("StatCard", () => {
       );
     });
 
+    it("zeigt den Tastaturfokus in beiden Karten blau, nicht im Grau des Hover-Rahmens", () => {
+      const { statLink, tileLink } = renderBoth();
+
+      // Grau-300 erreichte auf Weiß nur 1,5:1; moto-blue erreicht 3,9:1.
+      expect(tileLink).toHaveClass("focus-visible:outline-moto-blue");
+      expect(statLink).toHaveClass("focus-visible:outline-moto-blue");
+    });
+
     it("hebt sich beim Überfahren wie TileCard, ohne eigenes Verschieben", () => {
       const { statLink } = renderBoth();
       const surface = statLink.firstElementChild as Element;
