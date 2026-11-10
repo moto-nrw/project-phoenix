@@ -1612,13 +1612,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error) {\n\tvar active bool\n\terr := s.run(ctx, s.withinSchoolRead, \"lock_active_school_membership\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tactive, queryStats, queryErr = s.store.LockActiveTenantMappingShared(txCtx, accountID, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"identity access: lock school membership: %w\", MapError(err))\n\t}\n\treturn active, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/Service.LockActiveSchoolMembership",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {\n\terr := s.run(ctx, s.tx.RunAdmin, \"record_operator_login\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.operators.RecordOperatorLogin(txCtx, id, time.Now())\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: record operator login: %w\", MapError(err))\n\t}\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/Service.RecordOperatorLogin",

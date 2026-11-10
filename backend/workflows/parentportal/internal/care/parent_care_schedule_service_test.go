@@ -75,7 +75,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		ChildRepo:      repos.ParentChildReads(),
 		StudentRepo:    owners.NewParentStudentReads(reposPeople.Student),
 		// The child write guard locks through these ports (#6529).
-		Memberships:         owners.NewPeopleIdentityAccess(testpkg.MustDatabase(db), nil),
+		Memberships:         owners.NewParentSchoolMembershipLock(testpkg.MustDatabase(db)),
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		Settings: parentSettingsStub{

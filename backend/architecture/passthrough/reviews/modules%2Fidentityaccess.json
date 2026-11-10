@@ -1151,11 +1151,6 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0177",
-      "id": "modules/identityaccess/internal/application/Service.LockActiveSchoolMembership",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/Service.RecordOperatorLogin",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

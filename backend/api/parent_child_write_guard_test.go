@@ -105,19 +105,6 @@ func (g *requestGate) park() {
 	})
 }
 
-// gatedMemberships parks the guard before its first lock, while armed.
-type gatedMemberships struct {
-	inner interface {
-		LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error)
-	}
-	gate *requestGate
-}
-
-func (m gatedMemberships) LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error) {
-	m.gate.park()
-	return m.inner.LockActiveSchoolMembership(ctx, accountID)
-}
-
 // lockGate parks the first relationship lock while armed and reports the
 // backend that holds it.
 type lockGate struct {
@@ -180,7 +167,11 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 		}
 		deps.InvalidateInvites = owners.NewGuardianInvitationInvalidation(database)
 		deps.ChildRepo = owners.ParentChildReadsAfterCheck(deps.ChildRepo, rig.checked.park)
-		deps.Memberships = gatedMemberships{inner: deps.Memberships, gate: rig.guarded}
+		lock := deps.Memberships
+		deps.Memberships = func(ctx context.Context, accountID int64) (bool, error) {
+			rig.guarded.park()
+			return lock(ctx, accountID)
+		}
 		deps.StudentGuardianRepo = owners.ParentRelationshipLockHook(deps.StudentGuardianRepo, rig.locked.afterLock)
 	}}, with...)
 	rig.childReadRig = newChildReadRigOn(t, db, adjust...)

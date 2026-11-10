@@ -29,7 +29,7 @@ type ChildResolver interface {
 	WithChildWrite(ctx context.Context, accountID, studentID int64, child *Child, access care.ChildWriteAccess, write func(context.Context) error) error
 	ResolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error)
 	WithPermittedChild(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, read func(context.Context, *Child) error) error
-	WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, write func(context.Context, *Child) error) error
+	WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, write func(context.Context, *Child) error, adjust ...func(*care.ChildWriteAccess)) error
 }
 
 // ConversationCore is the consumer-owned port for Communication's shared

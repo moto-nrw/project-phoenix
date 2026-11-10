@@ -256,18 +256,19 @@ func (s *Service) EditMasterDataRequest(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
 ) (*StudentDataChangeRequest, error) {
 	var out *StudentDataChangeRequest
-	access := childWriteNeeds(GuardianPermissionMasterDataRequest)
-	access.ChildMissing = func(ctx context.Context, err error) error {
-		return s.masterDataRequestGone(ctx, requestID, err)
+	childGone := func(access *ChildWriteAccess) {
+		access.ChildMissing = func(ctx context.Context, err error) error {
+			return s.masterDataRequestGone(ctx, requestID, err)
+		}
 	}
-	txErr := s.withPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionMasterDataRequest, access, (*Child).RequireCareRunning, func(txCtx context.Context, _ *Child) error {
+	txErr := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionMasterDataRequest, (*Child).RequireCareRunning, func(txCtx context.Context, _ *Child) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr
 		}
 		out = row
 		return nil
-	})
+	}, childGone)
 	if txErr != nil {
 		return nil, txErr
 	}

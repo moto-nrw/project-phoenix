@@ -25,14 +25,7 @@ import (
 // violation as well, so a new port or a new method of a port is classified
 // before it can be reached, and an exemption that reaches no write is stale.
 func parentChildWriteGuardViolations(project, modulePath string, loaded []*packages.Package) []Violation {
-	var flows []*packages.Package
-	for _, pkg := range loaded {
-		for _, path := range flowPackages {
-			if pkg.PkgPath == modulePath+"/"+path {
-				flows = append(flows, pkg)
-			}
-		}
-	}
+	flows := parentFlowPackages(modulePath, loaded)
 	if len(flows) == 0 {
 		return nil
 	}
@@ -41,24 +34,43 @@ func parentChildWriteGuardViolations(project, modulePath string, loaded []*packa
 	var violations []Violation
 	reached := map[string]bool{}
 	for _, root := range graph.roots() {
-		sinks, unknown := graph.writesFrom(root)
-		for _, port := range unknown {
-			violations = append(violations, parentChildWriteViolation("parent-child-writes.unclassified-port", graph.name(root), port, graph.location(root)))
-		}
-		if len(sinks) == 0 {
-			continue
-		}
-		name := graph.name(root)
-		reached[name] = true
-		if strings.TrimSpace(childWriteGuardExemptions[name]) != "" {
-			continue
-		}
-		violations = append(violations, parentChildWriteViolation("parent-child-writes.unguarded", name, strings.Join(sinks, ","), graph.location(root)))
+		violations = append(violations, graph.rootViolations(root, reached)...)
 	}
 	for name := range childWriteGuardExemptions {
 		if !reached[name] {
 			violations = append(violations, parentChildWriteViolation("parent-child-writes.stale-exemption", name, "no write", nil))
 		}
+	}
+	return violations
+}
+
+func parentFlowPackages(modulePath string, loaded []*packages.Package) []*packages.Package {
+	var flows []*packages.Package
+	for _, pkg := range loaded {
+		for _, path := range flowPackages {
+			if pkg.PkgPath == modulePath+"/"+path {
+				flows = append(flows, pkg)
+			}
+		}
+	}
+	return flows
+}
+
+// rootViolations reports the unclassified ports and the unguarded writes one
+// entry reaches; reached records the entries that write at all.
+func (g *flowGraph) rootViolations(root *types.Func, reached map[string]bool) []Violation {
+	name := g.name(root)
+	sinks, unknown := g.writesFrom(root)
+	var violations []Violation
+	for _, port := range unknown {
+		violations = append(violations, parentChildWriteViolation("parent-child-writes.unclassified-port", name, port, g.location(root)))
+	}
+	if len(sinks) == 0 {
+		return violations
+	}
+	reached[name] = true
+	if strings.TrimSpace(childWriteGuardExemptions[name]) == "" {
+		violations = append(violations, parentChildWriteViolation("parent-child-writes.unguarded", name, strings.Join(sinks, ","), g.location(root)))
 	}
 	return violations
 }
@@ -98,15 +110,14 @@ func parentChildWriteViolation(rule, source, target string, locations []Location
 
 var flowPackages = []string{"workflows/parentportal/internal/care", "workflows/parentportal/internal/messaging"}
 
-// guardedOpeners open a school unit behind guardChildWrite; their last
-// argument is the write.
-var guardedOpeners = map[string]bool{
-	"care.Service.WithChildWrite":                        true,
-	"care.Service.WithPermittedChildForWrite":            true,
-	"care.Service.withPermittedChildForWrite":            true,
-	"care.Service.WithParentConferenceBooking":           true,
-	"messaging.ChildResolver.WithChildWrite":             true,
-	"messaging.ChildResolver.WithPermittedChildForWrite": true,
+// guardedOpeners open a school unit behind guardChildWrite; the value is the
+// index of their write argument.
+var guardedOpeners = map[string]int{
+	"care.Service.WithChildWrite":                        5,
+	"care.Service.WithPermittedChildForWrite":            5,
+	"care.Service.WithParentConferenceBooking":           3,
+	"messaging.ChildResolver.WithChildWrite":             5,
+	"messaging.ChildResolver.WithPermittedChildForWrite": 5,
 }
 
 // childWriteGuardExemptions are the entries that write without a child of
@@ -220,7 +231,6 @@ var portClasses = map[string]string{
 	"care.SEPAMandates":                                         "read",
 	"care.SEPAMandates.GrantSEPAMandate":                        "write",
 	"care.SEPAMandates.RevokeSEPAMandate":                       "write",
-	"care.SchoolMembershipLocks":                                "read",
 	"care.SchoolTraeger":                                        "read",
 	"care.SelfServiceEvents.EmitSelfServicePill":                "write",
 	"care.SelfServiceEvents.WakeChildGuardians":                 "notice",
@@ -242,6 +252,7 @@ var portClasses = map[string]string{
 	"care.TraegerDocumentNotifier":                              "write",
 	"care.TraegerRuntime":                                       "read",
 	"care.TraegerSharedDocuments":                               "read",
+	"care.Config.Memberships":                                   "read",
 	"care.Config.InvalidateInvites":                             "write",
 	"carerequests.Reads":                                        "read",
 	"carerequests.Service":                                      "read",
@@ -338,73 +349,101 @@ func (g *flowGraph) roots() []*types.Func {
 // writesFrom returns the write sinks reachable from root outside guarded
 // write arguments, and the port methods without a class.
 func (g *flowGraph) writesFrom(root *types.Func) (sinks, unknown []string) {
-	seen := map[*types.Func]bool{root: true}
-	queue := []*types.Func{root}
-	found, unclassified := map[string]bool{}, map[string]bool{}
-	for len(queue) > 0 {
-		fn := queue[0]
-		queue = queue[1:]
-		info := g.infos[fn]
-		skip := map[ast.Node]bool{}
-		ast.Inspect(g.decls[fn].Body, func(n ast.Node) bool {
-			if n == nil || skip[n] {
-				return false
-			}
-			if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
-				if callee := calleeName(info, call.Fun); guardedOpeners[callee] {
-					skip[call.Args[len(call.Args)-1]] = true
-				}
-			}
-			var ident *ast.Ident
-			switch x := n.(type) {
-			case *ast.Ident:
-				ident = x
-			case *ast.SelectorExpr:
-				ident = x.Sel
-			default:
-				return true
-			}
-			switch obj := info.Uses[ident].(type) {
-			case *types.Func:
-				if _, local := g.decls[obj]; local {
-					if !seen[obj] {
-						seen[obj] = true
-						queue = append(queue, obj)
-					}
-					return true
-				}
-				port := interfaceMethodName(obj)
-				if port == "" {
-					return true
-				}
-				switch class := classify(port); class {
-				case "write":
-					found[port] = true
-				case "":
-					unclassified[port] = true
-				}
-			case *types.Var:
-				if obj.IsField() && isFunc(obj.Type()) {
-					if owner := fieldOwner(info, n); owner != "" {
-						port := owner + "." + obj.Name()
-						if classify(port) == "write" {
-							found[port] = true
-						}
-					}
-				}
-			}
+	walk := flowWalk{graph: g, seen: map[*types.Func]bool{root: true}, queue: []*types.Func{root}, found: map[string]bool{}, unclassified: map[string]bool{}}
+	for len(walk.queue) > 0 {
+		fn := walk.queue[0]
+		walk.queue = walk.queue[1:]
+		walk.visit(fn)
+	}
+	return sortedPortKeys(walk.found), sortedPortKeys(walk.unclassified)
+}
+
+// flowWalk follows the calls of one entry through the flow packages.
+type flowWalk struct {
+	graph               *flowGraph
+	seen                map[*types.Func]bool
+	queue               []*types.Func
+	found, unclassified map[string]bool
+}
+
+func (w *flowWalk) visit(fn *types.Func) {
+	info := w.graph.infos[fn]
+	skip := map[ast.Node]bool{}
+	ast.Inspect(w.graph.decls[fn].Body, func(n ast.Node) bool {
+		if n == nil || skip[n] {
+			return false
+		}
+		skipGuardedWrite(info, skip, n)
+		var ident *ast.Ident
+		switch x := n.(type) {
+		case *ast.Ident:
+			ident = x
+		case *ast.SelectorExpr:
+			ident = x.Sel
+		default:
 			return true
-		})
+		}
+		switch obj := info.Uses[ident].(type) {
+		case *types.Func:
+			w.function(obj)
+		case *types.Var:
+			w.field(info, n, obj)
+		}
+		return true
+	})
+}
+
+// skipGuardedWrite marks the write argument of a guarded opener: whatever
+// runs there runs behind the guard.
+func skipGuardedWrite(info *types.Info, skip map[ast.Node]bool, n ast.Node) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return
 	}
-	for port := range found {
-		sinks = append(sinks, port)
+	if index, guarded := guardedOpeners[calleeName(info, call.Fun)]; guarded && index < len(call.Args) {
+		skip[call.Args[index]] = true
 	}
-	for port := range unclassified {
-		unknown = append(unknown, port)
+}
+
+// function follows a function of the flows or records a port method.
+func (w *flowWalk) function(obj *types.Func) {
+	if _, local := w.graph.decls[obj]; local {
+		if !w.seen[obj] {
+			w.seen[obj] = true
+			w.queue = append(w.queue, obj)
+		}
+		return
 	}
-	sort.Strings(sinks)
-	sort.Strings(unknown)
-	return sinks, unknown
+	port := interfaceMethodName(obj)
+	if port == "" {
+		return
+	}
+	switch classify(port) {
+	case "write":
+		w.found[port] = true
+	case "":
+		w.unclassified[port] = true
+	}
+}
+
+// field records a callable field of the configuration the register names a
+// write.
+func (w *flowWalk) field(info *types.Info, n ast.Node, obj *types.Var) {
+	if !obj.IsField() || !isFunc(obj.Type()) {
+		return
+	}
+	if owner := fieldOwner(info, n); owner != "" && classify(owner+"."+obj.Name()) == "write" {
+		w.found[owner+"."+obj.Name()] = true
+	}
+}
+
+func sortedPortKeys(set map[string]bool) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func classify(port string) string {
@@ -434,6 +473,9 @@ func (g *flowGraph) location(fn *types.Func) []Location {
 }
 
 func funcName(fn *types.Func) string {
+	if fn.Pkg() == nil {
+		return fn.Name()
+	}
 	pkg := fn.Pkg().Name()
 	if recv := fn.Type().(*types.Signature).Recv(); recv != nil {
 		if named := namedOf(recv.Type()); named != nil {

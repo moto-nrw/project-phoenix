@@ -55,12 +55,10 @@ func childWriteNeeds(permissions ...string) ChildWriteAccess {
 	return ChildWriteAccess{Permissions: permissions}
 }
 
-// SchoolMembershipLocks is the port to Identity & Access that pins an
+// SchoolMembershipLock is the port to Identity & Access that pins an
 // account's membership of the school in context until the caller's
-// transaction ends. It joins the caller's school transaction.
-type SchoolMembershipLocks interface {
-	LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error)
-}
+// transaction ends. It runs inside the caller's school transaction.
+type SchoolMembershipLock func(ctx context.Context, accountID int64) (bool, error)
 
 // ErrChildWriteGuardUnavailable reports a service composed without the
 // membership, child, profile or relationship port the guard needs; parent
@@ -102,12 +100,8 @@ func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int6
 	if s.Memberships == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
 		return ErrChildWriteGuardUnavailable
 	}
-	active, err := s.Memberships.LockActiveSchoolMembership(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("parent: lock school membership: %w", err)
-	}
-	if !active {
-		return ErrChildNotLinked
+	if err := s.lockSchoolMembership(ctx, accountID); err != nil {
+		return err
 	}
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
 		if access.ChildMissing != nil {
@@ -118,24 +112,49 @@ func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int6
 	if err := s.lockWriteProfiles(ctx, child.GuardianProfileID, access); err != nil {
 		return err
 	}
-	link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, child.GuardianProfileID)
-	if errors.Is(err, ErrGuardianNotLinked) {
-		return ErrChildNotLinked
-	}
+	link, err := s.lockAccountRelationship(ctx, accountID, studentID, child.GuardianProfileID)
 	if err != nil {
 		return err
 	}
-	if err := s.requireProfileOfAccount(ctx, child.GuardianProfileID, accountID); err != nil {
-		return err
+	return s.requireWritePermissions(link, access)
+}
+
+// lockSchoolMembership pins the account's active mapping at the school.
+func (s *Service) lockSchoolMembership(ctx context.Context, accountID int64) error {
+	active, err := s.Memberships(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("parent: lock school membership: %w", err)
 	}
+	if !active {
+		return ErrChildNotLinked
+	}
+	return nil
+}
+
+// lockAccountRelationship locks the relationship and checks that its
+// guardian profile still belongs to the account.
+func (s *Service) lockAccountRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64) (*GuardianRelationship, error) {
+	link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, guardianProfileID)
+	if errors.Is(err, ErrGuardianNotLinked) {
+		return nil, ErrChildNotLinked
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireProfileOfAccount(ctx, guardianProfileID, accountID); err != nil {
+		return nil, err
+	}
+	return link, nil
+}
+
+// requireWritePermissions checks portal access and every action permission
+// on the locked relationship.
+func (s *Service) requireWritePermissions(link *GuardianRelationship, access ChildWriteAccess) error {
 	if !s.guardianHasPermission(link, GuardianPermissionPortalAccess) {
 		return ErrChildNotLinked
 	}
 	for _, permission := range access.Permissions {
-		if permission == "" || permission == GuardianPermissionPortalAccess {
-			continue
-		}
-		if !s.guardianHasPermission(link, permission) {
+		if permission != "" && permission != GuardianPermissionPortalAccess && !s.guardianHasPermission(link, permission) {
 			return ErrGuardianPermissionDenied
 		}
 	}

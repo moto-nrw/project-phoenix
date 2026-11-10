@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -553,4 +554,26 @@ func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, parentService.ErrGuardianProfileNotFound)
+}
+
+// parentMemberships, guardStudentGuardians, guardProfiles and guardStudents
+// bind the real ports the child write guard locks through, as the root does.
+func parentMemberships(t testing.TB, db *bun.DB) parentService.SchoolMembershipLock {
+	t.Helper()
+	return owners.NewParentSchoolMembershipLock(testpkg.NewDatabase(t, db))
+}
+
+func guardStudentGuardians(t testing.TB, db *bun.DB) parentService.StudentGuardianReads {
+	t.Helper()
+	return owners.NewParentStudentGuardianReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian)
+}
+
+func guardProfiles(t testing.TB, db *bun.DB) parentService.GuardianProfiles {
+	t.Helper()
+	return owners.NewParentGuardianProfileReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile)
+}
+
+func guardStudents(t testing.TB, db *bun.DB) parentService.StudentReads {
+	t.Helper()
+	return owners.NewParentStudentReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student)
 }

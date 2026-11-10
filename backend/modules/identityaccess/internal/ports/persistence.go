@@ -18,9 +18,6 @@ type Store interface {
 	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
 	CountStudentGuardianInvitations(ctx context.Context, studentID, tenantID int64) (int, domain.OperationStats, error)
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
-	// LockActiveTenantMappingShared is HasActiveAccountTenant with a FOR
-	// SHARE lock on the active mapping.
-	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
 	// ListAccountRoleIDs returns the roles the account holds at this school.
 	ListAccountRoleIDs(ctx context.Context, accountID, tenantID int64) ([]int64, domain.OperationStats, error)
 	// ListActiveAccountIDs returns every account with an active mapping to the
@@ -334,4 +331,10 @@ type AccountAccessStore interface {
 	RemoveAccountRole(ctx context.Context, accountID, roleID, tenantID int64) (domain.OperationStats, error)
 	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
+}
+
+// SchoolMembershipLockStore pins an active mapping FOR SHARE in the caller's
+// transaction (#6529).
+type SchoolMembershipLockStore interface {
+	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
 }

@@ -264,7 +264,7 @@ func careOfferingsService(
 ) *Service {
 	guard := newSummaryGuard(careOfferingsAccountID, child)
 	svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{},
-		Memberships: guard, GuardianProfileRepo: guard.profiles(), StudentGuardianRepo: guard.relationships(), GuardianPolicy: summaryGuardPolicy{},
+		Memberships: guard.lock, GuardianProfileRepo: guard.profiles(), StudentGuardianRepo: guard.relationships(), GuardianPolicy: summaryGuardPolicy{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
 		StudentRepo:    careOfferingsStudentReads(StudentReads.FindByIDForUpdate),

@@ -72,17 +72,16 @@ type Dependencies struct {
 	ParentRequestEvents messaging.RequestEvents
 
 	// Document inbox (#4671, ADR 0126).
-	BillingDocuments  care.BillingDocuments
-	ContractDocuments care.ContractDocuments
-	ContractNotices   care.ContractNotices
-	SharedDocuments   care.TraegerSharedDocuments
-	SEPAMandates      care.SEPAMandates
-	TraegerRuntime    care.TraegerRuntime
-	SchoolTraeger     care.SchoolTraeger
-	ParentAccounts    care.ParentAccounts
-	DocumentNotifier  care.BillingDocumentNotifier
-	// Memberships pins the guardian's school membership for a child write.
-	Memberships         care.SchoolMembershipLocks
+	BillingDocuments    care.BillingDocuments
+	ContractDocuments   care.ContractDocuments
+	ContractNotices     care.ContractNotices
+	SharedDocuments     care.TraegerSharedDocuments
+	SEPAMandates        care.SEPAMandates
+	TraegerRuntime      care.TraegerRuntime
+	SchoolTraeger       care.SchoolTraeger
+	ParentAccounts      care.ParentAccounts
+	DocumentNotifier    care.BillingDocumentNotifier
+	Memberships         care.SchoolMembershipLock
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error

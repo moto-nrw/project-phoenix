@@ -26,23 +26,6 @@ func (s *Service) HasActiveSchoolMembership(ctx context.Context, accountID int64
 	return active, nil
 }
 
-// LockActiveSchoolMembership is HasActiveSchoolMembership with the active
-// mapping pinned FOR SHARE in the caller's school transaction (#6529).
-func (s *Service) LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error) {
-	var active bool
-	err := s.run(ctx, s.withinSchoolRead, "lock_active_school_membership", func(txCtx context.Context, stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		var queryErr error
-		active, queryStats, queryErr = s.store.LockActiveTenantMappingShared(txCtx, accountID, s.tenantOf(txCtx))
-		stats.Add(queryStats)
-		return queryErr
-	})
-	if err != nil {
-		return false, fmt.Errorf("identity access: lock school membership: %w", MapError(err))
-	}
-	return active, nil
-}
-
 // ListAccountRoleIDs returns the roles the account holds at the school in
 // context. Roles held at another school are never included.
 func (s *Service) ListAccountRoleIDs(ctx context.Context, accountID int64) ([]int64, error) {

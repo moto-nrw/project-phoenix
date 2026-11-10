@@ -133,20 +133,12 @@ func (s *Service) WithPermittedChildForWrite(
 	requiredPermission string,
 	between func(*Child) error,
 	write func(ctx context.Context, child *Child) error,
+	adjust ...func(*ChildWriteAccess),
 ) error {
-	return s.withPermittedChildForWrite(ctx, accountID, studentID, requiredPermission, childWriteNeeds(requiredPermission), between, write)
-}
-
-// withPermittedChildForWrite is WithPermittedChildForWrite with the guard's
-// access spelled out; requiredPermission is the check before the unit.
-func (s *Service) withPermittedChildForWrite(
-	ctx context.Context,
-	accountID, studentID int64,
-	requiredPermission string,
-	access ChildWriteAccess,
-	between func(*Child) error,
-	write func(ctx context.Context, child *Child) error,
-) error {
+	access := childWriteNeeds(requiredPermission)
+	for _, change := range adjust {
+		change(&access)
+	}
 	if write == nil {
 		return fmt.Errorf("parent: child write is required")
 	}

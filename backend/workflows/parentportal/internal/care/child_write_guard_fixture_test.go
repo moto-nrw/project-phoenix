@@ -32,7 +32,7 @@ func (g summaryGuard) relationships() StudentGuardianReads {
 	return summaryGuardRelationships{guard: g}
 }
 
-func (g summaryGuard) LockActiveSchoolMembership(context.Context, int64) (bool, error) {
+func (g summaryGuard) lock(context.Context, int64) (bool, error) {
 	return true, nil
 }
 

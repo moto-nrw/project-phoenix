@@ -97,7 +97,7 @@ func BuildParentPortal(
 		ParentMessageNotifier: bindParentMessageNotifier(notifications.StaffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(schedules.Arrivals),
 		PickupSchedules: NewParentPickupSchedules(schedules.Pickups), CareRequests: requests.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(requests.Excused),
 		Emitter: BindParentChildEvents(emitter), MessagingEnabled: BindParentMessagingGate(settings, env.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(messaging.ParentAnnouncement),
-		Memberships: identity, GuardianInvites: NewParentGuardianAccess(identity), GuardianInvitations: NewGuardianInvitationReads(identity), InvalidateInvites: NewGuardianInvitationInvalidation(db),
+		Memberships: NewParentSchoolMembershipLock(db), GuardianInvites: NewParentGuardianAccess(identity), GuardianInvitations: NewGuardianInvitationReads(identity), InvalidateInvites: NewGuardianInvitationInvalidation(db),
 		StudentGuardianRepo: NewParentStudentGuardianReads(people.StudentGuardians), GuardianPhoneRepo: NewParentGuardianPhoneReads(peopleCompose.NewGuardianPhoneNumberRepository(db.Pool())),
 		StudentConsents: NewParentStudentConsents(services.StudentConsents), StudentPhotos: photos, ChildDataAccess: NewParentChildDataAccess(audit.Persistence.DataAccessLog),
 		HolidayWishes:   NewParentHolidayWishes(wishProofs),
