@@ -672,9 +672,19 @@ export default function TraegerVertraegePage() {
               : `${selected.size} Verträge ausgewählt`
           }
           description={
-            selectedDrafts.length < selected.size
-              ? "Senden gilt nur für Entwürfe. Einen versendeten Vertrag senden Sie auf seiner Seite erneut."
-              : "Die Eltern bekommen den Vertrag per Mail und in der Eltern-App."
+            selectedDrafts.length < selected.size ? (
+              // On a phone the bar keeps to the rule, so it covers less of
+              // the list; the way to resend follows from the tablet on.
+              <>
+                Senden gilt nur für Entwürfe.
+                <span className="max-sm:hidden">
+                  {" "}
+                  Einen versendeten Vertrag senden Sie auf seiner Seite erneut.
+                </span>
+              </>
+            ) : (
+              "Die Eltern bekommen den Vertrag per Mail und in der Eltern-App."
+            )
           }
           onClear={() => setSelected(new Set())}
           busy={sending}
