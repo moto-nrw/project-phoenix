@@ -568,9 +568,9 @@ func (f *pickupChainFixture) waitForLockWaiters(t *testing.T, n int) {
 // Pickup against the other multi-row writers of the same blocks (#6232):
 // offboarding (one statement), the planned-block delete and the list-kind
 // propagation (one statement over the ids each). The writers over ids run
-// with the smallest id moved to the end of the heap and a sequential scan, so
-// a statement that took its row locks in scan order would not take them by
-// id. Every writer runs inside an outer transaction, so a deadlock
+// with a sequential scan over a heap whose order runs against the ids
+// (moveSmallestBlocksToHeapEnd), so a statement that took its row locks in
+// scan order would deadlock with ids in date order. Every writer runs inside an outer transaction, so a deadlock
 // surfaces as 40P01 instead of a replay. Every writer locks blocks by
 // ascending id, so with ids in date order, against it, and across two
 // chosen templates the pair serialises without a deadlock. Before #6232 the
@@ -595,7 +595,7 @@ func TestPickupChainCreatesNoNewDeadlockPairs(t *testing.T) {
 			}
 		},
 		"planned delete": func(t *testing.T, f *pickupChainFixture) func(context.Context) error {
-			f.moveSmallestBlockToHeapEnd(t)
+			f.moveSmallestBlocksToHeapEnd(t)
 			return func(ctx context.Context) error {
 				if err := scanSequentially(ctx); err != nil {
 					return err
@@ -605,7 +605,7 @@ func TestPickupChainCreatesNoNewDeadlockPairs(t *testing.T) {
 			}
 		},
 		"list kind": func(t *testing.T, f *pickupChainFixture) func(context.Context) error {
-			f.moveSmallestBlockToHeapEnd(t)
+			f.moveSmallestBlocksToHeapEnd(t)
 			kind := timetable.ListKindMensa
 			return func(ctx context.Context) error {
 				if err := scanSequentially(ctx); err != nil {
@@ -671,12 +671,19 @@ func TestPickupChainCreatesNoNewDeadlockPairs(t *testing.T) {
 	}
 }
 
-// moveSmallestBlockToHeapEnd gives the block with the smallest id a new row
-// version at the end of the heap: a sequential scan visits it last.
-func (f *pickupChainFixture) moveSmallestBlockToHeapEnd(t *testing.T) {
+// moveSmallestBlocksToHeapEnd gives the two blocks with the smallest ids new
+// row versions at the end of the heap, in id order: a sequential scan visits
+// the largest id first, then the smallest. While the resolve holds the
+// smallest and waits for the middle one, a statement that locked in scan
+// order would hold the largest and wait for the smallest: a cycle once the
+// resolve reaches the largest.
+func (f *pickupChainFixture) moveSmallestBlocksToHeapEnd(t *testing.T) {
 	t.Helper()
-	_, err := f.db.ExecContext(context.Background(), `UPDATE schedule.activity_instances SET title = title || ' ' WHERE id = ?`, slices.Min(f.instances))
-	require.NoError(t, err)
+	ids := slices.Sorted(slices.Values(f.instances))
+	for _, id := range ids[:2] {
+		_, err := f.db.ExecContext(context.Background(), `UPDATE schedule.activity_instances SET title = title || ' ' WHERE id = ?`, id)
+		require.NoError(t, err)
+	}
 }
 
 // scanSequentially makes the ambient transaction scan tables in heap order.
