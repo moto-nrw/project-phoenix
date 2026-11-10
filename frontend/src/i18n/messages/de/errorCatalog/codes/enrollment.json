@@ -157,8 +157,5 @@
   "holiday_allocation_mode_locked": "Für diesen Ferienzeitraum gibt es schon Anmeldungen. Darum bleibt die Art der Platzvergabe so.",
   "holiday_allocation_pending": "Für diese Anmeldung ist noch kein Platz vergeben. Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
   "holiday_allocation_full": "In dieser Woche ist kein Platz mehr frei. Bitte laden Sie die Liste neu.",
-  "holiday_allocation_changed": "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal.",
-  "holiday_allocation_off": "Dieser Ferienzeitraum vergibt die Plätze nach Eingang. Eine Vergabe durch das Büro gibt es hier nicht.",
-  "holiday_allocation_reason_required": "Sie weichen vom Vorschlag ab. Bitte schreiben Sie kurz, warum.",
-  "holiday_criteria_invalid": "Bitte prüfen Sie die markierten Kriterien."
+  "holiday_allocation_changed": "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal."
 }

@@ -157,8 +157,5 @@
   "holiday_allocation_mode_locked": "This holiday period already has registrations. The way places are given out can no longer be changed.",
   "holiday_allocation_pending": "No place has been given for this registration yet. Please give out the places in the “Vergabe” tab first.",
   "holiday_allocation_full": "There are no free places left in this week. Please reload the list.",
-  "holiday_allocation_changed": "The list has just changed. We reloaded it. Please check your decision again.",
-  "holiday_allocation_off": "This holiday period gives out places in the order of registration. The office does not decide here.",
-  "holiday_allocation_reason_required": "Your decision differs from the suggestion. Please write briefly why.",
-  "holiday_criteria_invalid": "Please check the marked criteria."
+  "holiday_allocation_changed": "The list has just changed. We reloaded it. Please check your decision again."
 }

@@ -210,7 +210,7 @@ func TestHolidayAllocationByCriteriaWaitsForTheOfficeDecision(t *testing.T) {
 	rec = a.decide(t, decision(pending[1], "placed", ""))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	code, fields := registrationRefusalOf(t, rec)
-	assert.Equal(t, "enrollment.holiday_allocation_reason_required", code, "a deviation needs a reason")
+	assert.Equal(t, "enrollment.holiday_registration_invalid", code, "a deviation needs a reason")
 	assert.Equal(t, []string{"decisions.0.reason"}, fields)
 	stale := decision(pending[0], "placed", "")
 	stale["proposal"], stale["reason"] = "waitlisted", "Alter Stand"
@@ -332,7 +332,7 @@ func TestHolidayAllocationModeAndRights(t *testing.T) {
 
 	byArrival := openHolidays(t, a.holidayRegistrationFixture, a.office)
 	rec = traegerJSON(t, a.traeger, a.office.token, http.MethodGet, holidayPeriodPath(byArrival.ID)+"/allocation", nil)
-	assert.Equal(t, "enrollment.holiday_allocation_off", a.errorCode(t, rec))
+	assert.Equal(t, http.StatusConflict, rec.Code, "a period by arrival has no allocation list")
 
 	readOnly := newTraegerOffice(t, a.db, a.traeger, "Vergabe Lesend", identityaccess.TraegerRoleReadOnly)
 	for _, path := range []string{holidayPeriodPath(a.period.ID) + "/allocation", "/traeger/holiday-periods/criteria"} {

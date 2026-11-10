@@ -75,7 +75,7 @@ func (rs *HolidayPeriodResource) saveCriteria(w http.ResponseWriter, r *http.Req
 	var fields validation.Errors
 	if errors.As(err, &fields) {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayCriteriaInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	if err != nil {
@@ -182,12 +182,12 @@ func renderHolidayAllocationError(w http.ResponseWriter, r *http.Request, err er
 	var reason *capability.HolidayAllocationReasonRefusal
 	switch {
 	case errors.As(err, &reason):
-		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayAllocationReasonRequired,
+		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayRegistrationInvalid,
 			fmt.Sprintf("decisions.%d.reason", reason.Index)))
 	case errors.As(err, &full):
 		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentHolidayAllocationFull, map[string]any{"week_id": full.WeekID}))
 	case errors.Is(err, capability.ErrHolidayAllocationOff):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayAllocationOff))
+		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, capability.ErrHolidayAllocationChanged):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayAllocationChanged))
 	default:

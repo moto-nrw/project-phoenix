@@ -157,8 +157,5 @@
   "holiday_allocation_mode_locked": "Për këtë periudhë pushimesh ka tashmë regjistrime. Prandaj mënyra e ndarjes së vendeve nuk ndryshon.",
   "holiday_allocation_pending": "Për këtë regjistrim ende nuk është dhënë vend. Ju lutemi ndani fillimisht vendet te skeda „Vergabe“.",
   "holiday_allocation_full": "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
-  "holiday_allocation_changed": "Lista sapo ndryshoi. E ngarkuam përsëri. Ju lutemi kontrolloni edhe një herë vendimin tuaj.",
-  "holiday_allocation_off": "Në këtë periudhë pushimesh vendet jepen sipas radhës së regjistrimit. Zyra nuk vendos këtu.",
-  "holiday_allocation_reason_required": "Vendimi juaj ndryshon nga propozimi. Ju lutemi shkruani shkurt pse.",
-  "holiday_criteria_invalid": "Ju lutemi kontrolloni kriteret e shënuara."
+  "holiday_allocation_changed": "Lista sapo ndryshoi. E ngarkuam përsëri. Ju lutemi kontrolloni edhe një herë vendimin tuaj."
 }

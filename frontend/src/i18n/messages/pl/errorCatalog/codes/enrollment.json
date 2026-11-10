@@ -157,8 +157,5 @@
   "holiday_allocation_mode_locked": "Na ten okres ferii są już zgłoszenia. Dlatego sposób przydziału miejsc pozostaje bez zmian.",
   "holiday_allocation_pending": "Dla tego zgłoszenia nie przydzielono jeszcze miejsca. Proszę najpierw przydzielić miejsca w zakładce „Vergabe”.",
   "holiday_allocation_full": "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
-  "holiday_allocation_changed": "Lista właśnie się zmieniła. Wczytaliśmy ją ponownie. Proszę jeszcze raz sprawdzić swoją decyzję.",
-  "holiday_allocation_off": "W tym okresie ferii miejsca przydziela się według kolejności zgłoszeń. Biuro nie decyduje tutaj o miejscach.",
-  "holiday_allocation_reason_required": "Decyzja różni się od propozycji. Proszę krótko napisać, dlaczego.",
-  "holiday_criteria_invalid": "Proszę sprawdzić zaznaczone kryteria."
+  "holiday_allocation_changed": "Lista właśnie się zmieniła. Wczytaliśmy ją ponownie. Proszę jeszcze raz sprawdzić swoją decyzję."
 }

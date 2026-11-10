@@ -121,7 +121,7 @@ describe("holiday criteria editor (#4700)", () => {
   it("puts a refusal of the backend at its field", async () => {
     save.mockRejectedValue(
       new ApiError("invalid", 400, {
-        code: "enrollment.holiday_criteria_invalid",
+        code: "general.input",
         errors: [{ field: "criteria.0.name", reason: "too_long" }],
       }),
     );
@@ -133,7 +133,7 @@ describe("holiday criteria editor (#4700)", () => {
       screen.getByRole("button", { name: "Kriterien speichern" }),
     );
     expect(
-      await screen.findByText("Bitte prüfen Sie die markierten Kriterien."),
+      await screen.findByText(/Bitte prüfen Sie Ihre Angaben\./),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByLabelText(/^Name/)).toHaveAttribute(

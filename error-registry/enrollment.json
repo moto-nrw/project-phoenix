@@ -982,24 +982,6 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_allocation_changed"
-    },
-    {
-      "code": "enrollment.holiday_allocation_off",
-      "class": "business_rejection",
-      "parameters": [],
-      "legacy": "enrollment.holiday_allocation_off"
-    },
-    {
-      "code": "enrollment.holiday_allocation_reason_required",
-      "class": "input",
-      "parameters": [],
-      "legacy": "enrollment.holiday_allocation_reason_required"
-    },
-    {
-      "code": "enrollment.holiday_criteria_invalid",
-      "class": "input",
-      "parameters": [],
-      "legacy": "enrollment.holiday_criteria_invalid"
     }
   ]
 }
