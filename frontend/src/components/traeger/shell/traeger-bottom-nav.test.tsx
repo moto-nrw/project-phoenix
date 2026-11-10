@@ -133,9 +133,13 @@ describe("TraegerBottomNav", () => {
       "href",
       "/abrechnung",
     );
-    const more = bar().getByRole("button", { name: "Mehr" });
-    // A page behind Mehr is open: Mehr carries the mark.
+    // A page behind Mehr is open: the Mehr field carries the mark and shows
+    // that page, so the bar says where the person is.
+    const more = bar().getByRole("button", {
+      name: "Mehr: Abrechnungsvorgaben",
+    });
     expect(more).toHaveAttribute("data-active", "true");
+    expect(more).toHaveTextContent("Abrechnungsvorgaben");
 
     fireEvent.click(more);
     const drawer = within(await screen.findByRole("dialog"));

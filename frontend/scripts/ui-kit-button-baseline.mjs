@@ -58,7 +58,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [399, 438],
+    lines: [400, 439],
     reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {

@@ -78,6 +78,7 @@ export function TraegerBottomNav() {
     <PortalOverflowBottomNav
       items={navItems}
       navItemAttribute="data-traeger-nav-item"
+      activeInMore
     />
   );
 }

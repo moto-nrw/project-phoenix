@@ -332,6 +332,7 @@ export function PortalBottomNavLink({
  */
 export function PortalBottomNavButton({
   label,
+  shortLabel,
   concept,
   iconConcept,
   icon,
@@ -354,7 +355,7 @@ export function PortalBottomNavButton({
         {...buttonProps}
         type="button"
         data-active={active ? "true" : "false"}
-        aria-label={label}
+        aria-label={accessibleBottomNavName(label, shortLabel, active)}
         className={`${bottomNavItemClassName({
           active,
           paddingClassName,
@@ -363,7 +364,7 @@ export function PortalBottomNavButton({
       >
         <BottomNavItemContent
           {...({ concept, iconConcept, icon } as PortalNavIconProps)}
-          label={label}
+          label={shortLabel ?? label}
           active={active}
           badge={badge}
           labelClassName={labelClassName}

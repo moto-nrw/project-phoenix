@@ -60,12 +60,19 @@ export function PortalOverflowBottomNav({
   navItemAttribute,
   moreLabel = "Mehr",
   moreDescription = "Weitere Bereiche",
+  activeInMore = false,
 }: {
   readonly items: readonly PortalOverflowNavItem[];
   /** Das Attribut, das jeden Eintrag für Touren und Tests benennt. */
   readonly navItemAttribute: `data-${string}`;
   readonly moreLabel?: string;
   readonly moreDescription?: string;
+  /**
+   * Opt-in: ist eine Seite hinter „Mehr“ offen, zeigt das Feld „Mehr“ ihr
+   * Konzept-Icon und ihren Namen; der zugängliche Name lautet „Mehr: …“.
+   * Sonst stünde auf jeder dieser Seiten nur ein graues „Mehr“ markiert.
+   */
+  readonly activeInMore?: boolean;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -85,6 +92,9 @@ export function PortalOverflowBottomNav({
   // „Mehr" leuchtet auch, wenn eine seiner Seiten offen ist; sonst stünde
   // man auf einer Seite vor einer Leiste, in der nichts markiert ist.
   const moreActive = moreOpen || moreItems.some((item) => item.active);
+  const shownInMore = activeInMore
+    ? moreItems.find((item) => item.active)
+    : undefined;
 
   return (
     <>
@@ -101,8 +111,15 @@ export function PortalOverflowBottomNav({
         ))}
         {crowded ? (
           <PortalBottomNavButton
-            label={moreLabel}
-            concept={moreConcept}
+            label={
+              shownInMore ? `${moreLabel}: ${shownInMore.label}` : moreLabel
+            }
+            shortLabel={
+              shownInMore
+                ? (shownInMore.shortLabel ?? shownInMore.label)
+                : undefined
+            }
+            concept={shownInMore ? shownInMore.concept : moreConcept}
             active={moreActive}
             onClick={() => setMoreOpen(true)}
             {...{ [navItemAttribute]: "more" }}
