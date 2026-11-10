@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const bankDataPlaintextDropVersion = "1.15.861"
+const bankDataPlaintextDropVersion = "1.15.900"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

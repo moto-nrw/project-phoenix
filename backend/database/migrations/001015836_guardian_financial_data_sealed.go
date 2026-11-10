@@ -28,7 +28,7 @@ func init() {
 // reads serve without opening anything. Migrations hold no key, so the
 // maintenance command bank-data-rekey --school seals the existing plaintext
 // and clears it; writers store only the sealed form from this release on.
-// Migration 1.15.861 drops the plaintext columns once no row keeps one.
+// Migration 1.15.900 drops the plaintext columns once no row keeps one.
 const guardianFinancialDataSealedUpSQL = `
 ALTER TABLE users.guardian_financial_data
 	ADD COLUMN IF NOT EXISTS iban_sealed BYTEA,
@@ -67,7 +67,7 @@ func guardianFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 // is granted, so its sealed value is counted and never dropped unseen.
 func guardianFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Bounded like bankDataLockTimeout of 1.15.861: a rollback must not
+		// Bounded like bankDataLockTimeout of 1.15.900: a rollback must not
 		// queue an exclusive lock behind a foreign transaction without end.
 		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '30s'`); err != nil {
 			return fmt.Errorf("bound the guardian bank data lock wait: %w", err)

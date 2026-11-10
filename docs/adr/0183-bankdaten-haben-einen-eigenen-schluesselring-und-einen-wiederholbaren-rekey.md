@@ -172,7 +172,7 @@ Quellen `guardian_financial` und `staff_financial`. Sie gilt neben
 Rollout kommt nach Schritt 4 je Umgebung der Schulblock aus ADR 0188 hinzu,
 zweimal vollständig und mit `changed_total=0`. Schritt 5 (Legacy-Ring leeren,
 Abschlusslauf ohne Legacy) umfasst dann beide Blöcke. Die Klartextspalten
-entfernt erst ein späteres Release (Migration 1.15.861).
+entfernt erst ein späteres Release (Migration 1.15.900).
 
 ## Ergänzung: bestätigte Mandatstexte (#4696)
 
