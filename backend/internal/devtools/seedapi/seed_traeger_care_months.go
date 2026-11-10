@@ -104,6 +104,9 @@ func seedCareRuns(client *Client, auth AuthRef, first, current calendar.Date) (i
 		if released, err = seedCareRun(client, auth, first, true); err != nil {
 			return 0, err
 		}
+		if err := seedDatevFile(client, auth, first); err != nil {
+			return 0, err
+		}
 	}
 	previous := calendar.NewDate(current.Year(), current.Month()-1, 1)
 	if !first.IsZero() && first.Before(previous) {

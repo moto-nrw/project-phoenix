@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun/dialect/pgdialect"
+
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -162,24 +164,27 @@ func (s *Store) ExportRuns(ctx context.Context, organizationID int64, offset, li
 }
 
 type exportInvoiceRow struct {
-	CareInvoiceID    *int64         `bun:"care_invoice_id"`
-	DocumentID       *int64         `bun:"document_id"`
-	Number           string         `bun:"number"`
-	Kind             string         `bun:"kind"`
-	IssuedOn         calendar.Date  `bun:"issued_on,type:date"`
-	DueOn            *calendar.Date `bun:"due_on,type:date"`
-	TotalCents       int64          `bun:"total_cents"`
-	DebtorNumber     *string        `bun:"debtor_number"`
-	RecipientName    string         `bun:"recipient_name"`
-	Street           *string        `bun:"street"`
-	PostalCode       *string        `bun:"postal_code"`
-	City             *string        `bun:"city"`
-	ChildName        *string        `bun:"child_name"`
-	SchoolName       *string        `bun:"school_name"`
-	ServiceFrom      calendar.Date  `bun:"service_from,type:date"`
-	ServiceUntil     calendar.Date  `bun:"service_until,type:date"`
-	PaymentMethod    *string        `bun:"payment_method"`
-	MandateReference *string        `bun:"mandate_reference"`
+	CareInvoiceID       *int64         `bun:"care_invoice_id"`
+	CareCancellationID  *int64         `bun:"care_cancellation_id"`
+	DocumentID          *int64         `bun:"document_id"`
+	ReferenceDocumentID *int64         `bun:"reference_document_id"`
+	DatevBooked         bool           `bun:"datev_booked"`
+	Number              string         `bun:"number"`
+	Kind                string         `bun:"kind"`
+	IssuedOn            calendar.Date  `bun:"issued_on,type:date"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	TotalCents          int64          `bun:"total_cents"`
+	DebtorNumber        *string        `bun:"debtor_number"`
+	RecipientName       string         `bun:"recipient_name"`
+	Street              *string        `bun:"street"`
+	PostalCode          *string        `bun:"postal_code"`
+	City                *string        `bun:"city"`
+	ChildName           *string        `bun:"child_name"`
+	SchoolName          *string        `bun:"school_name"`
+	ServiceFrom         calendar.Date  `bun:"service_from,type:date"`
+	ServiceUntil        calendar.Date  `bun:"service_until,type:date"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	MandateReference    *string        `bun:"mandate_reference"`
 }
 
 func (r exportInvoiceRow) invoice() parentbilling.ExportInvoice {
@@ -187,15 +192,29 @@ func (r exportInvoiceRow) invoice() parentbilling.ExportInvoice {
 		TotalCents: r.TotalCents, DebtorNumber: textOf(r.DebtorNumber), RecipientName: r.RecipientName, Street: textOf(r.Street),
 		PostalCode: textOf(r.PostalCode), City: textOf(r.City), ChildName: textOf(r.ChildName), SchoolName: textOf(r.SchoolName),
 		ServiceFrom: r.ServiceFrom, ServiceUntil: r.ServiceUntil, PaymentMethod: textOf(r.PaymentMethod),
-		MandateReference: textOf(r.MandateReference)}
-	if r.CareInvoiceID != nil {
-		invoice.CareInvoiceID = *r.CareInvoiceID
-	}
-	if r.DocumentID != nil {
-		invoice.DocumentID = *r.DocumentID
+		MandateReference: textOf(r.MandateReference), DatevBooked: r.DatevBooked}
+	for _, id := range []struct {
+		from *int64
+		to   *int64
+	}{{r.CareInvoiceID, &invoice.CareInvoiceID}, {r.CareCancellationID, &invoice.CareCancellationID},
+		{r.DocumentID, &invoice.DocumentID}, {r.ReferenceDocumentID, &invoice.ReferenceDocumentID}} {
+		if id.from != nil {
+			*id.to = *id.from
+		}
 	}
 	return invoice
 }
+
+// Whether a booking is in a DATEV file of the Träger (#6433). The Träger
+// filter keeps a row of another Träger out below row level security.
+const (
+	datevBookedCareInvoice = `EXISTS (SELECT 1 FROM parent_billing.datev_booked_documents AS booked
+		WHERE booked.organization_id = ?0 AND booked.care_invoice_id = invoice.id)`
+	datevBookedCareCancellation = `EXISTS (SELECT 1 FROM parent_billing.datev_booked_documents AS booked
+		WHERE booked.organization_id = ?0 AND booked.care_cancellation_id = cancellation.id)`
+	datevBookedDocument = `EXISTS (SELECT 1 FROM parent_billing.datev_booked_documents AS booked
+		WHERE booked.organization_id = ?0 AND booked.document_id = document.id)`
+)
 
 // careInvoicePeriod is the service period an issued monthly invoice bills:
 // from its first care or Mensa position to its last, the billing month for an
@@ -215,11 +234,14 @@ const careInvoicePeriod = `SELECT
 
 // careExportInvoicesQuery reads the invoices of a monthly run and the Storno
 // of each, in number order.
-const careExportInvoicesQuery = `SELECT care_invoice_id, document_id, number, kind, issued_on, due_on, total_cents, debtor_number,
+const careExportInvoicesQuery = `SELECT care_invoice_id, care_cancellation_id, document_id, reference_document_id, datev_booked,
+	number, kind, issued_on, due_on, total_cents, debtor_number,
 	recipient_name, street, postal_code, city, child_name, school_name, service_from, service_until, payment_method,
 	mandate_reference
 FROM (
-	SELECT invoice.id AS care_invoice_id, NULL::bigint AS document_id, invoice.number, 'invoice' AS kind, invoice.issued_on,
+	SELECT invoice.id AS care_invoice_id, NULL::bigint AS care_cancellation_id, NULL::bigint AS document_id,
+		NULL::bigint AS reference_document_id, ` + datevBookedCareInvoice + ` AS datev_booked,
+		invoice.number, 'invoice' AS kind, invoice.issued_on,
 		invoice.due_on, invoice.total_cents, invoice.debtor_number,
 		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name) || CASE WHEN COALESCE(invoice.recipient_second_name, '') <> '' THEN ' und ' || invoice.recipient_second_name ELSE '' END AS recipient_name,
 		invoice.recipient_address_street AS street, invoice.recipient_address_postal_code AS postal_code,
@@ -230,7 +252,8 @@ FROM (
 	CROSS JOIN LATERAL (` + careInvoicePeriod + `) AS period
 	WHERE invoice.organization_id = ?0 AND invoice.run_id = ?1
 	UNION ALL
-	SELECT invoice.id, NULL::bigint, cancellation.number, 'cancellation', cancellation.issued_on, NULL::date,
+	SELECT invoice.id, cancellation.id, NULL::bigint, NULL::bigint, ` + datevBookedCareCancellation + `,
+		cancellation.number, 'cancellation', cancellation.issued_on, NULL::date,
 		cancellation.total_cents, invoice.debtor_number,
 		BTRIM(invoice.recipient_first_name || ' ' || invoice.recipient_last_name) || CASE WHEN COALESCE(invoice.recipient_second_name, '') <> '' THEN ' und ' || invoice.recipient_second_name ELSE '' END,
 		invoice.recipient_address_street, invoice.recipient_address_postal_code, invoice.recipient_address_city,
@@ -247,7 +270,9 @@ ORDER BY number_year, number_sequence, kind DESC`
 
 // holidayExportInvoicesQuery reads the invoices, Storno and credits of a
 // holiday run with the children of their positions.
-const holidayExportInvoicesQuery = `SELECT NULL::bigint AS care_invoice_id, document.id AS document_id, document.number, document.kind,
+const holidayExportInvoicesQuery = `SELECT NULL::bigint AS care_invoice_id, NULL::bigint AS care_cancellation_id,
+	document.id AS document_id, document.reference_document_id, ` + datevBookedDocument + ` AS datev_booked,
+	document.number, document.kind,
 	document.issued_on, document.due_on, document.total_cents, document.debtor_number,
 	BTRIM(document.recipient_first_name || ' ' || document.recipient_last_name) || CASE WHEN COALESCE(document.recipient_second_name, '') <> '' THEN ' und ' || document.recipient_second_name ELSE '' END AS recipient_name,
 	document.recipient_address_street AS street, document.recipient_address_postal_code AS postal_code,
@@ -301,4 +326,60 @@ func (s *Store) ExportRunContent(ctx context.Context, organizationID int64, runK
 		content.Run.TotalCents += row.TotalCents
 	}
 	return content, nil
+}
+
+// datevRunBookingsQuery reads the documents of monthly runs ?1 and holiday
+// runs ?2 with what the DATEV selection needs (#6433), in one statement.
+const datevRunBookingsQuery = `SELECT 'care' AS run_kind, invoice.run_id, invoice.id AS care_invoice_id,
+	NULL::bigint AS care_cancellation_id, NULL::bigint AS document_id, NULL::bigint AS reference_document_id,
+	'invoice' AS kind, invoice.issued_on, invoice.total_cents, invoice.debtor_number,
+	` + datevBookedCareInvoice + ` AS datev_booked
+FROM parent_billing.care_invoices AS invoice
+WHERE invoice.organization_id = ?0 AND invoice.run_id = ANY(?1)
+UNION ALL
+SELECT 'care', invoice.run_id, invoice.id, cancellation.id, NULL::bigint, NULL::bigint, 'cancellation', cancellation.issued_on,
+	cancellation.total_cents, invoice.debtor_number, ` + datevBookedCareCancellation + `
+FROM parent_billing.care_invoice_cancellations AS cancellation
+JOIN parent_billing.care_invoices AS invoice
+	ON invoice.organization_id = cancellation.organization_id AND invoice.id = cancellation.invoice_id
+WHERE cancellation.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = ANY(?1)
+UNION ALL
+SELECT 'holiday', document.run_id, NULL::bigint, NULL::bigint, document.id, document.reference_document_id, document.kind,
+	document.issued_on, document.total_cents, document.debtor_number, ` + datevBookedDocument + `
+FROM parent_billing.documents AS document
+WHERE document.organization_id = ?0 AND document.run_id = ANY(?2)`
+
+type datevRunBookingRow struct {
+	exportInvoiceRow `bun:",extend"`
+	RunKind          string `bun:"run_kind"`
+	RunID            int64  `bun:"run_id"`
+}
+
+// DatevRunBookings reads the documents of the runs for the count of their
+// new DATEV bookings, by run.
+func (s *Store) DatevRunBookings(ctx context.Context, organizationID int64, runs []parentbilling.ExportRunRef,
+) (map[parentbilling.ExportRunRef][]parentbilling.ExportInvoice, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	care, holiday := []int64{}, []int64{}
+	for _, run := range runs {
+		switch run.RunKind {
+		case parentbilling.DebitRunCare:
+			care = append(care, run.RunID)
+		case parentbilling.DebitRunHoliday:
+			holiday = append(holiday, run.RunID)
+		}
+	}
+	var rows []datevRunBookingRow
+	if err := db.NewRaw(datevRunBookingsQuery, organizationID, pgdialect.Array(care), pgdialect.Array(holiday)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("read the DATEV bookings of the runs: %w", err)
+	}
+	byRun := make(map[parentbilling.ExportRunRef][]parentbilling.ExportInvoice, len(runs))
+	for _, row := range rows {
+		ref := parentbilling.ExportRunRef{RunKind: row.RunKind, RunID: row.RunID}
+		byRun[ref] = append(byRun[ref], row.invoice())
+	}
+	return byRun, nil
 }

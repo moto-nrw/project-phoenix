@@ -936,6 +936,10 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
       "parent_billing.datev_bookings_invalid":
         "Einige Rechnungen passen nicht in die DATEV-Datei. Bitte prüfen Sie die genannten Rechnungen.",
+      "parent_billing.datev_bookings_taken":
+        "Jemand hat die neuen Buchungen gerade heruntergeladen. Es wurde keine Datei erstellt. Laden Sie die Seite neu.",
+      "parent_billing.datev_no_new_bookings":
+        "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei. Es wurde keine Datei erstellt.",
       "parent_billing.datev_not_ready":
         "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
       "parent_billing.debtor_number_invalid":
@@ -2345,6 +2349,10 @@ export const ERROR_CATALOG = {
         "{object} could not be changed. Please check its current status.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
@@ -2940,6 +2948,10 @@ export const ERROR_CATALOG = {
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
@@ -3485,6 +3497,10 @@ export const ERROR_CATALOG = {
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
@@ -4018,6 +4034,10 @@ export const ERROR_CATALOG = {
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
@@ -4556,6 +4576,10 @@ export const ERROR_CATALOG = {
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
@@ -5087,6 +5111,10 @@ export const ERROR_CATALOG = {
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "parent_billing.datev_bookings_invalid":
         "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_bookings_taken":
+        "Someone just downloaded the new bookings. No file was created. Please reload the page.",
+      "parent_billing.datev_no_new_bookings":
+        "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":

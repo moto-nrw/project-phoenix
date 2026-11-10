@@ -57,11 +57,17 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 			"payment_method": "transfer"},
 		{"recipient_kind": "both", "second_first_name": "Jonas", "due_day": 15},
 	}
+	// Every family has its debtor number (#4693), so the DATEV file of the
+	// run takes each invoice (#6433).
+	for i := len(deviations); i < len(invoices); i++ {
+		deviations = append(deviations, map[string]any{"recipient_kind": "applicant"})
+	}
 	for i, deviation := range deviations {
 		if i >= len(invoices) {
 			break
 		}
 		deviation["contract_id"] = invoices[i].ContractID
+		deviation["debtor_number"] = seedDebtorNumber(i)
 		if deviation["recipient_kind"] == "both" {
 			deviation["second_last_name"] = invoices[i].Recipient.LastName
 		}
