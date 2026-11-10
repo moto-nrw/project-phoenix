@@ -1663,6 +1663,8 @@ export const ERROR_CATALOG = {
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
       "traeger.access_log_export_too_large":
         "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
+      "traeger.account_inactive":
+        "Das Konto dieser Person ist ausgeschaltet. Deshalb können Sie die Person nicht dem Träger-Büro zuordnen.",
       "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
       "traeger.bank_account_label_taken":
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
@@ -2469,6 +2471,8 @@ export const ERROR_CATALOG = {
         "The booking has changed. Please reload the page.",
       "traeger.access_log_export_too_large":
         "The export has more than {limit} entries. Please choose a shorter period or more filters.",
+      "traeger.account_inactive":
+        "This person's account is switched off. You cannot assign the person to the Träger office.",
       "traeger.already_member":
         "This person already belongs to the Träger office.",
       "traeger.bank_account_label_taken":

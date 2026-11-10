@@ -1,5 +1,6 @@
 {
   "access_log_export_too_large": "The export has more than {limit} entries. Please choose a shorter period or more filters.",
+  "account_inactive": "This person's account is switched off. You cannot assign the person to the Träger office.",
   "already_member": "This person already belongs to the Träger office.",
   "bank_account_label_taken": "Another bank account already has this label. Please choose a different label.",
   "bank_account_not_found": "This bank account no longer exists. Please reload the page.",
