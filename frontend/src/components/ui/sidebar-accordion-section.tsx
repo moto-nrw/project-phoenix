@@ -1,14 +1,12 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import {
-  NotificationBadge,
-  type NotificationBadgeTone,
-} from "~/components/ui/notification-badge";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import type { SidebarRowBadge } from "~/components/ui/sidebar-row";
 import {
   SIDEBAR_ICON_CLASSES,
   sidebarLabelClasses,
@@ -29,12 +27,9 @@ interface SidebarAccordionSectionProps {
   readonly emptyText?: string;
   readonly children?: ReactNode;
   readonly hasChildren: boolean;
-  // Aggregate section badge for unread messages and pending requests. The
-  // count stays visible while the section is collapsed.
-  readonly badgeCount?: number;
-  readonly badgeTone?: NotificationBadgeTone;
-  // Was gezählt wird, für Vorleseprogramme (Standard: Nachrichten).
-  readonly badgeNoun?: string;
+  // Sammelzähler des Bereichs. `ariaLabel` nennt vollständig, was gezählt
+  // wird, einschließlich der richtigen Einzahl oder Mehrzahl.
+  readonly badge?: SidebarRowBadge | null;
   // Eingeklappte Leiste (#2825/#2923): dieselbe Zeile, nur ohne Text. Der
   // Bereichsinhalt passt nicht in den Streifen, deshalb bleibt er dort
   // geschlossen; der Klick klappt die Leiste auf (die Elternkomponente
@@ -61,9 +56,7 @@ export function SidebarAccordionSection({
   emptyText = "Keine Einträge",
   children,
   hasChildren,
-  badgeCount = 0,
-  badgeTone = "parents",
-  badgeNoun = "ungelesene Nachrichten",
+  badge,
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
@@ -82,6 +75,7 @@ export function SidebarAccordionSection({
   // dort ganz ohne Markierung da, obwohl man in ihm ist — etwa auf
   // /database/rooms oder /ogs-groups?group=… (#2923).
   const rowActive = collapsed ? showActiveIcon : isActive;
+  const shownBadge = badge != null && badge.count > 0 ? badge : null;
 
   return (
     <div>
@@ -141,15 +135,15 @@ export function SidebarAccordionSection({
                 Für die Dauer der Blende steht er neben dem Zähler im
                 Streifen; der ausblendende ist `aria-hidden`, sonst läse ein
                 Vorleseprogramm die Zahl zweimal (#2923). */}
-            {!bodyExpanded && badgeCount > 0 && (
+            {!bodyExpanded && shownBadge && (
               <span
                 aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
               >
                 <NotificationBadge
-                  count={badgeCount}
-                  tone={badgeTone}
-                  ariaLabel={`${badgeCount} ${badgeNoun}`}
+                  count={shownBadge.count}
+                  tone={shownBadge.tone}
+                  ariaLabel={shownBadge.ariaLabel}
                 />
               </span>
             )}
@@ -173,16 +167,16 @@ export function SidebarAccordionSection({
             in Größe und Lage wie an der Zeile (#6566) —
             eingeblendet, während die Bezeichnung ausblendet, damit sich
             nichts überlagert. */}
-        {collapsed && badgeCount > 0 && (
+        {collapsed && shownBadge && (
           <span
             aria-hidden={labelsVisible}
             className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
             <NotificationBadge
-              count={badgeCount}
-              tone={badgeTone}
+              count={shownBadge.count}
+              tone={shownBadge.tone}
               size="sm"
-              ariaLabel={`${badgeCount} ${badgeNoun}`}
+              ariaLabel={shownBadge.ariaLabel}
             />
           </span>
         )}

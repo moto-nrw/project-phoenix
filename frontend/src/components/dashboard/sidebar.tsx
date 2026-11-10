@@ -1713,9 +1713,14 @@ function SidebarContent({
         isActive={isOnEnrollmentsPage}
         isIconActive={isOnEnrollmentsPage}
         hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
-        badgeCount={enrollmentsUnreadCount}
-        badgeTone="staff"
-        badgeNoun={ENROLLMENTS_UNREAD_NOUN}
+        badge={{
+          count: enrollmentsUnreadCount,
+          tone: "staff",
+          ariaLabel: counterAriaLabel(
+            enrollmentsUnreadCount,
+            ENROLLMENTS_COUNTER,
+          ),
+        }}
       >
         {ENROLLMENT_SUB_PAGES.map((page) => (
           <SidebarSubItem

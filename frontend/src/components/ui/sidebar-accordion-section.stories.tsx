@@ -60,16 +60,18 @@ export const Loading: Story = {
 export const CollapsedWithCount: Story = {
   args: {
     label: "Anmeldungen",
-    badgeCount: 3,
-    badgeTone: "staff",
-    badgeNoun: "ungelesene Anmeldungen",
+    badge: {
+      count: 3,
+      tone: "staff",
+      ariaLabel: "3 ungelesene Anmeldungen",
+    },
   },
 };
 
 export const CollapsedWithZeroCount: Story = {
   args: {
     label: "Anmeldungen mit einer langen Bezeichnung",
-    badgeCount: 0,
+    badge: { count: 0, tone: "staff", ariaLabel: "0 ungelesene Anmeldungen" },
   },
 };
 
@@ -83,9 +85,11 @@ export const RailWithCount: Story = {
   ],
   args: {
     label: "Anmeldungen",
-    badgeCount: 3,
-    badgeTone: "staff",
-    badgeNoun: "ungelesene Anmeldungen",
+    badge: {
+      count: 3,
+      tone: "staff",
+      ariaLabel: "3 ungelesene Anmeldungen",
+    },
     collapsed: true,
     labelsMounted: false,
     labelsVisible: false,

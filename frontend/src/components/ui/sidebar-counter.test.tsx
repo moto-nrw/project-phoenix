@@ -62,9 +62,7 @@ const SURFACES: ReadonlyArray<
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={3}
-        badgeTone="staff"
-        badgeNoun="ungelesene Anmeldungen"
+        badge={{ count: 3, tone: "staff", ariaLabel: LABEL }}
         {...railProps(state)}
       />
     ),
@@ -108,7 +106,11 @@ describe("Sidebar-Zähler (#6566)", () => {
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={0}
+        badge={{
+          count: 0,
+          tone: "staff",
+          ariaLabel: "0 ungelesene Anmeldungen",
+        }}
       />,
     );
 
@@ -118,6 +120,31 @@ describe("Sidebar-Zähler (#6566)", () => {
       "svg",
     );
   });
+
+  it.each(["expanded", "rail"] as const)(
+    "nennt im Bereich die Einzahl richtig (%s)",
+    (state) => {
+      render(
+        <SidebarAccordionSection
+          label="Anmeldungen"
+          isExpanded={false}
+          onToggle={() => undefined}
+          isActive={false}
+          hasChildren={false}
+          badge={{
+            count: 1,
+            tone: "staff",
+            ariaLabel: "1 ungelesene Anmeldung",
+          }}
+          {...railProps(state)}
+        />,
+      );
+
+      expect(
+        screen.getByLabelText("1 ungelesene Anmeldung"),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("liest an der Gruppe vor, was gezählt wird", () => {
     render(

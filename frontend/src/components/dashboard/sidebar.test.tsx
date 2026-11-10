@@ -331,6 +331,11 @@ describe("Sidebar", () => {
       isLoading: false,
       refresh: vi.fn(),
     });
+    vi.mocked(useStaffMessagesUnread).mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseNFCEnabled.mockReturnValue(true);
     mockUseBookedModules.mockReturnValue(MODULE_KEYS);
