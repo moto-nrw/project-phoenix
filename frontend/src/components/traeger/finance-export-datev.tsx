@@ -160,8 +160,9 @@ export function DatevRefusedNotice({
   const accounts = problems.some((problem) =>
     ["revenue_account", "cost_center", "cost_center_2"].includes(problem.field),
   );
-  const correction =
-    runKind === "holiday"
+  const correction = accounts
+    ? "Schon festgehaltene Konten und Kostenstellen bleiben unverändert. Auch ein Storno übernimmt diese Werte. Laden Sie dann die Sollstellung dieses Laufs herunter. Geben Sie die Datei und diesen Hinweis an Ihr Steuerbüro. Es kann die genannten Werte berichtigen und manuell in DATEV buchen. Der DATEV-Download dieses Laufs bleibt dann gesperrt. Korrigieren Sie unter „Konten und Kostenstellen“ die Werte für neue Rechnungen."
+    : runKind === "holiday"
       ? "Bei Rechnungen ohne Gutschrift: Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Danach ist der Lauf wieder frei. Hat die Rechnung schon eine Gutschrift, ist kein Storno möglich. Laden Sie dann die Sollstellung für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt."
       : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.";
   return (
@@ -169,7 +170,7 @@ export function DatevRefusedNotice({
       type="warning"
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
-        debtor
+        accounts || debtor
           ? `DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: ${correction}`
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
       }

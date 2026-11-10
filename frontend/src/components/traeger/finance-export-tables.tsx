@@ -320,6 +320,7 @@ function entryNotes(entry: ExportProtocolEntry) {
     notes.push(
       <StatusBadge
         key="resolved"
+        wrap
         label={`${entry.resolvedPositions} ${entry.resolvedPositions === 1 ? "Position" : "Positionen"} mit Konten vom Exporttag`}
         title="Diese Positionen wurden ausgestellt, bevor moto Konten und Kostenstellen festgehalten hat. Die Datei nutzt die Werte vom Tag des Exports."
         tone="gray"

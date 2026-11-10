@@ -11443,7 +11443,7 @@ export const traegerDatevExportTopic =
         "Hat eine Ferienrechnung mit ungültiger Debitorennummer schon eine Gutschrift? Dann ist kein Storno möglich. Laden Sie die Sollstellung des Laufs für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt.",
         "Es erscheint `Keine neuen Buchungen für …`? Jemand hat die Buchungen gerade heruntergeladen. Die Datei steht im `Exportprotokoll`.",
         "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
-        "Es erscheint `Erlöskonto ist länger als Ihre Sachkonten` oder `Kostenstelle fehlt`? Wählen Sie im Hinweis `Konten und Kostenstellen`. Korrigieren Sie dort das Konto oder tragen Sie die Kostenstelle ein. Eine schon ausgestellte Rechnung behält ihre Werte: Stornieren Sie sie und stellen Sie sie neu aus.",
+        "Es erscheint `Erlöskonto ist länger als Ihre Sachkonten` oder `Kostenstelle fehlt`? Schon festgehaltene Konten und Kostenstellen bleiben unverändert. Auch ein Storno übernimmt diese Werte. Laden Sie dann die Sollstellung dieses Laufs herunter. Geben Sie die Datei und den Hinweis an Ihr Steuerbüro. Es kann die genannten Werte berichtigen und manuell in DATEV buchen. Der DATEV-Download dieses Laufs bleibt dann gesperrt. Korrigieren Sie unter `Konten und Kostenstellen` die Werte für neue Rechnungen.",
         "Ist in den DATEV-Werten `Kostenstelle ist Pflicht` an? Dann braucht jede Schule eine Kostenstelle. Sonst gibt es keine DATEV-Datei.",
       ],
       related: [
