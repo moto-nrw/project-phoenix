@@ -99,6 +99,7 @@ function CriterionRow({
   const position = index + 1;
   const label = draft.name.trim() || `Kriterium ${position}`;
   const scopeId = `criterion-${draft.key}-scope`;
+  const scopeError = fieldError(`criteria.${index}.scope`);
   return (
     <InsetPanel as="li" tone="white" framed padding="md" className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -193,6 +194,12 @@ function CriterionRow({
         />
         <div className="space-y-1">
           <FieldLabel id={scopeId}>Gilt für</FieldLabel>
+          {/* Named like the server's field, so a refused scope focuses here. */}
+          <input
+            type="hidden"
+            name={`criteria.${index}.scope`}
+            value={draft.scope}
+          />
           <SegmentedControl
             items={SCOPES.map((scope) => ({
               ...scope,
@@ -201,7 +208,9 @@ function CriterionRow({
             value={draft.scope}
             onChange={(scope) => onChange({ ...draft, scope })}
             ariaLabel={`Gilt für: ${label}`}
+            ariaDescribedBy={scopeError ? `${scopeId}-error` : undefined}
           />
+          <FieldErrorHint id={`${scopeId}-error`} message={scopeError} />
           {draft.answered ? (
             <p className="text-xs text-gray-600">
               Eltern haben schon geantwortet. Darum bleibt das so.

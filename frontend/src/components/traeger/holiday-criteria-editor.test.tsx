@@ -118,6 +118,33 @@ describe("holiday criteria editor (#4700)", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it("shows a refused scope at its choice", async () => {
+    save.mockRejectedValue(
+      new ApiError("invalid", 400, {
+        code: "general.input",
+        errors: [{ field: "criteria.0.scope", reason: "answered" }],
+      }),
+    );
+    renderEditor();
+    fireEvent.change(screen.getByLabelText(/^Name/), {
+      target: { value: "Beide Eltern arbeiten" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kriterien speichern" }),
+    );
+    const group = await screen.findByRole("group", {
+      name: "Gilt für: Beide Eltern arbeiten",
+    });
+    await waitFor(() =>
+      expect(group).toHaveAttribute("aria-describedby", expect.any(String)),
+    );
+    const hint = document.getElementById(
+      group.getAttribute("aria-describedby")!,
+    );
+    expect(hint).toBeInTheDocument();
+    expect(hint).not.toBeEmptyDOMElement();
+  });
+
   it("puts a refusal of the backend at its field", async () => {
     save.mockRejectedValue(
       new ApiError("invalid", 400, {

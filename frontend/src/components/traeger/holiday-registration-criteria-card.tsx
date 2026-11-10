@@ -240,7 +240,14 @@ export function HolidayRegistrationCriteriaCard({
                           </p>
                         </div>
                         <SegmentedControl
-                          items={CHECK_ITEMS}
+                          items={
+                            saving
+                              ? CHECK_ITEMS.map((item) => ({
+                                  ...item,
+                                  disabled: true,
+                                }))
+                              : CHECK_ITEMS
+                          }
                           value={checks[key] ?? "none"}
                           wrap
                           fullWidth

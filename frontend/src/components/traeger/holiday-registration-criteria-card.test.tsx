@@ -81,6 +81,45 @@ describe("criteria of a registration (#4700)", () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalledWith(REGISTRATION));
   });
 
+  it("locks the checks while they are saved", async () => {
+    let finish: (value: HolidayRegistrationDetail) => void = () => {};
+    check.mockReturnValue(
+      new Promise<HolidayRegistrationDetail>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(
+      <ToastProvider>
+        <HolidayRegistrationCriteriaCard
+          periodId="5"
+          registration={REGISTRATION}
+          onChanged={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Angaben für die Vergabe prüfen" }),
+    );
+    const familyGroup = screen.getByRole("group", {
+      name: "Prüfung: Beide Eltern berufstätig",
+    });
+    const yes = Array.from(familyGroup.querySelectorAll("button")).find(
+      (button) => button.textContent === "Trifft zu",
+    )!;
+    fireEvent.click(yes);
+    fireEvent.click(screen.getByRole("button", { name: "Prüfung speichern" }));
+    await waitFor(() => expect(check).toHaveBeenCalled());
+    for (const button of familyGroup.querySelectorAll("button")) {
+      expect(button).toBeDisabled();
+    }
+    finish(REGISTRATION);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Angaben für die Vergabe prüfen" }),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("shows no card for a period by arrival", () => {
     const view = (registration: HolidayRegistrationDetail) => (
       <ToastProvider>
