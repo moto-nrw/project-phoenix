@@ -104,6 +104,13 @@
   "placementHeading": "Vendet",
   "placementPlaced": "Vend i rezervuar",
   "placementWaitlisted": "Lista e pritjes",
+  "placementPending": "Vendi i hapur",
+  "pendingNote": "Zyra i ndan vendet. Do të merrni një email.",
+  "criteriaTitle": "Pyetje për ndarjen e vendeve",
+  "criteriaText": "Zyra i ndan vendet sipas rregullave të caktuara. Përgjigjet tuaja ndihmojnë. Zyra mund të kërkojë një dëshmi.",
+  "criteriaFamily": "Për familjen tuaj",
+  "criteriaChild": "Për {name}",
+  "criteriaChildNumber": "Për fëmijën {number}",
   "waitlistNote": "Disa javë janë tashmë plot. Në ato javë fëmija është në listën e pritjes. Nëse lirohet një vend, fëmija e merr automatikisht. Atëherë do t'ju shkruajmë një email.",
   "errors": {
     "phone": "Ju lutemi shkruani një numër telefoni të vlefshëm.",

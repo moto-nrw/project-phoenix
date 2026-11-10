@@ -463,6 +463,77 @@ describe("HolidayRegistrationForm", () => {
     await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
   });
 
+  it("asks the criteria as required yes/no questions and names the open place (#4700)", async () => {
+    mockSubmit.mockResolvedValue([
+      { childPosition: 1, weekId: "11", placement: "pending" },
+    ]);
+    renderForm(null, {
+      ...offer,
+      allocationMode: "criteria",
+      criteria: [
+        {
+          id: "1",
+          question: "Sind beide Eltern berufstätig?",
+          scope: "family",
+        },
+        {
+          id: "2",
+          question: "Ist ein Geschwisterkind angemeldet?",
+          scope: "child",
+        },
+      ],
+    });
+    expect(
+      screen.getByText(
+        "Das Büro vergibt die Plätze nach festen Regeln. Ihre Angaben helfen dabei. Das Büro kann nach einem Nachweis fragen.",
+      ),
+    ).toBeInTheDocument();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findAllByText("Bitte wählen Sie Ja oder Nein."),
+    ).toHaveLength(2);
+    expect(screen.getByText("Für Ben Muster")).toBeInTheDocument();
+
+    const family = screen.getByRole("group", {
+      name: /Sind beide Eltern berufstätig\?/,
+    });
+    fireEvent.click(within(family).getByRole("radio", { name: "Ja" }));
+    const sibling = screen.getByRole("group", {
+      name: /Ist ein Geschwisterkind angemeldet\?/,
+    });
+    fireEvent.click(within(sibling).getByRole("radio", { name: "Nein" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Sind beide Eltern berufstätig?"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        criteria: { "1": true },
+        children: [expect.objectContaining({ criteria: { "2": false } })],
+      }),
+    );
+    expect(await screen.findByText("Platz offen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("registers a holiday guest after the summary", async () => {
     mockSubmit.mockResolvedValue(undefined);
     const onStepChange = vi.fn();

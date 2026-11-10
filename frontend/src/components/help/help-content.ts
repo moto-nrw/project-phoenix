@@ -251,6 +251,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerHolidayRegistrationTopic(),
   articles.traegerHolidayRegistrationReviewTopic(),
   articles.traegerHolidayPlacesTopic(),
+  articles.traegerHolidayAllocationTopic(),
   articles.traegerHolidayContributionTopic(),
   articles.traegerCareContractsTopic(),
   articles.traegerBillingRunTopic(),

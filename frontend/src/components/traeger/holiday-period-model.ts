@@ -6,6 +6,7 @@
 
 import { isValidISODate, parseISODate } from "~/lib/date-helpers";
 import type {
+  HolidayAllocationMode,
   HolidayBookingUnit,
   HolidayPeriod,
   HolidayPeriodInput,
@@ -47,6 +48,8 @@ export interface HolidayPeriodDraft {
   readonly notes: string;
   /** Care days per child as typed; empty is no bound (#4701). */
   readonly maxDaysPerChild: string;
+  /** In the order of arrival or by the office after criteria (#4700). */
+  readonly allocationMode: HolidayAllocationMode;
   readonly weeks: readonly WeekDraft[];
 }
 
@@ -100,6 +103,7 @@ export function emptyHolidayPeriod(): HolidayPeriodDraft {
     binding: true,
     notes: "",
     maxDaysPerChild: "",
+    allocationMode: "arrival",
     weeks: [emptyWeek()],
   };
 }
@@ -152,6 +156,7 @@ export function draftFromPeriod(period: HolidayPeriod): HolidayPeriodDraft {
     notes: period.notes,
     maxDaysPerChild:
       period.maxDaysPerChild == null ? "" : String(period.maxDaysPerChild),
+    allocationMode: period.allocationMode ?? "arrival",
     weeks: period.weeks.map(weekDraft),
   };
 }
@@ -167,6 +172,7 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
     maxDaysPerChild: draft.maxDaysPerChild.trim()
       ? Number(draft.maxDaysPerChild.trim())
       : null,
+    allocationMode: draft.allocationMode,
     weeks: draft.weeks.map((week) => ({
       id: week.id,
       startsOn: week.startsOn,

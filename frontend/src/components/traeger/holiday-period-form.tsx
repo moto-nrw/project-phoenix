@@ -31,7 +31,9 @@ import {
   validateHolidayPeriod,
   type WeekDraft,
 } from "./holiday-period-model";
+import { HolidayAllocationModeField } from "./holiday-allocation-mode-field";
 import { HolidayWeekEditor } from "./holiday-week-editor";
+import type { HolidayCriterion } from "~/lib/traeger-holiday-allocation-api";
 import { weekNoCareDays } from "./use-week-no-care-days";
 import type { TraegerCalendar } from "~/lib/traeger-closing-days";
 
@@ -71,6 +73,7 @@ export function HolidayPeriodForm({
   onCancel,
   onDirtyChange,
   calendar,
+  criteria,
 }: Readonly<{
   /** The stored period; without it the form creates a new one. */
   period?: HolidayPeriod;
@@ -81,6 +84,8 @@ export function HolidayPeriodForm({
   onDirtyChange?: (dirty: boolean) => void;
   /** Holidays and Träger closing days for the hints at each week (#4702). */
   calendar?: TraegerCalendar;
+  /** The Träger's criteria for the hint at the allocation (#4700). */
+  criteria?: readonly HolidayCriterion[];
 }>) {
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraftState] = useState<HolidayPeriodDraft>(() =>
@@ -278,6 +283,17 @@ export function HolidayPeriodForm({
               error={fieldError("notes") ?? undefined}
               onChange={(event) =>
                 setDraft({ ...draft, notes: event.target.value })
+              }
+            />
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <HolidayAllocationModeField
+              value={draft.allocationMode}
+              locked={period?.allocationModeLocked ?? false}
+              criteria={criteria}
+              onChange={(allocationMode) =>
+                setDraft({ ...draft, allocationMode })
               }
             />
           </div>

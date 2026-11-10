@@ -104,6 +104,13 @@
   "placementHeading": "Plätze",
   "placementPlaced": "Platz reserviert",
   "placementWaitlisted": "Warteliste",
+  "placementPending": "Platz offen",
+  "pendingNote": "Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
+  "criteriaTitle": "Fragen für die Platzvergabe",
+  "criteriaText": "Das Büro vergibt die Plätze nach festen Regeln. Ihre Angaben helfen dabei. Das Büro kann nach einem Nachweis fragen.",
+  "criteriaFamily": "Für Ihre Familie",
+  "criteriaChild": "Für {name}",
+  "criteriaChildNumber": "Für Kind {number}",
   "waitlistNote": "In manchen Wochen sind alle Plätze vergeben. Dort steht Ihr Kind auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Wir schreiben Ihnen dann eine E-Mail.",
   "errors": {
     "phone": "Bitte geben Sie eine gültige Telefonnummer ein.",

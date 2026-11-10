@@ -2,7 +2,8 @@
 
 // Platz oder Warteliste je Kind und Woche nach dem Absenden (#4699). Die
 // Plätze gehen in der Reihenfolge der Anmeldung; in einer vollen Woche steht
-// das Kind auf der Warteliste und rückt automatisch nach.
+// das Kind auf der Warteliste und rückt automatisch nach. Vergibt das Büro
+// die Plätze nach Kriterien (#4700), ist jeder Platz zuerst offen.
 
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -30,6 +31,9 @@ export function HolidayRegistrationPlacements({
   const waitlisted = placements.some(
     (placement) => placement.placement === "waitlisted",
   );
+  const pending = placements.some(
+    (placement) => placement.placement === "pending",
+  );
   return (
     <div className="space-y-4">
       <SectionLabel as="h3">{t("placementHeading")}</SectionLabel>
@@ -50,11 +54,17 @@ export function HolidayRegistrationPlacements({
                     own.some((placement) => placement.weekId === week.id),
                   )
                   .map((week) => {
-                    const placed = own.some(
-                      (placement) =>
-                        placement.weekId === week.id &&
-                        placement.placement === "placed",
-                    );
+                    const state =
+                      own.find((placement) => placement.weekId === week.id)
+                        ?.placement ?? "placed";
+                    const badge = {
+                      placed: { label: t("placementPlaced"), tone: "green" },
+                      waitlisted: {
+                        label: t("placementWaitlisted"),
+                        tone: "warning",
+                      },
+                      pending: { label: t("placementPending"), tone: "purple" },
+                    } as const;
                     return (
                       <li
                         key={week.id}
@@ -62,12 +72,8 @@ export function HolidayRegistrationPlacements({
                       >
                         <span>{labels.range(week)}</span>
                         <StatusBadge
-                          label={
-                            placed
-                              ? t("placementPlaced")
-                              : t("placementWaitlisted")
-                          }
-                          tone={placed ? "green" : "warning"}
+                          label={badge[state].label}
+                          tone={badge[state].tone}
                           size="xs"
                         />
                       </li>
@@ -78,6 +84,7 @@ export function HolidayRegistrationPlacements({
           );
         })}
       </ul>
+      {pending ? <Alert type="info" message={t("pendingNote")} /> : null}
       {waitlisted ? <Alert type="info" message={t("waitlistNote")} /> : null}
     </div>
   );

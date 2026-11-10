@@ -47,7 +47,9 @@ type HolidayRegistrationEventAction =
   | "sibling_merge"
   | "sibling_split"
   | "sibling_cancel"
-  | "promote";
+  | "promote"
+  | "allocate"
+  | "criteria_check";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -66,8 +68,12 @@ export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
   timeModel: "",
 };
 
-/** Whether a booking has a place in its week or waits for one (#4699). */
-type HolidayPlacement = "placed" | "waitlisted";
+/**
+ * Whether a booking has a place in its week or waits for one (#4699). In a
+ * period by criteria a booking stays "pending" until the office decides
+ * (#4700); it is neither billed nor reported to the OGS.
+ */
+export type HolidayPlacement = "placed" | "waitlisted" | "pending";
 
 interface HolidayRegistrationBooking {
   readonly weekId: string;
@@ -196,6 +202,41 @@ export interface HolidayRegistrationEvent {
   readonly fields: readonly string[];
   /** The other registrations of a sibling merge or split (#5628). */
   readonly siblings: readonly string[];
+  /** The weeks an allocation decided (#4700). */
+  readonly weekIds?: readonly string[];
+  /** What an allocation decided; absent for other actions. */
+  readonly placement?: "placed" | "waitlisted";
+  /** Why the office differed from the proposal; empty otherwise. */
+  readonly reason?: string;
+  /** The checks of the criteria the office changed (#4700). */
+  readonly checks?: readonly HolidayCriterionCheck[];
+}
+
+/** "yes"/"no" as the office checked it, null for not checked. */
+export type HolidayCriterionCheckValue = "yes" | "no" | null;
+
+/** One check of a criterion by the office (#4700). */
+export interface HolidayCriterionCheck {
+  readonly criterionId: string;
+  /** Null for a criterion of the family. */
+  readonly childId: string | null;
+  readonly checked: HolidayCriterionCheckValue;
+}
+
+/**
+ * The answer to one criterion in a registration (#4700): what the parents
+ * said and what the office checked. The office's check counts first.
+ */
+export interface HolidayRegistrationCriterion {
+  readonly criterionId: string;
+  readonly name: string;
+  readonly question: string;
+  readonly scope: "family" | "child";
+  /** Null for a criterion of the family. */
+  readonly childId: string | null;
+  readonly stated: "yes" | "no" | "unknown";
+  readonly checked: HolidayCriterionCheckValue;
+  readonly checkedAt: string | null;
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -252,6 +293,14 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly childAnswers: Readonly<
     Record<string, Readonly<Record<string, unknown>>>
   >;
+  /** Only in a period by criteria (#4700); empty otherwise. */
+  readonly criteria?: readonly HolidayRegistrationCriterion[];
+}
+
+interface BackendCheck {
+  criterion_id: number;
+  child_id: number | null;
+  checked: HolidayCriterionCheckValue;
 }
 
 interface BackendBooking {
@@ -345,6 +394,10 @@ interface BackendDetail extends BackendSummary {
           debtor_number?: { before: string; after: string } | null;
           fields?: string[] | null;
           siblings?: number[] | null;
+          week_ids?: number[] | null;
+          placement?: "placed" | "waitlisted" | null;
+          reason?: string | null;
+          checks?: BackendCheck[] | null;
         } | null;
       }[]
     | null;
@@ -358,6 +411,28 @@ interface BackendDetail extends BackendSummary {
   custom_data?: Record<string, unknown> | null;
   child_custom_data?:
     { child_id: number; custom_data?: Record<string, unknown> | null }[] | null;
+  criteria?:
+    | {
+        criterion_id: number;
+        name: string;
+        question: string;
+        scope: "family" | "child";
+        child_id: number | null;
+        stated: "yes" | "no" | "unknown";
+        checked: HolidayCriterionCheckValue;
+        checked_at: string | null;
+      }[]
+    | null;
+}
+
+function checksFromBackend(
+  checks: BackendCheck[] | null | undefined,
+): HolidayCriterionCheck[] {
+  return (checks ?? []).map((check) => ({
+    criterionId: String(check.criterion_id),
+    childId: check.child_id === null ? null : String(check.child_id),
+    checked: check.checked,
+  }));
 }
 
 function summaryFromBackend(
@@ -458,6 +533,17 @@ function detailFromBackend(
       debtorNumber: event.details?.debtor_number ?? null,
       fields: event.details?.fields ?? [],
       siblings: (event.details?.siblings ?? []).map(String),
+      // Only an allocation and a check carry these (#4700).
+      ...(event.details?.week_ids
+        ? { weekIds: event.details.week_ids.map(String) }
+        : {}),
+      ...(event.details?.placement
+        ? { placement: event.details.placement }
+        : {}),
+      ...(event.details?.reason ? { reason: event.details.reason } : {}),
+      ...(event.details?.checks
+        ? { checks: checksFromBackend(event.details.checks) }
+        : {}),
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
@@ -475,6 +561,16 @@ function detailFromBackend(
         entry.custom_data ?? {},
       ]),
     ),
+    criteria: (registration.criteria ?? []).map((criterion) => ({
+      criterionId: String(criterion.criterion_id),
+      name: criterion.name,
+      question: criterion.question,
+      scope: criterion.scope,
+      childId: criterion.child_id === null ? null : String(criterion.child_id),
+      stated: criterion.stated,
+      checked: criterion.checked,
+      checkedAt: criterion.checked_at,
+    })),
   };
 }
 
@@ -627,6 +723,32 @@ export async function changeHolidayRegistration(
     await traegerRequest<BackendDetail>(
       `${registrationPath(periodId, registrationId)}/${action}`,
       { method: "POST", body: {} },
+    ),
+  );
+}
+
+/**
+ * Saves the office's checks of the criteria (#4700). A check changes the
+ * proposal for open bookings and the order of the waiting list.
+ */
+export async function checkHolidayRegistrationCriteria(
+  periodId: string,
+  registrationId: string,
+  checks: readonly HolidayCriterionCheck[],
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/criteria`,
+      {
+        method: "PUT",
+        body: {
+          checks: checks.map((check) => ({
+            criterion_id: Number(check.criterionId),
+            child_id: check.childId === null ? null : Number(check.childId),
+            checked: check.checked,
+          })),
+        },
+      },
     ),
   );
 }
@@ -864,6 +986,8 @@ export interface HolidayWeekPlaces {
   readonly hostSchoolId: string;
   readonly capacity: number | null;
   readonly placed: number;
+  /** Bookings the office has not decided yet (#4700). */
+  readonly pending?: number;
   readonly waitlist: readonly HolidayWaitlistEntry[];
   /** "day": the capacity holds for each day (#4701). */
   readonly bookingUnit?: "week" | "day";
@@ -878,6 +1002,7 @@ interface BackendWeekPlaces {
   host_school_id: number;
   capacity: number | null;
   placed: number;
+  pending?: number;
   booking_unit?: "week" | "day";
   days?: { date: string; placed: number }[] | null;
   waitlist?:
@@ -909,6 +1034,7 @@ export async function fetchHolidayWeekPlaces(
     hostSchoolId: String(week.host_school_id),
     capacity: week.capacity,
     placed: week.placed,
+    pending: week.pending ?? 0,
     bookingUnit: week.booking_unit ?? "week",
     days: week.days ?? [],
     waitlist: (week.waitlist ?? []).map((entry) => ({

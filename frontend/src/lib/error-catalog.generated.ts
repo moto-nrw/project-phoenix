@@ -467,10 +467,24 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_allocation_changed":
+        "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal.",
+      "enrollment.holiday_allocation_full":
+        "In dieser Woche ist kein Platz mehr frei. Bitte laden Sie die Liste neu.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Für diesen Ferienzeitraum gibt es schon Anmeldungen. Darum bleibt die Art der Platzvergabe so.",
+      "enrollment.holiday_allocation_off":
+        "Dieser Ferienzeitraum vergibt die Plätze nach Eingang. Eine Vergabe durch das Büro gibt es hier nicht.",
+      "enrollment.holiday_allocation_pending":
+        "Für diese Anmeldung ist noch kein Platz vergeben. Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
+      "enrollment.holiday_allocation_reason_required":
+        "Sie weichen vom Vorschlag ab. Bitte schreiben Sie kurz, warum.",
       "enrollment.holiday_booking_unit_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
       "enrollment.holiday_child_day_limit":
         "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Gewählt sind {days}. Bitte wählen Sie weniger Tage.",
+      "enrollment.holiday_criteria_invalid":
+        "Bitte prüfen Sie die markierten Kriterien.",
       "enrollment.holiday_form_field_not_allowed":
         "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
@@ -2176,10 +2190,24 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_allocation_changed":
+        "The list has just changed. We reloaded it. Please check your decision again.",
+      "enrollment.holiday_allocation_full":
+        "There are no free places left in this week. Please reload the list.",
+      "enrollment.holiday_allocation_mode_locked":
+        "This holiday period already has registrations. The way places are given out can no longer be changed.",
+      "enrollment.holiday_allocation_off":
+        "This holiday period gives out places in the order of registration. The office does not decide here.",
+      "enrollment.holiday_allocation_pending":
+        "No place has been given for this registration yet. Please give out the places in the “Vergabe” tab first.",
+      "enrollment.holiday_allocation_reason_required":
+        "Your decision differs from the suggestion. Please write briefly why.",
       "enrollment.holiday_booking_unit_booked":
         "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
       "enrollment.holiday_child_day_limit":
         "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
+      "enrollment.holiday_criteria_invalid":
+        "Please check the marked criteria.",
       "enrollment.holiday_guest_group_invalid":
         "This group no longer exists. Please choose another group.",
       "enrollment.holiday_guest_not_found":
@@ -2803,10 +2831,24 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
+      "enrollment.holiday_allocation_changed":
+        "Список только что изменился. Мы загрузили его заново. Пожалуйста, проверьте своё решение ещё раз.",
+      "enrollment.holiday_allocation_full":
+        "На этой неделе свободных мест больше нет. Пожалуйста, загрузите список заново.",
+      "enrollment.holiday_allocation_mode_locked":
+        "На этот период каникул уже есть заявки. Поэтому способ распределения мест изменить нельзя.",
+      "enrollment.holiday_allocation_off":
+        "В этот период каникул места распределяются в порядке поступления заявок. Офис здесь не принимает решений.",
+      "enrollment.holiday_allocation_pending":
+        "Для этой заявки место ещё не выделено. Пожалуйста, сначала распределите места на вкладке «Vergabe».",
+      "enrollment.holiday_allocation_reason_required":
+        "Ваше решение отличается от предложения. Пожалуйста, коротко напишите почему.",
       "enrollment.holiday_booking_unit_booked":
         "На эту неделю уже есть заявки. Поэтому способ бронирования, а для отдельных дней и даты недели, остаются без изменений.",
       "enrollment.holiday_child_day_limit":
         "В эти каникулы ребёнок может прийти не больше {limit} дней. Выбрано: {days}. Выберите меньше дней.",
+      "enrollment.holiday_criteria_invalid":
+        "Пожалуйста, проверьте отмеченные критерии.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -3349,10 +3391,24 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani emrin dhe mbiemrin.",
       "enrollment.guardian_phone_required":
         "Ju lutemi shkruani një numër telefoni.",
+      "enrollment.holiday_allocation_changed":
+        "Lista sapo ndryshoi. E ngarkuam përsëri. Ju lutemi kontrolloni edhe një herë vendimin tuaj.",
+      "enrollment.holiday_allocation_full":
+        "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Për këtë periudhë pushimesh ka tashmë regjistrime. Prandaj mënyra e ndarjes së vendeve nuk ndryshon.",
+      "enrollment.holiday_allocation_off":
+        "Në këtë periudhë pushimesh vendet jepen sipas radhës së regjistrimit. Zyra nuk vendos këtu.",
+      "enrollment.holiday_allocation_pending":
+        "Për këtë regjistrim ende nuk është dhënë vend. Ju lutemi ndani fillimisht vendet te skeda „Vergabe“.",
+      "enrollment.holiday_allocation_reason_required":
+        "Vendimi juaj ndryshon nga propozimi. Ju lutemi shkruani shkurt pse.",
       "enrollment.holiday_booking_unit_booked":
         "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
       "enrollment.holiday_child_day_limit":
         "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Janë zgjedhur {days}. Ju lutemi zgjidhni më pak ditë.",
+      "enrollment.holiday_criteria_invalid":
+        "Ju lutemi kontrolloni kriteret e shënuara.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -3889,10 +3945,24 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Wpisz adres e-mail.",
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
+      "enrollment.holiday_allocation_changed":
+        "Lista właśnie się zmieniła. Wczytaliśmy ją ponownie. Proszę jeszcze raz sprawdzić swoją decyzję.",
+      "enrollment.holiday_allocation_full":
+        "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Na ten okres ferii są już zgłoszenia. Dlatego sposób przydziału miejsc pozostaje bez zmian.",
+      "enrollment.holiday_allocation_off":
+        "W tym okresie ferii miejsca przydziela się według kolejności zgłoszeń. Biuro nie decyduje tutaj o miejscach.",
+      "enrollment.holiday_allocation_pending":
+        "Dla tego zgłoszenia nie przydzielono jeszcze miejsca. Proszę najpierw przydzielić miejsca w zakładce „Vergabe”.",
+      "enrollment.holiday_allocation_reason_required":
+        "Decyzja różni się od propozycji. Proszę krótko napisać, dlaczego.",
       "enrollment.holiday_booking_unit_booked":
         "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
       "enrollment.holiday_child_day_limit":
         "W te ferie dziecko może przyjść najwyżej {limit} dni. Wybrano {days}. Wybierz mniej dni.",
+      "enrollment.holiday_criteria_invalid":
+        "Proszę sprawdzić zaznaczone kryteria.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -4431,10 +4501,24 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
+      "enrollment.holiday_allocation_changed":
+        "Liste az önce değişti. Listeyi yeniden yükledik. Lütfen kararınızı bir kez daha kontrol edin.",
+      "enrollment.holiday_allocation_full":
+        "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
+      "enrollment.holiday_allocation_mode_locked":
+        "Bu tatil dönemi için zaten kayıtlar var. Bu yüzden yerlerin dağıtım şekli değiştirilemez.",
+      "enrollment.holiday_allocation_off":
+        "Bu tatil döneminde yerler kayıt sırasına göre verilir. Burada ofis karar vermez.",
+      "enrollment.holiday_allocation_pending":
+        "Bu kayıt için henüz yer verilmedi. Lütfen önce „Vergabe“ sekmesinde yerleri dağıtın.",
+      "enrollment.holiday_allocation_reason_required":
+        "Kararınız öneriden farklı. Lütfen kısaca nedenini yazın.",
       "enrollment.holiday_booking_unit_booked":
         "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
       "enrollment.holiday_child_day_limit":
         "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
+      "enrollment.holiday_criteria_invalid":
+        "Lütfen işaretli kriterleri kontrol edin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -4966,10 +5050,24 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
+      "enrollment.holiday_allocation_changed":
+        "Список щойно змінився. Ми завантажили його знову. Будь ласка, перевірте своє рішення ще раз.",
+      "enrollment.holiday_allocation_full":
+        "На цьому тижні вільних місць більше немає. Будь ласка, завантажте список знову.",
+      "enrollment.holiday_allocation_mode_locked":
+        "На цей період канікул уже є заявки. Тому спосіб розподілу місць змінити не можна.",
+      "enrollment.holiday_allocation_off":
+        "У цей період канікул місця надаються в порядку надходження заявок. Офіс тут не ухвалює рішень.",
+      "enrollment.holiday_allocation_pending":
+        "Для цієї заявки місце ще не надано. Будь ласка, спочатку розподіліть місця на вкладці «Vergabe».",
+      "enrollment.holiday_allocation_reason_required":
+        "Ваше рішення відрізняється від пропозиції. Будь ласка, коротко напишіть чому.",
       "enrollment.holiday_booking_unit_booked":
         "На цей тиждень уже є заявки. Тому спосіб бронювання, а для окремих днів і дати тижня, залишаються без змін.",
       "enrollment.holiday_child_day_limit":
         "У ці канікули дитина може прийти не більше {limit} днів. Обрано: {days}. Оберіть менше днів.",
+      "enrollment.holiday_criteria_invalid":
+        "Будь ласка, перевірте позначені критерії.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":

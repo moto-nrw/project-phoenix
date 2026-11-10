@@ -60,6 +60,7 @@ export function traegerHolidayPlacesTopic(): HelpTopic {
       "Ohne Grenze bekommt jedes angemeldete Kind einen Platz. So ist jede neue Woche eingestellt.",
     ],
     differences: [
+      "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann bekommt beim Anmelden niemand sofort einen Platz. Bei der Woche steht dann zum Beispiel `3 offen`. Die Plätze vergibt Ihr Büro im Reiter `Vergabe`. Danach gelten Warteliste und Nachrücken wie hier beschrieben.",
       "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
       "Bei einer Woche steht `2 Tage voll` oder `Alle Tage voll`? Die Woche wird tageweise gebucht. An diesen Tagen sind alle Plätze vergeben.",
       "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
@@ -71,6 +72,7 @@ export function traegerHolidayPlacesTopic(): HelpTopic {
       HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerHolidayAllocation,
     ],
   };
 }

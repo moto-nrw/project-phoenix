@@ -381,6 +381,7 @@ describe("traeger-api holiday periods", () => {
       binding: false,
       notes: "",
       max_days_per_child: null,
+      allocation_mode: "arrival",
       weeks: [
         {
           id: 7,

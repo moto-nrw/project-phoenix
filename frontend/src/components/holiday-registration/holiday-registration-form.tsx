@@ -48,6 +48,7 @@ import {
   SecondGuardianCard,
 } from "./holiday-registration-sections";
 import { HolidayQuestions } from "./holiday-registration-questions";
+import { HolidayRegistrationCriteria } from "./holiday-registration-criteria";
 import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
@@ -371,6 +372,13 @@ export function HolidayRegistrationForm({
           />
         </SectionCard>
       ) : null}
+
+      <HolidayRegistrationCriteria
+        offer={offer}
+        draft={draft}
+        fieldError={fieldError}
+        onChange={setDraft}
+      />
 
       <ContactList
         contacts={draft.contacts}

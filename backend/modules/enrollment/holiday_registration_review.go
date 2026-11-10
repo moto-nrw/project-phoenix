@@ -235,9 +235,9 @@ type HolidayRegistrationEventDetails struct {
 	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
 	Fields       []string                   `json:"fields,omitempty"`
 	Siblings     []int64                    `json:"siblings,omitempty"`
-	// WeekID, Placement, Proposal and Reason name a decision of the Büro by
+	// WeekIDs, Placement, Proposal and Reason name a decision of the Büro by
 	// criteria (#4700), Checks its checks of the parents' answers.
-	WeekID    int64                   `json:"week_id,omitempty"`
+	WeekIDs   []int64                 `json:"week_ids,omitempty"`
 	Placement string                  `json:"placement,omitempty"`
 	Proposal  string                  `json:"proposal,omitempty"`
 	Reason    string                  `json:"reason,omitempty"`

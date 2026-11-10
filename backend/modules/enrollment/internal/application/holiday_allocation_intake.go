@@ -2,7 +2,11 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
+
+	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -38,41 +42,44 @@ func (h *HolidayRegistrations) criterionQuestions(ctx context.Context, organizat
 // checkCriteria keeps of the answers exactly those the active criteria of a
 // period by criteria need: the family's to the family criteria and each
 // child's to the child criteria. An answer to anything else is dropped; a
-// missing one means the parents filled in an older form, which they are
-// told. A period by arrival keeps no answer.
+// missing one is a validation error on criteria.<id> or
+// children.<n>.criteria.<id>, so the form marks the question. A period by
+// arrival keeps no answer.
 func (h *HolidayRegistrations) checkCriteria(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationInput, error) {
 	questions, err := h.criterionQuestions(ctx, organizationID, period)
 	if err != nil {
 		return input, err
 	}
-	keep := func(given map[int64]bool, scope string) (map[int64]bool, bool) {
-		kept := map[int64]bool{}
-		for _, question := range questions {
-			if question.Scope != scope {
-				continue
-			}
-			value, answered := given[question.ID]
-			if !answered {
-				return nil, false
-			}
-			kept[question.ID] = value
-		}
-		return kept, true
-	}
-	family, complete := keep(input.Criteria, enrollment.HolidayCriterionFamily)
-	if !complete {
-		return input, enrollment.ErrHolidayRegistrationFormChanged
-	}
-	input.Criteria = family
+	missing := validation.Errors{}
+	input.Criteria = keepHolidayCriteria(questions, enrollment.HolidayCriterionFamily, input.Criteria, "criteria.", missing)
 	children := make([]enrollment.HolidayChildInput, len(input.Children))
 	for i, child := range input.Children {
-		if child.Criteria, complete = keep(child.Criteria, enrollment.HolidayCriterionChild); !complete {
-			return input, enrollment.ErrHolidayRegistrationFormChanged
-		}
+		child.Criteria = keepHolidayCriteria(questions, enrollment.HolidayCriterionChild, child.Criteria, fmt.Sprintf("children.%d.criteria.", i), missing)
 		children[i] = child
 	}
 	input.Children = children
+	if len(missing) > 0 {
+		return input, missing
+	}
 	return input, nil
+}
+
+// keepHolidayCriteria keeps the answers to the questions of scope and names
+// every unanswered one in missing under prefix and its ID.
+func keepHolidayCriteria(questions []enrollment.HolidayCriterionQuestion, scope string, given map[int64]bool, prefix string, missing validation.Errors) map[int64]bool {
+	kept := map[int64]bool{}
+	for _, question := range questions {
+		if question.Scope != scope {
+			continue
+		}
+		value, answered := given[question.ID]
+		if !answered {
+			missing[prefix+strconv.FormatInt(question.ID, 10)] = errors.New("answer yes or no")
+			continue
+		}
+		kept[question.ID] = value
+	}
+	return kept
 }
 
 // pendingHolidayPlacements names every booking of a registration of a

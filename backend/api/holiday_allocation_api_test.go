@@ -173,7 +173,10 @@ func TestHolidayAllocationByCriteriaWaitsForTheOfficeDecision(t *testing.T) {
 
 	missing := placesRegistration(a.reviewFixture, "ohne.angabe@example.org", map[string][]int{"Tom": {0}})
 	rec := publicJSON(t, a.public, http.MethodPost, registrationPath(a.period.PublicToken), missing)
-	assert.Equal(t, http.StatusConflict, rec.Code, "an answer the active criteria need is missing: the form changed")
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	_, fields := registrationRefusalOf(t, rec)
+	assert.ElementsMatch(t, []string{fmt.Sprintf("criteria.%d", a.working), fmt.Sprintf("children.0.criteria.%d", a.sibling)}, fields,
+		"every question the active criteria ask needs an answer")
 
 	early := a.submitCriteria(t, "frueh@example.org", false, false)
 	late := a.submitCriteria(t, "spaet@example.org", true, false)

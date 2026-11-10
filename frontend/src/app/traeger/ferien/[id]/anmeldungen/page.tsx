@@ -46,6 +46,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { billingConcept } from "~/lib/concepts/billing";
@@ -237,6 +238,16 @@ function columns(
                     {names.get(booking.hostSchoolId) ??
                       "Schule nicht mehr vorhanden"}
                     : {booking.timeModelName}
+                    {booking.placement === "pending" &&
+                    registration.status !== "cancelled" ? (
+                      <>
+                        {" "}
+                        <StatusBadge
+                          {...holidayPlacementStatus(booking)}
+                          size="xs"
+                        />
+                      </>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -582,6 +593,7 @@ export default function TraegerHolidayRegistrationsPage() {
         periodId,
         "anmeldungen",
         period?.registrationCount,
+        period?.allocationMode,
       )}
       actions={
         <>

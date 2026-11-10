@@ -34,7 +34,64 @@ const ACTION_LABELS: Readonly<
   sibling_split: "Von Geschwistern getrennt",
   sibling_cancel: "Aus Geschwistergruppe gelöst (storniert)",
   promote: "Von der Warteliste nachgerückt",
+  allocate: "Vergabe entschieden",
+  criteria_check: "Angaben für die Vergabe geprüft",
 };
+
+const CHECK_LABELS = { yes: "trifft zu", no: "trifft nicht zu" } as const;
+
+/** What an allocation decided (#4700): child, weeks, result and reason. */
+function allocationText(
+  event: HolidayRegistrationEvent,
+  period: HolidayPeriod,
+  registration: HolidayRegistrationDetail,
+): string {
+  const child = registration.children.find(
+    (entry) => entry.id === event.childId,
+  );
+  const weeks = (event.weekIds ?? [])
+    .map((weekId) => period.weeks.find((week) => week.id === weekId))
+    .map((week) =>
+      week
+        ? formatHolidayWeek(week.startsOn, week.endsOn)
+        : "eine entfernte Woche",
+    );
+  const result =
+    event.placement === "waitlisted" ? "auf die Warteliste" : "Platz";
+  const parts = [
+    `${child ? `${child.firstName} ${child.lastName}` : "Kind"}: ${result}`,
+    weeks.length > 0 ? `Woche ${weeks.join(", ")}` : "",
+    event.reason ? `Begründung: ${event.reason}` : "",
+  ];
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** The checks of the criteria the office changed (#4700). */
+function checksText(
+  event: HolidayRegistrationEvent,
+  registration: HolidayRegistrationDetail,
+): string | null {
+  const checks = event.checks ?? [];
+  if (checks.length === 0) return null;
+  return checks
+    .map((check) => {
+      const criterion = (registration.criteria ?? []).find(
+        (entry) =>
+          entry.criterionId === check.criterionId &&
+          entry.childId === check.childId,
+      );
+      const child = check.childId
+        ? registration.children.find((entry) => entry.id === check.childId)
+        : undefined;
+      const name = criterion?.name ?? "Ein entferntes Kriterium";
+      const who = child ? ` (${child.firstName})` : "";
+      const value = check.checked
+        ? CHECK_LABELS[check.checked]
+        : "Prüfung zurückgesetzt";
+      return `${name}${who}: ${value}`;
+    })
+    .join("; ");
+}
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",
@@ -81,6 +138,12 @@ function eventDetail(
 ): string | null {
   if (event.action === "edit") {
     return editedFieldsText(event.fields, registration.form.fields) || null;
+  }
+  if (event.action === "allocate") {
+    return allocationText(event, period, registration);
+  }
+  if (event.action === "criteria_check") {
+    return checksText(event, registration);
   }
   if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
   if (event.siblings.length > 0) {

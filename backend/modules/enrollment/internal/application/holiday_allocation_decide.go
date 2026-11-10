@@ -237,7 +237,7 @@ func (a *HolidayAllocation) record(ctx context.Context, reviewer enrollment.Holi
 		}
 		byRegistration[decision.RegistrationID] = append(byRegistration[decision.RegistrationID], i)
 		if err := a.review.audit(ctx, reviewer, period.ID, decision.RegistrationID, enrollment.HolidayAuditAllocate, enrollment.HolidayRegistrationEventDetails{
-			ChildID: decision.ChildID, WeekID: decision.WeekID, Placement: decision.Placement, Proposal: decision.Proposal, Reason: decision.Reason,
+			ChildID: decision.ChildID, WeekIDs: []int64{decision.WeekID}, Placement: decision.Placement, Proposal: decision.Proposal, Reason: decision.Reason,
 		}); err != nil {
 			return err
 		}

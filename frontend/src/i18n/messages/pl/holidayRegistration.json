@@ -104,6 +104,13 @@
   "placementHeading": "Miejsca",
   "placementPlaced": "Miejsce zarezerwowane",
   "placementWaitlisted": "Lista oczekujących",
+  "placementPending": "Miejsce otwarte",
+  "pendingNote": "Biuro przydziela miejsca. Otrzyma Pan/Pani e-mail.",
+  "criteriaTitle": "Pytania do przydziału miejsc",
+  "criteriaText": "Biuro przydziela miejsca według stałych zasad. Pana/Pani odpowiedzi w tym pomagają. Biuro może poprosić o dowód.",
+  "criteriaFamily": "Dla Pana/Pani rodziny",
+  "criteriaChild": "Dla {name}",
+  "criteriaChildNumber": "Dla dziecka {number}",
   "waitlistNote": "Niektóre tygodnie są już pełne. W tych tygodniach dziecko jest na liście oczekujących. Gdy zwolni się miejsce, dziecko dostanie je automatycznie. Wtedy wyślemy Państwu e-mail.",
   "errors": {
     "phone": "Proszę podać prawidłowy numer telefonu.",
