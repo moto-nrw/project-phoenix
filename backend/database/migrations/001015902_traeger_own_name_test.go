@@ -13,7 +13,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestCurrentTraegerNameNamesOnlyTheOwnTraeger pins 1.15.898 (#6437): the
+// TestCurrentTraegerNameNamesOnlyTheOwnTraeger pins 1.15.902 (#6437): the
 // request role reads no row of platform.organizations, but in the Träger
 // transaction it reads its own Träger's name, and only that one: another
 // Träger's transaction reads its own name, a school transaction and a

@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerOwnNameVersion = "1.15.898"
+const traegerOwnNameVersion = "1.15.902"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerOwnNameVersion,
 		Description: "Träger-Transaktion: Name des eigenen Trägers für Elternmails nach Büroaktionen (#6437)",
 		DependsOn: []string{
-			"1.15.895", // the newest on development
+			"1.15.895", // the newest on development when this branch was cut
 		},
 	})
 	Migrations.MustRegister(traegerOwnNameUp, traegerOwnNameDown)
