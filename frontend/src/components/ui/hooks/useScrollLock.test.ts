@@ -303,5 +303,32 @@ describe("useScrollLock", () => {
 
       expect(document.documentElement.style.overflow).toBe("");
     });
+
+    it("should restore html overflow when the lower of two stacked locks releases first", () => {
+      document.documentElement.style.overflow = "";
+
+      // A form modal and the confirmation opened over it: both unmount in one
+      // commit, the form (opened first) before the confirmation.
+      const lower = renderHook(() => useScrollLock(true));
+      const upper = renderHook(() => useScrollLock(true));
+
+      lower.unmount();
+      expect(document.documentElement.style.overflow).toBe("hidden");
+
+      upper.unmount();
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("should keep a page's own overflow value across stacked locks", () => {
+      document.documentElement.style.overflow = "clip";
+
+      const lower = renderHook(() => useScrollLock(true));
+      const upper = renderHook(() => useScrollLock(true));
+      upper.unmount();
+      lower.unmount();
+
+      expect(document.documentElement.style.overflow).toBe("clip");
+      document.documentElement.style.overflow = "";
+    });
   });
 });

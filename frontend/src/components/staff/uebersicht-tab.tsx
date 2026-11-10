@@ -2,6 +2,7 @@
 
 import { EmptyState } from "~/components/ui/empty-state";
 import { useMemo, useState } from "react";
+import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import dynamic from "next/dynamic";
 import type { DateRange } from "react-day-picker";
 
@@ -532,8 +533,8 @@ function countAbsenceDays(
     if (clippedStart > clippedEnd) continue;
     const startDate = new Date(`${clippedStart}T00:00:00`);
     const endDate = new Date(`${clippedEnd}T00:00:00`);
-    let days =
-      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+    // Calendar days: elapsed milliseconds lose a day across the March clock change.
+    let days = differenceInCalendarDays(endDate, startDate) + 1;
     if (a.absence_type === "comp_time") {
       if (isHalfAbsenceBoundary(a, clippedStart, startKey, endKey)) {
         days -= 0.5;
@@ -827,7 +828,7 @@ function distributeNetMinutes(
 // Cumulative weekly balance series over [from, to]. Running total starts at 0
 // at the first week of `from` — caller can shift the anchor by widening the
 // range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
-function buildWeeklyBalanceSeriesRange(
+export function buildWeeklyBalanceSeriesRange(
   targets: TargetsByDay,
   sessions: readonly StaffHistorySession[],
   absences: readonly StaffAbsenceRow[],
@@ -854,9 +855,7 @@ function buildWeeklyBalanceSeriesRange(
   const lastWeekStart = startOfWeek(to);
   const weekCount = Math.min(
     104,
-    Math.floor(
-      (lastWeekStart.getTime() - firstWeekStart.getTime()) / (7 * 86_400_000),
-    ) + 1,
+    differenceInCalendarDays(lastWeekStart, firstWeekStart) / 7 + 1,
   );
   let running = 0;
   for (let i = 0; i < weekCount; i++) {
@@ -893,8 +892,7 @@ function computeWeekDelta(
   let soll = 0;
   let ist = 0;
   let adjustment = 0;
-  const dayCount =
-    Math.floor((weekEnd.getTime() - weekStart.getTime()) / 86_400_000) + 1;
+  const dayCount = differenceInCalendarDays(weekEnd, weekStart) + 1;
   for (let i = 0; i < dayCount; i++) {
     const day = new Date(weekStart);
     day.setDate(day.getDate() + i);
@@ -948,8 +946,7 @@ function buildDailyIstSollSeriesRange(
   // Cap at 120 entries to keep the chart readable; wider ranges get truncated.
   const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
-  const totalDays =
-    Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const totalDays = differenceInCalendarDays(end, start) + 1;
   for (let i = 0; i < totalDays && result.length < 120; i++) {
     const day = new Date(start);
     day.setDate(day.getDate() + i);

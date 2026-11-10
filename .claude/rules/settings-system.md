@@ -41,7 +41,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 
 ### Registered Settings
 
-**The authoritative list is the code**: `config.Register()` calls in `backend/modules/settings/internal/defaults/*.go`, guarded by `defaults_test.go`. Do not use a hand-maintained setting count:
+**The authoritative list is the code**: `config.Register()` calls in `backend/modules/settings/internal/defaults/*.go`, guarded by `defaults_test.go`. Do not use a hand-maintained setting count. The table shows examples, not every defaults file:
 
 | File | Group | Tab(s) |
 |------|-------|--------|
@@ -53,7 +53,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 | `devices.go` | NFC/device behavior, device online window | devices |
 | `tracking.go`, `feedback.go`, `invitations.go` | indicators, feedback, guardian invite expiry | operations, gdpr, system |
 
-Tabs in use today: `operations`, `enrollment`, `system`, `gdpr`, `devices`, `security` (dynamic — a new `Tab:` value creates a new tab).
+Tabs are the `Tab:` values the defaults declare (dynamic — a new value creates a new tab). List them with `rg -o 'Tab: +"[a-z_]+"' backend/modules/settings/internal/defaults`.
 
 ### Value Resolution
 
@@ -93,7 +93,7 @@ Every `Resolve*`/`HasTenantOverride` call funnels through `ResolveMany`, which
 consults (in order): an explicit context snapshot (`WithSettingsSnapshot`,
 used by scheduler/prefetch paths), then a **request-scoped memo cache**
 (`WithSettingsRequestCache`, attached by `RequestSettingsCacheMiddleware`
-router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`), then
+router-wide in `api/serve_middleware.go` and group-wide in `ProtectedTenantRoutes`), then
 the repository. Within one HTTP request each (tenant_id, key) pair is loaded
 from PostgreSQL at most once; a full cache hit in `Resolve*ForTenant` skips
 the tenant transaction entirely.

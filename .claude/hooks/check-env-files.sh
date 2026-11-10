@@ -5,15 +5,15 @@ set -euo pipefail
 missing_files=()
 
 if [[ ! -f ".env" ]]; then
-  missing_files+=(".env")
+  missing_files+=(".env (copy from .env.example)")
 fi
 
 if [[ ! -f "backend/dev.env" ]]; then
-  missing_files+=("backend/dev.env")
+  missing_files+=("backend/dev.env (copy from backend/dev.env.example)")
 fi
 
 if [[ ! -f "frontend/.env.local" ]]; then
-  missing_files+=("frontend/.env.local")
+  missing_files+=("frontend/.env.local (copy from frontend/.env.example)")
 fi
 
 # Check SSL certificates
@@ -25,7 +25,7 @@ fi
 if [[ ${#missing_files[@]} -gt 0 ]]; then
   echo "⚠ Missing environment files:" >&2
   for file in "${missing_files[@]}"; do
-    echo "  - ${file} (copy from ${file}.example)" >&2
+    echo "  - ${file}" >&2
   done
   echo "" >&2
   echo "Quick setup: ./scripts/setup-dev.sh" >&2
