@@ -79,7 +79,7 @@ func TestInvoiceHistorySeparatesRequestedMailFromSuccessfulSend(t *testing.T) {
 				store.steps = append(store.steps, parentbilling.InvoiceHistoryEntry{Kind: parentbilling.HistoryMailRequested, At: requested,
 					AccountID: &account, RunID: 7, DeliveryID: id, Note: "invoice"})
 			}
-			history, err := NewFinanceExports(store, post).InvoiceHistory(context.Background(), sjrReviewer, kind, 1)
+			history, err := newFinanceExportsForTest(store, post).InvoiceHistory(context.Background(), sjrReviewer, kind, 1)
 			require.NoError(t, err)
 			require.Len(t, history.Entries, 8, "the issue, six requests, one accepted mail; no send invented for a missing outbox entry")
 			assert.Equal(t, parentbilling.HistoryIssued, history.Entries[0].Kind)
@@ -99,7 +99,7 @@ func TestInvoiceHistorySeparatesRequestedMailFromSuccessfulSend(t *testing.T) {
 				assert.Zero(t, post.care)
 			}
 			post.err = errors.New("mail states unavailable")
-			_, err = NewFinanceExports(store, post).InvoiceHistory(context.Background(), sjrReviewer, kind, 1)
+			_, err = newFinanceExportsForTest(store, post).InvoiceHistory(context.Background(), sjrReviewer, kind, 1)
 			require.ErrorIs(t, err, post.err)
 		})
 	}
@@ -132,7 +132,7 @@ func TestInvoiceHistoryReadsTheMailStatesOfEveryRun(t *testing.T) {
 		{Kind: parentbilling.HistoryMailRequested, At: requested, RunID: 7, DeliveryID: 21, Note: "invoice"},
 		{Kind: parentbilling.HistoryMailRequested, At: requested, RunID: 8, DeliveryID: 22, Note: "cancellation"},
 	}}
-	history, err := NewFinanceExports(store, post).InvoiceHistory(context.Background(), sjrReviewer, parentbilling.HistoryHolidayDocument, 1)
+	history, err := newFinanceExportsForTest(store, post).InvoiceHistory(context.Background(), sjrReviewer, parentbilling.HistoryHolidayDocument, 1)
 	require.NoError(t, err)
 	var sent []string
 	for _, entry := range history.Entries {
@@ -153,7 +153,7 @@ func TestInvoiceHistoryRecordsTheReadInTheTrailOfItsRun(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			var reads []historyRead
 			store := historyStore{steps: []parentbilling.InvoiceHistoryEntry{issuedIn(31)}, reads: &reads}
-			_, err := NewFinanceExports(store, runPost{}).InvoiceHistory(context.Background(), sjrReviewer, kind, 404)
+			_, err := newFinanceExportsForTest(store, runPost{}).InvoiceHistory(context.Background(), sjrReviewer, kind, 404)
 			require.NoError(t, err)
 			require.Len(t, reads, 1)
 			read := reads[0]

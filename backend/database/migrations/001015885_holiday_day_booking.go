@@ -14,8 +14,8 @@ func init() {
 		Version:     holidayDayBookingVersion,
 		Description: "Ferien: Tagesbuchung je Woche und Grenze in Betreuungstagen je Kind und Zeitraum (#4701)",
 		DependsOn: []string{
-			parentBillingCareNoticeLettersVersion, // the newest migration on development
-			holidayWeekCapacityVersion,            // the booked windows this one extends
+			parentBillingDatevExportFilesVersion, // the newest migration on development
+			holidayWeekCapacityVersion,           // the booked windows this one extends
 		},
 	})
 	Migrations.MustRegister(holidayDayBookingUp, holidayDayBookingDown)

@@ -3,7 +3,7 @@
 // Was mit einer ausgestellten Rechnung geschah (#4693): Ausstellung mit
 // der Zahl der Positionen, jeder Versand an die Familie (E-Mail und
 // Elternpostfach), ein Storno, die eingereichte Lastschrift und jede Datei
-// für Kämmerei oder Bank mit Nummer, Zeit und Konto. Nur lesen.
+// für Kämmerei, Steuerbüro oder Bank mit Nummer, Zeit und Konto. Nur lesen.
 
 import {
   Ban,
@@ -119,8 +119,8 @@ export function InvoiceExportHistoryCard({
       title="Ausstellung, Versand und Exporte"
       description={
         exports === 0
-          ? "Was mit der Rechnung geschah. Sie war noch in keiner Datei für Kämmerei oder Bank."
-          : `Was mit der Rechnung geschah. Sie war in ${exports === 1 ? "einer Datei" : `${exports} Dateien`} für Kämmerei oder Bank.`
+          ? "Was mit der Rechnung geschah. Sie war noch in keiner Datei für Kämmerei, Steuerbüro oder Bank."
+          : `Was mit der Rechnung geschah. Sie war in ${exports === 1 ? "einer Datei" : `${exports} Dateien`} für Kämmerei, Steuerbüro oder Bank.`
       }
       loading={!history && !load.error}
     >

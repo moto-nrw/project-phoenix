@@ -66,6 +66,7 @@ export const SOLL_ENCODINGS: { value: SollEncoding; label: string }[] = [
 export const FINANCE_FILE_KINDS: Record<ExportFormat, string> = {
   sollstellung: "Sollstellung",
   pain008: "Lastschrift",
+  datev: "DATEV",
 };
 
 /** "09.11.2026, 15:34" in the school's time zone. */

@@ -267,6 +267,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.traegerCareCostShares]: "traeger",
   [HELP_TOPICS.traegerSepaMandates]: "traeger",
   [HELP_TOPICS.traegerFinanceExports]: "traeger",
+  [HELP_TOPICS.traegerDatevExport]: "traeger",
   [HELP_TOPICS.traegerSepaDebitFile]: "traeger",
   [HELP_TOPICS.traegerBillingTerms]: "traeger",
   [HELP_TOPICS.traegerAccessLog]: "traeger",

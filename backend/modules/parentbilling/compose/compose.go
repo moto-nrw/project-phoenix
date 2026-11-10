@@ -42,9 +42,9 @@ func NewParentDocuments() *application.ParentDocuments {
 	return application.NewParentDocuments(postgres.NewStore())
 }
 
-// NewBillingFamilies builds the invoices and amounts per family (#4691) and the finance exports with their protocol (#4693).
-func NewBillingFamilies(post parentbilling.InvoiceHistoryPost) (parentbilling.BillingFamilies, parentbilling.FinanceExports) {
-	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post)
+// NewBillingFamilies builds the invoices and amounts per family (#4691) and the finance exports with their protocol (#4693), whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
+func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings) (parentbilling.BillingFamilies, parentbilling.FinanceExports) {
+	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686).
