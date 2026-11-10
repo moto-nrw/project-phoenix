@@ -3193,12 +3193,44 @@
       "target_owner": "student-presence"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "binding_digest": "529e813e6c8f8d91391fda5276145db7",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.CheckHolidayCriteria",
+      "binding_digest": "a637d8c108b3bf29d9a6016c48b03c25",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.CheckHolidayCriteria",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "target_owner": "parent-billing"
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.CheckHolidayCriteria",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "binding_digest": "2d1d75aca2e4ba054396bedd6dec2992",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.DecideHolidayAllocation",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayAllocationBoard",
+      "binding_digest": "27f693cc734eff590c528448e2a93b3a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.HolidayAllocationBoard",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayAllocationBoard",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayCriteria",
+      "binding_digest": "a132c08cbd26c3f4620857afcdecebc0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.HolidayCriteria",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayCriteria",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.SaveHolidayCriteria",
+      "binding_digest": "b92d88e76bcd90ed6cf436ae29ad2818",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.SaveHolidayCriteria",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.SaveHolidayCriteria",
+      "target_owner": "holiday-allocation"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",

@@ -269,7 +269,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0197: the export openers of the sealed guardian bank data of
 // modules/peopledirectory/compose (+5) and of the sealed staff bank and tax
 // data of modules/workforce/compose (+5).
-const moduleComposeBudgetTotal = 13255
+// Raised by ADR 0199: the new holiday allocation workflow composition (+13).
+const moduleComposeBudgetTotal = 13268
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -419,7 +420,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose":         918,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
-	"workflows/openroommove/compose":    46,
+	// Added by ADR 0199: the joining transaction binding of holiday allocation.
+	"workflows/holidayallocation/compose": 13,
+	"workflows/openroommove/compose":      46,
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);

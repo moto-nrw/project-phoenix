@@ -4279,14 +4279,61 @@
     },
     {
       "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "classification": "leaf",
+      "approval_adr": "0199",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.CheckHolidayCriteria",
+      "classification": "workflow",
       "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "reason": "The Enrollment HTTP adapter binds Parent Billing's guarded allocation command to Enrollment's decision. Parent Billing retains its invoice-before-period lock order and refreezeMovedUp, including sibling groups; Enrollment retains validation, criteria/week locks, placement, audit and transactional mail. The root only wires the two capabilities. The command joins the request's Träger transaction and propagates all failures to its rollback. TestHolidayAllocationHoldsFreePlacesForThePendingBookings covers promotion charges and rollback of decisions, placements and both mails on a rejected contribution.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.CheckHolidayCriteria",
+      "reason": "HTTP entry delegates the unchanged Enrollment criteria verification, validation and audit through the promoted owner command in the request transaction.",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "target_owner": "parent-billing"
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.CheckHolidayCriteria",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0199",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.DecideHolidayAllocation",
+      "reason": "HTTP transport entry binds the allocation workflow (ADR 0199): it owns the joining Träger unit and invoice-before-period lock order, delegates criteria/week locks, decisions, audit and outbox to Enrollment, then refreezes direct allocations and promotions through Parent Billing. Every failure rolls back the unit; TestHolidayAllocationHoldsFreePlacesForThePendingBookings verifies the real contribution failure rollback.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0199",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayAllocationBoard",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.HolidayAllocationBoard",
+      "reason": "HTTP entry delegates the unchanged Enrollment board read and its access audit through the promoted owner capability. The workflow adds no domain callback.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayAllocationBoard",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayCriteria",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.HolidayCriteria",
+      "reason": "HTTP entry reads the unchanged Enrollment criteria catalog through the promoted owner capability; no locks, audit or writes.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.HolidayCriteria",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0199",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.SaveHolidayCriteria",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocation.SaveHolidayCriteria",
+      "reason": "HTTP entry delegates the unchanged Enrollment catalog command, including its catalog lock and validation, through the promoted owner capability.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.SaveHolidayCriteria",
+      "target_owner": "holiday-allocation"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",

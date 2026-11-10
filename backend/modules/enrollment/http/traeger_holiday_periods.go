@@ -26,7 +26,7 @@ type HolidayPeriodResource struct {
 	review        capability.HolidayRegistrationReview
 	wishes        capability.HolidayWishReview
 	places        HolidayPlaceReads
-	allocation    capability.HolidayAllocation
+	allocation    HolidayAllocation
 	schoolNames   capability.HolidaySchoolNames
 	requireManage common.Middleware
 	requireHealth common.Middleware
@@ -41,11 +41,21 @@ type HolidayPeriodResource struct {
 // information of a registration (#4722).
 // places lists the places of the weeks (#4699), allocation names the
 // criteria and decides on the places by them (#4700).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation capability.HolidayAllocation, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation HolidayAllocation, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
 	if periods == nil || review == nil || wishes == nil || places == nil || allocation == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
 		panic("enrollment http: the holiday periods, the registration review, the wish review, the places, the allocation, the school names and the right checks are required")
 	}
 	return &HolidayPeriodResource{periods: periods, review: review, wishes: wishes, places: places, allocation: allocation, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+}
+
+// HolidayAllocation is the HTTP entry for criteria and office decisions.
+// The root may bind the decision workflow without a domain-to-workflow port.
+type HolidayAllocation interface {
+	HolidayCriteria(context.Context, capability.HolidayReviewer) (capability.HolidayCriteriaCatalog, error)
+	SaveHolidayCriteria(context.Context, capability.HolidayReviewer, []capability.HolidayCriterionInput) (capability.HolidayCriteriaCatalog, error)
+	HolidayAllocationBoard(context.Context, capability.HolidayReviewer, int64) (capability.HolidayAllocationBoard, error)
+	DecideHolidayAllocation(context.Context, capability.HolidayReviewer, int64, []capability.HolidayAllocationChoice) (capability.HolidayAllocationBoard, error)
+	CheckHolidayCriteria(context.Context, capability.HolidayReviewer, int64, int64, []capability.HolidayCriterionCheck) (capability.HolidayRegistrationDetail, error)
 }
 
 // HolidayPlaceReads lists the places of the weeks of a period (#4699).

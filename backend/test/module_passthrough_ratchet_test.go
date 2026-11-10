@@ -263,7 +263,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0184: the suspensions of the Beleg retention of
 // modules/parentbilling, which validate and evaluate the Träger again (+2).
 // ADR 0198: the transaction-bound account-retention read adds one floor hit.
-const modulePassthroughOwnerBudgetTotal = 1406
+// Raised by ADR 0199: the allocation workflow needs a guarded invoice-lock command (+1).
+const modulePassthroughOwnerBudgetTotal = 1407
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -312,7 +313,9 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// month and resolves the change level onto the public contract (+1).
 	// Raised by ADR 0184: recording and lifting a suspension of the Beleg
 	// retention, which validate and evaluate the Träger again (+2).
-	"modules/parentbilling":    11,
+	// Raised by ADR 0199: the validated invoice-lock command lets the
+	// allocation workflow own the invoice-before-period order (+1).
+	"modules/parentbilling":    12,
 	"modules/peopledirectory":  205,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,

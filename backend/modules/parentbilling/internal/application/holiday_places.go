@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -180,21 +181,25 @@ func movedUpOrEmpty(ids []int64) []int64 {
 	return slices.Compact(slices.Sorted(slices.Values(ids)))
 }
 
-// AllocateHolidayPlaces uses the same invoice-before-period order as a
-// cancellation or capacity change. Enrollment reports both direct places
-// and promotions; this owner recomputes their confirmed sibling groups
-// before the outer transaction commits.
-func (h *HolidayContributions) AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error {
-	reviewer := parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}
-	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
+// HoldHolidayAllocationInvoices holds only this owner's invoices. The
+// workflow takes Enrollment's period lock next, before deciding on places.
+func (h *HolidayContributions) HoldHolidayAllocationInvoices(ctx context.Context, organizationID, accountID, periodID int64) error {
+	if organizationID <= 0 || accountID <= 0 {
 		return errTraegerRequired
 	}
-	if _, _, err := h.lockSiblings(ctx, reviewer, periodID); err != nil {
-		return err
+	if err := h.store.LockPeriodBilling(ctx, organizationID, parentbilling.ServiceHoliday, periodID); err != nil {
+		return fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
 	}
-	placed, err := decide(ctx)
-	if err != nil {
-		return err
+	return nil
+}
+
+// RefreezeHolidayAllocationContributions recomputes the confirmed sibling
+// groups after the workflow's decision, while its invoice and period locks
+// are still held. Enrollment supplies direct allocations and promotions.
+func (h *HolidayContributions) RefreezeHolidayAllocationContributions(ctx context.Context, organizationID, accountID, periodID int64, placed []int64) error {
+	reviewer := parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}
+	if organizationID <= 0 || accountID <= 0 {
+		return errTraegerRequired
 	}
 	return h.refreezeMovedUp(ctx, reviewer, periodID, placed)
 }

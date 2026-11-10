@@ -1,0 +1,64 @@
+{
+  "packages": [
+    {
+      "path": "workflows/holidayallocation",
+      "owner": "holiday-allocation",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/holidayallocation/compose",
+      "owner": "holiday-allocation",
+      "role": "compose",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "holiday-allocation.public.enrollment.public",
+      "description": "Holiday allocation binds owner commands and the joining Träger transaction (ADR 0199).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-allocation.compose.enrollment.public",
+      "description": "Holiday allocation binds owner commands and the joining Träger transaction (ADR 0199).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-allocation.compose.tenant-runtime.public",
+      "description": "Holiday allocation binds owner commands and the joining Träger transaction (ADR 0199).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-allocation.decision-test.enrollment.public",
+      "description": "Workflow decision tests exercise ordering and failures through Enrollment values.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "workflow-decision-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    }
+  ]
+}

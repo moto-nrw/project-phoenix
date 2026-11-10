@@ -35,6 +35,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	holidayAllocationCompose "github.com/moto-nrw/project-phoenix/workflows/holidayallocation/compose"
 )
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
@@ -122,9 +123,9 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	}
 	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
 	_, allocationBilling := parentBillingCompose.NewHolidayContributions(parentBillingHolidayRegistrations{review: review, places: places}, parentBillingSettings{settings: settings})
-	allocation = enrollmentAPI.NewBilledHolidayAllocation(allocation, allocationBilling)
+	allocationWorkflow := holidayAllocationCompose.New(allocation, review, allocationBilling)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, allocation, holidaySchoolNames{overview: overview},
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, allocationWorkflow, holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
