@@ -1136,7 +1136,12 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 For the file erasure of retired demo schools (#5544, ADR 0148) it reads and
 adds rows of `platform.demo_school_file_erasures` (migration 1.15.735), never
 changes or deletes one, and reads `platform.demo_school_origins`, which only a
-trigger on `platform.demo_school_states` writes.
+trigger on `platform.demo_school_states` writes. For the database erasure of
+retired demo schools (#5559, ADR 0189) it may execute only
+`platform.retired_demo_schools_due_for_database_erasure` and
+`platform.erase_retired_demo_school` (migration 1.15.869); the latter alone
+sets `db_erased_at` and `db_row_counts` on the file marker, and a trigger
+rejects a marker the demo role inserts with them.
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,
