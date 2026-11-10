@@ -7,8 +7,7 @@ import (
 	application "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
 )
 
-// Ports the composition root binds for Enrollment's intake and change
-// requests (#3565).
+// Ports the composition root binds for Enrollment's intake and change requests (#3565).
 type (
 	IntakeDependencies             = application.IntakeDependencies
 	IntakeRequests                 = application.IntakeRequests
@@ -61,8 +60,7 @@ func NewCareOfferingRecords(carePlan CarePlanOfferings) *CareOfferingRecords {
 	return application.NewCareOfferingRecords(carePlan)
 }
 
-// NewCareOfferingRows serves Care Plan's catalog administration to the
-// enrollment routes in enrollment rows.
+// NewCareOfferingRows serves Care Plan's catalog administration to the enrollment routes in enrollment rows.
 func NewCareOfferingRows(catalog CareOfferingCatalogAdministration) *CareOfferingRows {
 	return application.NewCareOfferingRows(catalog)
 }
@@ -73,8 +71,7 @@ func PublicDecisions(decisions *Decisions) enrollment.Decisions {
 	return decisions
 }
 
-// OfferingChangeRecords reads Care Plan's offering change requests in
-// enrollment rows for the guardian portal's request sharing.
+// OfferingChangeRecords reads Care Plan's offering change requests in enrollment rows for the guardian portal's request sharing.
 type (
 	OfferingChangeRecords   = application.OfferingChangeRecords
 	CarePlanOfferingChanges = application.CarePlanOfferingChanges

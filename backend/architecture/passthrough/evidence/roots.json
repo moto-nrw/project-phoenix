@@ -947,6 +947,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d holidayClosureTraeger) HolidayTraeger(ctx context.Context, organizationID int64) (enrollmentOwner.HolidayTraeger, error) {\n\tschools, err := d.organizations.ListSchoolsByOrganization(ctx, organizationID)\n\tif err != nil {\n\t\treturn enrollmentOwner.HolidayTraeger{}, err\n\t}\n\ttraeger := enrollmentOwner.HolidayTraeger{Schools: []enrollmentOwner.HolidaySchool{}}\n\tfor _, school := range schools {\n\t\tif !school.IsDeleted() {\n\t\t\ttraeger.Schools = append(traeger.Schools, enrollmentOwner.HolidaySchool{ID: school.ID, Name: school.Name})\n\t\t}\n\t}\n\treturn traeger, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayClosureTraeger.HolidayTraeger",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {\n\tvar receipt enrollmentOwner.HolidayProofReceipt\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tvar uploadErr error\n\t\treceipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)\n\t\treturn uploadErr\n\t})\n\treturn receipt, err\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayProofUnits.UploadHolidayProof",

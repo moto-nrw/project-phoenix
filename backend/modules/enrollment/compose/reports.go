@@ -31,8 +31,7 @@ type (
 	ReportDependencies     = application.ReportDependencies
 )
 
-// NewReports composes Enrollment's phase reports and the class roster of a
-// day over the owners the root binds.
+// NewReports composes Enrollment's phase reports and the class roster of a day over the owners the root binds.
 func NewReports(deps ReportDependencies) enrollment.Reports {
 	return application.NewReports(deps)
 }

@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/uptrace/bun"
 )
@@ -59,8 +60,7 @@ const holidayClosureNoticesDownSQL = `DROP TABLE IF EXISTS enrollment.holiday_cl
 // booked (#6434). It is a mail of the Träger, so the CHECK of 1.15.878
 // declares its kind, and the demo erasure deletes it with the registration it
 // names, like the receipt and the mail that a booking moved up.
-var holidayClosureEmailOutboxTraegerKinds = []string{"care_contract", "care_contract_notice", "holiday_closure_notice", "holiday_place_granted",
-	"holiday_registration_received", "parent_billing_letter"}
+var holidayClosureEmailOutboxTraegerKinds = slices.Sorted(slices.Values(append(slices.Clone(holidayPlaceEmailOutboxTraegerKinds), "holiday_closure_notice")))
 
 const holidayClosureEmailOutboxTraegerKindCheckSQL = `
 ALTER TABLE platform.email_outbox DROP CONSTRAINT IF EXISTS chk_email_outbox_traeger_kind;

@@ -43,9 +43,10 @@ type traegerClosingDaySaveBody struct {
 
 // bookHolidayWeek books one child of the family email into a week of a
 // published period of the Träger at school and returns the week.
-func bookHolidayWeek(t *testing.T, db *bun.DB, organization, school int64, email string) int64 {
+func bookHolidayWeek(t *testing.T, organization, school int64, email string) int64 {
 	t.Helper()
 	ctx := context.Background()
+	db := testpkg.SetupTestDB(t)
 	var period, week, model, registration, child int64
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on,
 			registration_closes_on, status, published_at) VALUES (?, 'Sommerferien', '2030-01-01', '2030-06-01', 'published', NOW())
@@ -85,9 +86,9 @@ func TestTraegerClosingDayTellsTheParentsOfBookedHolidayWeeksOnce(t *testing.T) 
 	db, router := newMasterDataPortal(t)
 	office := newTraegerOffice(t, db, router, "Träger Ferienschluss", identityaccess.TraegerRoleAdministration)
 	foreign := newTraegerOffice(t, db, router, "Träger Ferienschluss Fremd", identityaccess.TraegerRoleAdministration)
-	north := bookHolidayWeek(t, db, office.organization, office.schools[0], "nord@example.org")
-	south := bookHolidayWeek(t, db, office.organization, office.schools[1], "sued@example.org")
-	bookHolidayWeek(t, db, foreign.organization, foreign.schools[0], "fremd@example.org")
+	north := bookHolidayWeek(t, office.organization, office.schools[0], "nord@example.org")
+	south := bookHolidayWeek(t, office.organization, office.schools[1], "sued@example.org")
+	bookHolidayWeek(t, foreign.organization, foreign.schools[0], "fremd@example.org")
 	day := traegerClosingDaySaveBody{StartDate: "2030-07-10", EndDate: "2030-07-10", Reason: "Betriebsausflug", SchoolIDs: office.schools}
 
 	rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/holiday-closures/preview", day)
@@ -142,7 +143,7 @@ func TestTraegerHolidayClosurePendingQueryBudget(t *testing.T) {
 	t.Parallel()
 	db, router := newMasterDataPortal(t)
 	office := newTraegerOffice(t, db, router, "Träger Budget Ferienschluss", identityaccess.TraegerRoleAdministration)
-	bookHolidayWeek(t, db, office.organization, office.schools[0], "eins@example.org")
+	bookHolidayWeek(t, office.organization, office.schools[0], "eins@example.org")
 	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/holiday-closures/pending", nil)
@@ -153,8 +154,8 @@ func TestTraegerHolidayClosurePendingQueryBudget(t *testing.T) {
 		return counter.Measurement(counter.Selects(""))
 	}
 	one := read()
-	bookHolidayWeek(t, db, office.organization, office.schools[1], "zwei@example.org")
-	bookHolidayWeek(t, db, office.organization, office.schools[0], "drei@example.org")
+	bookHolidayWeek(t, office.organization, office.schools[1], "zwei@example.org")
+	bookHolidayWeek(t, office.organization, office.schools[0], "drei@example.org")
 	assert.Len(t, read().Statements, len(one.Statements), "the pending notices read the same statements for any number of weeks")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_closures_pending", one)
 }

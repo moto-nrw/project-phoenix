@@ -1778,15 +1778,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "00ee86d51165aeb785b365f7e7e58f1a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindOrganization",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "4aff5ff5cfe244f9c79ae3e1f5b30be4",
+      "binding_digest": "f7b8a2280f5c0cf968668e7b8e58ec9c",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
@@ -1794,23 +1786,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "65e18af93d90eb424335253d6cd52b63",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Organization.IsDeleted",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "50d5e0e848c800a0eee18ab02cc9ccdc",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindOrganization",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "d761dc79ac873e0815795eb295268046",
+      "binding_digest": "4f6d6a4028983bb5dfe3df7003360bde",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
@@ -1818,19 +1794,11 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "a570e5ce2e67a1ddee53c89de94270d4",
+      "binding_digest": "5aba53d743559bb52290ab2d98e85acc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
-      "binding_digest": "47905ca3c0d07f3ef5af1dcce0784dcb",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",

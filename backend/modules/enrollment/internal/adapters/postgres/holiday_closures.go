@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -93,6 +94,7 @@ func (s *HolidayRegistrationStore) HolidayClosureBookings(ctx context.Context, o
 }
 
 type holidayClosureNoticeRow struct {
+	bun.BaseModel  `bun:"table:enrollment.holiday_closure_notices"`
 	RegistrationID int64         `bun:"holiday_registration_id"`
 	WeekID         int64         `bun:"holiday_period_week_id"`
 	ClosedOn       calendar.Date `bun:"closed_on"`
@@ -114,7 +116,7 @@ func (s *HolidayRegistrationStore) HolidayClosureNotices(ctx context.Context, or
 	}
 	notices := make([]enrollment.HolidayClosureNoticeRecord, len(rows))
 	for i, row := range rows {
-		notices[i] = enrollment.HolidayClosureNoticeRecord(row)
+		notices[i] = enrollment.HolidayClosureNoticeRecord{RegistrationID: row.RegistrationID, WeekID: row.WeekID, ClosedOn: row.ClosedOn}
 	}
 	return notices, nil
 }

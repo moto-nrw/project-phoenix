@@ -15,7 +15,6 @@ import (
 	schoolCalendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // mountTraegerClosingDayRoutes serves the closing days of a Träger (#4702) at
@@ -35,20 +34,25 @@ func mountTraegerClosingDayRoutes(root chi.Router, schools traegercalendar.Schoo
 	root.Mount("/traeger/holiday-closures", enrollmentAPI.NewHolidayClosureResource(closures, requireManage).TraegerRouter(ProtectedTraegerRoutes))
 }
 
-// holidayClosureTraeger names the Träger and its schools in the closure
-// notice (#6434). The notice is written in the Träger transaction, whose row
-// security hides the organization, so the names are read in an
-// administrative transaction of their own that shares nothing with it.
+// holidayClosureTraeger names the host schools in the closure notice
+// (#6434), read in the caller's Träger transaction like the host-school check
+// of the holiday calendar. That transaction hides the organization itself, so
+// the notice names no Träger, like the mail that a booking moved up after a
+// change in the Büro (#4699).
 type holidayClosureTraeger struct {
 	organizations HolidayOrganizations
 }
 
 func (d holidayClosureTraeger) HolidayTraeger(ctx context.Context, organizationID int64) (enrollmentOwner.HolidayTraeger, error) {
-	var traeger enrollmentOwner.HolidayTraeger
-	err := tenant.WithinAdmin(tenant.ContextWithoutTransaction(ctx), func(ctx context.Context) error {
-		var err error
-		traeger, err = holidayTraegerDirectory{organizations: d.organizations}.HolidayTraeger(ctx, organizationID)
-		return err
-	})
-	return traeger, err
+	schools, err := d.organizations.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return enrollmentOwner.HolidayTraeger{}, err
+	}
+	traeger := enrollmentOwner.HolidayTraeger{Schools: []enrollmentOwner.HolidaySchool{}}
+	for _, school := range schools {
+		if !school.IsDeleted() {
+			traeger.Schools = append(traeger.Schools, enrollmentOwner.HolidaySchool{ID: school.ID, Name: school.Name})
+		}
+	}
+	return traeger, nil
 }
