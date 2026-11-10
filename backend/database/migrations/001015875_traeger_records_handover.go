@@ -8,15 +8,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerRecordsHandoverVersion = "1.15.870"
+const traegerRecordsHandoverVersion = "1.15.875"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerRecordsHandoverVersion,
 		Description: "Löschauftrag eines Trägers: Hinweis auf aufbewahrungspflichtige Unterlagen und Rückgabe oder Wahl der Löschung (#4720)",
 		DependsOn: []string{
-			familyChildrenLinkAndEnrollmentVersion, // the newest migration on development
-			traegerErasureOrderVersion,             // the erasure order the hint belongs to
+			demoRetirementRevokesSessionsVersion, // the newest migration on development
+			traegerErasureOrderVersion,           // the erasure order the hint belongs to
 		},
 	})
 	Migrations.MustRegister(traegerRecordsHandoverUp, traegerRecordsHandoverDown)

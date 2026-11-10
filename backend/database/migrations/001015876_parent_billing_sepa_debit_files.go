@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingSEPADebitFilesVersion = "1.15.871"
+const parentBillingSEPADebitFilesVersion = "1.15.876"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

@@ -192,7 +192,7 @@ scripts/dev-native.sh backend go run . tenant export \
   nennt sie unter `sepaDebitFiles` mit Herkunft und prüft jede mit Prüfsumme.
   IBAN und Kontoinhaber je Mandat und Lastschrift stehen nicht dort, sondern
   geöffnet in den Tabellen-Dateien (siehe Exportformat).
-  - **Original:** Seit Migration `1.15.871` speichert moto beim Download die
+  - **Original:** Seit Migration `1.15.876` speichert moto beim Download die
     Datei bytegenau, versiegelt mit dem Bank-Schlüssel, mit SHA-256 und dem
     Gläubigerkonto darin (`parent_billing.sepa_debit_files`); ein späterer
     Download derselben Nachricht ersetzt sie bis zur Bestätigung der
@@ -206,7 +206,7 @@ scripts/dev-native.sh backend go run . tenant export \
     (Nachrichten-ID, eingereichte Beträge, Sequenz, Einzugstag, Konto zur
     Freigabe, Gläubiger-ID). Die Erstellzeit ist dann die Bestätigung der
     Einreichung. Das Gläubigerkonto ist das bei der Einreichung gespeicherte,
-    für Nachrichten von vor `1.15.871` das heutige Standardkonto des Trägers;
+    für Nachrichten von vor `1.15.876` das heutige Standardkonto des Trägers;
     ohne Standardkonto scheitert der Export.
 - Den Wert aus `COMPLETE` beim Löschauftrag im Operator-Portal als Prüfsumme
   eintragen; so belegt der Auftrag, welche Rückgabe übergeben wurde.
