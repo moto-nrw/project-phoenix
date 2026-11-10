@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -20,18 +19,20 @@ var seedDatevValues = []struct {
 }
 
 // seedDatevFile enters the DATEV values and downloads the DATEV file of the
-// released monthly run of month once (#6433), so the export page shows a
-// run whose bookings went to DATEV next to one with new bookings, and the
-// protocol a DATEV file. Another seed of the same Träger may have taken the
+// released monthly run of the school in month once (#6433), so the export
+// page shows a run whose bookings went to DATEV next to one with new
+// bookings, and the protocol a DATEV file. A released run of other schools
+// of the Träger is not the school's: on the public demo it may hold no
+// invoice any more once its demo school is gone. Another seed of the same Träger may have taken the
 // bookings a moment earlier. Legacy runs may lack debtor numbers in their
 // immutable invoice snapshots; skip this demonstration download in that case.
-func seedDatevFile(client *Client, auth AuthRef, month calendar.Date) error {
+func seedDatevFile(client *Client, auth AuthRef, school int64, month calendar.Date) error {
 	for _, setting := range seedDatevValues {
 		if _, err := client.PutWithAuth(auth, "/traeger/settings/values/"+setting.key, map[string]any{"value": setting.value}); err != nil {
 			return fmt.Errorf("set the DATEV value %s: %w", setting.key, err)
 		}
 	}
-	runID, err := seedReleasedCareRun(client, auth, month)
+	runID, err := seedCareRunOf(client, auth, school, month, "released")
 	if err != nil || runID == 0 {
 		return err
 	}
@@ -51,32 +52,6 @@ func seedDatevFile(client *Client, auth AuthRef, month calendar.Date) error {
 	}
 	fmt.Println("  Exporte: DATEV file of the first monthly run downloaded")
 	return nil
-}
-
-// seedReleasedCareRun is the released monthly run of month, 0 without one.
-func seedReleasedCareRun(client *Client, auth AuthRef, month calendar.Date) (int64, error) {
-	raw, err := client.GetWithAuth(auth, "/traeger/care-billing-runs/")
-	if err != nil {
-		return 0, fmt.Errorf("read the monthly runs: %w", err)
-	}
-	var envelope struct {
-		Data struct {
-			Runs []struct {
-				ID           int64         `json:"id"`
-				BillingMonth calendar.Date `json:"billing_month"`
-				Status       string        `json:"status"`
-			} `json:"runs"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return 0, fmt.Errorf("read the monthly runs: %w", err)
-	}
-	for _, run := range envelope.Data.Runs {
-		if run.BillingMonth == month && run.Status == "released" {
-			return run.ID, nil
-		}
-	}
-	return 0, nil
 }
 
 // The registered conflicts that make the demonstration download unnecessary

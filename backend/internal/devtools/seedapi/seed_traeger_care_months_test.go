@@ -28,7 +28,7 @@ func TestSeedCareRunTakesTheRunAnotherSeedOfTheTraegerStartedAndReleased(t *test
 				_, _ = fmt.Fprint(w, `{"status":"success","data":{"runs":[]}}`)
 				return
 			}
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"runs":[{"id":5,"billing_month":"2026-11-01","status":"calculated"}]}}`)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"runs":[{"id":5,"billing_month":"2026-11-01","status":"calculated","school_ids":[7]}]}}`)
 		case "POST /traeger/care-billing-runs/":
 			w.Header().Set("Content-Type", "application/problem+json")
 			w.WriteHeader(409)
@@ -51,7 +51,7 @@ func TestSeedCareRunTakesTheRunAnotherSeedOfTheTraegerStartedAndReleased(t *test
 	})
 	defer srv.Close()
 
-	issued, err := seedCareRun(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, calendar.NewDate(2026, 11, 1), true)
+	issued, err := seedCareRun(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 7, calendar.NewDate(2026, 11, 1), true)
 	require.NoError(t, err)
 	assert.Zero(t, issued, "the other seed issued the invoices")
 	assert.Equal(t, 2, lists, "the seed reads the runs again after the conflict")
@@ -77,6 +77,6 @@ func TestSeedCareRunKeepsOtherRefusals(t *testing.T) {
 	})
 	defer srv.Close()
 
-	_, err := seedCareRun(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, calendar.NewDate(2026, 11, 1), true)
+	_, err := seedCareRun(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 7, calendar.NewDate(2026, 11, 1), true)
 	require.ErrorContains(t, err, "start the monthly run of 2026-11-01")
 }
