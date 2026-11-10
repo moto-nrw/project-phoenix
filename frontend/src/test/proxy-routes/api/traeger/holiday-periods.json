@@ -25,6 +25,9 @@
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/bookings": [
     "PUT traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings"
   ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/holiday-wish": [
+    "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/holiday-wish"
+  ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/details": [
     "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/details"
   ],

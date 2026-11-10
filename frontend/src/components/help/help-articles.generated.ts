@@ -368,6 +368,8 @@ import type { traegerHolidayRegistrationReviewTopic as authored_traegerHolidayRe
 
 import type { traegerHolidayRegistrationTopic as authored_traegerHolidayRegistrationTopic } from "./articles/traeger-holiday-registration";
 
+import type { traegerHolidayWishTopic as authored_traegerHolidayWishTopic } from "./articles/traeger-holiday-wish";
+
 import type { traegerInvitationTopic as authored_traegerInvitationTopic } from "./articles/traeger-invitation";
 
 import type { traegerKeyDateCountsTopic as authored_traegerKeyDateCountsTopic } from "./articles/traeger-key-date-counts";
@@ -2591,6 +2593,7 @@ export const enrollmentFormTopic = function enrollmentFormTopic(): HelpTopic {
     result:
       "Eltern füllen in dieser Phase das Basisformular und Ihre zusätzlichen Fragen aus.",
     notes: [
+      "Fragt Ihr Träger nach dem Ferienwunsch, schalten Sie bei `Ferienwunsch (Kind)` den Schalter `Ferienwunsch abfragen` ein. Eltern wählen dann für jedes Kind Ja oder Nein.",
       "Eine Vorlage gilt für alle Phasen, die sie auswählen. Sie brauchen nicht für jede Phase eine eigene.",
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
       "Die Vorschau zeigt nur Ihre Fragen, keine Betreuungsangebote. Unter `Angebote prüfen` öffnen Sie die Vorschau jeder Phase, die die Vorlage nutzt. Dort stehen die Angebote, auch wenn die Phase noch nicht aktiv ist.",
@@ -6039,6 +6042,7 @@ export const parentEnrollStatusTopic =
       result:
         "Sobald die OGS entschieden hat, sehen Sie das unter `Kinder` und bekommen eine E-Mail.",
       notes: [
+        "Nach einer Verlängerung kann das Formular nach dem Ferienwunsch fragen. Wählen Sie je Kind `Ja` oder `Nein`.",
         "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
         "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
         "Die Kinderzahl können Sie ändern, bis ein Kind angenommen ist. Sie kommt dann mit in Ihren Betreuungsvertrag. Dort ändern Sie sie später.",
@@ -6416,6 +6420,7 @@ export const parentHolidayRegistrationTopic =
       result:
         "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf.",
       notes: [
+        "Achtet der Träger auf den Ferienwunsch aus der OGS-Anmeldung, steht das über den Kindern. Mit Elternkonto sehen Sie beim Kind, was in der OGS-Anmeldung steht.",
         "Ein Elternkonto brauchen Sie nicht.",
         "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
@@ -11889,6 +11894,7 @@ export const traegerHolidayPeriodTopic =
       result:
         "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
       notes: [
+        "Mit `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` warten Kinder Ihrer Schulen ohne Ferienwunsch auf der Warteliste hinter den anderen.",
         "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
@@ -11911,6 +11917,7 @@ export const traegerHolidayPeriodTopic =
         HELP_TOPICS.traegerHolidayForm,
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerClosingDays,
+        HELP_TOPICS.traegerHolidayWish,
       ],
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;
@@ -11949,6 +11956,7 @@ export const traegerHolidayPlacesTopic =
           steps: [
             "Unter jeder Woche steht `Warteliste` mit allen Kindern, die auf einen Platz warten.",
             "Die Zahl vorne ist der Rang. Das Kind mit der 1 bekommt den nächsten freien Platz.",
+            "Berücksichtigt der Ferienzeitraum den Ferienwunsch, stehen Kinder mit `Ohne Ferienwunsch` hinter den anderen.",
             "Wählen Sie ein Kind, um seine Anmeldung zu öffnen.",
           ],
         },
@@ -11986,6 +11994,7 @@ export const traegerHolidayPlacesTopic =
         HELP_TOPICS.traegerHolidayRegistrationReview,
         HELP_TOPICS.traegerHolidayPeriod,
         HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerHolidayWish,
       ],
     };
   } satisfies typeof authored_traegerHolidayPlacesTopic;
@@ -12106,6 +12115,7 @@ export const traegerHolidayRegistrationReviewTopic =
       result:
         "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
+        "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
         "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -12145,6 +12155,7 @@ export const traegerHolidayRegistrationReviewTopic =
         HELP_TOPICS.traegerHolidayPeriod,
         HELP_TOPICS.traegerHolidayPlaces,
         HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerHolidayWish,
       ],
     };
   } satisfies typeof authored_traegerHolidayRegistrationReviewTopic;
@@ -12193,6 +12204,79 @@ export const traegerHolidayRegistrationTopic =
       related: [HELP_TOPICS.traegerHolidayPeriod],
     };
   } satisfies typeof authored_traegerHolidayRegistrationTopic;
+
+/**
+ * Ferienwunsch aus der OGS-Anmeldung (#4703): Vorrang oder nur mit
+ * Ferienwunsch, die Prüfung durch das Büro.
+ */
+export const traegerHolidayWishTopic =
+  function traegerHolidayWishTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayWish,
+      title: "Ferienwunsch aus der OGS-Anmeldung",
+      question: "Wie bekommen Kinder mit Ferienwunsch Vorrang?",
+      summary:
+        "Eltern geben in der OGS-Anmeldung an, ob ihr Kind in den Ferien Betreuung braucht. Sie schalten je Ferienzeitraum ein, dass dieser Ferienwunsch zählt.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Sun",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+        "Die OGS fragt den Ferienwunsch in ihrer Formularvorlage ab. Das schaltet die OGS bei `Ferienwunsch (Kind)` mit `Ferienwunsch abfragen` ein.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Festlegen, was ohne Ferienwunsch gilt",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen`.",
+            "Wählen Sie `Allgemein` und dann den Reiter `Ferienbetreuung`.",
+            "Wählen Sie bei `Was gilt ohne Ferienwunsch?`: `Kinder mit Ferienwunsch haben Vorrang` oder `Nur Kinder mit Ferienwunsch können sich anmelden`.",
+          ],
+        },
+        {
+          title: "Für einen Ferienzeitraum einschalten",
+          steps: [
+            "Wählen Sie in der Navigation `Ferienbetreuung`.",
+            "Öffnen Sie den Ferienzeitraum und wählen Sie den Reiter `Planung`.",
+            "Schalten Sie `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` ein.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Ferienwunsch prüfen",
+          description:
+            "Ist der Ferienwunsch nicht bekannt, steht beim Kind `Ferienwunsch prüfen`.",
+          steps: [
+            "Wählen Sie im Reiter `Anmeldungen` beim Filter `Ferienwunsch` den Eintrag `Ferienwunsch prüfen`.",
+            "Öffnen Sie eine Anmeldung.",
+            "Fragen Sie bei der OGS nach, was in der OGS-Anmeldung steht.",
+            "Wählen Sie beim Kind unter `Ferienwunsch` den Knopf `Mit Ferienwunsch` oder `Ohne Ferienwunsch`.",
+          ],
+        },
+      ],
+      result:
+        "Ist eine Woche voll, warten Kinder ohne Ferienwunsch auf der Warteliste hinter den anderen. Im Reiter `Plätze` stehen sie mit `Ohne Ferienwunsch`.",
+      notes: [
+        "Freie Plätze gehen weiter in der Reihenfolge der Anmeldung. Ein Platz, den ein Kind schon hat, bleibt.",
+        "Eltern mit Elternkonto sehen den Ferienwunsch ihres Kindes vor dem Absenden. moto prüft ihn dann selbst. Bei `Nur Kinder mit Ferienwunsch können sich anmelden` geht das Absenden ohne Ferienwunsch nicht.",
+        "Es zählt die zugesagte OGS-Anmeldung des Schuljahres, in dem der Ferienzeitraum beginnt.",
+        "Feriengäste ohne OGS-Platz sind nicht betroffen.",
+        "Nur das Träger-Büro sieht den Ferienwunsch und `Ferienwunsch prüfen`. Eltern, die Bestätigung und die ausrichtende OGS sehen ihn nicht.",
+      ],
+      differences: [
+        "Beim Kind steht nichts zum Ferienwunsch? Der Ferienzeitraum berücksichtigt ihn nicht, oder das Kind ist ein Feriengast.",
+      ],
+      troubleshootingDetails: [
+        "Auch mit Elternkonto kann der Ferienwunsch fehlen. Dann steht beim Kind `Ferienwunsch prüfen`. Bitte fragen Sie bei der OGS nach.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPlaces,
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+        HELP_TOPICS.traegerHolidayPeriod,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayWishTopic;
 
 /** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
 export const traegerInvitationTopic =

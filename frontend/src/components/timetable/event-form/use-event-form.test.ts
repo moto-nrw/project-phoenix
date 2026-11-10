@@ -1389,34 +1389,31 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it(
-    "propagates a Wochennotiz-only 'Alle Termine' save across a resolved chain",
-    async () => {
-      const apis = mockApis({ ...series, resolvedFromTemplateId: "8" });
-      const { result, onClose } = renderForm({
-        initialInstance: { ...occurrence, activityGroupId: "8" },
-        initialSeries: null,
-      });
-      await act(async () => {
-        await result.current.handleInitialScopeSelect("all");
-      });
-      await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+  it("propagates a Wochennotiz-only 'Alle Termine' save across a resolved chain", async () => {
+    const apis = mockApis({ ...series, resolvedFromTemplateId: "8" });
+    const { result, onClose } = renderForm({
+      initialInstance: { ...occurrence, activityGroupId: "8" },
+      initialSeries: null,
+    });
+    await act(async () => {
+      await result.current.handleInitialScopeSelect("all");
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
 
-      act(() => result.current.update("seriesNotes", "Neu"));
-      await act(async () => {
-        await result.current.handleSubmit(submitEvent);
-      });
+    act(() => result.current.update("seriesNotes", "Neu"));
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
 
-      expect(apis.updateTemplate).toHaveBeenCalledWith(
-        "9",
-        expect.objectContaining({
-          notes: "Neu",
-          propagate_notes_to_predecessors: true,
-        }),
-      );
-      expect(apis.countEditedInWindow).not.toHaveBeenCalled();
-      expect(apis.replanWeek).not.toHaveBeenCalled();
-      expect(onClose).toHaveBeenCalled();
-    },
-  );
+    expect(apis.updateTemplate).toHaveBeenCalledWith(
+      "9",
+      expect.objectContaining({
+        notes: "Neu",
+        propagate_notes_to_predecessors: true,
+      }),
+    );
+    expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.replanWeek).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
 });

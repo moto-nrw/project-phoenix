@@ -47,7 +47,7 @@ type PortalService interface {
 	// schools of a Träger whose relationship grants
 	// parent_portal.enrollment.submit, with the guardian's contact data, and
 	// records each child's read in its school's data access log (#4662).
-	HolidayRegistrationFamily(ctx context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error)
+	HolidayRegistrationFamily(ctx context.Context, accountID int64, scope parentService.HolidayRegistrationScope) (*parentService.HolidayRegistrationFamily, error)
 
 	// ListBillingDocuments lists the documents the Träger of the account's
 	// schools sent to its address, where a relationship grants

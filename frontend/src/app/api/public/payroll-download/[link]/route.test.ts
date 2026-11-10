@@ -82,14 +82,17 @@ describe("Public payroll download proxy (#4805)", () => {
     "7.short",
     "7.AbCdEfGhIjKlMnOpQrStUv/../x",
     `7.${"a".repeat(129)}`,
-  ])("answers a malformed link %s like a spent one, without the backend", async (link) => {
-    const response = await POST(request(encodeURIComponent(link)), {
-      params: Promise.resolve({ link }),
-    });
+  ])(
+    "answers a malformed link %s like a spent one, without the backend",
+    async (link) => {
+      const response = await POST(request(encodeURIComponent(link)), {
+        params: Promise.resolve({ link }),
+      });
 
-    expect(response.status).toBe(404);
-    const body = (await response.json()) as { code?: string };
-    expect(body.code).toBe("workforce.payroll_download_unavailable");
-    expect(backend).not.toHaveBeenCalled();
-  });
+      expect(response.status).toBe(404);
+      const body = (await response.json()) as { code?: string };
+      expect(body.code).toBe("workforce.payroll_download_unavailable");
+      expect(backend).not.toHaveBeenCalled();
+    },
+  );
 });

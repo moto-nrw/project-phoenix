@@ -76,11 +76,16 @@ type parentChildDataAccess struct {
 
 func (a parentChildDataAccess) RecordHolidayRegistrationPrefill(ctx context.Context, access parentportal.ChildDataAccess) error {
 	studentID := access.StudentID
+	metadata := map[string]any{"organization_id": access.OrganizationID}
+	if access.HolidayWish {
+		// The prefill also read the holiday care wish (#4703).
+		metadata["holiday_wish"] = true
+	}
 	return a.writer.Create(ctx, &auditModels.DataAccessLog{
 		ActorAccountID: access.ActorAccountID, ActorRole: "guardian",
 		ResourceType: auditModels.ResourceTypeHolidayPrefill, StudentID: &studentID,
 		RangeStart: access.AccessedAt, RangeEnd: access.AccessedAt, AccessedAt: access.AccessedAt,
-		Metadata: map[string]any{"organization_id": access.OrganizationID},
+		Metadata: metadata,
 	})
 }
 

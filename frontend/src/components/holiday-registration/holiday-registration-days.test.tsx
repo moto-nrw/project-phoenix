@@ -15,6 +15,7 @@ const week = {
 };
 const offer: HolidayRegistrationOffer = {
   traegerName: "Träger Beispiel",
+  holidayWishMode: "off",
   name: "Winterferien",
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",

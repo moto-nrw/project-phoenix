@@ -48,7 +48,9 @@ describe("PayrollDownloadContent (#4805)", () => {
     );
 
     render(<PayrollDownloadContent link={LINK} />);
-    fireEvent.click(screen.getByRole("button", { name: "Datei herunterladen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Datei herunterladen" }),
+    );
 
     expect(
       await screen.findByText(
@@ -71,7 +73,9 @@ describe("PayrollDownloadContent (#4805)", () => {
       .mockResolvedValueOnce(undefined);
 
     render(<PayrollDownloadContent link={LINK} />);
-    fireEvent.click(screen.getByRole("button", { name: "Datei herunterladen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Datei herunterladen" }),
+    );
 
     expect(
       await screen.findByText(catalogText("general.unavailable", "die Datei")),

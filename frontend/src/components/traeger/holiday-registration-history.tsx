@@ -34,6 +34,7 @@ const ACTION_LABELS: Readonly<
   sibling_split: "Von Geschwistern getrennt",
   sibling_cancel: "Aus Geschwistergruppe gelöst (storniert)",
   promote: "Von der Warteliste nachgerückt",
+  wish: "Ferienwunsch festgelegt",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
@@ -85,6 +86,13 @@ function eventDetail(
   if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
   if (event.siblings.length > 0) {
     return `Anmeldung Nr. ${event.siblings.join(", ")}`;
+  }
+  if (event.action === "wish") {
+    const wished = registration.children.find(
+      (entry) => entry.id === event.childId,
+    );
+    const who = wished ? `${wished.firstName} ${wished.lastName}: ` : "";
+    return `${who}${event.wish === "yes" ? "Mit Ferienwunsch" : "Ohne Ferienwunsch"}`;
   }
   if (event.action !== "rebook") return null;
   const child = registration.children.find(

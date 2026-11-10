@@ -83,9 +83,12 @@ type (
 	Traeger                         = care.Traeger
 	ChildDataAccess                 = care.ChildDataAccess
 	ChildDataAccessLog              = care.ChildDataAccessLog
+	HolidayWishStatements           = care.HolidayWishStatements
 	HolidayRegistrationChild        = care.HolidayRegistrationChild
 	HolidayRegistrationFamily       = care.HolidayRegistrationFamily
 	HolidayRegistrationGuardian     = care.HolidayRegistrationGuardian
+	HolidayRegistrationScope        = care.HolidayRegistrationScope
+	HolidayWishClaim                = care.HolidayWishClaim
 	CreateGuardianContactInput      = care.CreateGuardianContactInput
 	GuardianAccess                  = care.GuardianAccess
 	GuardianAccessRevocation        = care.GuardianAccessRevocation

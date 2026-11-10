@@ -85,6 +85,7 @@ type signedEnrollmentChild struct {
 	DateOfBirth       string                       `json:"date_of_birth"`
 	TargetGradeLevel  *int16                       `json:"target_grade_level"`
 	TargetSchoolClass *string                      `json:"target_school_class"`
+	HolidayCareWish   *bool                        `json:"holiday_care_wish,omitempty"`
 	CustomData        map[string]any               `json:"custom_data"`
 	Offerings         []signedEnrollmentSelections `json:"offerings"`
 }
@@ -115,7 +116,7 @@ func newSignedEnrollmentDocument(request *enrollmentNative.Request, children []S
 	for i, c := range children {
 		child := signedEnrollmentChild{
 			FirstName: strings.TrimSpace(c.FirstName), LastName: strings.TrimSpace(c.LastName), DateOfBirth: c.DateOfBirth.String(),
-			TargetGradeLevel: c.TargetGradeLevel, TargetSchoolClass: c.TargetSchoolClass, CustomData: c.CustomData,
+			TargetGradeLevel: c.TargetGradeLevel, TargetSchoolClass: c.TargetSchoolClass, HolidayCareWish: c.HolidayCareWish, CustomData: c.CustomData,
 			Offerings: []signedEnrollmentSelections{},
 		}
 		if i < len(selections) {

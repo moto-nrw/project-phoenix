@@ -415,6 +415,7 @@ describe("traeger-api holiday periods", () => {
       registrationOpensOn: "2027-01-11",
       registrationClosesOn: "2027-02-26",
       binding: false,
+      holidayWishRule: false,
       notes: "",
       weeks: [
         {
@@ -451,6 +452,7 @@ describe("traeger-api holiday periods", () => {
       registration_closes_on: "2027-02-26",
       binding: false,
       notes: "",
+      holiday_wish_rule: false,
       max_days_per_child: null,
       weeks: [
         {

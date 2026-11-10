@@ -299,6 +299,9 @@ func signatureProofChildRecords(children []*capability.RequestChild, schema *cap
 		if c.TargetSchoolClass != nil && *c.TargetSchoolClass != "" {
 			fields = append(fields, proofField("Klasse", *c.TargetSchoolClass))
 		}
+		if c.HolidayCareWish != nil {
+			fields = append(fields, proofField("Ferienwunsch", stringifyValue(*c.HolidayCareWish)))
+		}
 		fields = append(fields,
 			proofField("Betreuungsangebote", signatureProofOfferings(choicesByChild[c.ID], offeringNames)),
 		)

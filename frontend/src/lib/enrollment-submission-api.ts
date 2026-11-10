@@ -74,6 +74,8 @@ export interface SubmitChildPayload {
    * parent leaves it open ("Klasse offen").
    */
   target_school_class?: string;
+  /** Holiday care wanted (#4703); only sent when the form asks it. */
+  holiday_care_wish?: boolean;
   custom_data?: Record<string, unknown>;
   offering_ids?: number[];
   /**
@@ -143,6 +145,7 @@ interface EnrollmentEditDraftChild {
   date_of_birth: string;
   target_grade_level?: number;
   target_school_class?: string;
+  holiday_care_wish?: boolean;
   custom_data?: Record<string, unknown>;
   offering_ids: string[];
   offering_days?: EnrollmentEditDraftOfferingDays[];

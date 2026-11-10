@@ -17,6 +17,7 @@ import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
@@ -50,6 +51,7 @@ import {
   emptyContact,
   type FieldError,
   hasRoomForKnownChild,
+  knownChildRefused,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
@@ -678,7 +680,9 @@ export function KnownChildPicker({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {known.map((child) => {
           const selected = picked.has(child.studentId);
-          const disabled = !selected && full;
+          const refused = knownChildRefused(child, offer);
+          const disabled = !selected && (full || refused);
+          const wish = knownChildWish(child, offer);
           return (
             <ChoiceTile
               key={child.studentId}
@@ -704,6 +708,16 @@ export function KnownChildPicker({
                       })
                     : schoolName(child.schoolId)}
                 </span>
+                {wish ? (
+                  <span className="mt-1.5 flex flex-col items-start gap-1">
+                    <StatusBadge tone={wish.tone} label={t(wish.label)} />
+                    {wish.hint ? (
+                      <span className="text-xs font-normal text-gray-600">
+                        {t(wish.hint)}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </span>
             </ChoiceTile>
           );
@@ -823,4 +837,31 @@ export function GuardianAddressCard({
       />
     </SectionCard>
   );
+}
+
+type WishLabel =
+  "wishKnownYes" | "wishKnownNo" | "wishKnownUnknown" | "wishRefused";
+
+/**
+ * What the form tells the parent about a known child's holiday care wish
+ * (#4703), only while the period takes it into account. The wish comes from
+ * the parent's own OGS registration; the school knows nobody else's.
+ */
+function knownChildWish(
+  child: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): {
+  tone: "green" | "gray" | "warning";
+  label: WishLabel;
+  hint?: "wishHintNo" | "wishHintRefused" | "wishHintUnknown";
+} | null {
+  if (offer.holidayWishMode === "off") return null;
+  if (child.holidayWish === "yes")
+    return { tone: "green", label: "wishKnownYes" };
+  if (child.holidayWish === "no") {
+    return knownChildRefused(child, offer)
+      ? { tone: "warning", label: "wishRefused", hint: "wishHintRefused" }
+      : { tone: "gray", label: "wishKnownNo", hint: "wishHintNo" };
+  }
+  return { tone: "gray", label: "wishKnownUnknown", hint: "wishHintUnknown" };
 }
