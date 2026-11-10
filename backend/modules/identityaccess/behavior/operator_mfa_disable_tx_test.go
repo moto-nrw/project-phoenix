@@ -31,7 +31,7 @@ func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	// Build a trusted-device row and drive the lockout counter up so all
 	// three cascade targets have non-trivial state.

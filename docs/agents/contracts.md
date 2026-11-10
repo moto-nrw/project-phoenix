@@ -926,7 +926,8 @@ credential generation (`platform.operators.credential_generation`, migration
 trigger `platform.operator_credential_moves_generation`, and the sign-in's
 generation in the enrollment and challenge tokens, the code rows and the
 remembered devices, compared under the operator lock at issue, redemption,
-the exchange's session mint and the device it remembers. The exchange takes
+the enrollment confirm's enrollment write (#6459), the exchange's session mint
+and the device it remembers. The exchange takes
 the redeemed code's `OperatorMFAProof`; a passkey sign-in checks no password
 and binds nothing. Operators start at generation 1: codes, devices and tokens
 from before the binding stand at 0 and are refused. A refused mint, resend or
