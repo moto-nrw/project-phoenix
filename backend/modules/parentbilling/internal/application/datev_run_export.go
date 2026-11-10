@@ -65,13 +65,14 @@ func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.H
 		return parentbilling.ExportedFile{}, parentbilling.ErrExportRunEmpty
 	}
 	header := batch.header(settings, runKind, f.datev.now())
-	if err := datevBookingsProblems(header, batch); err != nil {
+	bookingContent, err := datevBookingsContent(header, batch)
+	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	file := exportFile{format: parentbilling.ExportFormatDatev, runKind: runKind, runID: runID,
 		totalCents: batch.totalCents, careInvoices: batch.careInvoices, documents: batch.documents,
-		documentCount: len(batch.bookings),
-		fileName:      datevFileName,
+		documentCount: len(batch.bookings), bookingContent: bookingContent,
+		fileName: datevFileName,
 		render: func(number int64) ([]byte, error) {
 			numbered := header
 			numbered.FileNumber, numbered.Label = int(number), datevBatchLabel(runKind, number)
@@ -192,14 +193,19 @@ func (b datevBatch) header(settings parentbilling.DatevSettings, runKind string,
 	}
 }
 
-// datevBookingsProblems formats the batch once before a number is taken and
-// names every document DATEV would refuse. A problem of the header follows
-// from no setting the check passed and is a fault.
-func datevBookingsProblems(header DatevBatchHeader, batch datevBatch) error {
-	_, err := FormatDatevBookingBatch(header, batch.bookings)
+// datevBookingsContent validates before a number is taken and renders the
+// bookings with their accounting settings. File metadata is fixed for the
+// comparison hash; the store also hashes the actual downloaded file.
+func datevBookingsContent(header DatevBatchHeader, batch datevBatch) ([]byte, error) {
+	header.CreatedAt = time.Date(2000, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
+	header.FileNumber, header.Label = 1, ""
+	out, err := FormatDatevBookingBatch(header, batch.bookings)
+	if err == nil {
+		return out.Content, nil
+	}
 	var formatErr *DatevFormatError
-	if err == nil || !errors.As(err, &formatErr) {
-		return err
+	if !errors.As(err, &formatErr) {
+		return nil, err
 	}
 	fields := map[string]string{
 		DatevFieldAccount: parentbilling.DatevBookingAccount, DatevFieldDocumentDate: parentbilling.DatevBookingDate,
@@ -213,10 +219,10 @@ func datevBookingsProblems(header DatevBatchHeader, batch datevBatch) error {
 	for _, problem := range formatErr.Problems {
 		field, known := fields[problem.Field]
 		if problem.Line < 1 || problem.Line > len(batch.numbers) || !known {
-			return fmt.Errorf("parent billing: the DATEV batch of a ready Träger: %w", err)
+			return nil, fmt.Errorf("parent billing: the DATEV batch of a ready Träger: %w", err)
 		}
 		refused.Problems = append(refused.Problems, parentbilling.DatevBookingProblem{
 			DocumentNumber: batch.numbers[problem.Line-1], Field: field, Reason: reasons[problem.Reason]})
 	}
-	return refused
+	return nil, refused
 }

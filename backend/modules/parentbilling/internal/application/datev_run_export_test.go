@@ -149,6 +149,39 @@ func TestDatevFileOfAHolidayRunCreditsTheCreditNote(t *testing.T) {
 	assert.Equal(t, []int64{11, 12}, store.records[0].DocumentIDs)
 }
 
+func TestDatevFileFingerprintsBookingsApartFromFileMetadata(t *testing.T) {
+	t.Parallel()
+	store := &datevRunStore{content: datevRunContent()}
+	settings := datevReadySettings()
+	now := time.Date(2026, time.November, 9, 10, 0, 0, 0, calendar.Berlin)
+	exports := newFinanceExportsWithDatev(store, runPost{}, settings)
+	exports.datev.now = func() time.Time { return now }
+	export := func() parentbilling.ExportFileRecord {
+		t.Helper()
+		_, err := exports.DatevFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 5)
+		require.NoError(t, err)
+		return store.records[len(store.records)-1]
+	}
+	first := export()
+	now = now.Add(time.Hour)
+	again := export()
+	require.NotEmpty(t, first.BookingContent)
+	assert.Equal(t, first.BookingContent, again.BookingContent, "same bookings despite a new time, number and label")
+	assert.NotEqual(t, first.Content, again.Content, "the audit still records each file's actual bytes")
+
+	store.content.Invoices[3].TotalCents++
+	assert.NotEqual(t, first.BookingContent, export().BookingContent, "a changed booking is not a repeat")
+	store.content.Invoices[3].TotalCents--
+	changed := settings.byOrganization[sjrReviewer.OrganizationID]
+	changed.RevenueAccount.Value = "4410"
+	settings.byOrganization[sjrReviewer.OrganizationID] = changed
+	assert.NotEqual(t, first.BookingContent, export().BookingContent, "a changed counter account is not a repeat")
+	changed.RevenueAccount.Value = "4400"
+	changed.ClientNumber.Value = "55004"
+	settings.byOrganization[sjrReviewer.OrganizationID] = changed
+	assert.NotEqual(t, first.BookingContent, export().BookingContent, "the client in the header affects the booking")
+}
+
 // Invariant 1 and 3: while the check names a setting there is no file, no
 // number and no protocol entry. Without the check the file would be made
 // with an empty Beraternummer refused only by the formatter, after the

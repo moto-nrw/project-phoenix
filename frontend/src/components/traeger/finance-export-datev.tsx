@@ -142,7 +142,7 @@ export function DatevRefusedNotice({
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
         debtor
-          ? "DATEV nimmt diese Rechnungen so nicht an. Eine Debitorennummer hat nur Ziffern, eine mehr als Ihre Sachkonten. Tragen Sie sie bei der Familie ein. Eine ausgestellte Rechnung behält ihre Nummer: Stornieren Sie sie und stellen Sie sie neu aus."
+          ? "DATEV nimmt diese Rechnungen so nicht an. Laden Sie für diesen Lauf die Sollstellung herunter. Ihr Steuerbüro kann die Buchungen damit von Hand erfassen. Änderungen bei der Familie gelten nur für künftige Rechnungen. Auch ein Storno hebt diese Sperre nicht auf."
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
       }
       details={<BulletList lines={datevProblemLines(problems)} />}

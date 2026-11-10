@@ -24,17 +24,20 @@ func init() {
 // parentBillingDatevExportFilesUpSQL lets the export protocol of #4693 record
 // the DATEV booking batch (#4694) as a format of its own. The file takes the
 // file number of the Träger like every other format; it has no reference and
-// no submission.
+// no submission. Its booking hash recognizes repeats despite file metadata.
 const parentBillingDatevExportFilesUpSQL = `
 ALTER TABLE parent_billing.export_files DROP CONSTRAINT chk_export_files_format,
-	ADD CONSTRAINT chk_export_files_format CHECK (format IN ('sollstellung', 'pain008', 'datev'));
+	ADD CONSTRAINT chk_export_files_format CHECK (format IN ('sollstellung', 'pain008', 'datev')),
+	ADD COLUMN booking_sha256 CHAR(64),
+	ADD CONSTRAINT chk_export_files_booking_sha CHECK (booking_sha256 ~ '^[0-9a-f]{64}$');
 `
 
 // The down step removes the DATEV entries; their invoice links go with them.
 const parentBillingDatevExportFilesDownSQL = `
 DELETE FROM parent_billing.export_files WHERE format = 'datev';
 ALTER TABLE parent_billing.export_files DROP CONSTRAINT chk_export_files_format,
-	ADD CONSTRAINT chk_export_files_format CHECK (format IN ('sollstellung', 'pain008'));
+	ADD CONSTRAINT chk_export_files_format CHECK (format IN ('sollstellung', 'pain008')),
+	DROP COLUMN booking_sha256;
 `
 
 func parentBillingDatevExportFilesUp(ctx context.Context, db *bun.DB) error {

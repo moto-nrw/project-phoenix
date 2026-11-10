@@ -133,6 +133,21 @@ func TestDatevBatchOfAReleasedRun(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"datev", "sollstellung"}, formats)
+
+	// A new file number changes the bytes, but not the bookings. Both
+	// the protocol and the invoice history must name the first download.
+	rec = exportGet(t, f, datevPath)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	files = exportFiles(t, f, "")
+	require.Len(t, files, 3)
+	assert.Equal(t, before.FileNumbers.Next, files[0].RepeatOf)
+	assert.NotEqual(t, files[2].Fingerprint, files[0].Fingerprint, "the audit hash covers the actual file metadata")
+	rec = exportGet(t, f, fmt.Sprintf("/invoice-history/care-invoices/%d", invoice))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	history = decodeSchoolPortalData[exportHistoryBody](t, rec.Body.Bytes())
+	last := history.Entries[len(history.Entries)-1].File
+	require.NotNil(t, last)
+	assert.Equal(t, before.FileNumbers.Next, last.RepeatOf)
 }
 
 // A debtor DATEV refuses names the invoice and takes no number.
@@ -153,6 +168,8 @@ func TestDatevBatchNamesTheInvoicesWithoutAValidDebtor(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `"document_number":"`+number+`","field":"debtor_number","reason":"invalid"`)
 	assert.Equal(t, next, exportSettingsDatev(t, f).FileNumbers.Next)
 	assert.Zero(t, datevFileCount(t, f))
+	_, content := sollstellung(t, f, run)
+	assert.Contains(t, content, number, "the tax office can still use the Sollstellung to book the refused run by hand")
 }
 
 // Only the right "Finanz-Export" downloads the batch; another Träger's run

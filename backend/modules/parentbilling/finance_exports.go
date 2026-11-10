@@ -17,8 +17,9 @@ import (
 // invoices it holds, in the transaction that answers the file. A rollback
 // returns the number, so the numbers of the files that left moto have no gap
 // and name one file each. A repeated download is a new file with a new
-// number; the content hash or, for PAIN.008, its stable collection ID
-// identifies an earlier export of the same content. The Sollstellung is the general CSV whose columns the Träger maps;
+// number; the content hash, DATEV booking hash or stable PAIN.008 collection
+// ID identifies an earlier export of the same content. The Sollstellung is
+// the general CSV whose columns the Träger maps;
 // the PAIN.008 file of the direct debits records itself here too (ADR 0181),
 // and so does the DATEV booking batch of a run (#4694). Further formats
 // (CIP/SIMBA #4698) add a format constant and record their file the same way.
@@ -336,7 +337,10 @@ type ExportFileRecord struct {
 	// it differs from its links: an invoice and its Storno share one link.
 	DocumentCount int
 	// Content is the file; the store keeps only its SHA-256 fingerprint.
-	Content        []byte
+	Content []byte
+	// BookingContent is DATEV with fixed file metadata for repeat detection;
+	// the store keeps its SHA-256 separately from the actual file hash.
+	BookingContent []byte
 	TotalCents     int64
 	Reference      string
 	CareInvoiceIDs []int64

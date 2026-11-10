@@ -53,7 +53,7 @@ export function traegerDatevExportTopic(): HelpTopic {
       "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
     ],
     troubleshootingDetails: [
-      "Es erscheint `Keine DATEV-Datei für …` mit Rechnungsnummern? Diese Rechnungen nimmt DATEV so nicht an. Meist fehlt die Debitorennummer oder sie hat Leerzeichen. Tragen Sie die richtige Nummer bei der Familie ein. Eine ausgestellte Rechnung behält ihre alte Nummer: Stornieren Sie sie und stellen Sie sie neu aus.",
+      "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Laden Sie für diesen Lauf die `Sollstellung` herunter. Geben Sie diese Datei und die genannten Rechnungsnummern an Ihr Steuerbüro. Es kann die Buchungen damit von Hand erfassen. Die DATEV-Datei bleibt für den ganzen Lauf gesperrt. Auch ein Storno hebt diese Sperre nicht auf. Ausgestellte Rechnungen und ihre Stornos behalten die Debitorennummer. Änderungen bei der Familie gelten nur für künftige Rechnungen. Prüfen Sie diese Nummer vor dem nächsten Ausstellen mit Ihrem Steuerbüro.",
       "Eine Rechnung liegt in einem anderen Wirtschaftsjahr? Eine DATEV-Datei gilt nur für ein Wirtschaftsjahr. Fragen Sie Ihr Steuerbüro, wie es diese Rechnung buchen möchte.",
       "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
     ],

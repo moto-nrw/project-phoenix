@@ -293,6 +293,16 @@ it("lists the invoices a refused DATEV download names", async () => {
     screen.getByText("Liegt in einem anderen Wirtschaftsjahr: ST-2026-0001"),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  expect(
+    screen.getByText(/Laden Sie für diesen Lauf die Sollstellung herunter\./),
+  ).toHaveTextContent(
+    "Ihr Steuerbüro kann die Buchungen damit von Hand erfassen.",
+  );
+  expect(
+    screen.getByText(/Auch ein Storno hebt diese Sperre nicht auf\./),
+  ).toHaveTextContent(
+    "Änderungen bei der Familie gelten nur für künftige Rechnungen.",
+  );
   expect(files.downloadBlob).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Hinweis schließen" }));
   await waitFor(() =>

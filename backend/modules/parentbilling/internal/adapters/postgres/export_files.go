@@ -133,6 +133,7 @@ type exportFileRow struct {
 	RunID                int64      `bun:"run_id"`
 	FileName             string     `bun:"file_name"`
 	ContentSHA256        string     `bun:"content_sha256"`
+	BookingSHA256        *string    `bun:"booking_sha256"`
 	InvoiceCount         int        `bun:"invoice_count"`
 	TotalCents           int64      `bun:"total_cents"`
 	Reference            *string    `bun:"reference"`
@@ -178,10 +179,10 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	}
 	var row exportFileRow
 	if err := db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
-		content_sha256, invoice_count, total_cents, reference, exported_by_account_id)
-		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), ?, ?, ?, ?)
+		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id)
+		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?)
 		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
-		exportDocumentCount(record), record.TotalCents,
+		record.BookingContent, exportDocumentCount(record), record.TotalCents,
 		textRef(record.Reference), accountRef(accountID)).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
@@ -227,6 +228,7 @@ func insertExportFileInvoices(ctx context.Context, db bun.IDB, organizationID, f
 // exportFileListQuery reads the protocol entries of a Träger with the
 // label of their run and the earliest earlier file of the same content.
 // PAIN.008 uses its stable collection/message ID; CreDtTm changes the byte hash.
+// DATEV compares bookings and accounting settings with fixed file metadata.
 const exportFileListQuery = `SELECT file.*,
 	(SELECT run.billing_month FROM parent_billing.care_runs AS run
 		WHERE run.organization_id = file.organization_id AND run.id = file.run_id AND file.run_kind = 'care') AS care_month,
@@ -238,6 +240,8 @@ const exportFileListQuery = `SELECT file.*,
 			AND earlier.format = file.format
 			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
 				THEN earlier.reference = file.reference
+				WHEN file.format = 'datev' AND file.booking_sha256 IS NOT NULL
+				THEN earlier.booking_sha256 = file.booking_sha256
 				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of,
 	COUNT(*) OVER () AS total_files

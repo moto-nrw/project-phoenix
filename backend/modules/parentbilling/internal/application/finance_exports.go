@@ -78,6 +78,7 @@ type exportFile struct {
 	data            []byte
 	totalCents      int64
 	reference       string
+	bookingContent  []byte
 	careInvoices    []int64
 	documents       []int64
 	notices         []int64
@@ -111,7 +112,7 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 	}
 	entry, err := store.InsertExportFile(ctx, reviewer.OrganizationID, reviewer.AccountID, parentbilling.ExportFileRecord{
 		Format: file.format, RunKind: file.runKind, RunID: file.runID, FileNumber: number, FileName: file.fileName(number),
-		Content: data, TotalCents: file.totalCents, Reference: file.reference,
+		Content: data, TotalCents: file.totalCents, Reference: file.reference, BookingContent: file.bookingContent,
 		CareInvoiceIDs: file.careInvoices, DocumentIDs: file.documents, CareNoticeIDs: file.notices, SEPADebitIDs: file.debits,
 		DocumentCount: file.documentCount,
 	})

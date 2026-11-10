@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,6 +56,53 @@ func TestExportRunsNameTheLastDatevBatchOfTheTraegerBelowRLS(t *testing.T) {
 		require.NotNil(t, got.LastSollstellung)
 		assert.Equal(t, soll.ID, got.LastSollstellung.ID, "the Sollstellung stays the Sollstellung")
 		assert.Equal(t, 2, got.Exports, "both own files, none of the other Träger")
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
+
+func TestDatevProtocolAndHolidayHistoryRecognizeTheSameBookings(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newMandateScope(t, db, "Träger DATEV Wiederholung")
+	other := newMandateScope(t, db, "Träger DATEV Fremde Wiederholung")
+	store := NewStore()
+	rollback := errors.New("roll the DATEV repeats back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		run, invoice := seedHolidayExportRun(t, ctx, tx, scope.organization, "DATEV Wiederholung", 1000, false)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id,
+			file_name, content_sha256, booking_sha256, invoice_count, total_cents)
+			VALUES (?, 1, 'datev', 'holiday', ?, 'fremd.csv', repeat('a', 64), encode(sha256('same bookings'::bytea), 'hex'), 1, 1000)`, other.organization, run)
+		require.NoError(t, err)
+		var firstNumber int64
+		for i, bookings := range []string{"same bookings", "same bookings", "changed bookings"} {
+			entry, err := store.InsertExportFile(ctx, scope.organization, 0, parentbilling.ExportFileRecord{
+				Format: parentbilling.ExportFormatDatev, RunKind: parentbilling.DebitRunHoliday, RunID: run,
+				FileNumber: int64(i + 2), FileName: fmt.Sprintf("EXTF_Buchungsstapel_%d.csv", i+2),
+				Content: []byte(fmt.Sprintf("file %d", i)), BookingContent: []byte(bookings),
+				DocumentIDs: []int64{invoice}, TotalCents: 1000})
+			require.NoError(t, err)
+			if i == 0 {
+				firstNumber = entry.FileNumber
+			}
+		}
+		page, err := store.ExportFiles(ctx, scope.organization, "", 0, 0, parentbilling.ExportPageSize)
+		require.NoError(t, err)
+		require.Len(t, page.Files, 3)
+		assert.Zero(t, page.Files[0].RepeatOf, "changed bookings are not a repeat")
+		assert.Equal(t, firstNumber, page.Files[1].RepeatOf, "the first file of this Träger, also below RLS")
+		assert.Zero(t, page.Files[2].RepeatOf)
+		_, _, history, err := store.InvoiceHistory(ctx, scope.organization, parentbilling.HistoryHolidayDocument, invoice)
+		require.NoError(t, err)
+		require.Len(t, history, 3)
+		assert.Zero(t, history[0].RepeatOf)
+		assert.Equal(t, firstNumber, history[1].RepeatOf)
+		assert.Zero(t, history[2].RepeatOf)
+		assert.NotEqual(t, history[0].Fingerprint, history[1].Fingerprint)
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
