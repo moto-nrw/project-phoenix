@@ -107,7 +107,9 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpres
 }
 
 // syncAttendanceForVisitRevision keeps the matching daily attendance session
-// aligned with a visit edit. Entry times are stamped from the same source when
+// aligned with a visit edit. Each boundary moves only when it still matches
+// the old visit boundary: a room exit need not be the end of the whole stay.
+// Entry times are stamped from the same source when
 // visits are created, so the previous entry time is the session identity.
 func (s *service) syncAttendanceForVisitRevision(
 	ctx context.Context, previous, updated *studentpresence.Visit,
@@ -129,22 +131,30 @@ func (s *service) syncAttendanceForVisitRevision(
 		}
 		row.Date = calendar.DateFromTime(updated.EntryTime).String()
 		row.CheckInTime = updated.EntryTime
-		row.CheckOutTime = updated.ExitTime
-		if updated.ExitTime == nil {
-			row.CheckedOutBy = nil
-			// A reopened stay is no checkout to class any more; a later home
-			// checkout stores no reason and would keep this one (#5656).
-			row.CheckOutReason = nil
-		} else if row.CheckedOutBy == nil {
-			_, staffID := s.extractContextIDs(ctx)
-			if staffID > 0 {
-				row.CheckedOutBy = &staffID
+		if sameVisitBoundary(row.CheckOutTime, previous.ExitTime) {
+			row.CheckOutTime = updated.ExitTime
+			if updated.ExitTime == nil {
+				row.CheckedOutBy = nil
+				row.CheckedOutDeviceID = nil
+				row.CheckOutReason = nil
+			} else if row.CheckedOutBy == nil && row.CheckedOutDeviceID == nil {
+				_, staffID := s.extractContextIDs(ctx)
+				if staffID > 0 {
+					row.CheckedOutBy = &staffID
+				}
 			}
 		}
 		_, err := s.SchoolPresence.ReviseAttendance(ctx, row)
 		return err
 	}
 	return nil
+}
+
+func sameVisitBoundary(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(*b)
 }
 
 // resolveDeviceIDForAttendance resolves the device ID for attendance tracking.
