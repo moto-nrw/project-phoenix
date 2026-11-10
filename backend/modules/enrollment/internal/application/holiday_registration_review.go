@@ -87,6 +87,8 @@ type HolidayRegistrationReview struct {
 	health    enrollment.HolidayHealthCipher
 	today     func() calendar.Date
 	placement holidayPlacement
+	// wishes writes the office's decision on a holiday care wish (#4703).
+	wishes HolidayWishDecisionStore
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)

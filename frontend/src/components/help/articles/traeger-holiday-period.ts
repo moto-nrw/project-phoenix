@@ -51,6 +51,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
     result:
       "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
     notes: [
+      "Mit `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` warten Kinder Ihrer Schulen ohne Ferienwunsch auf der Warteliste hinter den anderen.",
       "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
       "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
       "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
@@ -68,6 +69,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerHolidayForm,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerHolidayWish,
     ],
   };
 }

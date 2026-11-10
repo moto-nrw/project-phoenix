@@ -9,6 +9,7 @@ import {
   emptyContact,
   emptyRegistration,
   hasRoomForKnownChild,
+  knownChildRefused,
   OTHER_SCHOOL,
   payloadFromDraft,
   quoteAgeRanks,
@@ -25,6 +26,7 @@ const offer: HolidayRegistrationOffer = {
   registrationOpensOn: "2026-11-02",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishMode: "off",
   notes: "",
   open: true,
   weeks: [
@@ -244,6 +246,8 @@ describe("known children of a parent account (#4662)", () => {
     firstName: "Felix",
     lastName: "Schneider",
     birthDate: "2018-03-01",
+    holidayWish: "",
+    holidayWishProof: "",
   };
   const known = (studentId: string): HolidayKnownChild => ({
     ...felix,
@@ -610,5 +614,52 @@ describe("order of the children by age for the quote (#5664)", () => {
     expect(
       quoteAgeRanks([born("2017-05-05"), born("2017-05-05"), born("")]),
     ).toEqual([1, 1, 0]);
+  });
+});
+
+describe("holiday care wish of a known child (#4703)", () => {
+  const lia: HolidayKnownChild = {
+    studentId: "41",
+    schoolId: "31",
+    firstName: "Lia",
+    lastName: "Muster",
+    birthDate: "2018-03-01",
+    holidayWish: "yes",
+    holidayWishProof: "sealed",
+  };
+  const withMode = (
+    holidayWishMode: HolidayRegistrationOffer["holidayWishMode"],
+  ): HolidayRegistrationOffer => ({ ...offer, holidayWishMode });
+
+  it("sends the statement of a picked child of the Träger's school", () => {
+    const draft = toggleKnownChild(complete(), lia, withMode("priority"));
+    const payload = payloadFromDraft(draft, withMode("priority"), "t");
+    const sent = payload.children.find((child) => child.first_name === "Lia");
+    expect(sent?.home_school_id).toBe(31);
+    expect(sent?.wish_proof).toBe("sealed");
+  });
+
+  it("sends no statement once the child is a holiday guest", () => {
+    const picked = toggleKnownChild(complete(), lia, withMode("priority"));
+    const guest = {
+      ...picked,
+      children: picked.children.map((child) =>
+        child.firstName === "Lia" ? { ...child, school: OTHER_SCHOOL } : child,
+      ),
+    };
+    const sent = payloadFromDraft(guest, withMode("priority"), "t").children;
+    expect(sent.map((child) => child.first_name)).toContain("Lia");
+    expect(sent.every((child) => child.wish_proof === undefined)).toBe(true);
+  });
+
+  it("refuses to pick a child without a wish only when the period admits only wishes", () => {
+    const declined = { ...lia, holidayWish: "no" as const };
+    expect(knownChildRefused(declined, withMode("wish_only"))).toBe(true);
+    expect(knownChildRefused(declined, withMode("priority"))).toBe(false);
+    expect(knownChildRefused(lia, withMode("wish_only"))).toBe(false);
+    const draft = complete();
+    expect(toggleKnownChild(draft, declined, withMode("wish_only"))).toBe(
+      draft,
+    );
   });
 });

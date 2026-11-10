@@ -110,18 +110,21 @@ type AdminRequestSchemaFieldOption struct {
 // AdminRequestChild is one child within an admin summary/detail
 // payload.
 type AdminRequestChild struct {
-	ID                string     `json:"id"`
-	FirstName         string     `json:"first_name"`
-	LastName          string     `json:"last_name"`
-	DateOfBirth       string     `json:"date_of_birth"`
-	TargetGradeLevel  *int16     `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string    `json:"target_school_class,omitempty"`
-	Status            string     `json:"status"`
-	StatusReason      *string    `json:"status_reason,omitempty"`
-	ReviewedAt        *time.Time `json:"reviewed_at,omitempty"`
-	ReviewedBy        *int64     `json:"reviewed_by,omitempty"`
-	ActivationMode    string     `json:"activation_mode"`
-	CreatedStudentID  string     `json:"created_student_id,omitempty"`
+	ID                string  `json:"id"`
+	FirstName         string  `json:"first_name"`
+	LastName          string  `json:"last_name"`
+	DateOfBirth       string  `json:"date_of_birth"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// HolidayCareWish is the parents' answer to the holiday care question
+	// when the form asked it (#4703).
+	HolidayCareWish  *bool      `json:"holiday_care_wish,omitempty"`
+	Status           string     `json:"status"`
+	StatusReason     *string    `json:"status_reason,omitempty"`
+	ReviewedAt       *time.Time `json:"reviewed_at,omitempty"`
+	ReviewedBy       *int64     `json:"reviewed_by,omitempty"`
+	ActivationMode   string     `json:"activation_mode"`
+	CreatedStudentID string     `json:"created_student_id,omitempty"`
 	// MatchedStudentID is the enrolled child the approval renews instead of
 	// creating a new one (#1663, #6053).
 	MatchedStudentID string `json:"matched_student_id,omitempty"`
@@ -750,6 +753,7 @@ func newAdminRequestChild(child *capability.RequestChild) AdminRequestChild {
 		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
+		HolidayCareWish:   child.HolidayCareWish,
 		Status:            child.Status,
 		StatusReason:      child.StatusReason,
 		ReviewedAt:        child.ReviewedAt,

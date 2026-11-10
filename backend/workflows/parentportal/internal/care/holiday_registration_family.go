@@ -177,14 +177,8 @@ func (s *Service) loadHolidayRegistrationFamily(ctx context.Context, accountID i
 			StudentID: child.StudentID, SchoolID: tenantID,
 			FirstName: person.FirstName, LastName: person.LastName, BirthDate: person.Birthday,
 		}
-		if scope.HolidayWishRule && person.Birthday != nil {
-			offered.HolidayWish, offered.HolidayWishProof, err = s.HolidayWishes.HolidayWishStatement(ctx, HolidayWishClaim{
-				OrganizationID: scope.OrganizationID, PeriodID: scope.PeriodID, SchoolID: tenantID, StudentID: child.StudentID,
-				FirstName: person.FirstName, LastName: person.LastName, BirthDate: *person.Birthday, On: scope.FirstDay,
-			})
-			if err != nil {
-				return err
-			}
+		if err := s.stateHolidayWish(ctx, scope, &offered); err != nil {
+			return err
 		}
 		family.Children = append(family.Children, offered)
 		if err := s.ChildDataAccess.RecordHolidayRegistrationPrefill(ctx, ChildDataAccess{
@@ -220,4 +214,20 @@ func (s *Service) holidayRegistrationGuardian(ctx context.Context, guardianProfi
 		guardian.Phone = primary.PhoneNumber
 	}
 	return guardian, nil
+}
+
+// stateHolidayWish adds the statement of the child's holiday care wish when
+// the period takes it into account (#4703). It reads in the tenant
+// transaction of the child's school; a child without a known date of birth
+// gets none, because the statement names the child by it.
+func (s *Service) stateHolidayWish(ctx context.Context, scope HolidayRegistrationScope, child *HolidayRegistrationChild) error {
+	if !scope.HolidayWishRule || child.BirthDate == nil {
+		return nil
+	}
+	var err error
+	child.HolidayWish, child.HolidayWishProof, err = s.HolidayWishes.HolidayWishStatement(ctx, HolidayWishClaim{
+		OrganizationID: scope.OrganizationID, PeriodID: scope.PeriodID, SchoolID: child.SchoolID, StudentID: child.StudentID,
+		FirstName: child.FirstName, LastName: child.LastName, BirthDate: *child.BirthDate, On: scope.FirstDay,
+	})
+	return err
 }

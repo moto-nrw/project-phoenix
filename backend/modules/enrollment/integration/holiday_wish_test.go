@@ -156,7 +156,7 @@ func TestHolidayWishStatementsKeepTheirTenantBeneathRLS(t *testing.T) {
 	student := approvedWithWish(t, db, true)
 	store := postgres.NewStore(postgres.NewDatabase(), func(ctx context.Context) (int64, error) { return tenant.FromContext(ctx), nil })
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db))
-	on := calendar.TodayDate()
+	on := calendar.NewDate(2027, 1, 4)
 
 	read := func(school int64, beneathRLS bool) *bool {
 		t.Helper()
@@ -218,7 +218,7 @@ func TestApprovedHolidayCareWishCountsOnlyTheApprovedSchoolYear(t *testing.T) {
 		}))
 		return wish
 	}
-	today := calendar.TodayDate()
+	today := calendar.NewDate(2027, 1, 4)
 	approved := approvedWithWish(t, db, false)
 	require.NotNil(t, read(approved, today))
 	assert.False(t, *read(approved, today), "an approved no counts as no")
@@ -231,10 +231,10 @@ func TestApprovedHolidayCareWishCountsOnlyTheApprovedSchoolYear(t *testing.T) {
 }
 
 // approvedWithWish approves a child of the test tenant in a school-year
-// phase around today with the holiday care wish and returns its student.
+// phase around 04.01.2027 with the holiday care wish and returns its student.
 func approvedWithWish(t *testing.T, db *bun.DB, wish bool) int64 {
 	t.Helper()
-	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	phase := testpkg.CreateTestEnrollmentPhaseAround(t, db, calendar.NewDate(2027, 1, 4))
 	request := testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, db, phase.ID, "wunsch@example.org", fmt.Sprintf("wish-%d", testpkg.UniqueTestTenantID(t)))
 	student := testpkg.CreateTestStudent(t, db, "Wanda", "Wunsch", "2a")
 	_, err := db.ExecContext(context.Background(), `INSERT INTO enrollment.request_children

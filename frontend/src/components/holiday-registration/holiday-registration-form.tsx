@@ -44,6 +44,7 @@ import {
   ChildCard,
   ContactList,
   GuardianAddressCard,
+  HolidayWishRuleNotice,
   KnownChildPicker,
   SecondGuardianCard,
 } from "./holiday-registration-sections";
@@ -235,6 +236,7 @@ export function HolidayRegistrationForm({
 
       <SectionCard title={t("childrenTitle")} description={t("childrenText")}>
         <div className="space-y-4">
+          <HolidayWishRuleNotice offer={offer} />
           {family && family.children.length > 0 ? (
             <KnownChildPicker
               known={family.children}

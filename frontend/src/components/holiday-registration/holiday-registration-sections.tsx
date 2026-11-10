@@ -7,6 +7,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -15,6 +16,7 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { formatDate } from "~/lib/date-helpers";
 import {
@@ -40,6 +42,7 @@ import {
   emptyContact,
   type FieldError,
   hasRoomForKnownChild,
+  knownChildRefused,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
@@ -507,7 +510,9 @@ export function KnownChildPicker({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {known.map((child) => {
           const selected = picked.has(child.studentId);
-          const disabled = !selected && full;
+          const refused = knownChildRefused(child, offer);
+          const disabled = !selected && (full || refused);
+          const wish = knownChildWish(child, offer);
           return (
             <ChoiceTile
               key={child.studentId}
@@ -533,6 +538,16 @@ export function KnownChildPicker({
                       })
                     : schoolName(child.schoolId)}
                 </span>
+                {wish ? (
+                  <span className="mt-1.5 flex flex-col items-start gap-1">
+                    <StatusBadge tone={wish.tone} label={t(wish.label)} />
+                    {wish.hint ? (
+                      <span className="text-xs font-normal text-gray-600">
+                        {t(wish.hint)}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </span>
             </ChoiceTile>
           );
@@ -651,5 +666,55 @@ export function GuardianAddressCard({
         onChange={onChange}
       />
     </SectionCard>
+  );
+}
+
+type WishLabel =
+  "wishKnownYes" | "wishKnownNo" | "wishKnownUnknown" | "wishRefused";
+
+/**
+ * What the form tells the parent about a known child's holiday care wish
+ * (#4703), only while the period takes it into account. The wish comes from
+ * the parent's own OGS registration; the school knows nobody else's.
+ */
+function knownChildWish(
+  child: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): {
+  tone: "green" | "gray" | "warning";
+  label: WishLabel;
+  hint?: "wishHintNo" | "wishHintRefused" | "wishHintUnknown";
+} | null {
+  if (offer.holidayWishMode === "off") return null;
+  if (child.holidayWish === "yes")
+    return { tone: "green", label: "wishKnownYes" };
+  if (child.holidayWish === "no") {
+    return knownChildRefused(child, offer)
+      ? { tone: "warning", label: "wishRefused", hint: "wishHintRefused" }
+      : { tone: "gray", label: "wishKnownNo", hint: "wishHintNo" };
+  }
+  return { tone: "gray", label: "wishKnownUnknown", hint: "wishHintUnknown" };
+}
+
+/**
+ * The rule of the period about the holiday care wish (#4703), for every
+ * parent: it names a rule of the Träger, never a child.
+ */
+export function HolidayWishRuleNotice({
+  offer,
+}: Readonly<{ offer: HolidayRegistrationOffer }>) {
+  const t = useTranslations("holidayRegistration");
+  if (offer.holidayWishMode === "off") return null;
+  return (
+    <Alert
+      type="info"
+      announce="off"
+      title={t("wishRuleTitle")}
+      message={t(
+        offer.holidayWishMode === "wish_only"
+          ? "wishRuleWishOnly"
+          : "wishRulePriority",
+      )}
+    />
   );
 }

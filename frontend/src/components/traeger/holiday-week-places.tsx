@@ -172,19 +172,28 @@ function HolidayWeekPlacesReadout({
                 title={`${entry.childFirstName} ${entry.childLastName}`}
                 subtitle={`Eingegangen am ${formatBerlinDate(entry.submittedAt)} · ${entry.timeModelName}`}
                 badge={
-                  <StatusBadge
-                    label={
-                      HOLIDAY_REGISTRATION_STATUS_LABELS[
-                        entry.registrationStatus
-                      ]
-                    }
-                    tone={
-                      HOLIDAY_REGISTRATION_STATUS_TONES[
-                        entry.registrationStatus
-                      ]
-                    }
-                    size="xs"
-                  />
+                  <span className="inline-flex flex-wrap gap-1">
+                    {entry.deferred ? (
+                      <StatusBadge
+                        label="Ohne Ferienwunsch"
+                        tone="gray"
+                        size="xs"
+                      />
+                    ) : null}
+                    <StatusBadge
+                      label={
+                        HOLIDAY_REGISTRATION_STATUS_LABELS[
+                          entry.registrationStatus
+                        ]
+                      }
+                      tone={
+                        HOLIDAY_REGISTRATION_STATUS_TONES[
+                          entry.registrationStatus
+                        ]
+                      }
+                      size="xs"
+                    />
+                  </span>
                 }
                 aria-label={`Platz ${entry.position} der Warteliste: ${entry.childFirstName} ${entry.childLastName}, Anmeldung öffnen`}
               />

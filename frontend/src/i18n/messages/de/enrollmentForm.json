@@ -46,7 +46,9 @@
     "schoolClass": "Klasse",
     "schoolClassOpen": "Klasse offen",
     "choose": "Bitte wählen",
-    "grade": "{grade}. Klasse"
+    "grade": "{grade}. Klasse",
+    "holidayCareWish": "Braucht das Kind in den Ferien Betreuung?",
+    "holidayCareWishHint": "Damit plant der Träger die Ferienbetreuung. Ist eine Ferienwoche voll, können Kinder mit Ferienwunsch Vorrang haben."
   },
   "errors": {
     "firstName": "Bitte Vornamen angeben.",

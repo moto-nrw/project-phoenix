@@ -38,6 +38,7 @@ import {
 } from "./holiday-rebooking-model";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "./holiday-placement";
+import { HolidayWishSection } from "./holiday-wish";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -233,6 +234,15 @@ export function HolidayRegistrationChildCard({
             ) : null}
           </InfoSection>
         )}
+
+        <HolidayWishSection
+          periodId={period.id}
+          registrationId={registration.id}
+          child={child}
+          wishRule={period.holidayWishRule}
+          cancelled={cancelled}
+          onChanged={onChanged}
+        />
 
         <ChildAnswers registration={registration} childId={child.id} />
 

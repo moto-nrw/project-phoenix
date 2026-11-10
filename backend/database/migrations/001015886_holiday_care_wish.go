@@ -53,9 +53,22 @@ COMMENT ON COLUMN enrollment.holiday_registration_children.holiday_wish IS
 	'yes or no: the holiday care wish of the child for the school year (#4703); NULL is unknown and the Träger-Büro checks it. Never set for a holiday guest.';
 COMMENT ON COLUMN enrollment.holiday_registration_children.holiday_wish_source IS
 	'account: from the prefill of a parent with the relationship right; office: set by the Träger-Büro (#4703).';
+
+-- The office's decision on a wish lands in the registration's trail.
+ALTER TABLE enrollment.holiday_registration_audit DROP CONSTRAINT IF EXISTS chk_holiday_registration_audit_action;
+ALTER TABLE enrollment.holiday_registration_audit
+	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit',
+		'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel',
+		'promote', 'capacity', 'places', 'wish'));
 `
 
 const holidayCareWishDownSQL = `
+DELETE FROM enrollment.holiday_registration_audit WHERE action = 'wish';
+ALTER TABLE enrollment.holiday_registration_audit DROP CONSTRAINT IF EXISTS chk_holiday_registration_audit_action;
+ALTER TABLE enrollment.holiday_registration_audit
+	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit',
+		'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel',
+		'promote', 'capacity', 'places'));
 ALTER TABLE enrollment.holiday_registration_children DROP CONSTRAINT IF EXISTS chk_holiday_registration_children_wish;
 ALTER TABLE enrollment.holiday_registration_children DROP COLUMN IF EXISTS holiday_wish_source;
 ALTER TABLE enrollment.holiday_registration_children DROP COLUMN IF EXISTS holiday_wish;
@@ -64,13 +77,19 @@ ALTER TABLE enrollment.request_children DROP COLUMN IF EXISTS holiday_care_wish;
 `
 
 func holidayCareWishUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.886: holiday care wish (#4703)...")
-	_, err := db.ExecContext(ctx, holidayCareWishUpSQL)
-	return err
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, holidayCareWishUpSQL); err != nil {
+			return fmt.Errorf("add the holiday care wish: %w", err)
+		}
+		return nil
+	})
 }
 
 func holidayCareWishDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.886: holiday care wish...")
-	_, err := db.ExecContext(ctx, holidayCareWishDownSQL)
-	return err
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, holidayCareWishDownSQL); err != nil {
+			return fmt.Errorf("remove the holiday care wish: %w", err)
+		}
+		return nil
+	})
 }

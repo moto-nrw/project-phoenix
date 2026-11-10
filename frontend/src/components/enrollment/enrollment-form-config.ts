@@ -323,6 +323,7 @@ function draftChildren(draft: EnrollmentEditDraft): ChildDraft[] {
       date_of_birth: child.date_of_birth,
       target_grade_level: child.target_grade_level?.toString() ?? "",
       target_school_class: child.target_school_class ?? "",
+      holiday_care_wish: child.holiday_care_wish,
       offering_ids: offeringIDs,
       offering_days: offeringDays,
       custom: child.custom_data ?? {},
@@ -335,6 +336,7 @@ function draftChildren(draft: EnrollmentEditDraft): ChildDraft[] {
             date_of_birth: child.date_of_birth,
             target_grade_level: child.target_grade_level,
             target_school_class: child.target_school_class,
+            holiday_care_wish: child.holiday_care_wish,
             custom_data: child.custom_data,
             offering_ids: child.offering_ids.map(Number),
             offering_days: child.offering_days?.map((row) => ({

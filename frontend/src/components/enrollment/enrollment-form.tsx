@@ -39,9 +39,11 @@ import {
   type SubmitEnrollmentPayload,
   type SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
-import type {
-  PublicFormSchema,
-  PublicLegalBlock,
+import {
+  holidayCareWishAsked,
+  type FormField,
+  type PublicFormSchema,
+  type PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import {
   EmailContactNotice,
@@ -355,6 +357,22 @@ export function EnrollmentForm({
   const legalBlocks = useMemo(
     () => localizeLegalBlocks(config.legalTexts?.blocks ?? [], contentLocale),
     [config.legalTexts, contentLocale],
+  );
+  // The holiday care question is a fixed field of the form (#4703), not a
+  // custom field: its answer has its own column and counts for the
+  // holiday registration of the Träger once the child is approved.
+  const askHolidayCareWish = holidayCareWishAsked(config.schema);
+  const holidayCareWishField = useMemo<FormField>(
+    () => ({
+      key: "holiday_care_wish",
+      label: tr("fields.holidayCareWish"),
+      help_text: tr("fields.holidayCareWishHint"),
+      type: "boolean",
+      required: true,
+      sort_order: 0,
+      applies_to_child: true,
+    }),
+    [tr],
   );
   // A "new_students" phase rejects any already-enrolled child at submit
   // (#1663), so the prefilled linked children get a notice instead of the
@@ -1453,6 +1471,25 @@ export function EnrollmentForm({
                     )}
                   </div>
                 )}
+                {!restrictToOfferings &&
+                  askHolidayCareWish &&
+                  !child.locked && (
+                    <CustomFieldInput
+                      field={holidayCareWishField}
+                      inputName={formFieldName.child(i, "holiday_care_wish")}
+                      value={child.holiday_care_wish}
+                      onChange={(v) =>
+                        updateChild(i, {
+                          holiday_care_wish:
+                            typeof v === "boolean" ? v : undefined,
+                        })
+                      }
+                      error={fieldError(
+                        formFieldName.child(i, "holiday_care_wish"),
+                      )}
+                      tr={tr}
+                    />
+                  )}
                 {availabilityNotices[child.clientId] ? (
                   <Alert
                     type="warning"

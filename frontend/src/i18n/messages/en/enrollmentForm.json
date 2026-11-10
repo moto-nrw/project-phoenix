@@ -44,7 +44,9 @@
     "schoolClass": "Class",
     "schoolClassOpen": "Class not yet assigned",
     "choose": "Please choose",
-    "grade": "Grade {grade}"
+    "grade": "Grade {grade}",
+    "holidayCareWish": "Does the child need care during the holidays?",
+    "holidayCareWishHint": "The provider uses this to plan holiday care. If a holiday week is full, children who need holiday care may get priority."
   },
   "errors": {
     "firstName": "Please enter a first name.",

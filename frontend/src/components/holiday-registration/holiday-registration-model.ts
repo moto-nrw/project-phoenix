@@ -61,6 +61,12 @@ export interface ChildDraft {
   readonly bookings: Readonly<Record<string, string>>;
   /** The child of the parent's account this draft started from (#4662). */
   readonly knownStudentId?: string;
+  /**
+   * The sealed statement of the known child's holiday care wish (#4703). It
+   * counts only while name, date of birth and school stay as the school
+   * knows them; the backend checks that.
+   */
+  readonly wishProof?: string;
   /** Answers to the Träger's questions per child, by key (#5198). */
   readonly answers: Readonly<Record<string, unknown>>;
 }
@@ -208,7 +214,19 @@ function childFromKnown(
       ? known.schoolId
       : "",
     knownStudentId: known.studentId,
+    ...(known.holidayWishProof ? { wishProof: known.holidayWishProof } : {}),
   };
+}
+
+/**
+ * A known child the period refuses (#4703): only children with a holiday
+ * care wish may register, and the school knows the parents said no.
+ */
+export function knownChildRefused(
+  known: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): boolean {
+  return offer.holidayWishMode === "wish_only" && known.holidayWish === "no";
 }
 
 function isUntouched(child: ChildDraft): boolean {
@@ -256,7 +274,9 @@ export function toggleKnownChild(
       children: children.length > 0 ? children : [emptyChild()],
     };
   }
-  if (!hasRoomForKnownChild(draft)) return draft;
+  if (!hasRoomForKnownChild(draft) || knownChildRefused(known, offer)) {
+    return draft;
+  }
   const children = draft.children.filter((child) => !isUntouched(child));
   return { ...draft, children: [...children, childFromKnown(known, offer)] };
 }
@@ -678,6 +698,7 @@ export function payloadFromDraft(
         health_notes: child.healthNotes.trim(),
         bookings: quoteBookings(child, offer),
         custom_data: childAnswersToSend(draft, child, offer.form),
+        ...(child.wishProof && !guest ? { wish_proof: child.wishProof } : {}),
       };
     }),
     emergency_contacts: draft.contacts

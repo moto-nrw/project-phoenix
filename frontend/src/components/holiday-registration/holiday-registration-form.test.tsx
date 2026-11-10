@@ -92,6 +92,7 @@ const offer: HolidayRegistrationOffer = {
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishMode: "off",
   notes: "",
   open: true,
   weeks: [
@@ -131,6 +132,8 @@ const family: HolidayKnownFamily = {
       firstName: "Felix",
       lastName: "Schneider",
       birthDate: "2018-03-01",
+      holidayWish: "",
+      holidayWishProof: "",
     },
   ],
 };

@@ -59,8 +59,7 @@ type Dependencies struct {
 	CareOfferingRepo care.CareOfferingReads
 	OfferingChanges  care.OfferingChangeRequests
 
-	// CareProfiles writes the child's care profile (health information, live
-	// absence flags).
+	// CareProfiles writes the child's care profile (health information, live absence flags).
 	CareProfiles careplan.StudentProfileCommands
 	// People is People Directory: the guardian rows and the child's photo
 	// consent the flows write.

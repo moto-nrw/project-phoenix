@@ -141,9 +141,7 @@ describe("TemplateList with roster deviations (#5103)", () => {
     );
     expect(onSetManualRoster).toHaveBeenCalledWith(kept, false);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Liste so lassen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Liste so lassen" }));
     expect(onSetManualRoster).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "2" }),
       true,

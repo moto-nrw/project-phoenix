@@ -66,6 +66,8 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
           firstName: "Felix",
           lastName: "Schneider",
           birthDate: "2018-03-01",
+          holidayWish: "",
+          holidayWishProof: "",
         },
         {
           studentId: "42",
@@ -73,6 +75,8 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
           firstName: "Mia",
           lastName: "Schneider",
           birthDate: "",
+          holidayWish: "",
+          holidayWishProof: "",
         },
       ],
     });

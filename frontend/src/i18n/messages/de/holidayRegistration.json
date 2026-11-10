@@ -133,5 +133,15 @@
   "contactsTitle": "Kontakte",
   "contactsText": "Tragen Sie jede weitere Person einmal ein. Wählen Sie ihre Aufgaben. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
   "emergencyRole": "Notfallkontakt",
-  "pickupRole": "Darf die Kinder abholen"
+  "pickupRole": "Darf die Kinder abholen",
+  "wishRuleTitle": "Ferienwunsch aus der OGS-Anmeldung",
+  "wishRulePriority": "Ist eine Woche voll, haben Kinder mit Ferienwunsch aus der OGS-Anmeldung Vorrang. Freie Plätze gehen weiter nach Eingang. Feriengäste ohne OGS-Platz sind nicht betroffen.",
+  "wishRuleWishOnly": "Sie können nur Kinder anmelden, für die in der OGS-Anmeldung Ferienbetreuung gewählt wurde. Feriengäste ohne OGS-Platz sind nicht betroffen.",
+  "wishKnownYes": "Ferienwunsch angegeben",
+  "wishKnownNo": "Kein Ferienwunsch angegeben",
+  "wishKnownUnknown": "Ferienwunsch nicht bekannt",
+  "wishRefused": "Anmeldung nicht möglich",
+  "wishHintNo": "Ist eine Woche voll, wartet Ihr Kind hinter Kindern mit Ferienwunsch.",
+  "wishHintRefused": "In der OGS-Anmeldung steht: keine Ferienbetreuung. Bitte wenden Sie sich an den Träger.",
+  "wishHintUnknown": "Der Träger prüft den Ferienwunsch."
 }

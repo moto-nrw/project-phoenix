@@ -128,7 +128,15 @@ export function FormPreview({
   });
   const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
   const coreFieldLabels = (group: "guardian" | "child"): PreviewFieldLabel[] =>
-    CORE_FIELDS.filter((field) => field.group === group).map((field) => ({
+    CORE_FIELDS.filter(
+      (field) =>
+        field.group === group &&
+        // An asked field (#4703) appears only while the switch is on.
+        (field.requirementMode !== "ask" ||
+          Boolean(
+            field.requirementKey && coreRequirements[field.requirementKey],
+          )),
+    ).map((field) => ({
       label: field.previewLabel,
       required: field.requirementKey
         ? coreRequirements[field.requirementKey]

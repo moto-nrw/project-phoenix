@@ -13,9 +13,10 @@ import {
   isFieldVisible,
   type ConditionContext,
 } from "~/lib/enrollment-field-visibility";
-import type {
-  PublicFormSchema,
-  PublicLegalBlock,
+import {
+  holidayCareWishAsked,
+  type PublicFormSchema,
+  type PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import type { PublicCareOffering } from "~/lib/enrollment-submission-api";
 import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
@@ -301,6 +302,12 @@ function childFieldErrors(
   }
   if (rules.collectGradeLevel && !child.target_grade_level) {
     errors[formFieldName.child(i, "target_grade_level")] = tr("errors.grade");
+  }
+  if (
+    holidayCareWishAsked(rules.schema) &&
+    child.holiday_care_wish === undefined
+  ) {
+    errors[formFieldName.child(i, "holiday_care_wish")] = tr("errors.yesNo");
   }
   // A grade the phase offers no class for stays "Klasse offen", even when
   // the phase requires classes; the backend gate is the same (#1833).

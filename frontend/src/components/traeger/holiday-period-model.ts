@@ -42,6 +42,7 @@ export interface HolidayPeriodDraft {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  readonly holidayWishRule: boolean;
   readonly weeks: readonly WeekDraft[];
 }
 
@@ -86,6 +87,7 @@ export function emptyHolidayPeriod(): HolidayPeriodDraft {
     registrationClosesOn: "",
     binding: true,
     notes: "",
+    holidayWishRule: false,
     weeks: [emptyWeek()],
   };
 }
@@ -135,6 +137,7 @@ export function draftFromPeriod(period: HolidayPeriod): HolidayPeriodDraft {
     registrationClosesOn: period.registrationClosesOn,
     binding: period.binding,
     notes: period.notes,
+    holidayWishRule: period.holidayWishRule,
     weeks: period.weeks.map(weekDraft),
   };
 }
@@ -147,6 +150,7 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
     registrationClosesOn: draft.registrationClosesOn,
     binding: draft.binding,
     notes: draft.notes.trim(),
+    holidayWishRule: draft.holidayWishRule,
     weeks: draft.weeks.map((week) => ({
       id: week.id,
       startsOn: week.startsOn,

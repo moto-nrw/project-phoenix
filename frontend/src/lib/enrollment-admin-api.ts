@@ -177,6 +177,8 @@ export interface AdminRequestChild {
   target_grade_level?: number;
   /** Concrete future class (e.g. "2a") when collected (#1833). */
   target_school_class?: string;
+  /** The parents' holiday care wish when the form asked it (#4703). */
+  holiday_care_wish?: boolean;
   status: ChildStatus;
   status_reason?: string | null;
   reviewed_at?: string | null;

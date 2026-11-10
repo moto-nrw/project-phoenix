@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -12,61 +13,67 @@ import (
 // that takes the wish into account, and the Träger-Büro decides yes or no.
 // The decision only orders the waiting list; it gives and takes no place.
 
-// HolidayWishReview serves enrollment.HolidayWishReview.
-type HolidayWishReview struct {
-	review *HolidayRegistrationReview
-	wishes HolidayWishDecisionStore
-}
+// errHolidayWishStoreRequired reports a review built without the wish store.
+var errHolidayWishStoreRequired = errors.New("enrollment: the holiday wish decision needs the wish store")
 
-var _ enrollment.HolidayWishReview = (*HolidayWishReview)(nil)
-
-// NewHolidayWishReview builds the office's decision on the wish over the
-// review, which locks and reads the registration.
-func NewHolidayWishReview(review *HolidayRegistrationReview, wishes HolidayWishDecisionStore) *HolidayWishReview {
+// NewHolidayWishReview gives the review the office's decision on the wish
+// over wishes and answers it as enrollment.HolidayWishReview.
+func NewHolidayWishReview(review *HolidayRegistrationReview, wishes HolidayWishDecisionStore) enrollment.HolidayWishReview {
 	if review == nil || wishes == nil {
 		panic("enrollment: the holiday wish review needs the review and the wish store")
 	}
-	return &HolidayWishReview{review: review, wishes: wishes}
+	review.wishes = wishes
+	return review
 }
 
 // SetHolidayWish locks the period and the registration, writes the office's
 // decision on the child's wish and records it in the registration's trail.
 // A cancelled registration is a state conflict; a holiday guest or a value
 // other than yes and no is ErrHolidayWishInvalid.
-func (w *HolidayWishReview) SetHolidayWish(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, childID int64, wish string) (enrollment.HolidayRegistrationDetail, error) {
+func (h *HolidayRegistrationReview) SetHolidayWish(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, childID int64, wish string) (enrollment.HolidayRegistrationDetail, error) {
 	if wish != enrollment.HolidayWishYes && wish != enrollment.HolidayWishNo {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayWishInvalid
 	}
 	if childID <= 0 {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	return w.review.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
+	if h.wishes == nil {
+		return enrollment.HolidayRegistrationDetail{}, errHolidayWishStoreRequired
+	}
+	return h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
 		if current.Status == enrollment.HolidayRegistrationCancelled {
 			return "", nil, enrollment.ErrHolidayRegistrationStateConflict
 		}
-		read, _, err := w.review.store.ReadHolidayReview(ctx, reviewer.OrganizationID, period.ID, registrationID)
-		if err != nil {
-			return "", nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
-		}
-		child, found := holidayChild(read, childID)
-		if !found {
-			return "", nil, enrollment.ErrHolidayRegistrationEntryNotFound
-		}
-		if child.HomeSchoolID == nil {
-			return "", nil, enrollment.ErrHolidayWishInvalid
-		}
-		if child.HolidayWish == wish && child.HolidayWishSource == enrollment.HolidayWishSourceOffice {
-			return "", nil, nil
-		}
-		written, err := w.wishes.SetHolidayChildWish(ctx, reviewer.OrganizationID, registrationID, childID, wish, enrollment.HolidayWishSourceOffice)
-		if err != nil {
-			return "", nil, fmt.Errorf("enrollment: write holiday wish: %w", err)
-		}
-		if !written {
-			return "", nil, enrollment.ErrHolidayRegistrationEntryNotFound
-		}
-		return enrollment.HolidayAuditWish, enrollment.HolidayRegistrationEventDetails{ChildID: childID, From: child.HolidayWish, Wish: wish}, nil
+		return h.decideWish(ctx, reviewer.OrganizationID, period.ID, registrationID, childID, wish)
 	})
+}
+
+// decide writes the wish of a child of a school of the Träger in the locked
+// registration and names the trail entry; an unchanged decision records
+// nothing.
+func (h *HolidayRegistrationReview) decideWish(ctx context.Context, organizationID, periodID, registrationID, childID int64, wish string) (string, any, error) {
+	read, _, err := h.store.ReadHolidayReview(ctx, organizationID, periodID, registrationID)
+	if err != nil {
+		return "", nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
+	}
+	child, found := holidayChild(read, childID)
+	if !found {
+		return "", nil, enrollment.ErrHolidayRegistrationEntryNotFound
+	}
+	if child.HomeSchoolID == nil {
+		return "", nil, enrollment.ErrHolidayWishInvalid
+	}
+	if child.HolidayWish == wish && child.HolidayWishSource == enrollment.HolidayWishSourceOffice {
+		return "", nil, nil
+	}
+	written, err := h.wishes.SetHolidayChildWish(ctx, organizationID, registrationID, childID, wish, enrollment.HolidayWishSourceOffice)
+	if err != nil {
+		return "", nil, fmt.Errorf("enrollment: write holiday wish: %w", err)
+	}
+	if !written {
+		return "", nil, enrollment.ErrHolidayRegistrationEntryNotFound
+	}
+	return enrollment.HolidayAuditWish, enrollment.HolidayRegistrationEventDetails{ChildID: childID, From: child.HolidayWish, Wish: wish}, nil
 }
 
 // holidayWishCheck marks a child whose wish the office still has to check:
