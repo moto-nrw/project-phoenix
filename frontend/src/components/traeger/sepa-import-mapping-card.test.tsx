@@ -14,6 +14,7 @@ const mapping: ImportMapping = {
     creditor_id: "",
     sequence: "",
     last_collected_on: "",
+    debtor_number: "",
   },
   payerKey: "email",
   creditorFromTraeger: false,

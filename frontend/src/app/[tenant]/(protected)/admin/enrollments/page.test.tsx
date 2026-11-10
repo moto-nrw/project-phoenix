@@ -172,6 +172,12 @@ describe("AdminEnrollmentsPage (#3778)", () => {
         }),
       );
       render(<Page />);
+      // Like the other cases: the menu opens once the own setting is read.
+      // Opening it earlier left the entry to appear within findByRole's one
+      // second, which a loaded CI shard missed (dom-2, 9 Nov 2026).
+      await waitFor(() => {
+        expect(mocks.fetchEmailSubscription).toHaveBeenCalled();
+      });
 
       fireEvent.click(await openEmailEntry());
       const pendingEntry = await openEmailEntry();

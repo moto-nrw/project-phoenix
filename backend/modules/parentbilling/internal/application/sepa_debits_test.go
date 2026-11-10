@@ -67,40 +67,60 @@ type debitStoreFake struct {
 	events    map[string][]int64
 	submitted [][]int64
 	collected []map[int64]calendar.Date
-	// files are the stored files per message ID (#6314).
-	files map[string]parentbilling.StoredSEPADebitFile
+	// storedFileMap holds the stored files per message ID (#6314).
+	storedFileMap map[string]parentbilling.StoredSEPADebitFile
+	// files is the export protocol (#4693); exportNumber its counter.
+	files        []parentbilling.ExportFileRecord
+	exportNumber int64
+	marked       []string
 }
 
 func (s *debitStoreFake) SaveSEPADebitFile(_ context.Context, _, _ int64, file parentbilling.StoredSEPADebitFile) error {
-	if s.files == nil {
-		s.files = map[string]parentbilling.StoredSEPADebitFile{}
+	if s.storedFileMap == nil {
+		s.storedFileMap = map[string]parentbilling.StoredSEPADebitFile{}
 	}
-	if s.files[file.MessageID].Submitted {
+	if s.storedFileMap[file.MessageID].Submitted {
 		return nil
 	}
-	s.files[file.MessageID] = file
+	s.storedFileMap[file.MessageID] = file
 	return nil
 }
 
 func (s *debitStoreFake) SubmitSEPADebitFile(_ context.Context, _, _ int64, file parentbilling.StoredSEPADebitFile) error {
-	if s.files == nil {
-		s.files = map[string]parentbilling.StoredSEPADebitFile{}
+	if s.storedFileMap == nil {
+		s.storedFileMap = map[string]parentbilling.StoredSEPADebitFile{}
 	}
-	stored, ok := s.files[file.MessageID]
+	stored, ok := s.storedFileMap[file.MessageID]
 	if !ok {
 		stored = file
 	}
 	stored.Submitted = true
-	s.files[file.MessageID] = stored
+	s.storedFileMap[file.MessageID] = stored
 	return nil
 }
 
 func (s *debitStoreFake) storedFiles() []parentbilling.StoredSEPADebitFile {
 	var files []parentbilling.StoredSEPADebitFile
-	for _, file := range s.files {
+	for _, file := range s.storedFileMap {
 		files = append(files, file)
 	}
 	return files
+}
+
+func (s *debitStoreFake) ReserveExportFileNumber(context.Context, int64) (int64, error) {
+	s.exportNumber++
+	return s.exportNumber, nil
+}
+
+func (s *debitStoreFake) InsertExportFile(_ context.Context, _, _ int64, record parentbilling.ExportFileRecord) (parentbilling.ExportProtocolEntry, error) {
+	s.files = append(s.files, record)
+	return parentbilling.ExportProtocolEntry{FileNumber: record.FileNumber, FileName: record.FileName, Format: record.Format,
+		Reference: record.Reference}, nil
+}
+
+func (s *debitStoreFake) MarkExportFilesSubmitted(_ context.Context, _, _ int64, _ string, _ int64, messageID string) error {
+	s.marked = append(s.marked, messageID)
+	return nil
 }
 
 func (s *debitStoreFake) SEPADebitsOfRun(_ context.Context, _ int64, runKind string, _ int64, _, _ bool) ([]parentbilling.SealedSEPADebit, error) {
@@ -285,7 +305,13 @@ func TestSEPADebitDownloadTwiceGivesTheSameFile(t *testing.T) {
 	second, err := debits.SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
 	require.NoError(t, err)
 	assert.Equal(t, first.Data, second.Data)
-	assert.Equal(t, first.Filename, second.Filename)
+	// Each download is a file of the export protocol with the next file
+	// number in its name (#4693); the message ID stays the same.
+	assert.Equal(t, "lastschrift-1-"+store.files[0].Reference+".xml", first.Filename)
+	assert.Equal(t, "lastschrift-2-"+store.files[0].Reference+".xml", second.Filename)
+	require.Len(t, store.files, 2)
+	assert.Equal(t, store.files[0].Content, store.files[1].Content, "the protocol gets the same content twice")
+	assert.Equal(t, parentbilling.ExportFormatPain008, store.files[1].Format)
 	assert.Empty(t, store.submitted)
 	assert.Equal(t, parentbilling.SequenceTypeFirst, store.debits[0].Debit.SequenceType)
 }

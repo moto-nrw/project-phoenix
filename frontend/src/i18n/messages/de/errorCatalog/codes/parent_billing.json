@@ -101,6 +101,11 @@
   "sepa_import_file_too_large": "Die Datei ist zu groß. Erlaubt sind 2 MB und 5.000 Zeilen.",
   "sepa_import_mapping_invalid": "Bitte ordnen Sie zuerst alle Pflichtspalten zu.",
   "sepa_import_changed": "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau noch einmal und übernehmen Sie dann.",
+  "export_run_not_found": "Diesen Lauf gibt es nicht oder er ist noch nicht ausgestellt. Laden Sie die Seite neu.",
+  "export_run_empty": "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
+  "export_file_number_start_locked": "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+  "export_invoice_not_found": "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
+  "export_mapping_invalid": "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
   "beleg_retention_basis_cites_statute": "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
   "online_mandate_disabled": "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
   "sepa_mandate_text_changed": "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal."

@@ -1,0 +1,8 @@
+DELETE /traeger/finance-exports/settings/sollstellung
+GET /traeger/finance-exports/files
+GET /traeger/finance-exports/invoice-history/{kind}/{id}
+GET /traeger/finance-exports/runs
+GET /traeger/finance-exports/runs/{kind}/{id}/sollstellung
+GET /traeger/finance-exports/settings
+PUT /traeger/finance-exports/settings/file-number-start
+PUT /traeger/finance-exports/settings/sollstellung

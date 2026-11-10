@@ -25,6 +25,9 @@ const mandateCollect = "collect"
 // transaction of organizationID.
 type DebitStore interface {
 	noticeRateStore
+	// ExportFileStore records each downloaded file in the export protocol
+	// with the next file number of the Träger (#4693).
+	ExportFileStore
 	// SEPADebitsOfRun reads the debits of a released run, with the sealed
 	// account when sealed is set, locked when lock is set.
 	SEPADebitsOfRun(ctx context.Context, organizationID int64, runKind string, runID int64, sealed, lock bool) ([]parentbilling.SealedSEPADebit, error)
@@ -247,7 +250,11 @@ func (d *SEPADebits) SEPADebitFile(ctx context.Context, reviewer parentbilling.H
 	if err := d.storeFile(ctx, reviewer, runKind, runID, plan, data); err != nil {
 		return parentbilling.SEPADebitFile{}, err
 	}
-	return parentbilling.SEPADebitFile{Filename: plan.run.MessageID + ".xml", ContentType: "application/xml", Data: data}, nil
+	name, err := d.recordDebitFile(ctx, reviewer, runKind, runID, plan, data)
+	if err != nil {
+		return parentbilling.SEPADebitFile{}, err
+	}
+	return parentbilling.SEPADebitFile{Filename: name, ContentType: "application/xml", Data: data}, nil
 }
 
 // storeFile keeps the exact bytes the office downloads, sealed with the
@@ -447,6 +454,9 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 	if err := d.store.InsertSEPAMandateEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, mandateCollect,
 		parentbilling.MandateFromOffice, nil, mandates); err != nil {
 		return parentbilling.SEPADebitRun{}, fmt.Errorf("parent billing: record the collection of the SEPA mandates: %w", err)
+	}
+	if err := d.store.MarkExportFilesSubmitted(ctx, reviewer.OrganizationID, reviewer.AccountID, runKind, runID, plan.run.MessageID); err != nil {
+		return parentbilling.SEPADebitRun{}, fmt.Errorf("parent billing: record the submission in the export protocol: %w", err)
 	}
 	return d.SEPADebitRun(ctx, reviewer, runKind, runID)
 }
