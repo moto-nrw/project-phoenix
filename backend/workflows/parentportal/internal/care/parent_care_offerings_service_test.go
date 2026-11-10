@@ -274,8 +274,12 @@ func careOfferingsService(
 	if changes != nil {
 		svc.OfferingChanges = changes
 	}
+	summaryGuard{accountID: careOfferingsAccountID, child: child}.install(svc)
 	return svc
 }
+
+// careOfferingsAccountID is the guardian account the offering tests act as.
+const careOfferingsAccountID int64 = 11
 
 func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	t.Parallel()

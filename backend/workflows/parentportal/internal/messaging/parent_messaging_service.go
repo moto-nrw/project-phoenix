@@ -323,7 +323,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		Audience:     audience,
 		GuardianName: senderName,
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Children.WithChildWrite(ctx, accountID, studentID, child, care.ChildWriteAccess{Permissions: []string{care.GuardianPermissionNotesWrite}}, func(txCtx context.Context) error {
 		replayed, err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view)
 		if err != nil {
 			return err

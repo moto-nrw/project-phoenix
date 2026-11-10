@@ -72,15 +72,17 @@ type Dependencies struct {
 	ParentRequestEvents messaging.RequestEvents
 
 	// Document inbox (#4671, ADR 0126).
-	BillingDocuments    care.BillingDocuments
-	ContractDocuments   care.ContractDocuments
-	ContractNotices     care.ContractNotices
-	SharedDocuments     care.TraegerSharedDocuments
-	SEPAMandates        care.SEPAMandates
-	TraegerRuntime      care.TraegerRuntime
-	SchoolTraeger       care.SchoolTraeger
-	ParentAccounts      care.ParentAccounts
-	DocumentNotifier    care.BillingDocumentNotifier
+	BillingDocuments  care.BillingDocuments
+	ContractDocuments care.ContractDocuments
+	ContractNotices   care.ContractNotices
+	SharedDocuments   care.TraegerSharedDocuments
+	SEPAMandates      care.SEPAMandates
+	TraegerRuntime    care.TraegerRuntime
+	SchoolTraeger     care.SchoolTraeger
+	ParentAccounts    care.ParentAccounts
+	DocumentNotifier  care.BillingDocumentNotifier
+	// Memberships pins the guardian's school membership for a child write.
+	Memberships         care.SchoolMembershipLocks
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error
@@ -137,7 +139,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		BillingDocuments: deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, SEPAMandates: deps.SEPAMandates, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
-		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
+		Memberships: deps.Memberships, GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		InvalidateInvites: deps.InvalidateInvites,
 		Locales:           deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,

@@ -105,6 +105,11 @@ func (s *Service) MealParticipation(ctx context.Context, accountID, studentID in
 // ErrMealParticipationManageDenied leaves the child's meal participation readable.
 var ErrMealParticipationManageDenied = errors.New("parent: meal participation management not permitted")
 
+// mealParticipationWriteAccess holds the manage permission of a meal
+// participation change until it commits; its refusal stays
+// ErrMealParticipationManageDenied (mapMealParticipationError).
+var mealParticipationWriteAccess = childWriteNeeds(GuardianPermissionMealParticipationManage)
+
 func (s *Service) resolveMealParticipationWriter(ctx context.Context, accountID, studentID int64) (*Child, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
@@ -125,7 +130,7 @@ func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountI
 		return "", err
 	}
 	var effectiveFrom string
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.WithChildWrite(ctx, accountID, studentID, child, mealParticipationWriteAccess, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -161,7 +166,7 @@ func (s *Service) SetMealParticipationWeek(ctx context.Context, accountID, stude
 		return MealWeekChange{}, ErrMealParticipationOutOfRange
 	}
 	var result MealWeekChange
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.WithChildWrite(ctx, accountID, studentID, child, mealParticipationWriteAccess, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -200,7 +205,7 @@ func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, stu
 	if date.Before(today) || date.After(lastMealParticipationDay(today.StartOfISOWeek())) {
 		return ErrMealParticipationOutOfRange
 	}
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.WithChildWrite(ctx, accountID, studentID, child, mealParticipationWriteAccess, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -219,6 +224,8 @@ func mapMealParticipationError(err error) error {
 		return ErrMealParticipationCutoff
 	case errors.Is(err, ErrInvalidMealParticipation):
 		return ErrInvalidMealParticipation
+	case errors.Is(err, ErrGuardianPermissionDenied):
+		return ErrMealParticipationManageDenied
 	default:
 		return err
 	}

@@ -160,6 +160,7 @@ type Owner interface {
 	SchoolRoleQuery
 	RolePermissionQuery
 	SchoolMembershipQuery
+	SchoolMembershipLock
 	AccountAuthentication
 	AccessSessions
 	AccountSessionMaintenance

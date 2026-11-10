@@ -27,6 +27,9 @@ func buildHolidayRegistrationFamilyService(t *testing.T, wishes ...parentService
 		wishStatements = wishes[0]
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		HolidayWishes:       wishStatements,
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
