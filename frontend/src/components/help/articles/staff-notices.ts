@@ -15,6 +15,9 @@ export function staffNoticesTopic(): HelpTopic {
     group: "planung",
     audience: "lead",
     icon: "Megaphone",
+    image: "/help/screens/tagesinformationen-anlegen.webp",
+    imageAlt:
+      "Das Fenster für eine neue Tagesinformation mit Titel, Hinweis, Empfängern und Wochentagen.",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf.",
       "Öffnen Sie `Tagesinformationen`.",

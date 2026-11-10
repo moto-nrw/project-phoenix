@@ -1037,6 +1037,9 @@ export const bankDetailsTopic = function bankDetailsTopic(): HelpTopic {
     group: "elternarbeit",
     audience: "lead",
     icon: "Landmark",
+    image: "/help/screens/bankverbindungen-export.webp",
+    imageAlt:
+      "Das Fenster zum Exportieren der Bankverbindungen mit der Auswahl des Formats.",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",
@@ -2861,6 +2864,9 @@ export const exportsTopic = function exportsTopic(): HelpTopic {
     group: "auswertung",
     audience: "lead",
     icon: "Download",
+    image: "/help/screens/export-dialog.webp",
+    imageAlt:
+      "Das Fenster zum Exportieren einer Kinderliste mit Titel, Spalten und Format.",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",
@@ -7912,6 +7918,9 @@ export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
     group: "planung",
     audience: "lead",
     icon: "Megaphone",
+    image: "/help/screens/tagesinformationen-anlegen.webp",
+    imageAlt:
+      "Das Fenster für eine neue Tagesinformation mit Titel, Hinweis, Empfängern und Wochentagen.",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf.",
       "Öffnen Sie `Tagesinformationen`.",
