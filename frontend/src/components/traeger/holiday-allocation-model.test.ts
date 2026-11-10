@@ -99,6 +99,9 @@ describe("holiday allocation model (#4700)", () => {
   it("names the free places of a week", () => {
     expect(freePlacesText(allocationWeek())).toBe("2 Plätze frei");
     expect(freePlacesText(allocationWeek({ free: 0 }))).toBe("Kein Platz frei");
+    expect(
+      freePlacesText(allocationWeek({ free: 0, bookingUnit: "day" })),
+    ).toBe("Mindestens ein Tag voll");
     expect(freePlacesText(allocationWeek({ free: null }))).toBe("Ohne Grenze");
     expect(
       freePlacesText(allocationWeek({ free: 1, bookingUnit: "day" })),

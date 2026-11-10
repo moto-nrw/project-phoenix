@@ -47,13 +47,18 @@ function AllocationCriteriaChips({
     return <p className="text-xs text-gray-500">Kein Kriterium erfüllt</p>;
   }
   return (
-    <ul className="flex flex-wrap gap-1.5" aria-label="Kriterien">
+    <ul
+      className="flex max-w-full min-w-0 flex-wrap gap-1.5"
+      aria-label="Kriterien"
+    >
       {chips.map((chip) => (
-        <li key={chip.criterion.id}>
+        <li key={chip.criterion.id} className="max-w-full min-w-0">
           {chip.value === "unknown" ? (
             <StatusBadge
               tone="outline"
               size="xs"
+              wrap
+              className="[overflow-wrap:anywhere]"
               icon={CircleHelp}
               label={`${chip.criterion.position}. ${chip.criterion.name}: ungeklärt`}
               title="Keine Angabe. Zählt erst, wenn das Büro es geprüft hat."
@@ -62,6 +67,8 @@ function AllocationCriteriaChips({
             <StatusBadge
               tone={criterionTone(chip.criterion.position)}
               size="xs"
+              wrap
+              className="[overflow-wrap:anywhere]"
               icon={chip.checkedByOffice ? BadgeCheck : undefined}
               label={`${chip.criterion.position}. ${chip.criterion.name}`}
               title={
@@ -260,8 +267,9 @@ export function HolidayAllocationWeekCard({
         </div>
         {full ? (
           <p className="text-sm text-gray-600">
-            Es ist kein Platz frei. Für mehr Kinder erhöhen Sie zuerst im Reiter
-            „Plätze“ die Zahl der Plätze.
+            {week.bookingUnit === "day"
+              ? "An mindestens einem Tag ist kein Platz frei. Andere Tage können noch Plätze haben."
+              : "Es ist kein Platz frei. Für mehr Kinder erhöhen Sie zuerst im Reiter „Plätze“ die Zahl der Plätze."}
           </p>
         ) : null}
         <ResponsiveActionList>

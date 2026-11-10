@@ -3,11 +3,13 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"time"
 
+	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
@@ -152,6 +154,19 @@ func (s *HolidayRegistrationStore) WriteHolidayCriteria(ctx context.Context, org
 	if err := db.NewRaw(lockHolidayCriteriaQuery, organizationID).Scan(ctx, &locked); err != nil {
 		return fmt.Errorf("enrollment postgres: lock holiday criteria: %w", err)
 	}
+	// Read answers after acquiring the locks, so a concurrent first answer
+	// commits before this check or waits until the save has committed.
+	current, err := s.ReadHolidayCriteria(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	for i, criterion := range criteria {
+		for _, previous := range current {
+			if previous.ID == criterion.ID && previous.Answered && previous.Scope != criterion.Scope {
+				return validation.Errors{fmt.Sprintf("criteria.%d.scope", i): errors.New("scope cannot change after an answer")}
+			}
+		}
+	}
 	kept := []int64{}
 	for _, criterion := range criteria {
 		if criterion.ID > 0 {
@@ -198,11 +213,36 @@ func insertHolidayCriterionAnswers(ctx context.Context, db bun.IDB, organization
 	if len(criteria) == 0 {
 		return nil
 	}
+	locked, err := lockHolidayAnswerCriteria(ctx, db, organizationID, criteria)
+	if err != nil {
+		return err
+	}
+	for i, criterionID := range criteria {
+		if scope, found := locked[criterionID]; found && (scope == enrollment.HolidayCriterionChild) != (children[i] != 0) {
+			return validation.Errors{"criteria": errors.New("criterion scope changed; reload the form")}
+		}
+	}
 	if _, err := db.NewRaw(insertHolidayCriterionAnswersQuery, organizationID, periodID, registrationID,
 		pgdialect.Array(children), pgdialect.Array(criteria), pgdialect.Array(stated), organizationID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: insert holiday criterion answers: %w", err)
 	}
 	return nil
+}
+
+// lockHolidayAnswerCriteria synchronizes parent answers and office checks
+// with catalog writes. Hold all current criteria in ID order before any
+// answer, so checking several criteria cannot deadlock with a catalog save.
+func lockHolidayAnswerCriteria(ctx context.Context, db bun.IDB, organizationID int64, ids []int64) (map[int64]string, error) {
+	var rows []holidayCriterionRow
+	if err := db.NewRaw(`SELECT id, scope FROM enrollment.holiday_allocation_criteria
+		WHERE organization_id = ? AND (archived_at IS NULL OR id = ANY(?::bigint[])) ORDER BY id FOR SHARE`, organizationID, pgdialect.Array(ids)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: lock holiday answer criteria: %w", err)
+	}
+	scopes := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		scopes[row.ID] = row.Scope
+	}
+	return scopes, nil
 }
 
 type holidayCriterionAnswerRow struct {
@@ -240,6 +280,13 @@ func (s *HolidayRegistrationStore) CheckHolidayCriterion(ctx context.Context, or
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return false, err
+	}
+	scopes, err := lockHolidayAnswerCriteria(ctx, db, organizationID, []int64{criterionID})
+	if err != nil {
+		return false, err
+	}
+	if scope, found := scopes[criterionID]; found && (scope == enrollment.HolidayCriterionChild) != (childID != 0) {
+		return false, validation.Errors{"criteria": errors.New("criterion scope changed; reload the form")}
 	}
 	if checked == nil {
 		if _, err := db.NewRaw(uncheckHolidayCriterionQuery, organizationID, periodID, registrationID, criterionID, childID,
@@ -364,7 +411,8 @@ const (
 				WITH ORDINALITY AS met(name, ordinality)), '{}'),
 			decision.reason, NULLIF(?::bigint, 0)
 		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[], ?::date[], ?::date[], ?::text[], ?::text[], ?::int[], ?::text[], ?::text[])
-			AS decision(registration_id, child_id, week_id, starts_on, ends_on, placement, proposal, rank, criteria_met, reason)`
+			AS decision(registration_id, child_id, week_id, starts_on, ends_on, placement, proposal, rank, criteria_met, reason)
+		RETURNING id`
 	holidayAllocationDecisionsQuery = `SELECT decision.id, decision.holiday_period_week_id, decision.week_starts_on, decision.week_ends_on,
 			decision.holiday_registration_id, decision.holiday_registration_child_id, child.first_name, child.last_name,
 			decision.placement, decision.proposal, decision.rank, decision.criteria_met, decision.reason,
@@ -379,13 +427,13 @@ const (
 
 // InsertHolidayAllocationDecisions records decisions of the Büro of the
 // period in one statement.
-func (s *HolidayRegistrationStore) InsertHolidayAllocationDecisions(ctx context.Context, organizationID, periodID int64, decisions []enrollment.HolidayAllocationDecision, actorAccountID int64) error {
+func (s *HolidayRegistrationStore) InsertHolidayAllocationDecisions(ctx context.Context, organizationID, periodID int64, decisions []enrollment.HolidayAllocationDecision, actorAccountID int64) ([]int64, error) {
 	if len(decisions) == 0 {
-		return nil
+		return nil, nil
 	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	n := len(decisions)
 	registrations, children, weeks, ranks := make([]int64, n), make([]int64, n), make([]int64, n), make([]int, n)
@@ -394,19 +442,20 @@ func (s *HolidayRegistrationStore) InsertHolidayAllocationDecisions(ctx context.
 	for i, decision := range decisions {
 		encoded, err := json.Marshal(decision.CriteriaMet)
 		if err != nil {
-			return fmt.Errorf("enrollment postgres: encode criteria met: %w", err)
+			return nil, fmt.Errorf("enrollment postgres: encode criteria met: %w", err)
 		}
 		registrations[i], children[i], weeks[i], ranks[i] = decision.RegistrationID, decision.ChildID, decision.WeekID, decision.Rank
 		startsOn[i], endsOn[i] = decision.WeekStartsOn.String(), decision.WeekEndsOn.String()
 		placements[i], proposals[i], met[i], reasons[i] = decision.Placement, decision.Proposal, string(encoded), decision.Reason
 	}
-	if _, err := db.NewRaw(insertHolidayAllocationDecisionsQuery, organizationID, periodID, actorAccountID,
+	var ids []int64
+	if err := db.NewRaw(insertHolidayAllocationDecisionsQuery, organizationID, periodID, actorAccountID,
 		pgdialect.Array(registrations), pgdialect.Array(children), pgdialect.Array(weeks), pgdialect.Array(startsOn),
 		pgdialect.Array(endsOn), pgdialect.Array(placements), pgdialect.Array(proposals), pgdialect.Array(ranks),
-		pgdialect.Array(met), pgdialect.Array(reasons)).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: insert holiday allocation decisions: %w", err)
+		pgdialect.Array(met), pgdialect.Array(reasons)).Scan(ctx, &ids); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: insert holiday allocation decisions: %w", err)
 	}
-	return nil
+	return ids, nil
 }
 
 type holidayAllocationDecisionRow struct {

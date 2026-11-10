@@ -12,6 +12,7 @@ import { ApiError } from "~/lib/api-error";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import {
   allocationBoard,
+  allocationEntry,
   allocationWeek,
 } from "~/test/fixtures/holiday-allocation";
 import { HOLIDAY_PERIOD } from "~/test/fixtures/holiday-registrations";
@@ -221,6 +222,74 @@ describe("holiday allocation page (#4700)", () => {
         },
       ]),
     );
+  });
+
+  it("allows a Tuesday-only place when Monday has filled the weekly minimum", async () => {
+    fetchBoard.mockResolvedValue(
+      allocationBoard({
+        weeks: [
+          allocationWeek({
+            bookingUnit: "day",
+            free: 0,
+            placed: 1,
+            pending: [allocationEntry({ days: ["2027-07-06"] })],
+          }),
+        ],
+      }),
+    );
+    decide.mockResolvedValue(allocationBoard({ weeks: [] }));
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mia Muster: Platz geben" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "Platz geben" });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(decide).toHaveBeenCalledTimes(1));
+  });
+
+  it("takes more than 500 proposals in bounded batches using the refreshed board", async () => {
+    const pending = Array.from({ length: 501 }, (_, i) =>
+      allocationEntry({ bookingId: String(1000 + i), rank: i + 1 }),
+    );
+    fetchBoard.mockResolvedValue(
+      allocationBoard({
+        weeks: [allocationWeek({ capacity: null, free: null, pending })],
+      }),
+    );
+    decide
+      .mockResolvedValueOnce(
+        allocationBoard({
+          weeks: [
+            allocationWeek({
+              pending: [
+                allocationEntry({ bookingId: "1500", proposal: "waitlisted" }),
+                allocationEntry({ bookingId: "9000" }),
+              ],
+            }),
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(allocationBoard({ weeks: [] }));
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Vorschlag für die Woche/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Vorschlag übernehmen" }),
+    );
+    await screen.findByText("Alles entschieden");
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(decide.mock.calls[0]?.[1]).toHaveLength(500);
+    expect(decide.mock.calls[1]?.[1]).toEqual([
+      {
+        bookingId: "1500",
+        placement: "waitlisted",
+        proposal: "waitlisted",
+        reason: "",
+      },
+    ]);
   });
 
   it("reads the list again when it changed meanwhile", async () => {

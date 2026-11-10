@@ -48,6 +48,7 @@ import {
   fetchHolidayAllocation,
   type HolidayAllocationBoard,
   type HolidayAllocationWeek,
+  MAX_ALLOCATION_DECISIONS,
 } from "~/lib/traeger-holiday-allocation-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -144,11 +145,22 @@ export default function TraegerHolidayAllocationPage() {
   const takeProposal = async () => {
     setTaking(true);
     try {
-      const next = await decideHolidayAllocation(
-        id,
-        proposalDecisions(proposalWeeks),
+      if (!board) return;
+      // Keep the confirmed selection; newly submitted bookings need a new decision.
+      const remaining = new Set(
+        proposalDecisions(proposalWeeks).map((choice) => choice.bookingId),
       );
-      setBoard(next);
+      let next = board;
+      while (remaining.size > 0) {
+        const choices = proposalDecisions(next.weeks)
+          .filter((choice) => remaining.has(choice.bookingId))
+          .slice(0, MAX_ALLOCATION_DECISIONS);
+        if (choices.length === 0) break;
+        next = await decideHolidayAllocation(id, choices);
+        for (const choice of choices) remaining.delete(choice.bookingId);
+        // Every response refreshes proposals and preserves completed batches on error.
+        setBoard(next);
+      }
       setProposalScope(null);
       toast.success(
         `Der Vorschlag ist übernommen. ${summary.registrations === 1 ? "Die Eltern bekommen" : `Die Eltern von ${summary.registrations} Anmeldungen bekommen`} eine E-Mail.`,
@@ -162,6 +174,7 @@ export default function TraegerHolidayAllocationPage() {
       } else {
         setProposalScope(null);
         void actionErrors.show(err, { object: "der Vorschlag" });
+        void load();
       }
     } finally {
       setTaking(false);
@@ -264,8 +277,10 @@ export default function TraegerHolidayAllocationPage() {
                 aria-label="Kriterien nach Priorität"
               >
                 {board.criteria.map((criterion) => (
-                  <li key={criterion.id}>
+                  <li key={criterion.id} className="max-w-full min-w-0">
                     <StatusBadge
+                      wrap
+                      className="[overflow-wrap:anywhere]"
                       tone={criterionTone(criterion.position)}
                       label={`${criterion.position}. ${criterion.name}`}
                     />

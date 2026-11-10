@@ -42,7 +42,8 @@ type HolidayAllocationStore interface {
 	// DecideHolidayBookings decides on pending bookings of a locked week and
 	// returns those it changed.
 	DecideHolidayBookings(ctx context.Context, organizationID, weekID int64, placed, waitlisted []int64) ([]int64, error)
-	InsertHolidayAllocationDecisions(ctx context.Context, organizationID, periodID int64, decisions []enrollment.HolidayAllocationDecision, actorAccountID int64) error
+	// InsertHolidayAllocationDecisions returns the persisted decision IDs in input order.
+	InsertHolidayAllocationDecisions(ctx context.Context, organizationID, periodID int64, decisions []enrollment.HolidayAllocationDecision, actorAccountID int64) ([]int64, error)
 	ReadHolidayAllocationDecisions(ctx context.Context, organizationID, periodID int64) ([]enrollment.HolidayAllocationDecision, error)
 }
 

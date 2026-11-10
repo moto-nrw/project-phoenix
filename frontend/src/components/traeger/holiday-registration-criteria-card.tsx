@@ -243,6 +243,7 @@ export function HolidayRegistrationCriteriaCard({
                           items={CHECK_ITEMS}
                           value={checks[key] ?? "none"}
                           wrap
+                          fullWidth
                           ariaLabel={`Prüfung: ${criterion.name}${criterion.childId ? `, ${group.title}` : ""}`}
                           onChange={(choice) =>
                             setChecks((current) =>

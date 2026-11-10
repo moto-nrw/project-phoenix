@@ -56,6 +56,9 @@ func (a *HolidayAllocation) DecideHolidayAllocation(ctx context.Context, reviewe
 	if err := a.record(ctx, reviewer, period, decisions); err != nil {
 		return enrollment.HolidayAllocationBoard{}, err
 	}
+	if _, err := a.review.moveUp(ctx, reviewer, period, batch.weeks); err != nil {
+		return enrollment.HolidayAllocationBoard{}, err
+	}
 	return a.board(ctx, reviewer.OrganizationID, period)
 }
 
@@ -226,14 +229,13 @@ func holidayDecisionOf(week enrollment.HolidayWeek, booking enrollment.HolidayQu
 // and tells the parents of each registration in one mail. A decision's ID
 // carries its booking until it is stored.
 func (a *HolidayAllocation) record(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, decisions []enrollment.HolidayAllocationDecision) error {
-	bookings := make([]int64, len(decisions))
 	stored := make([]enrollment.HolidayAllocationDecision, len(decisions))
 	for i, decision := range decisions {
-		bookings[i] = decision.ID
 		decision.ID = 0
 		stored[i] = decision
 	}
-	if err := a.review.store.InsertHolidayAllocationDecisions(ctx, reviewer.OrganizationID, period.ID, stored, reviewer.AccountID); err != nil {
+	ids, err := a.review.store.InsertHolidayAllocationDecisions(ctx, reviewer.OrganizationID, period.ID, stored, reviewer.AccountID)
+	if err != nil {
 		return err
 	}
 	byRegistration := map[int64][]int{}
@@ -254,7 +256,7 @@ func (a *HolidayAllocation) record(ctx context.Context, reviewer enrollment.Holi
 		var keys []string
 		for _, i := range byRegistration[registrationID] {
 			mine = append(mine, stored[i])
-			keys = append(keys, strconv.FormatInt(bookings[i], 10)+":"+stored[i].Placement)
+			keys = append(keys, strconv.FormatInt(ids[i], 10))
 		}
 		if err := a.announce(ctx, reviewer.OrganizationID, period, registrationID, mine, keys); err != nil {
 			return err

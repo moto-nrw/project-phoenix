@@ -150,7 +150,11 @@ export function proposalSummaryText(summary: ProposalSummary): string {
 /** The free places of a week in words. */
 export function freePlacesText(week: HolidayAllocationWeek): string {
   if (week.free === null) return "Ohne Grenze";
-  if (week.free <= 0) return "Kein Platz frei";
+  if (week.free <= 0) {
+    return week.bookingUnit === "day"
+      ? "Mindestens ein Tag voll"
+      : "Kein Platz frei";
+  }
   const places = countLabel(week.free, "Platz", "Plätze");
   return week.bookingUnit === "day"
     ? `An jedem Tag mindestens ${places} frei`

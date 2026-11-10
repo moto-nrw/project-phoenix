@@ -42,6 +42,7 @@ export const MAX_HOLIDAY_CRITERIA = 10;
 export const MAX_CRITERION_NAME = 60;
 export const MAX_CRITERION_QUESTION = 300;
 export const MAX_ALLOCATION_REASON = 500;
+export const MAX_ALLOCATION_DECISIONS = 500;
 
 interface BackendCriterion {
   id: number;

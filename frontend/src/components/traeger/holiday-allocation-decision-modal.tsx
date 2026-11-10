@@ -5,7 +5,6 @@
 // vom Vorschlag ab, ist eine kurze Begründung Pflicht: sie steht im Verlauf.
 
 import { useRef, useState } from "react";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { FormModal } from "~/components/ui/form-modal";
@@ -90,8 +89,6 @@ function DecisionForm({
   const [saving, setSaving] = useState(false);
   const { entry, week, placement } = target;
   const deviates = deviatesFromProposal(entry, placement);
-  const noPlace =
-    placement === "placed" && week.free !== null && week.free <= 0;
   const name = `${entry.childFirstName} ${entry.childLastName}`;
   const actionLabel =
     placement === "placed" ? "Platz geben" : "Auf die Warteliste";
@@ -160,7 +157,6 @@ function DecisionForm({
             variant={placement === "placed" ? "success" : "primary"}
             size="md"
             className="flex-1"
-            disabled={noPlace}
             isLoading={saving}
             loadingText="Speichert …"
           >
@@ -187,13 +183,7 @@ function DecisionForm({
             {PLACEMENT_LABELS[entry.proposal]}, Rang {entry.rank}
           </DataField>
         </DataGrid>
-        {noPlace ? (
-          <Alert
-            type="warning"
-            message="In dieser Woche ist kein Platz frei. Erhöhen Sie zuerst im Reiter „Plätze“ die Zahl der Plätze."
-          />
-        ) : null}
-        {deviates && !noPlace ? (
+        {deviates ? (
           <Textarea
             name="reason"
             label="Begründung"

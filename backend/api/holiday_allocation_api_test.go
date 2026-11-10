@@ -269,7 +269,7 @@ func TestHolidayAllocationHoldsFreePlacesForThePendingBookings(t *testing.T) {
 	pending := a.board(t).Weeks[0].Pending
 	rec := a.decide(t, decision(pending[0], "placed", ""), decision(pending[1], "waitlisted", ""))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	third := a.submitCriteria(t, "dritte@example.org", true, true)
+	third := a.submitCriteria(t, "dritte@example.org", false, false)
 
 	rec = a.act(t, first.ID, "cancel")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -282,6 +282,18 @@ func TestHolidayAllocationHoldsFreePlacesForThePendingBookings(t *testing.T) {
 	require.Len(t, board.Weeks[0].Pending, 1)
 	assert.Equal(t, third.ID, board.Weeks[0].Pending[0].RegistrationID)
 	assert.Equal(t, "placed", board.Weeks[0].Pending[0].Proposal, "the freed place is proposed to the pending booking")
+
+	// The existing waiting child has priority over the last pending child.
+	rec = traegerJSON(t, a.traeger, a.office.token, http.MethodPut, a.registrationPath(second.ID, "/criteria"),
+		map[string]any{"checks": []map[string]any{{"criterion_id": a.working, "checked": "yes"}}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = a.decide(t, decision(board.Weeks[0].Pending[0], "waitlisted", "Familie benötigt vorerst keinen Platz"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	places = a.places(t)[week.ID]
+	assert.Equal(t, 1, places.Placed, "the last pending decision releases the hold")
+	require.Len(t, places.Waitlist, 1)
+	assert.Equal(t, third.ID, places.Waitlist[0].RegistrationID)
+	assert.Equal(t, 2, a.mails(t, "holiday_place_granted", second.ID), "decision and later promotion each notify the parents")
 }
 
 // TestHolidayAllocationOfficeCheckCountsBeforeTheStatement: the Büro's check
