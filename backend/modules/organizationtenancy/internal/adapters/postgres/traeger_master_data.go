@@ -193,7 +193,7 @@ func (s *TraegerMasterDataStore) FindDocumentContact(ctx context.Context, organi
 }
 
 // TraegerName serves organizationtenancy.TraegerNames through
-// platform.current_traeger_name (1.15.890, #6437): the function answers only
+// platform.current_traeger_name (1.15.898, #6437): the function answers only
 // for the Träger of app.current_org_id, which traegerDB has checked to be
 // organizationID.
 func (s *TraegerMasterDataStore) TraegerName(ctx context.Context, organizationID int64) (string, error) {
