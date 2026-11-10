@@ -40,13 +40,14 @@ func (r bookingResolver) documentLines(invoice parentbilling.ExportInvoice) ([]b
 	if invoice.TotalCents == 0 {
 		return nil, 0
 	}
-	keys, weights, resolved := r.groupParts(invoice.Parts)
+	parts := bookingPartsAfterFunding(invoice)
+	keys, weights, resolved := r.groupParts(parts)
 	if len(keys) == 0 {
 		// No position with an amount: the first position names where the
 		// document books, the standard without one.
 		accounts, fromToday := parentbilling.PositionAccounts{RevenueAccount: r.standard}, true
-		if len(invoice.Parts) > 0 {
-			accounts, fromToday = r.partAccounts(invoice.Parts[0])
+		if len(parts) > 0 {
+			accounts, fromToday = r.partAccounts(parts[0])
 		}
 		accounts.Frozen = false
 		return []bookingLine{{accounts: accounts, amountCents: invoice.TotalCents}}, boolCount(fromToday)

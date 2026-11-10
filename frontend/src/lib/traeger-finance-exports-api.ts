@@ -755,10 +755,9 @@ export async function addCostCenter(center: {
 
 /** Deletes a cost center; issued invoices keep it. */
 export async function deleteCostCenter(id: string): Promise<BookingAccounts> {
-  return bookingAccountsFromBackend(
-    await traegerRequest<BackendBookingAccounts>(
-      `${BASE}/booking-accounts/cost-centers/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-    ),
+  await traegerRequest<void>(
+    `${BASE}/booking-accounts/cost-centers/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
   );
+  return fetchBookingAccounts();
 }

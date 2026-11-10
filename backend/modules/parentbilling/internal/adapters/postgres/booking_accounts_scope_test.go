@@ -217,3 +217,82 @@ func TestExportBookingPartsKeepPositionReductions(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// The export reads only the issued correction and funding snapshots. The
+// Storno gets the same snapshots as its invoice, below row level security.
+func TestExportBookingPartsReadIssuedRemovalsAndFunding(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newCareScope(t, db, "Träger Exportkorrektur")
+	other := newCareScope(t, db, "Träger fremde Exportkorrektur")
+	store := NewStore()
+	rollback := errors.New("roll the export snapshots back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		scope = seedCareScope(t, ctx, tx, scope, "Träger Exportkorrektur")
+		var invoice int64
+		require.NoError(t, tx.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE organization_id = ? AND run_id = ?`,
+			scope.organization, scope.released).Scan(ctx, &invoice))
+		// Recreate the rows a release wrote, bypassing the fixture's issued-row
+		// triggers and allowing foreign rows to prove the organization filters.
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_meal_positions (organization_id, invoice_id, position,
+   school_id, student_id, meal_month, mode, quantity, unit_cents, amount_cents, net_cents)
+   VALUES (?, ?, 1, ?, 1, DATE '2029-09-01', 'flat', 1, 960, 960, 960)`, scope.organization, invoice, scope.school)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_corrections (organization_id, invoice_id, position,
+   kind, label, amount_cents, position_key, reason, amended_at, amendment_id)
+   VALUES (?, ?, 1, 'remove_position', 'Entfällt: Betreuung', -3200, 'care:101:1:2029-09-01', 'Korrektur', NOW(), 1),
+    (?, ?, 2, 'remove_position', 'Entfällt: Mensa', -960, 'meal:1:2029-09-01', 'Korrektur', NOW(), 2)`,
+			scope.organization, invoice, other.organization, invoice)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_cost_shares (organization_id, invoice_id, position,
+   kind, cost_bearer_id, cost_bearer_name, share_basis_points, scope, amount_cents)
+   VALUES (?, ?, 1, 'education_participation', 1, 'BuT', 10000, 'meal', 960),
+    (?, ?, 2, 'youth_office', 2, 'Fremd', 10000, 'care', 3200)`,
+			scope.organization, invoice, other.organization, invoice)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_cancellations (organization_id, run_id, invoice_id,
+   number, number_year, number_sequence, issued_on, reason, total_cents)
+   VALUES (?, ?, ?, ?, 2029, 2, DATE '2029-09-02', 'Korrektur', -3200)`,
+			scope.organization, scope.released, invoice, scope.number+"-S")
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		require.NoError(t, err)
+
+		content, err := store.ExportRunContent(ctx, scope.organization, parentbilling.DebitRunCare, scope.released)
+		require.NoError(t, err)
+		require.Len(t, content.Invoices, 2)
+		for _, document := range content.Invoices {
+			require.Len(t, document.Parts, 2)
+			assert.True(t, document.Parts[0].Removed, "the stored care removal matches offering, version and day")
+			assert.False(t, document.Parts[1].Removed, "another organization's removal cannot affect the meal")
+			require.Len(t, document.CostShares, 1, "another organization's funding cannot affect the invoice")
+			share := document.CostShares[0]
+			assert.Equal(t, parentbilling.CostShareScopeMeal, share.Scope)
+			assert.Equal(t, int64(960), share.AmountCents)
+			require.NotNil(t, share.ShareBasisPoints)
+			assert.Equal(t, 10000, *share.ShareBasisPoints)
+		}
+		// A meal removal uses the child's key, independently of care removals.
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_corrections (organization_id, invoice_id, position,
+   kind, label, amount_cents, position_key, reason, amended_at, amendment_id)
+   VALUES (?, ?, 3, 'remove_position', 'Entfällt: Mensa', -960, 'meal:1:2029-09-01', 'Korrektur', NOW(), 2)`, scope.organization, invoice)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		require.NoError(t, err)
+		content, err = store.ExportRunContent(ctx, scope.organization, parentbilling.DebitRunCare, scope.released)
+		require.NoError(t, err)
+		for _, document := range content.Invoices {
+			assert.True(t, document.Parts[1].Removed)
+		}
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}

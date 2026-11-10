@@ -8,12 +8,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const bookingAccountsPath = financeExportsPath + "/booking-accounts"
@@ -154,4 +157,63 @@ func TestBookingAccountsRightsAndTraeger(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"code":"general.`)
 	assert.Len(t, bookingAccountsOf(t, f).CostCenters, 1, "the other Träger deleted nothing")
+}
+
+func TestBookingAccountsQueryBudgetStaysFlatAsAssignmentsGrow(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Konten Budget")
+	counter := testpkg.CaptureQueriesForContext(t, f.db)
+	measure := func(n int) testpkg.QueryMeasurement {
+		t.Helper()
+		counter.Reset()
+		req := httptest.NewRequest(http.MethodGet, bookingAccountsPath, nil)
+		req.Header.Set("Authorization", "Bearer "+f.office.token)
+		rec := httptest.NewRecorder()
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		page := decodeSchoolPortalData[bookingAccountsBody](t, rec.Body.Bytes())
+		require.Len(t, page.Schools, n)
+		require.Len(t, page.Offerings, 2*n)
+		require.Len(t, page.RevenueAccounts, 2*n)
+		require.Len(t, page.CostCenters, 3*n)
+		return counter.Measurement(counter.Queries())
+	}
+	var first int
+	for _, n := range []int{3, 8} {
+		for len(f.office.schools) < n {
+			f.office.schools = append(f.office.schools,
+				testpkg.CreateTestSchoolInOrganization(t, f.db, f.office.organization, fmt.Sprintf("Budget Schule %d", len(f.office.schools))))
+		}
+		for i, school := range f.office.schools {
+			// Distinct offerings per school make every result collection grow.
+			prices := carePriceList(school, sepaDebitMonth, 3200)
+			for j, price := range prices["prices"].([]map[string]any) {
+				price["care_offering_id"] = int64(10000 + 2*i + j%2)
+			}
+			rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, prices)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			for j := range 2 {
+				rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, bookingAccountsPath+"/revenue-accounts",
+					map[string]any{"scope": "offering", "scope_id": int64(10000 + 2*i + j), "account": "4410"})
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			}
+			// Insert only the new schools' assignments in the second iteration.
+			if n == 8 && i < 3 {
+				continue
+			}
+			for _, from := range []string{"2029-01-01", "2030-01-01", "2031-01-01"} {
+				rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, bookingAccountsPath+"/cost-centers",
+					map[string]any{"scope": "school", "scope_id": school, "valid_from": from, "code": fmt.Sprintf("K%d", i)})
+				require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			}
+		}
+		measurement := measure(n)
+		if n == 3 {
+			first = len(measurement.Statements)
+		} else {
+			assert.Len(t, measurement.Statements, first, "schools, offerings and assignments must not add queries")
+		}
+		t.Logf("schools=%d statements=%d", n, len(measurement.Statements))
+		querybudgets.AssertQueryBudget(t, "api.traeger.booking_accounts", measurement)
+	}
 }

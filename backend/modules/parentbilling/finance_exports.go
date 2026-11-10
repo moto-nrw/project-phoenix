@@ -391,6 +391,8 @@ type ExportInvoice struct {
 	// Parts are the positions of the document with where each books
 	// (#4821); a monthly Storno has the parts of its invoice.
 	Parts []ExportBookingPart
+	// CostShares are the issued funding amounts, before review corrections.
+	CostShares []CareInvoiceCostShare
 }
 
 // Kinds of an ExportBookingPart.
@@ -411,6 +413,8 @@ type ExportBookingPart struct {
 	Day            calendar.Date
 	AmountCents    int64
 	Accounts       PositionAccounts
+	// Removed is an applied position-removal correction of the issued invoice.
+	Removed bool
 }
 
 // ExportRunContent is a released run with its invoices.
