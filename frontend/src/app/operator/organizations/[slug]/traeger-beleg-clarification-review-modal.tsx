@@ -67,7 +67,7 @@ export function ClarificationReviewModal({
   const [escalated, setEscalated] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
   const [nextReviewOn, setNextReviewOn] = useState("");
-  const save = useFormModalPending(entry !== null);
+  const save = useFormModalPending(entry !== null, entry);
   const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);

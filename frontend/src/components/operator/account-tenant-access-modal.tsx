@@ -95,7 +95,7 @@ export function AccountTenantAccessModal({
     >
   >({});
   const [loading, setLoading] = useState(false);
-  const save = useFormModalPending(isOpen);
+  const save = useFormModalPending(isOpen, accountId);
   const saving = save.pending;
   // #2519: load errors stay where the data is missing, the grant error in
   // its section, the revoke error in its confirmation, a role change as toast.

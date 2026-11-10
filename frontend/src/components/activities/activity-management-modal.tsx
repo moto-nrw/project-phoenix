@@ -237,35 +237,39 @@ export function ActivityManagementModal({
   };
 
   const handleDelete = async () => {
-    setIsDeleting(true);
     deleteErrors.clear();
+    // Auch das Löschen sperrt den Dialog, und eine späte Antwort schließt
+    // keinen inzwischen neuen Dialog (#6533).
+    await submission.run(async (op) => {
+      setIsDeleting(true);
+      try {
+        await deleteActivity(activity.id);
 
-    try {
-      await deleteActivity(activity.id);
+        const successMessage = `Die Aktivität „${activity.name}“ ist gelöscht.`;
 
-      const successMessage = `Die Aktivität „${activity.name}“ ist gelöscht.`;
+        // Close modal with animation
+        if (op.isCurrent()) onClose();
 
-      // Close modal with animation
-      onClose();
-
-      // Handle success with message after modal starts closing
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess(successMessage);
-        }
-      }, 100);
-    } catch (err) {
-      logger.error("activity_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        activity_id: activity.id,
-      });
-      void deleteErrors.show(err, {
-        object: "die Aktivität",
-        retry: () => retryDeleteRef.current(),
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+        // Handle success with message after modal starts closing
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess(successMessage);
+          }
+        }, 100);
+      } catch (err) {
+        logger.error("activity_delete_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          activity_id: activity.id,
+        });
+        if (!op.isCurrent()) return;
+        void deleteErrors.show(err, {
+          object: "die Aktivität",
+          retry: () => retryDeleteRef.current(),
+        });
+      } finally {
+        setIsDeleting(false);
+      }
+    });
   };
 
   useLayoutEffect(() => {

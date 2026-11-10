@@ -454,7 +454,7 @@ export function RenameSchemaDialog({
   onConfirm: (newName: string) => Promise<void>;
 }>) {
   const [value, setValue] = useState("");
-  const save = useFormModalPending(schema !== null);
+  const save = useFormModalPending(schema !== null, schema?.id);
   const submitting = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const {

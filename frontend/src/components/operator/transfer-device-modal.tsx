@@ -263,7 +263,7 @@ export function TransferDeviceModal({
   onTransferred,
 }: TransferDeviceModalProps) {
   const [targetSchoolId, setTargetSchoolId] = useState("");
-  const save = useFormModalPending(device != null);
+  const save = useFormModalPending(device != null, device?.id);
   const saving = save.pending;
   const schoolLabelId = useId();
   const { success: toastSuccess } = useToast();

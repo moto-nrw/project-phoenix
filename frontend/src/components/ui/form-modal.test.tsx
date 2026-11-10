@@ -42,14 +42,16 @@ function EnterSubmit() {
 
 function PendingHarness({
   isOpen = true,
+  context,
   onClose,
   task,
 }: {
   isOpen?: boolean;
+  context?: string;
   onClose: () => void;
   task: (op: FormModalOperation) => Promise<void>;
 }) {
-  const save = useFormModalPending(isOpen);
+  const save = useFormModalPending(isOpen, context);
   const [note, setNote] = useState("");
   lastPending = save;
   lastTask = task;
@@ -612,6 +614,48 @@ describe("FormModal", () => {
     expect(answers).toEqual([false]);
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Test" })).toBeInTheDocument();
+  });
+
+  it("lets a late answer leave the dialog alone after its context switched", async () => {
+    const onClose = vi.fn();
+    const save = deferred();
+    const answers: boolean[] = [];
+    const harness = (context: string) => (
+      <TestWrapper>
+        <PendingHarness
+          context={context}
+          onClose={onClose}
+          task={async (op) => {
+            await save.promise;
+            answers.push(op.isCurrent());
+            if (op.isCurrent()) onClose();
+          }}
+        />
+      </TestWrapper>
+    );
+    const { rerender } = render(harness("block-1"));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(screen.getByRole("dialog", { name: "Test" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    // The dialog stays open but now works on another block.
+    rerender(harness("block-2"));
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+
+    await act(async () => {
+      save.resolve();
+    });
+
+    expect(answers).toEqual([false]);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Test" })).not.toHaveAttribute(
+      "aria-busy",
+    );
   });
 
   it("lets a late answer after unmount close nothing", async () => {
