@@ -118,12 +118,9 @@ func seedCareRuleChain(client *Client, auth AuthRef, schoolID int64, month calen
 	kept := len(set.Rules)
 	for _, placeholder := range seedCareRules {
 		kind, _ := placeholder["kind"].(string)
-		targets := schools
-		if seedCareKindKept(set.Rules, kind) {
-			if !slices.Contains(schools, schoolID) || seedCareRuleCovers(set.Rules, kind, schoolID, month) {
-				continue
-			}
-			targets = []int64{schoolID}
+		targets := seedCareRuleTargets(set.Rules, kind, schools, schoolID, month)
+		if len(targets) == 0 {
+			continue
 		}
 		kept++
 		// Demo schools of one Träger seed in parallel: another seed may have
@@ -138,6 +135,19 @@ func seedCareRuleChain(client *Client, auth AuthRef, schoolID int64, month calen
 		}
 	}
 	return kept, nil
+}
+
+// seedCareRuleTargets are the schools a placeholder rule of kind is kept
+// for: every school of a Träger without such a rule, otherwise the seeded
+// school if no rule of kind reaches it yet.
+func seedCareRuleTargets(rules []seedCareRule, kind string, schools []int64, schoolID int64, month calendar.Date) []int64 {
+	if !seedCareKindKept(rules, kind) {
+		return schools
+	}
+	if !slices.Contains(schools, schoolID) || seedCareRuleCovers(rules, kind, schoolID, month) {
+		return nil
+	}
+	return []int64{schoolID}
 }
 
 func seedKeepCareRule(client *Client, auth AuthRef, placeholder map[string]any, schools []int64, month calendar.Date) error {
