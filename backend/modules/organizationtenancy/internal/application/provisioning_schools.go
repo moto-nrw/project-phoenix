@@ -296,12 +296,14 @@ func (p *Provisioning) SoftDeleteSchool(ctx context.Context, schoolID, operatorI
 		if school.IsDeleted() {
 			return &organizationtenancy.SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
-		if _, err := p.organizations.SoftDeleteSchool(adminCtx, schoolID); err != nil {
-			return mapSchoolError(err, schoolID, school.OrganizationID)
-		}
+		// The sessions end first, in the lock order of a sign-in: their
+		// accounts, then the school, which stays held until commit (#6305).
 		revokedTokens, err := p.identity.RevokeSchoolSessions(adminCtx, schoolID)
 		if err != nil {
 			return fmt.Errorf("revoke tokens for school %d: %w", schoolID, err)
+		}
+		if _, err := p.organizations.SoftDeleteSchool(adminCtx, schoolID); err != nil {
+			return mapSchoolError(err, schoolID, school.OrganizationID)
 		}
 		invalidatedInvitations, err := p.identity.InvalidatePendingInvitations(adminCtx, schoolID)
 		if err != nil {

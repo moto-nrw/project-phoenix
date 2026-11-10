@@ -1085,7 +1085,14 @@ address lead there too, and the old school's `account_id` and
 `parent_account_id` are forgotten. Expiry runs in the demo process once an
 hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
-through its owner. The standing school is never hidden. A hidden school
+through its owner. Its sessions, of every account and portal, end in the same
+unit, before the school is hidden (`auth.revoke_school_sessions`, #6305; the
+operator soft delete and the demo restart end them the same way through
+`RevokeTokensByTenantID`): every request checks only the session family, not
+the school. Every sign-in and refresh, of every portal, locks the school its
+session row is kept at under a share lock after the account lock, right
+before the row is written, so none mints a session at a school whose
+sessions are ending. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
 its subdomain resolves no tenant. An expired or deleted link answers `410` or
 `404`, and both entry pages show „Dieser Link funktioniert nicht mehr" with
@@ -1136,7 +1143,12 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 For the file erasure of retired demo schools (#5544, ADR 0148) it reads and
 adds rows of `platform.demo_school_file_erasures` (migration 1.15.735), never
 changes or deletes one, and reads `platform.demo_school_origins`, which only a
-trigger on `platform.demo_school_states` writes.
+trigger on `platform.demo_school_states` writes. For the database erasure of
+retired demo schools (#5559, ADR 0189) it may execute only
+`platform.retired_demo_schools_due_for_database_erasure` and
+`platform.erase_retired_demo_school` (migration 1.15.869); the latter alone
+sets `db_erased_at` and `db_row_counts` on the file marker, and a trigger
+rejects a marker the demo role inserts with them.
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,

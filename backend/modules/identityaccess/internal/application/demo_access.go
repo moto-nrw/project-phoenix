@@ -265,24 +265,22 @@ func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.
 	return access, nil
 }
 
-// replaceSchool hides the access's school, queues its successor, moves every
-// access along and ends the old school's sessions. A failed school has no
-// sessions to end.
+// replaceSchool ends the old school's sessions, hides the access's school,
+// queues its successor and moves every access along. The sessions end
+// first, in the lock order of a sign-in: their accounts, then the school,
+// which stays held until commit (#6305). A failed school has no sessions to
+// end.
 func (d *DemoAccess) replaceSchool(ctx context.Context, access domain.DemoAccess, entry domain.DemoSchoolEntry) error {
+	if entry.TenantID != 0 {
+		if _, err := d.sessions.RevokeTokensByTenantID(ctx, entry.TenantID); err != nil {
+			return fmt.Errorf("end the sessions of the hidden demo school: %w", err)
+		}
+	}
 	newSlug, err := d.schools.ReplaceDemoSchool(ctx, access.SchoolSlug, access.SchoolName, access.FirstName, access.LastName)
 	if err != nil {
 		return err
 	}
-	if err := d.store.MoveDemoAccesses(ctx, access.SchoolSlug, newSlug); err != nil {
-		return err
-	}
-	if entry.TenantID == 0 {
-		return nil
-	}
-	if _, err := d.sessions.RevokeTokensByTenantID(ctx, entry.TenantID); err != nil {
-		return fmt.Errorf("end the sessions of the hidden demo school: %w", err)
-	}
-	return nil
+	return d.store.MoveDemoAccesses(ctx, access.SchoolSlug, newSlug)
 }
 
 // signedInParent names the account a redemption signs in besides the
