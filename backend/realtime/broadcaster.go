@@ -36,10 +36,6 @@ type Broadcaster interface {
 	// than the staff portal, so callers must opt into this fan-out explicitly.
 	BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error
 
-	// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
-	// Used for global dashboard count refreshes. Fire-and-forget.
-	BroadcastToAll(event Event) error
-
 	// BroadcastParentMessage routes a parent-OGS messaging trigger precisely:
 	// the addressed guardian's portal client (matched on account id) receives
 	// it, while staff clients in the tenant receive it so their access-filtered

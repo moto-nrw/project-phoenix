@@ -546,8 +546,7 @@ func TestRoleAdministration_DeleteRolePropagatesIntermediateFailures(t *testing.
 	f := newRAFixture(t)
 	role := f.store.addRole(customRoleOf("ogs", "user"))
 	require.NoError(t, f.admin.DeleteRole(raContext(), role.ID))
-	// The role lock comes first, so a delete cannot deadlock against a
-	// concurrent permission replacement.
+	// The role lock precedes its mappings; this role has no holders to lock.
 	assert.Equal(t, []string{"lock role", "delete role assignments", "delete role permissions", "delete role"}, f.store.calls)
 }
 
@@ -1111,4 +1110,15 @@ func TestRoleAdministration_ReservedPermissionsWithInconsistentMetadata(t *testi
 			})
 		}
 	}
+}
+
+func (s *raStore) ListRoleHolderAccountIDs(_ context.Context, roleID int64) ([]int64, error) {
+	var ids []int64
+	for id, roles := range s.accountRoles {
+		if slices.Contains(roles, roleID) {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids, nil
 }

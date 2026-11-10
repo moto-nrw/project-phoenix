@@ -216,3 +216,15 @@ func runRetention(ctx context.Context, tenantID int64, steps []ports.RetentionSt
 	}
 	return nil
 }
+
+// logCleanupDeletion uses the same deletion log as the retention plan. The
+// caller's tenant transaction commits the deletion and its audit together.
+func (s *Scheduler) logCleanupDeletion(ctx context.Context, kind string, deleted, days int) error {
+	if deleted == 0 {
+		return nil
+	}
+	if s.retentionLog == nil {
+		return errors.New("cleanup retention log is not configured")
+	}
+	return s.retentionLog(ctx, kind, ports.RetentionOutcome{Deleted: deleted, RetentionDays: days})
+}

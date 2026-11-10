@@ -265,7 +265,7 @@ func (f *AccountMFAFlows) GetAdminState(ctx context.Context, actorID, actorTenan
 // ===== Gates and audit =====
 
 func (f *AccountMFAFlows) requireAdminPermission(ctx context.Context, actorPermissions []string, failure adminOverrideFailure) error {
-	if domain.HasPermissionMatch(actorPermissions, adminPermission) {
+	if f.permissionGranted(adminPermission, actorPermissions) {
 		return nil
 	}
 	failure.ErrMsg = "permission denied"

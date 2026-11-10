@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
-      - develop
   # development has no push run: pull requests test each change, release pull
   # requests into main run the full suites, and nightly.yml runs them on the
   # development head every weekday.
@@ -323,6 +321,8 @@ jobs:
               - 'devbox.lock'
               - 'package.json'
               - 'frontend/package.json'
+              - 'frontend/Dockerfile'
+              - 'frontend/Dockerfile.prod'
               - 'backend/Dockerfile'
               - 'backend/Dockerfile.dev'
               - 'backend/tools/go.mod'
@@ -361,7 +361,7 @@ jobs:
 
       - name: Setup Node for frontend selection
         if: github.event_name == 'pull_request' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 
@@ -473,7 +473,7 @@ jobs:
 
       - name: Setup Node.js for error-code generator fixtures
         if: matrix.suite == 'ratchets'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 
@@ -581,7 +581,6 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          CUTOVER_BASE_SHA: 1c66eb9233fb398b186420b4ffb36004a8a83c6c
           EVENT_NAME: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
@@ -594,16 +593,6 @@ jobs:
               node scripts/check-release-architecture.mjs
             elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
               scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
-            elif [[ "$BASE_SHA" == "$CUTOVER_BASE_SHA" ]]; then
-              # The baseline cannot exist in the base commit that introduces it.
-              # Restrict this one-time bootstrap to graph-neutral cutover files.
-              unexpected=$(git diff --name-only "$BASE_SHA"...HEAD -- backend | grep -Ev '^backend/(\.go-arch-lint\.yml|README\.md|architecture/(README\.md|legacy\.jsonl)|internal/architecture/cli_test\.go|tools/go\.(mod|sum))$' || true)
-              if [[ -n "$unexpected" ]]; then
-                echo "Unexpected backend changes in architecture-ratchet cutover:"
-                echo "$unexpected"
-                exit 1
-              fi
-              scripts/backend-architecture.sh check
             else
               echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
               exit 1
@@ -677,25 +666,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check environment key sync
         run: ./scripts/env-check.sh
-      - name: Check pinned pnpm contract
-        run: |
-          expected=$(jq -r '[.packages[] | select(startswith("pnpm_10@"))] | if length == 1 then .[0] | split("@")[1] else empty end' devbox.json)
-          if [[ -z "$expected" ]]; then
-            echo "::error file=devbox.json::Expected exactly one pnpm_10@<version> package"
-            exit 1
-          fi
-          locked=$(jq -r --arg package "pnpm_10@$expected" '.packages[$package].version // empty' devbox.lock)
-          if [[ "$locked" != "$expected" ]]; then
-            echo "::error file=devbox.lock::pnpm lock version $locked does not match Devbox pin $expected"
-            exit 1
-          fi
-          for manifest in package.json frontend/package.json; do
-            actual=$(jq -r '(.packageManager // "") | if startswith("pnpm@") then sub("^pnpm@"; "") | split("+")[0] else empty end' "$manifest")
-            if [[ "$actual" != "$expected" ]]; then
-              echo "::error file=$manifest::packageManager version $actual does not match Devbox pin $expected"
-              exit 1
-            fi
-          done
       - name: Block unencrypted secrets
         run: |
           failed=false

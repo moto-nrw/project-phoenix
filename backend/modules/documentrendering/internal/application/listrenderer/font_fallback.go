@@ -17,6 +17,7 @@ package listexport
 import (
 	_ "embed"
 	"fmt"
+	"sync"
 
 	"golang.org/x/image/font/sfnt"
 )
@@ -33,12 +34,21 @@ type fontCoverage struct {
 	buf  sfnt.Buffer
 }
 
-func newFontCoverage(ttf []byte) (*fontCoverage, error) {
-	f, err := sfnt.Parse(ttf)
+// Parsed fonts are immutable; sfnt.Buffer is mutable scratch space and stays
+// document-local, so concurrent renders share no scratch state.
+var primaryCoverage = sync.OnceValues(func() (*sfnt.Font, error) { return sfnt.Parse(interRegular) })
+var fallbackCoverage = sync.OnceValues(func() (*sfnt.Font, error) { return sfnt.Parse(unifontRegular) })
+
+func documentCoverages() (*fontCoverage, *fontCoverage, error) {
+	primary, err := primaryCoverage()
 	if err != nil {
-		return nil, fmt.Errorf("parse font for coverage: %w", err)
+		return nil, nil, fmt.Errorf("parse primary font for coverage: %w", err)
 	}
-	return &fontCoverage{font: f}, nil
+	fallback, err := fallbackCoverage()
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse fallback font for coverage: %w", err)
+	}
+	return &fontCoverage{font: primary}, &fontCoverage{font: fallback}, nil
 }
 
 func (c *fontCoverage) covers(r rune) bool {

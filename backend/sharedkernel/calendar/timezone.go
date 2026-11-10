@@ -8,16 +8,14 @@ import (
 
 // Berlin is the timezone for all school operations.
 // This is hardcoded since the app is only used in Germany.
-var Berlin *time.Location
+var Berlin = mustLoadLocation("Europe/Berlin")
 
-func init() {
-	var err error
-	Berlin, err = time.LoadLocation("Europe/Berlin")
+func mustLoadLocation(name string) *time.Location {
+	location, err := time.LoadLocation(name)
 	if err != nil {
-		// Fallback to UTC+1 if timezone data is not available
-		// This should never happen in production but provides safety
-		Berlin = time.FixedZone("CET", 1*60*60)
+		panic(err)
 	}
+	return location
 }
 
 // Today returns the current date in Berlin timezone with time set to midnight.

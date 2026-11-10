@@ -62,7 +62,7 @@ export const sourceRatchets = [
   entry('permission_catalog', 'TestPermissionCatalogNamesAreUnique', /^backend\/auth\/authorize\/permissions\/catalog\.json$/),
   entry('error_code_generation_ratchet', 'TestErrorCodeGenerationRatchetsAllowAdditionalCode', /^error-registry\/.*\.json$/, /^scripts\/(generate-error-codes|error-registry)\.mjs$/),
   entry('toolchain_pins_ratchet', 'TestToolchainPinsRatchet',
-    /^(devbox\.(json|lock)|package\.json|frontend\/package\.json|lefthook\.yml)$/,
+    /^(devbox\.(json|lock)|package\.json|frontend\/(package\.json|Dockerfile(\.prod)?)|lefthook\.yml)$/,
     /^backend\/(go\.mod|tools\/go\.mod|Dockerfile(\.dev)?)$/,
     /^scripts\/(backend-architecture\/go\.mod|run-go-toolchain\.sh|pre-push\.sh)$/,
     /^\.github\/workflows\/.*\.yml$/, /^\.claude\/hooks\/format-go\.sh$/),

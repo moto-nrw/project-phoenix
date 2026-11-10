@@ -87,17 +87,11 @@ jobs:
         id: packages
         working-directory: backend
         env:
-          CHANGED_SCOPE: ${{ inputs.changed-scope }}
           FULL_SUITE: ${{ inputs.full-backend-suite }}
           BASE_REF: ${{ inputs.base_ref }}
         run: |
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
-            if [ "$packages" = ./... ]; then
-              packages=$(go list ./...)
-              FULL_SUITE=true
-            fi
-          else
+          packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+          if [ "$packages" = ./... ]; then
             packages=$(go list ./...)
             FULL_SUITE=true
           fi
@@ -168,7 +162,7 @@ jobs:
           git fetch --no-tags --unshallow origin "${refs[@]}"
 
       - name: Setup Node.js for error-code generator fixtures
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 
@@ -415,7 +409,7 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: "pnpm"

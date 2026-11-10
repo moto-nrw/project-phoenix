@@ -5,7 +5,7 @@
 # react-doctor) and tests run in CI; license and vulnerability scans nightly.
 # PHX_PREPUSH=skip skips the gate; CI still checks the push.
 # --worktree checks uncommitted and untracked changes too, without result
-# caching (scripts/check-changed.sh uses it while an agent iterates).
+# caching (scripts/check-changed.mjs uses it while an agent iterates).
 set -euo pipefail
 if [[ "${PHX_PREPUSH:-}" == skip ]]; then
   echo 'Pre-push skipped (PHX_PREPUSH=skip). CI still checks this push.'

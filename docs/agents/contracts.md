@@ -24,8 +24,8 @@ no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
 across repos. Changing a code the kiosk branches on is a two-repo change.
-PyrePortal's `CODE_MESSAGES` maps 35 codes; the backend pins them in two
-places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
+PyrePortal's `CODE_MESSAGES` maps 36 codes. `module.not_booked` is pinned
+under Booked modules below; the backend pins the other 35 in two places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
 conflict, staff-clock and open-room codes to the declaration that emits them
 (`TestFullProductionRouterGolden/contracts/IoT_error_code_declarations`). The
 21 codes of the table below are pinned on the wire (see after the table);
@@ -366,6 +366,25 @@ server-side backend call forwards the client IP; a cached fetch keeps the IP
 out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
+
+### Password-reset address limits
+
+Every normalized address receives the same password-reset response sequence,
+regardless of account existence or eligibility for the requested portal. With
+rate limiting enabled, three requests per hour receive the neutral success
+response; the fourth receives `429 / identity.password_reset_rate_limited`
+and `Retry-After` for the remaining window. Portal choice does not create a
+separate address quota. Only eligible accounts receive a reset link.
+
+Identity & Access checks this quota before account lookup. Counter keys are
+purpose-separated HMAC-SHA256 values of the trimmed, lowercase address using
+the existing installation signing secret. Unknown addresses are never stored
+in plaintext or added to the account directory. Counters persist across
+processes and are removed by the existing stale-window cleanup after one day.
+Legacy plaintext counters are moved to hashed keys on their next request,
+without resetting the active quota. Rotating the signing secret starts new
+hashed windows, as it invalidates existing authentication material.
+The public routes retain their separate IP-based abuse limit.
 
 ## Mail provider webhook
 
@@ -856,7 +875,7 @@ Backend paths in this section are relative to `backend/`:
   portal (empty or legacy `tenant` claim) and `platform`. The portal facts
   live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
   pinned to each other by `TestPortalTableMatchesTheTokenGates`.
-  `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
+  `TestFullProductionRouterGolden/contracts/school_scope_matrix` checks school-token rejection under `/api`.
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
@@ -1042,10 +1061,16 @@ not composed. The backend routes are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `phone` (callback number, free text; whitespace runs collapsed, at most 50 bytes; dropped without `contact_opt_in`; not stored, it reaches only the team's lead mail), optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
 | `POST /demo/access/reset` | `{token}` → `202 {status: "preparing", entry_url}` (#3470): a fresh demo school is queued for the same access with the same names, the old one is soft-deleted and its sessions are revoked; `entry_url` is the waiting room with the token in the fragment, as in the mailed link. `409 demo_school_preparing` while the current school is still being seeded; `422 demo_access_invalid` for the shared standing school; `429 demo_access_rate_limited` with `Retry-After`, because a restart counts against the same per-address and per-IP windows as a request; `503 demo_capacity_reached` never for a restart, because the old school gives its place back first |
+
+The 10-minute per-address cooldown also applies to requests with a phone
+number. Requests during the cooldown still answer `202 {link_sent: true}`
+but send neither the access link nor the lead mail; the submitted number is
+discarded. Outside the cooldown, a request with a number and `contact_opt_in`
+sends the lead mail even for a known address with unchanged contact consent.
 
 Demo roles (#3467): `caregiver`, `lead`, `all`. A role first becomes the only
 role of the visitor's own caregiver in its school (`user` for `caregiver`,

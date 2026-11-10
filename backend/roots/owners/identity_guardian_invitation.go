@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -303,4 +304,14 @@ var parentGuardianSentinels = []retainedSentinel{
 	{identityaccess.ErrInvitationMailDelayed, parentportal.ErrInviteMailUnavailable},
 	{identityaccess.ErrMailBlockedAtProvider, parentportal.ErrInviteMailUnavailable},
 	{identityaccess.ErrMailBlockUnreadable, parentportal.ErrInviteMailUnavailable},
+}
+
+// NewGuardianInvitationInvalidation binds a transaction-participating identity
+// command without composing the account lifecycle or introducing late binding.
+func NewGuardianInvitationInvalidation(db transactionruntime.Database) identityaccess.GuardianInvitationInvalidation {
+	invalidate, err := identityaccessCompose.NewGuardianInvitationInvalidation(db.Pool())
+	if err != nil {
+		panic(err)
+	}
+	return invalidate
 }

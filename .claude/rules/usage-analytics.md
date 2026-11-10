@@ -6,7 +6,7 @@ paths:
   - "frontend/src/components/analytics/**"
   - "backend/analytics/**"
   - "backend/api/base.go"
-  - "backend/api/testdata/route_table.golden"
+  - "backend/api/testdata/routes/**"
   - "scripts/posthog-dashboards*"
   - ".github/workflows/posthog-dashboards.yml"
 ---
@@ -129,8 +129,8 @@ Every POST, PUT, PATCH, or DELETE route of the portal routers (`/api`,
 `backend/analytics/core_actions.go`. The operator dashboard, the kiosk
 (`/api/iot`), and CalDAV are not portals and stay out.
 
-1. Add the route with its chi pattern, exactly as `route_table.golden` lists
-   it: `event("…")` when a successful write is a core action worth counting,
+1. Add the route with its chi pattern, exactly as the route goldens under
+   `backend/api/testdata/routes/` list it: `event("…")` when a successful write is a core action worth counting,
    otherwise `notCaptured`. A login-like route whose response mints the
    session takes `session("…")`; a public route without a session names its
    surface (`public("…")`).

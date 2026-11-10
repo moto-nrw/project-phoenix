@@ -7,29 +7,34 @@ input=$(</dev/stdin)
 # Extract command - use empty string as default
 command=$(echo "${input}" | jq -r '.tool_input.command // empty')
 
-# Check if this is a git commit command
-if [[ ! "${command}" =~ ^git[[:space:]]+commit ]]; then
+# Check if this is a git commit command, also after `cd … &&`
+commit_re='(^|[^[:alnum:]_-])git[[:space:]]+commit([[:space:]]|$)'
+if [[ ! "${command}" =~ ${commit_re} ]]; then
   exit 0
 fi
 
-# Extract commit message (handle both -m and --message)
-message=$(echo "${command}" | sed -n 's/.*-m[= ]\+["\x27]\([^"\x27]*\)["\x27].*/\1/p')
-
-if [[ -z "${message}" ]]; then
-  # Try alternative format
-  message=$(echo "${command}" | sed -n 's/.*--message[= ]\+["\x27]\([^"\x27]*\)["\x27].*/\1/p')
-fi
-
-if [[ -z "${message}" ]]; then
-  exit 0  # No message found, skip validation
-fi
-
-# Check for Claude attribution (CRITICAL - MUST NOT APPEAR)
-if echo "${message}" | grep -qi "co-authored-by.*claude"; then
+# Check for Claude attribution (CRITICAL - MUST NOT APPEAR). The whole command
+# is searched, so later -m paragraphs and heredoc messages count too. Exit 2
+# blocks the tool call; any other non-zero status only prints a notice.
+if echo "${command}" | grep -qiE "co-authored-by:.*claude"; then
   echo "❌ ERROR: Commit message contains Claude attribution!" >&2
-  echo "  Message: ${message}" >&2
   echo "  Remove 'Co-Authored-By: Claude' from commit message" >&2
-  exit 1
+  exit 2
+fi
+
+# Extract the first quoted message (-m or --message). Bash patterns only:
+# the sed shipped with macOS has no \+ or \x27.
+message=""
+double_quoted_re='(-m|--message)[=[:space:]]+"([^"]*)"'
+single_quoted_re="(-m|--message)[=[:space:]]+'([^']*)'"
+if [[ "${command}" =~ ${double_quoted_re} ]]; then
+  message=${BASH_REMATCH[2]}
+elif [[ "${command}" =~ ${single_quoted_re} ]]; then
+  message=${BASH_REMATCH[2]}
+fi
+
+if [[ -z "${message}" ]]; then
+  exit 0  # No inline message found, skip the format check
 fi
 
 # Check conventional commits format

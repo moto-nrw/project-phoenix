@@ -176,7 +176,7 @@ groupLogger.error("checkout_failed", { student_id: sid });
 
 ## Testing
 
-The logger is **globally mocked** in `frontend/src/test/setup.ts`. The mock passes calls through to `console.*`, so existing spy patterns work:
+The logger is **globally mocked** in `frontend/src/test/setup-common.ts`. The mock passes calls through to `console.*`, so existing spy patterns work:
 
 ```typescript
 it("handles errors gracefully", async () => {
@@ -207,6 +207,6 @@ it("handles errors gracefully", async () => {
 | File | Purpose |
 |------|---------|
 | `src/lib/logger.ts` | Logger implementation (ServerLogger + ClientLogger) |
-| `src/app/api/logs/route.ts` | Log shipping endpoint (client batches POST here) |
-| `src/test/setup.ts` | Global test mock (passes through to console.*) |
+| `src/app/api/logs/route.ts` | Log shipping endpoint (client batches POST here); it writes through `src/lib/client-log-ingest.server.ts` |
+| `src/test/setup-common.ts` | Global test mock (passes through to console.*) |
 | `src/env.js` | `NEXT_PUBLIC_LOG_LEVEL` Zod validation |

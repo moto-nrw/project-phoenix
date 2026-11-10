@@ -999,7 +999,6 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 		}
 	}
 	assert.True(t, arrivalFound, "approve must broadcast arrival_schedule_changed to its school")
-	assert.Empty(t, bc.CallsByMethod("all"), "approve must never wake other schools")
 }
 
 // TestDecide_ApproveCompanionEventOnlyOnEffectiveChange pins WHO the approval

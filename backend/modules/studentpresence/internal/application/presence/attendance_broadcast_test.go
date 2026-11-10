@@ -194,7 +194,6 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
 	require.NotNil(t, counts[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
 	assert.Empty(t, tenantCallsOfType(broadcaster, active.EventActiveSupervisionChanged),
@@ -455,7 +454,6 @@ func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
 	assert.False(t, broadcaster.HasEventType(active.EventActiveSupervisionChanged),
 		"no room roster changed, so active_supervision_changed must stay out of this shape")

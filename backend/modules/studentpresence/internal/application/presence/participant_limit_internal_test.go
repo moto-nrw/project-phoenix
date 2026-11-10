@@ -65,7 +65,7 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		activities := &participantLimitActivities{activity: limited}
 		svc := participantLimitService(settings, activities, 63)
 
-		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 3))
+		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 3, nil))
 		assert.Zero(t, activities.asked, "the default must not load the activity")
 	})
 
@@ -74,21 +74,21 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		activities := &participantLimitActivities{activity: &ports.SessionActivity{ID: 5, Name: "Freispiel"}}
 		svc := participantLimitService(&participantLimitSettings{enforced: true}, activities, 500)
 
-		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 66))
+		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 66, nil))
 	})
 
 	t.Run("allows filling the last places", func(t *testing.T) {
 		t.Parallel()
 		svc := participantLimitService(&participantLimitSettings{enforced: true}, &participantLimitActivities{activity: limited}, 42)
 
-		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 3))
+		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 3, nil))
 	})
 
 	t.Run("refuses an assignment beyond the limit with the numbers", func(t *testing.T) {
 		t.Parallel()
 		svc := participantLimitService(&participantLimitSettings{enforced: true}, &participantLimitActivities{activity: limited}, 42)
 
-		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 4)
+		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 4, nil)
 
 		require.ErrorIs(t, err, ErrActivityParticipantLimitExceeded)
 		assert.NotErrorIs(t, err, ErrRoomCapacityExceeded, "the two refusals stay distinguishable")
@@ -103,13 +103,13 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		}, limitErr.ErrorDetails())
 	})
 
-	t.Run("leaves terminal requests to the terminal's own check", func(t *testing.T) {
+	t.Run("enforces terminal requests even when web overflow is allowed", func(t *testing.T) {
 		t.Parallel()
-		settings := &participantLimitSettings{enforced: true}
+		settings := &participantLimitSettings{err: errors.New("web settings unavailable")}
 		svc := participantLimitService(settings, &participantLimitActivities{activity: limited}, 45)
 		deviceCtx := context.WithValue(ctx, attendancePrincipalTestKey{}, RequestPrincipal{DeviceID: 9, IsIoT: true})
 
-		require.NoError(t, svc.ensureActivityParticipantLimit(deviceCtx, activitySession(5), 1))
+		require.ErrorIs(t, svc.ensureActivityParticipantLimit(deviceCtx, activitySession(5), 1, nil), ErrActivityParticipantLimitExceeded)
 		assert.Zero(t, settings.asked, "a kiosk scan must not read the web setting")
 	})
 
@@ -117,7 +117,7 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		t.Parallel()
 		svc := participantLimitService(&participantLimitSettings{enforced: true}, &participantLimitActivities{activity: limited}, 45)
 
-		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, &ports.ActiveGroup{ID: 70, RoomID: 12}, 1))
+		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, &ports.ActiveGroup{ID: 70, RoomID: 12}, 1, nil))
 	})
 
 	t.Run("keeps the registry default without a settings resolver", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		svc := participantLimitService(&participantLimitSettings{enforced: true}, activities, 63)
 		svc.settings = nil
 
-		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 3))
+		require.NoError(t, svc.ensureActivityParticipantLimit(ctx, activitySession(5), 3, nil))
 		assert.Zero(t, activities.asked)
 	})
 
@@ -134,7 +134,7 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		t.Parallel()
 		svc := participantLimitService(&participantLimitSettings{err: errors.New("settings down")}, &participantLimitActivities{activity: limited}, 0)
 
-		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 1)
+		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 1, nil)
 
 		require.ErrorIs(t, err, ErrDatabaseOperation)
 	})
@@ -143,10 +143,20 @@ func TestEnsureActivityParticipantLimit(t *testing.T) {
 		t.Parallel()
 		svc := participantLimitService(&participantLimitSettings{enforced: true}, &participantLimitActivities{err: errors.New("db down")}, 0)
 
-		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 1)
+		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 1, nil)
 
 		require.ErrorIs(t, err, ErrDatabaseOperation)
 	})
+	t.Run("fails when the locked occupancy cannot be read", func(t *testing.T) {
+		t.Parallel()
+		svc := participantLimitService(&participantLimitSettings{enforced: true}, &participantLimitActivities{activity: limited}, 0)
+		svc.SchoolPresence = &mockVisitRepository{countActiveByGroupIDFunc: func(context.Context, int64) (int, error) {
+			return 0, errors.New("count unavailable")
+		}}
+		err := svc.ensureActivityParticipantLimit(ctx, activitySession(5), 1, nil)
+		require.ErrorIs(t, err, ErrDatabaseOperation)
+	})
+
 }
 
 func TestCountStudentsEnteringSession(t *testing.T) {
@@ -160,4 +170,31 @@ func TestCountStudentsEnteringSession(t *testing.T) {
 
 	// 3 has no visit and enters; 4 has no open attendance and is skipped.
 	assert.Equal(t, 2, countStudentsEnteringSession(target, attendance, visits, []int64{1, 2, 3, 4}))
+}
+
+func TestPrepareVisitCheckInChecksDeviceActivityLimitAfterSessionLock(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(t.Context(), attendancePrincipalTestKey{}, RequestPrincipal{DeviceID: 9, IsIoT: true})
+	visit := &studentpresence.Visit{StudentID: 8, ActiveGroupID: 70}
+	settings := &participantLimitSettings{err: errors.New("web settings unavailable")}
+	svc := participantLimitService(settings, &participantLimitActivities{
+		activity: &ports.SessionActivity{ID: 5, MaxParticipants: 45},
+	}, 45)
+	locked := false
+	svc.GroupRepo = &mockGroupRepository{findByIDForUpdateFunc: func(_ context.Context, id int64) (*ports.ActiveGroup, error) {
+		require.Equal(t, visit.ActiveGroupID, id)
+		locked = true
+		return activitySession(5), nil
+	}}
+	svc.visitAdmissionRead = func(_ context.Context, studentID, groupID int64) (ports.VisitAdmission, ports.Stats, error) {
+		require.True(t, locked, "the authoritative count must follow the session row lock")
+		require.Equal(t, visit.StudentID, studentID)
+		require.Equal(t, visit.ActiveGroupID, groupID)
+		return ports.VisitAdmission{GroupOccupancy: 45}, ports.Stats{}, nil
+	}
+
+	err := svc.prepareVisitCheckIn(ctx, visit)
+
+	require.ErrorIs(t, err, ErrActivityParticipantLimitExceeded)
+	assert.Zero(t, settings.asked)
 }

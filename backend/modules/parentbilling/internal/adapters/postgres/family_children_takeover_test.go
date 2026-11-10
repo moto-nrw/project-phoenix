@@ -66,8 +66,9 @@ func TestFamilyChildrenStatementKeepsTheNewerOne(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, count.StatedAt)
 		assert.Equal(t, 4, *count.StatedChildren)
+		// The cap uses PostgreSQL's clock_timestamp(), not the client clock.
 		var databaseNow time.Time
-		require.NoError(t, tx.NewRaw(`SELECT clock_timestamp()`).Scan(ctx, &databaseNow))
+		require.NoError(t, tx.NewRaw("SELECT clock_timestamp()").Scan(ctx, &databaseNow))
 		assert.False(t, count.StatedAt.After(databaseNow), "a time in the future counts as now")
 
 		var foreign int

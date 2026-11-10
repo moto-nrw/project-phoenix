@@ -152,7 +152,7 @@ func (s *myService) DoWork(ctx context.Context) error {
 }
 ```
 
-This pattern is already used in: `schulhof_service.go`, `invitation_service.go`, `hub.go`, `scheduler.go`.
+This pattern is already used in: `schulhof_service.go`, `hub.go`, `scheduler.go`.
 
 ## GDPR: Student Names in Logs
 
@@ -270,8 +270,8 @@ These files intentionally use `log.Printf` and must NOT be converted:
 |------|--------|
 | `modules/identityaccess/sessiontoken/tokenauth.go` | Startup config logging (process exits on failure) |
 | `cmd/` package | CLI bootstrapping (before logger exists) |
-| `seed/` package | One-off data seeding |
-| `simulator/` package | Standalone simulation tool |
+| `internal/devtools/seedapi/` package | One-off data seeding |
+| `internal/devtools/simulate/` package | Standalone simulation tool |
 
 All `log.Printf` calls from these files route through slog as WARN level via `slog.SetLogLoggerLevel(slog.LevelWarn)`.
 
@@ -279,8 +279,8 @@ All `log.Printf` calls from these files route through slog as WARN level via `sl
 
 | File | Purpose |
 |------|---------|
-| `applog/applog.go` | Logger bootstrap (`New()`, `parseLevel()`, `SetDefault`) |
-| `applog/applog_test.go` | Logger unit tests (JSON output, level filtering, stdlib routing) |
+| `observability/internal/adapters/applog/applog.go` | Logger bootstrap (`New()`, `parseLevel()`, `SetDefault`) |
+| `observability/internal/adapters/applog/applog_test.go` | Logger unit tests (JSON output, level filtering, stdlib routing) |
 | `api/server.go` | Process root: hands the logger to the owner compositions |
-| `cmd/serve.go` | Entry point — calls `applog.New()` with viper config |
+| `cmd/serve.go` | Entry point — calls `observabilityCompose.InstallProcessLogger` with viper config |
 | `.golangci.yml` | sloglint configuration (`no-mixed-args`, `snake` keys, `args-on-sep-lines`) |

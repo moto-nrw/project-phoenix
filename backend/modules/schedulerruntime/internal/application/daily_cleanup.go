@@ -432,6 +432,13 @@ func (s *Scheduler) cleanupExpiredFeedback(ctx context.Context, tenantID int64) 
 		return err
 	}
 	if deleted > 0 {
+		days, err := s.settings.ResolveInt(ctx, settingFeedbackDataRetentionDays)
+		if err != nil {
+			return fmt.Errorf("resolve feedback retention audit window: %w", err)
+		}
+		if err := s.logCleanupDeletion(ctx, "feedback_retention", deleted, days); err != nil {
+			return err
+		}
 		s.getLogger().Info("feedback cleanup completed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int("records_deleted", deleted),

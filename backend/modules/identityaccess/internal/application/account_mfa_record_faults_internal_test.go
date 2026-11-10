@@ -214,7 +214,7 @@ type accountMFAFixture struct {
 func newAccountMFAFixture(t *testing.T, records ports.AccountMFARecords) accountMFAFixture {
 	t.Helper()
 	codec := &fakeMFAChallengeCodec{parse: map[string]domain.MFAChallengeClaims{}}
-	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{
+	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{PermissionGranted: func(string, []string) bool { return false },
 		Records: records, Settings: optionalMFASettings{}, Codec: codec, Codes: fakeShortCodes{},
 		Mail: &fakeMFAMail{}, Audit: &fakeMFAAudit{}, Runtime: &fakeRuntime{}, Secret: []byte("trusted-device-secret"),
 	})

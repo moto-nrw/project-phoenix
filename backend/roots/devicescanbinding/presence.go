@@ -87,6 +87,10 @@ func (v visits) Current(ctx context.Context, studentID int64) (*ports.CurrentVis
 func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, error) {
 	visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
 	if err := v.active.CreateVisit(ctx, visit); err != nil {
+		var activityCapacity *studentpresence.ActivityParticipantLimitError
+		if errors.As(err, &activityCapacity) {
+			return 0, activityCapacityExceeded(activityCapacity)
+		}
 		var roomCapacity *studentpresence.RoomCapacityError
 		if errors.As(err, &roomCapacity) {
 			return 0, &ports.RoomCapacityExceeded{
@@ -103,6 +107,13 @@ func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, 
 		return 0, err
 	}
 	return visit.ID, nil
+}
+
+func activityCapacityExceeded(limit *studentpresence.ActivityParticipantLimitError) *devicescan.ActivityCapacityExceededError {
+	return &devicescan.ActivityCapacityExceededError{
+		ActivityID: limit.ActivityID, ActivityName: limit.ActivityName,
+		CurrentOccupancy: limit.CurrentOccupancy, MaxCapacity: limit.MaxParticipants,
+	}
 }
 
 // sessions binds the room session transitions to the retained presence

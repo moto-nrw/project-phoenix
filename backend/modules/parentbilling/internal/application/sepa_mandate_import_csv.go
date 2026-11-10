@@ -1,21 +1,17 @@
 package application
 
 import (
-	"bytes"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
-
-	"golang.org/x/text/encoding/charmap"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Reading the CSV file of a mandate import (#6198): the encoding (UTF-8,
@@ -45,13 +41,13 @@ func readImportTable(content []byte, delimiter string) (importTable, error) {
 	if len(content) > parentbilling.MaxImportFileBytes {
 		return importTable{}, parentbilling.ErrImportFileTooLarge
 	}
-	text, encoding, err := decodeImportText(content)
+	text, encoding, err := textnorm.DecodeCSVText(content)
 	if err != nil {
-		return importTable{}, err
+		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
-	comma, err := importDelimiter(text, delimiter)
+	comma, err := textnorm.CSVDelimiter(text, delimiter)
 	if err != nil {
-		return importTable{}, err
+		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
 	reader := csv.NewReader(strings.NewReader(text))
 	reader.Comma, reader.FieldsPerRecord, reader.LazyQuotes, reader.ReuseRecord = comma, -1, true, false
@@ -144,62 +140,6 @@ func ibanStart(value string) bool {
 func isUpperLetter(b byte) bool { return b >= 'A' && b <= 'Z' }
 
 func isDigit(b byte) bool { return b >= '0' && b <= '9' }
-
-// decodeImportText answers the file as text: UTF-8 when it is valid UTF-8,
-// else Windows-1252. Control characters other than tab and line breaks
-// mark a file that is no text, whatever its name says.
-func decodeImportText(content []byte) (string, string, error) {
-	content = bytes.TrimPrefix(content, []byte("\xEF\xBB\xBF"))
-	encoding := encodingUTF8
-	if !utf8.Valid(content) {
-		decoded, err := charmap.Windows1252.NewDecoder().Bytes(content)
-		if err != nil {
-			return "", "", parentbilling.ErrImportFileInvalid
-		}
-		content, encoding = decoded, encodingWindows1252
-	}
-	text := string(content)
-	for _, r := range text {
-		if r == unicode.ReplacementChar || (unicode.IsControl(r) && r != '\t' && r != '\n' && r != '\r') {
-			return "", "", parentbilling.ErrImportFileInvalid
-		}
-	}
-	if strings.TrimSpace(text) == "" {
-		return "", "", parentbilling.ErrImportFileInvalid
-	}
-	return text, encoding, nil
-}
-
-// importDelimiter is the chosen delimiter or, when none is chosen, the one
-// of semicolon, comma and tab the header line holds most often outside
-// quotes; a tie takes the semicolon German spreadsheets write.
-func importDelimiter(text, chosen string) (rune, error) {
-	switch chosen {
-	case ";", ",", "\t":
-		return rune(chosen[0]), nil
-	case "":
-	default:
-		return 0, fmt.Errorf("%w: unknown delimiter", parentbilling.ErrImportFileInvalid)
-	}
-	header, _, _ := strings.Cut(text, "\n")
-	counts := map[rune]int{}
-	quoted := false
-	for _, r := range header {
-		switch {
-		case r == '"':
-			quoted = !quoted
-		case !quoted && (r == ';' || r == ',' || r == '\t'):
-			counts[r]++
-		}
-	}
-	best := ';'
-	for _, candidate := range []rune{',', '\t'} {
-		if counts[candidate] > counts[best] {
-			best = candidate
-		}
-	}
-	return best, nil
-}
 
 func trimCells(record []string) []string {
 	cells := make([]string, len(record))

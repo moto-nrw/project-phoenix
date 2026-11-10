@@ -15,6 +15,8 @@ import (
 // serializes on the account row and, in organisation scope, on the
 // account's active school membership.
 var (
+	// ErrRoleHoldersChanged refuses a definition change whose holder set raced its locks.
+	ErrRoleHoldersChanged  = conflictError("role assignments changed; retry the role change")
 	ErrSystemRoleImmutable = errors.New("system roles cannot be modified")
 	ErrPermissionNotFound  = errors.New("permission not found")
 	// ErrRoleNameTaken rejects a role name the school already uses (#2517).

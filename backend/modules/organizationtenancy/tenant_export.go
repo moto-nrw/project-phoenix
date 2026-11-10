@@ -61,11 +61,11 @@ func (owners TenantExportProjectedFieldsByTable) ProjectExportField(table, colum
 	return owner.ProjectExportField(table, column, row, raw)
 }
 
-// TenantExportDependencies binds the Träger package as the CLI runs it
+// TenantExportDependencies binds the return procedure as the CLI runs it
 // (ADR 0187): the owners that open sealed and project container values
 // (ADR 0192, ADR 0193), the stored PAIN.008 files only Parent Billing opens,
-// and the operator audit of each run. A school package needs neither of
-// the last two; a Träger package refuses without them.
+// and the operator audit of each run. Every package refuses without the
+// audit (#6326); only a Träger package needs the PAIN.008 files.
 type TenantExportDependencies struct {
 	Fingerprints   ExportFingerprints
 	Sealed         TenantExportSealedFields
@@ -130,8 +130,8 @@ type ExportDocumentColumn struct {
 	Bytes  int64  `json:"bytes"`
 }
 
-// TenantExportAudit records each run of a Träger package in the operator
-// audit (#4720: every access to personal data is audited).
+// TenantExportAudit records each run of a school or Träger package in the
+// operator audit (#4720: every access to personal data is audited).
 // BeginTenantExport runs before anything is read or written and refuses an
 // unknown or inactive operator; RecordTenantExport records the outcome. A
 // run whose completion is not recorded never completes.
@@ -140,15 +140,16 @@ type TenantExportAudit interface {
 	RecordTenantExport(ctx context.Context, record TenantExportRecord) error
 }
 
-// TenantExportAttempt names a run before its extraction: who, which Träger,
-// when it started. No personal data.
+// TenantExportAttempt names a run before its extraction: who, which school
+// or Träger (exactly one), when it started. No personal data.
 type TenantExportAttempt struct {
 	OperatorID     int64  `json:"operator_id"`
-	OrganizationID int64  `json:"organization_id"`
+	SchoolID       int64  `json:"school_id,omitempty"`
+	OrganizationID int64  `json:"organization_id,omitempty"`
 	StartedAt      string `json:"started_at"`
 }
 
-// The outcomes of a Träger package run in the operator audit.
+// The outcomes of a package run in the operator audit.
 const (
 	TenantExportCompleted = "completed"
 	TenantExportFailed    = "failed"
@@ -157,10 +158,13 @@ const (
 // TenantExportRecord names the outcome of a run without personal data. A
 // completed run carries the manifest checksum of the COMPLETE file and the
 // counts; a failed run its error class (the step that failed) and whether
-// its partial files were removed.
+// its partial files were removed. PersonReview marks the internal review
+// workspace of one person (#3838), without naming the person.
 type TenantExportRecord struct {
 	OperatorID          int64                 `json:"operator_id"`
-	OrganizationID      int64                 `json:"organization_id"`
+	SchoolID            int64                 `json:"school_id,omitempty"`
+	OrganizationID      int64                 `json:"organization_id,omitempty"`
+	PersonReview        bool                  `json:"person_review,omitempty"`
 	Outcome             string                `json:"outcome"`
 	StartedAt           string                `json:"started_at"`
 	ErrorClass          string                `json:"error_class,omitempty"`
@@ -181,8 +185,8 @@ type TenantExportOptions struct {
 	// in the package of that school.
 	SchoolID       int64
 	OrganizationID int64
-	// OperatorID is the moto operator who runs a Träger package; the
-	// operator audit names it (ADR 0187). Required with OrganizationID.
+	// OperatorID is the moto operator who runs the export; the operator
+	// audit names it (ADR 0187, #6326). Required for every package.
 	OperatorID int64
 	// Person optionally derives an INTERNAL review workspace: kind:<profile ID>,
 	// guardian:<profile ID>, staff:<school membership ID>. Never hand it over
