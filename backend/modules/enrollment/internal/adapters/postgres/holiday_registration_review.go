@@ -273,7 +273,8 @@ const (
 	reviewHistoryQuery = `SELECT action, occurred_at, actor_account_id, details
 		FROM enrollment.holiday_registration_audit
 		WHERE organization_id = ? AND holiday_registration_id = ?
-			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel', 'promote')
+			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel', 'promote',
+				'allocate', 'criteria_check')
 		ORDER BY occurred_at, id`
 )
 

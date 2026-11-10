@@ -27,16 +27,9 @@ func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.Holi
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
 }
 
-// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722) and places (#4699); nil mail moves nobody up; schoolCalendar (#4702) may be nil without rebooking.
-func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces) {
-	review, places, _ := NewHolidayReviewAllocation(health, mail, schoolCalendar)
-	return review, places
-}
-
-// NewHolidayReviewAllocation builds the review and places with the allocation by criteria over them (#4700); nil mail decides nothing.
-func NewHolidayReviewAllocation(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces, enrollment.HolidayAllocation) {
-	review, places := applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, schoolCalendar)
-	return review, places, applicationNative.NewHolidayAllocation(review)
+// NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722), places (#4699) and allocation by criteria (#4700); nil mail moves nobody up and decides nothing; schoolCalendar (#4702) may be nil without rebooking.
+func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces, enrollment.HolidayAllocation) {
+	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, schoolCalendar)
 }
 
 // NewHolidayHealthExportFields opens the sealed health information for the return export (#3838, #6328); only the administrative export CLI binds it, never HTTP.

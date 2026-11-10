@@ -99,8 +99,9 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // NewHolidayRegistrationReview builds the review; forms reads the form
 // versions the answers belong to (#5198), health opens the health
 // information (#4722), schoolCalendar names the host schools' days without
-// care (#4702). A nil today uses the Berlin calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces) {
+// care (#4702). A nil today uses the Berlin calendar day. The allocation by
+// criteria shares the review's store, locks and mail (#4700).
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation) {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -114,7 +115,7 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 		store: store, periods: periods, forms: forms, health: health, today: today,
 		placement: holidayPlacement{store: store, mail: mail}, calendar: schoolCalendar,
 	}
-	return review, NewHolidayPlaces(store, periods, nil, mail)
+	return review, NewHolidayPlaces(store, periods, nil, mail), NewHolidayAllocation(review)
 }
 
 // moveUp gives the places of the weeks to their waiting lists after a

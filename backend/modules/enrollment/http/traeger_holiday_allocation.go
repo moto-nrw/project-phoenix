@@ -44,11 +44,6 @@ type HolidayCriteriaRequest struct {
 // Bind accepts the body; the Owner validates the list.
 func (req *HolidayCriteriaRequest) Bind(*http.Request) error { return nil }
 
-// HolidayCriteriaResponse lists the criteria of the Träger by priority.
-type HolidayCriteriaResponse struct {
-	Criteria []capability.HolidayCriterion `json:"criteria"`
-}
-
 func (rs *HolidayPeriodResource) listCriteria(w http.ResponseWriter, r *http.Request) {
 	reviewer, ok := reviewerOf(w, r)
 	if !ok {
@@ -59,7 +54,7 @@ func (rs *HolidayPeriodResource) listCriteria(w http.ResponseWriter, r *http.Req
 		renderHolidayAllocationError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, HolidayCriteriaResponse{Criteria: criteria}, "Holiday criteria retrieved successfully")
+	common.Respond(w, r, http.StatusOK, criteria, "Holiday criteria retrieved successfully")
 }
 
 func (rs *HolidayPeriodResource) saveCriteria(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +82,7 @@ func (rs *HolidayPeriodResource) saveCriteria(w http.ResponseWriter, r *http.Req
 		renderHolidayAllocationError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, HolidayCriteriaResponse{Criteria: criteria}, "Holiday criteria saved successfully")
+	common.Respond(w, r, http.StatusOK, criteria, "Holiday criteria saved successfully")
 }
 
 func (rs *HolidayPeriodResource) allocationBoard(w http.ResponseWriter, r *http.Request) {

@@ -225,7 +225,8 @@ type HolidayDebtorNumberChange struct {
 // and after a rebooking, the debtor number a confirmation entered or a
 // change changed, the changed fields of an edit as field paths such as
 // "guardian.phone" or "children.0.last_name" (#5629), the other
-// registrations of a sibling merge or split (#5628).
+// registrations of a sibling merge or split (#5628), a decision on a place
+// and a check of an answer by criteria (#4700).
 type HolidayRegistrationEventDetails struct {
 	From         string                     `json:"from,omitempty"`
 	ChildID      int64                      `json:"child_id,omitempty"`
@@ -234,6 +235,13 @@ type HolidayRegistrationEventDetails struct {
 	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
 	Fields       []string                   `json:"fields,omitempty"`
 	Siblings     []int64                    `json:"siblings,omitempty"`
+	// WeekID, Placement, Proposal and Reason name a decision of the Büro by
+	// criteria (#4700), Checks its checks of the parents' answers.
+	WeekID    int64                   `json:"week_id,omitempty"`
+	Placement string                  `json:"placement,omitempty"`
+	Proposal  string                  `json:"proposal,omitempty"`
+	Reason    string                  `json:"reason,omitempty"`
+	Checks    []HolidayCriterionCheck `json:"checks,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.

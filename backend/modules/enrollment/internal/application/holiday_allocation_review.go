@@ -63,31 +63,8 @@ func (h *HolidayRegistrationReview) detailCriteria(ctx context.Context, organiza
 	if err != nil {
 		return nil, fmt.Errorf("enrollment: read holiday criterion answers: %w", err)
 	}
-	find := func(criterionID int64, childID *int64) (enrollment.HolidayCriterionAnswer, bool) {
-		index := slices.IndexFunc(answers, func(answer enrollment.HolidayCriterionAnswer) bool {
-			return answer.CriterionID == criterionID && ((answer.ChildID == nil && childID == nil) ||
-				(answer.ChildID != nil && childID != nil && *answer.ChildID == *childID))
-		})
-		if index < 0 {
-			return enrollment.HolidayCriterionAnswer{}, false
-		}
-		return answers[index], true
-	}
 	add := func(criterion enrollment.HolidayCriterion, childID *int64) {
-		entry := enrollment.HolidayRegistrationCriterion{
-			CriterionID: criterion.ID, Name: criterion.Name, Question: criterion.Question, Scope: criterion.Scope,
-			ChildID: childID, Stated: enrollment.HolidayCriterionUnknown,
-		}
-		if answer, found := find(criterion.ID, childID); found {
-			if answer.Stated != nil {
-				entry.Stated = holidayYesNo(*answer.Stated)
-			}
-			if answer.Checked != nil {
-				checked := holidayYesNo(*answer.Checked)
-				entry.Checked, entry.CheckedAt = &checked, answer.CheckedAt
-			}
-		}
-		criteria = append(criteria, entry)
+		criteria = append(criteria, holidayRegistrationCriterion(criterion, childID, answers))
 	}
 	for _, criterion := range activeHolidayCriteria(all) {
 		if criterion.Scope == enrollment.HolidayCriterionFamily {
@@ -99,4 +76,37 @@ func (h *HolidayRegistrationReview) detailCriteria(ctx context.Context, organiza
 		}
 	}
 	return criteria, nil
+}
+
+// holidayRegistrationCriterion is the answer of the family, nil childID, or
+// of a child to one criterion: what the parents stated and what the Büro
+// checked; an answer never given is unknown.
+func holidayRegistrationCriterion(criterion enrollment.HolidayCriterion, childID *int64, answers []enrollment.HolidayCriterionAnswer) enrollment.HolidayRegistrationCriterion {
+	entry := enrollment.HolidayRegistrationCriterion{
+		CriterionID: criterion.ID, Name: criterion.Name, Question: criterion.Question, Scope: criterion.Scope,
+		ChildID: childID, Stated: enrollment.HolidayCriterionUnknown,
+	}
+	index := slices.IndexFunc(answers, func(answer enrollment.HolidayCriterionAnswer) bool {
+		return answer.CriterionID == criterion.ID && sameHolidayChild(answer.ChildID, childID)
+	})
+	if index < 0 {
+		return entry
+	}
+	answer := answers[index]
+	if answer.Stated != nil {
+		entry.Stated = holidayYesNo(*answer.Stated)
+	}
+	if answer.Checked != nil {
+		checked := holidayYesNo(*answer.Checked)
+		entry.Checked, entry.CheckedAt = &checked, answer.CheckedAt
+	}
+	return entry
+}
+
+// sameHolidayChild compares two optional child IDs; nil is the family.
+func sameHolidayChild(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }

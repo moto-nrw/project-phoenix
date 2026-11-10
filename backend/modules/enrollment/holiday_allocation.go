@@ -126,6 +126,20 @@ type HolidayCriterion struct {
 	Answered bool   `json:"answered"`
 }
 
+// HolidayCriteriaCatalog are the criteria of the Träger by priority and the
+// periods that allocate by them: a change of the criteria changes the order
+// of their pending bookings and waiting lists at once.
+type HolidayCriteriaCatalog struct {
+	Criteria []HolidayCriterion       `json:"criteria"`
+	Periods  []HolidayCriterionPeriod `json:"periods"`
+}
+
+// HolidayCriterionPeriod names a period that allocates by criteria.
+type HolidayCriterionPeriod struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 // HolidayCriterionInput is a criterion as the Träger-Büro writes it; a zero
 // ID adds one. The order of the list is the priority.
 type HolidayCriterionInput struct {
@@ -258,12 +272,12 @@ type HolidayCriterionCheck struct {
 // transaction of the reviewer's Träger.
 type HolidayAllocation interface {
 	// HolidayCriteria lists the criteria of the Träger by priority, archived
-	// ones left out.
-	HolidayCriteria(ctx context.Context, reviewer HolidayReviewer) ([]HolidayCriterion, error)
+	// ones left out, with the periods that allocate by them.
+	HolidayCriteria(ctx context.Context, reviewer HolidayReviewer) (HolidayCriteriaCatalog, error)
 	// SaveHolidayCriteria makes criteria the criteria of the Träger in their
 	// order; one left out is archived. Invalid texts or scopes are a
 	// validation error on criteria.N.field.
-	SaveHolidayCriteria(ctx context.Context, reviewer HolidayReviewer, criteria []HolidayCriterionInput) ([]HolidayCriterion, error)
+	SaveHolidayCriteria(ctx context.Context, reviewer HolidayReviewer, criteria []HolidayCriterionInput) (HolidayCriteriaCatalog, error)
 	// HolidayAllocationBoard reads the allocation list of a period and
 	// records the read; a period by arrival is ErrHolidayAllocationOff.
 	HolidayAllocationBoard(ctx context.Context, reviewer HolidayReviewer, periodID int64) (HolidayAllocationBoard, error)

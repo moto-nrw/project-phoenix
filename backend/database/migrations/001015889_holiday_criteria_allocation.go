@@ -72,7 +72,7 @@ CREATE TABLE enrollment.holiday_allocation_criteria (
 	archived_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_by_account_id BIGINT,
+	updated_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	CONSTRAINT uq_holiday_allocation_criteria_organization UNIQUE (organization_id, id),
 	CONSTRAINT chk_holiday_allocation_criteria_texts CHECK (
 		BTRIM(name) <> '' AND char_length(name) <= 60 AND BTRIM(question) <> '' AND char_length(question) <= 300),
@@ -93,7 +93,7 @@ CREATE TABLE enrollment.holiday_registration_criteria (
 	criterion_id BIGINT NOT NULL,
 	stated BOOLEAN,
 	checked BOOLEAN,
-	checked_by_account_id BIGINT,
+	checked_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	checked_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT fk_holiday_registration_criteria_registration
@@ -131,7 +131,7 @@ CREATE TABLE enrollment.holiday_allocation_decisions (
 	rank INTEGER NOT NULL,
 	criteria_met TEXT[] NOT NULL DEFAULT '{}',
 	reason TEXT NOT NULL DEFAULT '',
-	decided_by_account_id BIGINT,
+	decided_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	decided_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
 	CONSTRAINT fk_holiday_allocation_decisions_registration
 		FOREIGN KEY (organization_id, holiday_period_id, holiday_registration_id)

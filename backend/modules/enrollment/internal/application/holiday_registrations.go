@@ -275,9 +275,6 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 			return enrollment.HolidayRegistrationReceipt{}, err
 		}
 	}
-	if input, err = h.checkCriteria(ctx, link.OrganizationID, period, input); err != nil {
-		return enrollment.HolidayRegistrationReceipt{}, err
-	}
 	if !holidayRegistrationHasHealth(input, form, answers) {
 		input.HealthConsent = false
 	}
@@ -293,6 +290,10 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 // rows it belongs to (#4722).
 func (h *HolidayRegistrations) storeSubmitted(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
 	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
+	input, err := h.checkCriteria(ctx, link.OrganizationID, period, input)
+	if err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	health, input := splitHolidayHealth(input, form)
 	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input, holidayWaitingPlacement(period, enrollment.HolidayRegistrationReceived),
 		func(registrationID int64) (enrollment.HolidaySealedHealth, error) {

@@ -157,11 +157,15 @@ func (s *HolidayRegistrationStore) WriteHolidayCriteria(ctx context.Context, org
 		return fmt.Errorf("enrollment postgres: archive holiday criteria: %w", err)
 	}
 	for i, criterion := range criteria {
-		query, args := insertHolidayCriterionQuery, []any{organizationID, criterion.Name, criterion.Question, criterion.Scope, criterion.Active, i + 1, actorAccountID}
+		var err error
 		if criterion.ID > 0 {
-			query, args = updateHolidayCriterionQuery, []any{criterion.Name, criterion.Question, criterion.Scope, criterion.Active, i + 1, actorAccountID, organizationID, criterion.ID}
+			_, err = db.NewRaw(updateHolidayCriterionQuery, criterion.Name, criterion.Question, criterion.Scope, criterion.Active, i+1,
+				actorAccountID, organizationID, criterion.ID).Exec(ctx)
+		} else {
+			_, err = db.NewRaw(insertHolidayCriterionQuery, organizationID, criterion.Name, criterion.Question, criterion.Scope, criterion.Active,
+				i+1, actorAccountID).Exec(ctx)
 		}
-		if _, err := db.NewRaw(query, args...).Exec(ctx); err != nil {
+		if err != nil {
 			return fmt.Errorf("enrollment postgres: write holiday criterion: %w", err)
 		}
 	}
@@ -397,6 +401,8 @@ func (s *HolidayRegistrationStore) InsertHolidayAllocationDecisions(ctx context.
 }
 
 type holidayAllocationDecisionRow struct {
+	bun.BaseModel `bun:"table:enrollment.holiday_allocation_decisions"`
+
 	ID                 int64         `bun:"id"`
 	WeekID             int64         `bun:"holiday_period_week_id"`
 	WeekStartsOn       calendar.Date `bun:"week_starts_on,type:date"`

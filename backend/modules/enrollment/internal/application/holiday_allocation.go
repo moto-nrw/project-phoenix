@@ -63,32 +63,56 @@ func NewHolidayAllocation(review *HolidayRegistrationReview) *HolidayAllocation 
 	return &HolidayAllocation{review: review}
 }
 
-// HolidayCriteria lists the criteria of the Träger by priority.
-func (a *HolidayAllocation) HolidayCriteria(ctx context.Context, reviewer enrollment.HolidayReviewer) ([]enrollment.HolidayCriterion, error) {
+// HolidayCriteria lists the criteria of the Träger by priority with the
+// periods that allocate by them.
+func (a *HolidayAllocation) HolidayCriteria(ctx context.Context, reviewer enrollment.HolidayReviewer) (enrollment.HolidayCriteriaCatalog, error) {
 	if err := holidayReviewKey(reviewer, 1, 1); err != nil {
-		return nil, err
+		return enrollment.HolidayCriteriaCatalog{}, err
 	}
 	criteria, err := a.review.store.ReadHolidayCriteria(ctx, reviewer.OrganizationID)
 	if err != nil {
-		return nil, fmt.Errorf("enrollment: read holiday criteria: %w", err)
+		return enrollment.HolidayCriteriaCatalog{}, fmt.Errorf("enrollment: read holiday criteria: %w", err)
 	}
-	return criteria, nil
+	periods, err := a.review.periods.ListHolidayPeriods(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return enrollment.HolidayCriteriaCatalog{}, fmt.Errorf("enrollment: list holiday periods: %w", err)
+	}
+	return holidayCriteriaCatalog(criteria, periods), nil
 }
 
 // SaveHolidayCriteria checks and writes the criteria of the Träger in their
-// order.
-func (a *HolidayAllocation) SaveHolidayCriteria(ctx context.Context, reviewer enrollment.HolidayReviewer, criteria []enrollment.HolidayCriterionInput) ([]enrollment.HolidayCriterion, error) {
+// order and returns them as stored.
+func (a *HolidayAllocation) SaveHolidayCriteria(ctx context.Context, reviewer enrollment.HolidayReviewer, input []enrollment.HolidayCriterionInput) (enrollment.HolidayCriteriaCatalog, error) {
 	if err := holidayReviewKey(reviewer, 1, 1); err != nil {
-		return nil, err
+		return enrollment.HolidayCriteriaCatalog{}, err
 	}
-	criteria, err := normalizeHolidayCriteria(criteria)
+	input, err := normalizeHolidayCriteria(input)
 	if err != nil {
-		return nil, err
+		return enrollment.HolidayCriteriaCatalog{}, err
 	}
-	if err := a.review.store.WriteHolidayCriteria(ctx, reviewer.OrganizationID, criteria, reviewer.AccountID); err != nil {
-		return nil, err
+	if err := a.review.store.WriteHolidayCriteria(ctx, reviewer.OrganizationID, input, reviewer.AccountID); err != nil {
+		return enrollment.HolidayCriteriaCatalog{}, err
 	}
-	return a.HolidayCriteria(ctx, reviewer)
+	criteria, err := a.review.store.ReadHolidayCriteria(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return enrollment.HolidayCriteriaCatalog{}, fmt.Errorf("enrollment: read holiday criteria: %w", err)
+	}
+	periods, err := a.review.periods.ListHolidayPeriods(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return enrollment.HolidayCriteriaCatalog{}, fmt.Errorf("enrollment: list holiday periods: %w", err)
+	}
+	return holidayCriteriaCatalog(criteria, periods), nil
+}
+
+// holidayCriteriaCatalog names the criteria with the periods by criteria.
+func holidayCriteriaCatalog(criteria []enrollment.HolidayCriterion, periods []enrollment.HolidayPeriod) enrollment.HolidayCriteriaCatalog {
+	catalog := enrollment.HolidayCriteriaCatalog{Criteria: criteria, Periods: []enrollment.HolidayCriterionPeriod{}}
+	for _, period := range periods {
+		if period.AllocationMode == enrollment.HolidayAllocationCriteria {
+			catalog.Periods = append(catalog.Periods, enrollment.HolidayCriterionPeriod{ID: period.ID, Name: period.Name})
+		}
+	}
+	return catalog
 }
 
 // normalizeHolidayCriteria trims the texts and checks the list: at most
@@ -104,19 +128,7 @@ func normalizeHolidayCriteria(criteria []enrollment.HolidayCriterionInput) ([]en
 	for i, criterion := range criteria {
 		criterion.Name = strings.TrimSpace(criterion.Name)
 		criterion.Question = strings.TrimSpace(criterion.Question)
-		field := func(name string) string { return fmt.Sprintf("criteria.%d.%s", i, name) }
-		if criterion.Name == "" || utf8.RuneCountInString(criterion.Name) > enrollment.HolidayCriterionNameMaxLength {
-			errs[field("name")] = fmt.Errorf("a name of 1 to %d characters is required", enrollment.HolidayCriterionNameMaxLength)
-		}
-		if criterion.Question == "" || utf8.RuneCountInString(criterion.Question) > enrollment.HolidayCriterionQuestionMaxLen {
-			errs[field("question")] = fmt.Errorf("a question of 1 to %d characters is required", enrollment.HolidayCriterionQuestionMaxLen)
-		}
-		if criterion.Scope != enrollment.HolidayCriterionFamily && criterion.Scope != enrollment.HolidayCriterionChild {
-			errs[field("scope")] = errors.New("must be family or child")
-		}
-		if criterion.ID < 0 || (criterion.ID > 0 && seen[criterion.ID]) {
-			errs[field("id")] = errors.New("names a criterion twice")
-		}
+		validateHolidayCriterion(errs, i, criterion, seen)
 		seen[criterion.ID] = true
 		normalized[i] = criterion
 	}
@@ -124,6 +136,23 @@ func normalizeHolidayCriteria(criteria []enrollment.HolidayCriterionInput) ([]en
 		return nil, errs
 	}
 	return normalized, nil
+}
+
+// validateHolidayCriterion checks one criterion of the list at index.
+func validateHolidayCriterion(errs validation.Errors, index int, criterion enrollment.HolidayCriterionInput, seen map[int64]bool) {
+	field := func(name string) string { return fmt.Sprintf("criteria.%d.%s", index, name) }
+	if criterion.Name == "" || utf8.RuneCountInString(criterion.Name) > enrollment.HolidayCriterionNameMaxLength {
+		errs[field("name")] = fmt.Errorf("a name of 1 to %d characters is required", enrollment.HolidayCriterionNameMaxLength)
+	}
+	if criterion.Question == "" || utf8.RuneCountInString(criterion.Question) > enrollment.HolidayCriterionQuestionMaxLen {
+		errs[field("question")] = fmt.Errorf("a question of 1 to %d characters is required", enrollment.HolidayCriterionQuestionMaxLen)
+	}
+	if criterion.Scope != enrollment.HolidayCriterionFamily && criterion.Scope != enrollment.HolidayCriterionChild {
+		errs[field("scope")] = errors.New("must be family or child")
+	}
+	if criterion.ID < 0 || (criterion.ID > 0 && seen[criterion.ID]) {
+		errs[field("id")] = errors.New("names a criterion twice")
+	}
 }
 
 // HolidayAllocationBoard reads the allocation list of a period by criteria
